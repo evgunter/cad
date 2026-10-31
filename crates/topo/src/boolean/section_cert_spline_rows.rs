@@ -347,44 +347,40 @@ fn a_plane_on_a_walls_side_is_cleared() {
     );
 }
 
-/// **A graze the sweep proves loop-free clears; read whole, it is
-/// refused by name.** The trough `z = (x − ½)² − y/2` cut at `z = 0`
-/// meets the plane in `y = 2(x − ½)²`, which touches the rectangle's
-/// side `y = 0` at `x = ½` while the surfaces cross. The plane's normal
-/// is never the wall's (`n·S_v = −½`), so the regularity sweep proves
-/// every component open, ending on sides that bound the wall, and the
-/// guard clears it by W1′ with no whole reading. The whole reading
-/// refuses the graze, and the guard reads that refusal as a tangency,
-/// named by the row that decided it.
-///
-/// Red against the sweep removed (the pair refuses R-tan), and against
-/// the whole reading's refusals all read as R-reach.
+/// **A graze is refused by name, before any sweep.** The trough
+/// `z = (x − ½)² − y/2` cut at `z = 0` meets the plane in
+/// `y = 2(x − ½)²`, which touches the rectangle's side `y = 0` at
+/// `x = ½` while the surfaces cross. The boundary pass, the
+/// classification's second stage, refuses the graze, and the guard reads
+/// it as a tangency, named by the row that decided it; the regularity
+/// sweep, which would prove the section loop-free, is never asked. Red
+/// against the pass run only behind the sweep (the pair clears), and
+/// against the classification's refusals all read as R-reach.
 #[test]
-fn a_graze_clears_by_the_sweep_and_is_refused_whole_by_name() {
+fn a_graze_is_refused_by_name() {
     let g = [0.25, -0.25, 0.25];
     let trough = net(&|i, j| g[i] - 0.25 * f64::from(u8::try_from(j).unwrap()));
     let s = read(&level(0.0), &trough);
-    assert_eq!(
-        certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
-        Ok(vec![Cleared::Reaches(Side::G)]),
-        "the sweep clears the graze: {s:?}"
-    );
-    let lane = Some(geom_brep::SsiLane::marched());
-    let Ok(geom_brep::SectionRead::Built(built)) =
-        geom_brep::pair_section(&level(0.0), &trough, None, lane, band())
-    else {
-        panic!("the pose is classified")
-    };
     assert!(
-        matches!(built.components(), geom_brep::Components::Reaching(_)),
-        "the sweep's verdict: {built:?}"
+        matches!(s, Section::Tangent("ssi_boundary_crossing")),
+        "the graze is a tangency: {s:?}"
     );
-    let whole = of_pair_section(&built.read_whole(lane, band()), band(), |_| {
-        Section::Unmarched
-    });
+}
+
+/// **A wall within the band of the plane everywhere is refused, named.**
+/// A biquadratic planar wall tilted so that its every point lies within
+/// a tenth of the zero band of the plane `z = 0`: the hull decides it on
+/// the plane, a coincidence, and the guard refuses it as a tangency,
+/// named. Red against the hull's coincidence dropped (the sweep reads the
+/// wall loop-free and the pair clears).
+#[test]
+fn a_wall_within_the_band_everywhere_is_refused_named() {
+    let t = 0.1 * band().zero();
+    let tilted = net(&|i, _| t * (f64::from(u8::try_from(i).unwrap()) - 1.0));
+    let s = read(&level(0.0), &tilted);
     assert!(
-        matches!(whole, Section::Tangent("ssi_boundary_crossing")),
-        "read whole, the graze is a tangency: {whole:?}"
+        matches!(s, Section::Tangent("section_nurbs_plane_coincident")),
+        "the wall on the plane: {s:?}"
     );
 }
 
@@ -510,15 +506,29 @@ fn a_collapsed_side_bounds_no_face() {
 /// closed curve of diameter `2·tan 0.3` through the apex, inside a face
 /// the rim alone bounds; the apex is the chart's collapsed side `v = 0`,
 /// with no edge on it, so W1′'s premise fails there. Through the apex
-/// and a few tenths of a band either side, no reading clears the pose
-/// by reaching the pole side. (Today the reading refuses the pole side
-/// as a graze first; `a_collapsed_side_bounds_no_face` is the row that
-/// reds without the guard's own condition.)
+/// and a few tenths of a band either side, the classification's door
+/// refuses the pose, naming the pole side, before the boundary pass or
+/// the sweep: the collapsed side is not decided clear of the plane. Red
+/// against the door dropped (the pass refuses the pole as a graze
+/// instead); `a_collapsed_side_bounds_no_face` is the row that reds
+/// without the guard's own condition.
 #[test]
 fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
     let a = 0.3_f64;
     for d in [0.0, 0.3 * band().zero(), -0.3 * band().zero()] {
         let tilted = plane(p(0.0, 0.0, -d), v(a.sin(), 0.0, a.cos()));
+        let door = geom_brep::pair_section(
+            &tilted,
+            &revolved_dome(),
+            None,
+            Some(geom_brep::SsiLane::marched()),
+            band(),
+        );
+        assert!(
+            matches!(&door, Err(geom_brep::SectionError::Unaccounted { cause })
+                if cause.contains("collapses to a point")),
+            "d {d:e}: the door refuses the pole: {door:?}"
+        );
         let s = read(&tilted, &revolved_dome());
         let verdict = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
         assert!(
@@ -526,20 +536,4 @@ fn a_loop_through_a_pole_is_not_cleared_by_reaching_it() {
             "d {d:e}: the loop through the apex is cleared by reaching a side: {s:?} {verdict:?}"
         );
     }
-}
-
-/// Review 6150: a biquadratic planar wall tilted so that its every point
-/// lies within a tenth of the zero band of the plane `z = 0`, and the
-/// exact point graze of a wall's side. Printed, not asserted.
-#[test]
-fn review_6150_in_band_wall_and_graze() {
-    let t = 0.1 * band().zero();
-    let tilted = net(&|i, _| t * (f64::from(u8::try_from(i).unwrap()) - 1.0));
-    eprintln!(
-        "REVIEW in-band tilted wall: {:?}",
-        read(&level(0.0), &tilted)
-    );
-    let g = [0.25, -0.25, 0.25];
-    let trough = net(&|i, j| g[i] - 0.25 * f64::from(u8::try_from(j).unwrap()));
-    eprintln!("REVIEW trough graze: {:?}", read(&level(0.0), &trough));
 }

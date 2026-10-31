@@ -1358,3 +1358,53 @@ pub fn holds<T: Decide>(
     };
     Sides::new(surface, &chart, &points, loops, band).holds(singularity, x, sense)
 }
+
+/// **Whether a side of a spline net's rectangle spans more than a
+/// point**: some control point of the net's row along it is decided
+/// apart from the row's first (`pcurve_chart_side_spans`). A row decided
+/// one point, or undecided, is a collapsed side, a pole a face may lie
+/// across with no edge on it. The one reading of a collapsed side: the
+/// section certificate's W1′ reads it, and the plane × spline pose's
+/// door reads it before its sweep.
+#[must_use]
+pub fn spline_side_spans<T: Decide>(
+    net: &geom::NurbsSurface<T>,
+    side: crate::ssi::ChartSide,
+    band: Band,
+) -> bool {
+    let row = spline_side_row(net, side);
+    let control = net.control();
+    let Some(first) = row.first().and_then(|&i| control.get(i)) else {
+        return false;
+    };
+    row.iter().filter_map(|&i| control.get(i)).any(|p| {
+        matches!(
+            decide(
+                "pcurve_chart_side_spans",
+                Margin::of(first.distance(*p)),
+                band
+            ),
+            Ok(Sign::Positive)
+        )
+    })
+}
+
+/// The indices of a spline net's control points along `side`, in order.
+#[must_use]
+pub fn spline_side_row<T: Real>(
+    net: &geom::NurbsSurface<T>,
+    side: crate::ssi::ChartSide,
+) -> Vec<usize> {
+    use crate::ssi::{ChartAxis, ChartEnd};
+    let (nu, nv) = net.control_counts();
+    match (side.fixed, side.end) {
+        (ChartAxis::U, ChartEnd::Low) => (0..nv).collect(),
+        (ChartAxis::U, ChartEnd::High) => {
+            (0..nv).map(|iv| (nu.saturating_sub(1)) * nv + iv).collect()
+        }
+        (ChartAxis::V, ChartEnd::Low) => (0..nu).map(|iu| iu * nv).collect(),
+        (ChartAxis::V, ChartEnd::High) => {
+            (0..nu).map(|iu| iu * nv + nv.saturating_sub(1)).collect()
+        }
+    }
+}

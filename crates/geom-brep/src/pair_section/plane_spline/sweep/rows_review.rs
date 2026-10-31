@@ -7,8 +7,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::super::PlaneSplinePose;
-use super::{Sweep, sweep};
+use super::Sweep;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("band")
@@ -57,14 +56,13 @@ fn q() -> (Vec<f64>, usize) {
 }
 
 fn swept(p: &Surface<f64>, w: &Surface<f64>) -> Sweep {
-    let pose = PlaneSplinePose::of(p, w).expect("a plane and a spline");
-    sweep(pose.net(), pose.pivot().heights, band())
+    super::swept(p, w, band())
 }
 
 fn never_loop_free(what: &str, p: &Surface<f64>, w: &Surface<f64>) {
     let got = swept(p, w);
     assert!(
-        !matches!(got, Sweep::LoopFree(_)),
+        !matches!(got, Sweep::LoopFree),
         "{what}: a loop of the section is proved away: {got:?}"
     );
 }
@@ -170,8 +168,10 @@ fn review_loops_are_never_proved_away() {
 }
 
 /// Below its saddle the dome-and-saddle's section is open (no loop):
-/// shown for what the sweep says, not asserted.
+/// shown for what the sweep says, not asserted. Run with `cargo nextest
+/// run -p geom-brep --run-ignored only review_dome_and_saddle --no-capture`.
 #[test]
+#[ignore = "a print for review: asserts nothing"]
 fn review_dome_and_saddle_below_the_saddle() {
     eprintln!(
         "below the saddle: {:?}",
@@ -194,12 +194,16 @@ fn review_a_wall_within_the_band_everywhere_is_not_loop_free() {
     );
     let got = swept(&level(0.0), &tilted);
     assert!(
-        !matches!(got, Sweep::LoopFree(_)),
+        !matches!(got, Sweep::LoopFree),
         "a wall within {t:e} of the plane everywhere reads loop-free: {got:?}"
     );
 }
 
+/// The edge and split domes' sweeps, printed. Run with `cargo nextest
+/// run -p geom-brep --run-ignored only review_print_edge_dome
+/// --no-capture`.
 #[test]
+#[ignore = "a print for review: asserts nothing"]
 fn review_print_edge_dome() {
     for d in [1e-3, 1e-4, 2e-3, 2.5e-3] {
         eprintln!(

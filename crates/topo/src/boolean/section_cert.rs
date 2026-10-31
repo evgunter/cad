@@ -334,10 +334,14 @@
 //!   ([`geom_brep::pair_section`], C5), read and never re-decided. Its
 //!   hull is W0: the control net's every point decided strictly on one
 //!   side of the plane, the patch lying in the net's convex hull (its
-//!   weights are positive). Its regularity sweep, through the march
-//!   door, is the guard's loop-free stage: the wall's normal bounded
-//!   off the plane's, so no component closes in the wall's chart, each
-//!   ending on a side the verdict names; it clears by W1′ where every
+//!   weights are positive); a net within the zero band everywhere is
+//!   coincident (R-tan, named) and one in band escalates (R-tan). A
+//!   collapsed side not decided clear of the plane refuses at the door
+//!   (R-reach). Through the march door the boundary pass refuses a graze
+//!   or a side held tangent (R-tan, named), and the regularity sweep is
+//!   the guard's loop-free stage: the wall's normal bounded off the
+//!   plane's, so no component closes in the wall's chart, each ending
+//!   on a side the pass found an end on; it clears by W1′ where every
 //!   such side bounds the wall, and is otherwise read whole. Any other
 //!   pose is the whole reading (C3's `all()`, at `f64`; with no door,
 //!   R-lane): a closed branch is a loop, read by W3, W4 or the no-event
@@ -801,12 +805,13 @@ pub(crate) fn classify<T: Decide>(
 }
 
 /// **A spline face against a plane, read off the pair's
-/// classification** ([`geom_brep::pair_section`] through `lane`): the
-/// hull's apart is W0; the regularity sweep's loop-free verdict
-/// ([`geom_brep::Components::Reaching`]) clears the pair by W1′ where
-/// every side it reaches bounds the wall, and is otherwise read whole;
-/// any other pose is C3's whole reading. With no lane a pose the hull
-/// does not decide is R-lane.
+/// classification** ([`geom_brep::pair_section`] through `lane`, module
+/// docs): the hull's apart is W0 and its coincidence R-tan, named; the
+/// door's and the boundary pass's refusals map by name; the regularity
+/// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])
+/// clears by W1′ where every side it names bounds the wall, and is
+/// otherwise read whole; any other pose is C3's whole reading. With no
+/// lane a pose the hull does not decide is R-lane.
 fn spline_plane<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
@@ -819,6 +824,11 @@ fn spline_plane<T: Decide>(
     match geom_brep::pair_section(f, g, None, lane, band) {
         Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, listed),
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
+        // The hull decided the wall within the zero band of the plane
+        // everywhere: no component count is certified.
+        Err(geom_brep::SectionError::CoincidentSurfaces) => {
+            Section::Tangent("section_nurbs_plane_coincident")
+        }
         Err(e) => of_pair_section(&Err(e), band, listed),
     }
 }
@@ -1868,31 +1878,25 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::NoMarch { scalar }) => return Section::NoLane(scalar),
     };
     let (f, g) = section.pose().operands();
-    let bounds = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| {
+    // The sides of `surface`'s chart a reach names, each read for W1′.
+    let bounding = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| -> Vec<bool> {
         reach
             .sides()
-            .any(|side| crate::pcurves::chart_side_bounds(surface, side, band))
+            .map(|side| crate::pcurves::chart_side_bounds(surface, side, band))
+            .collect()
     };
     let components = match section.components() {
         Components::Counted(components) => components,
         Components::Marched => return marched(section),
-        // Every component is open, ending on some of these sides: each
-        // clears by W1′ where every side listed bounds its surface;
-        // otherwise the list is the reader's to take.
+        // Every component is open, ending on some of these sides (some
+        // side, by the variant's contract): each clears by W1′ where
+        // every side listed bounds its surface; otherwise the list is the
+        // reader's to take.
         &Components::Reaching([on_f, on_g]) => {
-            let every = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| {
-                reach
-                    .sides()
-                    .all(|side| crate::pcurves::chart_side_bounds(surface, side, band))
-            };
-            if !(every(on_f, f) && every(on_g, g)) {
+            if !(bounding(on_f, f).iter().all(|&b| b) && bounding(on_g, g).iter().all(|&b| b)) {
                 return marched(section);
             }
-            let side = match (on_f.any(), on_g.any()) {
-                (true, _) => Side::F,
-                (false, true) => Side::G,
-                (false, false) => return none(),
-            };
+            let side = if on_f.any() { Side::F } else { Side::G };
             return Section::Components {
                 parts: vec![Component {
                     unbounded: false,
@@ -1936,9 +1940,9 @@ pub(super) fn of_pair_section<T: Decide>(
                                 rims: [on_f, on_g], ..
                             },
                     } => {
-                        if bounds(on_f, f) {
+                        if bounding(on_f, f).contains(&true) {
                             Some(Side::F)
-                        } else if bounds(on_g, g) {
+                        } else if bounding(on_g, g).contains(&true) {
                             Some(Side::G)
                         } else {
                             None

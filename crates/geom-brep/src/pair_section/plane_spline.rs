@@ -1,23 +1,28 @@
 //! **Plane × spline: the pair classified, then read whole.** The pair
 //! decides its tangency and coincidence once, in its classification on
 //! `φ`, the height of the wall's point over the plane, over the wall's
-//! knot rectangle (C5), in three stages:
+//! knot rectangle (C5), in three stages run in this order:
 //!
-//! 1. **the hull** ([`PlaneSplinePose::apart`]): a net whose every
-//!    control point is decided on one side of the plane is apart, at
-//!    every scalar and with no march door;
-//! 2. **the boundary pass**, each side of the rectangle, which C3's
-//!    whole reading runs before it marches;
-//! 3. **the regularity sweep** ([`sweep`], through the march door): where
-//!    `∇φ` is bounded off zero, past the band's exclusions, no component
-//!    closes in the wall's chart. That verdict is the section
-//!    ([`Components::Reaching`]), and the interior-loop guard's
-//!    loop-free stage is it.
-//!
-//! The hull runs first and the sweep second; where the sweep declines,
-//! the pose is read whole, its boundary pass first. A loop-free verdict
-//! decides no side: a graze of a side, or a side lying in the plane,
-//! ends a component there, which is all it says.
+//! 1. **the hull** (`PlaneSplinePose::hull`), at every scalar and with
+//!    no march door: a net whose every control point is decided on one
+//!    side of the plane is apart; one whose largest height is decided
+//!    within the zero band lies on the plane
+//!    ([`SectionError::CoincidentSurfaces`]), and one in band escalates.
+//!    Then the door (`PlaneSplinePose::door`): a side of the rectangle
+//!    collapsed to a point
+//!    ([`crate::chart_singularity::spline_side_spans`]) and not decided
+//!    clear of the plane refuses, named;
+//! 2. **the boundary pass**, through the march door, each side of the
+//!    rectangle against the plane ([`crate::PlaneSection`]'s, run once):
+//!    a graze or a side held tangent refuses by name, and its crossings
+//!    and `Side` and `Corner` regions are where the section ends;
+//! 3. **the regularity sweep** ([`sweep`]): where `∇φ` is bounded off
+//!    zero, past the band's exclusions, no component closes in the
+//!    wall's chart. That verdict is the section, no component where the
+//!    pass found no end and otherwise [`Components::Reaching`] on the
+//!    sides it found them on, the pass carried on the pose; the
+//!    interior-loop guard's loop-free stage is it. Where the sweep
+//!    declines, the pose is read whole on the same pass.
 //!
 //! Read whole, the section of a plane and a NURBS wall (an approximating
 //! surface read as its fit) is [`crate::PlaneSection::all`] over the
@@ -66,6 +71,7 @@
 //! ([`super::SsiLane::marched`], at `f64` alone).
 
 use geom::{NurbsSurface, Surface};
+use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use super::{
@@ -74,6 +80,7 @@ use super::{
 };
 use crate::ExtentBall;
 use crate::intersect::SectionError;
+use crate::ssi::boundary::BoundaryPass;
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
 use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiError, SsiTube};
@@ -90,6 +97,9 @@ pub struct PlaneSplinePose<T: Real> {
     /// fit's.
     net: geom::NurbsSurface<T>,
     plane_first: bool,
+    /// The boundary pass the classification ran (stage 2), carried to
+    /// the whole reading so it runs once.
+    pass: Option<std::sync::Arc<BoundaryPass>>,
 }
 
 impl<T: Real> PlaneSplinePose<T> {
@@ -107,6 +117,7 @@ impl<T: Real> PlaneSplinePose<T> {
             wall: wall.clone(),
             net: wall.spline_chart()?.clone(),
             plane_first,
+            pass: None,
         })
     }
 
@@ -162,43 +173,124 @@ impl<T: Real> PlaneSplinePose<T> {
     }
 }
 
-impl<T: Decide> PlaneSplinePose<T> {
-    /// **Stage 1, the hull**: the wall lies in its net's convex hull
-    /// (its weights are positive), so a net whose every control point is
-    /// decided strictly on one side of the plane meets it nowhere.
-    #[must_use]
-    pub fn apart(&self, band: Band) -> bool {
-        let Surface::Plane { origin, normal, .. } = self.plane else {
-            unreachable!("the pose holds a plane")
-        };
-        let n = normal / normal.norm();
-        let sides: Vec<_> = self
-            .net
-            .control()
-            .iter()
-            .map(|&c| {
-                crate::dihedral::decide(
-                    "section_nurbs_plane_hull",
-                    Margin::of((c - origin).dot(n)),
-                    band,
-                )
-                .ok()
-            })
-            .collect();
-        let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
-        all(Sign::Positive) || all(Sign::Negative)
+impl<T: Real> PlaneSplinePose<T> {
+    /// The pose of a pair the arm serves.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::WrongLane`] for any other pair.
+    fn served(a: &Surface<T>, b: &Surface<T>) -> Result<Self, SectionError> {
+        Self::of(a, b).ok_or(SectionError::WrongLane {
+            expected: "a plane and a NURBS or approximating surface",
+        })
     }
 
-    /// The section of a pose the hull decides apart: no component.
-    fn none(self) -> PairSection<T> {
+    /// The pair's section with these components, nothing decided Zero.
+    fn section(self, components: Components<T>) -> PairSection<T> {
         let lever = self.ball().radius();
         PairSection {
             pose: PairPose::PlaneSpline(Box::new(self)),
             decided: Vec::new(),
-            components: Components::Counted(Vec::new()),
+            components,
             nodes: Vec::new(),
             lever,
         }
+    }
+}
+
+/// What stage 1 decides of a pose it does not refuse.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Hull {
+    /// The net lies strictly on one side of the plane.
+    Apart,
+    /// The net reaches past the band of the plane.
+    Cuts,
+    /// A control point's height is poison, which decides nothing: the
+    /// reading's operand check refuses the net.
+    Poison,
+}
+
+impl<T: Decide> PlaneSplinePose<T> {
+    /// **Stage 1, the hull**: the wall lies in its net's convex hull (its
+    /// weights are positive), so the control points' heights over the
+    /// plane bound the wall's. A net whose every height is decided of one
+    /// sign meets the plane nowhere; one whose largest height is decided
+    /// within the zero band lies on it.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::CoincidentSurfaces`] for a net within the zero
+    /// band of the plane everywhere, a coincidence its consumer keeps
+    /// (D10), and [`SectionError::Escalated`] where its largest height is
+    /// in the band.
+    fn hull(&self, band: Band) -> Result<Hull, SectionError> {
+        let heights: Vec<T> = self.net.control().iter().map(|&c| self.height(c)).collect();
+        if heights.iter().any(|h| h.is_poison()) {
+            return Ok(Hull::Poison);
+        }
+        let sides: Vec<_> = heights
+            .iter()
+            .map(|&h| crate::dihedral::decide("section_nurbs_plane_hull", Margin::of(h), band).ok())
+            .collect();
+        let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
+        if all(Sign::Positive) || all(Sign::Negative) {
+            return Ok(Hull::Apart);
+        }
+        let reach = heights.iter().fold(T::zero(), |m, &h| m.max(h.abs()));
+        match crate::dihedral::decide_magnitude(
+            "section_nurbs_plane_coincident",
+            Margin::of(reach),
+            band,
+        ) {
+            Ok(Magnitude::Zero) => Err(SectionError::CoincidentSurfaces),
+            Ok(Magnitude::Positive) => Ok(Hull::Cuts),
+            Err(diag) => Err(SectionError::Escalated(diag)),
+        }
+    }
+
+    /// **The door's collapsed sides**: a side of the wall's rectangle
+    /// that is not decided to span more than a point
+    /// ([`crate::chart_singularity::spline_side_spans`]) is a pole, and
+    /// one not decided clear of the plane is refused before any sweep,
+    /// named.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::Unaccounted`], naming the side.
+    fn door(&self, band: Band) -> Result<(), SectionError> {
+        for side in crate::ssi::boundary::SIDES {
+            if crate::chart_singularity::spline_side_spans(&self.net, side, band) {
+                continue;
+            }
+            let row = crate::chart_singularity::spline_side_row(&self.net, side);
+            let Some(&pole) = row.first().and_then(|&i| self.net.control().get(i)) else {
+                continue;
+            };
+            let clear = matches!(
+                crate::dihedral::decide(
+                    "section_nurbs_plane_pole",
+                    Margin::of(self.height(pole)),
+                    band
+                ),
+                Ok(Sign::Positive | Sign::Negative)
+            );
+            if !clear {
+                return Err(SectionError::Unaccounted {
+                    cause: format!(
+                        "the wall's {side} collapses to a point not decided clear of the plane"
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    /// The height of `p` over the plane, in metres.
+    fn height(&self, p: Point3<T>) -> T {
+        let Surface::Plane { origin, normal, .. } = self.plane else {
+            unreachable!("the pose holds a plane")
+        };
+        (p - origin).dot(normal / normal.norm())
     }
 }
 
@@ -283,6 +375,24 @@ struct Pivot {
     /// to the plane moves by at most this, so the reading's band is
     /// padded by it.
     shift: f64,
+}
+
+impl Pivot {
+    /// The reading's band: `band` padded by the shift.
+    ///
+    /// # Errors
+    ///
+    /// [`SectionError::Unaccounted`] where the shift pads no band.
+    fn band(&self, band: Band) -> Result<Band, SectionError> {
+        band.padded(self.shift)
+            .map_err(|e| SectionError::Unaccounted {
+                cause: format!(
+                    "the plane read at its pivot stands {:e} m off the stored one, which pads \
+                     no band: {e}",
+                    self.shift
+                ),
+            })
+    }
 }
 
 /// **The stored plane's height over a point**, read from the foot:
@@ -477,92 +587,120 @@ fn refused(e: SsiError) -> SectionError {
     }
 }
 
-/// **The pair's classification, stage 1**, before any lane is read: the
-/// hull decides apart at every scalar; any other pose is read through
-/// the march door ([`section`]).
+/// **The pair's classification before any lane is read**: stage 1,
+/// the hull, and the door's collapsed sides, at every scalar; past
+/// them, the march door's arm ([`section`]).
 ///
 /// # Errors
 ///
 /// [`SectionError::WrongLane`] for a pair that is not a plane and a
-/// spline; [`SectionError::NoMarch`] for a pose the hull does not
-/// decide, asked with no `lane`; and [`section`]'s.
+/// spline; the hull's and the door's; [`SectionError::NoMarch`] for a
+/// pose they do not decide, asked with no `lane`; and [`section`]'s.
 pub(super) fn classified<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
     lane: Option<SsiLane<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
-    let pose = PlaneSplinePose::of(a, b).ok_or(SectionError::WrongLane {
-        expected: "a plane and a NURBS or approximating surface",
-    })?;
-    if pose.apart(band) {
-        return Ok(pose.none());
+    let pose = PlaneSplinePose::served(a, b)?;
+    match pose.hull(band)? {
+        Hull::Apart => return Ok(pose.section(Components::Counted(Vec::new()))),
+        Hull::Cuts => pose.door(band)?,
+        Hull::Poison => {}
     }
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
-    (lane.spline)(a, b, band)
+    (lane.spline)(pose, band)
 }
 
-/// **The pair's classification past the hull, the march door's arm**:
-/// the regularity sweep (stage 3, [`sweep`]), whose loop-free verdict
-/// is the section's ([`Components::Reaching`]), and where it declines
-/// the whole reading ([`whole`]).
+/// **The pair's classification past the door, the march door's arm**:
+/// stage 2, the boundary pass ([`crate::PlaneSection`]'s, run once), whose
+/// grazes and side tangencies refuse by name; then stage 3, the
+/// regularity sweep ([`sweep`]). Its loop-free verdict is the section:
+/// no component where the pass found no end, else
+/// [`Components::Reaching`] on the sides the pass's crossings and
+/// regions lie on, the pass carried on the pose. Where the sweep
+/// declines, the reading lists the section whole on the same pass.
 ///
 /// # Errors
 ///
-/// [`whole`]'s.
+/// The pass's refusal and the whole reading's, mapped (module docs).
 pub(super) fn section(
-    a: &Surface<f64>,
-    b: &Surface<f64>,
+    mut pose: PlaneSplinePose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
-    let pose = PlaneSplinePose::of(a, b).ok_or(SectionError::WrongLane {
-        expected: "a plane and a NURBS or approximating surface",
-    })?;
-    match sweep::sweep(pose.net(), pose.pivot().heights, band) {
-        sweep::Sweep::LoopFree(on_wall) => {
-            let rims = pose.order(ChartReach::default(), on_wall);
-            let lever = pose.ball().radius();
-            Ok(PairSection {
-                pose: PairPose::PlaneSpline(Box::new(pose)),
-                decided: Vec::new(),
-                components: Components::Reaching(rims),
-                nodes: Vec::new(),
-                lever,
-            })
-        }
-        sweep::Sweep::Declined(_) => whole(a, b, band),
+    let pivot = pose.pivot();
+    let read_band = pivot.band(band)?;
+    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
+        .map_err(refused)?;
+    let (reach, pass) = {
+        let pass = reading.pass().map_err(refused)?;
+        let reach = pass
+            .crossings
+            .iter()
+            .map(|c| ChartReach::side(c.at.side))
+            .chain(pass.contacts.iter().map(contact_reach))
+            .fold(ChartReach::default(), ChartReach::or);
+        (reach, std::sync::Arc::new(pass.clone()))
+    };
+    if let sweep::Sweep::Declined(_) =
+        sweep::sweep(&reading, &pivot, read_band, pose.domain().extent)
+    {
+        let out = reading.all().map_err(refused)?;
+        return listed(pose, &pivot, out);
     }
+    drop(reading);
+    if !reach.any() {
+        return Ok(pose.section(Components::Counted(Vec::new())));
+    }
+    let rims = pose.order(ChartReach::default(), reach);
+    pose.pass = Some(pass);
+    Ok(pose.section(Components::Reaching(rims)))
 }
 
-/// **The section of a plane and a spline wall read whole** (module
-/// docs): C3's reading, every component listed.
+/// **The section read whole** (module docs): C3's reading, every
+/// component listed, on the boundary pass the classification ran where
+/// it carried one.
 ///
 /// # Errors
 ///
-/// [`SectionError::WrongLane`] for a pair that is not a plane and a
-/// spline; the whole reading's refusal, mapped (module docs); and
+/// The whole reading's refusal, mapped (module docs), and
 /// [`SectionError::Unaccounted`] for a branch that ends off the wall's
 /// rectangle, which the plane lane's reading never marches.
 pub(super) fn whole(
-    a: &Surface<f64>,
-    b: &Surface<f64>,
+    pose: &PlaneSplinePose<f64>,
     band: Band,
 ) -> Result<PairSection<f64>, SectionError> {
-    let pose = PlaneSplinePose::of(a, b).ok_or(SectionError::WrongLane {
-        expected: "a plane and a NURBS or approximating surface",
-    })?;
     let pivot = pose.pivot();
-    let read_band = band
-        .padded(pivot.shift)
-        .map_err(|e| SectionError::Unaccounted {
-            cause: format!(
-                "the plane read at its pivot stands {:e} m off the stored one, which pads no \
-                 band: {e}",
-                pivot.shift
-            ),
-        })?;
-    let out = crate::ssi::plane_nurbs_ssi(&pivot.plane, pose.net(), pose.domain(), read_band)
+    let read_band = pivot.band(band)?;
+    let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
         .map_err(refused)?;
+    let reading = match &pose.pass {
+        Some(pass) => reading.with_pass(BoundaryPass::clone(pass)),
+        None => reading,
+    };
+    listed(pose.clone(), &pivot, reading.all().map_err(refused)?)
+}
+
+/// The sides a boundary region reaches.
+fn contact_reach(region: &SsiBoundaryContact) -> ChartReach {
+    match *region {
+        SsiBoundaryContact::Side { side, .. } => ChartReach::side(side),
+        SsiBoundaryContact::Corner { corner, .. } => ChartReach::corner(corner),
+    }
+}
+
+/// **The whole reading's outcome as the section's components** (module
+/// docs).
+///
+/// # Errors
+///
+/// [`SectionError::Unaccounted`] for a branch that ends off the wall's
+/// rectangle.
+fn listed(
+    pose: PlaneSplinePose<f64>,
+    pivot: &Pivot,
+    out: crate::ssi::SsiOutcome,
+) -> Result<PairSection<f64>, SectionError> {
     let open = |on_wall: ChartReach| ComponentShape::Open {
         ends: ComponentEnds {
             rims: pose.order(ChartReach::default(), on_wall),
@@ -593,27 +731,14 @@ pub(super) fn whole(
             carrier: ClassCarrier::Unminted(UNCARRIED),
         });
     }
-    components.extend(out.boundary.iter().map(|region| {
-        let reach = match *region {
-            SsiBoundaryContact::Side { side, .. } => ChartReach::side(side),
-            SsiBoundaryContact::Corner { corner, .. } => ChartReach::corner(corner),
-        };
-        SectionComponent {
-            shape: open(reach),
-            winds: [false, false],
-            witness: None,
-            pad: 0.0,
-            carrier: ClassCarrier::Unminted(REGION),
-        }
+    components.extend(out.boundary.iter().map(|region| SectionComponent {
+        shape: open(contact_reach(region)),
+        winds: [false, false],
+        witness: None,
+        pad: 0.0,
+        carrier: ClassCarrier::Unminted(REGION),
     }));
-    let lever = pose.ball().radius();
-    Ok(PairSection {
-        pose: PairPose::PlaneSpline(Box::new(pose)),
-        decided: Vec::new(),
-        components: Components::Counted(components),
-        nodes: Vec::new(),
-        lever,
-    })
+    Ok(pose.section(Components::Counted(components)))
 }
 
 #[cfg(test)]

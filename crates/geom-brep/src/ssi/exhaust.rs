@@ -698,6 +698,10 @@ enum SweepDuty<'a, C> {
         /// zero inward.
         clear: &'a [C],
     },
+    /// Stop at every cell `regular` holds, and return the centre of the
+    /// first cell that is neither excluded nor regular at the floor: the
+    /// plane × spline pose's regularity sweep, which that cell declines.
+    Regular(&'a dyn Fn(C) -> bool),
 }
 
 /// Which certificate accounts for a cell ([`SweepDuty::accounts`]).
@@ -709,6 +713,8 @@ enum Accounted {
     Tube,
     /// A boundary contact's certified region.
     Contact,
+    /// The regularity sweep's: `∇φ` bounded off zero over it.
+    Regular,
 }
 
 impl<C: SweepCell> SweepDuty<'_, C> {
@@ -719,6 +725,7 @@ impl<C: SweepCell> SweepDuty<'_, C> {
     fn accounts(self, cell: C) -> Option<Accounted> {
         match self {
             Self::Seed => None,
+            Self::Regular(regular) => regular(cell).then_some(Accounted::Regular),
             Self::Account {
                 tubes,
                 regions,
@@ -883,6 +890,10 @@ fn sweep<C: SweepCell>(
                 stats.contact += 1;
                 continue;
             }
+            Some(Accounted::Regular) => {
+                stats.accounted += 1;
+                continue;
+            }
             None => {}
         }
         // (iii) refine, unless we are at the floor.
@@ -891,6 +902,11 @@ fn sweep<C: SweepCell>(
                 SweepDuty::Seed => {
                     out.push(cell.seed());
                     continue;
+                }
+                // One cell the sweep cannot decide declines it.
+                SweepDuty::Regular(_) => {
+                    out.push(cell.seed());
+                    return Ok((stats, out));
                 }
                 SweepDuty::Account { .. } => {
                     return Err(SsiError::ExhaustivenessInconclusive(
@@ -1203,6 +1219,65 @@ pub(crate) fn account_chart_plane(
     Ok(tally.receipt(floor.lane, floor.width()))
 }
 
+/// **The regularity sweep**, chart lane, over the one shared [`sweep`]:
+/// a cell is excluded where `excluded` reads the plane's height over it
+/// ([`chart_plane_height`], the accounting's own enclosure) as past it,
+/// and stops where `regular` holds; the answer is the centre of the
+/// first cell neither holds at the floor, which declines the sweep, or
+/// none.
+///
+/// # Errors
+///
+/// [`SsiError::CellBudget`], and the height's refusal
+/// ([`chart_plane_height`]).
+pub(crate) fn sweep_chart_regular(
+    boxes: &NurbsBoxes<'_, f64>,
+    (plane_origin, plane_normal): (Point3<f64>, Vec3<f64>),
+    floor: SweepFloor<UvRect>,
+    excluded: impl Fn(UvRect, Interval) -> bool,
+    regular: &dyn Fn(UvRect) -> bool,
+) -> Result<Vec<(f64, f64)>, SsiError> {
+    let (_, declined) = sweep(floor, SweepDuty::Regular(regular), |cell| {
+        let height = chart_plane_height(boxes, plane_origin, plane_normal, cell)?;
+        Ok(excluded(cell, height))
+    })?;
+    Ok(declined)
+}
+
+/// **The plane's height over a cell**: `φ(u,v) = n·(S(u,v) − p₀)`
+/// enclosed on the surface's certified first-order box over it, `n` the
+/// plane's normal as stored.
+///
+/// # Errors
+///
+/// [`SsiError::UnsupportedCertificate`] where the enclosure refuses.
+pub(crate) fn chart_plane_height(
+    boxes: &NurbsBoxes<'_, f64>,
+    plane_origin: Point3<f64>,
+    plane_normal: Vec3<f64>,
+    cell: UvRect,
+) -> Result<Interval, SsiError> {
+    let b = cell
+        .window()
+        .map_or_else(refused_box, |w| boxes.rect_box(w));
+    let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
+        + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
+        + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
+    if !phi.is_certified() {
+        // The one measured route here is weight underflow: the
+        // chart-speed mint refuses every net whose quotient-rule
+        // arithmetic (`NurbsBoxes::speed_sup`) leaves the finite
+        // range before this sweep runs, so that cause is named
+        // nowhere below.
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the NURBS control-net enclosure refused over a cell — \
+                   a weight so small that the rational's own denominator \
+                   underflows to zero",
+        });
+    }
+    Ok(phi)
+}
+
 /// The chart lane's exclusion rule, over the one shared [`sweep`]:
 /// against a **plane** the locus is `φ(u,v) = n·(S(u,v) − p₀) = 0`, so
 /// a cell is solution-free when a zero-free enclosure of `φ` — computed
@@ -1216,25 +1291,7 @@ fn sweep_chart_plane(
 ) -> Result<(SweepTally, Vec<(f64, f64)>), SsiError> {
     let boxes = NurbsBoxes::new(surface);
     sweep(floor, duty, |cell| {
-        let b = cell
-            .window()
-            .map_or_else(refused_box, |w| boxes.rect_box(w));
-        let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
-            + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
-            + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
-        if !phi.is_certified() {
-            // The one measured route here is weight underflow: the
-            // chart-speed mint refuses every net whose quotient-rule
-            // arithmetic (`NurbsBoxes::speed_sup`) leaves the finite
-            // range before this sweep runs, so that cause is named
-            // nowhere below.
-            return Err(SsiError::UnsupportedCertificate {
-                what: "the NURBS control-net enclosure refused over a cell — \
-                       a weight so small that the rational's own denominator \
-                       underflows to zero",
-            });
-        }
-        Ok(excludes_zero(phi))
+        chart_plane_height(&boxes, plane_origin, plane_normal, cell).map(excludes_zero)
     })
 }
 

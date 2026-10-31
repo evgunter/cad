@@ -10,8 +10,7 @@ use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol, Vec3};
 
-use super::super::PlaneSplinePose;
-use super::{Declined, Sweep, sweep};
+use super::{Declined, Sweep};
 use crate::pair_section::{ChartReach, Components, SectionRead, SsiLane, pair_section};
 use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
 
@@ -121,15 +120,47 @@ fn skewed_dome() -> Surface<f64> {
 
 /// The sweep of the pair's wall against its plane.
 fn swept(p: &Surface<f64>, w: &Surface<f64>) -> Sweep {
-    let pose = PlaneSplinePose::of(p, w).expect("a plane and a spline");
-    sweep(pose.net(), pose.pivot().heights, band())
+    super::swept(p, w, band())
 }
 
-/// The pair's classification through the march door.
-fn classified(p: &Surface<f64>, w: &Surface<f64>) -> Components<f64> {
+/// What a pair's classification answers, read coarsely.
+#[derive(Clone, Debug, PartialEq)]
+enum Got {
+    /// `Reaching`, with the wall's sides.
+    Reaching(ChartReach),
+    /// No component.
+    Apart,
+    /// Refused by name.
+    Pinched(&'static str),
+    /// The wall decided on the plane.
+    Coincident,
+    /// The hull's height in band.
+    Escalated,
+    /// The lane cannot read the pose at this ε.
+    Unreadable,
+    /// Anything else.
+    Other(String),
+}
+
+/// The pair's classification through the march door, read coarsely, the
+/// wall's sides in either order.
+fn got(p: &Surface<f64>, w: &Surface<f64>) -> Got {
+    use crate::intersect::SectionError;
     match pair_section(p, w, None, Some(SsiLane::marched()), band()) {
-        Ok(SectionRead::Built(s)) => s.components().clone(),
-        other => panic!("the pair is classified: {other:?}"),
+        Ok(SectionRead::Built(s)) => match s.components() {
+            Components::Reaching([a, b]) => Got::Reaching(a.or(*b)),
+            Components::Counted(c) if c.is_empty() => Got::Apart,
+            other => Got::Other(format!("{other:?}")),
+        },
+        Err(SectionError::Pinched { predicate }) => Got::Pinched(predicate),
+        Err(SectionError::CoincidentSurfaces) => Got::Coincident,
+        Err(SectionError::Escalated(_)) => Got::Escalated,
+        Err(SectionError::Unaccounted { cause })
+            if cause.contains("can settle a state no finer") =>
+        {
+            Got::Unreadable
+        }
+        other => Got::Other(format!("{other:?}")),
     }
 }
 
@@ -137,26 +168,40 @@ fn side(fixed: ChartAxis, end: ChartEnd) -> ChartReach {
     ChartReach::side(ChartSide { fixed, end })
 }
 
-/// **The probe's pairs are proved loop-free, with no whole reading.**
-/// Every pair the probe measured W5 to clear, through the pair's
-/// classification: its answer is the sweep's (`Reaching`), every
-/// component open. Among them are the poses the whole reading refuses
-/// alone: the exact graze (its bottom side touches the plane at one
-/// point), a near-graze 100ε out, the walls at 1 km, and a side lying in
-/// the plane with the wall leaving it at 10⁻⁶ rad or less. The exact
-/// graze reaches only the side it touches, every other side excluded.
-///
-/// Red against the sweep removed (each pose is read whole: a list, or
-/// a refusal).
-#[test]
-fn the_probes_pairs_are_proved_loop_free() {
+/// What a probe pair's classification is, in the stages' order.
+#[derive(Clone, Debug)]
+enum Want {
+    /// Proved loop-free by the sweep.
+    Reaching,
+    /// No component.
+    Apart,
+    /// A side grazing the plane, refused by the boundary pass by name.
+    Graze,
+    /// A side lying in the plane, the wall rising off it to the height
+    /// `s` at its far side: on the plane where `s` is within the zero
+    /// band, in band where it is short of the escalation, and otherwise
+    /// a `Side` region the sweep proves loop-free.
+    Rising(f64),
+    /// A wall 1 km out: as the inner answer where the lane can settle a
+    /// state well inside the band there, and refused where it cannot.
+    Far(Box<Want>),
+}
+
+/// The probe's synthetic pairs, named, with what each must answer.
+fn probe_pairs() -> Vec<(String, Surface<f64>, Surface<f64>, Want)> {
     let eps = band().zero();
-    let mut pairs: Vec<(String, Surface<f64>, Surface<f64>)> = vec![
-        ("exterior graze".into(), level(0.0), bowed([0.1, -0.1, 0.1])),
+    let mut pairs: Vec<(String, Surface<f64>, Surface<f64>, Want)> = vec![
+        (
+            "exterior graze".into(),
+            level(0.0),
+            bowed([0.1, -0.1, 0.1]),
+            Want::Graze,
+        ),
         (
             "interior graze".into(),
             level(0.0),
             bowed([-0.1, 0.1, -0.1]),
+            Want::Graze,
         ),
     ];
     for d in [100.0 * eps, -100.0 * eps, 1e-3] {
@@ -164,10 +209,36 @@ fn the_probes_pairs_are_proved_loop_free() {
             ("exterior", [0.1, -0.1, 0.1]),
             ("interior", [-0.1, 0.1, -0.1]),
         ] {
-            pairs.push((format!("{what} near-graze at {d:e}"), level(d), bowed(z)));
+            // Below the exterior wall's lowest point the plane meets
+            // nothing.
+            let want = if what == "exterior" && d < 0.0 {
+                Want::Apart
+            } else {
+                Want::Reaching
+            };
+            pairs.push((
+                format!("{what} near-graze at {d:e}"),
+                level(d),
+                bowed(z),
+                want,
+            ));
         }
     }
-    for th in [std::f64::consts::FRAC_PI_2, 0.3, 1e-3, 1e-6, 1e-8] {
+    // Besides the probe's angles, a wall rising a tenth of the zero band
+    // (on the plane at every ε) and one rising between the band's two
+    // thresholds (in band at every ε).
+    let b = band();
+    let within = (0.1 * b.zero()).asin();
+    let between = (b.zero() * b.escalate()).sqrt().asin();
+    for th in [
+        std::f64::consts::FRAC_PI_2,
+        0.3,
+        1e-3,
+        1e-6,
+        1e-8,
+        within,
+        between,
+    ] {
         let (s, c) = th.sin_cos();
         pairs.push((
             format!("a side in the plane, the wall at {th:e} rad"),
@@ -176,6 +247,7 @@ fn the_probes_pairs_are_proved_loop_free() {
                 &[pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)],
                 &[pt(0.0, c, s), pt(1.0, c, s)],
             ),
+            Want::Rising(s),
         ));
     }
     pairs.push((
@@ -185,6 +257,7 @@ fn the_probes_pairs_are_proved_loop_free() {
             &[pt(0.0, 0.0, 0.0), pt(0.5, 0.3, 0.0), pt(1.0, 0.0, 0.0)],
             &[pt(0.0, 0.0, 1.0), pt(0.5, 0.3, 1.0), pt(1.0, 0.0, 1.0)],
         ),
+        Want::Reaching,
     ));
     let flat = || {
         ruled(
@@ -192,12 +265,22 @@ fn the_probes_pairs_are_proved_loop_free() {
             &[pt(0.0, 0.0, 1.0), pt(1.0, 0.0, 1.0)],
         )
     };
-    for (what, n) in [
-        ("a plane touching one corner", Vec3::new(1.0, 0.0, 1.0)),
-        ("the diagonal", Vec3::new(1.0, 0.0, -1.0)),
-        ("a plane near a side", Vec3::new(1.0, 0.0, 1e-3)),
+    // A plane through one corner only, the wall leaving it inward on
+    // both sides of its height, meets nothing the pass ends a branch at.
+    for (what, n, want) in [
+        (
+            "a plane touching one corner",
+            Vec3::new(1.0, 0.0, 1.0),
+            Want::Apart,
+        ),
+        ("the diagonal", Vec3::new(1.0, 0.0, -1.0), Want::Reaching),
+        (
+            "a plane near a side",
+            Vec3::new(1.0, 0.0, 1e-3),
+            Want::Reaching,
+        ),
     ] {
-        pairs.push((what.into(), plane(pt(0.0, 0.0, 0.0), n), flat()));
+        pairs.push((what.into(), plane(pt(0.0, 0.0, 0.0), n), flat(), want));
     }
     let far = pt(1000.0, 1000.0, 1000.0);
     let at = |x: f64, y: f64, z: f64| pt(far.x + 50.0 * x, far.y + 50.0 * y, far.z + 50.0 * z);
@@ -223,12 +306,12 @@ fn the_probes_pairs_are_proved_loop_free() {
             Vec3::new(0.3, 0.0, 1.0),
         ),
     ] {
-        let o = if what.contains("origin") {
-            pt(0.5, 0.0, 0.5)
+        let (o, want) = if what.contains("origin") {
+            (pt(0.5, 0.0, 0.5), Want::Reaching)
         } else {
-            at(0.5, 0.0, 0.5)
+            (at(0.5, 0.0, 0.5), Want::Far(Box::new(Want::Reaching)))
         };
-        pairs.push((what.into(), plane(o, n), w));
+        pairs.push((what.into(), plane(o, n), w, want));
     }
     pairs.push((
         "the exterior graze at 1 km".into(),
@@ -237,30 +320,59 @@ fn the_probes_pairs_are_proved_loop_free() {
             &[at(0.0, 0.0, 0.1), at(0.5, 0.0, -0.1), at(1.0, 0.0, 0.1)],
             &[at(0.0, 0.0, 1.0), at(0.5, 0.0, 1.0), at(1.0, 0.0, 1.0)],
         ),
+        Want::Far(Box::new(Want::Graze)),
     ));
-    for (what, p, w) in &pairs {
-        for (order, got) in [
-            ("plane first", classified(p, w)),
-            ("wall first", classified(w, p)),
-        ] {
+    pairs
+}
+
+/// Whether `got` is what `want` asks, at the run's band.
+fn answers(got: &Got, want: &Want) -> bool {
+    let b = band();
+    match want {
+        Want::Reaching => matches!(got, Got::Reaching(r) if r.any()),
+        Want::Apart => *got == Got::Apart,
+        Want::Graze => *got == Got::Pinched("ssi_boundary_crossing"),
+        Want::Rising(s) if *s <= b.zero() => *got == Got::Coincident,
+        Want::Rising(s) if *s < b.escalate() => *got == Got::Escalated,
+        Want::Rising(_) => {
+            matches!(got, Got::Reaching(r) if *r == side(ChartAxis::V, ChartEnd::Low))
+        }
+        Want::Far(inner) => *got == Got::Unreadable || answers(got, inner),
+    }
+}
+
+/// **The probe's pairs, classified in C5's order.** The hull decides a
+/// wall within the zero band of the plane coincident and one short of
+/// the escalation in band; the boundary pass refuses a graze of a side
+/// by name, as the whole reading does; the sweep proves the rest
+/// loop-free with no whole reading, in either operand order. So the
+/// probe's exact grazes, which it found W5 clearing where the whole
+/// reading refused, refuse here too: the pass runs before the sweep. A
+/// side lying in the plane is a `Side` region on that side alone. A wall
+/// 1 km out is refused where the lane cannot settle a state well inside
+/// the band (at ε 1e-12), and otherwise answers as at the origin; its
+/// near twin at the origin always does. The near-graze 100ε above the
+/// exterior wall's lowest point reaches the bottom side alone.
+///
+/// Red against the sweep removed (each pose is read whole: a list), the
+/// boundary pass run only behind the sweep (the grazes clear), the
+/// hull's coincidence dropped and its escalation dropped (a wall rising
+/// a tenth of the band, or between its thresholds, reads otherwise).
+#[test]
+fn the_probes_pairs_are_classified_in_c5s_order() {
+    for (what, p, w, want) in probe_pairs() {
+        for (order, got) in [("plane first", got(&p, &w)), ("wall first", got(&w, &p))] {
             assert!(
-                matches!(got, Components::Reaching(_)),
-                "{what}, {order}: the sweep's verdict: {got:?}"
+                answers(&got, &want),
+                "{what}, {order}: {got:?}, wanted {want:?}"
             );
         }
     }
+    let eps = band().zero();
     assert_eq!(
-        swept(&level(0.0), &bowed([0.1, -0.1, 0.1])),
-        Sweep::LoopFree(side(ChartAxis::V, ChartEnd::Low)),
-        "the exact graze reaches the side it touches alone"
-    );
-    assert!(
-        matches!(
-            classified(&level(0.0), &bowed([0.1, -0.1, 0.1])),
-            Components::Reaching([plane_side, wall_side])
-                if !plane_side.any() && wall_side == side(ChartAxis::V, ChartEnd::Low)
-        ),
-        "the reach is the wall's, in the order asked"
+        got(&level(100.0 * eps), &bowed([0.1, -0.1, 0.1])),
+        Got::Reaching(side(ChartAxis::V, ChartEnd::Low)),
+        "the near-graze's short arc ends on the bottom side alone"
     );
 }
 
@@ -283,7 +395,16 @@ fn a_loop_about_an_excluded_top_declines() {
         "{:?}",
         swept(&level(-0.1), &dome())
     );
-    let got = classified(&level(-0.1), &dome());
+    let got = match pair_section(
+        &level(-0.1),
+        &dome(),
+        None,
+        Some(SsiLane::marched()),
+        band(),
+    ) {
+        Ok(SectionRead::Built(s)) => s.components().clone(),
+        other => panic!("the dome is read whole: {other:?}"),
+    };
     assert!(
         matches!(&got, Components::Counted(c) if c.len() == 1
             && c[0].shape == crate::pair_section::ComponentShape::Loop),
@@ -367,16 +488,17 @@ fn a_crease_inside_the_rectangle_declines() {
     );
 }
 
-/// **A side reached only where a cell along it is not excluded.** The
+/// **The reach is the sides the boundary pass ends the section on.** The
 /// ramp `z = x` cut at `z = 0.4`: the line `x = 0.4` runs from the side
-/// `v = 0` to `v = 1`; the sides `u = 0` and `u = 1` stand 0.4 and 0.6
-/// off the plane. Red against every side read as reached (the guard
-/// would ask a side the section never meets to bound).
+/// `v = 0` to `v = 1`, the pass's two crossings; the sides `u = 0` and
+/// `u = 1` stand 0.4 and 0.6 off the plane. Red against every side read
+/// as reached (the guard would ask a side the section never meets to
+/// bound).
 #[test]
-fn the_reach_is_the_sides_the_section_can_meet() {
+fn the_reach_is_the_sides_the_pass_ends_the_section_on() {
     let ramp = net(&|i, _| 0.5 * f64::from(u8::try_from(i).unwrap()));
     assert_eq!(
-        swept(&level(0.4), &ramp),
-        Sweep::LoopFree(side(ChartAxis::V, ChartEnd::Low).or(side(ChartAxis::V, ChartEnd::High)))
+        got(&level(0.4), &ramp),
+        Got::Reaching(side(ChartAxis::V, ChartEnd::Low).or(side(ChartAxis::V, ChartEnd::High)))
     );
 }
