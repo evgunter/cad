@@ -1,6 +1,6 @@
 //! **The mate door and a space of a copy's own, through the session**
-//! (ASSEMBLY.md A11 (2)): a committed mate through undo and redo, and
-//! the at-rest badge over a space other than the world.
+//! (ASSEMBLY.md A11 (2)): a committed mate through undo, redo and
+//! replay, and the at-rest badge over a space other than the world.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -13,9 +13,11 @@ use viewer::session::SessionOp;
 /// **The mate door through the session's history**: committing a mate
 /// between post_b, in a space of its own, and the shelf writes post_b's
 /// bundle and leaves the shelf's as it was; undo
-/// restores the document, and redo commits it again.
+/// restores the document, redo commits it again, and the mate's edit
+/// log replays to the same document with no store — the load path a
+/// file that still carries a log takes.
 #[test]
-fn the_mate_door_commits_through_undo_and_redo() {
+fn the_mate_door_commits_through_undo_redo_and_replay() {
     let tol = Tol::witness();
     let bench = asm::bench("r2door", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -40,6 +42,19 @@ fn the_mate_door_commits_through_undo_and_redo() {
     let out = session.perform(SessionOp::Redo);
     assert!(out.refusal.is_none());
     assert!(session.doc().bit_eq(&after), "redo commits it again");
+    let h = session.history();
+    let edits: Vec<_> = h
+        .path()
+        .into_iter()
+        .flat_map(|id| h.entry(id).edits().to_vec())
+        .collect();
+    let text = pncad::document::save(h.entry(h.root()).doc(), &edits, tol)
+        .expect("a file carrying the log saves");
+    let loaded = pncad::document::load(&text, tol).expect("and loads, replaying with no store");
+    assert!(
+        loaded.doc.bit_eq(&after),
+        "the log replays to the same document"
+    );
 }
 
 /// **The at-rest badge checks a `⊔` the product does not read** — the

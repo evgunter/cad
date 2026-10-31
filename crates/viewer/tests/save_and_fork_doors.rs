@@ -1,5 +1,4 @@
-//! Review rows for PR 6135 (`work/vseam/session-save-is-two-acts`):
-//! the save and the fork through the session's own doors, measured
+//! **The save and the fork through the session's own doors**, measured
 //! from the files on disk and the history's every state.
 
 #![allow(clippy::expect_used, clippy::panic)]
@@ -8,7 +7,7 @@ use crate::common;
 use crate::common::asm;
 use pncad::document::{Doc, DocumentId};
 use pncad::geom_core::Tol;
-use pncad::workspace::Workspace;
+use pncad::workspace::{Workspace, WorkspaceError};
 use viewer::docio;
 use viewer::history::History;
 use viewer::session::{DocSession, Refusal, SessionOp, Step};
@@ -35,7 +34,7 @@ fn file_id(path: &std::path::Path, tol: Tol) -> DocumentId {
 #[test]
 fn new_save_beside_fork_undo_resave_and_reopen_both() {
     let tol = Tol::witness();
-    let mut session = DocSession::inline(Doc::empty_derived("review-6135-start", tol), tol);
+    let mut session = DocSession::inline(Doc::empty_derived("save-fork-start", tol), tol);
     assert!(
         session
             .perform(SessionOp::NewDocument {
@@ -46,7 +45,7 @@ fn new_save_beside_fork_undo_resave_and_reopen_both() {
     );
     let original_id = session.committed_doc().id();
     common::box_in(&mut session, [0.04, 0.02, 0.01]);
-    let dir = common::tempdir("review-6135-walk");
+    let dir = common::tempdir("save-fork-walk");
     let original = dir.join("bracket.pncad");
     let copy = dir.join("bracket-copy.pncad");
 
@@ -162,7 +161,7 @@ fn a_fork_of_a_fork_reidentifies_the_abandoned_branch_too() {
             .refusal
             .is_none()
     );
-    let dir = common::tempdir("review-6135-fork2");
+    let dir = common::tempdir("save-fork-fork2");
     let a = dir.join("a.pncad");
     assert!(
         session
@@ -191,7 +190,7 @@ fn a_fork_of_a_fork_reidentifies_the_abandoned_branch_too() {
 #[test]
 fn just_after_a_fork_the_landed_run_is_the_old_identity_until_it_lands() {
     let tol = Tol::witness();
-    let bench = asm::bench("review-6135-window", tol);
+    let bench = asm::bench("save-fork-window", tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.post_b);
     session.pump();
@@ -240,7 +239,7 @@ fn just_after_a_fork_the_landed_run_is_the_old_identity_until_it_lands() {
 #[test]
 fn a_fork_during_a_free_move_keeps_the_move_and_the_new_identity() {
     let tol = Tol::witness();
-    let bench = asm::bench("review-6135-freemove", tol);
+    let bench = asm::bench("save-fork-freemove", tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.post_b);
     session.pump();
@@ -275,7 +274,7 @@ fn a_fork_during_a_value_gesture_refuses_and_writes_nothing() {
     let var = common::thickness_var(session.committed_doc());
     let begun = session.perform(SessionOp::BeginVariableGesture { var });
     assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
-    let dir = common::tempdir("review-6135-gesture");
+    let dir = common::tempdir("save-fork-gesture");
     let fork = dir.join("fork.pncad");
     let before = session.committed_doc().id();
     let refused = session.perform(SessionOp::SaveAsNewDocument(fork.clone()));
@@ -290,16 +289,14 @@ fn a_fork_during_a_value_gesture_refuses_and_writes_nothing() {
 }
 
 /// **A fork aimed at the original's own file**, through the op (the
-/// toolbar never aims it there), must leave the original's document in
-/// its folder. Today the fork overwrites it: red until
-/// `work/lib/save-at-overwrites-a-file-holding-another-document` lands.
+/// toolbar never aims it there), refuses and leaves the original's
+/// document in its folder.
 #[test]
-#[ignore = "red until work/lib/save-at-overwrites-a-file-holding-another-document lands"]
 fn a_fork_aimed_at_the_originals_own_file_keeps_the_original() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let dir = common::tempdir("review-6135-onto-self");
+    let dir = common::tempdir("save-fork-onto-self");
     let file = dir.join("plate.pncad");
     assert!(
         session
@@ -308,7 +305,21 @@ fn a_fork_aimed_at_the_originals_own_file_keeps_the_original() {
             .is_none()
     );
     let original_id = session.committed_doc().id();
-    let _ = session.perform(SessionOp::SaveAsNewDocument(file.clone()));
+    let refused = session.perform(SessionOp::SaveAsNewDocument(file.clone()));
+    assert!(
+        matches!(
+            refused.refusal,
+            Some(Refusal::Workspace(ref error))
+                if matches!(**error, WorkspaceError::SaveWouldReplaceDocument { id, .. } if id == original_id)
+        ),
+        "the fork would replace the original: {:?}",
+        refused.refusal
+    );
+    assert_eq!(
+        session.committed_doc().id(),
+        original_id,
+        "the session keeps its identity"
+    );
     assert_eq!(
         file_id(&file, tol),
         original_id,
@@ -317,17 +328,16 @@ fn a_fork_aimed_at_the_originals_own_file_keeps_the_original() {
     std::fs::remove_dir_all(&dir).expect("removable");
 }
 
-/// **The refusal's fork when the chosen name holds a third document**
-/// (the toolbar's own fork arm, aimed at `requested`) must not delete
-/// that document. Today it does: red until
-/// `work/lib/save-at-overwrites-a-file-holding-another-document` lands.
+/// **A save at a name holding a third document** refuses that it would
+/// replace it, before the duplicate-id check, so the toolbar is offered
+/// no choice whose fork the store would refuse, and the third document
+/// survives.
 #[test]
-#[ignore = "red until work/lib/save-at-overwrites-a-file-holding-another-document lands"]
-fn the_toolbar_fork_over_a_file_holding_a_third_document_keeps_it() {
+fn a_save_over_a_file_holding_a_third_document_refuses_and_offers_no_fork() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let dir = common::tempdir("review-6135-third");
+    let dir = common::tempdir("save-fork-third");
     let file = dir.join("plate.pncad");
     assert!(
         session
@@ -336,7 +346,7 @@ fn the_toolbar_fork_over_a_file_holding_a_third_document_keeps_it() {
             .is_none()
     );
     // A third document at other.pncad.
-    let third = Doc::empty_derived("review-6135-third-doc", tol);
+    let third = Doc::empty_derived("save-fork-third-doc", tol);
     let other = dir.join("other.pncad");
     Workspace::open(&dir)
         .expect("scans")
@@ -345,9 +355,16 @@ fn the_toolbar_fork_over_a_file_holding_a_third_document_keeps_it() {
     let refusal = session
         .perform(SessionOp::Save(other.clone()))
         .refusal
-        .expect("refuses: the session's id is at plate.pncad");
-    let choice = refusal.save_choice().expect("a choice");
-    let _ = session.perform(choice.fork());
+        .expect("refuses: other.pncad holds another document");
+    assert!(
+        matches!(
+            refusal,
+            Refusal::Workspace(ref error)
+                if matches!(**error, WorkspaceError::SaveWouldReplaceDocument { id, .. } if id == third.id())
+        ),
+        "{refusal:?}"
+    );
+    assert!(refusal.save_choice().is_none(), "no choice to offer");
     assert_eq!(
         file_id(&other, tol),
         third.id(),
@@ -376,7 +393,7 @@ fn a_file_with_an_edit_log_opens_at_its_replayed_state() {
         .flat_map(|id| session.history().entry(id).edits().to_vec())
         .collect();
     assert!(!edits.is_empty());
-    let dir = common::tempdir("review-6135-oldlog");
+    let dir = common::tempdir("save-fork-oldlog");
     let file = dir.join("old.pncad");
     std::fs::write(
         &file,
@@ -420,7 +437,7 @@ fn a_save_at_a_relative_path_with_a_folder() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let dir = common::tempdir("review-6135-rel");
+    let dir = common::tempdir("save-fork-rel");
     let cwd = std::env::current_dir().expect("cwd");
     let rel = pathdiff(&dir, &cwd);
     let out = session.perform(SessionOp::Save(rel.join("plate.pncad")));

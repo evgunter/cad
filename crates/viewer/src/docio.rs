@@ -23,7 +23,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use pncad::document::{
-    DocRef, PartResolver, PersistError, ProfileDoc, Recourse, ResolveFailure, Staged, load,
+    DocRef, DocumentId, PartResolver, PersistError, ProfileDoc, Recourse, ResolveFailure, Staged,
+    load,
 };
 use pncad::geom_core::Tol;
 use pncad::workspace::{Scan, Workspace, WorkspaceError};
@@ -174,9 +175,28 @@ pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
 /// The scan's own refusal (`Io`, `Header`, `DuplicateId`), then
 /// `save_at`'s: `SaveWouldDuplicateId` for an id the folder holds
 /// under another file name, `SaveTargetNotInStore` for a target that
-/// is not a `*.pncad` file, `Save` and `Io`.
+/// is not a `*.pncad` file, `SaveWouldReplaceDocument` for a target
+/// that holds another document, `Save` and `Io`.
 pub fn save(path: &Path, doc: &ProfileDoc, tol: Tol) -> Result<PathBuf, WorkspaceError> {
     Workspace::open(file_dir(path))?.save_at(doc, path, tol)
+}
+
+/// Fork `doc` at `path` through that folder's store: the same content
+/// under a fresh random id, the session's original file untouched
+/// (`pncad::workspace::Workspace::save_as_new_document`). Answers the
+/// new id.
+///
+/// # Errors
+///
+/// The scan's own refusal, `RandomnessUnavailable`, then [`save`]'s.
+pub fn save_as_new_document(
+    path: &Path,
+    doc: &ProfileDoc,
+    tol: Tol,
+) -> Result<DocumentId, WorkspaceError> {
+    Workspace::open(file_dir(path))?
+        .save_as_new_document(doc, path, tol)
+        .map(|(id, _)| id)
 }
 
 /// The folder a document at `path` lives in — its parent, with a bare

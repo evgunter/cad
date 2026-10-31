@@ -1,30 +1,17 @@
 ---
 id: save-at-overwrites-a-file-holding-another-document
 kind: issue
-title: Workspace::save_at writes over a target file that holds a different document, and compares paths literally
+title: Workspace::save_at compares the resave path literally, so a case-insensitive filesystem refuses a resave against itself
 status: open
 opened: 2026-10-31
-priority: P0
+priority: P3
 cost: E
-refs: [session-save-is-two-acts]
+refs: [session-save-is-two-acts, 6135]
 ---
 
 Found by the designer pair weighing `work/vseam/session-save-is-two-acts`
-(`[ev]` PR 6123). The two defects are filed here because
+(`[ev]` PR 6123). Two defects were filed here, and one remains, because
 `crates/pncad/src/workspace.rs` is LIB's ground. (VSEAM orchestrator)
-
-## 1. A target holding a different id is overwritten
-
-`Workspace::save_at` (`crates/pncad/src/workspace.rs`) refuses only
-when the document's OWN id is claimed at another path
-(`SaveWouldDuplicateId`). When `target` is a file that holds a
-DIFFERENT document, `std::fs::write` replaces it. That part disappears
-from the store with no refusal, so every assembly pinning it now fails
-to resolve. `by_id` then maps two ids to one path, because the
-overwritten document's entry is never removed. Both designers
-recommend a typed refusal (named `SaveWouldReplaceDocument { id, path }`
-in their reports), whose recourse is to pick another name or remove
-that document first.
 
 ## 2. The resave comparison is literal
 
@@ -35,6 +22,13 @@ join, byte for byte. On a case-insensitive filesystem, resaving
 filesystem's notion of the same file (a canonicalized path, or file
 identity).
 
-## Why P0
+## 2026-10-31 — part (1) landed in PR 6135; re-banded P0 → P3
 
-(1) silently deletes a part through the library's ordinary save door. It is a live wrong answer, whoever calls the door. As of 2026-10-31 it does not block `work/vseam/session-save-is-two-acts`: the viewer's `docio::save_path` overwrites any target already, so routing through `save_at` loses nothing new. Once this lands, the viewer's Save inherits the refusal.
+The overwrite this row first recorded is fixed at the source in PR 6135
+(VSEAM's save lane, authorised by the VSEAM orchestrator onto LIB's
+ground, since LIB has no orchestrator). `Workspace::save_at` now refuses
+`WorkspaceError::SaveWouldReplaceDocument { id, path }` before any
+write when `target` is the file of a different document, so `by_id`
+never maps two ids to one path. What is left is (2): the literal path
+comparison. It refuses rather than corrupting anything, and only on a
+case-insensitive filesystem, so it is P3.

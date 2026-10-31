@@ -1472,7 +1472,7 @@ impl SessionOp {
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
-    ///   about both. It writes the COMMITTED history, so it ignores a
+    ///   about both. It writes the COMMITTED document, so it ignores a
     ///   preview that is not in it; and on a save-as whose parent
     ///   directory differs it rebinds the resolver and re-evaluates,
     ///   which submits the SHOWN document — mid-gesture, the scratch.
@@ -1637,7 +1637,7 @@ impl SessionOp {
     /// is a function of the operation alone.
     ///
     /// [`SessionOp::Save`] is `true`, as it is in the value table and
-    /// for a narrower reason: a save writes the committed history and
+    /// for a narrower reason: a save writes the committed document and
     /// a free-move probe enters no history at all, so there is nothing
     /// of the drag for a save to write or to lose.
     #[must_use]

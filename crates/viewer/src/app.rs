@@ -181,14 +181,6 @@ const FEATURES_SHARE_CAP: f32 = 0.5;
 /// what sizes the tile.
 const FEATURES_SLACK: f32 = 8.0;
 
-/// The document file extension the dialog filters on.
-///
-/// `cfg`-ed with the dialogs it filters for: the browser build links
-/// no chooser, so the constant has no reader there and an
-/// unconditional one would be dead code under CI's `-D warnings`.
-#[cfg(not(target_family = "wasm"))]
-const DOC_EXTENSION: &str = "pncad";
-
 /// What the toolbar says while a canceled run leaves an older picture
 /// on screen (`frame::Progress::Canceled`).
 const CANCELED_LINE: &str = "canceled — showing an older result";
@@ -1241,12 +1233,15 @@ impl ViewerApp {
         // refusal; this loop only performs and collects (`frame`'s
         // module docs).
         let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
+        let mut answered_save_choice = false;
         for op in ops {
             performed.push(op.clone());
             let replaced = op.replaces_the_document();
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
+            let answers = answers_a_save_choice(&op);
             let mut outcome = self.session.perform(op);
+            answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody
@@ -1290,8 +1285,13 @@ impl ViewerApp {
             self.respeak_held();
         }
         let refusal = frame::batch_refusal(refusal, &performed, self.session.committed_doc());
-        if performed.iter().any(answers_a_save_choice) {
-            self.save_choice = refusal.as_ref().and_then(Refusal::save_choice);
+        // A refusal that offers a choice stands it up; a save, fork or
+        // replacement that LANDED answers it; any other refusal leaves
+        // the standing one where it is.
+        if let Some(choice) = refusal.as_ref().and_then(Refusal::save_choice) {
+            self.save_choice = Some(choice);
+        } else if answered_save_choice {
+            self.save_choice = None;
         }
         let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
@@ -1425,7 +1425,8 @@ impl ViewerApp {
     /// to the chrome by disabling both buttons.
     #[cfg(not(target_family = "wasm"))]
     fn file_dialog(&mut self, kind: FileDialog) -> Option<std::path::PathBuf> {
-        let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
+        let mut dialog =
+            rfd::FileDialog::new().add_filter("document", &[pncad::workspace::DOC_EXTENSION]);
         if let Some(dir) = frame::dialog_dir(
             self.session.path(),
             self.last_dir.as_deref(),
@@ -2357,17 +2358,11 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     }
 }
 
-/// **Whether `op` answers a standing [`SaveChoice`]**: a save, which
-/// either lands or refuses with the choice that stands next, and the
-/// two doors that put another document under the session.
+/// **Whether `op`, landing, answers a standing [`SaveChoice`]**: a
+/// save or a fork, and every door that puts another document under the
+/// session.
 fn answers_a_save_choice(op: &SessionOp) -> bool {
-    matches!(
-        op,
-        SessionOp::Save(_)
-            | SessionOp::SaveAsNewDocument(_)
-            | SessionOp::Open(_)
-            | SessionOp::NewDocument { .. }
-    )
+    op.replaces_the_document() || matches!(op, SessionOp::Save(_) | SessionOp::SaveAsNewDocument(_))
 }
 
 /// **A chosen save path, as the store will see it**: a `.pncad` file.
@@ -2376,6 +2371,7 @@ fn answers_a_save_choice(op: &SessionOp) -> bool {
 /// append nothing).
 #[cfg(not(target_family = "wasm"))]
 fn with_doc_extension(path: std::path::PathBuf) -> std::path::PathBuf {
+    use pncad::workspace::DOC_EXTENSION;
     if path.extension().is_some_and(|ext| ext == DOC_EXTENSION) {
         return path;
     }
@@ -3625,7 +3621,11 @@ mod tests {
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         app.perform_batch(vec![SessionOp::Save(copy.clone())]);
-        let fork = app.save_choice.as_ref().map(SaveChoice::fork);
+        let standing = app.save_choice.clone();
+        let fork = standing.as_ref().map(SaveChoice::fork);
+        // A refusal that answers nothing leaves the choice standing.
+        app.perform_batch(vec![SessionOp::SaveAsNewDocument(dir.join("notes.txt"))]);
+        assert_eq!(app.save_choice, standing, "a refused fork answers nothing");
         app.perform_batch(vec![fork.expect("the refusal left its choice standing")]);
         let removed = std::fs::remove_dir_all(&dir);
         assert!(app.save_choice.is_none(), "the fork answered the choice");

@@ -144,3 +144,18 @@ during a free move. The doors are measured in `crates/viewer/tests/doc_io.rs`.
 Filed from the sweep: `work/issues/the-tour-gallery-writes-its-documents-around-the-store`,
 plus a dated note on `work/doctail/the-save-format-drops-its-edit-log`
 (the die corpus still writes a non-empty log).
+
+## 2026-10-31 — review fix pass (PR 6135)
+
+The review found that a fork, and the refusal's fork button, could
+overwrite a file holding another document. The fix is at the source, on
+LIB's ground, authorised by the VSEAM orchestrator:
+
+- `Workspace::save_at` refuses `SaveWouldReplaceDocument`, and checks
+  it before the duplicate-id check, so a choice is offered only when
+  both of its saves would land.
+- `Workspace::save_as_new_document` takes a `target`. The viewer's fork
+  calls it, so the viewer-side composition is gone
+  (`work/lib/save-as-new-document-writes-at-a-chosen-name` closed).
+
+The toolbar choice now stays up through a refusal that answers nothing.

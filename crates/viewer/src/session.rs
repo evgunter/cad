@@ -2661,15 +2661,12 @@ impl DocSession {
     }
 
     /// The fork (DI4): the committed document under a fresh random
-    /// id, written at `path` through that folder's store, and then the
-    /// whole history re-identified under the new id. The write comes
-    /// first, so a refused one leaves the session as it was.
+    /// id, written at `path` through that folder's store
+    /// ([`docio::save_as_new_document`]), and then the whole history
+    /// re-identified under the new id. The write comes first, so a
+    /// refused one leaves the session as it was.
     fn save_as_new_document(&mut self, path: &Path) -> OpOutcome {
-        let forked = pncad::workspace::random_document_id().and_then(|id| {
-            let doc = self.history.doc().clone().under_identity(id);
-            docio::save(path, &doc, self.tol).map(|_| id)
-        });
-        match forked {
+        match docio::save_as_new_document(path, self.history.doc(), self.tol) {
             Ok(id) => {
                 self.history.under_identity(id);
                 // The landed run is of the old identity, so a run is
