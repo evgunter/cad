@@ -6663,6 +6663,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::VolumeSignUnresolved { .. }
         | V::SeamRegionCoverUnresolved { .. }
         | V::ChartSingularityUndecided { .. }
+        | V::WrapTipUndecided { .. }
         | V::RingContactEscalated { .. }
         | V::RingNestingUndecided { .. }
         | V::CycleSideUndecided { .. }
@@ -6718,6 +6719,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::CurvedSenseInverted { .. }
         | V::SeamRegionOvercovered { .. }
         | V::ChartSingularityNotAVertex { .. }
+        | V::WrapTipOffChartSingularity { .. }
+        | V::WrapTipWithoutChartSingularity { .. }
         | V::NegativeVolume { .. }
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }

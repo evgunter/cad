@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-29
 priority: P1
 cost: E
-blocked_on: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote, tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity]
+blocked_on: [a-full-revolves-curved-wall-carries-two-seam-meridians-nobody-wrote]
 ---
 
 

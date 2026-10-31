@@ -1410,6 +1410,9 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::SeamRegionCoverUnresolved { .. }
         | E::ChartSingularityNotAVertex { .. }
         | E::ChartSingularityUndecided { .. }
+        | E::WrapTipOffChartSingularity { .. }
+        | E::WrapTipUndecided { .. }
+        | E::WrapTipWithoutChartSingularity { .. }
         | E::NegativeVolume { .. }
         | E::SliverInsideOut { .. }
         | E::VolumeUncomputable { .. }
