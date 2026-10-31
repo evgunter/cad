@@ -139,18 +139,14 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Ev's #213 layering ruling).** A consistency
-backstop — an inequality between integral RESULTS (a wrong-component
-detector, never an accuracy gate) — is outside the length seam by
-design: it decides on bare `T` through `k_stats::decide_invariant`
-(no `Margin` minted — not a door, not debt), and a certified
-violation is a Corrupt-class kernel-invariant error, separated in type
-and voice from every validity refusal. The kernel runs none today: the
-boolean's volume backstop, the lane's one member, left the operation
-path when Ev made its relations a test oracle the suites run on their
-own results (`[ev]` PR 5780, PR 5842;
-`topo::test_support::VolumeOracle`), so the lane has no caller and its
-three predicates (`volume_backstop`, `volume_backstop_operand`,
+**The invariant lane (retired).** A consistency backstop between
+integral results once decided on bare `T` through
+`k_stats::decide_invariant` (Ev's #213 layering ruling). Its one member,
+the boolean's volume backstop, left the operation path when Ev made its
+relations a test oracle (`[ev]` PR 5780, PR 5842;
+`topo::test_support::VolumeOracle`), and `[ev]` PR 6161 retired the
+lane's DESIGN sentence; `decide_invariant` is deleted. Its three
+predicates (`volume_backstop`, `volume_backstop_operand`,
 `volume_backstop_violation`) are no longer decided. The former
 `per_boundary` door is renamed `over_lever` and re-scoped to the
 genuine geometric decisions (mean-width 2A/P, mean-thickness V/A
@@ -177,8 +173,8 @@ and rewrote `split.rs`. Every figure reproduced at all three.)*
 
 **What is in scope.** K-REPORT's restated rule: a name is in scope if
 it reaches the `geom_core::k_stats` funnel *however it is spelled at
-the call site*. In these two crates that is ten spellings — `decide`,
-`decide_flagged`, `decide_invariant`, and the `check_residual` /
+the call site*. In these two crates that is nine spellings — `decide`,
+`decide_flagged`, and the `check_residual` /
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
@@ -260,7 +256,7 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # The `_reported` doors and `check_unlogged` (the F18–F25 door, the
 # one-margin case of `unlogged`, F28's) are the same decisions keeping
 # their verdict or leaving the log.
-grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
