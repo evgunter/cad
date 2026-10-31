@@ -2455,11 +2455,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    The union's sweep reads the leaf's spline seams against the
     //    tube's torus wall through the curve × face table's ring
     //    composite, and gets past them. What refuses next is the
-    //    vertex-on-face pass: a vertex of the stem, operand A, pierces
-    //    a NURBS wall of the leaf, and the pass needs the pierced face's
-    //    outward normal at the point, which a spline face does not give
-    //    (`face_normal::face_outward_normal_at` answers none), at 1e-9 and
-    //    1e-6 alike
+    //    vertex-on-face pass (`vtxfac::classify_vertex_on_face`): a vertex
+    //    of the stem, operand A, pierces the first of the leaf's two NURBS
+    //    walls, at (−0.061, 0, 0.105), and the pass needs the pierced
+    //    face's outward normal at the point, which a spline face does not
+    //    give (`face_normal::face_outward_normal_at` answers none). The
+    //    same vertex, wall and point at 1e-9 and 1e-6
     //    (`work/splice/a-vertex-piercing-a-spline-face-reads-no-outward-normal`).
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
@@ -2470,13 +2471,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
+            let first_wall = query::all_faces(leaf_a)
+                .into_iter()
+                .find(|&f| query::face_surface_kind(leaf_a, f) == Some(SurfaceKind::Nurbs));
             matches!(
                 e,
                 BooleanError::CurvedBooleanUnsupported {
                     operand: Operand::B,
                     face,
                     kind: SurfaceKind::Nurbs,
-                } if query::face_surface_kind(leaf_a, *face) == Some(SurfaceKind::Nurbs)
+                } if Some(*face) == first_wall
             )
         },
         "join the long leaf to the stem it grows from",

@@ -3179,15 +3179,7 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
                 decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
                 diag,
             },
-            SplineFaceRefusal::Unsettled(why) => BooleanError::SplineCrossingUnsettled {
-                operand: x_is,
-                edge: x
-                    .split_root(edge_key, |_| false)
-                    .map_err(BooleanError::SplitLineage)?,
-                face,
-                face_of: x_is.other(),
-                why,
-            },
+            SplineFaceRefusal::Unsettled(why) => spline_unsettled((x, x_is, edge_key), face, why)?,
             SplineFaceRefusal::Unread(_) => unbuilt(),
             SplineFaceRefusal::Fault(what) => BooleanError::ClassificationInvariant { what },
         })
@@ -4101,24 +4093,14 @@ pub(super) enum SpanVerdict<T: geom_core::Real> {
 ///
 /// # Errors
 ///
-/// [`BooleanError::EdgeCarrierUnsupported`] where there is no arm, and,
-/// where the span's meetings with the plane are not certified off the face
-/// ([`super::carrier_touch::off_face`]),
-/// [`BooleanError::SplineCrossingUnsettled`] where the arm cannot count
-/// the crossings and [`BooleanError::Escalated`] where it reads a touch in
-/// the band's gap or cannot place a crossing.
+/// [`composite_count`]'s, its escalation [`BooleanError::Escalated`].
 fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
     (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
     curve: &geom_brep::EdgeCurve<T>,
     (y, face): (&Body<T>, FaceKey),
     band: Band,
 ) -> Result<Vec<T>, BooleanError> {
-    use geom_brep::curve_face::composite::CompositeRefusal;
     use geom_brep::curve_face::{Door, route};
-    let root = || {
-        x.split_root(edge_key, |_| false)
-            .map_err(BooleanError::SplitLineage)
-    };
     let surface = y
         .get_face(face)
         .and_then(|f| y.get_surface(f.surface))
@@ -4126,94 +4108,166 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
             what: "planar lane: the face's plane does not resolve",
         })?;
     let arm = route(curve.carrier().kind(), surface.kind());
-    let crossings = match curve.carrier() {
+    let net = match curve.carrier() {
         geom::Curve3::Nurbs(net) if arm.door == Door::SplineComposite && arm.implemented => {
-            T::spline_face_crossings(net, curve.params(), surface, band)
+            Some(&**net)
         }
         _ => None,
     };
-    let Some(crossings) = crossings else {
-        return Err(BooleanError::EdgeCarrierUnsupported {
-            operand: x_is,
-            edge: root()?,
-            face,
-            face_of: x_is.other(),
-            site: super::EdgeCarrierSite::PlanarCrossing,
-        });
-    };
-    // Where the span may meet the plane is localized and read against the
-    // face: certified off it, a touch the arm could not settle or decide is
-    // no crossing of this face.
-    let off_face =
-        || super::carrier_touch::off_face(y, face, surface, curve.carrier(), curve.params(), band);
-    match crossings {
-        Ok(ts) => Ok(ts),
-        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_)) if off_face()? => {
-            Ok(Vec::new())
-        }
-        Err(CompositeRefusal::Escalated(diag)) => Err(BooleanError::Escalated {
+    let counted = composite_count(
+        (x, x_is, edge_key),
+        (y, face, surface),
+        (curve.carrier(), net, curve.params()),
+        super::EdgeCarrierSite::PlanarCrossing,
+        band,
+        |diag| BooleanError::Escalated {
             decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
             diag,
-        }),
-        Err(CompositeRefusal::Unsettled(why)) => Err(BooleanError::SplineCrossingUnsettled {
-            operand: x_is,
-            edge: root()?,
-            face,
-            face_of: x_is.other(),
-            why,
-        }),
-        Err(CompositeRefusal::Unread(_)) => Err(BooleanError::ClassificationInvariant {
-            what: "planar lane: a built spline carrier's composite against a plane \
-                   did not form",
-        }),
+        },
+    )?;
+    match counted {
+        Counted::Crossings(ts) => Ok(ts),
+        Counted::OffFace => Ok(Vec::new()),
+        Counted::Refused(refusal) => Err(refusal),
     }
 }
 
-/// **A spline span against a cylinder, cone, sphere or torus face**: the
-/// curve × face table's ring-composite arm
-/// ([`crate::props::AtRestPolicy::spline_face_crossings`]) counts and
-/// locates every crossing strictly inside the span, each certified ON the
-/// carrier and apart from the others and from the span's ends; a touch, a
-/// run along the carrier or a meeting at a crease it refuses
-/// (`Unsettled`). So, unlike a line's or a conic's arms, nothing here
-/// rests on the residual's shape along the span.
+/// What the ring composite made of a spline span against an analytic
+/// face ([`composite_count`]).
+enum Counted<T> {
+    /// Every crossing strictly inside the span, ascending.
+    Crossings(Vec<T>),
+    /// The arm refused a touch, and every meeting of the span with the
+    /// carrier is certified off the face: the span crosses this face
+    /// nowhere inside.
+    OffFace,
+    /// The arm refused a touch the face may hold: its refusal, typed for
+    /// the lane, which a covered span may still defer.
+    Refused(BooleanError),
+}
+
+/// **The ring composite's count of a spline span against an analytic
+/// face**, for both lanes ([`spline_plane_crossings`],
+/// [`spline_wall_event`]). A touch the arm cannot settle (`Unsettled`), or
+/// reads in the band's gap (`Escalated`), is localized and read against
+/// the face ([`super::carrier_touch::off_face`]); off it, it is no
+/// crossing here, and otherwise it is the lane's refusal:
+/// [`BooleanError::SplineCrossingUnsettled`], or `escalated`'s. A face
+/// whose frame or meter does not certify is the operand's invalid input,
+/// and a composite that does not form on a built route is the kernel's.
 ///
-/// - **Settled**: each crossing is told off a cone's far nappe
-///   ([`cone_nappe`]) and placed against the trim; the first one the face
-///   holds is the pierce, and one outside it is a sibling face's. With no
-///   pierce, the span meets this face at most at its ends, each ON end
-///   placed by [`vertex_on_curved_face`] under the undeclared rule
-///   ([`Placement::undeclared_no_interior`]). Ends definitely off on
-///   opposite sides with an even count, or on one side with an odd one,
-///   contradict the count, and keep the door.
-/// - **A touch the arm cannot settle, or reads in the band's gap**: where
-///   the span may meet the carrier is localized and read against the face
-///   ([`super::carrier_touch::off_face`]); certified off it, the span's
-///   interior meets this face nowhere, and the ends decide as above.
-///   Otherwise the arm's refusal stands
-///   ([`BooleanError::SplineCrossingUnsettled`], a span lying on the
-///   carrier among them, or [`BooleanError::Escalated`]), save under a
-///   cover with no end on the carrier.
+/// # Errors
+///
+/// [`BooleanError::EdgeCarrierUnsupported`] at `site` where there is no
+/// arm (`net` is `None`, or the scalar has no certified lane),
+/// [`BooleanError::InvalidInput`] for a degenerate face,
+/// [`BooleanError::ClassificationInvariant`] for a composite that did not
+/// form, and `off_face`'s.
+fn composite_count<T: Bounds + crate::props::AtRestPolicy>(
+    (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
+    (y, face, surface): (&Body<T>, FaceKey, &geom::Surface<T>),
+    (carrier, net, params): (&geom::Curve3<T>, Option<&geom::NurbsCurve3<T>>, (T, T)),
+    site: super::EdgeCarrierSite,
+    band: Band,
+    escalated: impl FnOnce(geom_core::Indeterminate) -> BooleanError,
+) -> Result<Counted<T>, BooleanError> {
+    use geom_brep::curve_face::composite::CompositeRefusal;
+    let found = net.and_then(|net| T::spline_face_crossings(net, params, surface, band));
+    let Some(found) = found else {
+        return Err(BooleanError::EdgeCarrierUnsupported {
+            operand: x_is,
+            edge: x
+                .split_root(edge_key, |_| false)
+                .map_err(BooleanError::SplitLineage)?,
+            face,
+            face_of: x_is.other(),
+            site,
+        });
+    };
+    Ok(match found {
+        Ok(ts) => Counted::Crossings(ts),
+        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
+            if super::carrier_touch::off_face(y, face, surface, carrier, params, band)? =>
+        {
+            Counted::OffFace
+        }
+        Err(CompositeRefusal::Escalated(diag)) => Counted::Refused(escalated(diag)),
+        Err(CompositeRefusal::Unsettled(why)) => {
+            Counted::Refused(spline_unsettled((x, x_is, edge_key), face, why)?)
+        }
+        Err(CompositeRefusal::FaceDegenerate(what)) => {
+            return Err(BooleanError::InvalidInput {
+                operand: x_is.other(),
+                what,
+            });
+        }
+        Err(CompositeRefusal::Unread(_)) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a built spline carrier's composite against an analytic face did not form",
+            });
+        }
+    })
+}
+
+/// [`BooleanError::SplineCrossingUnsettled`] for `x`'s edge against
+/// `face` of the other operand, the edge named by its split root.
+///
+/// # Errors
+///
+/// [`BooleanError::SplitLineage`] where the edge's lineage does not read.
+fn spline_unsettled<T: Decide>(
+    (x, x_is, edge_key): (&Body<T>, Operand, EdgeKey),
+    face: FaceKey,
+    why: geom_brep::roots::Unsettled,
+) -> Result<BooleanError, BooleanError> {
+    Ok(BooleanError::SplineCrossingUnsettled {
+        operand: x_is,
+        edge: x
+            .split_root(edge_key, |_| false)
+            .map_err(BooleanError::SplitLineage)?,
+        face,
+        face_of: x_is.other(),
+        why,
+    })
+}
+
+/// **A spline span against a cylinder, cone, sphere or torus face**: the
+/// curve × face table's ring-composite arm ([`composite_count`]) counts
+/// and locates every crossing strictly inside the span, each certified ON
+/// the carrier and apart from the others and from the span's ends; a
+/// touch, a run along the carrier or a meeting at a crease it refuses.
+/// So, unlike a line's or a conic's arms, nothing here rests on the
+/// residual's shape along the span.
+///
+/// - **Counted**: each crossing is placed ([`place_crossing`]); the first
+///   one the face holds is the pierce, and one off its nappe or outside
+///   its trim is a sibling face's. With no pierce, the span meets this
+///   face at most at its ends, each ON end placed by
+///   [`vertex_on_curved_face`] under the undeclared rule
+///   ([`Placement::undeclared_no_interior`]).
+/// - **Off the face**: a refused touch whose meetings are all certified
+///   off the face; the ends decide as above.
+/// - **Refused**: the arm's refusal stands, a span lying on the carrier
+///   among them, save under a cover with no end on the carrier.
 /// - **The one-sided cover** ([`edge_covers`]): the span lies in one
 ///   closed side of the carrier, so a crossing contradicts it, as does an
 ///   end off on the side no cover admits; both keep the door. Its ends
 ///   take the declared rule ([`Placement::declared`]), the interior clear
 ///   where the count settled or the meetings were placed off the face. A
-///   span whose meetings the arm cannot settle, with no end on the
-///   carrier, touches the carrier, if at all, strictly inside, and is
-///   deferred to its fragments ([`CurvedEvent::Deferred`]).
+///   span whose meetings the arm refused, with no end on the carrier,
+///   touches the carrier, if at all, strictly inside, and is deferred to
+///   its fragments ([`CurvedEvent::Deferred`]).
 ///
 /// # Errors
 ///
-/// [`BooleanError::EdgeCarrierUnsupported`] for a scalar with no
-/// certified lane, [`BooleanError::SplineCrossingUnsettled`] and
-/// [`BooleanError::CurvedPierceUnsupported`] as above,
-/// [`BooleanError::Escalated`] where a decision falls in the band's gap.
+/// [`composite_count`]'s, its escalation
+/// [`BooleanError::CurvedPierceEscalated`];
+/// [`BooleanError::CurvedPierceUnsupported`] as above.
 #[allow(clippy::too_many_arguments)]
 fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x, x_is, edge_key, edge): (&Body<T>, Operand, EdgeKey, &crate::entity::Edge),
     y: &mut Body<T>,
-    (carrier, net, (t0, t1), surface): (
+    (carrier, net, params, surface): (
         &geom::Curve3<T>,
         &geom::NurbsCurve3<T>,
         (T, T),
@@ -4226,80 +4280,40 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
-    use geom_brep::curve_face::composite::CompositeRefusal;
     let frontier = || BooleanError::CurvedPierceUnsupported {
         operand: x_is,
         face,
         edge: edge_key,
         band,
     };
-    let root = || {
-        x.split_root(edge_key, |_| false)
-            .map_err(BooleanError::SplitLineage)
+    let located = |decision, diag| BooleanError::CurvedPierceEscalated {
+        operand: x_is,
+        face,
+        edge: edge_key,
+        decision,
+        diag,
     };
     let covered = !covers.is_empty();
-    let Some(found) = T::spline_face_crossings(net, (t0, t1), surface, band) else {
-        return Err(BooleanError::EdgeCarrierUnsupported {
-            operand: x_is,
-            edge: root()?,
-            face,
-            face_of: x_is.other(),
-            site: super::EdgeCarrierSite::CurvedCrossing,
-        });
-    };
-    // The crossings (`None` where the span's meetings were placed off the
-    // face uncounted), or the arm's refusal to count them: a touch it
-    // could not settle, or one it read in the band's gap.
-    let crossings = match found {
-        Ok(ts) => Ok(Some(ts)),
-        Err(CompositeRefusal::Escalated(_) | CompositeRefusal::Unsettled(_))
-            if super::carrier_touch::off_face(y, face, surface, carrier, (t0, t1), band)? =>
-        {
-            Ok(None)
+    let counted = composite_count(
+        (x, x_is, edge_key),
+        (y, face, surface),
+        (carrier, Some(net), params),
+        super::EdgeCarrierSite::CurvedCrossing,
+        band,
+        |diag| located(BooleanDecision::Crossing(CrossingDecision::OnEdge), diag),
+    )?;
+    if let Counted::Crossings(ts) = &counted {
+        if covered && !ts.is_empty() {
+            return Err(frontier());
         }
-        Err(CompositeRefusal::Escalated(diag)) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Crossing(CrossingDecision::OnEdge),
-            diag,
-        }),
-        Err(CompositeRefusal::Unsettled(why)) => Err(BooleanError::SplineCrossingUnsettled {
-            operand: x_is,
-            edge: root()?,
-            face,
-            face_of: x_is.other(),
-            why,
-        }),
-        Err(CompositeRefusal::Unread(_)) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "curved lane: a built spline carrier's composite against an analytic \
-                       face did not form",
-            });
-        }
-    };
-    if covered
-        && crossings
-            .as_ref()
-            .is_ok_and(|ts| ts.as_ref().is_some_and(|ts| !ts.is_empty()))
-    {
-        return Err(frontier());
-    }
-    if let Ok(Some(ts)) = &crossings {
         let nappe = cone_nappe(y, face, surface, band)?;
         for &t in ts {
             let p = carrier.eval(t);
-            if let Some((apex, axis, half_angle, nappe)) = nappe {
-                let off = geom_brep::cone_elevation(apex, axis, half_angle, Some(nappe), p);
-                match decide("bool_cone_root_nappe", Margin::of(off), band) {
-                    Ok(Sign::Positive) => continue,
-                    Ok(Sign::Zero) => {}
-                    // Below the face's own nappe is off the double cone
-                    // the crossing was certified on.
-                    Ok(Sign::Negative) | Err(_) => return Err(frontier()),
-                }
-            }
-            match landing(y, face, p, band)? {
-                Landing::Unplaced => return Err(frontier()),
-                Landing::Out => {}
-                Landing::At(at, on) => {
+            match place_crossing(y, face, p, nappe, band)? {
+                Placed::OffNappe | Placed::Out => {}
+                Placed::Unplaced => return Err(frontier()),
+                Placed::NappeGap(diag) => return Err(located(BooleanDecision::ConeRoots, diag)),
+                Placed::At(at, on) => {
                     return Ok(CurvedEvent::Pierce {
                         t,
                         p,
@@ -4316,6 +4330,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
     } else {
         Coincide::VertexOnCurvedFace
     };
+    let refused = matches!(counted, Counted::Refused(_));
     let mut ends = [None, None];
     let mut sides = [Sign::Zero; 2];
     for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
@@ -4334,7 +4349,7 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
             sign if covers.iter().any(|c| c.admits(sign)) || !covered => continue,
             Sign::Positive | Sign::Negative => return Err(frontier()),
         }
-        if crossings.is_err() {
+        if refused {
             continue;
         }
         ends[i] = Some(vertex_on_curved_face(
@@ -4350,21 +4365,82 @@ fn spline_wall_event<T: Decide + Bounds + crate::props::AtRestPolicy>(
         )?);
     }
     let on_carrier = sides.contains(&Sign::Zero);
-    let counted = match crossings {
-        Ok(counted) => counted,
-        Err(_) if covered && !on_carrier => return Ok(CurvedEvent::Deferred),
-        Err(refusal) => return Err(refusal),
+    let counted = match counted {
+        Counted::Refused(_) if covered && !on_carrier => return Ok(CurvedEvent::Deferred),
+        Counted::Refused(refusal) => return Err(refusal),
+        Counted::Crossings(ts) => Some(ts.len()),
+        Counted::OffFace => None,
     };
     if covered {
         return Placement::declared(ends, true).ok_or_else(frontier);
     }
-    if let Some(ts) = counted
+    // Ends definitely off on opposite sides with an even count, or on one
+    // side with an odd one, contradict the count. No row reaches this: it
+    // only refuses more, and no fixture gives a certified count the ends
+    // disagree with.
+    if let Some(count) = counted
         && !on_carrier
-        && (sides[0] != sides[1]) != (ts.len() % 2 == 1)
+        && (sides[0] != sides[1]) != (count % 2 == 1)
     {
         return Err(frontier());
     }
     Placement::undeclared_no_interior(ends).ok_or_else(frontier)
+}
+
+/// Where a crossing of a curved face's carrier stands against the face
+/// ([`place_crossing`]).
+enum Placed {
+    /// On a cone's double cone, definitely off the face's own nappe: the
+    /// carrier is crossed, not here.
+    OffNappe,
+    /// On the carrier and definitely outside the face's trim.
+    Out,
+    /// In the face or on its boundary ([`Landing::At`]).
+    At(FaceContainment, Option<MarginDiag>),
+    /// Whether it stands on the face's nappe falls in the band's gap: the
+    /// cone door's own question, which the caller escalates located.
+    NappeGap(geom_core::Indeterminate),
+    /// No verdict: definitely below the face's own nappe (off the double
+    /// cone the crossing was certified on, two readings that part), or a
+    /// trim the containment door could not read. The caller keeps its door.
+    Unplaced,
+}
+
+/// **Where a certified crossing `p` of `face`'s carrier lands**, for every
+/// lane that finds one ([`wall_crossing`], [`spline_wall_event`]): told
+/// off a cone's far nappe first ([`cone_nappe`]; the roots are the DOUBLE
+/// cone's, [`geom_brep::implicit_residual`]'s carrier), then placed in
+/// the trim ([`landing`]).
+///
+/// # Errors
+///
+/// [`landing`]'s.
+fn place_crossing<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    nappe: Option<ConeNappe<T>>,
+    band: Band,
+) -> Result<Placed, BooleanError> {
+    if let Some((apex, axis, half_angle, nappe)) = nappe {
+        let off = geom_brep::cone_elevation(apex, axis, half_angle, Some(nappe), p);
+        match decide("bool_cone_root_nappe", Margin::of(off), band) {
+            Ok(Sign::Positive) => return Ok(Placed::OffNappe),
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Negative) => return Ok(Placed::Unplaced),
+            // No row reaches this: a crossing whose nappe the band cannot
+            // tell lies within a few gaps of the apex, where the root doors
+            // refuse at the apex first and the composite cannot read past
+            // the band between it and the other sheet
+            // (`work/splice/the-cone-nappe-gap-arm-has-no-reaching-row`).
+            Err(diag) => return Ok(Placed::NappeGap(diag)),
+        }
+    }
+    Ok(match landing(y, face, p, band)? {
+        Landing::Unplaced => Placed::Unplaced,
+        Landing::Out => Placed::Out,
+        Landing::At(at, on) => Placed::At(at, on),
+    })
 }
 
 /// The curved-wall crossing route: solve the certified roots — a
@@ -4498,11 +4574,7 @@ fn wall_crossing<T: Decide + Bounds>(
         CircleRoots::Miss => return Ok(SpanVerdict::Miss),
     };
     let ts = found.roots();
-    // **A root on the far nappe is not this face's.** The roots are the
-    // DOUBLE cone's, the carrier [`geom_brep::implicit_residual`]
-    // states; a cone face lies on one nappe, and a root definitely off
-    // THAT nappe ([`geom_brep::cone_elevation`] asked about it) lies on
-    // the other: the carrier is crossed, not here ([`cone_nappe`]).
+    // A root on the far nappe is not this face's ([`place_crossing`]).
     let nappe = cone_nappe(y, face, surface, band)?;
     // Whether some root sits at an end of the span, and whether some
     // root strictly inside it was placed outside this face's trim: the
@@ -4536,36 +4608,19 @@ fn wall_crossing<T: Decide + Bounds>(
             continue;
         }
         let p = carrier.eval(t);
-        if let Some((apex, axis, half_angle, nappe)) = nappe {
-            let off = geom_brep::cone_elevation(apex, axis, half_angle, Some(nappe), p);
-            match decide("bool_cone_root_nappe", Margin::of(off), band) {
-                Ok(Sign::Positive) => {
-                    crossed_elsewhere = true;
-                    continue;
-                }
-                Ok(Sign::Zero) => {}
-                // Below the face's own nappe: off the double cone the root
-                // was certified on, two readings that part; the frontier
-                // keeps it, as on main.
-                Ok(Sign::Negative) => return Ok(SpanVerdict::Unsettled),
-                // Whether the root stands on this face's nappe, in the
-                // gap: the cone door's own question, located.
-                Err(diag) => {
-                    let decision = match carrier {
-                        geom::Curve3::Line { .. } => BooleanDecision::ConeRoots,
-                        _ => BooleanDecision::ArcConeRoots,
-                    };
-                    return escalate(decision, diag);
-                }
+        match place_crossing(y, face, p, nappe, band)? {
+            Placed::Unplaced => return Ok(SpanVerdict::Unsettled),
+            Placed::NappeGap(diag) => {
+                let decision = match carrier {
+                    geom::Curve3::Line { .. } => BooleanDecision::ConeRoots,
+                    _ => BooleanDecision::ArcConeRoots,
+                };
+                return escalate(decision, diag);
             }
-        }
-        match landing(y, face, p, band)? {
-            Landing::Unplaced => return Ok(SpanVerdict::Unsettled),
-            // On the carrier and definitely outside THIS face's trim:
-            // the carrier is crossed, but not here. The other roots may
+            // The carrier is crossed, but not here. The other roots may
             // still land in the face, so the loop continues.
-            Landing::Out => crossed_elsewhere = true,
-            Landing::At(at, on) => return Ok(SpanVerdict::Pierce { t, p, at, on }),
+            Placed::OffNappe | Placed::Out => crossed_elsewhere = true,
+            Placed::At(at, on) => return Ok(SpanVerdict::Pierce { t, p, at, on }),
         }
     }
     Ok(no_pierce_verdict(crossed_elsewhere, at_end))

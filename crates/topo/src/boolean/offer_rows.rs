@@ -2960,6 +2960,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "spline_wall_event",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
         "Coincide::VertexOnCoveredFace",
         1,
     ),
