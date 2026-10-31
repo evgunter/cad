@@ -27,9 +27,9 @@ world copy — a `Place` into the world or an instance
 The selection it reads is `Selection::node`
 (`crates/viewer/src/session/select.rs:205`), which for a viewport face
 or edge pick answers the FEATURE that minted the entity
-(`FaceSelection::feature`, `:64`) — the extrude, never the `Place`
-that `create_placed` (`crates/viewer/src/session.rs`) inserts beside
-it. So clicking the body you can see never shows the button. It shows
+(`FaceSelection::feature`, `:64`) — for a name whose minting is
+known, the extrude, not the `Place` that `create_placed`
+(`crates/viewer/src/session.rs`) inserts beside it. So clicking the body you can see never shows the button. It shows
 only after a tree click on the `Place …` row, which a person has no
 reason to know is the copy the product reads.
 

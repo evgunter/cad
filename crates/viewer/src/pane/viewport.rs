@@ -136,15 +136,16 @@ pub(crate) struct FramedCamera {
     pub(crate) events: camera::Folded,
     /// The committed profiles' segments.
     pub(crate) profiles: Vec<[f32; 3]>,
-    /// The previews' loops, then their step marks.
+    /// The previews' loops, then their step marks and the revolve
+    /// tool's axis.
     pub(crate) preview: Vec<[f32; 3]>,
 }
 
 /// **The one order a frame's camera and its overlays are made in**:
 /// the geometry lanes, then the extent they and the scene draw, then
 /// the owed fit on that extent, then the events' fold, and only then
-/// the previews' step marks, sized against the camera all of that
-/// settled on. Pure, so the order is a row rather than a reading of
+/// the previews' step marks and the revolve tool's axis, sized against
+/// the camera all of that settled on. Pure, so the order is a row rather than a reading of
 /// `viewport_ui`.
 pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
     let CameraFrame {
@@ -219,88 +220,85 @@ const SWEEP_ARC_FLOOR: f64 = 1.0e-9;
 /// How many legs a full turn of the sweep arc is drawn with.
 const SWEEP_ARC_LEGS_PER_TURN: f64 = 64.0;
 
-/// **The revolve tool's axis and sweep, appended to a lane**, before
-/// anything is committed — so the direction the axis runs, and so
-/// which side of it the profile must lie on and which way it turns, is
-/// seen rather than worked out from a heading.
+/// How far an arrowhead's wings spread to each side, as a fraction of
+/// its length.
+const ARROW_SPREAD: f64 = 0.45;
+
+/// How many ticks mark the side of the axis a profile must lie on.
+const SIDE_TICKS: u32 = 4;
+
+/// **The revolve tool's axis and sweep, appended to a lane**, so the
+/// direction the axis runs, the side of it the profile must lie on and
+/// the way it turns are seen before anything is committed.
 ///
-/// The conventions drawn are the revolve's own
-/// (`sweep::revolve`'s module docs): with `d` the axis's unit heading,
-/// a profile must lie where `r = (p − through).perp_dot(d) ≥ 0`, the
-/// arrow's right seen from the side the profile's normal points to;
-/// and a positive angle turns it right-handed about `d`, carrying it
-/// first toward the plane's `−n` side.
+/// What is drawn follows `sweep::revolve`'s conventions: with `d` the
+/// axis's unit heading, a profile must lie where
+/// `(p − through).perp_dot(d) ≥ 0`, and a positive angle turns it
+/// right-handed about `d`.
 ///
-/// - **The axis**, a line through `through` along the heading, spanning
-///   the profile's axial extent and `through` itself with a margin, an
-///   arrowhead at its `+d` end and a tick across it at `through`.
-/// - **The sweep**, the path the profile's point farthest from the
-///   axis travels: an arc about the axis by the angle (a full circle at
-///   a full turn or past it), with an arrowhead where it stops. Not
-///   drawn for a profile with no point off the axis, nor for an angle
-///   that is not a number.
+/// - The axis line, over the profile's axial extent and `through` with
+///   a margin, with an arrowhead at its `+d` end and a comb of ticks
+///   on the side the profile must lie on.
+/// - The arc the profile's point farthest from the axis travels, with
+///   an arrowhead where the sweep stops; none for a profile on its
+///   axis or an angle that is not a number.
 ///
-/// The arrowheads and the tick are sized against `view`, as the step
-/// marks are, and are not drawn without one; the lines are. All of it
-/// goes in the marks lane, outside what a fit frames: the axis's
-/// margin is chosen around the profile, and a fit that framed it would
-/// zoom out each time the axis moved.
+/// The arrowheads and ticks are sized against `view` and need one. It
+/// all goes in the marks lane, outside what a fit frames, so a fit
+/// does not chase the axis's margin.
 fn push_revolve_axis(
     lane: &mut marks::LegLane,
     axis: &RevolveAxisPreview,
     view: Option<screen::View>,
 ) {
-    use pncad::geom_core::{Point2, Point3, Vec2};
+    use pncad::geom_core::{Affine3, Point2, Point3, Vec2};
     let placement = axis.plane.placement();
     let through = Point2::from_array(axis.through);
     let (sin, cos) = axis.heading.sin_cos();
     let along = Vec2::new(cos, sin);
-    // `d` turned a quarter turn clockwise: the radial direction, the
-    // side a profile must lie on.
-    let radial = Vec2::new(sin, -cos);
-    // A point at axial `z`, radial `r`, and `h` off the plane along its
-    // normal, in world space.
-    let world = |z: f64, r: f64, h: f64| {
-        let p = through + along * z + radial * r;
-        placement.transform_point(Point3::new(p.x, p.y, h))
+    // `along` a quarter turn clockwise: the side a profile must lie on.
+    let side = Vec2::new(sin, -cos);
+    // The world point `z` along the axis and `r` toward its side.
+    let world = |z: f64, r: f64| {
+        let p = through + along * z + side * r;
+        placement.transform_point(Point3::new(p.x, p.y, 0.0))
     };
-    let mut leg = |a: Point3<f64>, b: Point3<f64>| lane.leg(a, b);
-    let arrow_at = |at: Point3<f64>| view.and_then(|view| view.screen_metres_at(at, AXIS_ARROW_PX));
+    let size_at = |at: Point3<f64>| view.and_then(|view| view.screen_metres_at(at, AXIS_ARROW_PX));
 
-    let (mut low, mut high, mut size) = (0.0_f64, 0.0_f64, 0.0_f64);
+    let (mut low, mut high, mut reach) = (0.0_f64, 0.0_f64, 0.0_f64);
     let mut farthest: Option<(f64, f64)> = None;
     for &p in axis.loops.iter().flat_map(|lp| &lp.points) {
         let offset = Point2::from_array(p) - through;
         let (z, r) = (offset.dot(along), offset.perp_dot(along));
         low = low.min(z);
         high = high.max(z);
-        size = size.max(z.abs()).max(r.abs());
+        reach = reach.max(z.abs()).max(r.abs());
         if farthest.is_none_or(|(_, far)| r.abs() > far.abs()) {
             farthest = Some((z, r));
         }
     }
-    let span = high - low;
-    let margin = if span > 0.0 {
-        0.15 * span
-    } else {
-        // A profile with no axial extent: a length the view gives.
-        arrow_at(world(0.0, 0.0, 0.0)).map_or(0.0, |arrow| 2.0 * arrow)
-    };
+    let margin = 0.15 * (high - low);
     let (from, to) = (low - margin, high + margin);
-    leg(world(from, 0.0, 0.0), world(to, 0.0, 0.0));
-    let tip = world(to, 0.0, 0.0);
-    if let Some(arrow) = arrow_at(tip) {
-        leg(tip, world(to - arrow, 0.45 * arrow, 0.0));
-        leg(tip, world(to - arrow, -0.45 * arrow, 0.0));
+    let tip = world(to, 0.0);
+    lane.leg(world(from, 0.0), tip);
+    if let Some(size) = size_at(tip) {
+        push_arrowhead(
+            lane,
+            tip,
+            world(to - size, 0.0) - tip,
+            world(to, size) - tip,
+        );
     }
-    if let Some(tick) = arrow_at(world(0.0, 0.0, 0.0)) {
-        leg(world(0.0, -0.3 * tick, 0.0), world(0.0, 0.3 * tick, 0.0));
+    for tick in 0..SIDE_TICKS {
+        let z = from + (to - from) * f64::from(tick) / f64::from(SIDE_TICKS);
+        if let Some(size) = size_at(world(z, 0.0)) {
+            lane.leg(world(z, 0.0), world(z, 0.5 * size));
+        }
     }
 
     // A radius at the rounding of the heading's sine and cosine is a
-    // profile ON the axis, which sweeps nothing: a point there is not
-    // drawn going round.
-    let Some((z, r)) = farthest.filter(|&(_, r)| r.abs() > SWEEP_ARC_FLOOR * size) else {
+    // profile ON the axis, which sweeps nothing.
+    let Some((z, r)) = farthest.filter(|&(_, r)| r.abs() > SWEEP_ARC_FLOOR * reach) else {
         return;
     };
     if !axis.angle.is_finite() || axis.angle == 0.0 {
@@ -309,33 +307,40 @@ fn push_revolve_axis(
     let sweep = axis
         .angle
         .clamp(-core::f64::consts::TAU, core::f64::consts::TAU);
-    // The point at turn `phi`: its radial part rotated about `d`, which
-    // takes the radial direction toward `−n` (`d × radial = −n`).
-    let turned = |phi: f64, out: f64, ahead: f64| {
-        let (s, c) = phi.sin_cos();
-        // `out` along the turned radial, `ahead` along the travel.
-        let travel = sweep.signum();
-        world(
-            z,
-            (r + out) * c - ahead * travel * s * r.signum(),
-            -(r + out) * s - ahead * travel * c * r.signum(),
-        )
-    };
+    let (centre, start) = (world(z, 0.0), world(z, r));
+    let direction = world(1.0, 0.0) - world(0.0, 0.0);
+    let turned =
+        |angle: f64, p: Point3<f64>| Affine3::rotate_point_about_axis(centre, direction, angle, p);
     let legs = (sweep.abs() / core::f64::consts::TAU * SWEEP_ARC_LEGS_PER_TURN)
         .ceil()
         .max(2.0);
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let count = legs as usize;
-    let mut last = turned(0.0, 0.0, 0.0);
+    let count = legs as u32;
+    let mut last = start;
     for step in 1..=count {
-        let here = turned(sweep * step as f64 / legs, 0.0, 0.0);
-        leg(last, here);
+        let here = turned(sweep * f64::from(step) / legs, start);
+        lane.leg(last, here);
         last = here;
     }
-    if let Some(arrow) = arrow_at(last) {
-        leg(last, turned(sweep, 0.45 * arrow, -arrow));
-        leg(last, turned(sweep, -0.45 * arrow, -arrow));
+    if let Some(size) = size_at(last) {
+        // The arc a length `size` back from its end, and a step out
+        // from the axis at the end.
+        let back = turned(sweep - sweep.signum() * size / r.abs(), start) - last;
+        let out = turned(sweep, world(z, r + r.signum() * size)) - last;
+        push_arrowhead(lane, last, back, out);
     }
+}
+
+/// An arrowhead at `tip`: two wings, `back` along the way it came and
+/// [`ARROW_SPREAD`] of `across` to either side.
+fn push_arrowhead(
+    lane: &mut marks::LegLane,
+    tip: pncad::geom_core::Point3<f64>,
+    back: pncad::geom_core::Vec3<f64>,
+    across: pncad::geom_core::Vec3<f64>,
+) {
+    lane.leg(tip, tip + back + across * ARROW_SPREAD);
+    lane.leg(tip, tip + back - across * ARROW_SPREAD);
 }
 
 /// **One drawn preview's loops, placed on its plane and appended to a
@@ -3144,6 +3149,13 @@ mod tests {
             "the arrowhead points up the heading: {:?}",
             &drawn[1..3]
         );
+        assert!(
+            drawn[3..7]
+                .iter()
+                .all(|[at, end]| at[0].abs() < 1.0e-6 && end[0] > 0.0),
+            "the side ticks point to +x, the right of an arrow up y: {:?}",
+            &drawn[3..7]
+        );
         // Turned half a turn, the same axis points the other way.
         let flipped = square_about_y(-core::f64::consts::FRAC_PI_2, core::f64::consts::TAU);
         let mut lane = marks::LegLane::default();
@@ -3153,6 +3165,11 @@ mod tests {
             near3(flipped_legs[1][0], [0.0, -0.15, 0.0]),
             "a heading of -turn/4 puts the arrow at the bottom: {:?}",
             flipped_legs[1]
+        );
+        assert!(
+            flipped_legs[3..7].iter().all(|[_, end]| end[0] < 0.0),
+            "and its side ticks to -x: {:?}",
+            &flipped_legs[3..7]
         );
     }
 
@@ -3182,6 +3199,78 @@ mod tests {
                 drawn[16][1]
             );
         }
+    }
+
+    /// **The sweep's arrowhead points the way the profile turns**: its
+    /// two wings start at the arc's end and lie behind it along the
+    /// travel. A quarter turn either way about +y ends at `∓2 z`, still
+    /// moving toward −x, so both wings sit at `x > 0`.
+    #[test]
+    fn the_sweep_arcs_arrowhead_points_along_the_turn() {
+        let quarter = core::f64::consts::FRAC_PI_2;
+        for (angle, end) in [(quarter, [0.0, 0.0, -2.0]), (-quarter, [0.0, 0.0, 2.0])] {
+            let axis = square_about_y(quarter, angle);
+            let mut lane = marks::LegLane::default();
+            super::push_revolve_axis(&mut lane, &axis, Some(a_view()));
+            let drawn = legs(&lane);
+            assert_eq!(
+                drawn.len(),
+                1 + 2 + super::SIDE_TICKS as usize + 16 + 2,
+                "axis, arrowhead, ticks, arc, arrowhead: {drawn:?}"
+            );
+            let wings = &drawn[drawn.len() - 2..];
+            assert!(
+                wings
+                    .iter()
+                    .all(|[at, wing]| near3(*at, end) && wing[0] > 0.0),
+                "a turn of {angle} draws its arrowhead behind {end:?}: {wings:?}"
+            );
+        }
+    }
+
+    /// **The axis is no part of what a fit frames**: a fit owed with the
+    /// revolve tool's axis drawn frames the same box as one without it.
+    #[test]
+    fn a_fit_frames_the_same_box_with_the_revolve_axis_drawn() {
+        let previews: super::Previews = crate::drafts::ProfileDoors {
+            create: None,
+            edit: None,
+        };
+        let scene: Vec<[f32; 3]> = vec![[1.0, 0.0, 0.0], [2.0, 1.0, 0.0]];
+        let axis = square_about_y(core::f64::consts::FRAC_PI_2, core::f64::consts::TAU);
+        let camera = Camera::new(
+            pncad::geom_core::Point3::new(5.0, -4.0, 3.0),
+            40.0,
+            0.3,
+            0.4,
+            0.8,
+            10.0,
+        )
+        .expect("a camera");
+        let map = crate::input::InputMap::default();
+        let extent = |axis: Option<&super::RevolveAxisPreview>| {
+            let framed = frame_camera(super::CameraFrame {
+                camera: &camera,
+                scene: &scene,
+                profiles: marks::LegLane::default(),
+                previews: &previews,
+                axis,
+                fit: true,
+                input: &map,
+                viewport: ViewportSize {
+                    width_px: 800.0,
+                    height_px: 600.0,
+                },
+                events: &[],
+            });
+            let fit = framed.fit.expect("the owed fit was taken");
+            let framed_box = fit.applied.first().and_then(|op| match op {
+                CameraOp::Frame { extent, .. } => *extent,
+                _ => None,
+            });
+            format!("{:?}", framed_box.expect("the fit framed an extent"))
+        };
+        assert_eq!(extent(Some(&axis)), extent(None));
     }
 
     /// A profile lying ON its axis has no radius to sweep, and an angle

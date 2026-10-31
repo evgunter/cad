@@ -1137,12 +1137,10 @@ impl ViewerBehavior<'_> {
             ui,
             "x, y and the heading from x are the profile's own; the axis lies in its plane",
         );
-        // The two conventions the viewport's drawing shows
-        // (`pane::viewport::push_revolve_axis`), said in words beside it.
         crate::widgets::message(
             ui,
-            "the profile lies to the right of the axis arrow, seen from its plane's front; \
-             a positive angle turns it right-handed about the arrow",
+            "the viewport draws the axis: the profile must lie on the side its ticks point to, \
+             and a positive angle turns it right-handed about the arrow",
         );
         ui.horizontal(|ui| {
             ui.label("angle");
