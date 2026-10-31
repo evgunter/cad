@@ -6665,6 +6665,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::ChartSingularityUndecided { .. }
         | V::RingContactEscalated { .. }
         | V::RingNestingUndecided { .. }
+        | V::CycleSideUndecided { .. }
         | V::RingPairContactEscalated { .. }
         | V::PinchCornerEscalated { .. } => None,
         // The census's findings: the door runs no census
@@ -6721,6 +6722,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }
         | V::RingOutsideOuter { .. }
+        | V::CycleOffFaceSide { .. }
+        | V::EssentialCyclesUnpaired { .. }
         | V::RingMeetsRing { .. }
         | V::PinchCornerCrossed { .. }
         | V::ShellWinding { .. }

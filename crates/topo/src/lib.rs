@@ -238,6 +238,7 @@ pub mod separation;
 #[cfg(test)]
 pub(crate) mod seqgen;
 pub mod shell;
+pub(crate) mod one_region;
 pub(crate) mod side_reader;
 pub mod split;
 pub mod splitting;

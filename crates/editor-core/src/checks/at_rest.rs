@@ -1420,6 +1420,9 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::RingContactEscalated { .. }
         | E::RingOutsideOuter { .. }
         | E::RingNestingUndecided { .. }
+        | E::CycleOffFaceSide { .. }
+        | E::CycleSideUndecided { .. }
+        | E::EssentialCyclesUnpaired { .. }
         | E::RingMeetsRing { .. }
         | E::RingPairContactEscalated { .. }
         | E::PinchCornerCrossed { .. }
