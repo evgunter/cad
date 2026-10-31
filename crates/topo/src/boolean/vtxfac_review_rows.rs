@@ -87,7 +87,7 @@ fn pierce_at(du: f64) -> Result<Vec<SideCode>, BooleanError> {
 /// by name, not only one exactly on it.
 #[test]
 fn rv_a_pierce_within_the_band_of_a_crease_refuses_by_name() {
-    for du in [0.0, 1e-14, 1e-12, 1e-10] {
+    for du in [0.0, 0.01, 0.1, 0.5].map(|f| f * band().zero()) {
         let got = pierce_at(du);
         assert!(
             matches!(got, Err(BooleanError::NormalAtSplineCrease { .. })),
@@ -96,13 +96,14 @@ fn rv_a_pierce_within_the_band_of_a_crease_refuses_by_name() {
     }
 }
 
-/// A crease 1e-6 from the pierce, outside the band and inside every
-/// sector's reach, refuses by name: the normal reads, and the lever does
+/// A crease a hundred escalation widths from the pierce (a micron at the
+/// default ε), outside the band and inside every sector's reach, refuses
+/// by name: the normal reads, and the lever does
 /// not (`PierceLeverUnread`), naming why. The ridge is an integral chart,
 /// which the patch bound refuses whole (`PatchBound`).
 #[test]
 fn rv_a_pierce_a_micron_from_a_crease_refuses_by_name() {
-    let got = pierce_at(1e-6);
+    let got = pierce_at(100.0 * band().escalate());
     assert!(
         matches!(
             got,
@@ -144,7 +145,8 @@ fn rv_a_chart_point_not_the_vertexs_does_not_read() {
     let (cube, top) = ridged_cube();
     let p = ridge().eval(0.25, 0.5);
     let (mut prism, corner) = prism_above(p);
-    for uv in [(0.25 + 1e-6, 0.5), (0.25, 0.9), (0.5, 0.25), (0.75, 0.5)] {
+    let off = 100.0 * band().escalate();
+    for uv in [(0.25 + off, 0.5), (0.25, 0.9), (0.5, 0.25), (0.75, 0.5)] {
         let got = classify(&mut prism, corner, (&cube, top), Some(uv));
         assert!(
             matches!(got, Err(BooleanError::ClassificationInvariant { .. })),
