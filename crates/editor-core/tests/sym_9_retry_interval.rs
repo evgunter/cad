@@ -676,7 +676,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     // +8 and retries 6: rule G under H costs `carrier_matches_mapped_source`
     // four per attempt and the ladder recovers them and two more, the
     // DECIDE-3 trade PR 5954 rules as that predicate's exemption from
-    // never-loses (`work/green/g-moves-four-main-reds-messages.md`).
+    // never-loses (`work/intent/g-moves-four-main-reds-messages.md`).
     let expected: [(&str, [u64; 2], [u64; 2], u64); 5] = [
         ("two_hole_plate", [1149, 824], [1149, 824], 0),
         ("r1_annulus", [654, 555], [654, 555], 0),
@@ -835,8 +835,12 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     // explained: [1421, 1386, 34] -> [1463, 1380, 34]. #5542's merge
     // moved it first, to [1421, 1378, 34]; the rest is unbisected
     // (`work/cpair/main-red-slow-set-receipts-moved-at-5542.md`).
-    // Pinned at main's value, not explained: `symbolic` -2 since PR 5954
-    // (`work/green/g-moves-four-main-reds-messages.md`).
+    // Then PR 5954's rule H took two (`symbolic` -2, `retried` holds):
+    // the leg's rounded `π/2` is a symbolic angle, its products linearise
+    // into multiple-angle atoms, and one square in each of a
+    // `carrier_on_surface_1` and a `carrier_on_surface_2` residual freezes
+    // on the coefficient bound. Pinned at that loss, a defect
+    // (`work/sym/rule-h-loses-two-pad-decisions-to-a-coefficient-freeze.md`).
     assert_eq!(
         [d.symbolic, d.numeric, d.retried],
         [1461, 1382, 34],
@@ -852,7 +856,8 @@ fn sym_9_the_drive_writes_the_ladders_receipt() {
     );
     let b = bare.decisions();
     // Pinned with the shipped receipt above: [1387, 1420, 0] ->
-    // [1429, 1414, 0] -> [1427, 1416, 0].
+    // [1429, 1414, 0] -> [1427, 1416, 0], the last move rule H's
+    // (`SymRules::without_angle_sum` reads [1429, 1414, 0]).
     assert_eq!([b.symbolic, b.numeric, b.retried], [1427, 1416, 0]);
     assert!(
         !bare.serialize().contains("retried="),

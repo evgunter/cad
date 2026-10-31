@@ -2,12 +2,14 @@
 id: the-at-rest-gates-cost-grows-with-the-face-count-of-a-split-conic-patch
 kind: issue
 title: the at-rest volume-sign gate and the measure cost 10-28x more on a conic patch split per span than on the same patch whole
-status: dispatched
+status: closed
 opened: 2026-10-29
 priority: P0
 cost: H
 refs: [import-splits-a-foreign-face-or-edge-at-each-c0-knot]
 branch: quad/per-span-round-zero
+closed: 2026-10-30
+pr: 6092
 ---
 
 
@@ -45,3 +47,13 @@ Find what in round zero scales with the face count rather than with the cells (a
 ## The fix, as ruled (FOREIGN, `[ev]` PR 6014, 2026-10-29)
 
 Both designers on fork row 216 traced the cost to round-zero schedules fixed per FACE, not per knot span: `AREA_CELLS_PER_AXIS = 64` "over the whole rectangle" (`geom-brep` `props/quad/area.rs`), `AXIS_INIT_PIECES = 8`, `HULL_BLOCKS_PER_AXIS = 8`, `REFINED_SPANS_PER_AXIS = 16` (`props/quad/cells.rs`). The whole 9×9 patch gets about 7 area cells per span and each one-span tile 64: about 81× the cells for the same area, against the measured 25–28× gate. Main's `Wall` at pad 2.9e-3 on the whole patch is the same defect from the other side (under-resolved per span). Owed: every rectangle lane builds its round-zero cells, hull blocks and refined net per knot span, so a patch and its tiles are read on the same cells. Acceptance: the whole quarter torus and its 162-tile split bracket the same volume at about the same cost, and the whole patch no longer stops at `Wall`. The "fixed, D9" comments are agent text, not ratified ([determinism] asks for the same bits from the same inputs). Re-measure the residual per-face cost (25× against 81× leaves some unexplained) after the fix. FOREIGN's C⁰-knot split (draft PR 6013) is parked on this row: it lands once a split rational conic costs what the whole one did.
+
+## Closed
+
+PR 6092. Every rectangle lane lays its round-zero cells, hull blocks, refined net and area cells per knot span (`knot_aligned_cuts`, `block_aligned_cuts`, `net::range_spans`), so a patch and its one-span tiles are read on the same cells.
+
+**Measured in release on the conic quarter torus.** Gate3 is 1.65 s with the split (main: 32 s), and the measure meets the resolution in 5.4 s at pad 4.12e-4. Per-span set-up is linear in span cells, within 1.6–2.4× of main on 10×10 to 30×30-span faces.
+
+**The rest of the acceptance moved to Ev's `[ev]` PR 6102.** The whole 9×9 patch still stops at `Wall` (pad 8.64e-4, against main's 2.87e-3), because the work bound stays per face as DESIGN `[tolerance.measure]` ratifies. What bounds the work is that PR's question (row `the-measurement-work-bound-attaches-to-the-question`), so "the whole patch no longer stops at Wall" goes with it.
+
+**The trade:** one-span faces read 2–4.6× wider per round, and the extreme-weight hypar sits at 31% of the A2 tripwire. Rows filed on the way are listed in PR 6092's body.

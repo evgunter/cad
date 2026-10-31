@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-21
 priority: P2
 cost: M
-refs: [a-mate-placed-seat-is-unproven-at-the-doors-budget, the-door-reads-a-mated-seat-by-its-mate]
+refs: [5587]
 ---
 
 ## What
