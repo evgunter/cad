@@ -1,7 +1,8 @@
 //! **A spline or spiric carrier at the sweep's two arms**: the plane
 //! arm reads a spline edge through the curve × face table's
-//! ring-composite arm, and every other pairing here has no crossing lane
-//! and refuses.
+//! ring-composite arm (the curved arm's rows are
+//! `curved_lane_spline_rows`), and a spiric has no crossing lane at
+//! either and refuses.
 //!
 //! Two operands, each a planar sheet bounded by one curved edge and the
 //! chord back:
@@ -11,8 +12,8 @@
 //! - in `x = ½`, the spiric of the torus `R = 2`, `r = 1` about `ẑ` over
 //!   `v ∈ [−π/2, π/2]`.
 //!
-//! The partner is a brick with a side face across the curve, or a
-//! cylinder wall. `A`'s direction of the sweep runs directly, so the
+//! The partner is a brick with a side face across the curve, or, for the
+//! spiric, a cylinder wall. `A`'s direction of the sweep runs directly, so the
 //! rows read what the sweep's arms themselves do with it: where it split
 //! the edge, or which arm refused (`EdgeCarrierSite`). Each sheet is built fresh-keyed
 //! (`fresh_keyed_body`), so the face a refusal names resolves in one
@@ -226,7 +227,7 @@ fn brick_face(x: (f64, f64), y: (f64, f64), n: Vec3<f64>) -> (Body<f64>, FaceKey
 }
 
 /// `A`'s direction of the sweep alone: the swept sheet and its contacts.
-fn sweep_a(
+pub(super) fn sweep_a(
     a: &Body<f64>,
     b: &Body<f64>,
 ) -> Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError> {
@@ -289,7 +290,7 @@ fn assert_refused(
 }
 
 /// The points at which the sweep put a vertex of `A` on `face` of `B`.
-fn on_face(
+pub(super) fn on_face(
     got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
     face: FaceKey,
 ) -> Vec<Point3<f64>> {
@@ -375,38 +376,6 @@ fn an_arc_crossing_a_plane_face_once_is_split_where_it_crosses() {
     assert!(lands_at(&got, &want), "on the face at {want:?}: {got:?}");
 }
 
-/// **The same arc against a cylinder wall refuses with the same
-/// variant.** The unit cylinder about `z` meets the arc (`mx = 1`,
-/// `h = 1`) where `x² + y² = 1`: the arc starts inside it at the origin
-/// and peaks at `(1, 1)`, outside it, so it crosses the wall. No
-/// declaration settles a carrier with no crossing lane, so the refusal
-/// offers none.
-#[test]
-fn an_arc_crossing_a_cylinder_wall_refuses() {
-    use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
-    let (mx, h) = (1.0, 1.0);
-    let (x, y) = bezier(mx, h, 0.5);
-    assert!(
-        x * x + y * y > 1.0,
-        "the oracle puts the arc's peak outside the wall"
-    );
-    let mut b = Body::<f64>::new();
-    cyl_wall_sheet(
-        &mut b,
-        CylFrame::canonical(1.0),
-        (0.0, core::f64::consts::PI),
-        (-1.0, 1.0),
-        Tol::witness(),
-    );
-    let (a, e) = arc_sheet(mx, h);
-    assert_refused(
-        sweep_a(&a, &b),
-        e,
-        [&a, &b],
-        EdgeCarrierSite::CurvedCrossing,
-    );
-}
-
 /// **A spiric that dips through a plane face and back refuses.** Its ends
 /// (`v = ±π/2`) lie at `y = √3.75 ≈ 1.94`, below the brick's face
 /// `y = 2.5`, and its middle (`v = 0`) at `y = √8.75 ≈ 2.96`, above it;
@@ -463,4 +432,37 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
         [&a, &b],
         EdgeCarrierSite::CurvedCrossing,
     );
+}
+
+/// **An arc touching a plane face's carrier outside the face is no
+/// event there.** The arc (`mx = 1`, `h = 1`) peaks at `(1, 1)`, where it
+/// touches the plane `y = 1` from below. The brick's face on that plane
+/// spans `x ∈ [1.5, 3]`, which the arc's box reaches but the touch does
+/// not: the composite reads the touch in the band's gap, and the touch,
+/// localized, is certified off the face.
+#[test]
+fn an_arc_touching_a_plane_outside_the_face_is_no_event() {
+    let (mx, h) = (1.0, 1.0);
+    assert_eq!(bezier(mx, h, 0.5), (1.0, 1.0), "the oracle peaks at (1, 1)");
+    let (b, face) = brick_face((1.5, 3.0), (1.0, 4.0), Vec3::new(0.0, -1.0, 0.0));
+    let (a, _) = arc_sheet(mx, h);
+    let got = on_face(sweep_a(&a, &b), face);
+    assert!(got.is_empty(), "nothing on the face: {got:?}");
+}
+
+/// **The same touch inside the face escalates.** The face spans
+/// `x ∈ [0.5, 3]`, which holds the peak.
+#[test]
+fn an_arc_touching_a_plane_inside_the_face_escalates() {
+    let (mx, h) = (1.0, 1.0);
+    let (b, _) = brick_face((0.5, 3.0), (1.0, 4.0), Vec3::new(0.0, -1.0, 0.0));
+    let (a, _) = arc_sheet(mx, h);
+    match sweep_a(&a, &b) {
+        Err(BooleanError::Escalated { diag, .. }) => assert_eq!(
+            diag.predicate,
+            Some("spline_composite_past_the_band"),
+            "the composite's reading escalates"
+        ),
+        other => panic!("the arc touches the face: {other:?}"),
+    }
 }

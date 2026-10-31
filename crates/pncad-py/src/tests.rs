@@ -2899,8 +2899,8 @@ fn workspace_error_tags_are_stable() {
         .expect_err("a directory that is not there refuses");
     assert_eq!(workspace_error_tag(&missing), "io");
 
-    // The save door's own two arms, constructed: neither is reachable
-    // from a store that holds nothing, and both are Python-visible.
+    // The save door's own three arms, constructed: none is reachable
+    // from a store that holds nothing, and all are Python-visible.
     assert_eq!(
         workspace_error_tag(&WorkspaceError::SaveWouldDuplicateId {
             id: pncad::document::DocumentId::derive("tagged"),
@@ -2908,6 +2908,13 @@ fn workspace_error_tags_are_stable() {
             requested: std::path::PathBuf::from("/store/b.pncad"),
         }),
         "save_would_duplicate_id"
+    );
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveWouldReplaceDocument {
+            id: pncad::document::DocumentId::derive("tagged"),
+            path: std::path::PathBuf::from("/store/a.pncad"),
+        }),
+        "save_would_replace_document"
     );
     assert_eq!(
         workspace_error_tag(&WorkspaceError::SaveTargetNotInStore {
@@ -2990,6 +2997,14 @@ fn import_report_row_tags_are_stable() {
             "seamless_periodic_band",
         ),
         (NormalizationKind::JoinedEdges, "joined_edges"),
+        (
+            NormalizationKind::EdgeSplitAtC0Knot,
+            "edge_split_at_c0_knot",
+        ),
+        (
+            NormalizationKind::FaceSplitAtC0Knot,
+            "face_split_at_c0_knot",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -4470,6 +4485,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_along_face",
             "pcurves",
             "pieces",
+            "pierce_lever_unread",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
@@ -4477,7 +4493,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "recharted_row_unstated",
             "rest_piece_unread",
             "result_invalid",
-            "result_volume_implausible",
             "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
@@ -4497,9 +4512,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unjoined_operand",
             "unrepresentable_result",
             "vertex_read_twice",
-            "volume_corrupt",
-            "volume_undecided",
-            "volume_unmeasured",
             "zip_correspondence",
         ],
         delegates: &[],
@@ -5292,6 +5304,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "chart_singularity_vertex",
             "edge_free_sphere",
+            "edge_split_at_c0_knot",
+            "face_split_at_c0_knot",
             "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
@@ -5760,9 +5774,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fit",
             "knot_algebra",
             "no_parameter_step",
-            "path_tangent_reversal",
-            "path_tangent_undecided",
+            "path_folds_back",
+            "path_stations_coincide",
             "path_tangent_vanishes",
+            "path_undecided",
             "row_motion_undecided",
             "section_profile",
             "section_shape_mismatch",
@@ -5917,6 +5932,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "c0_knot_unsplit",
             "dangling_reference",
             "instance",
             "invalid_eps_override",
@@ -6191,6 +6207,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "vertex_orbit_overrun",
             "volume_sign_unresolved",
             "volume_uncomputable",
+            "wrap_tip_off_chart_singularity",
+            "wrap_tip_undecided",
+            "wrap_tip_without_chart_singularity",
         ],
         delegates: &[],
     },
@@ -6223,6 +6242,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "save",
             "save_target_not_in_store",
             "save_would_duplicate_id",
+            "save_would_replace_document",
             "unknown_id",
             "update",
         ],

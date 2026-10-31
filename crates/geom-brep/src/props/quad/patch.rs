@@ -9,13 +9,16 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Decide};
 
 use super::area::{
-    AREA_CELLS_PER_AXIS, AreaCell, PERIMETER_CHORDS_PER_SIDE, area_midpoint_taylor,
-    boundary_chord_perimeter_lo, debug_assert_area_gauge,
+    AREA_CELLS_PER_SPAN, AreaCell, PERIMETER_CHORDS_PER_SPAN, area_midpoint_taylor,
+    boundary_chord_perimeter_lo, cut_window, debug_assert_area_gauge,
 };
-use super::cells::{cell_count, cell_midpoint, remainder_cell_u, remainder_cell_v, round_cuts};
+use super::cells::{
+    HULL_BLOCKS_PER_SPAN, advance_block, cell_count, cell_midpoint, knot_aligned_cuts,
+    remainder_cell_u, remainder_cell_v, round_cuts,
+};
 use super::net::{
-    Collapse, PatchGrid, PatchNet, PatchRect, clipped_spans, grid_vec, newton_cotes_weights,
-    norm_hi, normal_partials, widen,
+    Collapse, GridSlice, PatchGrid, PatchNet, PatchRect, clipped_spans, grid_slice, grid_slice_at,
+    grid_vec, newton_cotes_weights, norm_hi, normal_partials, widen,
 };
 use super::rational::rational_patch_face;
 use super::run::{
@@ -217,42 +220,62 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let s_hull = s.vec(Collapse::Over(rect.u), Collapse::Over(rect.v));
     let p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag();
 
-    // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
-    // hull contains every cell's, so the per-cell remainder
-    // `hull(f_uu)·h³/24` may use it soundly — looser by a constant,
-    // still O(h²), and it turns the per-cell cost from ten grid hulls
-    // into three thin evals; the 866-second debug wall this replaced
-    // is the reason). It bounds the remainder on every cell because
-    // the cells are cut on the interior knots, so each one lies inside
-    // a single smooth piece and the Taylor remainder is the whole
-    // error there.
-    let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
-    let g_s = s_hull;
-    let g_su = grid_vec(su.as_ref(), over_all.0, over_all.1);
-    let g_sv = grid_vec(sv.as_ref(), over_all.0, over_all.1);
-    let g_suu = grid_vec(suu.as_ref(), over_all.0, over_all.1);
-    let g_suv = grid_vec(suv.as_ref(), over_all.0, over_all.1);
-    let g_svv = grid_vec(svv.as_ref(), over_all.0, over_all.1);
-    let g_f_uu = dot(&g_su, &cross(&g_suu, &g_sv))
-        + dot(
-            &g_s,
-            &cross(&grid_vec(suuu.as_ref(), over_all.0, over_all.1), &g_sv),
-        )
-        + pt(2.0) * dot(&g_s, &cross(&g_suu, &g_suv))
-        + dot(
-            &g_s,
-            &cross(&g_su, &grid_vec(suuv.as_ref(), over_all.0, over_all.1)),
-        );
-    let g_f_vv = dot(&g_sv, &cross(&g_su, &g_svv))
-        + dot(
-            &g_s,
-            &cross(&grid_vec(suvv.as_ref(), over_all.0, over_all.1), &g_sv),
-        )
-        + pt(2.0) * dot(&g_s, &cross(&g_suv, &g_svv))
-        + dot(
-            &g_s,
-            &cross(&g_su, &grid_vec(svvv.as_ref(), over_all.0, over_all.1)),
-        );
+    // The second-derivative hulls, one per hull block ([`knot_aligned_cuts`]
+    // at [`HULL_BLOCKS_PER_SPAN`]), computed once: a block's hull
+    // contains every cell's inside it, so the per-cell remainder
+    // `hull(f_uu)·h³/24` may use it soundly, and a cell reads three thin
+    // evals rather than ten grid hulls. It bounds the remainder on every
+    // cell because the cells are cut on the interior knots, so each one
+    // lies inside a single smooth piece and the Taylor remainder is the
+    // whole error there.
+    let edges_u = knot_aligned_cuts(u0, u1, HULL_BLOCKS_PER_SPAN, knots_u);
+    let edges_v = knot_aligned_cuts(v0, v1, HULL_BLOCKS_PER_SPAN, knots_v);
+    let nbv = edges_v.len() - 1;
+    // The ten grids the remainder hulls read, sliced once per u block.
+    let hull_grids = [
+        Some(&s),
+        su.as_ref(),
+        sv.as_ref(),
+        suu.as_ref(),
+        suv.as_ref(),
+        svv.as_ref(),
+        suuu.as_ref(),
+        suuv.as_ref(),
+        suvv.as_ref(),
+        svvv.as_ref(),
+    ];
+    let blocks = || -> Vec<(Interval, Interval)> {
+        let mut out = Vec::with_capacity((edges_u.len() - 1) * nbv);
+        for bu in 0..edges_u.len() - 1 {
+            let ou = Collapse::Over(cut_window(edges_u[bu], edges_u[bu + 1]));
+            let sl = hull_grids.map(|g| grid_slice(g, ou));
+            for bv in 0..nbv {
+                let ov = Collapse::Over(cut_window(edges_v[bv], edges_v[bv + 1]));
+                let [
+                    g_s,
+                    g_su,
+                    g_sv,
+                    g_suu,
+                    g_suv,
+                    g_svv,
+                    g_suuu,
+                    g_suuv,
+                    g_suvv,
+                    g_svvv,
+                ] = core::array::from_fn(|k| grid_slice_at(hull_grids[k], sl[k].as_ref(), ov));
+                let f_uu = dot(&g_su, &cross(&g_suu, &g_sv))
+                    + dot(&g_s, &cross(&g_suuu, &g_sv))
+                    + pt(2.0) * dot(&g_s, &cross(&g_suu, &g_suv))
+                    + dot(&g_s, &cross(&g_su, &g_suuv));
+                let f_vv = dot(&g_sv, &cross(&g_su, &g_svv))
+                    + dot(&g_s, &cross(&g_suvv, &g_sv))
+                    + pt(2.0) * dot(&g_s, &cross(&g_suv, &g_svv))
+                    + dot(&g_s, &cross(&g_su, &g_svvv));
+                out.push((f_uu, f_vv));
+            }
+        }
+        out
+    };
 
     // AREA: the shared [`area_midpoint_taylor`] rule (#313's integral
     // half) with this lane's polynomial integrand `g = |S_u×S_v|` —
@@ -261,29 +284,46 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     // per-cell hull rule, which was span-granular and therefore did
     // not tighten at all: on the standard multi-arc form it returned
     // `area.lo() == 0` and the face was refused DegenerateFace.
+    // The grids the area pass reads: `S_u`, `S_v` and their partials.
+    let area_grids = [
+        su.as_ref(),
+        sv.as_ref(),
+        suu.as_ref(),
+        suv.as_ref(),
+        svv.as_ref(),
+    ];
+    let mut column: Option<(f64, [GridSlice; 7])> = None;
     let area = area_midpoint_taylor(
         rect,
-        AREA_CELLS_PER_AXIS,
+        AREA_CELLS_PER_SPAN,
         boundary_defect,
         (knots_u, knots_v),
         |b| -> Result<AreaCell, PropsError> {
-            let over = (Collapse::Over(b.u), Collapse::Over(b.v));
-            let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
-            let cm = cross(
-                &grid_vec(su.as_ref(), m.0, m.1),
-                &grid_vec(sv.as_ref(), m.0, m.1),
-            );
-            let (h_su, h_sv) = (
-                grid_vec(su.as_ref(), over.0, over.1),
-                grid_vec(sv.as_ref(), over.0, over.1),
-            );
-            let (d_u, d_v) = normal_partials(
-                &h_su,
-                &h_sv,
-                &grid_vec(suu.as_ref(), over.0, over.1),
-                &grid_vec(suv.as_ref(), over.0, over.1),
-                &grid_vec(svv.as_ref(), over.0, over.1),
-            );
+            // One u collapse per column: the pass walks `u` outermost.
+            if column.as_ref().is_none_or(|(u, _)| *u != b.umid) {
+                let (m, o) = (Collapse::At(b.umid), Collapse::Over(b.u));
+                column = Some((
+                    b.umid,
+                    [
+                        grid_slice(area_grids[0], m),
+                        grid_slice(area_grids[1], m),
+                        grid_slice(area_grids[0], o),
+                        grid_slice(area_grids[1], o),
+                        grid_slice(area_grids[2], o),
+                        grid_slice(area_grids[3], o),
+                        grid_slice(area_grids[4], o),
+                    ],
+                ));
+            }
+            let Some((_, sl)) = column.as_ref() else {
+                unreachable!("the column was just sliced")
+            };
+            let (m, o) = (Collapse::At(b.vmid), Collapse::Over(b.v));
+            let at = |k: usize, i: usize, v| grid_slice_at(area_grids[k], sl[i].as_ref(), v);
+            let cm = cross(&at(0, 0, m), &at(1, 1, m));
+            let (h_su, h_sv) = (at(0, 2, o), at(1, 3, o));
+            let (d_u, d_v) =
+                normal_partials(&h_su, &h_sv, &at(2, 4, o), &at(3, 5, o), &at(4, 6, o));
             Ok(AreaCell {
                 g_mid: (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt(),
                 g_u: norm_hi(d_u),
@@ -299,7 +339,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let perimeter_lo = || {
         boundary_chord_perimeter_lo(
             rect.corners(),
-            PERIMETER_CHORDS_PER_SIDE,
+            PERIMETER_CHORDS_PER_SPAN,
             (knots_u, knots_v),
             |cu, cv| s.vec(Collapse::At(cu), Collapse::At(cv)),
         )
@@ -341,35 +381,39 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let cuts = |round: usize| round_cuts(rect, (knots_u, knots_v), false, round);
     let cost = |round: usize| composite_round_cost(rect, (knots_u, knots_v), round);
     let mut run = Run::enter(window, &cost);
+    let blocks = blocks();
+    // The grids a round's midpoint reads, sliced once per column.
+    let flux_grids = [Some(&s), su.as_ref(), sv.as_ref()];
     let mut round = run.first();
     loop {
         let mut flux = Interval::zero();
         let mut removable = 0.0_f64;
         let (cuts_u, cuts_v) = cuts(round);
+        let mut bu = 0usize;
         for iu in 0..cuts_u.len() - 1 {
             let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);
+            advance_block(&mut bu, c_ulo, &edges_u);
             let hu = pt(c_uhi) - pt(c_ulo);
+            let um = cell_midpoint(c_ulo, c_uhi);
+            let cu = Collapse::AtSpan {
+                mid: um.0,
+                t: &um.1,
+            };
+            let sl = flux_grids.map(|g| grid_slice(g, cu));
+            let mut bv = 0usize;
             for iv in 0..cuts_v.len() - 1 {
                 let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);
+                advance_block(&mut bv, c_vlo, &edges_v);
+                let (g_f_uu, g_f_vv) = blocks[bu * nbv + bv];
                 let hv = pt(c_vhi) - pt(c_vlo);
-                let (um, vm) = (cell_midpoint(c_ulo, c_uhi), cell_midpoint(c_vlo, c_vhi));
-                let m = (
-                    Collapse::AtSpan {
-                        mid: um.0,
-                        t: &um.1,
-                    },
-                    Collapse::AtSpan {
-                        mid: vm.0,
-                        t: &vm.1,
-                    },
-                );
-                let fm = dot(
-                    &s.vec(m.0, m.1),
-                    &cross(
-                        &grid_vec(su.as_ref(), m.0, m.1),
-                        &grid_vec(sv.as_ref(), m.0, m.1),
-                    ),
-                );
+                let vm = cell_midpoint(c_vlo, c_vhi);
+                let cv = Collapse::AtSpan {
+                    mid: vm.0,
+                    t: &vm.1,
+                };
+                let [g_s, g_su, g_sv] =
+                    core::array::from_fn(|k| grid_slice_at(flux_grids[k], sl[k].as_ref(), cv));
+                let fm = dot(&g_s, &cross(&g_su, &g_sv));
                 let r_uu = g_f_uu * remainder_cell_u(hu, hv);
                 let r_vv = g_f_vv * remainder_cell_v(hu, hv);
                 removable += r_uu.width() + r_vv.width();
@@ -510,9 +554,9 @@ mod tests {
 
     /// **The wall is cumulative, at the lane.** Never accepted, the
     /// one-span quarter cylinder's exact-v arm runs to its wall: rounds
-    /// 0 to 10 spend 7.6e6 of the 1.425e7, and round 11 alone (7.6e6)
-    /// would take it past, so it stops after 11 rounds. A wall read
-    /// per round would admit round 11 and stop after 12.
+    /// 0 to 11 spend 7.6e6 of the 1.425e7, and round 12 alone (7.6e6)
+    /// would take it past, so it stops after 12 rounds. A wall read
+    /// per round would admit round 12 and stop after 13.
     #[test]
     fn a_never_accepted_face_stops_at_its_cumulative_wall() {
         let (ku, kv, net, w) = one_span_quarter_cylinder();
@@ -528,7 +572,7 @@ mod tests {
         .expect("the quarter cylinder has an enclosure");
         assert_eq!(
             (run.end, run.round, run.rounds),
-            (LaneEnd::Wall, 10, 11),
+            (LaneEnd::Wall, 11, 12),
             "{run:?}"
         );
     }

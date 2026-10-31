@@ -264,10 +264,11 @@ Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation its margin decides:
-the merge stage reads the same ladder (D10), keeping the
-description of the group's arena-first face that lies in no other
-member's hole. That is ordinarily operand A's, and B's where A's face
-plugs a hole of B's.
+the merge stage reads the glue's record of the pair and measures
+nothing again (D10), and the merged face keeps the first-written operand's description, which the glue decides
+once per pair (DESIGN.md [coincidence.booleans]): operand A's, where
+A's face plugs a hole of B's as anywhere else, whichever face holds the
+merged region.
 
 **Seam.** A *seam* is a junction of the result whose material wedge is
 π: two faces on distinct carriers joining G1 along a curve. It is read
@@ -339,14 +340,27 @@ distinct from that carrier by the carrier ladder. Where the ladder does
 not decide a parent distinct, the cosurface question keeps its door.
 
 **C5 — The signed gap.** For a recorded pair on same-kind carriers with a
-shared mating frame, g is the carrier-relative signed offset:
+shared mating frame, g is the carrier-relative signed offset of the
+inner face's touching point from the outer face's carrier, along the
+outer face's outward normal, each face read on its material side:
 
-- parallel planes: the material separation along the outer face's
-  outward normal;
-- concentric spheres: R − r − ‖Δc‖;
-- coaxial cylinders: r_b − r_p − d (skew axes refuse).
+- parallel planes: the separation along the outer face's outward
+  normal;
+- two spheres, or two cylinders on parallel axes (skew axes refuse):
+  the inner carrier's point that touches the outer at a tangency, its
+  nearest point to the outer's centre where the two lie apart, its
+  farthest or its nearest where one is nested in the other (a pin in a
+  bore reads r_b − r_p − d, a ball in a socket R − r − ‖Δc‖);
+- a plane and a sphere or a cylinder: the round carrier's point
+  nearest the plane.
 
-**g > 0 clearance, g = 0 contact, g < 0 interference.** The census
+**g = 0 is a touch. Over an opposed pair (each face facing the other's
+material) g > 0 is clearance and g < 0 interference, and g reads the
+same whichever face is the outer. Over an aligned pair (both facing
+one way: a flush pair, an aligned tangency, two rods nested) the sign
+says which face stands outside the other, positive where the inner
+stands out of the outer's material, and swapping the faces negates
+it; it is neither clearance nor interference.** The census
 classes are the strata of g's zero set: g = 0 with structural frame
 sharing is `Rest`; g = 0 with an offset frame is an internal point/curve
 touch. So the conformal limit is reached by structure, never by g
@@ -356,8 +370,9 @@ radii; with independent frames it carries the norm kink ‖Δc‖ at Δc = 0
 straddle-hull treatment). Built as the document layer's
 `MeasurePrimitive::Gap { outer, inner }`
 (`crates/editor-core/src/measure.rs`, evaluated in
-`crates/editor-core/src/eval/measure.rs`), argument order the mating
-role, authored rather than inferred. Between a vertex or an edge and
+`crates/editor-core/src/eval/measure.rs`), argument order the role,
+authored rather than inferred; what the values decide is the
+configuration the two faces meet in. Between a vertex or an edge and
 another cell, g is how far one cell stands out of the other's
 material, read as the reading cell's link, the directions entering
 its solid at the point (a face's, the side of its carrier its material
@@ -584,7 +599,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    bodies — `mfkrh` on a detached ring disconnects a shell's surface
    while a single shell entity remains.
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
-   empty loops, no valence-1 vertices, and c = 1 per shell (the third
+   empty loops, no valence-1 vertices but a wrap edge's tip (any valence-1
+   end of a wrap edge, read off the stored wrap flag; both ends of a lone
+   wrap edge are tips), and c = 1 per shell (the third
    ban is independent: a promoted detached cycle ring disconnects a
    shell with neither an empty loop nor a strut).
 3. **Tier 3 "geometric"** — [tolerance.residuals] residual certification, plus the
@@ -653,7 +670,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    reading STEP import normalizes by; one in the interior or inside an
    edge is `ChartSingularityNotAVertex`, and one whose distance to the
    boundary is in band, or whose side of a loop its reading cannot clear
-   of its own error bound, is `ChartSingularityUndecided`),
+   of its own error bound, is `ChartSingularityUndecided`; and every wrap
+   edge's tip lies on its face's chart singularity, read at the joint
+   between the edge's two halves by the incidence the loop walk resets
+   that joint by, `WrapTipOffChartSingularity`,
+   `WrapTipWithoutChartSingularity` on a surface with no singular point,
+   or `WrapTipUndecided`, whose ending passes zero alone;
+   a vertex's incidence on a singular point is one reading,
+   `geom_brep::chart_singularity::vertex_at_singular_point`, which the
+   at-vertex placement, the reset and the tip rule all read),
    **prefer-intrinsic
    enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside

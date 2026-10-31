@@ -151,7 +151,7 @@ use pncad::sweep::ExtrudeSide;
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
 };
-use pncad::prelude::{CurveKind, Open, Start, SurfaceKind, SurfaceKindSet, query};
+use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
 use pncad::sweep::blend::fillet_edges;
 use pncad::sweep::{
@@ -159,8 +159,8 @@ use pncad::sweep::{
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
 use pncad::topo::{
-    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeCarrierSite, EdgeKey, Operand,
-    PairRefusalSite,
+    AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, EulerOpError, Operand,
+    PairRefusalSite, SiteRowRefusal,
 };
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
@@ -2453,12 +2453,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    cap. That reading is not asserted: nothing in the kernel reads
     //    this crossing yet, and the refusal below comes before any.
     //
-    //    What refuses is the first thing the union reads: a spline seam
-    //    of the leaf, operand B, against the tube's torus wall. The
-    //    curved crossing lane has rows for a line, a circle and an
-    //    ellipse and none for a spline span, so it cannot say whether the
-    //    seam crosses the wall, at 1e-9 and 1e-6 alike
-    //    (`work/splice/a-spline-span-against-a-curved-face-is-not-dispatched-to-the-composite`).
+    //    The union's sweep reads the leaf's spline seams against the
+    //    tube's torus wall through the curve × face table's ring
+    //    composite, and gets past them. A vertex of the stem, operand A,
+    //    pierces the first of the leaf's two NURBS walls, at (−0.061, 0,
+    //    0.105), and the vertex-on-face pass reads the wall's outward
+    //    normal at the chart point the sweep placed the pierce at. The
+    //    pierce crosses the wall, so the pass mints its ring there, and
+    //    that refuses: the ring vertex's chord strut is a new edge in a
+    //    complete spline face, whose row the Euler operators cannot derive
+    //    (`PcurveMint { SplineChart }`). The same wall at 1e-9 and 1e-6
+    //    (`work/splice/a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`).
     //    Behind it is the section of the leaf's NURBS walls against the
     //    torus, C5's rung 3, which is SECT's. At 1e-12 the lower stem's
     //    declared frontier stands the lily walls down before this one.
@@ -2468,16 +2473,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          lower stem's torus wall)",
         crate::booleans::try_union(stem, leaf_a, tol),
         |e| {
+            let first_wall = query::all_faces(leaf_a)
+                .into_iter()
+                .find(|&f| query::face_surface_kind(leaf_a, f) == Some(SurfaceKind::Nurbs));
             matches!(
                 e,
-                BooleanError::EdgeCarrierUnsupported {
-                    operand: Operand::B,
-                    edge,
+                BooleanError::Euler(EulerOpError::PcurveMint {
                     face,
-                    face_of: Operand::A,
-                    site: EdgeCarrierSite::CurvedCrossing,
-                } if query::edge_carrier_kind(leaf_a, *edge) == Some(CurveKind::Nurbs)
-                    && query::face_surface_kind(stem, *face) == Some(SurfaceKind::Torus)
+                    refusal: SiteRowRefusal::SplineChart,
+                }) if Some(*face) == first_wall
             )
         },
         "join the long leaf to the stem it grows from",

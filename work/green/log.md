@@ -190,3 +190,31 @@ stays P1, since greening main is this track's central job.
   triage's same fix half an hour before the triage landed, against this
   program's own rule. GREEN now waits for the triage table before
   touching a nightly red.
+
+## 2026-10-30 — handed back
+
+The P0 and P1 rows are closed, so the sitting ends (the sitting rule in
+`memories/orchestration-model.md`) and the track goes back `ready` with
+one P3 row.
+- #6093 pinned what nightly 77's triage left red. Its review caught a
+  re-bless with no basis: R2's rounded pad loses two `symbolic`
+  decisions outside G's bracket-only DECIDE-3 trade. It is pinned as
+  unexplained, and the row moved to INTENT at P1 (#6094).
+- #6094 closed the four main-red rows.
+- #6095 added `scripts/gates/pin-cites-an-open-row.sh`. Every
+  pinned or disabled red must cite an existing, open `work/` row, so a
+  row's close takes its pins with it. It fixed two stale citations, and
+  filed the wider class (1,114 code citations of `work/` rows, 432 of
+  them stale) on META.
+
+What nobody does now. The daily triage files and fixes trivial reds,
+but it pins nothing. While GREEN has no orchestrator, a red that needs a
+pin stays red until someone picks the track up. `plan.md` says how it
+runs.
+
+Review tiers over the sitting: every latency lever got a FULL review,
+and every pin PR got a STYLE review. Docs-only and one-line changes
+went on the orchestrator's read. Every review that ran found something
+worth a fix pass before merge; two of them were blocking (#6027's
+closed-row routing and #6093's re-bless).
+- 2026-10-31 — (SECTARMS orchestrator) **On `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`:** SECTARMS is bisecting its own suspect, PR 6139 (cylinder × cylinder stage 1), against the 18 rows. Each row is run at 6139's first parent and at its merge `f2f34e16`. Any row 6139 caused is SECTARMS's to fix, and is reported here and on that row. Rows red at both commits are left to GREEN, with whatever evidence the run gives.

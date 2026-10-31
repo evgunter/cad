@@ -1268,7 +1268,7 @@ fn section_site(
     let unbuilt = |why: super::super::section_table::Uncarried<'_>| {
         super::super::join::section_unbuilt(why, kinds.0, kinds.1)
     };
-    let section = match geom_brep::pair_section(c, s, band()) {
+    let section = match geom_brep::pair_section(c, s, None, None, band()) {
         Ok(geom_brep::SectionRead::Built(section)) => section,
         Ok(geom_brep::SectionRead::Elsewhere(_)) => panic!("the value builds this pair"),
         Err(e) => return Err(unbuilt(super::super::section_table::Uncarried::Section(&e))),
@@ -2240,6 +2240,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::NormalAtSplineCrease
+        | BooleanErrorKind::PierceLeverUnread
         | BooleanErrorKind::EdgeCarrierUnsupported
         | BooleanErrorKind::SplineCrossingUnsettled
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2289,10 +2290,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SeamOrientation
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid
-        | BooleanErrorKind::ResultVolumeImplausible
-        | BooleanErrorKind::VolumeCorrupt
         | BooleanErrorKind::PoisonedCarrierDatum
-        | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
         // Nest another module's refusal, whose offers are that module's
@@ -2303,7 +2301,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
         | BooleanErrorKind::Join
-        | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
@@ -2759,13 +2756,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
-    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
-    (
-        "ops.rs",
-        "decide_left",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
@@ -2923,7 +2913,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "reduce.rs",
-        "wall_crossing",
+        "cone_nappe",
         "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
@@ -2949,6 +2939,30 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "spline_plane_crossings",
         "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "BooleanDecision::Crossing",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "Coincide::VertexOnCoveredFace",
+        1,
+    ),
+    (
+        "reduce.rs",
+        "spline_wall_event",
+        "Coincide::VertexOnCurvedFace",
         1,
     ),
     (

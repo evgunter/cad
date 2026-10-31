@@ -2,10 +2,11 @@
 id: a-gap-over-adjacent-cells-states-nothing-of-the-row
 kind: issue
 title: What assertion could say a tangency, a coaxiality or a blend's common foot? No Gap = 0 does, so those rows are quieted by none
-status: dispatched
+status: closed
 opened: 2026-10-27
 priority: P0
 cost: H
+closed: 2026-10-30
 ---
 
 D10 `[assertions.quiet]` quiets a finding only by an assertion that

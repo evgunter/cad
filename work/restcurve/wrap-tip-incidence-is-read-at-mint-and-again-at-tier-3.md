@@ -2,11 +2,13 @@
 id: wrap-tip-incidence-is-read-at-mint-and-again-at-tier-3
 kind: issue
 title: a wrap tip's incidence on the chart singularity is read twice: singular_at at the mint, and chart_singularity::locate's on-boundary decision at tier 3
-status: open
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: E
 rides_with: tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity
+closed: 2026-10-31
+pr: 6097
 ---
 
 

@@ -18,66 +18,6 @@ resolve against this file at commit `95c77e152a`, and
 Update an old citation as a drive-by when touching the text that
 holds it.
 
-## State of the build
-
-**The intent refactor is in progress, and much of what
-[intent], [variables], [operations], [repetition], [placement],
-[coincidence] and [assertions] describe is not built yet.** The INTENT
-program builds it in stages (`work/intent/plan.md`), with COINCIDE,
-REFS and INLANE as its successors; every other program holds off
-starting units that meaningfully touch dependency, placement or
-intent until it lands (`d10-one-way-to-say-intent-is-unbuilt`).
-
-- **Built:** variables (stage 1); operations that read and define
-  variables, selections as definitions, the product as a list
-  (stage 2); poses as defined variables, read off geometry, read
-  through their roles and moved by lengths and angles, a revolve's
-  axis a point and a heading, and a lone `0` the constant zero
-  (stage 3 A and A′); a placement as the bundle of its mates, the
-  world a node and spaces as kinds, with gauges, offsets and the
-  mates' spanning tree retired (stage 3 B); a mate relating two poses,
-  `Transform` retired into a placement, a placement naming its target
-  space with mates reading only geometry and values charted on it,
-  `assemble` as the `⊔` operator and the product a slot, an operation
-  computing in a frame of its reads, a mate on a pinned copy refusing,
-  and repetition by index with patterns retired (stage 3 C–G); the
-  coincidence door with its rungs and the `unproven-coincidence` lint,
-  with declared pairs, a mate's `ContactClass` and the undeclared
-  refusals retired (stage 4); booleans gluing on a Zero verdict
-  and the boolean declare surface retired (stage 4 E and F); assertions
-  relating by `=`, interference at rest as a finding, and the at-rest
-  census as a check whose contacts a holding `Gap = 0` quiets, with A5's
-  at-rest gate (`assemble` and its refusal) and CHECKS DS6's
-  product-separation resident (`Separation`) retired (stage 5); an
-  operation's unproven contact (a boolean's glue, a vertex fusion)
-  quieted the same way; coaxiality read at the door as one `Axis` read
-  twice, and tangency constructions, a sketch drawn on a frame
-  continuing tangent to a face's trace, proven at the door and written
-  by the viewer's sketch tool (stage 6 B–E); a glued pair read through
-  its record at every consuming site, with the declared rung and its
-  bridged verdict retired (CONTACTHOLD).
-- **Not built:** `Gap`'s curved arms reading each face's material
-  side, with a plane against a curved face; a measure's reference
-  reading a pose; and each finding's recourse chosen by its kind
-  ([assertions.quiet], [intent.checked]).
-- **What retires as the build reaches it.** Where a companion clause
-  disagrees with these sections, these govern, and the companion
-  clause retires when the program reaches it: the declared-contact
-  seats (CONTACT-DESIGN C4's `BooleanCoincidence` on booleans, a
-  mate's `ContactClass`, C6's `Fit` as a class); the
-  undeclared-coincidence, undeclared-contact and undeclared-tangency
-  refusals, which become `unproven-coincidence` findings, with
-  ASSEMBLY A5's hard error on an unattributed contact; the axis
-  declaration channel;
-  `ParamSource`; NAMES N6's recipe-source stamps (`GeomSource`, with
-  `AxisSource`); PARAM-LINT's declared-distinct record; the profiles'
-  stored tangent-joint flags; ASSEMBLY A3, A10's gathered product and
-  sink rule, and A12's
-  reading edges.
-
-The program's exit walk checks that list against the code
-(`work/intent/plan.md`, "Exit criteria").
-
 ## Vision
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the
@@ -633,10 +573,16 @@ certified export promise.
 `[tolerance.measure]`
 A certified measurement (volume, area, moments) is an enclosure, never a
 number alone, and its width is part of the value. There is one door. It
-refines a face until a predicate over the enclosure resolves, until
-refinement stops paying (a floor no round removes), or until the per-face
-work bound (one bound, in one unit, for every lane). It returns the
-narrowest enclosure reached and why it stopped.
+refines the measured surface where its enclosure is widest, until a
+predicate over the enclosure resolves, until refinement stops paying (a
+floor no round removes), or until the work budget the caller states with
+its predicate, in one unit for every lane, as a multiple of reading the
+measured surface once. The kernel's own questions (the validity gate, a
+boolean's decisions, a document's assertions) state a fixed constant per
+question. What a measurement spends
+depends on what it asks and on the geometry, never on how its surface is
+cut into faces. It returns the narrowest enclosure reached and why it
+stopped.
 
 A consumer that decides something passes its predicate: a sign, a
 relation against a bound as an assertion states it, or a containment. At
@@ -647,14 +593,20 @@ enclosure lies wholly in the band, and is recorded at every round it is
 asked.
 
 A consumer that hands the number on passes a resolution, the width
-predicate: the mean boundary displacement it needs. That is a sizing,
-decides nothing against ε ([intrinsic.epsilon]), and is not recorded.
+predicate: the mean boundary displacement it needs over the measured
+surface as a whole. That is a sizing,
+decides nothing against ε ([intrinsic.epsilon]), and is not recorded. It
+is for a consumer that wants the number and nothing else: one that would
+compare the result against anything passes that comparison as its
+predicate instead, so a decision is never made on a bracket sized by a
+guess.
 The model defines its measures only to ε of boundary displacement, so no
 finer resolution is offered. There is no default: every caller states
-its predicate, a resolution included, at the call, so the precision a
-measurement buys is always the one its consumer asked for.
+its predicate, a resolution included, and its budget at the call, so the
+precision a measurement buys, and what it may spend buying it, are always
+the ones its consumer asked for.
 
-A deciding predicate still undecided at the work bound is the one
+A deciding predicate still undecided at the budget is the one
 quadrature refusal, and it carries the enclosure. A resolution unmet
 there is the bracket, with the resolution it reached.
 
@@ -670,19 +622,13 @@ a length; a dimensionless quantity levered by an arm; a norm; a
 measure over the lever at which it is a point's displacement, never a
 mean such as 2A/P or V/A, [intrinsic.epsilon]); the sagitta and reciprocal
 forms are the levered door applied at named arms; there is no raw
-construction door. Consistency backstops between integral results
-decide on bare `T` through `k_stats::decide_invariant`, no Margin
-minted, and a certified violation is a Corrupt-class kernel-invariant
-error, never a validity refusal. A site where no door honestly fits
+construction door. A site where no door honestly fits
 is a finding, not a cast. The vector/linalg interior stays bare `T`.
 (ii) **No dimensionally-heterogeneous uniform payloads**: a field
 whose dimension depends on a runtime kind tag is illegal;
 kind-dependent data lives in per-kind enum variants. (iii)
 **Parameter-space values cross to model space only through per-kind
-metric doors.** (iv) **Inequality gates split sign from magnitude**:
-a certified sign-certain violation refuses with no ε involved; the
-banded comparison governs only the near-zero region, and both arms
-consume the same metered comparand. Extension is opportunistic as
+metric doors.** Extension is opportunistic as
 signatures get touched; the migration ledger is
 `docs/predicate-dimension-audit.md`, whose flagged rows ride
 `k_stats::decide_flagged` — visible typed debt, not casts.
@@ -816,9 +762,27 @@ tiers".
      of its description ([tolerance.residuals]); the **material wedge**
      at every edge in (0, 2π), its ends (a cusp, a knife slit) legal
      only where the tangency is jet-determinate; **maximal edges** (no
-     joinable vertex at rest); **chart singularities as vertices**
-     (every one in a face's closure is a vertex of it, and every wrap
-     edge's tip lies on its face's chart singularity);
+     joinable vertex at rest); **one region per face**: a face's
+     loops bound one region of its surface. An edge the face lies on
+     both sides of (a seam, or a wrap edge: the seam that ends at a
+     chart singularity) bounds nothing on the surface, so the face's
+     **surface boundary** is its loops with those edges dropped; an
+     empty one is the whole surface. Its cycles are simple and
+     disjoint, each lies on the face's side of every other, and an
+     open surface's ends lie off the face. Whether a point lies in a
+     face has one reading, the point-in-face doors' (on the face's
+     edge curves), and tier 3 asks those doors what they presume. A
+     reader in the chart's own coordinates (measurement in a lifted
+     coordinate, a loop's windings, the mesher's domain) reads the
+     loops as stored, seams and wrap edges as the chart's cuts and a
+     wrap edge's tip through the lift's reset at its singular
+     vertex. A chart-free reader (Gauss–Bonnet, 3-D flux) reads the
+     surface boundary, keeping each wrap tip's singular vertex as the
+     datum of the face's side; an empty one on a closed surface is
+     the whole surface, signed by the face's sense. No reader reads a
+     turn at a wrap tip. **Chart singularities as vertices** are an instance (every one in a face's closure is a
+     vertex of it, and every wrap edge's tip lies on its face's chart
+     singularity);
      **prefer-intrinsic** descriptions ([edges]); and the **orientation invariant**, a solid's faces
      leaving infinity outside it, read by the one reader of a shell's
      role ([coincidence.booleans]). A zero-volume lamina is a geometric
@@ -934,7 +898,10 @@ tiers".
   wrote reaches that vertex, the kernel adds one wrap edge to it, and
   only one: the singularity is that edge's tip, where the face's loop
   walks the edge out and back, and the edge's place round the axis is
-  conventional, like a seam's. The join never removes a cut either
+  conventional, like a seam's. That wrap edge is the face's seam
+  (D1), kept to its end at the singularity: a native construction's
+  seam already is it, and the kernel mints one only where a file
+  states none. The join never removes a cut either
   exception requires.
 
 **The frontier is typed and named.** Every unbuilt case refuses with a
@@ -2390,7 +2357,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#79) | GQ1 witness mechanism, SOLVER-DESIGN W1–W9 |
 | `crates/editor-core/README.md` | Ratified with a recorded hedge (#1151) | The profile-parameter lift, PROFILE-LIFT-DESIGN PP1–PP6: guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T` |
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: a union over a family's rigid images of one body, pairs certified apart not judged |
-| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
+| `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, placements as mate bundles into a target space with the world a node (A3), pins, split and inline, the constructive solve, the at-rest check (A5) |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & glued contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
 | `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
@@ -2507,7 +2474,7 @@ Where the clauses of this document at commit `95c77e152a` now live.
 | D7 | [import] |
 | D8 | [recipe]; "The recipe keeps the form that was written" is [recipe.forms] |
 | D9 | [failure] (the never-panic rule and the bug-vs-invalid-state taxonomy, [failure.taxonomy]); [determinism] (bit-identity, libm, replay with kills, deterministic parallelism, the GPU boundary, equivariance as [determinism.equivariance]); [engineering] (the other engineering conventions) |
-| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the retirement list is in [State of the build](#state-of-the-build) |
+| D10 | the principle is [intent]; "Variables" is [variables]; "Operations" is [operations]; "Repetition" is [repetition]; "Spaces and placement" is [placement]; "Coincidence" is [coincidence]; "Booleans" is [coincidence.booleans]; "Assertions" is [assertions]; the clauses it superseded are retired (`docs/doc-ledger/intent-leaves-the-tracker.md`) |
 | Q1 | [scalars] and [verdicts] |
 | Q2, Q4, Q6, Q7, Q8 (resolved) | [tolerance], [tolerance.units] and [units], [recipe], [determinism], OFFSET-DESIGN O1–O6 |
 | Q3 | [open.sketch-solver] |

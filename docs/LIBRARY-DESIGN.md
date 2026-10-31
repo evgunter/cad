@@ -200,11 +200,14 @@ boundary only.**
   transcribed-decimal pin class — a pin becomes a query plus an
   assertion, inside the system, instead of a hand-computed constant
   whose derivation lives in a comment.
-- **U6 — declared-relation ergonomics.** The flush-declaration
-  helper promoted from its demo/test-common twins into the library
-  surface, per the coincidence ladder (Banked principles) and
-  CONTACT-DESIGN's vocabulary — every user gluing flush parts
-  otherwise reproduces 50 lines of plane-pair enumeration; and a
+- **U6 — relation ergonomics.** A flush pair is said with the
+  façade's ordinary vocabulary, not a helper (DESIGN `[coincidence]`):
+  a `Mate` equating the two faces' planes with one sense makes them one
+  construction read twice; two faces whose offsets are written with
+  one variable are one carrier in the replay; and a `Node::Assertion`
+  that a `MeasurePrimitive::Gap` over the two faces is
+  `AssertionRelation::Equal` to `0` quiets the pair's `unproven-coincidence` row (DESIGN `[assertions]`).
+  Nothing enumerates plane pairs. U6 also holds a
   declared-offset relation ("these tables differ by exactly 1/16
   where stated") to replace hand-maintained duplicate coordinate
   tables.

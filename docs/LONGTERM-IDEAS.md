@@ -190,10 +190,10 @@ builds on a ratified contract (the witness mechanism W1–W9 in
   over states already materialized; the structural node-granular
   diff shows what a branch changed. v1 ships the tree-shaped state
   under linear chrome (`viewer::history`); the branch picker and a
-  separable history sidecar are the banked GUI-6 unit. The on-disk
-  form stays snapshot + edit log, so "state without history" is a
-  save with a compacted log, an explicit operation that says what it
-  drops, and the main document never depends on the sidecar.
+  separable history store are the banked GUI-6 unit: a store of
+  retrievable earlier states kept apart from the document, whose save
+  file holds its current state only (GQ3), so the document is never
+  weighed down by its past and never depends on the store.
 
 ## Process note
 

@@ -7,7 +7,7 @@ opened: 2026-10-26
 priority: P1
 cost: M
 design: true
-refs: [5636, the-tours-post-cell-split-refuses-the-space-its-copies-read]
+refs: [5636, 5763]
 ---
 
 

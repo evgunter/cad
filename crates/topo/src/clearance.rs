@@ -97,7 +97,7 @@ use std::ops::ControlFlow;
 
 use bvh::{Aabb, Bvh};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{Channel, Pcurve};
+use geom_brep::{Channel, Pcurve, SpiricImage, WallTorus};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{self, decide};
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
@@ -2691,7 +2691,8 @@ fn full_latitude() -> (f64, f64) {
 ///   `(p − apex)·axis = v·cos α`, so `v` is an affine function of
 ///   position with no critical point on the carrier but the apex: it
 ///   takes the boundary's range of that projection over `cos α`, widened
-///   to the apex's `0`, which a face may hold inside it. A window
+///   to the apex's `0` unless the boundary winds nowhere
+///   ([`winds_nowhere`]): a face may hold the apex inside. A window
 ///   symmetric about the apex would hold the mirror
 ///   nappe, and on it halving `u` never narrows the enclosure (each
 ///   azimuth's generator meets its opposite's), so no subdivision could
@@ -2768,8 +2769,23 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
             half_angle,
             ..
         } => {
+            // `slant` encloses `v` over the boundary. The face's `v`
+            // peaks on its boundary or at the apex, so `slant` widened
+            // to `0` holds it, and `slant` alone does wherever it holds
+            // `0` already. It does when the apex is on the boundary,
+            // and when the boundary meets both nappes. Otherwise the
+            // boundary lies on one nappe, off the apex; were the apex
+            // inside the face, a small circle about it would be
+            // homologous, on the punctured nappe, to the whole boundary,
+            // which would wind once. So a boundary winding nowhere
+            // leaves the apex off the face, or `0` inside `slant`.
             let slant = (extent - *apex).dot(*axis) / half_angle.cos();
-            superset(full_turn(), (slant.lo().min(0.0), slant.hi().max(0.0)))
+            let v = if winds_nowhere(body, f) {
+                (slant.lo(), slant.hi())
+            } else {
+                (slant.lo().min(0.0), slant.hi().max(0.0))
+            };
+            superset(full_turn(), v)
         }
         Surface::Sphere { .. } => superset(full_turn(), full_latitude()),
         Surface::Torus { .. } => superset(full_turn(), full_turn()),
@@ -2797,6 +2813,40 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         body,
         boundary,
     })
+}
+
+/// **Whether a face's boundary winds nowhere**: the elements of all its
+/// joints, over every loop together, compose to the identity with no
+/// reset. A missing joint, a loop that does not close, or an outer loop
+/// with no edges reads as winding.
+///
+/// On a cone a reset is written at a joint on the apex
+/// ([`crate::joint`]); absent one, the composed `u` of the whole
+/// boundary is its winding about the axis. What a total of zero tells
+/// [`window_of`] is argued there.
+fn winds_nowhere<T: Decide>(body: &Body<T>, f: &Face) -> bool {
+    let mut elements = Vec::new();
+    for (i, lk) in core::iter::once(f.outer)
+        .chain(f.rings.iter().copied())
+        .enumerate()
+    {
+        match body.get_loop(lk).map(|l| l.boundary) {
+            Some(LoopBoundary::Cycle { first }) => {
+                let Some(cycle) = body.loop_cycle(first) else {
+                    return false;
+                };
+                for he in cycle {
+                    let Some(e) = body.joint(he) else {
+                        return false;
+                    };
+                    elements.push(e);
+                }
+            }
+            Some(LoopBoundary::Empty { .. }) if i > 0 => {}
+            _ => return false,
+        }
+    }
+    crate::joint::Winding::of(elements).is_zero()
 }
 
 /// A rectangle of carrier parameters, `(u, v)` ranges.
@@ -3030,6 +3080,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                                 [lift(t0), lift(t1)],
                                 iso_of(&row.pcurve),
                                 harmonic_of(&row.pcurve),
+                                wall_of(&row.pcurve),
                             ),
                         );
                     }
@@ -3057,10 +3108,11 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let found = images.get(he);
                 Use {
                     plus: e.he_plus == *he,
-                    image: found.map(|(image, _, _)| *image),
-                    harmonic: found.and_then(|(_, _, h)| *h),
+                    image: found.map(|(image, ..)| *image),
+                    harmonic: found.and_then(|(_, _, h, _)| *h),
+                    wall: found.and_then(|(.., w)| *w),
                     iso: found
-                        .and_then(|(_, iso, _)| *iso)
+                        .and_then(|(_, iso, ..)| *iso)
                         .map(|(held, at, angle)| Iso {
                             held,
                             at,
@@ -3085,27 +3137,29 @@ enum Row {
     /// ([`monotone_line`]): its two ends' chart points `[u, v]`, whose
     /// hull is the row's.
     Ends([[Interval; 2]; 2]),
-    /// A harmonic image that may bulge past its ends: its enclosure over
+    /// A harmonic or wall image that may bulge past its ends: its enclosure over
     /// its whole span, `[u, v]`, which holds it.
     Bulging([Interval; 2]),
 }
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
-/// harmonic image by its enclosure over its whole span; `None` for any
-/// other image.
+/// harmonic or spiric wall image by its enclosure over its whole span;
+/// `None` for any other image.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
     (t0, t1): (T, T),
     ends: [[Interval; 2]; 2],
 ) -> Option<Row> {
     if !monotone_line(pcurve) {
-        let h = harmonic_of(pcurve)?;
         let t = Interval::from_bounds(
             Interval::from_certified(t0).lo(),
             Interval::from_certified(t1).hi(),
         );
-        return Some(Row::Bulging(h.at(t)));
+        if let Some(w) = wall_of(pcurve) {
+            return Some(Row::Bulging(w.at(t)));
+        }
+        return Some(Row::Bulging(harmonic_of(pcurve)?.at(t)));
     }
     Some(Row::Ends(ends))
 }
@@ -3113,7 +3167,7 @@ fn row_of<T: CertifiedBounds>(
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
 /// hull, on each axis, of the outer loop's lifted chain. A row that is a
 /// monotone coordinate line contributes its ends, which are its hull; a
-/// harmonic row its enclosure over its span, which holds it, so the
+/// harmonic or wall row its enclosure over its span, which holds it, so the
 /// extent is then a superset. A superset spanning a whole turn on an
 /// axis `periodic` marks is not taken: a reader would read it as a loop
 /// that wraps. On an axis that is not periodic no width means a wrap. Any
@@ -3181,11 +3235,13 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
 type IsoImage = (Axis, Interval, bool);
 
 /// A half-edge's chart image as the boundary lifts it: its two end
-/// points, the coordinate line it is, and its harmonic form.
+/// points, the coordinate line it is, its harmonic form, and its spiric
+/// wall form.
 type Image = (
     [Point2<Interval>; 2],
     Option<IsoImage>,
     Option<injective::Harmonic>,
+    Option<injective::Wall>,
 );
 
 /// **A harmonic chart image's coefficients, lifted**
@@ -3217,6 +3273,44 @@ fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic>
         pa: [au, av],
         pb: [bu, bv],
         pl: [lu, lv],
+    })
+}
+
+/// **A spiric's wall image, lifted** ([`injective::Wall`]); `None` for
+/// every other image, and for a wall whose `sense` does not lift to
+/// exactly `±1`, which every minted image's does.
+fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Wall> {
+    let Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        image:
+            SpiricImage::Wall {
+                u0,
+                v0,
+                sense,
+                torus,
+            },
+    } = *p
+    else {
+        return None;
+    };
+    let lift = Interval::from_certified;
+    let sigma = [1.0, -1.0]
+        .into_iter()
+        .find(|&s| injective::exactly(lift(sense), s))?;
+    let mu = match torus {
+        WallTorus::Own => 1.0,
+        WallTorus::Mirror => -1.0,
+    };
+    Some(injective::Wall {
+        u0: lift(u0),
+        v0: lift(v0),
+        sigma,
+        kappa: sigma * mu,
+        major: lift(major),
+        minor: lift(minor),
+        offset: lift(offset),
     })
 }
 
@@ -3875,6 +3969,66 @@ mod extent_rows {
             "a superset a turn wide on an axis that is not periodic is taken"
         );
     }
+
+    /// A spiric's wall image: `R = 2`, `r = 0.5`, `d = 0.3`, on the
+    /// carrier's own torus or its mirror, wound with `sense`.
+    fn wall(sense: f64, torus: geom_brep::WallTorus) -> Pcurve<f64> {
+        Pcurve::Spiric {
+            major: 2.0,
+            minor: 0.5,
+            offset: 0.3,
+            image: geom_brep::SpiricImage::Wall {
+                u0: 0.4,
+                v0: TAU,
+                sense,
+                torus,
+            },
+        }
+    }
+
+    /// **A wall row's lift is the pcurve's own image**
+    /// ([`super::wall_of`]): its chart point encloses the pcurve's at
+    /// each parameter, wound either way on either torus, and a sense
+    /// that is no unit sign is not lifted. Red if the azimuth's sign
+    /// forgets the torus's.
+    #[test]
+    fn a_wall_rows_lift_is_its_pcurves_image() {
+        use geom_brep::WallTorus::{Mirror, Own};
+        for (sense, torus) in [(1.0, Own), (-1.0, Own), (1.0, Mirror), (-1.0, Mirror)] {
+            let p = wall(sense, torus);
+            let w = super::wall_of(&p).expect("a wall image");
+            for k in 0..8 {
+                let t = -2.0 + 0.6 * f64::from(k);
+                let q = p.eval(t);
+                let [u, v] = w.at(geom_core::interval::Interval::from_bounds(t, t));
+                assert!(
+                    u.lo() <= q.x && q.x <= u.hi() && v.lo() <= q.y && q.y <= v.hi(),
+                    "{sense} {torus:?} at {t}: {q:?} outside {u:?} × {v:?}"
+                );
+            }
+        }
+        assert!(super::wall_of(&wall(0.5, Own)).is_none(), "no unit sign");
+    }
+
+    /// **A wall row's extent holds its bulge**: over `t ∈ [−1, 1]` its
+    /// azimuth `atan2(f, d)` is greatest at `t = 0`, between its ends.
+    /// Red if a wall row is read by its ends.
+    #[test]
+    fn a_wall_rows_extent_holds_its_bulge() {
+        let p = wall(1.0, geom_brep::WallTorus::Own);
+        let end = |t: f64| {
+            let q = p.eval(t);
+            [q.x, q.y].map(|x| geom_core::interval::Interval::from_bounds(x, x))
+        };
+        let Some(Row::Bulging([u, _])) = row_of(&p, (-1.0, 1.0), [end(-1.0), end(1.0)]) else {
+            panic!("the wall is read by its enclosure");
+        };
+        let top = p.eval(0.0).x;
+        assert!(
+            top > p.eval(1.0).x && u.hi() >= top,
+            "the enclosure holds the bulge {top}: {u:?}"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -3935,5 +4089,167 @@ mod receipt_rule {
         };
         assert!(bad.holds(), "the identity itself cannot see the defect");
         bad.check_outside_is_a_sub_count();
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod cone_window {
+    use core::f64::consts::{FRAC_PI_2, PI};
+
+    use geom::{Curve3, Surface};
+    use geom_brep::{CurveSelector, EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    use geom_core::{Point3, Tol, Vec3};
+
+    use super::{Which, window_of};
+    use crate::Body;
+    use crate::entity::FaceKey;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+
+    const ALPHA: f64 = 0.5;
+
+    /// The signed slant of the cone's circle at height `z`.
+    fn slant(z: f64) -> f64 {
+        z / ALPHA.cos()
+    }
+
+    /// The cone of half-angle [`ALPHA`] about `+z`, apex at the origin.
+    fn cone() -> Surface<f64> {
+        Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: ALPHA,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// **A cone cap**: the face on [`cone`] bounded by its one circle at
+    /// height `z`, two half-circle edges with no seam, so it holds the
+    /// apex inside and none of its boundary reaches it.
+    fn cone_cap(z: f64) -> (Body<f64>, FaceKey) {
+        let r = z * ALPHA.tan();
+        let on = |u: f64| Point3::new(r * u.cos(), r * u.sin(), z);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(on(0.0), true).unwrap();
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::new(0.0, 0.0, z),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        body.set_face_surface(
+            seed.face,
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+        )
+        .unwrap();
+        let carrier = body.add_surface(cone());
+        let half = |u0: f64| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(carrier, plane),
+                selector: CurveSelector::Witness(on(u0 + FRAC_PI_2)),
+            },
+            carrier: Curve3::Circle {
+                center: Point3::new(0.0, 0.0, z),
+                axis: Vec3::unit_z(),
+                radius: r,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: u0,
+            param_end: u0 + PI,
+        };
+        let e = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                on(PI),
+                half(0.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        let face = body
+            .lifting_rechart_refusals_for_tests(|body| {
+                body.mef(
+                    MefSite::Chords {
+                        he1: e.he_minus,
+                        he2: e.he_plus,
+                    },
+                    half(PI),
+                    FaceSurface::Shared {
+                        key: carrier,
+                        sense: true,
+                    },
+                    Tol::witness(),
+                )
+            })
+            .unwrap()
+            .face;
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, face)
+    }
+
+    /// **A cone face's window ends where the face does, unless the face
+    /// holds the apex.** A wall over `z ∈ [0.5, 1]` misses its apex: its
+    /// `v` window ends at its rims' slants, short of the apex's `0`, and
+    /// holds every point of the face. A cap bounded by its circle at
+    /// `z = 1` holds the apex inside, though none of its boundary reaches
+    /// it: its window runs from the apex to its rim, and so it does with
+    /// any one of its joints missing. Red if the decision reads every
+    /// face as reaching the apex, or none, or reads past a missing joint,
+    /// or if the wall's window ends anywhere but at its rims.
+    #[test]
+    fn a_cone_window_ends_at_the_face_unless_the_face_holds_the_apex() {
+        let (mut body, face) = crate::boolean::boxes::tests::cone_wall(ALPHA, 0.0, 1.0, 0.5, 1.0);
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        let w = window_of(&body, face, Which::First).unwrap();
+        assert!(
+            (w.v.0 - slant(0.5)).abs() < 1e-12 && (w.v.1 - slant(1.0)).abs() < 1e-12,
+            "the wall's window ends at its rims, short of the apex: {:?}",
+            w.v
+        );
+        for z in [0.5, 0.75, 1.0] {
+            assert!(
+                w.v.0 <= slant(z) && slant(z) <= w.v.1,
+                "the wall's window holds its points at z = {z}: {:?}",
+                w.v
+            );
+        }
+        let (body, face) = cone_cap(1.0);
+        let lp = body.get_face(face).unwrap().outer;
+        let joints: Option<Vec<_>> = body
+            .loop_lift(lp)
+            .unwrap()
+            .iter()
+            .map(|row| body.joint(row.half_edge))
+            .collect();
+        let winding = crate::joint::Winding::of(joints.expect("the cap's joints are stored"));
+        assert!(
+            !winding.reset && winding.deck.u.abs() == 1,
+            "the cap's circle winds once about the axis: {winding:?}"
+        );
+        let w = window_of(&body, face, Which::First).unwrap();
+        assert!(
+            w.v.0 <= 0.0 && slant(1.0) <= w.v.1,
+            "the cap's window runs from the apex it holds to its rim: {:?}",
+            w.v
+        );
+        let cycle = body
+            .loop_lift(lp)
+            .unwrap()
+            .iter()
+            .map(|row| row.half_edge)
+            .collect::<Vec<_>>();
+        for he in cycle {
+            let (mut body, face) = cone_cap(1.0);
+            body.detach_joint(he);
+            let w = window_of(&body, face, Which::First).unwrap();
+            assert!(
+                w.v.0 <= 0.0,
+                "the cap missing its joint into {he:?} still reaches the apex: {:?}",
+                w.v
+            );
+        }
     }
 }

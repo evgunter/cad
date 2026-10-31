@@ -2,13 +2,14 @@
 id: tier-3-admits-a-wrap-tip-only-on-its-faces-chart-singularity
 kind: issue
 title: Tier 2 admits a valence-1 vertex only at a wrap edge's tip, and tier 3 refuses a wrap tip off its face's chart singularity
-status: parked
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [validity-refuses-an-interior-chart-singularity, import-mints-the-wrap-tip-at-a-chart-singularity, 6014]
-blocked_on: [sphere-faces-take-a-per-face-chart-or-pole-vertices]
 branch: restcurve/wrap-tip-tiers
+closed: 2026-10-31
+pr: 6097
 ---
 
 Split out of `validity-refuses-an-interior-chart-singularity` by the RESTCURVE orchestrator (2026-10-29). `[ev]` PR 6014 (fork row 215) grew that row with the wrap tip, and DESIGN `[topology.tiers]` now states two rules for it:
@@ -55,3 +56,47 @@ Released by PR 6088. A spur, a wrap tip included, is dropped from the chart imag
 ## Held (2026-10-30)
 
 Re-parked on `sphere-faces-take-a-per-face-chart-or-pole-vertices` (a ruling open on `[ev]` PR 6085). Ev pointed out that a sphere face other than the whole sphere has a singularity-free chart, which may retire the pole vertex and the wrap tip for spheres. Do not build on the wrap tip until it is ruled. (RESTCURVE orchestrator)
+
+## Review of PR 6097 (2026-10-30, held, so no fix pass dispatched yet)
+
+The review was a single FULL review on `fcb3aa32`, cloud session `session_018u3gVHsR1apTedFDkr6LzE`. Probes are on `restcurve/review-lantern-6097`. Verdict: **NOT-MERGEABLE-AS-IS**. C2–C6 held. No decision moved on the corpus: 1226 tests on base, 1234 on head.
+
+**MAJOR**
+- **F1 (with C7):** "a lone strut has no tip" contradicts the seam clause. It refuses the one-face ball, which measures right (4π/3, 4π) and is FOREIGN's planned `EdgeFreeSphere`. Splitting the meridian once at the equator defeats the rule.
+  - **Fix:** a tip is any valence-1 end of a wrap edge.
+  - **Rows:** flip the lone-strut row so the ball passes, and add a row where a short lone strut refuses at tier 3.
+
+**MINOR**
+- **F2, a missed sweep:** `mesh/src/walk.rs` `pole_index` and `topo/src/coherence.rs:605` each read a vertex at a pole by their own distance. The coherence one is kept equal to the walk by hand.
+- **F3:** `WrapTipUndecided` ends on `ON_BOUNDARY`'s "or clear of it", which only leads to another refusal. It needs a sized decision that passes only zero.
+- **F5:** a wrap-tip hemisphere is now a boolean operand. With a brick across the wrap edge, every op refuses `UnpairedLooseEnds` and no row owns it.
+
+**NOTE**
+- **F4:** the plane arm is unreachable, because a wrap description is refused on a plane at mint (mutant M5 survives). A cylinder wrap tip's message names a pole the cylinder does not have.
+
+**Style**
+- `is a wrap edge` is spelled in four places.
+- `TipOff.undecided: Option`.
+- The not-owed gap has no row.
+
+**Waiting:** all of it presupposes sphere pole vertices and wrap tips, which `sphere-faces-take-a-per-face-chart-or-pole-vertices` may retire. Once that ruling lands, either dispatch this fix pass (the cone apex keeps a tip in any case) or re-scope the unit.
+
+## Released (2026-10-31)
+
+Ev ruled on `[ev]` PR 6085, decision 3 (fork-log row 222): keep the wrap tip. A tip is any valence-1 end of a wrap edge, and the wrap edge is the face's seam kept to its end. A chart reader reads a tip as the seam, through the lift's reset at the singular vertex. A chart-free reader drops it, keeping the singular vertex as the side's datum. The hold is lifted. (RESTCURVE orchestrator)
+
+## Closed (PR 6097, 2026-10-31)
+
+**What the PR built** (on Ev's ruling, `[ev]` PR 6085 decision 3, fork-log row 222):
+- **Tier 2:** a valence-1 vertex is legal only at a wrap edge's tip, and a tip is any valence-1 end of a wrap edge. The one-face ball passes.
+- **One incidence reading:** `geom_brep::chart_singularity::vertex_at_singular_point` is cited by `locate`'s `AtVertex`, by `singular_at`'s analytic arm, and by the tip rule. The riding row `wrap-tip-incidence-is-read-at-mint-and-again-at-tier-3` closes with this one.
+- **Tier 3:** read from check 8's joints, a tip that is off its face's singularity refuses `WrapTipOffChartSingularity`. A tip read in band refuses `WrapTipUndecided`, ending through `SizedPass::Zero` and `WRAP_TIP`. A tip on a chart with no singular point refuses `WrapTipWithoutChartSingularity`.
+
+**Review:** single FULL review, NOT-MERGEABLE-AS-IS. Its MAJOR was F1, the one-face ball being refused. One fix pass followed, accepted on the orchestrator's read.
+
+**Filed elsewhere:**
+- F2, a pole read by its own distance in the mesh walk and in coherence: TESSWALK.
+- F5, a boolean across a tip's edge: SPLITDOOR. The probe confirmed this is not a seam-crossing defect.
+- The not-owed gap: RESTCURVE.
+
+**Still open:** the side-datum condition row. A flipped small cap already refuses, but through the chart-singularity arm.

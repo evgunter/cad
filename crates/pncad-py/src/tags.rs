@@ -1494,6 +1494,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
+        BooleanErrorKind::PierceLeverUnread => "pierce_lever_unread",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
         BooleanErrorKind::SplineCrossingUnsettled => "spline_crossing_unsettled",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
@@ -1555,10 +1556,6 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::ZipCorrespondence => "zip_correspondence",
         BooleanErrorKind::Merge => "merge",
         BooleanErrorKind::ResultInvalid => "result_invalid",
-        BooleanErrorKind::ResultVolumeImplausible => "result_volume_implausible",
-        BooleanErrorKind::VolumeUnmeasured => "volume_unmeasured",
-        BooleanErrorKind::VolumeCorrupt => "volume_corrupt",
-        BooleanErrorKind::VolumeUndecided => "volume_undecided",
         BooleanErrorKind::UnrepresentableResult => "unrepresentable_result",
         BooleanErrorKind::GraftRecertify => "graft_recertify",
         BooleanErrorKind::Pieces => "pieces",
@@ -1611,8 +1608,9 @@ pub fn skin_error_tag(err: &SkinError) -> &'static str {
         SkinError::BadDegree { .. } => "bad_degree",
         SkinError::NoParameterStep { .. } => "no_parameter_step",
         SkinError::PathTangentVanishes { .. } => "path_tangent_vanishes",
-        SkinError::PathTangentReversal { .. } => "path_tangent_reversal",
-        SkinError::PathTangentUndecided { .. } => "path_tangent_undecided",
+        SkinError::PathStationsCoincide { .. } => "path_stations_coincide",
+        SkinError::PathFoldsBack { .. } => "path_folds_back",
+        SkinError::PathUndecided { .. } => "path_undecided",
         SkinError::StationNotFinite { .. } => "station_not_finite",
         SkinError::Band(_) => "band",
         SkinError::RowMotionUndecided { .. } => "row_motion_undecided",
@@ -2110,6 +2108,7 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
         WorkspaceError::PinMismatch { .. } => "pin_mismatch",
         WorkspaceError::Save { .. } => "save",
         WorkspaceError::SaveWouldDuplicateId { .. } => "save_would_duplicate_id",
+        WorkspaceError::SaveWouldReplaceDocument { .. } => "save_would_replace_document",
         WorkspaceError::SaveTargetNotInStore { .. } => "save_target_not_in_store",
         WorkspaceError::RandomnessUnavailable { .. } => "randomness_unavailable",
         WorkspaceError::Update { .. } => "update",
@@ -2157,6 +2156,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::PlacementMap { .. } => "placement_map",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
+        StepImportError::C0KnotUnsplit { .. } => "c0_knot_unsplit",
         StepImportError::TierInvalid { .. } => "tier_invalid",
     }
 }
@@ -2205,10 +2205,10 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a sixth normalization minted
-/// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words. `chart_singularity_vertex` keeps its
-/// disposition beside the word too ([`singularity_found_tag`]).
+/// The match is exhaustive, so a normalization minted kernel-side
+/// stops this crate compiling instead of arriving under one of these
+/// words. `chart_singularity_vertex` keeps its disposition beside the
+/// word too ([`singularity_found_tag`]).
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
@@ -2216,6 +2216,8 @@ pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
         NormalizationKind::JoinedEdges => "joined_edges",
+        NormalizationKind::EdgeSplitAtC0Knot => "edge_split_at_c0_knot",
+        NormalizationKind::FaceSplitAtC0Knot => "face_split_at_c0_knot",
     }
 }
 
@@ -3107,6 +3109,11 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
         ValidationError::ChartSingularityNotAVertex { .. } => "chart_singularity_not_a_vertex",
         ValidationError::ChartSingularityUndecided { .. } => "chart_singularity_undecided",
+        ValidationError::WrapTipOffChartSingularity { .. } => "wrap_tip_off_chart_singularity",
+        ValidationError::WrapTipUndecided { .. } => "wrap_tip_undecided",
+        ValidationError::WrapTipWithoutChartSingularity { .. } => {
+            "wrap_tip_without_chart_singularity"
+        }
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",

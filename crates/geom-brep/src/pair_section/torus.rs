@@ -467,11 +467,13 @@ fn crossing_parallels<T: Real>(
         .at(c1, c2)
         .crossings()
         .into_iter()
-        .map(|p| SectionComponent {
-            shape: ComponentShape::Loop,
-            winds,
-            witness: None,
-            carrier: ClassCarrier::Closed(ring.parallel(p.x, p.y)),
+        .map(|p| {
+            SectionComponent::closed_form(
+                ComponentShape::Loop,
+                winds,
+                None,
+                ClassCarrier::Closed(ring.parallel(p.x, p.y)),
+            )
         })
         .collect()
 }
@@ -479,20 +481,17 @@ fn crossing_parallels<T: Real>(
 /// The one component a tangent pose lists: a point where the arm reads a
 /// touch there, else a tangent loop.
 fn tangent_component<T: Real>(touch: Option<Point3<T>>, winds: [bool; 2]) -> SectionComponent<T> {
-    SectionComponent {
-        shape: if touch.is_some() {
-            ComponentShape::Point
-        } else {
-            ComponentShape::Loop
-        },
-        winds: if touch.is_some() {
-            [false, false]
-        } else {
-            winds
-        },
-        witness: touch,
-        carrier: ClassCarrier::Unminted(TANGENT_COMPONENT),
-    }
+    let (shape, winds) = if touch.is_some() {
+        (ComponentShape::Point, [false, false])
+    } else {
+        (ComponentShape::Loop, winds)
+    };
+    SectionComponent::closed_form(
+        shape,
+        winds,
+        touch,
+        ClassCarrier::Unminted(TANGENT_COMPONENT),
+    )
 }
 
 /// An arm's loops, listed in (torus, partner) order, in the order asked.
@@ -728,12 +727,12 @@ pub(super) fn sphere_torus<T: Decide>(
             match pose.gap {
                 TorusGap::Transverse => {
                     let essential = || {
-                        let c = SectionComponent {
-                            shape: ComponentShape::Loop,
-                            winds: order(torus_first, [true, false]),
-                            witness: None,
-                            carrier: ClassCarrier::General,
-                        };
+                        let c = SectionComponent::closed_form(
+                            ComponentShape::Loop,
+                            order(torus_first, [true, false]),
+                            None,
+                            ClassCarrier::General,
+                        );
                         vec![c.clone(), c]
                     };
                     match torus_arms::sphere_arm(radii, &meridian, pose.radius, band)
@@ -761,6 +760,7 @@ pub(super) fn sphere_torus<T: Decide>(
         pose: PairPose::SphereTorus(pose),
         decided,
         components: Components::Counted(components),
+        nodes: Vec::new(),
     })
 }
 
@@ -973,11 +973,13 @@ pub(super) fn cylinder_torus<T: Decide>(
                     Components::Counted(
                         [t, T::zero() - t]
                             .into_iter()
-                            .map(|z| SectionComponent {
-                                shape: ComponentShape::Loop,
-                                winds,
-                                witness: None,
-                                carrier: ClassCarrier::Closed(ring.parallel(rc, z)),
+                            .map(|z| {
+                                SectionComponent::closed_form(
+                                    ComponentShape::Loop,
+                                    winds,
+                                    None,
+                                    ClassCarrier::Closed(ring.parallel(rc, z)),
+                                )
                             })
                             .collect(),
                     )
@@ -1021,6 +1023,7 @@ pub(super) fn cylinder_torus<T: Decide>(
         pose: PairPose::CylinderTorus(pose),
         decided,
         components,
+        nodes: Vec::new(),
     })
 }
 
@@ -1261,5 +1264,6 @@ pub(super) fn torus_torus<T: Decide>(
         pose: PairPose::TorusTorus(pose),
         decided,
         components,
+        nodes: Vec::new(),
     })
 }

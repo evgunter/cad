@@ -606,9 +606,8 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `singularity_undecided`,
-    `placement`, `instance` or
-    `tier_invalid` — or `wireframe`, which is not a refusal at all:
+    `join`, `singularity_undecided`, `placement_map`, `placement`,
+    `instance`, `c0_knot_unsplit` or `tier_invalid` — or `wireframe`, which is not a refusal at all:
     the file parsed, to something this door does not adopt.
 
     `recognition_ambiguous` neither forwards nor withholds. The word
@@ -1010,7 +1009,8 @@ class IdentityError(PncadError):
     `variant` is the workspace refusal's own tag:
     `randomness_unavailable`, `io`, `duplicate_id`, `header`,
     `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
-    `save_would_duplicate_id`, `save_target_not_in_store` or `update`.
+    `save_would_duplicate_id`, `save_would_replace_document`,
+    `save_target_not_in_store` or `update`.
     Only `randomness_unavailable` is reachable through this door today
     — minting an identity has one failure mode, the OS entropy source
     refusing — but the tag names the refusal that actually occurred, so
@@ -1025,8 +1025,8 @@ class WorkspaceError(PncadError):
 
     `variant` is the refusing arm's stable tag: `io`, `duplicate_id`,
     `header`, `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
-    `save_would_duplicate_id`, `save_target_not_in_store`,
-    `randomness_unavailable` or `update`.
+    `save_would_duplicate_id`, `save_would_replace_document`,
+    `save_target_not_in_store`, `randomness_unavailable` or `update`.
 
     The arm's payload rides as attributes, every one present on every
     arm and `None` where that arm does not carry it — so error
@@ -2067,6 +2067,8 @@ class Frame:
     # kernel's `Frame` derives `PartialEq` and no `Hash`, and this
     # class mirrors its derives.
 
+_MeasureRef: TypeAlias = tuple[NodeId, str] | PoseDef | Var
+
 class MeasurePrimitive:
     """Which closed-form measurement a measure computes, and of which
     two references.
@@ -2081,12 +2083,15 @@ class MeasurePrimitive:
     """
 
     @staticmethod
-    def distance(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
+    def distance(a: _MeasureRef, b: _MeasureRef) -> MeasurePrimitive:
         """The distance between two referenced entities — a length.
-        Each reference names a face, an edge or a vertex (another kind
-        refuses `slot_var_kind` at insert). A carrier pair the v1
-        closed forms have no arm for refuses at `evaluate`
-        (`measure_unsupported`), naming the pair."""
+        Each reference names a face, an edge or a vertex, or is a pose:
+        a point, an axis or a plane read off a cell (`PoseDef.point`,
+        `PoseDef.axis`, `PoseDef.plane`), or a pose `Var` such as a
+        split's tool (another kind refuses `slot_var_kind` at insert).
+        Two axes read as one scalar, zero where they are one line or
+        meet. A carrier pair the v1 closed forms have no arm for refuses
+        at `evaluate` (`measure_unsupported`), naming the pair."""
 
     @staticmethod
     def angle(a: tuple[NodeId, str], b: tuple[NodeId, str]) -> MeasurePrimitive:
@@ -2112,15 +2117,18 @@ class MeasurePrimitive:
         failure."""
 
     @staticmethod
-    def gap(outer: tuple[NodeId, str], inner: tuple[NodeId, str]) -> MeasurePrimitive:
+    def gap(outer: _MeasureRef, inner: _MeasureRef) -> MeasurePrimitive:
         """C5's SIGNED gap between a mating pair — a length.
 
         Argument order is the mating ROLE, not a symmetry: `outer` is
-        the containing carrier (the socket, the bore, the plane the
-        offset is measured from) and `inner` the contained one. C5's
-        formulas are asymmetric in exactly that way, so the roles are
-        authored rather than inferred from which radius is larger. Each
-        reference names a face, an edge or a vertex (a body refuses
+        the containing carrier (the plane the offset is measured from,
+        the outer of two nested faces) and `inner` the contained one,
+        authored rather than inferred from which radius is larger. Two
+        faces are read by both material sides: an opposed pair (a rod on
+        a plate, two rods side by side, a pin in a bore) reads the same
+        in either order, an aligned one (a flush pair) negates. Each
+        reference names a face, an edge or a vertex, or is a plane pose
+        (a split's tool) against a vertex (a body refuses
         `slot_var_kind` at insert). Between a face and an edge or a
         vertex, or an edge and a vertex, the higher-dimensional cell's
         material reads the other in either seat; between two edges or
@@ -2136,9 +2144,9 @@ class MeasurePrimitive:
         """`length` or `angle`. Fixed per verb."""
 
     @property
-    def refs(self) -> tuple[tuple[NodeId, str], tuple[NodeId, str]]:
-        """The two references, in ARGUMENT order — a gap's pair reads
-        `(outer, inner)` and is not re-sorted."""
+    def refs(self) -> tuple[_MeasureRef, _MeasureRef]:
+        """The two references, in ARGUMENT order and as they were passed
+        — a gap's pair reads `(outer, inner)` and is not re-sorted."""
 
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
@@ -4349,6 +4357,11 @@ class Workspace:
         document in it. To write the content as a SECOND part, use
         `save_as_new_document`.
 
+        A `target` that is the file of a DIFFERENT document refuses too
+        (`save_would_replace_document`, with `id` the document that
+        file holds and `path` the file): the write would delete that
+        part from the store.
+
         Otherwise the scan says which act this is: at the id's own
         scanned path it is a resave; for an unclaimed id it is a
         create at the caller's name, which `create` cannot spell
@@ -4362,9 +4375,10 @@ class Workspace:
 
         Raises WorkspaceError, typed."""
 
-    def save_as_new_document(self, doc: Doc) -> tuple[str, str]:
+    def save_as_new_document(self, doc: Doc, target: str) -> tuple[str, str]:
         """Save `doc` AS A NEW DOCUMENT — the same content under a
-        fresh random identity, at `{newid}.pncad` — and answer
+        fresh random identity, at `target` (a save file of this store,
+        read as `save_at` reads it) — and answer
         `(new id, path)`. The SECOND of the two acts a save is
         (ASSEMBLY-DESIGN A4): an explicit fork.
 

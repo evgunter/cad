@@ -2,13 +2,12 @@
 id: validate-tier3-curved-boundary-containment
 kind: issue
 title: validate tier 3 — face-boundary containment on curved surfaces (the last unmarked deferral in the not-yet-checked list)
-status: parked
+status: dispatched
 opened: 2026-08-19
 refs: [226, 635, cone-holes-outside-their-face-are-subtracted-silently]
 priority: P1
 cost: H
-design: true
-blocked_on: [6085]
+branch: restcurve/region-arm
 ---
 
 ## From GitHub issue 638
@@ -135,3 +134,33 @@ is subtracted from the face's area with no refusal, on a band (P09: band
 (P47) and a window (P49). The probes and their values are in that row;
 by Ev's PR 4822 decision the check is this arm's, not the lane's.
 
+
+## Spec, unit 2: the region arm (RESTCURVE orchestrator, 2026-10-31)
+
+The design is ratified: Ev, `[ev]` PR 6085, decisions 1 and 2; fork-log row 221. DESIGN `[topology.tiers]` tier 3 now carries "one region per face". This unit builds that clause's tier-3 check on every surface kind. Unit branch: `restcurve/region-arm`. Review tier: **dual, concurrent pair**. The unit adds a tier-3 refusal on every curved kind, and its instrument is a reader the boolean shares (difficulty H).
+
+### What to build
+1. **(b) Each surface cycle lies on the face's side of every other.**
+   - Take the face's surface boundary (`topo::surface_boundary::surface_cycles`, PR 6088). For each cycle, take one decided point on it and ask the point-in-face doors (`boolean::{ruled,sphere,torus,spline}_region`, behind `curved_face_containment`) restricted to ONE other cycle, whether the point lies on the face's side.
+   - Refuse a cycle that lies outside another. This covers a ring outside its face and a ring inside another ring, on every kind. On a plane, it must agree with check 9's nesting arm, or replace it; say which, and keep one reader.
+   - A path no decision clears is set aside. A cycle that no path reads is a typed exemption, named in validate's not-yet-checked list. Its residue is exactly the doors' per-kind carrier inventories (`region::boundary`'s `admits`); list them.
+   - Claim to check first: whether the doors accept a single cycle without re-reading the face's other loops. Today they read every loop at once. If restricting them needs a new entry, give it one entry, not a second walker.
+2. **(c) An open surface's ends lie off the face.** Check 6's planar and cylinder/cone arms already decide this. Make them this clause's instance: cite them and name them, with no second reading.
+3. **(d) Torus.** Essential cycles form a separating pair, with their windings read as the lift's integers (`loop_windings` / joint elements), not re-derived.
+4. **(e) The chart-singularity inside test** (`geom_brep::chart_singularity::locate`'s interior/outside placement) becomes (b)'s side reading of the singular point.
+   - `walk_loop` and its certified area-error bound retire.
+   - `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` closes by retirement.
+   - The at-a-vertex and inside-an-edge placements stay; they are the one incidence reading.
+5. **`region::boundary` reads through `surface_cycles`.** The filter and the walk become one, which is F6 from PR 6088's review.
+
+### Rows
+- **The cone holes outside their face:** CONEARM's `cone-holes-outside-their-face-are-subtracted-silently` (P09 band less a window, P47 cap, P49 window). Each refuses at tier 3. Take the values from that row.
+- **Curved faces:** a ring inside another ring on a cylinder and on a sphere; a tilted cap holding a pole.
+- **The torus:** an essential pair, accepted; a mis-paired pair, refused.
+- **No false refusals:** PR 6054's 10 µm sliver 1 cm from a pole passes. Every valid body in the corpus and the step-import fixtures still passes; run both at ε 1e-6, the default and 1e-12.
+- **Undecided readings:** a cycle read in band escalates typed, with its margin (D4 ¶1).
+
+### Not in this unit
+- **(a) the meeting arms off the plane:** `check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges`, P3, its own row.
+- **Retiring props' region guards** (PR 4822's list: the cone's `HolesExceedFace`, contractibility, vertex-distinct, once-round). These follow once this arm covers them; file the follow-up on CONEARM's slate.
+- **The mesher.**

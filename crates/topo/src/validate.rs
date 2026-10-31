@@ -35,7 +35,8 @@
 //! **Tier 2 — "closed solid"** ([`validate_closed`]): tier 1 plus the
 //! at-rest bans on construction scaffolding — no empty loops
 //! ([`ValidationError::ScaffoldingEmptyLoop`]), no valence-1 vertices
-//! (struts, [`ValidationError::ScaffoldingStrutVertex`]), every
+//! (struts, [`ValidationError::ScaffoldingStrutVertex`]) but a wrap
+//! edge's tip ([`wrap_tips`]), every
 //! shell's incidence complex connected (c = 1,
 //! [`ValidationError::ShellDisconnected`]), and — since M3 PR 1 — no
 //! null entities ([`ValidationError::NullEdgeAtRest`] /
@@ -1493,9 +1494,10 @@ pub enum ValidationError {
     /// (cylinder, cone, sphere, torus). The face's two orientation
     /// encodings are the S10 `sense` bit and the stored loop traversal
     /// (interior-left), read per kind off the quantity its flux
-    /// integrates (`geom_brep::props::boundary_material_sign_loops`:
+    /// integrates (`geom_brep::props::boundary_material_sign_holding`:
     /// the chart Green form's area, the cone's axial vector area, the
-    /// sphere's Gauss–Bonnet area or pole-free side); a face where the
+    /// sphere's Gauss–Bonnet area or the side holding its own singular
+    /// vertices, a wrap tip's among them); a face where the
     /// two disagree is INSIDE-OUT at that face. Tier 3 refuses it here,
     /// per face: on every kind but the sphere the flux is
     /// traversal-derived, so a lone `sense` flip there is BIT-IDENTICAL
@@ -1531,8 +1533,9 @@ pub enum ValidationError {
     ///   two faces or more, whatever its members' own boundaries encode,
     ///   except a pinched one and one whose loops do not parse;
     /// * a one-loop sphere face with a chart pole off its loop on EACH
-    ///   side — a rim-only cap or a tilted cap holding a pole. Under
-    ///   either sense it holds a pole, so its loop says nothing about
+    ///   side, neither at a tip its chart image drops — a rim-only cap
+    ///   or a tilted cap holding a pole. Under either sense it holds a
+    ///   pole that is not its vertex, so its loop says nothing about
     ///   the bit; the chart-singularity arm refuses the face
     ///   ([`Self::ChartSingularityNotAVertex`]);
     /// * conic-trimmed faces the quadrature lane owns, and NURBS.
@@ -1605,6 +1608,47 @@ pub enum ValidationError {
         point: geom_brep::chart_singularity::Singularity,
         /// What could not be read.
         reading: geom_brep::chart_singularity::Undecided,
+    },
+    /// Tier 3, chart singularities as vertices (`docs/DESIGN.md`
+    /// `[topology.tiers]`): **a wrap edge's tip does not lie on its face's
+    /// chart singularity** — a meridian walked out and back that stops
+    /// short of the pole. Read
+    /// at the joint between the edge's two halves by the incidence the
+    /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
+    /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
+    /// a distance of its own.
+    WrapTipOffChartSingularity {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip (`wrap_tips`).
+        tip: VertexKey,
+    },
+    /// [`Self::WrapTipOffChartSingularity`] where the face's surface has
+    /// **no singular point at all** (a cylinder, a torus, a spline net
+    /// whose `u` sweep moves a point): no place on it is a tip's.
+    WrapTipWithoutChartSingularity {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip.
+        tip: VertexKey,
+    },
+    /// [`Self::WrapTipOffChartSingularity`], **undecided**: the tip's
+    /// distance to its chart's nearest singular point is in band. Its
+    /// ending is `geom_brep::chart_singularity::WRAP_TIP`'s, which passes
+    /// zero alone, so it offers no tolerance.
+    WrapTipUndecided {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip.
+        tip: VertexKey,
+        /// The escalation, carrying the margin.
+        cause: Indeterminate,
     },
     /// Tier 3, check 7: `solid` is **definitely inside out** — its faces
     /// leave infinity inside its material, so the volume they enclose is
@@ -2495,7 +2539,9 @@ pub enum ValidationError {
         loop_: LoopKey,
     },
     /// **Tier 2 only.** A valence-1 vertex (the tip of a strut edge) on
-    /// a body validated as a closed solid — construction scaffolding.
+    /// a body validated as a closed solid — construction scaffolding —
+    /// on an edge that is not a wrap edge (a wrap edge's valence-1 end
+    /// is its tip, [`wrap_tips`]).
     ScaffoldingStrutVertex {
         /// The valence-1 vertex.
         vertex: VertexKey,
@@ -3573,32 +3619,26 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, Cow<'sta
     (why, recourse.into())
 }
 
-/// **What a mass-properties refusal says about the body** — the one
-/// reading tier 3's check 7 and the boolean's volume backstop share:
-/// why the volume is missing, what the user can do, and whether that is
-/// a defect in the body. Only structure that does not resolve is one; a
+/// **What a mass-properties refusal says about the body**, as tier 3's
+/// check 7 reads it: why the volume is missing, and what the user can
+/// do, or that it is a defect in the body. Only structure that does not resolve is one; a
 /// face the property layer has no measurement for, a decision too close
 /// to call, a quadrature that ran out are measurements the kernel does
 /// not have, however the face came to need them.
 pub(crate) struct MassPropsReading {
     /// Why the volume is missing, as a clause.
     pub(crate) why: &'static str,
-    /// What to do about it — or the defect ending, when `defect`.
+    /// What to do about it — or the defect ending, where the body's own
+    /// structure is at fault.
     pub(crate) recourse: Cow<'static, str>,
-    /// The body's own structure is at fault.
-    pub(crate) defect: bool,
 }
 
 pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassPropsReading {
     use crate::props::MassPropsError as M;
     use geom_brep::props::{PropsCheck, PropsError as P};
-    let reading = |why, recourse: Cow<'static, str>, defect| MassPropsReading {
-        why,
-        recourse,
-        defect,
-    };
+    let reading = |why, recourse: Cow<'static, str>| MassPropsReading { why, recourse };
     match e {
-        M::Band { error } => reading(classify_band(error), TOLERANCE.into(), false),
+        M::Band { error } => reading(classify_band(error), TOLERANCE.into()),
         M::Face { source, .. } => match source {
             // **Both halves read the variant's own check**, so this
             // window and the refusal itself cannot disagree about what
@@ -3620,7 +3660,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 check
                     .ending(RefusedArm::Undecided(cause), Reading::AtRest)
                     .into(),
-                *check == PropsCheck::Exact,
             ),
             P::Unimplemented
             | P::NotIsoRectangle { .. }
@@ -3629,7 +3668,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             | P::QuadratureUnsupported { .. } => reading(
                 "the kernel cannot yet measure a face of this kind",
                 NOT_YET_ENDING.into(),
-                false,
             ),
             // An edge that does not lie on its own face's surface: a
             // premise no valid body violates, so it is the body's own
@@ -3637,7 +3675,6 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::OffSurface { .. } => reading(
                 "a stored boundary edge does not lie on its own face's surface",
                 DEFECT.into(),
-                true,
             ),
             // A sphere face whose loops do not bound a region of its
             // sphere, or whose bit its boundary contradicts (an inverted
@@ -3646,58 +3683,47 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
             P::SphereLoop { .. } => reading(
                 "a sphere face's boundary does not bound a region of its sphere",
                 DEFECT.into(),
-                true,
             ),
             P::SenseContradicted => reading(
                 "a sphere face is inside-out against its own boundary, or holds a pole of \
                  its sphere inside it",
                 DEFECT.into(),
-                true,
             ),
             P::SenseInverted => reading(
                 "a sphere face with holes is inside-out against its own boundary",
                 DEFECT.into(),
-                true,
             ),
             P::SeamRegionOvercovered { .. } => reading(
                 "the faces of one sphere overlap, covering their region more than once",
                 DEFECT.into(),
-                true,
             ),
             P::SeamRegionCoverUnresolved => reading(
                 geom_core::undecided!("whether the faces of one sphere overlap"),
                 TOLERANCE.into(),
-                false,
             ),
             P::SeamRegionSensesDisagree => reading(
                 "two faces of one sphere meet with their material on one side of their seam",
                 DEFECT.into(),
-                true,
             ),
             P::ConeLoop { .. } => reading(
                 "a cone face's boundary does not bound a region of its cone once",
                 DEFECT.into(),
-                true,
             ),
             P::HolesExceedFace => reading(
                 "a face's holes cover more area than its outer boundary encloses",
                 DEFECT.into(),
-                true,
             ),
             P::RingWoundWithFace => reading(
                 "a hole in a face is wound the same way as the face",
                 DEFECT.into(),
-                true,
             ),
             P::ChartLoopOpen => reading(
                 "a face's stored boundary does not close on its surface",
                 DEFECT.into(),
-                true,
             ),
             P::LoopsWindChart => reading(
                 "a face's stored boundary loops wind around its surface as no boundary does",
                 DEFECT.into(),
-                true,
             ),
             // Raised on an extent decided zero at the band and on a
             // quadrature area whose enclosure reaches zero: a face too
@@ -3707,36 +3733,30 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
                 geom_brep::props::FACE_EXTENT
                     .recourse(RefusedArm::SignCertain(None), Reading::AtRest)
                     .into(),
-                false,
             ),
         },
         M::RingOnCurvedFace { .. } => reading(
             "the kernel cannot yet measure a curved face with a hole",
             NOT_YET_ENDING.into(),
-            false,
         ),
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
-            reading("its structure is incomplete", DEFECT.into(), true)
+            reading("its structure is incomplete", DEFECT.into())
         }
         M::ResolutionFinerThanEps { .. } => reading(
             "a measurement was asked for finer than the tolerance",
             "Recourse: ask for a resolution of at least the tolerance".into(),
-            false,
         ),
         M::EmptyContains => reading(
             "a measurement was asked whether the volume lies in a range whose least value is above its greatest",
             "Recourse: give the least value first".into(),
-            false,
         ),
         M::Undecided { .. } => reading(
             "the measurement's question is still undecided where refinement stopped",
             geom_core::NOT_YET_ENDING.into(),
-            false,
         ),
         M::Poisoned { cause } => reading(
             "the measurement's question could not be decided",
             cause.to_string().into(),
-            false,
         ),
     }
 }
@@ -4477,6 +4497,26 @@ impl fmt::Display for ValidationError {
                     ),
                 }
             }
+            Self::WrapTipOffChartSingularity { .. } => write!(
+                f,
+                "an edge a face walks out to its tip and back stops short of that face's pole \
+                 or apex, where its tip has to lie. {DEFECT}"
+            ),
+            Self::WrapTipWithoutChartSingularity { .. } => write!(
+                f,
+                "an edge a face walks out to its tip and back lies on a surface with no pole or \
+                 apex, so its tip has nowhere to lie. {DEFECT}"
+            ),
+            Self::WrapTipUndecided { cause, .. } => write!(
+                f,
+                "{}",
+                cause.undecided(
+                    "whether the tip of an edge a face walks out and back lies on that face's \
+                     pole or apex",
+                    geom_brep::chart_singularity::WRAP_TIP
+                        .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
+                )
+            ),
             Self::ChartSingularityUndecided { point, reading, .. } => {
                 use geom_brep::chart_singularity::{SideUnread, Undecided};
                 let what = singularity_noun(*point);
@@ -5305,6 +5345,52 @@ fn count_owner<K: Key, O: Copy>(counts: &mut SecondaryMap<K, (usize, O)>, key: K
     counts.insert(key, (n + 1, owner));
 }
 
+/// Each vertex's valence: the number of half-edges starting at it (a
+/// self-loop contributes two), counted over resolving `start`
+/// references only, so it is meaningful even on bodies with unrelated
+/// tier-1 errors, with one documented echo: a dangling `start` (a pass-1
+/// error) deflates its true vertex's count and can surface in tier 2 as
+/// a spurious strut (module docs, cascade discipline; pinned by the
+/// promoted review probe; unreachable through the public API). A vertex
+/// no half-edge starts at has no entry.
+fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
+    let mut incidence: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
+    for (_, he) in body.half_edges.iter() {
+        if body.vertices.contains_key(he.start) {
+            count_ref(&mut incidence, he.start);
+        }
+    }
+    incidence
+}
+
+/// **A body's wrap tips** (DESIGN `[topology]`, the seam clause), each
+/// keyed to the one half-edge leaving it: a tip is any valence-1 end
+/// ([`valences`]) of a wrap edge, the face's seam kept to its end, where
+/// the face's loop walks the edge out and straight back. Both ends of a
+/// lone wrap edge are tips (the one-face ball's pole-to-pole meridian).
+/// The wrap flag is the stored one (`EdgeDescription::is_wrap`), so the
+/// reading is structural and takes no ε. Where a tip lies is tier 3's
+/// (`crate::pcurves::pcurve_pass`). The valence-1 end is the vertex
+/// [`crate::surface_boundary::tips`] reads off a loop (a half-edge its
+/// loop follows by its own mate), counted here so that a body whose
+/// rotations tier 1 has not yet closed still reads.
+pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, HalfEdgeKey> {
+    let valence = valences(body);
+    let mut tips = SecondaryMap::new();
+    for (he_key, he) in body.half_edges.iter() {
+        let wraps = body
+            .edges
+            .get(he.edge)
+            .and_then(|edge| body.curves.get(edge.curve))
+            .and_then(CurveGeom::certified)
+            .is_some_and(|curve| curve.description().is_wrap());
+        if wraps && valence.get(he.start) == Some(&1) {
+            tips.insert(he.start, he_key);
+        }
+    }
+    tips
+}
+
 /// The counts of one connected component of a shell's incidence complex
 /// (pass 11 — see the module docs for the glue rules).
 struct ComponentCounts {
@@ -5411,23 +5497,12 @@ pub(crate) fn closed_by_tier<T: Real>(
         }
     }
 
-    // Tier 2, check 2: no valence-1 vertices (vertex-arena order).
-    // Valence = the number of half-edges starting at the vertex (a
-    // self-loop contributes two). Re-derived here rather than threaded
-    // out of pass 1: the count only reads resolving `start` references,
-    // so it is meaningful even on bodies with unrelated tier-1 errors —
-    // with one documented echo: a dangling `start` (a pass-1 error)
-    // deflates its true vertex's count and can surface here as a
-    // spurious strut (module docs, cascade discipline; pinned by the
-    // promoted review probe; unreachable through the public API).
-    let mut incidence: SecondaryMap<VertexKey, usize> = SecondaryMap::new();
-    for (_, he) in body.half_edges.iter() {
-        if body.vertices.contains_key(he.start) {
-            count_ref(&mut incidence, he.start);
-        }
-    }
-    for (vertex_key, _) in body.vertices.iter() {
-        if incidence.get(vertex_key).copied().unwrap_or(0) == 1 {
+    // Tier 2, check 2: no valence-1 vertices but a wrap edge's tip
+    // (vertex-arena order), read off the stored wrap flag and the
+    // valences [`wrap_tips`] counts, so structural and ε-free.
+    let tips = wrap_tips(body);
+    for (vertex_key, valence) in valences(body).iter() {
+        if *valence == 1 && !tips.contains_key(vertex_key) {
             errors.push(ValidationError::ScaffoldingStrutVertex { vertex: vertex_key });
         }
     }
@@ -5578,7 +5653,18 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///    and not the body**: a body's total is a sum, and a sum hides a
 ///    sign — an inside-out part beside a larger ordinary solid totals
 ///    positive.
-/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
+/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]). The same
+///    joints read **every wrap edge's tip on its face's chart
+///    singularity** ([`wrap_tips`]): the tip's joint vertex decided off
+///    the chart's singular set refuses
+///    ([`ValidationError::WrapTipOffChartSingularity`]), one on a chart
+///    with no singular point refuses as such
+///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
+///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
+///    incidence is the one the joint resets by
+///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
+///    check 6's at-vertex placement reads too), and a joint check 8
+///    itself refuses or leaves unread reports nothing more.
 /// 9. **A face's loops trim one region** — a ring disjoint from
 ///    and nested in its outer loop ([`ValidationError::RingMeetsOuter`]
 ///    and its siblings), no two rings meeting
@@ -6517,15 +6603,6 @@ pub(crate) const PLUS_V_SIGN: crate::props::SignNames = crate::props::SignNames 
     walk: PLUS_V,
     certified: PLUS_V_EXACT,
 };
-
-/// Check 7's reading of one volume ([`crate::props::read_role`] under
-/// [`PLUS_V`]).
-pub(crate) fn plus_v_read<T: geom_core::Decide>(
-    reading: crate::props::SignReading<T>,
-    band: Band,
-) -> crate::props::RoleRead {
-    crate::props::read_role(reading, PLUS_V, band)
-}
 
 /// **Check 7's verdict off the role walk** ([`crate::props::role_walk`]):
 /// a positive volume passes, a negative one refuses; where the walk
@@ -7803,10 +7880,7 @@ pub(crate) fn tier3_local_checks_marked<
             ContactMark::Unmarked
         } else if escalated {
             ContactMark::Unmarked
-        } else if matches!(
-            curve.description(),
-            geom_brep::EdgeDescription::Chart(c) if c.wrap
-        ) {
+        } else if curve.description().is_wrap() {
             ContactMark::Seam
         } else if all_transverse {
             arm = Some(MaterialArmOutcome::Wedge(MaterialWedge::Transverse));
@@ -8029,12 +8103,13 @@ pub(crate) fn tier3_local_checks_marked<
     // statement as the planar arm — the face's two orientation
     // encodings must agree — but the boundary's encoding is read the
     // way the flux lanes read it:
-    // `geom_brep::props::boundary_material_sign_loops` reads every
+    // `geom_brep::props::boundary_material_sign_holding` reads every
     // loop, per kind: the chart Green form's sign on a cylinder or
     // torus (`props_chart_area_side`), the axial vector area's on a
     // cone (`props_cone_area_side`), and on a sphere the side of its
-    // loops with positive area with holes (`props_sphere_face_area`) or
-    // the loop's pole-free side without (`props_sphere_pole_winding`).
+    // loops with positive area with holes (`props_sphere_face_area`) or,
+    // without, the side of the loop holding the face's own singular
+    // vertices and no other pole (`props_sphere_pole_winding`).
     // None rests
     // on an iso-rectangle premise. The final comparison is two exact
     // ±1s, genuinely combinatorial.
@@ -8066,8 +8141,11 @@ pub(crate) fn tier3_local_checks_marked<
     // ([`seam_region`]), whose boundary encodes a side by its area or
     // by a pole on an interior edge (`sphere_region_material_sign`).
     // Exempt: the regions that reader leaves unread, listed on
-    // `CurvedSenseInverted`. So is a face with a pole off its loop on
-    // each side, which holds a pole under either sense: the
+    // `CurvedSenseInverted`. A tip the face's chart image drops is
+    // handed to the reader as a point the face holds, so a wrap-tip cap
+    // lies on the side of its loop holding its tip's pole and not the
+    // other. A face with a pole off its loop on each side and neither
+    // at such a tip holds a pole under either sense, and is exempt: the
     // chart-singularity arm below refuses it.
     // ------------------------------------------------------------------
     // Every seam region of a sphere, read once: the cover census here,
@@ -8102,19 +8180,22 @@ pub(crate) fn tier3_local_checks_marked<
         else {
             continue; // derivation exempt (posture above)
         };
-        let Ok(images) = full
+        // The tips the images drop are the face's own: the datum of its
+        // side.
+        let Ok((images, held)) = full
             .iter()
-            .map(|(_, cycle)| crate::props::image_of_cycle(body, cycle))
-            .collect::<Result<FlatLoops<T>, _>>()
+            .map(|(_, cycle)| crate::props::image_with_tips(body, cycle))
+            .collect::<Result<(FlatLoops<T>, Vec<Vec<geom_core::Point3<T>>>), _>>()
         else {
             continue; // derivation exempt (posture above)
         };
+        let held: Vec<geom_core::Point3<T>> = held.into_iter().flatten().collect();
         let loops: Vec<&[geom_brep::props::LoopEdge<T>]> = images
             .iter()
             .map(|(edges, _)| edges.as_slice())
             .filter(|edges| geom_brep::chart_image::bounds_area(edges))
             .collect();
-        let side = geom_brep::props::boundary_material_sign_loops(surface, &loops, band);
+        let side = geom_brep::props::boundary_material_sign_holding(surface, &loops, &held, band);
         if matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. }) {
             flattened.insert(face_key, (full, images));
         }
@@ -8306,8 +8387,35 @@ pub(crate) fn tier3_local_checks_marked<
     // stands (checks 1-6 only), because they answer with one vector
     // rather than a composition.
     // ------------------------------------------------------------------
-    for finding in crate::pcurves::validate_pcurves(body, band) {
+    //
+    // The same joints read tier 3's wrap-tip rule (`[topology.tiers]`,
+    // chart singularities as vertices): every wrap edge's tip lies on its
+    // face's chart singularity, read by the incidence the joint resets
+    // its first channel by (`crate::pcurves::pcurve_pass`).
+    let pass = crate::pcurves::pcurve_pass(body, band);
+    for finding in pass.findings {
         errors.push(ValidationError::Pcurve { finding });
+    }
+    for crate::pcurves::TipOff {
+        face,
+        edge,
+        tip,
+        reading,
+    } in pass.tips
+    {
+        use crate::pcurves::TipReading;
+        errors.push(match reading {
+            TipReading::Off => ValidationError::WrapTipOffChartSingularity { face, edge, tip },
+            TipReading::NoSingularSet => {
+                ValidationError::WrapTipWithoutChartSingularity { face, edge, tip }
+            }
+            TipReading::Undecided(cause) => ValidationError::WrapTipUndecided {
+                face,
+                edge,
+                tip,
+                cause,
+            },
+        });
     }
 
     // ------------------------------------------------------------------

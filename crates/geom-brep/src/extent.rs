@@ -978,6 +978,15 @@ impl<T: Real> Reach<T> {
         }
     }
 
+    /// **A ball holding the consumed region**: about the reach's point,
+    /// out to its lever from there ([`Self::lever_from`]), which bounds
+    /// the region's distance from any pivot, or is the caller's length.
+    #[must_use]
+    pub fn ball(&self) -> ExtentBall<T> {
+        let at = self.reading_point();
+        ExtentBall::new(at, self.lever_from(at))
+    }
+
     /// A point the reach stands for: a ball's centre, the point a length
     /// was measured from, a span's first consumed point or conic centre.
     /// Its distance from a pivot is at most a ball's or a span's lever
@@ -1169,7 +1178,8 @@ mod tests {
             if ds[k] >= ds[below] && ds[k] >= ds[above] {
                 let (mut lo, mut hi) = (ts[below], ts[above]);
                 for _ in 0..80 {
-                    let (m1, m2) = (lo + (hi - lo) * 0.381_966, lo + (hi - lo) * 0.618_034);
+                    let g = geom_core::GOLDEN_SECTION;
+                    let (m1, m2) = (lo + (hi - lo) * (1.0 - g), lo + (hi - lo) * g);
                     if d(m1) < d(m2) {
                         lo = m1;
                     } else {

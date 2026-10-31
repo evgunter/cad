@@ -322,9 +322,13 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // slit holds its wall's boundary-column candidate in either
     // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
     // witness). What every band meets now is the frontier past it:
-    // wall `#382` states four u spans while its rim circles are
-    // three-arc rationals, and the imported-chart arc-rim
-    // construction refuses the mint (`MapResidual`).
+    // wall `#382` states its circle as four rational spans whose end
+    // weights are 1 and 2 (unnormalized), against three-arc rational
+    // rim circles. Since the import splits the wall at its C⁰ knots,
+    // each sub-patch is one such span, and the arc-rim pick finds no
+    // row holding the rim circle at its probe; before the split, the
+    // whole-chart arc-rim construction refused the same rim at its
+    // residual (`MapResidual`).
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -335,9 +339,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
-    (DM1, 1e-6, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
-    (DM1, 1e-12, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
+    (DM1, 1e-9, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-6, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-12, "file", Refused(ARC_RIM_NOT_HELD)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -449,14 +453,13 @@ const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). 
 // candidate in either traversal order —
 // `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
 // the component that carries `#389` and gets past every polyline edge.
-/// dm1's cell, every band: past the retired gap, the pcurve MINT on
-/// the l-bracket wall's ARC rim refuses — wall `#382` states four u
-/// spans while its rim circles are three-arc rationals, so the
-/// imported-chart arc-rim construction's image misses its chart by
-/// more than the band (`MapResidual`, the typed mint residual). Named
+/// dm1's frontier at every band: the pcurve mint on the l-bracket
+/// wall's arc rim, split at its C⁰ knots into one-span sub-patches
+/// whose rows state the circle with end weights 1 and 2, and the
+/// arc-rim pick holds no row at its probe. Named
 /// specifically so a refusal that drifted to a different door cannot
 /// stand in.
-const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
+const ARC_RIM_NOT_HELD: &str = "not an arc rim of this chart";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
 const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
@@ -520,7 +523,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 85] = [
+const CORPUS: [(&str, Disposition); 91] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -539,6 +542,17 @@ const CORPUS: [(&str, Disposition); 85] = [
     ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
     ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
     ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // The C⁰-knot split: each wall is two sub-patches, each ridge edge
+    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
+    // is a vertex the closing join keeps
+    // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    ("tests/fixtures/c0-knot/ridge_u.step", Pass(1, 1, 7, 15, 10)),
+    ("tests/fixtures/c0-knot/ridge_v.step", Pass(1, 1, 7, 15, 10)),
+    (
+        "tests/fixtures/c0-knot/seam_edge.step",
+        Pass(1, 1, 6, 13, 9),
+    ),
     ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
     (
         "tests/fixtures/freecad/box_fillet_corner.step",
@@ -754,6 +768,16 @@ const CORPUS: [(&str, Disposition); 85] = [
     ),
     (
         "tests/fixtures/split-iso/split_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    // `split_axis` with one collinear half of its cylinder-side edge a
+    // straight degree-1 spline: the line is kept and the two join.
+    (
+        "tests/fixtures/line-beside-spline/mixed_lower.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/line-beside-spline/mixed_upper.step",
         Pass(1, 1, 4, 6, 4),
     ),
     (

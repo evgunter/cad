@@ -262,7 +262,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
         let ceiling = 2.0 * 1024.0 * eps;
         assert!(
             want.volume_pad < ceiling,
-            "native volume pad ceiling: {} vs {ceiling} (M8-3 measured 1.0098754e-6 at ε=1e-9)",
+            "native volume pad ceiling: {} vs {ceiling} (measured 1.4503e-6 at ε=1e-9)",
             want.volume_pad,
         );
         println!(

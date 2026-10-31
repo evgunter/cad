@@ -179,9 +179,6 @@ pub enum BooleanDecision {
     /// ring that reads in band refuses rather than divide the face the
     /// wrong way round.
     CutRingWinding,
-    /// Whether the result's volume agrees with its operands': the
-    /// kernel checking its own result.
-    VolumeBackstop,
     /// Whether a length to measure an angle over is positive, at a gate
     /// that meters a reading by it.
     LeverArm(LeverArm),
@@ -1450,7 +1447,6 @@ impl BooleanDecision {
             Self::CutRingWinding => {
                 "which way a ring that the cut of a coincident face closes winds"
             }
-            Self::VolumeBackstop => "whether the result's volume agrees with its operands'",
             Self::LeverArm(gate) => gate.subject(),
             Self::Radius(radius) => radius.subject(),
             Self::WallRoots(WallRung::AxisParallel) => {
@@ -1600,7 +1596,6 @@ impl BooleanDecision {
                 SizedPass::NonNegative,
             ),
             Self::CutRingWinding => Ending::Lever(CUT_RING_WINDING),
-            Self::VolumeBackstop => Ending::Unsized(Unsized::Defect),
             // The arm passes on a positive length, and a zero-band one
             // is a size a smaller tolerance decides positive
             // (`geom_brep::enters`'s arm gate carries its margin).
@@ -2026,7 +2021,6 @@ pub(in crate::boolean) mod tests {
                     vec![BooleanDecision::SplitPointOnCircle]
                 }
                 BooleanDecisionKind::CutRingWinding => vec![BooleanDecision::CutRingWinding],
-                BooleanDecisionKind::VolumeBackstop => vec![BooleanDecision::VolumeBackstop],
                 BooleanDecisionKind::LeverArm => {
                     LeverArm::iter().map(BooleanDecision::LeverArm).collect()
                 }
@@ -2621,10 +2615,6 @@ pub(in crate::boolean) mod tests {
                      other spans clearly more than the tolerance",
                 ),
             ),
-            BooleanDecision::VolumeBackstop => (
-                "whether the result's volume agrees with its operands'",
-                Ending::Defect,
-            ),
         }
     }
 
@@ -2638,6 +2628,7 @@ pub(in crate::boolean) mod tests {
                     SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
                     SizedPass::Negative => v < 0.0,
                     SizedPass::NonZero | SizedPass::AnySign => true,
+                    SizedPass::Zero => false,
                 }
         };
         match margin.diagnostic_f64_for_error_text() {

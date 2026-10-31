@@ -866,7 +866,7 @@ mod kernel {
         pub(super) const SKIN_ERROR: SkinError = [
             TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
-            PathTangentReversal, PathTangentUndecided, StationNotFinite, Band,
+            PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
         ];
     }
@@ -3403,7 +3403,11 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
                 sections: 2,
             },
         ),
-        ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("PathFoldsBack", E::PathFoldsBack { station: 4 }),
+        (
+            "PathStationsCoincide",
+            E::PathStationsCoincide { station: 4 },
+        ),
         ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (
@@ -3424,9 +3428,10 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             E::KnotAlgebra(geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 }),
         ),
         (
-            "PathTangentUndecided",
-            E::PathTangentUndecided {
+            "PathUndecided",
+            E::PathUndecided {
                 station: 2,
+                which: sweep::PathDecision::FoldBack,
                 source: payloads::diag(),
             },
         ),

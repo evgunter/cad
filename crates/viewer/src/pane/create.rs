@@ -792,7 +792,7 @@ impl ViewerBehavior<'_> {
                     ui,
                     "path",
                     self.session.tol(),
-                    (self.notation.length.def(), self.notation.angle.def()),
+                    &mut crate::widgets::WrittenIn::of(*self.notation),
                     &mut self.drafts.profile_path,
                 ) {
                     row.apply(&mut self.drafts.profile_path);
@@ -2499,7 +2499,18 @@ mod tools_respeak {
             .into_iter()
             .map(SessionOp::Select)
             .collect();
-        let declined = tools.feed(session.doc(), &picks);
+        let index = {
+            let (doc, eval) = session.landed_pair().expect("the block landed");
+            let generation = session.landed_generation().expect("a landed generation");
+            crate::pickindex::PickIndex::build(
+                doc,
+                eval,
+                crate::pickindex::PictureKey::of(generation, crate::test_support::plate_delta()),
+                session.tol(),
+            )
+            .expect("the block indexes")
+        };
+        let declined = tools.feed(session.doc(), Ok(&index), &picks);
         assert!(declined.is_empty(), "every pick is taken: {declined:?}");
         for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
             perform(&mut session, &mut tools, op);

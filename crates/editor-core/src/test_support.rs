@@ -1464,6 +1464,34 @@ pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingErr
     })
 }
 
+// --- the quieting rule ---------------------------------------------
+
+/// **The row half of the quieting rule, asked of any row**
+/// (`checks::at_rest::quiet_row`): the assertion that quiets `row` in
+/// `evaluation`, or `None`. For a row of a kind no document reaches
+/// yet, pinned over cells of a real evaluation.
+#[must_use]
+pub fn quiet_row(
+    doc: &ProfileDoc,
+    evaluation: &crate::Evaluation<f64>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: geom_core::Tol,
+) -> Option<RecipeNodeId> {
+    crate::checks::at_rest::quiet_row(doc, evaluation, row, tol)
+}
+
+/// Whether an assertion could quiet `row` in `evaluation`
+/// (`checks::at_rest::row_quietable`), asked as [`quiet_row`] asks.
+#[must_use]
+pub fn row_quietable(
+    doc: &ProfileDoc,
+    evaluation: &crate::Evaluation<f64>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: geom_core::Tol,
+) -> bool {
+    crate::checks::at_rest::row_quietable(doc, evaluation, row, tol)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{axes_at, moves_at};

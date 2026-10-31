@@ -58,3 +58,14 @@ for a sphere × torus neighbour, then refuse at `section_closed` with
 `NeighborPairUnroutable`. The refusal is vaguer, and no wrong body comes
 of it. The `implemented` flag answers per kind ahead of the consumers
 that read it, which is this row's two-dispatch shape again.
+
+## A third state (2026-10-29, SPLICE, PR 6026)
+
+`pair_section_with` builds a plane against a NURBS or approximating
+surface through the march door, and `pair_section` with no door refuses
+it (`SectionError::NoMarch`). `serves` stays false for both kinds, so a
+kind pair is now built by classification, built only with a lane, or
+served elsewhere, and `serves` spells the first alone. The section
+table's filter relies on it: a reader that bypassed `serves` would read
+`NoMarch` there, which the interior-loop guard reads as R-reach
+(`section_table.rs` `SectionReader::read`).
