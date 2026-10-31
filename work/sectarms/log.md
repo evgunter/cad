@@ -73,3 +73,11 @@ and bodies unchanged. No orchestrator yet.
     - **(3)** `cylinder_cylinder_section` becomes the pose's closed-form constructor. Accepted.
     - **(4)** `section_cert::Reach` also serves the cone and torus arms. This unit removes only the cylinder use, and the rest goes to the cone row (noted there).
     - **(5)** The march domain is the meet of two boxes, a sound superset. Stage 1 adds that evidence to SSIEDGE's `ssi-r3-slab-is-not-geometry`.
+- 2026-10-31 — **Accounting-cost fork → `[ev]` PR 6137 as a stated split** (fork row 227, record `analysis/design-fork/region-accounting-cost`).
+  - **Agreed:**
+    - For every ruled pair, the ruling sweep is the pose's reading, and seeds come from it.
+    - A 1-D coverage of the ruling angle and a one-to-one end-and-witness match both exist.
+    - Ruled pairs get no 3-D accounting.
+  - **Split:** does the coverage run at runtime as the closing (A), or in tests as the oracle with cardinality closing (B)? It is a reading of `[one-way.readings]`, which permits both "stages of one proof" and "a second method … only as a test oracle".
+  - **Why stopped:** four crossovers, each round's newest argument shown to the other in the last, so it was stopped as a split rather than a fifth round.
+  - **To file once the build row is written:** `ssi-domain-extent-means-three-things` (SSIEDGE P2), `a-long-ssi-arc-fails-limb-three-over-its-chain` (P2), and a faster general sweep for marched poses (P3, with the two failed steering prototypes as evidence).
