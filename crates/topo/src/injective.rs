@@ -2720,11 +2720,11 @@ fn wall_of(surface: &Surface<Interval>, rim: &Rim) -> Option<Wall> {
 ///
 /// 1. `v = v0 + σ·t`, `σ = ±1`, is strictly monotone in `t`: the curve
 ///    is a graph over `v` everywhere on every lift, with no turning
-///    point. An open edge has exactly one lift by whole turns of `v`
-///    whose `v` range meets `A`, and that range holds `A` strictly
-///    inside, so the edge runs past both column ends and its vertices
-///    lie outside the columns. A closed edge whose span is a whole
-///    period is continued by its closed form, which returns to its
+///    point. An open edge has a lift by whole turns of `v` whose `v`
+///    range holds `A` strictly inside, so the edge runs past both
+///    column ends and its vertices lie outside the columns; that range
+///    is narrower than a turn, so no other lift meets `A`. A closed
+///    edge whose span is a whole period is continued by its closed form, which returns to its
 ///    vertex's chart point a whole turn of `v` on: one curve over all
 ///    of `v`. Either way each column holds exactly one point of the
 ///    lift read, `(g(v), v)`, at the parameters `t` the columns hold.
@@ -2817,26 +2817,24 @@ fn present_wall<'a>(
     let (cu, a) = cell;
     // Step 1: the one lift across the columns, and the parameters they
     // hold on it.
+    let held = |k: f64| (iv(a) - w.v0 - turns(k)) * at(w.sigma);
     let lift = if closed {
         0.0
     } else {
+        // The lift whose span holds the columns strictly inside. Its `v`
+        // range is narrower than a turn, so no other lift meets them.
         let (s0, s1) = through.as_ref().map_or((t0, t1), |th| th.span);
         let reach = w.on(Axis::V, Interval::from_bounds(s0, s1));
-        let met: Vec<f64> = turn_ladder((reach.lo(), reach.hi()), a)
+        turn_ladder((reach.lo(), reach.hi()), a)
             .ok_or(Unpresented::Local)?
             .into_iter()
-            .filter(|&k| meets_range(reach + turns(k), a))
-            .collect();
-        let &[k] = met.as_slice() else {
-            return Err(Unpresented::Local);
-        };
-        let held = (iv(a) - w.v0 - turns(k)) * at(w.sigma);
-        if !(s0 < held.lo() && held.hi() < s1) {
-            return Err(Unpresented::Local);
-        }
-        k
+            .find(|&k| {
+                let t = held(k);
+                s0 < t.lo() && t.hi() < s1
+            })
+            .ok_or(Unpresented::Local)?
     };
-    let t = (iv(a) - w.v0 - turns(lift)) * at(w.sigma);
+    let t = held(lift);
     if !Real::is_bounded(t) {
         return Err(Unpresented::Local);
     }
