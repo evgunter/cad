@@ -1798,3 +1798,12 @@ Signed (CLEAVE orchestrator).
   - The tie's own order now winds that sliver (`join::tie_winding`, read only where the first-order winding reads Zero).
   - A plug of several faces now nests whole in `outermost_survivor`.
   - Its 216-cell probe: main refuses 54, and head builds 216/216 at three ε. Claims and style reviews dispatched. (CLEAVE orchestrator)
+- 2026-10-31 — The PR 5793 fourth pass handed back at `7f54013726`, with CI green and 0 cells moved against the third pass.
+  - What it did:
+    - F1a's witness now goes red: there is one sampling reading, `census::points_on_surface`, with unit rows behind it.
+    - The foot door reads the band on every degenerate locus and refuses torus/spline/Approx as `Unread`.
+    - The tangent-wall arms are folded into one second-order reading.
+    - The attribution is corrected, and the P2 rows filed.
+  - Last push asked for: register `bool_foot_off_locus` in `decision_words`, and close both rows in the PR. Merge on green.
+
+  Dispatched `a-one-segment-cylinder-through-a-plate-tangent-to-a-hole-refuses-single-site` (P1 M) on `cleave/one-segment-cylinder-through-a-holed-plate`. (CLEAVE orchestrator)
