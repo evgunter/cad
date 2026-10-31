@@ -77,6 +77,18 @@ pub const ON_BOUNDARY: SizedDecision = SizedDecision {
     no_size: None,
 };
 
+/// **Whether a wrap edge's tip lies on its face's chart singularity**,
+/// a sized decision passing zero alone: the tip has to sit on the pole
+/// or the apex, so no tolerance keeps it a nonzero distance off, and
+/// the one ending of every refusal of it is the lever.
+pub const WRAP_TIP: SizedDecision = SizedDecision {
+    lever: "move the wrap edge's tip onto its face's pole or apex",
+    size: "distance",
+    passes: SizedPass::Zero,
+    side: RefusedSide::Lever,
+    no_size: None,
+};
+
 /// **Which side of a face's loop a chart singularity lies on**, a
 /// decision whose reading is the loop's own geometry rather than a
 /// distance a tolerance is held against: it refuses where the reading

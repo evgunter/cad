@@ -3943,6 +3943,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ChartSingularityUndecided": "ValidationFinding.variant",
     "ValidationError::WrapTipOffChartSingularity": "ValidationFinding.variant",
     "ValidationError::WrapTipUndecided": "ValidationFinding.variant",
+    "ValidationError::WrapTipWithoutChartSingularity": "ValidationFinding.variant",
     "ValidationError::NegativeVolume": "ValidationFinding.variant",
     "ValidationError::SliverInsideOut": "ValidationFinding.variant",
     "ValidationError::VolumeUncomputable": "ValidationFinding.variant",

@@ -1288,6 +1288,10 @@ pub enum SizedPass {
     /// margin it cannot call, and a smaller tolerance calls any nonzero
     /// one.
     AnySign,
+    /// A zero margin only: an incidence the geometry must meet, which no
+    /// tolerance a run admits decides passing at a nonzero size, so no
+    /// refusal of it offers one.
+    Zero,
 }
 
 impl SizedPass {
@@ -1295,8 +1299,8 @@ impl SizedPass {
     pub(crate) fn admits(self, sign: Sign) -> bool {
         match sign {
             Sign::Zero => self.passes_zero(),
-            Sign::Positive => !matches!(self, Self::Negative),
-            Sign::Negative => !matches!(self, Self::Positive | Self::NonNegative),
+            Sign::Positive => !matches!(self, Self::Negative | Self::Zero),
+            Sign::Negative => !matches!(self, Self::Positive | Self::NonNegative | Self::Zero),
         }
     }
 
@@ -1305,7 +1309,7 @@ impl SizedPass {
     pub fn passes_zero(self) -> bool {
         match self {
             Self::Positive | Self::NonZero | Self::Negative => false,
-            Self::NonNegative | Self::AnySign => true,
+            Self::NonNegative | Self::AnySign | Self::Zero => true,
         }
     }
 
@@ -3135,8 +3139,11 @@ mod tests {
     /// two-sided set any nonzero one, and none tightens zero.
     #[test]
     fn each_pass_set_tightens_the_margins_it_accepts() {
-        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
+        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive, Zero};
         let rows = [
+            (Zero, 5e-9, false),
+            (Zero, -5e-9, false),
+            (Zero, 0.0, false),
             (AnySign, 5e-9, true),
             (AnySign, -5e-9, true),
             (AnySign, 0.0, false),
@@ -3168,6 +3175,7 @@ mod tests {
                 && !Negative.passes_zero()
                 && NonNegative.passes_zero()
                 && AnySign.passes_zero()
+                && Zero.passes_zero()
         );
     }
 
@@ -3182,11 +3190,14 @@ mod tests {
     /// moves class.
     #[test]
     fn each_reading_shows_one_class() {
-        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive};
+        use SizedPass::{AnySign, Negative, NonNegative, NonZero, Positive, Zero};
         let band = Band::new(1e-9, 1e-8).unwrap();
         let v = MarginDiag::value;
         let e = MarginDiag::enclosure;
         let rows = [
+            (Zero, v(5e-9), Shows::NoSize),
+            (Zero, e(-2e-9, 3e-9), Shows::Unresolved),
+            (Zero, v(5e-8), Shows::Refused),
             (NonZero, e(2e-9, 5e-9), Shows::Offer(2e-10)),
             (NonZero, e(-5e-9, -2e-9), Shows::Offer(2e-10)),
             (NonZero, e(-2e-9, 3e-9), Shows::Unresolved),

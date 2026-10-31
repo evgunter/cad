@@ -14,8 +14,12 @@
 //!   refused at tier 3, alone where the pole is a vertex of another edge,
 //!   and beside the chart-singularity arm's refusal where it is not (the
 //!   shape of `step-import`'s `rim-only-cap/spur.step`);
-//! - a valence-1 vertex on an edge that is not a wrap edge, and both ends
-//!   of a lone wrap strut, are refused at tier 2 as they were;
+//! - a valence-1 vertex on an edge that is not a wrap edge is refused at
+//!   tier 2 as it was, while both ends of a lone wrap edge are tips: the
+//!   one-face ball passes, and a lone strut short of both poles refuses
+//!   at tier 3;
+//! - a wrap tip on a cylinder, which has no singular point, refuses as
+//!   such;
 //! - at a tip near the pole, the mint's joint and tier 3's two readings of
 //!   the pole answer by the one incidence reading: on, all three admit;
 //!   in band, all three stop short of a decision, on one escalation.
@@ -275,11 +279,10 @@ fn a_tip_short_of_the_pole_refuses_at_tier_3() {
     );
 }
 
-/// **A valence-1 vertex not at a wrap edge's tip is still a strut**: a
-/// spur not described as a wrap edge, and both ends of the one-face ball's
-/// lone meridian, a wrap edge both of whose ends have valence 1.
+/// **A valence-1 vertex off a wrap edge is still a strut**: a spur not
+/// described as a wrap edge.
 #[test]
-fn a_valence_one_vertex_off_a_wrap_tip_is_a_strut() {
+fn a_valence_one_vertex_off_a_wrap_edge_is_a_strut() {
     let (mut body, face, _, _) = one_wrap_edge(hemisphere(), false);
     let surface = body.get_face(face).unwrap().surface;
     let (_, tip) = spur(
@@ -296,15 +299,17 @@ fn a_valence_one_vertex_off_a_wrap_tip_is_a_strut() {
         }]),
         "a spur that is not a wrap edge"
     );
+}
 
+/// The unit ball with one of its two meridians killed: one face whose
+/// loop walks the other pole to pole and back, restated as its wrap edge.
+fn one_face_ball() -> (Body<f64>, FaceKey, EdgeKey) {
     let mut ball = revolved_about_y(
         vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         Revolution::Full,
         tol(),
     );
-    let north = vertex_at(&ball, NORTH);
-    let south = vertex_at(&ball, Point3::new(0.0, -1.0, 0.0));
-    let out = leaving(&ball, north);
+    let out = leaving(&ball, vertex_at(&ball, NORTH));
     let wraps = ball.get_half_edge(out[0]).unwrap().edge;
     let face = ball.face_of_half_edge(out[0]).unwrap();
     let surface = ball.get_face(face).unwrap().surface;
@@ -314,15 +319,133 @@ fn a_valence_one_vertex_off_a_wrap_tip_is_a_strut() {
         tol(),
     )
     .expect("the one-face ball");
-    let mut ends = [north, south];
-    ends.sort();
+    let face = ball.face_of_half_edge(out[0]).unwrap();
+    (ball, face, wraps)
+}
+
+/// Kills the edge leaving `tip`, with `tip`.
+fn kill_tip(body: &mut Body<f64>, tip: VertexKey) {
+    let out = leaving(body, tip);
+    let e = body
+        .get_edge(body.get_half_edge(out[0]).unwrap().edge)
+        .unwrap();
+    let toward = if e.he_plus == out[0] {
+        e.he_minus
+    } else {
+        e.he_plus
+    };
+    body.kev_describing(toward, &[], tol())
+        .expect("the tip's edge dies with it");
+}
+
+/// **Both ends of a lone wrap edge are tips.** The one-face ball, whose
+/// one meridian runs pole to pole, passes tiers 2 and 3 and measures the
+/// ball. Cut 0.3 rad short of each pole, the lone strut still passes
+/// tier 2, and tier 3 refuses each pole inside the face and each tip off
+/// it.
+#[test]
+fn a_lone_wrap_edge_has_two_tips() {
+    let (ball, _, _) = one_face_ball();
+    assert_eq!(topo::validate_closed(&ball), Ok(()), "the ball: tier 2");
     assert_eq!(
-        topo::validate_closed(&ball),
-        Err(ends
-            .iter()
-            .map(|&vertex| ValidationError::ScaffoldingStrutVertex { vertex })
-            .collect()),
-        "a lone wrap strut has no tip"
+        topo::validate_geometric(&ball, tol()),
+        Ok(()),
+        "the ball: tier 3"
+    );
+    let (flux, area) = measured(&ball, "the one-face ball");
+    close(flux / 3.0, 4.0 * PI / 3.0, "the one-face ball: volume");
+    close(area, 4.0 * PI, "the one-face ball: area");
+
+    let (mut body, face, wraps) = one_face_ball();
+    let (north, south) = (
+        vertex_at(&body, NORTH),
+        vertex_at(&body, Point3::new(0.0, -1.0, 0.0)),
+    );
+    body.split_edge(wraps, 0.3, tol())
+        .expect("split 0.3 rad from the north pole");
+    kill_tip(&mut body, north);
+    let rest = body.get_half_edge(leaving(&body, south)[0]).unwrap().edge;
+    body.split_edge(rest, PI - 0.3, tol())
+        .expect("split 0.3 rad from the south pole");
+    kill_tip(&mut body, south);
+    assert_eq!(body.edges().count(), 1, "the strut is the body's one edge");
+    let strut = body
+        .edges()
+        .map(|(e, _)| e)
+        .find(|&e| body.both_sides_face(e) == Some(Some(face)))
+        .expect("the strut lies in the sphere face");
+    let ends = {
+        let e = body.get_edge(strut).unwrap();
+        let mut ends = [e.he_plus, e.he_minus].map(|h| body.get_half_edge(h).unwrap().start);
+        ends.sort();
+        ends
+    };
+    assert_eq!(topo::validate_closed(&body), Ok(()), "short strut: tier 2");
+    let got = topo::validate_geometric(&body, tol()).expect_err("short strut refuses");
+    let interior = |point| ValidationError::ChartSingularityNotAVertex {
+        face,
+        point,
+        lies: topo::SingularityLies::Interior,
+    };
+    let off = |tip| ValidationError::WrapTipOffChartSingularity {
+        face,
+        edge: strut,
+        tip,
+    };
+    use geom_brep::chart_singularity::Singularity::{North, South};
+    assert_eq!(got.len(), 4, "short strut: {got:?}");
+    for want in [interior(North), interior(South), off(ends[0]), off(ends[1])] {
+        assert!(got.contains(&want), "short strut: {want:?} in {got:?}");
+    }
+}
+
+/// **A wrap tip on a surface with no singular point** has nowhere to lie:
+/// a wrap spur up a cylinder's wall refuses as such, naming no pole.
+#[test]
+fn a_wrap_tip_on_a_cylinder_has_no_singularity_to_lie_on() {
+    let mut body = revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    );
+    let (he, face) = body
+        .half_edges()
+        .find_map(|(he, h)| {
+            let p = point(&body, h.start);
+            let face = body.face_of_half_edge(he)?;
+            let on_wall = matches!(
+                body.get_surface(body.get_face(face)?.surface)?,
+                geom::Surface::Cylinder { .. }
+            );
+            (on_wall && p.y.abs() < 1e-12).then_some((he, face))
+        })
+        .expect("the wall leaves a base vertex");
+    let from = point(&body, body.get_half_edge(he).unwrap().start);
+    let to = from + Vec3::new(0.0, 0.5, 0.0);
+    let surface = body.get_face(face).unwrap().surface;
+    let mut spec = EdgeCurveSpec::line_between(from, to);
+    spec.description = EdgeDescriptionSpec::wrap(surface);
+    let made = body
+        .mev(MevSite::Fan { he1: he, he2: he }, to, spec, tol())
+        .expect("the wrap spur splices into the wall");
+    assert_eq!(
+        topo::validate_closed(&body),
+        Ok(()),
+        "tier 2 admits the tip"
+    );
+    assert_eq!(
+        topo::validate_geometric(&body, tol()),
+        Err(vec![ValidationError::WrapTipWithoutChartSingularity {
+            face,
+            edge: made.edge,
+            tip: made.vertex,
+        }]),
+        "a cylinder has no pole for the tip"
     );
 }
 
@@ -401,4 +524,40 @@ fn the_mint_and_tier_3_read_one_incidence_at_the_tip() {
         "in band: the subjects"
     );
     assert_eq!(at_vertex, cause, "in band: one escalation");
+    let ending = got[1].to_string();
+    assert!(
+        !ending.contains("clear of it") && !ending.contains("tighten"),
+        "in band: the tip's ending offers only the lever: {ending}"
+    );
+}
+
+/// **A flipped small wrap-tip cap refuses at tier 3.** Its chart image
+/// drops the tip, so the side reader finds a pole on each side of the rim
+/// and reads no side (`a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip`),
+/// but flipped, the cap claims the sphere's far side, and the
+/// chart-singularity arm finds the far pole inside it.
+#[test]
+fn a_flipped_small_tip_cap_refuses_at_tier_3() {
+    let th: f64 = 0.8f64.asin();
+    let cap = revolved_about_y(
+        vec![
+            (Point2::new(0.0, 0.8), 0.0),
+            (Point2::new(0.6, 0.8), ((FRAC_PI_2 - th) / 4.0).tan()),
+            (Point2::new(0.0, 1.0), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    );
+    let (body, face, _, _) = one_wrap_edge(cap, true);
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()), "as built");
+    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let got = topo::validate_geometric(&flipped, tol()).expect_err("flipped refuses");
+    assert!(
+        got.contains(&ValidationError::ChartSingularityNotAVertex {
+            face,
+            point: geom_brep::chart_singularity::Singularity::South,
+            lies: topo::SingularityLies::Interior,
+        }),
+        "flipped: the south pole inside the face: {got:?}"
+    );
 }

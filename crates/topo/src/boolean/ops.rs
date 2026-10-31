@@ -6719,6 +6719,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::SeamRegionOvercovered { .. }
         | V::ChartSingularityNotAVertex { .. }
         | V::WrapTipOffChartSingularity { .. }
+        | V::WrapTipWithoutChartSingularity { .. }
         | V::NegativeVolume { .. }
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }

@@ -598,9 +598,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    bodies — `mfkrh` on a detached ring disconnects a shell's surface
    while a single shell entity remains.
 2. **Tier 2 "closed solid"** (`validate_closed`) — tier 1 plus: no
-   empty loops, no valence-1 vertices but a wrap edge's tip (its end no
-   other edge reaches, the other reached by one, read off the stored
-   wrap flag; a lone wrap strut has none), and c = 1 per shell (the third
+   empty loops, no valence-1 vertices but a wrap edge's tip (any valence-1
+   end of a wrap edge, read off the stored wrap flag; both ends of a lone
+   wrap edge are tips), and c = 1 per shell (the third
    ban is independent: a promoted detached cycle ring disconnects a
    shell with neither an empty loop nor a strut).
 3. **Tier 3 "geometric"** — [tolerance.residuals] residual certification, plus the
@@ -672,7 +672,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    of its own error bound, is `ChartSingularityUndecided`; and every wrap
    edge's tip lies on its face's chart singularity, read at the joint
    between the edge's two halves by the incidence the loop walk resets
-   that joint by, `WrapTipOffChartSingularity` or `WrapTipUndecided`;
+   that joint by, `WrapTipOffChartSingularity`,
+   `WrapTipWithoutChartSingularity` on a surface with no singular point,
+   or `WrapTipUndecided`, whose ending passes zero alone;
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
    at-vertex placement, the reset and the tip rule all read),

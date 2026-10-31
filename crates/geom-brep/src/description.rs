@@ -340,6 +340,12 @@ impl<T: Real> EdgeDescription<T> {
         }
     }
 
+    /// Whether this is D1's **wrap edge** ([`ChartCurve::wrap`]): the
+    /// one spelling every reader of the flag asks.
+    pub fn is_wrap(&self) -> bool {
+        matches!(self, EdgeDescription::Chart(c) if c.wrap)
+    }
+
     /// The chart image, when this description has one — the accessor
     /// consumers read instead of matching two conventional variants.
     pub fn chart(&self) -> Option<&ChartCurve<T>> {

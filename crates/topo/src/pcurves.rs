@@ -5061,10 +5061,20 @@ pub(crate) struct TipOff {
     pub(crate) edge: EdgeKey,
     /// Its tip.
     pub(crate) tip: crate::entity::VertexKey,
-    /// The incidence reading's escalation, where it is undecided; `None`
-    /// where it decides the tip off the chart's singular set, or the
-    /// chart has none.
-    pub(crate) undecided: Option<Indeterminate>,
+    /// What the incidence reading said.
+    pub(crate) reading: TipReading,
+}
+
+/// Why a wrap tip is not on its face's chart singularity ([`TipOff`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum TipReading {
+    /// Decided off a sphere's poles or a cone's apex.
+    Off,
+    /// The chart has no singular point for a tip to sit on: a cylinder,
+    /// a torus, a spline net whose `u` sweep moves a point.
+    NoSingularSet,
+    /// In band: the escalation, carrying the margin.
+    Undecided(Indeterminate),
 }
 
 /// [`validate_pcurves`]' findings, and the wrap tips its joint reading
@@ -5081,8 +5091,9 @@ pub(crate) struct PcurvePass {
 /// whether that vertex lies on the chart's singular set is
 /// [`singular_at`], the reading [`decide_joint`] resets the joint's first
 /// channel by: decided on, the tip is admitted; off, or on a chart with
-/// no singular set (a face whose chart mints no rows, a plane's), it is
-/// refused; undecided, it is refused as undecided. A tip whose joint the
+/// no singular set, it is refused; undecided, it is refused as
+/// undecided. A face whose chart mints no rows (a plane) holds no tip: a
+/// wrap description is refused on a plane at the mint. A tip whose joint the
 /// pass does not read (a gap the derivation cannot place) or reads as a
 /// finding of its own ([`PcurveMintError::LoopDiscontinuity`], an
 /// escalation) is that finding's, and reports nothing here, so one joint
@@ -5104,18 +5115,6 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
     for (face_key, face) in body.faces() {
         let surface = body.face_surface_linked(face_key, face);
         let Some(chart) = DescribedChart::minting(surface) else {
-            tips.extend(
-                tips_at
-                    .values()
-                    .filter(|&&he| body.face_of_half_edge(he) == Some(face_key))
-                    .filter_map(|&he| tip_at(he))
-                    .map(|(edge, tip)| TipOff {
-                        face: face_key,
-                        edge,
-                        tip,
-                        undecided: None,
-                    }),
-            );
             continue;
         };
         // One walk of the face's loops ([`stored_rows`], shared with
@@ -5186,6 +5185,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
         // ([`Winding::closes`]), so no verdict hangs on which half-edge
         // is `first`.
         let periods = ChartPeriods::of(surface, band);
+        let has_singular_points = matches!(surface, Surface::Sphere { .. } | Surface::Cone { .. });
         let image_of = |he: HalfEdgeKey| -> Option<(Pcurve<T>, T, T)> {
             let plus = is_plus(body, he);
             let (image, t0, t1) = match body.pcurve(he) {
@@ -5231,16 +5231,17 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                     Ok(element) => {
                         elements[i] = Some(element);
                         if let Some((edge, tip)) = tip_at(he) {
-                            let undecided = match singular_at(chart, vertex, band) {
+                            let reading = match singular_at(chart, vertex, band) {
                                 Singular::On => continue,
-                                Singular::Off => None,
-                                Singular::Undecided(cause) => Some(cause),
+                                Singular::Off if has_singular_points => TipReading::Off,
+                                Singular::Off => TipReading::NoSingularSet,
+                                Singular::Undecided(cause) => TipReading::Undecided(cause),
                             };
                             tips.push(TipOff {
                                 face: face_key,
                                 edge,
                                 tip,
-                                undecided,
+                                reading,
                             });
                         }
                     }

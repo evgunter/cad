@@ -6202,6 +6202,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "volume_uncomputable",
             "wrap_tip_off_chart_singularity",
             "wrap_tip_undecided",
+            "wrap_tip_without_chart_singularity",
         ],
         delegates: &[],
     },

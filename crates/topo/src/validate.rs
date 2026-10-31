@@ -1610,7 +1610,7 @@ pub enum ValidationError {
     /// Tier 3, chart singularities as vertices (`docs/DESIGN.md`
     /// `[topology.tiers]`): **a wrap edge's tip does not lie on its face's
     /// chart singularity** — a meridian walked out and back that stops
-    /// short of the pole, or a tip on a chart with no singular set. Read
+    /// short of the pole. Read
     /// at the joint between the edge's two halves by the incidence the
     /// loop walk resets that joint by (`crate::pcurves::pcurve_pass`,
     /// `geom_brep::chart_singularity::vertex_at_singular_point`), never by
@@ -1623,8 +1623,21 @@ pub enum ValidationError {
         /// Its tip (`wrap_tips`).
         tip: VertexKey,
     },
+    /// [`Self::WrapTipOffChartSingularity`] where the face's surface has
+    /// **no singular point at all** (a cylinder, a torus, a spline net
+    /// whose `u` sweep moves a point): no place on it is a tip's.
+    WrapTipWithoutChartSingularity {
+        /// The face whose loop walks the edge out and back.
+        face: FaceKey,
+        /// The wrap edge.
+        edge: EdgeKey,
+        /// Its tip.
+        tip: VertexKey,
+    },
     /// [`Self::WrapTipOffChartSingularity`], **undecided**: the tip's
-    /// distance to its chart's nearest singular point is in band.
+    /// distance to its chart's nearest singular point is in band. Its
+    /// ending is `geom_brep::chart_singularity::WRAP_TIP`'s, which passes
+    /// zero alone, so it offers no tolerance.
     WrapTipUndecided {
         /// The face whose loop walks the edge out and back.
         face: FaceKey,
@@ -2525,9 +2538,8 @@ pub enum ValidationError {
     },
     /// **Tier 2 only.** A valence-1 vertex (the tip of a strut edge) on
     /// a body validated as a closed solid — construction scaffolding —
-    /// that is not a wrap edge's tip ([`wrap_tips`]). Both ends of a lone
-    /// strut, an edge that is its loop's only edge, walked out and back,
-    /// report here, a wrap edge's included.
+    /// on an edge that is not a wrap edge (a wrap edge's valence-1 end
+    /// is its tip, [`wrap_tips`]).
     ScaffoldingStrutVertex {
         /// The valence-1 vertex.
         vertex: VertexKey,
@@ -4514,13 +4526,18 @@ impl fmt::Display for ValidationError {
                 "an edge a face walks out to its tip and back stops short of that face's pole \
                  or apex, where its tip has to lie. {DEFECT}"
             ),
+            Self::WrapTipWithoutChartSingularity { .. } => write!(
+                f,
+                "an edge a face walks out to its tip and back lies on a surface with no pole or \
+                 apex, so its tip has nowhere to lie. {DEFECT}"
+            ),
             Self::WrapTipUndecided { cause, .. } => write!(
                 f,
                 "{}",
                 cause.undecided(
                     "whether the tip of an edge a face walks out and back lies on that face's \
                      pole or apex",
-                    geom_brep::chart_singularity::ON_BOUNDARY
+                    geom_brep::chart_singularity::WRAP_TIP
                         .recourse(RefusedArm::Undecided(cause), Reading::AtRest)
                 )
             ),
@@ -5371,37 +5388,24 @@ fn valences<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, usize> {
 }
 
 /// **A body's wrap tips** (DESIGN `[topology]`, the seam clause), each
-/// keyed to the one half-edge leaving it: a wrap edge's tip is its end
-/// no other edge reaches (valence 1, [`valences`]) where its other end
-/// is reached by another, so the face's loop walks the edge out to the
-/// tip and straight back. The wrap flag is the stored one
-/// (`EdgeDescription::Chart` with `wrap`), so the reading is structural
-/// and takes no ε. A wrap edge both of whose ends have valence 1 is a
-/// lone strut, its loop's only edge, and has no tip: tier 2 refuses
-/// both its ends, as it does any other strut's. Where the tip lies is
-/// tier 3's (`crate::pcurves::validate_pcurves`).
+/// keyed to the one half-edge leaving it: a tip is any valence-1 end
+/// ([`valences`]) of a wrap edge, the face's seam kept to its end, where
+/// the face's loop walks the edge out and straight back. Both ends of a
+/// lone wrap edge are tips (the one-face ball's pole-to-pole meridian).
+/// The wrap flag is the stored one (`EdgeDescription::is_wrap`), so the
+/// reading is structural and takes no ε. Where a tip lies is tier 3's
+/// (`crate::pcurves::pcurve_pass`).
 pub(crate) fn wrap_tips<T: Real>(body: &Body<T>) -> SecondaryMap<VertexKey, HalfEdgeKey> {
     let valence = valences(body);
-    let of = |v: VertexKey| valence.get(v).copied().unwrap_or(0);
     let mut tips = SecondaryMap::new();
     for (he_key, he) in body.half_edges.iter() {
-        let Some(edge) = body.edges.get(he.edge) else {
-            continue;
-        };
         let wraps = body
-            .curves
-            .get(edge.curve)
+            .edges
+            .get(he.edge)
+            .and_then(|edge| body.curves.get(edge.curve))
             .and_then(CurveGeom::certified)
-            .is_some_and(|curve| {
-                matches!(curve.description(), geom_brep::EdgeDescription::Chart(c) if c.wrap)
-            });
-        let mate = if edge.he_plus == he_key {
-            edge.he_minus
-        } else {
-            edge.he_plus
-        };
-        let other_end = body.half_edges.get(mate).map(|m| m.start);
-        if wraps && of(he.start) == 1 && other_end.is_some_and(|w| of(w) > 1) {
+            .is_some_and(|curve| curve.description().is_wrap());
+        if wraps && valence.get(he.start) == Some(&1) {
             tips.insert(he.start, he_key);
         }
     }
@@ -5673,9 +5677,11 @@ pub(crate) fn closed_by_tier<T: Real>(
 /// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]). The same
 ///    joints read **every wrap edge's tip on its face's chart
 ///    singularity** ([`wrap_tips`]): the tip's joint vertex decided off
-///    the chart's singular set, or on a chart with none, refuses
-///    ([`ValidationError::WrapTipOffChartSingularity`]), and one in band
-///    refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
+///    the chart's singular set refuses
+///    ([`ValidationError::WrapTipOffChartSingularity`]), one on a chart
+///    with no singular point refuses as such
+///    ([`ValidationError::WrapTipWithoutChartSingularity`]), and one in
+///    band refuses as undecided ([`ValidationError::WrapTipUndecided`]). The
 ///    incidence is the one the joint resets by
 ///    (`geom_brep::chart_singularity::vertex_at_singular_point`, which
 ///    check 6's at-vertex placement reads too), and a joint check 8
@@ -7904,10 +7910,7 @@ pub(crate) fn tier3_local_checks_marked<
             ContactMark::Unmarked
         } else if escalated {
             ContactMark::Unmarked
-        } else if matches!(
-            curve.description(),
-            geom_brep::EdgeDescription::Chart(c) if c.wrap
-        ) {
+        } else if curve.description().is_wrap() {
             ContactMark::Seam
         } else if all_transverse {
             arm = Some(MaterialArmOutcome::Wedge(MaterialWedge::Transverse));
@@ -8420,12 +8423,16 @@ pub(crate) fn tier3_local_checks_marked<
         face,
         edge,
         tip,
-        undecided,
+        reading,
     } in pass.tips
     {
-        errors.push(match undecided {
-            None => ValidationError::WrapTipOffChartSingularity { face, edge, tip },
-            Some(cause) => ValidationError::WrapTipUndecided {
+        use crate::pcurves::TipReading;
+        errors.push(match reading {
+            TipReading::Off => ValidationError::WrapTipOffChartSingularity { face, edge, tip },
+            TipReading::NoSingularSet => {
+                ValidationError::WrapTipWithoutChartSingularity { face, edge, tip }
+            }
+            TipReading::Undecided(cause) => ValidationError::WrapTipUndecided {
                 face,
                 edge,
                 tip,

@@ -1412,6 +1412,7 @@ pub(crate) fn finding_solids<T: Decide>(
         | E::ChartSingularityUndecided { .. }
         | E::WrapTipOffChartSingularity { .. }
         | E::WrapTipUndecided { .. }
+        | E::WrapTipWithoutChartSingularity { .. }
         | E::NegativeVolume { .. }
         | E::SliverInsideOut { .. }
         | E::VolumeUncomputable { .. }

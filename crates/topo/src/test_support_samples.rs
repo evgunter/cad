@@ -1441,6 +1441,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             tip: vertex,
             cause: diag(),
         },
+        ValidationError::WrapTipWithoutChartSingularity {
+            face,
+            edge,
+            tip: vertex,
+        },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
