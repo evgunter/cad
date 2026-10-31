@@ -2,7 +2,7 @@
 id: main-red-two-injectivity-rows-fail-at-eps-1e-12
 kind: issue
 title: two self-intersection rows fail the nightly at CAD_TOLERANCE_EPS=1e-12: the tee pins an eps-dependent Interval union refusal, and the long helical sweep's f64 build escalates its iso-line rim mint
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
 cost: M
