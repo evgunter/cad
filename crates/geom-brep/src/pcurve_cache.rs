@@ -9955,8 +9955,6 @@ impl From<PcurveCertifyError> for Underived {
     }
 }
 
-/// [`derive_class`] for a caller that wants a closed-form image or a
-/// refusal: the sphere's general circle has none.
 /// **A moving carrier's axial `cos t` and `sin t` terms on a cylinder's
 /// chart**, `(a, b)`: zero for a rim, its plane ⊥ the axis, where both
 /// are enclosures holding zero and their sup is decided `Zero` at
@@ -9988,6 +9986,8 @@ fn cylinder_rim_axial<T: Decide>(a: T, b: T, band: Band) -> (T, T) {
     }
 }
 
+/// [`derive_class`] for a caller that wants a closed-form image or a
+/// refusal: the sphere's general circle has none.
 fn derive_harmonic<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,

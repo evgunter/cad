@@ -7,7 +7,7 @@ opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, shell-curved-wall-clearance-window, 1737]
 priority: P1
 cost: H
-blocked_on: [shell-cavity-gate-over-refuses-three-valid-bodies]
+blocked_on: [cone-window-reaches-the-apex-past-a-frustums-face, injectivity-reads-no-spiric-edge-on-a-torus]
 ---
 
 

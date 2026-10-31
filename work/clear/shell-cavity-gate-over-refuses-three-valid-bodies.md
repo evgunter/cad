@@ -2,11 +2,13 @@
 id: shell-cavity-gate-over-refuses-three-valid-bodies
 kind: issue
 title: SHELL-4's cavity gate over-refuses three valid bodies: the corpus pot at Interval (sphere/cylinder vertex Departure), the klein elbow's cavity (Departure at both scalars) and the cone frustum's cavity (pair budget)
-status: dispatched
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: H
 branch: clear/cavitydiag
+pr: 6105
+closed: 2026-10-31
 ---
 
 
@@ -170,3 +172,23 @@ In `crates/sweep/tests/self_intersection_proves_injectivity.rs`:
   at both scalars.
 - `a_cone_frustums_cavity_exhausts_the_budget_at_its_apex`: pinned
   typed, at both scalars, with the `3/64` operand.
+
+## Closed
+
+CAVITYDIAG (#6105) diagnosed all three bodies and fixed the pot.
+
+**The pot.** At `Interval`, the cylinder rim's axial `cos`/`sin` terms
+enclosed zero without being exactly zero. `pcurve_cache`'s cylinder arm
+now decides them `Zero` at `pcurve_cylinder_chart_axial`, the cylinder
+twin of the cone arm's `pcurve_cone_chart_axial`. f64 is untouched.
+
+The route split is disclosed: on tilted cylinders, `f64` reads a curve
+where `Interval` reads the line. Verdict classes match.
+
+The lane's first fix was a topo-side ε concession. The review found the
+source fix reproduces it bit for bit with no concession, so it was
+replaced.
+
+**The rest is split out**, and SHELL-4 is parked on both:
+- `cone-window-reaches-the-apex-past-a-frustums-face` (P1, decided shape);
+- `injectivity-reads-no-spiric-edge-on-a-torus` (P1/H, a new arm).
