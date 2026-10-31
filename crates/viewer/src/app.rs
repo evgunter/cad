@@ -6993,6 +6993,742 @@ mod properties_pane_tests {
         }
     }
 
+    /// Review of PR 6144: probe rows over the held driven profile.
+    mod review_6144 {
+        use eframe::egui;
+        use pncad::document::{Dimension, FreeVar, RecipeNodeId, SlotId, StepArg, VarId, VarName};
+        use pncad::geom_core::Point2;
+        use pncad::profile::{Step, Target};
+
+        use super::{Driven, startup_node};
+        use crate::session::{Selection, SessionOp};
+
+        fn profile() -> RecipeNodeId {
+            startup_node(0)
+        }
+
+        fn outline(step: u32, arg: StepArg) -> SlotId {
+            SlotId::Profile {
+                loop_: 0,
+                step,
+                arg,
+            }
+        }
+
+        /// The startup plate with both far corners' x driven by `w`.
+        fn driven_plate() -> Driven {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: VarName::from_static("w"),
+                    value: FreeVar::continuous(Dimension::Length, 0.07),
+                },
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot: outline(1, StepArg::TargetX),
+                    text: "w".to_owned(),
+                },
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot: outline(2, StepArg::TargetX),
+                    text: "w".to_owned(),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            driven
+        }
+
+        fn w(driven: &Driven) -> VarId {
+            driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("w")
+                .expect("w declared")
+        }
+
+        fn perform(driven: &mut Driven, op: SessionOp) {
+            let out = driven.app.session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+
+        fn held_point(driven: &Driven, step: usize) -> Point2<f64> {
+            match driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .expect("held")
+                .loops()[0][step]
+            {
+                Step::At(p) | Step::LineTo(Target::Point(p)) => p,
+                other => panic!("{other:?}"),
+            }
+        }
+
+        /// The x the viewport draws for the outline's `step`, derived as
+        /// `ViewerApp::update` derives it: the draft's number while the
+        /// edit door previews, else the landed document's reading.
+        fn drawn_x(driven: &Driven, step: usize) -> f64 {
+            let session = &driven.app.session;
+            let scratch = !core::ptr::eq(session.doc(), session.committed_doc());
+            if driven.app.drafts.edit_previewed(scratch) {
+                held_point(driven, step).x
+            } else {
+                driven
+                    .row(profile(), outline(step as u32, StepArg::TargetX))
+                    .value
+                    .expect("reads")
+                    .as_f64()
+            }
+        }
+
+        fn touch_far_y(driven: &mut Driven, y: f64) {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, y)));
+            driven.quiet();
+        }
+
+        fn apply(driven: &mut Driven) -> Vec<String> {
+            let before = driven.app.session.history().len();
+            let pre: Vec<String> = driven.quiet().into_iter().map(|(r, _)| r).collect();
+            if !pre.iter().any(|r| r == "Apply") {
+                eprintln!("NO APPLY; runs: {:?}", &pre[pre.len().saturating_sub(60)..]);
+                return Vec::new();
+            }
+            driven.click("Apply");
+            driven.settle();
+            let painted = driven.quiet();
+            eprintln!(
+                "apply: history {} -> {}; status {:?}",
+                before,
+                driven.app.session.history().len(),
+                driven.app.status.as_ref().map(|m| m.text().to_owned())
+            );
+            painted
+                .into_iter()
+                .map(|(r, _)| r)
+                .filter(|r| !pre.contains(r))
+                .collect()
+        }
+
+        fn source(driven: &Driven, slot: SlotId) -> Option<String> {
+            crate::props::slot_rows(driven.app.session.committed_doc(), profile())
+                .into_iter()
+                .find(|row| row.slot == slot)
+                .and_then(|row| row.source)
+        }
+
+        fn shrink_hole(driven: &mut Driven) {
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .steps_mut(1)[0] = Step::Circle {
+                centre: Point2::new(0.04, 0.01),
+                radius: 0.002,
+            };
+        }
+
+        /// Apply's own formation (`edit_door_ui`), performed, for a pane
+        /// too tall for the harness window.
+        fn apply_direct(driven: &mut Driven) -> Option<String> {
+            let session = &driven.app.session;
+            let rows = crate::props::slot_rows(session.committed_doc(), profile());
+            let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
+            let edit = driven.app.drafts.profile_edit.as_ref().expect("held");
+            let op = SessionOp::EditProfile {
+                node: profile(),
+                base: edit.base().clone(),
+                loops: edit
+                    .programs_noted(crate::props::Notation::CANONICAL, &noted)
+                    .expect("lowers"),
+                ids: edit.ids(),
+            };
+            let out = driven.app.session.perform(op);
+            driven.quiet();
+            out.refusal.map(|r| r.to_string())
+        }
+
+        #[test]
+        fn delete_var_then_apply() {
+            let mut driven = driven_plate();
+            touch_far_y(&mut driven, 0.05);
+            let var = w(&driven);
+            let out = driven.app.session.perform(SessionOp::DeleteVar { var });
+            eprintln!(
+                "delete: {:?} committed {:?}",
+                out.refusal,
+                out.committed.len()
+            );
+            driven.quiet();
+            eprintln!(
+                "after delete: source step2 {:?}, far y {}",
+                source(&driven, outline(2, StepArg::TargetX)),
+                held_point(&driven, 3).y
+            );
+            let said = apply(&mut driven);
+            eprintln!(
+                "said {said:?}; source step2 {:?}",
+                source(&driven, outline(2, StepArg::TargetX))
+            );
+        }
+
+        #[test]
+        fn a_driven_step_the_edit_deletes() {
+            let mut driven = driven_plate();
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .edit_row(0, crate::drafts::RowEdit::Remove(2));
+            shrink_hole(&mut driven);
+            driven.quiet();
+            let said = apply_direct(&mut driven);
+            eprintln!("deletes said {said:?}");
+            let rows = crate::props::slot_rows(driven.app.session.committed_doc(), profile());
+            for row in rows
+                .iter()
+                .filter(|r| matches!(r.slot, SlotId::Profile { loop_: 0, .. }))
+            {
+                eprintln!(
+                    "  {} = {:?} src {:?}",
+                    row.slot.label(),
+                    row.value.as_ref().map(|v| v.as_f64()),
+                    row.source
+                );
+            }
+            assert_eq!(
+                source(&driven, outline(1, StepArg::TargetX)).as_deref(),
+                Some("w")
+            );
+        }
+
+        #[test]
+        fn drivers_across_loops() {
+            let mut driven = driven_plate();
+            let rows = crate::props::slot_rows(driven.app.session.committed_doc(), profile());
+            let hole: Vec<SlotId> = rows
+                .iter()
+                .map(|r| r.slot)
+                .filter(|s| matches!(s, SlotId::Profile { loop_: 1, .. }))
+                .collect();
+            eprintln!(
+                "hole slots {:?}",
+                hole.iter().map(|s| s.label()).collect::<Vec<_>>()
+            );
+            let last = *hole.last().expect("a hole slot");
+            perform(
+                &mut driven,
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot: last,
+                    text: "w/5".to_owned(),
+                },
+            );
+            driven.quiet();
+            touch_far_y(&mut driven, 0.05);
+            let said = apply_direct(&mut driven);
+            eprintln!("across said {said:?}");
+            assert_eq!(source(&driven, last).as_deref(), Some("w / 5.0"));
+            eprintln!(
+                "hole src {:?}, step1 {:?} step2 {:?}",
+                source(&driven, last),
+                source(&driven, outline(1, StepArg::TargetX)),
+                source(&driven, outline(2, StepArg::TargetX))
+            );
+            assert!(source(&driven, last).is_some());
+            assert_eq!(
+                source(&driven, outline(2, StepArg::TargetX)).as_deref(),
+                Some("w")
+            );
+        }
+
+        fn arc_plate(mode_after: pncad::profile::ArcMode) -> (Vec<String>, Option<String>) {
+            use pncad::profile::{ArcData, ArcMode};
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: VarName::from_static("w"),
+                    value: FreeVar::continuous(Dimension::Length, 0.07),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            let arc = |mode| match sketch_fresh(mode) {
+                ArcData::Bulge { b, .. } => ArcData::Bulge {
+                    target: Target::Point(Point2::new(0.06, 0.0)),
+                    b,
+                },
+                ArcData::Center { winding, .. } => ArcData::Center {
+                    c: Point2::new(0.03, -0.01),
+                    winding,
+                    target: Target::Point(Point2::new(0.06, 0.0)),
+                },
+                ArcData::Via { .. } => ArcData::Via {
+                    q: Point2::new(0.03, -0.005),
+                    target: Target::Point(Point2::new(0.06, 0.0)),
+                },
+                other => other,
+            };
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .steps_mut(0)[1] = Step::ArcTo(arc(ArcMode::Bulge));
+            driven.quiet();
+            let said = apply(&mut driven);
+            eprintln!("arc applied: {said:?}");
+            perform(
+                &mut driven,
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot: outline(1, StepArg::TargetX),
+                    text: "w".to_owned(),
+                },
+            );
+            driven.quiet();
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .steps_mut(0)[1] = Step::ArcTo(arc(mode_after));
+            driven.quiet();
+            eprintln!(
+                "remode ids {:?}",
+                driven.app.drafts.profile_edit.as_ref().expect("held").ids()
+            );
+            let said = apply_direct(&mut driven).into_iter().collect();
+            (said, source(&driven, outline(1, StepArg::TargetX)))
+        }
+
+        fn sketch_fresh(mode: pncad::profile::ArcMode) -> pncad::profile::ArcData<f64> {
+            crate::sketch::fresh_arc(mode)
+        }
+
+        #[test]
+        fn a_driven_arc_target_remoded_to_via() {
+            let (said, src) = arc_plate(pncad::profile::ArcMode::Via);
+            eprintln!("via: said {said:?} src {src:?}");
+            assert_eq!(src.as_deref(), Some("w"));
+        }
+
+        #[test]
+        fn a_driven_arc_target_remoded_to_radius() {
+            let (said, src) = arc_plate(pncad::profile::ArcMode::Radius);
+            eprintln!("radius: said {said:?} src {src:?}");
+        }
+
+        /// Claim 2: a mixed-unit point, moved, lands as the field shows.
+        #[test]
+        fn a_mixed_unit_point_moved_lands_exactly() {
+            let mut driven = Driven::with(vec![
+                SessionOp::SetSlotUnit {
+                    node: profile(),
+                    slot: outline(1, StepArg::TargetX),
+                    unit: pncad::quantity::MM.def(),
+                },
+                SessionOp::SetSlotUnit {
+                    node: profile(),
+                    slot: outline(1, StepArg::TargetY),
+                    unit: pncad::quantity::CM.def(),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            let painted = driven.quiet();
+            eprintln!(
+                "pickers: {:?}",
+                painted.iter().filter(|(r, _)| r == "mixed").count()
+            );
+            let mut bad = Vec::new();
+            for (i, (x, y)) in [(0.0613, 0.0007), (0.061_234_567, 0.001_1)]
+                .into_iter()
+                .enumerate()
+            {
+                driven
+                    .app
+                    .drafts
+                    .profile_edit
+                    .as_mut()
+                    .expect("held")
+                    .steps_mut(0)[1] = Step::LineTo(Target::Point(Point2::new(x, y)));
+                driven.quiet();
+                let said = apply(&mut driven);
+                let rx = driven.row(profile(), outline(1, StepArg::TargetX));
+                let ry = driven.row(profile(), outline(1, StepArg::TargetY));
+                let (lx, ly) = (
+                    rx.value.as_ref().map(|v| v.as_f64()).ok(),
+                    ry.value.as_ref().map(|v| v.as_f64()).ok(),
+                );
+                eprintln!(
+                    "{i}: said {said:?} x {lx:?} {:?} y {ly:?} {:?}",
+                    rx.unit, ry.unit
+                );
+                if lx != Some(x) || ly != Some(y) {
+                    bad.push((x, y, lx, ly));
+                }
+                let held = held_point(&driven, 1);
+                eprintln!("   reloaded held {:?}", held);
+            }
+            assert!(bad.is_empty(), "{bad:?}");
+        }
+        #[test]
+        fn only_the_deleted_step_is_driven() {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: VarName::from_static("w"),
+                    value: FreeVar::continuous(Dimension::Length, 0.07),
+                },
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot: outline(2, StepArg::TargetX),
+                    text: "w".to_owned(),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .edit_row(0, crate::drafts::RowEdit::Remove(2));
+            shrink_hole(&mut driven);
+            driven.quiet();
+            let said = apply_direct(&mut driven);
+            eprintln!("only-deleted said {said:?}");
+        }
+
+        #[test]
+        fn driven_step1_remove_step3() {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: VarName::from_static("w"),
+                    value: FreeVar::continuous(Dimension::Length, 0.07),
+                },
+                SessionOp::SetSlotExpression {
+                    node: profile(),
+                    slot: outline(1, StepArg::TargetX),
+                    text: "w".to_owned(),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .edit_row(0, crate::drafts::RowEdit::Remove(3));
+            shrink_hole(&mut driven);
+            driven.quiet();
+            let said = apply_direct(&mut driven);
+            eprintln!(
+                "step1-driven remove3 said {said:?} src {:?}",
+                source(&driven, outline(1, StepArg::TargetX))
+            );
+        }
+
+        #[test]
+        fn control_remove_a_step_no_driver() {
+            let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
+            driven.quiet();
+            driven
+                .app
+                .drafts
+                .profile_edit
+                .as_mut()
+                .expect("held")
+                .edit_row(0, crate::drafts::RowEdit::Remove(2));
+            let painted: Vec<String> = driven.quiet().into_iter().map(|(r, _)| r).collect();
+            eprintln!(
+                "control differs {} runs tail {:?}",
+                driven
+                    .app
+                    .drafts
+                    .profile_edit
+                    .as_ref()
+                    .expect("held")
+                    .differs_from_base(),
+                &painted[painted.len().saturating_sub(25)..]
+            );
+            let said = apply(&mut driven);
+            eprintln!("control said {said:?}");
+        }
+
+        /// E2E: open, edit, Apply, drag the variable, release, undo.
+        #[test]
+        fn e2e_apply_then_drag_then_release_then_undo() {
+            let mut driven = driven_plate();
+            assert_eq!(held_point(&driven, 2).x, 0.07);
+            touch_far_y(&mut driven, 0.05);
+            let states = driven.app.session.history().len();
+            driven.click("Apply");
+            driven.settle();
+            driven.quiet();
+            eprintln!(
+                "history {} -> {}",
+                states,
+                driven.app.session.history().len()
+            );
+            for step in [1, 2] {
+                let row = driven.row(profile(), outline(step, StepArg::TargetX));
+                assert_eq!(row.source.as_deref(), Some("w"), "step {step} kept w");
+            }
+            let moved = driven.row(profile(), outline(3, StepArg::TargetY));
+            assert_eq!(moved.value.map(|v| v.as_f64()).ok(), Some(0.05));
+            assert!(
+                !driven
+                    .app
+                    .drafts
+                    .profile_edit
+                    .as_ref()
+                    .expect("held")
+                    .differs_from_base()
+            );
+            // Drag w.
+            let var = w(&driven);
+            perform(&mut driven, SessionOp::BeginVariableGesture { var });
+            perform(
+                &mut driven,
+                SessionOp::PreviewVariableGesture { var, value: 0.09 },
+            );
+            driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+            eprintln!("mid-drag drawn x = {}", drawn_x(&driven, 2));
+            assert_eq!(drawn_x(&driven, 2), 0.09, "mid-drag the outline follows");
+            perform(&mut driven, SessionOp::CommitVariableGesture { var });
+            driven.quiet();
+            eprintln!(
+                "after release: drawn x = {}, held x = {}, committed reading = {:?}",
+                drawn_x(&driven, 2),
+                held_point(&driven, 2).x,
+                driven
+                    .row(profile(), outline(2, StepArg::TargetX))
+                    .value
+                    .map(|v| v.as_f64())
+            );
+            let painted = driven.quiet();
+            eprintln!(
+                "field runs after release: {:?}",
+                painted
+                    .iter()
+                    .filter(|(r, _)| r.starts_with('='))
+                    .map(|(r, _)| r.as_str())
+                    .collect::<Vec<_>>()
+            );
+            let released = drawn_x(&driven, 2);
+            perform(&mut driven, SessionOp::Undo);
+            driven.quiet();
+            eprintln!(
+                "undo 1: drawn {} committed {:?}",
+                drawn_x(&driven, 2),
+                driven
+                    .row(profile(), outline(2, StepArg::TargetX))
+                    .value
+                    .map(|v| v.as_f64())
+            );
+            perform(&mut driven, SessionOp::Undo);
+            driven.quiet();
+            eprintln!(
+                "undo 2: far y {:?} src {:?} held far y {}",
+                driven
+                    .row(profile(), outline(3, StepArg::TargetY))
+                    .value
+                    .map(|v| v.as_f64()),
+                driven.row(profile(), outline(2, StepArg::TargetX)).source,
+                held_point(&driven, 3).y
+            );
+            // RED on 9afedc2593: the draft keeps the pre-drag reading.
+            assert_eq!(released, 0.09, "after release the outline stays at w");
+        }
+
+        /// A value typed in the variable's row (one SetVariable) while the
+        /// profile's draft is open and untouched.
+        #[test]
+        fn a_committed_variable_edit_moves_the_drawn_outline() {
+            let mut driven = driven_plate();
+            let var = w(&driven);
+            perform(
+                &mut driven,
+                SessionOp::SetVariable {
+                    var,
+                    value: crate::props::SlotValue::Continuous(0.09),
+                },
+            );
+            driven.quiet();
+            eprintln!(
+                "after SetVariable: drawn {} held {}",
+                drawn_x(&driven, 2),
+                held_point(&driven, 2).x
+            );
+            assert_eq!(drawn_x(&driven, 2), 0.09);
+            perform(&mut driven, SessionOp::Undo);
+            driven.quiet();
+            eprintln!("after undo: drawn {}", drawn_x(&driven, 2));
+            assert_eq!(drawn_x(&driven, 2), 0.07);
+        }
+
+        /// Decision 2: a draft holding edits keeps its preview over a
+        /// variable drag.
+        #[test]
+        fn a_variable_drag_over_a_touched_draft() {
+            let mut driven = driven_plate();
+            touch_far_y(&mut driven, 0.05);
+            let var = w(&driven);
+            perform(&mut driven, SessionOp::BeginVariableGesture { var });
+            perform(
+                &mut driven,
+                SessionOp::PreviewVariableGesture { var, value: 0.09 },
+            );
+            driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+            eprintln!("touched mid-drag drawn x = {}", drawn_x(&driven, 2));
+            assert_eq!(drawn_x(&driven, 2), 0.09, "the driven corner follows w");
+        }
+
+        /// Ops the doors under a held field emit, other than an
+        /// expression, over held edits: are the edits kept?
+        #[test]
+        fn a_unit_pick_over_held_edits_keeps_them() {
+            let mut driven = driven_plate();
+            touch_far_y(&mut driven, 0.05);
+            perform(
+                &mut driven,
+                SessionOp::SetSlotUnit {
+                    node: profile(),
+                    slot: outline(0, StepArg::PointX),
+                    unit: pncad::quantity::MM.def(),
+                },
+            );
+            driven.quiet();
+            eprintln!("after unit pick: far y {}", held_point(&driven, 3).y);
+            assert_eq!(held_point(&driven, 3).y, 0.05, "held edit kept");
+        }
+
+        #[test]
+        fn a_rename_over_held_edits_keeps_them() {
+            let mut driven = driven_plate();
+            touch_far_y(&mut driven, 0.05);
+            let var = w(&driven);
+            perform(
+                &mut driven,
+                SessionOp::RenameVar {
+                    var,
+                    name: Some(VarName::from_static("width")),
+                },
+            );
+            driven.quiet();
+            eprintln!("after rename: far y {}", held_point(&driven, 3).y);
+            assert_eq!(held_point(&driven, 3).y, 0.05, "held edit kept");
+        }
+
+        #[test]
+        fn a_rename_then_apply_keeps_the_new_name() {
+            let mut driven = driven_plate();
+            let var = w(&driven);
+            perform(
+                &mut driven,
+                SessionOp::RenameVar {
+                    var,
+                    name: Some(VarName::from_static("width")),
+                },
+            );
+            driven.quiet();
+            touch_far_y(&mut driven, 0.05);
+            driven.click("Apply");
+            driven.settle();
+            let row = driven.row(profile(), outline(2, StepArg::TargetX));
+            eprintln!("source after rename+apply: {:?}", row.source);
+            assert_eq!(row.source.as_deref(), Some("width"));
+        }
+
+        #[test]
+        fn a_deleted_variable_while_open() {
+            let mut driven = driven_plate();
+            touch_far_y(&mut driven, 0.05);
+            let var = w(&driven);
+            let out = driven.app.session.perform(SessionOp::DeleteVar { var });
+            eprintln!("delete var refusal: {:?}", out.refusal);
+            let painted = driven.quiet();
+            let runs: Vec<&str> = painted.iter().map(|(r, _)| r.as_str()).collect();
+            eprintln!(
+                "draft held: {:?}; runs mention cannot: {:?}",
+                driven
+                    .app
+                    .drafts
+                    .profile_edit
+                    .as_ref()
+                    .map(|e| e.differs_from_base()),
+                runs.iter()
+                    .filter(|r| r.contains("cannot") || r.contains("resolve"))
+                    .collect::<Vec<_>>()
+            );
+        }
+
+        /// Decision 1, at the field: an expression typed over held edits.
+        #[test]
+        fn an_expression_typed_over_held_edits() {
+            let mut driven = driven_plate();
+            touch_far_y(&mut driven, 0.05);
+            let before = driven.app.session.committed_doc().clone();
+            let painted = driven.quiet();
+            // The anchor's x field (first "x " name run).
+            let at = painted
+                .iter()
+                .find(|(run, _)| run == "x ")
+                .map(|(_, rect)| rect.center())
+                .expect("a field named x");
+            let press = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            driven.frame(vec![egui::Event::PointerMoved(at)]);
+            driven.frame(vec![press(true), press(false)]);
+            driven.frame(vec![egui::Event::Key {
+                key: egui::Key::A,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
+            }]);
+            driven.frame(vec![egui::Event::Text("w/7".to_owned())]);
+            driven.frame(vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::default(),
+            }]);
+            let painted = driven.quiet();
+            let runs: Vec<&str> = painted.iter().map(|(r, _)| r.as_str()).collect();
+            let said = runs.iter().any(|r| r.contains("apply or revert"));
+            eprintln!(
+                "refusal said: {said}; doc unchanged: {}; far y {}; anchor {:?}",
+                driven.app.session.committed_doc().bit_eq(&before),
+                held_point(&driven, 3).y,
+                held_point(&driven, 0)
+            );
+            assert!(said, "{runs:?}");
+            assert!(driven.app.session.committed_doc().bit_eq(&before));
+            assert_eq!(held_point(&driven, 3).y, 0.05);
+        }
+    }
+
     /// **The profile editor's fields are the profile's slots**: the
     /// startup plate's profile, opened in the editor from the Properties
     /// pane, offers each argument's expression, unit and range at the
