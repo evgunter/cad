@@ -35,6 +35,9 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
+/// A site: its point and its unit tangent along the walk.
+type Site = (Point3<f64>, Vec3<f64>);
+
 /// The conic's `(centre, axis)`, the frame its turn is read about.
 fn frame(conic: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>) {
     match *conic {
@@ -47,7 +50,7 @@ fn frame(conic: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>) {
 
 /// The point at eccentric anomaly `t` and the unit tangent `sense`
 /// (`±1`) of counter-clockwise there.
-fn at(conic: &Curve3<f64>, t: f64, sense: f64) -> (Point3<f64>, Vec3<f64>) {
+fn at(conic: &Curve3<f64>, t: f64, sense: f64) -> Site {
     let (p, d) = conic.ders1(t);
     (p, d * (sense / d.norm()))
 }
@@ -198,8 +201,8 @@ fn hold(
 /// parameter's travel along the component ([`along_facing`]).
 fn feet(
     section: &geom_brep::CarriedSection<f64>,
-    (g, dir): (Point3<f64>, Vec3<f64>),
-    partners: &[(usize, (Point3<f64>, Vec3<f64>))],
+    (g, dir): Site,
+    partners: &[(usize, Site)],
 ) -> Vec<(usize, Reach<f64>)> {
     let pillow = crate::fixtures::pillow(Tol::witness());
     let table = SectionTable::default();
