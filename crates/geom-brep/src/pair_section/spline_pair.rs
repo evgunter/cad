@@ -44,8 +44,8 @@ use super::{
     SectionComponent, SsiLane,
 };
 use crate::ExtentBall;
-use crate::intersect::SectionError;
 use crate::Pcurve;
+use crate::intersect::SectionError;
 use crate::ssi::{BoundaryChart, BranchEnd, PairCorner, PairRegion, PairRow, SsiError};
 
 /// **A row the caller hands in as known**: each wall's image of one

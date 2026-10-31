@@ -75,7 +75,6 @@ use super::four::{
     Box4, PAIR_BOUNDARY_PIECES, PairBoxes, RowCrossing, covered, direction_over,
     face_roots_outside, row_cover,
 };
-use crate::Pcurve;
 use super::handle::{Banked, foot, passed};
 use super::march::{MarchContext, MarchTol, Readout};
 use super::system::{Chart, LocalSystem, ParametricPairR4};
@@ -83,6 +82,7 @@ use super::{
     ChartAxis, ChartedNurbs, SSI_MAX_STEPS, SSI_NEWTON_ITERS, SSI_SPLINE_NOISE_ULPS, SsiBranch,
     SsiDomain, SsiError, SsiOutcome, finite_net,
 };
+use crate::Pcurve;
 use geom_core::linalg::svd::Svd;
 
 /// What the section is read over: the two charts and the march, fixed
@@ -168,9 +168,9 @@ impl PairRow {
     fn sides(&self, r: Box4) -> [ChartSide; 2] {
         self.axes().map(|(_, fixed)| {
             let at = self.images[fixed / 2].eval(self.span.0);
-            let c = if fixed % 2 == 0 { at.x } else { at.y };
+            let c = if fixed.is_multiple_of(2) { at.x } else { at.y };
             ChartSide {
-                fixed: if fixed % 2 == 0 {
+                fixed: if fixed.is_multiple_of(2) {
                     ChartAxis::U
                 } else {
                     ChartAxis::V
@@ -441,8 +441,8 @@ impl<'a> PairLane<'a> {
             }
             pass.cells.push(cell);
         }
-        let roots =
-            face_roots_outside(&pair, r, PAIR_BOUNDARY_PIECES, &pass.cells).ok_or_else(unresolved)?;
+        let roots = face_roots_outside(&pair, r, PAIR_BOUNDARY_PIECES, &pass.cells)
+            .ok_or_else(unresolved)?;
         for (q, k, high) in roots {
             pass.crossings.push(self.settle_crossing(q, k, high)?);
         }
@@ -478,7 +478,8 @@ impl<'a> PairLane<'a> {
 
     /// **A handed-in row's cover** (module docs): the boxes
     /// [`row_cover`] reads along it at the widest of `rungs` it reads
-    /// clear, widened across it in chart `a`'s held coordinate, chart
+    /// clear (each but the last given up at its first unread piece, the
+    /// last read whole, where a turn is looked for), widened across it in chart `a`'s held coordinate, chart
     /// `b`'s held coordinate and chart `b`'s coordinate along it, read
     /// across chart `a`'s coordinate along it.
     ///
@@ -490,7 +491,8 @@ impl<'a> PairLane<'a> {
     /// piece's sign.
     fn row_cover(&self, row: &PairRow, rungs: &[[f64; 4]]) -> Result<Vec<Box4>, SsiError> {
         let [(along_a, held_a), (along_b, held_b)] = row.axes();
-        let coordinate = |p: geom_core::Point2<f64>, k: usize| if k % 2 == 0 { p.x } else { p.y };
+        let coordinate =
+            |p: geom_core::Point2<f64>, k: usize| if k.is_multiple_of(2) { p.x } else { p.y };
         let read = |lo: f64, hi: f64| {
             let ends = |i: usize| (row.images[i].eval(lo), row.images[i].eval(hi));
             let ((a0, a1), (b0, b1)) = (ends(0), ends(1));
@@ -512,14 +514,14 @@ impl<'a> PairLane<'a> {
             (state, chord)
         };
         let walls = (self.a.surface(), self.b.surface());
-        for width in rungs {
+        for (n, width) in rungs.iter().enumerate() {
+            let last = n + 1 == rungs.len();
             let mut wide = [0.0; 4];
             for k in [held_a, held_b, along_b] {
                 wide[k] = width[k];
             }
-            let (crossing, boxes) = row_cover(walls, row.span, wide, read).map_err(
-                |super::four::RowUnreadable(_, refusal)| SsiError::ChartSpeed(refusal),
-            )?;
+            let (crossing, boxes) = row_cover(walls, row.span, wide, !last, read)
+                .map_err(|super::four::RowUnreadable(_, refusal)| SsiError::ChartSpeed(refusal))?;
             match crossing {
                 RowCrossing::Clear(_) => return Ok(boxes),
                 RowCrossing::Turns => return Err(SsiError::PairRowTangent),
@@ -899,6 +901,57 @@ mod tests {
         (trough, plane)
     }
 
+    /// The biquadratic standing over `xs × ys` on the unit square, `x`
+    /// along `u` and `y` along `v`, its height `z(x, y)` at each control
+    /// point, which a function bilinear in `x` and `y` reproduces.
+    fn sheet(xs: (f64, f64), ys: (f64, f64), z: &dyn Fn(f64, f64) -> f64) -> NurbsSurface<f64> {
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let at = |(lo, hi): (f64, f64), i: usize| lo + 0.5 * (hi - lo) * i as f64;
+        let control = (0..9)
+            .map(|n| {
+                let (x, y) = (at(xs, n / 3), at(ys, n % 3));
+                Point3::new(x, y, z(x, y))
+            })
+            .collect();
+        NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **A corner where the section runs into both rectangles is a
+    /// crossing, not a region.** The sheet `z = 0.2·x·y` and the plane
+    /// `z = x − y/2` over `y ∈ [0, 1.5]` share the corner `(0, 0)` of both
+    /// rectangles, and the section leaves it increasing in every
+    /// coordinate: handed in, the corner is a crossing of the pass, and
+    /// no region. Red against the corner's signs read as leaving.
+    #[test]
+    fn a_corner_a_branch_starts_at_is_a_crossing() {
+        use crate::ssi::{BoundaryChart, ChartCorner, ChartEnd};
+        let flat = sheet((0.0, 1.0), (0.0, 1.0), &|x, y| 0.2 * x * y);
+        let enters = sheet((0.0, 1.0), (0.0, 1.5), &|x, y| x - 0.5 * y);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 4.0,
+            extent: 2.0,
+            floor_scale: 1.0,
+        };
+        let low = ChartCorner {
+            u: ChartEnd::Low,
+            v: ChartEnd::Low,
+        };
+        let section = Section::of(&flat, &enters, domain, band)
+            .unwrap()
+            .with_known(Vec::new(), vec![super::PairCorner([low, low])]);
+        let pass = section.pass().expect("the pass reads the corner");
+        assert!(pass.regions.is_empty(), "no region: {:?}", pass.regions);
+        assert!(
+            pass.crossings
+                .iter()
+                .any(|c| c.state == [0.0; 4] && c.at.chart == BoundaryChart::First),
+            "the corner is a crossing: {:?}",
+            pass.crossings
+        );
+    }
+
     /// **A section of charts minted once reads as one of fresh mints.**
     /// [`Section::of_charted`] handed one chart per surface, minted once
     /// and shared by two sections in turn (the second reads every cell
@@ -999,14 +1052,14 @@ mod tests {
         assert_eq!(section.banked.tubes.len(), 2, "both branches certified");
         let whole = section
             .lane
-            .account(&section.banked.tubes)
+            .account(&section.banked.tubes, &[])
             .expect("both tubes close it");
         assert!(whole.accounted > 0, "{whole}");
         for dropped in 0..2 {
             let kept = vec![section.banked.tubes[1 - dropped].clone()];
             let e = section
                 .lane
-                .account(&kept)
+                .account(&kept, &[])
                 .expect_err("one branch's cells are left unaccounted");
             assert!(
                 matches!(e, SsiError::ExhaustivenessInconclusive(_)),

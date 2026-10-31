@@ -159,7 +159,11 @@ fn an_open_branch_between_two_walls_clears_by_w1_prime() {
     let down = sheet(UNIT, (-0.25, 1.25), &|i, _| -0.4 * (0.5 * i as f64 - 0.5));
     let s = read(&up, &down, Known::default());
     let c = lone(&s);
-    assert_eq!(c.reaches, Some(Side::F), "the branch reaches F's sides: {c:?}");
+    assert_eq!(
+        c.reaches,
+        Some(Side::F),
+        "the branch reaches F's sides: {c:?}"
+    );
     assert_eq!(
         certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
         Ok(vec![Cleared::Reaches(Side::F)]),

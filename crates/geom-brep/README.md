@@ -542,8 +542,8 @@ side's image on the other chart:
   that the caller hands in with its two certified images. The region
   is the row's cover, a chain of boxes along the row, each wide enough
   across it to hold the accounting floor's cells beside it, over which
-  the pair's crossing reading (`graph_margin`, `ssi::row_crossing` at
-  that width) is zero-free. Each slice across the row then holds at
+  the pair's crossing reading (`graph_margin`, `ssi::four::row_cover`,
+  `row_crossing` at that width) is zero-free. Each slice across the row then holds at
   most one solution, and the row is that solution. Its cells are
   contact cells in the accounting.
 - **A `Corner` region** comes from a shared vertex at a corner of both

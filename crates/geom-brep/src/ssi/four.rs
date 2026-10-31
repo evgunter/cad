@@ -926,7 +926,7 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
     span: (f64, f64),
     read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
 ) -> Result<RowCrossing, RowUnreadable> {
-    row_cover(walls, span, [0.0; 4], read).map(|(crossing, _)| crossing)
+    row_cover(walls, span, [0.0; 4], false, read).map(|(crossing, _)| crossing)
 }
 
 /// **[`row_crossing`] at a width**, with the boxes it read: each piece's
@@ -939,10 +939,16 @@ pub(crate) fn row_crossing<T: CertifiedBounds>(
 /// The argument of [`row_crossing`] holds over each widened box: a
 /// zero-free margin across `e` makes the solutions in it a graph over
 /// `e`, one at most in each slice square to `e`.
+///
+/// With `give_up` the pieces are read depth first and the first piece
+/// that reads no sign at [`ROW_DEPTH`] ends the reading, [`RowCrossing::Unread`]
+/// with no turn looked for: a caller trying a narrower width next asks
+/// only whether this one reads clear.
 pub(crate) fn row_cover<T: CertifiedBounds>(
     (a, b): (&NurbsSurface<T>, &NurbsSurface<T>),
     (t0, t1): (f64, f64),
     width: [f64; 4],
+    give_up: bool,
     read: impl Fn(f64, f64) -> (Box4, [f64; 4]),
 ) -> Result<(RowCrossing, Vec<Box4>), RowUnreadable> {
     let ca = super::ChartedNurbs::mint(a).map_err(|e| unreadable(0, e))?;
@@ -951,7 +957,7 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
     let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
     let domain = Box4::of_charts(a, b);
     #[allow(clippy::cast_precision_loss)]
-    let mut work: std::collections::VecDeque<(f64, f64, u32)> = (0..ROW_PIECES)
+    let mut work: Vec<(f64, f64, u32)> = (0..ROW_PIECES)
         .map(|k| {
             let at = |k: usize| t0 + (t1 - t0) * (k as f64 / ROW_PIECES as f64);
             (at(k), at(k + 1), 0)
@@ -961,7 +967,9 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
     // is zero-free (`None` for a piece read at depth with no sign).
     let mut pieces: Vec<(f64, Box4, Option<bool>)> = Vec::new();
     let mut least = f64::INFINITY;
-    while let Some((lo, hi, depth)) = work.pop_front() {
+    // Read from the back, the first piece last pushed: depth first.
+    work.reverse();
+    while let Some((lo, hi, depth)) = work.pop() {
         let (x, chord) = read(lo, hi);
         let x = Box4(core::array::from_fn(|k| {
             let ((l, h), (d0, d1)) = (x.0[k], domain.0[k]);
@@ -991,9 +999,10 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
             }
             None if depth < ROW_DEPTH => {
                 let half = lo * 0.5 + hi * 0.5;
-                work.push_back((lo, half, depth + 1));
-                work.push_back((half, hi, depth + 1));
+                work.push((half, hi, depth + 1));
+                work.push((lo, half, depth + 1));
             }
+            None if give_up => return Ok((RowCrossing::Unread, Vec::new())),
             None => pieces.push((lo, x, None)),
         }
     }
@@ -1023,7 +1032,10 @@ pub(crate) fn row_cover<T: CertifiedBounds>(
 /// component ([`graph_margin`] across the unit axis `k`), whose sign is
 /// the sign of `dx_k` along the section, oriented as the cross product
 /// orients it, at every solution in `x`.
-pub(crate) fn direction_over<T: CertifiedBounds>(pair: &PairBoxes<'_, T>, x: Box4) -> [Interval; 4] {
+pub(crate) fn direction_over<T: CertifiedBounds>(
+    pair: &PairBoxes<'_, T>,
+    x: Box4,
+) -> [Interval; 4] {
     let j = pair.jacobian_closed(x);
     core::array::from_fn(|k| {
         let mut e = [0.0; 4];

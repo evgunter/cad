@@ -1925,11 +1925,7 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
             overlap_reach(&fa.bbox, &fb.bbox),
             T::ssi_lane(),
             band,
-            super::spline_known::shared(
-                (a, fa.face, &fa.surface),
-                (b, fb.face, &fb.surface),
-                band,
-            ),
+            super::spline_known::shared((a, fa.face, &fa.surface), (b, fb.face, &fb.surface), band),
         ),
     };
     let mut torn = None;

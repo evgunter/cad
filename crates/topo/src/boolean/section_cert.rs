@@ -122,14 +122,16 @@
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
 //!   to it; a cone against a non-coaxial torus; a NURBS or approximated
-//!   face paired with anything but a plane, and one whose net a plane
-//!   cuts that the whole reading refused short of a tangency). Every
+//!   face paired with anything but a plane or another spline face, and a
+//!   spline pair the whole reading refused short of a tangency). Every
 //!   pair with a face that is not a
 //!   plane is examined; two planes meet in a line, which W1 clears.
 //! - **R-tan**: a classification margin `Zero` or undecided — a
 //!   tangency, where components pinch and the count is not certified;
 //!   on a spline section, a tangency the march meets, or the section
-//!   grazing or running along a side of the wall's rectangle.
+//!   grazing or running along a side of the wall's rectangle (on two
+//!   spline faces, one no shared row or corner handed in covers, or a
+//!   handed-in row the walls are tangent along at a point).
 //!   A margin decided `Zero` where the carriers touch at one point is a
 //!   touch instead (below), and refuses R-tan only when it is not
 //!   certified out of either face.
@@ -2182,11 +2184,11 @@ mod section_cert_parallel_tori_rows;
 #[path = "section_cert_rows.rs"]
 pub(super) mod section_cert_rows;
 #[cfg(test)]
-#[path = "section_cert_spline_rows.rs"]
-mod section_cert_spline_rows;
-#[cfg(test)]
 #[path = "section_cert_spline_pair_rows.rs"]
 mod section_cert_spline_pair_rows;
+#[cfg(test)]
+#[path = "section_cert_spline_rows.rs"]
+mod section_cert_spline_rows;
 #[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;
