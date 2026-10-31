@@ -41,7 +41,8 @@
 //! Each arm's sign is read off a [`Presented`] face: the face's part of
 //! the cell written as the image of a rectangle on whose sides the shared
 //! cell lies, or which a curved shared edge's chart curve crosses as a
-//! graph over one chart axis ([`present_curved`]), and a derivative
+//! graph over one chart axis ([`present_curved`]; a spiric's wall image
+//! on a torus, over the minor angle, [`present_wall`]), and a derivative
 //! across those sides or that curve. At a corner where a curved edge
 //! meets another, the shared one is read alone, through the vertex
 //! ([`present_corner`]).
