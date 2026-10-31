@@ -2369,3 +2369,23 @@ fn turn_readings_of<T: Decide>(
         .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
     (reading.gap, reading.chords)
 }
+
+// MEASUREMENT SCRATCH (carve-embed phase 1; delete before landing): runs
+// `f` with the loft's stacking fold skipped on this thread, so a scratch
+// test can build the bodies the fold refuses and ask the embedding
+// certificate about them.
+thread_local! {
+    static FOLD_BYPASSED: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
+}
+
+/// Runs `f` with the stacking fold skipped on this thread (scratch).
+pub fn with_fold_bypassed<R>(f: impl FnOnce() -> R) -> R {
+    FOLD_BYPASSED.with(|b| b.set(true));
+    let out = f();
+    FOLD_BYPASSED.with(|b| b.set(false));
+    out
+}
+
+pub(crate) fn fold_bypassed() -> bool {
+    FOLD_BYPASSED.with(core::cell::Cell::get)
+}

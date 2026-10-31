@@ -81,6 +81,8 @@ serde_json = "1.0.151"
 # reaches the kernel through `pncad` alone.
 [dev-dependencies]
 test-utils = { path = "../../crates/test-utils" }
+# MEASUREMENT SCRATCH (carve-embed phase 1; delete before landing).
+topo = { path = "../../crates/topo" }
 
 
 # The tour is the ONLY release build of the kernel in CI (the ten

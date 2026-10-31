@@ -206,6 +206,8 @@ mod bool3_torus_doors;
 mod bool3_torus_doors_interval;
 #[path = "bool5r2_wedge_reach.rs"]
 mod bool5r2_wedge_reach;
+#[path = "carve_embed_scratch.rs"]
+mod carve_embed_scratch;
 #[path = "bool6_per_slab_stacking.rs"]
 mod bool6_per_slab_stacking;
 #[path = "bool6_r2_probes.rs"]

@@ -2949,6 +2949,14 @@ fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
             || b.min_y > whole.min_y
             || b.min_z > whole.min_z
     };
+    // MEASUREMENT SCRATCH (carve-embed phase 1; delete before landing):
+    // with the variable set, an axis refines when EITHER half narrows.
+    if std::env::var_os("CARVE_EMBED_SCRATCH_REFINES_BOTH_HALVES").is_some() {
+        let upper_u = boxed((geom::mid_param(u.0, u.1), u.1), v);
+        let upper_v = boxed(u, (geom::mid_param(v.0, v.1), v.1));
+        return (narrower(&half_u) || narrower(&upper_u))
+            && (narrower(&half_v) || narrower(&upper_v));
+    }
     narrower(&half_u) && narrower(&half_v)
 }
 
