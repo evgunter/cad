@@ -806,7 +806,7 @@ pub(crate) fn classify<T: Decide>(
 
 /// **A spline face against a plane, read off the pair's
 /// classification** ([`geom_brep::pair_section`] through `lane`, module
-/// docs): the hull's apart is W0 and its coincidence R-tan, named; the
+/// docs): the hull's apart is W0 and its coincidence R-tan; the
 /// door's and the boundary pass's refusals map by name; the regularity
 /// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])
 /// clears by W1′ where every side it names bounds the wall, and is
@@ -824,11 +824,6 @@ fn spline_plane<T: Decide>(
     match geom_brep::pair_section(f, g, None, lane, band) {
         Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, listed),
         Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-        // The hull decided the wall within the zero band of the plane
-        // everywhere: no component count is certified.
-        Err(geom_brep::SectionError::CoincidentSurfaces) => {
-            Section::Tangent("section_nurbs_plane_coincident")
-        }
         Err(e) => of_pair_section(&Err(e), band, listed),
     }
 }
@@ -1856,10 +1851,13 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
         Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
         // Two surfaces decided one share a carrier: no component count
-        // is certified, as at a tangency. Of the pairs the value builds,
-        // only two tori are decided one, on `tt_coincident`
-        // (`geom_brep::TorusTorusPose`).
-        Err(SectionError::CoincidentSurfaces) => return Section::Tangent("tt_coincident"),
+        // is certified, as at a tangency. Two tori (`tt_coincident`), two
+        // cylinders and a spline wall on a plane
+        // (`section_nurbs_plane_coincident`) are decided one; the refusal
+        // carries no pose, so it is named by the value.
+        Err(SectionError::CoincidentSurfaces) => {
+            return Section::Tangent("pair_section_coincident");
+        }
         // A kind pair the value serves refuses these on no arm of its
         // own: an operand's size (decided or not), a torus off its ring,
         // and the refusals of the arms it does not build.
@@ -1878,13 +1876,6 @@ pub(super) fn of_pair_section<T: Decide>(
         Err(SectionError::NoMarch { scalar }) => return Section::NoLane(scalar),
     };
     let (f, g) = section.pose().operands();
-    // The sides of `surface`'s chart a reach names, each read for W1′.
-    let bounding = |reach: geom_brep::ChartReach, surface: &geom::Surface<T>| -> Vec<bool> {
-        reach
-            .sides()
-            .map(|side| crate::pcurves::chart_side_bounds(surface, side, band))
-            .collect()
-    };
     let components = match section.components() {
         Components::Counted(components) => components,
         Components::Marched => return marched(section),
@@ -1892,8 +1883,9 @@ pub(super) fn of_pair_section<T: Decide>(
         // side, by the variant's contract): each clears by W1′ where
         // every side listed bounds its surface; otherwise the list is the
         // reader's to take.
-        &Components::Reaching([on_f, on_g]) => {
-            if !(bounding(on_f, f).iter().all(|&b| b) && bounding(on_g, g).iter().all(|&b| b)) {
+        &Components::Reaching(reached) => {
+            let [on_f, on_g] = reached.rims();
+            if !(bounding(on_f, f, band).all(|b| b) && bounding(on_g, g, band).all(|b| b)) {
                 return marched(section);
             }
             let side = if on_f.any() { Side::F } else { Side::G };
@@ -1940,9 +1932,9 @@ pub(super) fn of_pair_section<T: Decide>(
                                 rims: [on_f, on_g], ..
                             },
                     } => {
-                        if bounding(on_f, f).contains(&true) {
+                        if bounding(on_f, f, band).any(|b| b) {
                             Some(Side::F)
-                        } else if bounding(on_g, g).contains(&true) {
+                        } else if bounding(on_g, g, band).any(|b| b) {
                             Some(Side::G)
                         } else {
                             None
@@ -1955,6 +1947,18 @@ pub(super) fn of_pair_section<T: Decide>(
             .collect(),
         single: components.len() == 1,
     }
+}
+
+/// **Whether each side of `surface`'s chart `reach` names bounds a face
+/// on it** (W1′, [`crate::pcurves::chart_side_bounds`]), side by side.
+fn bounding<'a, T: Decide>(
+    reach: geom_brep::ChartReach,
+    surface: &'a geom::Surface<T>,
+    band: Band,
+) -> impl Iterator<Item = bool> + 'a {
+    reach
+        .sides()
+        .map(move |side| crate::pcurves::chart_side_bounds(surface, side, band))
 }
 
 /// **A section no closed form counts, read from its march** (W0 to W4

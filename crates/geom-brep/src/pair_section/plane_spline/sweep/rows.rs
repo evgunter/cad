@@ -148,7 +148,10 @@ fn got(p: &Surface<f64>, w: &Surface<f64>) -> Got {
     use crate::intersect::SectionError;
     match pair_section(p, w, None, Some(SsiLane::marched()), band()) {
         Ok(SectionRead::Built(s)) => match s.components() {
-            Components::Reaching([a, b]) => Got::Reaching(a.or(*b)),
+            Components::Reaching(reached) => {
+                let [a, b] = reached.rims();
+                Got::Reaching(a.or(b))
+            }
             Components::Counted(c) if c.is_empty() => Got::Apart,
             other => Got::Other(format!("{other:?}")),
         },
@@ -182,8 +185,9 @@ enum Want {
     /// band, in band where it is short of the escalation, and otherwise
     /// a `Side` region the sweep proves loop-free.
     Rising(f64),
-    /// A wall 1 km out: as the inner answer where the lane can settle a
-    /// state well inside the band there, and refused where it cannot.
+    /// A wall 1 km out: refused where the lane cannot settle a state well
+    /// inside the band there ([`lane_unreadable_at_1_km`]), and otherwise
+    /// as the inner answer.
     Far(Box<Want>),
 }
 
@@ -224,9 +228,12 @@ fn probe_pairs() -> Vec<(String, Surface<f64>, Surface<f64>, Want)> {
             ));
         }
     }
-    // Besides the probe's angles, a wall rising a tenth of the zero band
-    // (on the plane at every ε) and one rising between the band's two
-    // thresholds (in band at every ε).
+    // The probe's angles, its 10⁻⁶ and 10⁻⁸ rad moved to 5·10⁻⁷ and
+    // 3·10⁻⁸: a 1 m wall rising 10⁻⁶ m sits on the zero band at ε 1e-6,
+    // and one rising 10⁻⁸ m on the escalation at ε 1e-9 (ten bands), so
+    // neither decides one way at those ε. Besides them, a wall rising a
+    // tenth of the zero band (on the plane at every ε) and one rising
+    // between the band's two thresholds (in band at every ε).
     let b = band();
     let within = (0.1 * b.zero()).asin();
     let between = (b.zero() * b.escalate()).sqrt().asin();
@@ -234,8 +241,8 @@ fn probe_pairs() -> Vec<(String, Surface<f64>, Surface<f64>, Want)> {
         std::f64::consts::FRAC_PI_2,
         0.3,
         1e-3,
-        1e-6,
-        1e-8,
+        5e-7,
+        3e-8,
         within,
         between,
     ] {
@@ -325,6 +332,14 @@ fn probe_pairs() -> Vec<(String, Surface<f64>, Surface<f64>, Want)> {
     pairs
 }
 
+/// **Whether the lane cannot read a wall 1 km out at the run's band**:
+/// its coordinates there are `1.8·10⁻¹²` m apart, not well inside a band
+/// of `10⁻¹²` m (ε 1e-12, refused) and well inside one of `10⁻⁹` m or
+/// more.
+fn lane_unreadable_at_1_km() -> bool {
+    band().zero() < 1e-11
+}
+
 /// Whether `got` is what `want` asks, at the run's band.
 fn answers(got: &Got, want: &Want) -> bool {
     let b = band();
@@ -337,7 +352,8 @@ fn answers(got: &Got, want: &Want) -> bool {
         Want::Rising(_) => {
             matches!(got, Got::Reaching(r) if *r == side(ChartAxis::V, ChartEnd::Low))
         }
-        Want::Far(inner) => *got == Got::Unreadable || answers(got, inner),
+        Want::Far(_) if lane_unreadable_at_1_km() => *got == Got::Unreadable,
+        Want::Far(inner) => answers(got, inner),
     }
 }
 
@@ -500,5 +516,35 @@ fn the_reach_is_the_sides_the_pass_ends_the_section_on() {
     assert_eq!(
         got(&level(0.4), &ramp),
         Got::Reaching(side(ChartAxis::V, ChartEnd::Low).or(side(ChartAxis::V, ChartEnd::High)))
+    );
+}
+
+/// **The door decides a collapsed side clear over its whole row.** A
+/// planar wall whose side `v = 0` collapses (its two row points half a
+/// zero band apart), against the plane `x = c` placed so that the row's
+/// first point stands three tenths of a band past the escalation and its
+/// second two tenths short of it: the side is not decided clear of the
+/// plane, so the door refuses it, named. Red against clearance read off
+/// the row's first point alone (the door passes it).
+#[test]
+fn a_collapsed_side_is_cleared_over_its_whole_row() {
+    let b = band();
+    let z = b.zero();
+    let wall = ruled(
+        &[pt(0.5 * z, 0.0, 0.0), pt(0.0, 0.0, 0.0)],
+        &[pt(1.0, 1.0, 0.0), pt(1.0, -1.0, 0.0)],
+    );
+    let c = 0.2 * z - b.escalate();
+    let got = pair_section(
+        &plane(pt(c, 0.0, 0.0), Vec3::unit_x()),
+        &wall,
+        None,
+        Some(SsiLane::marched()),
+        b,
+    );
+    assert!(
+        matches!(&got, Err(crate::intersect::SectionError::Unaccounted { cause })
+            if cause.contains("collapses to a point")),
+        "the door refuses the side: {got:?}"
     );
 }

@@ -10,8 +10,9 @@
 //!    ([`SectionError::CoincidentSurfaces`]), and one in band escalates.
 //!    Then the door (`PlaneSplinePose::door`): a side of the rectangle
 //!    collapsed to a point
-//!    ([`crate::chart_singularity::spline_side_spans`]) and not decided
-//!    clear of the plane refuses, named;
+//!    ([`crate::chart_singularity::spline_collapsed_row`]), its row not
+//!    decided clear of the plane, every point on one side, refuses,
+//!    named. A poison net refuses at the hull, with or without a lane;
 //! 2. **the boundary pass**, through the march door, each side of the
 //!    rectangle against the plane ([`crate::PlaneSection`]'s, run once):
 //!    a graze or a side held tangent refuses by name, and its crossings
@@ -71,7 +72,7 @@
 //! ([`super::SsiLane::marched`], at `f64` alone).
 
 use geom::{NurbsSurface, Surface};
-use geom_core::k_stats::Magnitude;
+use geom_core::k_stats::{Magnitude, decide, decide_magnitude};
 use geom_core::{Band, Bounds, Decide, Interval, Margin, Point3, Real, Sign, Vec3};
 
 use super::{
@@ -205,9 +206,6 @@ enum Hull {
     Apart,
     /// The net reaches past the band of the plane.
     Cuts,
-    /// A control point's height is poison, which decides nothing: the
-    /// reading's operand check refuses the net.
-    Poison,
 }
 
 impl<T: Decide> PlaneSplinePose<T> {
@@ -215,33 +213,35 @@ impl<T: Decide> PlaneSplinePose<T> {
     /// weights are positive), so the control points' heights over the
     /// plane bound the wall's. A net whose every height is decided of one
     /// sign meets the plane nowhere; one whose largest height is decided
-    /// within the zero band lies on it.
+    /// within the zero band lies on it. The heights are formed in the
+    /// scalar's own arithmetic, as every pose decision is.
     ///
     /// # Errors
     ///
+    /// [`SectionError::DegenerateOperand`] for a net whose height is
+    /// poison, at every scalar and with or without a march door;
     /// [`SectionError::CoincidentSurfaces`] for a net within the zero
     /// band of the plane everywhere, a coincidence its consumer keeps
-    /// (D10), and [`SectionError::Escalated`] where its largest height is
-    /// in the band.
+    /// (D10); and [`SectionError::Escalated`] where its largest height
+    /// is in the band.
     fn hull(&self, band: Band) -> Result<Hull, SectionError> {
         let heights: Vec<T> = self.net.control().iter().map(|&c| self.height(c)).collect();
         if heights.iter().any(|h| h.is_poison()) {
-            return Ok(Hull::Poison);
+            return Err(SectionError::DegenerateOperand {
+                what: "the spline wall's net has a control point whose height over the plane \
+                       is poison",
+            });
         }
         let sides: Vec<_> = heights
             .iter()
-            .map(|&h| crate::dihedral::decide("section_nurbs_plane_hull", Margin::of(h), band).ok())
+            .map(|&h| decide("section_nurbs_plane_hull", Margin::of(h), band).ok())
             .collect();
         let all = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
         if all(Sign::Positive) || all(Sign::Negative) {
             return Ok(Hull::Apart);
         }
         let reach = heights.iter().fold(T::zero(), |m, &h| m.max(h.abs()));
-        match crate::dihedral::decide_magnitude(
-            "section_nurbs_plane_coincident",
-            Margin::of(reach),
-            band,
-        ) {
+        match decide_magnitude("section_nurbs_plane_coincident", Margin::of(reach), band) {
             Ok(Magnitude::Zero) => Err(SectionError::CoincidentSurfaces),
             Ok(Magnitude::Positive) => Ok(Hull::Cuts),
             Err(diag) => Err(SectionError::Escalated(diag)),
@@ -249,32 +249,28 @@ impl<T: Decide> PlaneSplinePose<T> {
     }
 
     /// **The door's collapsed sides**: a side of the wall's rectangle
-    /// that is not decided to span more than a point
-    /// ([`crate::chart_singularity::spline_side_spans`]) is a pole, and
-    /// one not decided clear of the plane is refused before any sweep,
-    /// named.
+    /// collapsed to a point
+    /// ([`crate::chart_singularity::spline_collapsed_row`]) is a pole,
+    /// and one whose row is not decided clear of the plane, every point
+    /// of it on one side, is refused before any sweep, named.
     ///
     /// # Errors
     ///
     /// [`SectionError::Unaccounted`], naming the side.
     fn door(&self, band: Band) -> Result<(), SectionError> {
+        let control = self.net.control();
         for side in crate::ssi::boundary::SIDES {
-            if crate::chart_singularity::spline_side_spans(&self.net, side, band) {
-                continue;
-            }
-            let row = crate::chart_singularity::spline_side_row(&self.net, side);
-            let Some(&pole) = row.first().and_then(|&i| self.net.control().get(i)) else {
+            let Some(row) = crate::chart_singularity::spline_collapsed_row(&self.net, side, band)
+            else {
                 continue;
             };
-            let clear = matches!(
-                crate::dihedral::decide(
-                    "section_nurbs_plane_pole",
-                    Margin::of(self.height(pole)),
-                    band
-                ),
-                Ok(Sign::Positive | Sign::Negative)
-            );
-            if !clear {
+            let signs: Vec<_> = row
+                .iter()
+                .filter_map(|&i| control.get(i))
+                .map(|&p| decide("section_nurbs_plane_pole", Margin::of(self.height(p)), band).ok())
+                .collect();
+            let one = |s| !signs.is_empty() && signs.iter().all(|&t| t == Some(s));
+            if !(one(Sign::Positive) || one(Sign::Negative)) {
                 return Err(SectionError::Unaccounted {
                     cause: format!(
                         "the wall's {side} collapses to a point not decided clear of the plane"
@@ -603,11 +599,10 @@ pub(super) fn classified<T: Decide>(
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
     let pose = PlaneSplinePose::served(a, b)?;
-    match pose.hull(band)? {
-        Hull::Apart => return Ok(pose.section(Components::Counted(Vec::new()))),
-        Hull::Cuts => pose.door(band)?,
-        Hull::Poison => {}
+    if pose.hull(band)? == Hull::Apart {
+        return Ok(pose.section(Components::Counted(Vec::new())));
     }
+    pose.door(band)?;
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
     (lane.spline)(pose, band)
 }
@@ -649,12 +644,11 @@ pub(super) fn section(
         return listed(pose, &pivot, out);
     }
     drop(reading);
-    if !reach.any() {
+    let Some(reached) = super::Reached::new(pose.order(ChartReach::default(), reach)) else {
         return Ok(pose.section(Components::Counted(Vec::new())));
-    }
-    let rims = pose.order(ChartReach::default(), reach);
+    };
     pose.pass = Some(pass);
-    Ok(pose.section(Components::Reaching(rims)))
+    Ok(pose.section(Components::Reaching(reached)))
 }
 
 /// **The section read whole** (module docs): C3's reading, every

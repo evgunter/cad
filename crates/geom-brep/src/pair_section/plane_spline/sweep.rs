@@ -13,7 +13,7 @@
 //!   (`plane_spline_sweep_excluded`): so is `φ − c` for every height `c`
 //!   within the band;
 //! - **regular** where the wall's slope off the plane along `u` or `v`,
-//!   `n·S_d / sup‖S_d‖` on the closed cell's derivative boxes
+//!   `n·S_d / (‖n‖·sup‖S_d‖)` on the closed cell's derivative boxes
 //!   ([`NurbsBoxes::deriv_box_closed`], [`NurbsBoxes::speed_sup`]),
 //!   levered by the feature extent, is decided off zero
 //!   (`plane_spline_sweep_regular`), as the march decides
@@ -34,6 +34,12 @@
 //! cross `∂D`, where `φ = c`. A critical point the band excludes but a
 //! loop of the section encloses (a dome's top above the plane cutting
 //! it) is never joined so, and declines.
+//!
+//! That each component ends where the boundary pass found a crossing or
+//! a region, the sides the verdict names, rests on stage 2 having
+//! refused every graze of a side ([`crate::PlaneSection`]'s pass): a
+//! component touching a side without crossing it leaves no crossing
+//! there.
 //!
 //! The argument needs `∇φ` continuous: at a crease (a knot of
 //! multiplicity at least the degree) each side's one-sided gradient may
@@ -163,10 +169,8 @@ pub(super) fn sweep(reading: &PlaneSection<'_>, pivot: &Pivot, band: Band, exten
     match declined {
         Err(SsiError::CellBudget { .. }) => Sweep::Declined(Declined::Budget),
         Err(_) => Sweep::Declined(Declined::Unread),
-        Ok(cells) => match cells.first() {
-            Some(&at) => Sweep::Declined(Declined::Floor(at)),
-            None => joined(&excluded.into_inner(), UvRect { u: ud, v: vd }),
-        },
+        Ok((Some(at), _)) => Sweep::Declined(Declined::Floor(at)),
+        Ok((None, _regular)) => joined(&excluded.into_inner(), UvRect { u: ud, v: vd }),
     }
 }
 

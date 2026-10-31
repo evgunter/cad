@@ -817,6 +817,8 @@ struct SweepTally {
     excluded: u32,
     accounted: u32,
     contact: u32,
+    /// Cells the regularity sweep read regular.
+    regular: u32,
     refined: u32,
     max_depth: u32,
 }
@@ -838,20 +840,23 @@ impl SweepTally {
     }
 }
 
-/// **The one recursion**, shared by both lanes and both duties.
+/// **The one recursion**, shared by both lanes and its three duties.
 ///
 /// Iterative (an explicit stack, so recursion depth is not a stack-
 /// overflow path) and depth-first with the two halves pushed in a fixed
 /// order — same cells, same order, every run (D9). `excluded` answers
 /// the lane's own question: does a certified enclosure over this cell
-/// exclude zero, or is the enclosure unusable (a typed refusal)?
+/// exclude its locus, or is the enclosure unusable (a typed refusal)?
 ///
-/// The floor is the only place the two duties differ, and they differ
-/// by `duty`, never by the shape of the data: seeding banks the
-/// survivor, accounting refuses. Every other line — the budget, the
-/// bookkeeping, the exclude/account/refine ladder — is written once, so
-/// the never-silence refusal cannot be edited in one lane and forgotten
-/// in the other.
+/// The duties differ by `duty`, never by the shape of the data, in two
+/// places: at (ii), what accounts for a cell (nothing when seeding, a
+/// tube, region or clear cell when accounting, a regular cell for the
+/// regularity sweep), and at the floor, where seeding banks the
+/// survivor, accounting refuses, and the regularity sweep returns its
+/// first survivor, which declines it. Every other line — the budget,
+/// the bookkeeping, the exclude/account/refine ladder — is written once,
+/// so the never-silence refusal cannot be edited in one lane and
+/// forgotten in the other.
 fn sweep<C: SweepCell>(
     floor: SweepFloor<C>,
     duty: SweepDuty<'_, C>,
@@ -891,7 +896,7 @@ fn sweep<C: SweepCell>(
                 continue;
             }
             Some(Accounted::Regular) => {
-                stats.accounted += 1;
+                stats.regular += 1;
                 continue;
             }
             None => {}
@@ -1222,9 +1227,9 @@ pub(crate) fn account_chart_plane(
 /// **The regularity sweep**, chart lane, over the one shared [`sweep`]:
 /// a cell is excluded where `excluded` reads the plane's height over it
 /// ([`chart_plane_height`], the accounting's own enclosure) as past it,
-/// and stops where `regular` holds; the answer is the centre of the
+/// and stops where `regular` holds. The answer is the centre of the
 /// first cell neither holds at the floor, which declines the sweep, or
-/// none.
+/// none; and how many cells read regular.
 ///
 /// # Errors
 ///
@@ -1236,12 +1241,12 @@ pub(crate) fn sweep_chart_regular(
     floor: SweepFloor<UvRect>,
     excluded: impl Fn(UvRect, Interval) -> bool,
     regular: &dyn Fn(UvRect) -> bool,
-) -> Result<Vec<(f64, f64)>, SsiError> {
-    let (_, declined) = sweep(floor, SweepDuty::Regular(regular), |cell| {
+) -> Result<(Option<(f64, f64)>, u32), SsiError> {
+    let (tally, declined) = sweep(floor, SweepDuty::Regular(regular), |cell| {
         let height = chart_plane_height(boxes, plane_origin, plane_normal, cell)?;
         Ok(excluded(cell, height))
     })?;
-    Ok(declined)
+    Ok((declined.first().copied(), tally.regular))
 }
 
 /// **The plane's height over a cell**: `φ(u,v) = n·(S(u,v) − p₀)`

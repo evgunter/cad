@@ -668,6 +668,27 @@ impl ChartReach {
     }
 }
 
+/// **The sides an open section's components end on**, `[on the first
+/// surface, on the second]`: some side in all, so a reader asking that
+/// every side it names bounds its surface is never answered by an empty
+/// list ([`Components::Reaching`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reached([ChartReach; 2]);
+
+impl Reached {
+    /// The sides `rims`, or `None` where neither names one.
+    #[must_use]
+    pub fn new(rims: [ChartReach; 2]) -> Option<Self> {
+        rims.iter().any(|r| r.any()).then_some(Self(rims))
+    }
+
+    /// The sides on each surface, `[on the first, on the second]`.
+    #[must_use]
+    pub fn rims(self) -> [ChartReach; 2] {
+        self.0
+    }
+}
+
 /// A chart axis's index in [`ChartReach`]'s sides.
 fn axis_index(axis: crate::ssi::ChartAxis) -> usize {
     match axis {
@@ -755,12 +776,12 @@ pub enum Components<T: Real> {
     /// listed by [`PairSection::carry`].
     Marched,
     /// Some component, and none closed: each is open, its ends on the
-    /// sides of each surface's chart listed `[on the first, on the
-    /// second]` (some side in all), and none is counted or listed. No
-    /// component at all is an empty [`Components::Counted`]. A plane × spline pose's regularity sweep
+    /// sides of each surface's chart [`Reached`] names, and none is
+    /// counted or listed. No component at all is an empty
+    /// [`Components::Counted`]. A plane × spline pose's regularity sweep
     /// answers it ([`plane_spline`]); a reader that needs the list reads
     /// the pose whole ([`PairSection::read_whole`]).
-    Reaching([ChartReach; 2]),
+    Reaching(Reached),
 }
 
 /// **The section of two distinct surfaces, classified** (module docs).

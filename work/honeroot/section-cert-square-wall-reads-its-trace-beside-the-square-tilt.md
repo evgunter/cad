@@ -46,9 +46,10 @@ fold drift's numerator beside `slop`. The square-wall search
 
 2026-10-31 (SPLICE's W5 lane, evidence only): one red of
 `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section`
-at ε 1e-12 on `splice/w5-loop-free-sweep`, its seed not captured; nine
-re-runs at 1e-12 were green. That branch changes no torus or cylinder
+at ε 1e-12 on `splice/w5-loop-free-sweep`. The harness logged its seed
+(`fuzz::start`, and the assertion message), but the run's output was
+filtered before the seed was kept, so it is lost; nine re-runs at 1e-12
+were green. That branch changes no torus or cylinder
 reading (the shared chart recursion gains a duty; its seeding and
 accounting duties are unchanged), so the mismatch is this fuzzer's,
-possibly this row's drift. Replay needs a seed: run with
-`CAD_FUZZ_SEED` logged (`--no-capture`).
+possibly this row's drift.

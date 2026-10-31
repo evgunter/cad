@@ -182,9 +182,10 @@ fn review_dome_and_saddle_below_the_saddle() {
 /// C5: "the hull of φ decides apart and coincident" and "anything in
 /// band escalates". A planar wall tilted so that its every point lies
 /// within the zero band of the plane is not a transverse, loop-free
-/// pose.
+/// pose: read through the classification (hull, door, pass, sweep), in
+/// either operand order, it is coincident.
 #[test]
-fn review_a_wall_within_the_band_everywhere_is_not_loop_free() {
+fn review_a_wall_within_the_band_everywhere_is_coincident() {
     let t = 0.1 * band().zero();
     let tilted = tensor(
         (vec![0.0, 0.0, 1.0, 1.0], 1),
@@ -192,11 +193,34 @@ fn review_a_wall_within_the_band_everywhere_is_not_loop_free() {
         &|i, _| if i == 0 { -t } else { t },
         &|_, _| 1.0,
     );
-    let got = swept(&level(0.0), &tilted);
-    assert!(
-        !matches!(got, Sweep::LoopFree),
-        "a wall within {t:e} of the plane everywhere reads loop-free: {got:?}"
-    );
+    let p = level(0.0);
+    for (order, got) in [
+        (
+            "plane first",
+            crate::pair_section::pair_section(
+                &p,
+                &tilted,
+                None,
+                Some(crate::pair_section::SsiLane::marched()),
+                band(),
+            ),
+        ),
+        (
+            "wall first",
+            crate::pair_section::pair_section(
+                &tilted,
+                &p,
+                None,
+                Some(crate::pair_section::SsiLane::marched()),
+                band(),
+            ),
+        ),
+    ] {
+        assert!(
+            matches!(got, Err(crate::intersect::SectionError::CoincidentSurfaces)),
+            "a wall within {t:e} of the plane everywhere, {order}: {got:?}"
+        );
+    }
 }
 
 /// The edge and split domes' sweeps, printed. Run with `cargo nextest

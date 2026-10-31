@@ -66,7 +66,7 @@ classifies the pair in C5's order before C3's whole reading:
    at every scalar and with no march door: apart, coincident (a net
    within the zero band everywhere, `CoincidentSurfaces`), or in band
    (escalated); then the door: a collapsed side
-   (`chart_singularity::spline_side_spans`, the one reading topo's W1′
+   (`chart_singularity::spline_collapsed_row`, the one reading topo's W1′
    now reads too) not decided clear of the plane refuses, named;
 2. the boundary pass, `PlaneSection::pass`, run once through the march
    door and handed on to `all()` (carried on the pose for a later

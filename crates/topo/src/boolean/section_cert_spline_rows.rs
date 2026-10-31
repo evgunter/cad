@@ -277,8 +277,8 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         assert!(
             matches!(
                 built.components(),
-                geom_brep::Components::Reaching([_, r])
-                    if r.sides().all(|s| s.fixed == geom_brep::ChartAxis::U)
+                geom_brep::Components::Reaching(reached)
+                    if reached.rims()[1].sides().all(|s| s.fixed == geom_brep::ChartAxis::U)
             ),
             "closed {closed}: the sweep's verdict, open ends on the u sides: {built:?}"
         );
@@ -371,7 +371,7 @@ fn a_graze_is_refused_by_name() {
 /// A biquadratic planar wall tilted so that its every point lies within
 /// a tenth of the zero band of the plane `z = 0`: the hull decides it on
 /// the plane, a coincidence, and the guard refuses it as a tangency,
-/// named. Red against the hull's coincidence dropped (the sweep reads the
+/// named by the value. Red against the hull's coincidence dropped (the sweep reads the
 /// wall loop-free and the pair clears).
 #[test]
 fn a_wall_within_the_band_everywhere_is_refused_named() {
@@ -379,7 +379,7 @@ fn a_wall_within_the_band_everywhere_is_refused_named() {
     let tilted = net(&|i, _| t * (f64::from(u8::try_from(i).unwrap()) - 1.0));
     let s = read(&level(0.0), &tilted);
     assert!(
-        matches!(s, Section::Tangent("section_nurbs_plane_coincident")),
+        matches!(s, Section::Tangent("pair_section_coincident")),
         "the wall on the plane: {s:?}"
     );
 }
