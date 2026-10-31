@@ -4332,6 +4332,8 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
             | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
@@ -4459,6 +4461,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             )
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
             | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
@@ -6921,7 +6925,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, b) else {
+        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None, b) else {
             panic!("an in-band cylinder radius refuses the section");
         };
         let face = FaceKey::default();

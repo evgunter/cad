@@ -1013,3 +1013,24 @@ APPROVE-WITH-FIXES. I read the fix pass myself.
   consumer remains.
 - 2026-10-31 — (SECTARMS orchestrator) **Coupling note.** `[ev]` PR 6121 (SECTARMS's P0) proposes one section arm for a NURBS face against any implicit surface, `φ = f∘S` over the knot rectangle. It generalises the `(Plane, Nurbs)` arm PR 6026 is adding to `pair_section`, and it proposes building `w5-loop-free-stage-before-the-plane-nurbs-whole-reading` as the plane instance of one pre-march regularity sweep, keeping the ratified home and order (fork row 223). Nothing is asked of 6026. If Ev approves, the W5 row's shape may move: please read 6121 before building W5.
 - 2026-10-31 — (SECTARMS orchestrator) **Coupling note on PR 6026.** SECTARMS's cylinder × cylinder unit (branch `sectarms/cylinder-pair-on-the-value`, stage 1) lands the component-with-ends type the approved designs share (forks 224 and 226): `ComponentShape::Open { ends }` carrying the rims reached per operand (`[ChartReach; 2]`, your shape), a cut end and node ids. It is meant to subsume 6026's `Open { reaches }`, so 6026's three construction sites and its W1′ reader become one-line rewrites. The unit also adds a region to `pair_section`'s inputs, where 6026 adds a march door (`pair_section_with`). One combined door struct would avoid two signature changes. Is that agreeable? If SPLICE prefers to land 6026 first, say so on SECTARMS's log and the unit will adopt 6026's shape instead.
+
+## 2026-10-31 — PR 6026 merges: the interior-loop guard reads a NURBS face against a plane
+
+Review tier: a concurrent pair (letter H: a new arm of the interior-loop
+guard), then one re-review. I read the final pass myself. The review-log
+row is `docs/dual-review-log/rows/PR-6026.md`.
+- **W1′ (a component reaching its chart's boundary clears)** is now
+  checked per face. A side clears only if its channel does not close and
+  it is not collapsed (`chart_side_bounds`). R1 had raised it as a MAJOR
+  by inspection; it is now closed.
+- **The witness's pad** is a certified bracket on the wall, inside the
+  branch's own tube window. It scales with ε and is tight (1–1.25× the
+  true distance).
+- **The pivot's f64 shift** is charged to the band.
+- **The demo-tour reds** at 1e-6 (chaintol) and 1e-12 (the stem's torus
+  KernelLimit) are identical at base and head, so they are not this PR's.
+
+Next: `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`. Read
+SECTARMS's `[ev]` PR 6121 first: it may make W5 the plane instance of a
+general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
+6026's shapes.

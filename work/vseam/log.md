@@ -397,3 +397,4 @@ row's last section says what moved.
   - `take`'s unreachable merge branch is replaced by a `debug_assert!`.
 
   Orchestrator's read of the second pass, no further review. **Class finding, logged:** `session::body_reach` is a second viewer key holder beside `session::frame_off`, pre-existing and not on any row. It belongs with `work/doors/the-viewers-numeric-gestures-read-a-frame-back-off-geometry.md`, which the next G1 sweep should cover. (VSEAM)
+- 2026-10-31 — PR 6145 (`new-document-derives-its-id-from-the-typed-name` and `the-startup-document-has-one-id-in-every-launch`, both P1, single STYLE review): APPROVE WITH FIXES. The fix pass took the startup id (the boot re-identifies the plate under a random id, `StartupError::Identity`, and the shared fixture is unchanged), the stale `new_document_name` prose, UNTESTED labels on the two randomness arms, and `From<WorkspaceError> for Refusal`. Filed `a-new-documents-typed-name-is-kept-nowhere` (P3, design). (VSEAM)

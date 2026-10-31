@@ -53,7 +53,7 @@ fn region() -> ExtentBall<f64> {
 }
 
 fn built(a: &Surface<f64>, b: &Surface<f64>, region: ExtentBall<f64>) -> PairSection<f64> {
-    match geom_brep::pair_section(a, b, Some(region), band()) {
+    match geom_brep::pair_section(a, b, Some(region), None, band()) {
         Ok(SectionRead::Built(section)) => section,
         other => panic!("expected the section, got {other:?}"),
     }
@@ -82,6 +82,7 @@ fn two_cylinders_without_a_region_refuse_typed() {
     let got = geom_brep::pair_section(
         &drum(),
         &placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)),
+        None,
         None,
         band(),
     );
@@ -475,7 +476,7 @@ fn coaxial_walls_of_one_radius_are_one_surface() {
         wall(Point3::new(0.0, 0.0, 0.4), Vec3::unit_z(), 0.5),
     );
     for (order, x, y) in [("a, b", &a, &b), ("b, a", &b, &a)] {
-        let got = geom_brep::pair_section(x, y, Some(region()), band());
+        let got = geom_brep::pair_section(x, y, Some(region()), None, band());
         assert!(
             matches!(got, Err(SectionError::CoincidentSurfaces)),
             "{order}: {got:?}"
