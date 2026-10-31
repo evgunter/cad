@@ -440,3 +440,12 @@ untested alone, now each pinned). Filed: the closed chain's seam link
 the lane pushed a comment-only commit to re-run CI after an unrelated
 editor-core fast-set timing flake (1.020 s vs 1.0 s) when a re-run was
 refused (403); the brief's rule forbids kicking CI that way.
+
+## 2026-10-31 — handed back (`ready`)
+
+PR 6153 merged; lane reclaimed. SECT has no P0 or P1 row left, so the
+sitting hands the track back per the orchestration model; the remaining
+rows are P2 (`a-counted-sections-winding-is-a-claim-not-a-reading`,
+`a-wall-islands-planar-closing-reads-its-run-on-the-chart`), P3 and P4,
+none an E this sitting is best placed for. `plan.md` "Where it stands"
+says what landed and what is left.
