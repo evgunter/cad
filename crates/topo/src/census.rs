@@ -4125,10 +4125,11 @@ fn ef_overlap_lane<T: Decide>(
 /// none, `None` with any other kind). A quadric that holds three points
 /// of a line holds the line, so the two points and their midpoint each
 /// read their residual (`name`) on the carrier: `Ok(true)` where all
-/// three read `Zero`, `Ok(false)` where one reads off. The argument is
-/// exact; the readings are in band, so `Ok(true)` says the line lies on
-/// the carrier at the band, and a residual the band cannot read is
-/// `Err`.
+/// three read `Zero`, `Ok(false)` where one reads off, whatever the
+/// others read (all three are read first: one point definitely off
+/// decides it). The argument is exact; the readings are in band, so
+/// `Ok(true)` says the line lies on the carrier at the band, and a
+/// residual the band cannot read, with none off, is `Err`.
 pub(crate) fn line_on_quadric_carrier<T: Decide>(
     surface: &geom::Surface<T>,
     p0: Point3<T>,
@@ -4142,15 +4143,18 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     ) {
         return None;
     }
+    let mut in_band = None;
     for q in [p0, p1, p0.lerp(p1, T::from_f64(0.5))] {
         let r = geom_brep::implicit::implicit_residual(surface, q);
         match decide(name, Margin::of(r), band) {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => return Some(Ok(false)),
-            Err(cause) => return Some(Err(cause)),
+            Err(cause) => {
+                in_band.get_or_insert(cause);
+            }
         }
     }
-    Some(Ok(true))
+    Some(in_band.map_or(Ok(true), Err))
 }
 
 /// **`cuts` put in order along a straight span** by their positions `s`

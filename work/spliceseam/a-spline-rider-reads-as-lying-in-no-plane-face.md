@@ -1,7 +1,7 @@
 ---
 id: a-spline-rider-reads-as-lying-in-no-plane-face
 kind: issue
-title: the slit pass's lies_in reads a spline or spiric edge as lying in no plane face, so a rider skips its EdgeInFaceGap refusal
+title: the slit pass's carrier_on_surface reads a spline or spiric edge as lying in no plane face, so a rider skips its EdgeInFaceGap refusal
 status: open
 opened: 2026-10-25
 priority: P1
@@ -15,9 +15,10 @@ Filed by `delete-the-boolean-operand-edge-gate` (its sweep for the
 
 ## Finding
 
-`crates/topo/src/boolean/slit.rs` `lies_in` (called by `part_riders`)
-answers whether an edge with both ends on a plane face lies in it. A
-line and an in-plane conic are read; every other carrier falls to
+`crates/topo/src/boolean/slit.rs` `carrier_on_surface` (through
+`holding`, `riders` and `part_riders`) answers whether an edge's
+carrier lies on a face's surface. On a plane face a line and an
+in-plane conic are read; every other carrier falls to
 `_ => return Ok(false)`, so a spiric or spline edge lying in the other
 operand's plane face reads "not in it". `part_riders` then never
 lists it, and it skips the `EdgeInFaceGap::Curved` refusal an
@@ -35,8 +36,16 @@ past the planar arm (`nurbs-edge-crossing-rung-is-the-ring-composite`).
 
 ## Fix
 
-Give `lies_in` an arm for the two kinds that refuses typed (or reads
+Give `carrier_on_surface` an arm for the two kinds that refuses typed (or reads
 them, once a rung places a point on one), with a row driving
 `part_riders` on a spline edge lying in a plane face.
 
 Moved from SPLICE to SPLICESEAM on 2026-10-28, by `git mv` in SPLICE's split along its seams (Track size; Ev, in chat, 2026-10-28).
+
+## 2026-10-26 — re-pointed (CLEAVE, PR 5793)
+
+`lies_in` is gone: the reading is `slit::holding`, and the carrier
+question it asked is `slit::carrier_on_surface`, which reads a line or
+a conic on a plane, cylinder, cone or sphere and answers every other
+pair, a spline or spiric carrier among them, `Ok(false)` by its last
+arm. The finding stands as written against that arm.

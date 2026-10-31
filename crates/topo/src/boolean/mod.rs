@@ -275,9 +275,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
-        "bool_line_cylinder_clearance" | "bool_line_face_carrier_offset" => {
-            Coincide::EdgeOnCurvedFace.subject()
-        }
+        "bool_line_cylinder_clearance"
+        | "bool_line_face_carrier_offset"
+        | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
+        slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
         | "bool_flank_offset"
         | "bool_wedge_reflex"
@@ -288,6 +289,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_apart"
         | "bool_rider_wall_side"
         | "bool_rider_wall_bend"
+        | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
         | "bool_touch_sheets_part"
         | "bool_sector_runs_into_bend"
@@ -4429,6 +4431,9 @@ impl BooleanError {
                 operand,
                 face,
                 band,
+            },
+            NormalAtError::NoFoot => Self::ClassificationInvariant {
+                what: "the pierce door read a normal at a foot, which it does not ask",
             },
             // Decided and in band alike, as the sector walk's crease
             // refuses: the arm has no escalating half.

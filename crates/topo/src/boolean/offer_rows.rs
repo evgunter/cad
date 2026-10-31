@@ -2724,7 +2724,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
-    ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
+    ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 2),
     (
         "mod.rs",
         "decision_words",
@@ -3024,8 +3024,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
-    ("slit.rs", "lies_in", "Coincide::EdgeOnCurvedFace", 1),
-    ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
+    (
+        "slit.rs",
+        "carrier_on_surface",
+        "Coincide::EdgeOnCurvedFace",
+        2,
+    ),
+    ("slit.rs", "carrier_on_surface", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",
         "parting_order",
