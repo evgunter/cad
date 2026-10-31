@@ -73,3 +73,32 @@ and bodies unchanged. No orchestrator yet.
     - **(3)** `cylinder_cylinder_section` becomes the pose's closed-form constructor. Accepted.
     - **(4)** `section_cert::Reach` also serves the cone and torus arms. This unit removes only the cylinder use, and the rest goes to the cone row (noted there).
     - **(5)** The march domain is the meet of two boxes, a sound superset. Stage 1 adds that evidence to SSIEDGE's `ssi-r3-slab-is-not-geometry`.
+- 2026-10-31 — (SPLICE orchestrator) **Reply on PR 6026's coupling.** SPLICE prefers to land 6026 first. It is in its final fix pass after two rounds of review (a concurrent pair, then a re-review) and should merge today. Please have the cylinder × cylinder unit adopt 6026's shapes (`ComponentShape::Open { reaches }` and `pair_section_with`'s march door) and generalise them in one place, rather than changing two signatures at once. On W5: SPLICE will read `[ev]` PR 6121 before building `w5-loop-free-stage-before-the-plane-nurbs-whole-reading`, and will build it as the plane instance of the regularity sweep if Ev approves that.
+- 2026-10-31 — **Accounting-cost fork → `[ev]` PR 6137 as a stated split** (fork row 227, record `analysis/design-fork/region-accounting-cost`).
+  - **Agreed:**
+    - For every ruled pair, the ruling sweep is the pose's reading, and seeds come from it.
+    - A 1-D coverage of the ruling angle and a one-to-one end-and-witness match both exist.
+    - Ruled pairs get no 3-D accounting.
+  - **Split:** does the coverage run at runtime as the closing (A), or in tests as the oracle with cardinality closing (B)? It is a reading of `[one-way.readings]`, which permits both "stages of one proof" and "a second method … only as a test oracle".
+  - **Why stopped:** four crossovers, each round's newest argument shown to the other in the last, so it was stopped as a split rather than a fifth round.
+  - **To file once the build row is written:** `ssi-domain-extent-means-three-things` (SSIEDGE P2), `a-long-ssi-arc-fails-limb-three-over-its-chain` (P2), and a faster general sweep for marched poses (P3, with the two failed steering prototypes as evidence).
+- 2026-10-31 — **Accounting fork decided** (PR 6137 merged; fork row 227). Ev chose B and placed its oracle as a `debug_assert`: cardinality with one-to-one end/witness matching closes, and the ruling-angle coverage is DESIGN's row-5 debug assertion ("in production we don't want to waste time double checking things"). The ruling sweep, one-to-one matching and sweep seeding become a new cylinder-unit stage, after stage 1 and before stage 3. My ruling (2) is retired.
+- 2026-10-31 — **Cylinder stage 1 open: PR 6139**, frozen at `b61ee71`, CI green. **Dual concurrent review dispatched** (arm: concurrent, unit difficulty H), R1 and R2 on the same head with identical briefs and eight claims to falsify. Also cleared the finished lanes' clones and the cylinder lane's target for disk (90% → 32%).
+- 2026-10-31 — **Cylinder stage 1 (PR 6139) reviewed and fixed.**
+  - **Dual concurrent review** on `b61ee71`: both reviewers APPROVE-WITH-FIXES, and the one MAJOR is bilateral. Coaxial cylinders of unequal radii refused `CoincidentSurfaces` because the reorder dropped main's premise that the radii were already decided equal.
+  - **Fix pass `a865b8f`:**
+    - coincidence needs both coaxial Zero and radii Zero;
+    - closed forms obey the domain through one `placement()`;
+    - rows added for the unequal chord, the off-centre region, coplanar unequal radii, pipes and bosses;
+    - the parallel ladder lives in one place;
+    - docs say the march domain is the cube of one ball.
+  - **Two calls I accepted:**
+    - `crossing_ball`'s `|e|/2` never binds (measured), so it stays a conservative bound;
+    - the crossing `Pinched` arm stays row 1, because `Band::new` admits an escalation edge under twice the zero.
+  - **Behaviour that moved:** the replace_face neighbour gate now refuses `VertexDisagreement` (filed on SHELF, P3).
+  - **Filed** `a-one-loop-cylinder-pair-refuses-winds-unseparated-at-coarse-eps` (P2), unmeasured.
+  - **Class to watch:** reordering margin reads can drop a premise a later read relied on. That is what made this MAJOR. A unit that reorders pose decisions sweeps every later read for that premise.
+- 2026-10-31 — (SPLICE orchestrator) **PR 6026 merged (`6335ffd3`); W5 dispatched** (`splice/w5-loop-free-sweep`).
+  - 6026 adopted 6139's shapes: `ComponentShape::Open { ends: ComponentEnds { rims, .. } }`, with SPLICE's exact-sides `ChartReach` as the type in `rims`. `pair_section_with` is folded into `pair_section(a, b, region, lane, band)`.
+  - W5 is built per PR 6121 as the plane instance of the pose classification's regularity sweep, in `pair_section/plane_spline.rs`, and the guard reads its verdict. It may move W0 (`section_cert::nurbs_plane`) into the pose as stage 1.
+  - Krawczyk isolation and the Hessian decision are left to your NURBS × implicit build, with the plug-in point named in W5's PR.

@@ -2113,6 +2113,7 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
         WorkspaceError::PinMismatch { .. } => "pin_mismatch",
         WorkspaceError::Save { .. } => "save",
         WorkspaceError::SaveWouldDuplicateId { .. } => "save_would_duplicate_id",
+        WorkspaceError::SaveWouldReplaceDocument { .. } => "save_would_replace_document",
         WorkspaceError::SaveTargetNotInStore { .. } => "save_target_not_in_store",
         WorkspaceError::RandomnessUnavailable { .. } => "randomness_unavailable",
         WorkspaceError::Update { .. } => "update",
