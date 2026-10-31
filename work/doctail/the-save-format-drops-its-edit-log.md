@@ -33,3 +33,16 @@ Check what else reads `Loaded.edits` / `Loaded.records` on load before
 removing them. Corpus files that carry non-empty logs are regenerable
 and need re-blessing. `canon.rs`'s module doc says the pin excludes the
 log; that sentence goes along with the log.
+
+## 2026-10-31 — one more caller with a non-empty log (VSEAM sweep)
+
+Found by the sweep of `work/vseam/session-save-is-two-acts`. The viewer's
+`docio::save_path` is gone and the viewer now writes through
+`Workspace::save_at`, which passes `&[]`. One caller still writes a
+non-empty log, and this row's caller list above misses it:
+`demos/tour/src/diefillet.rs`, `corpus_text` (the `die-corpus` mode in
+`demos/tour/src/lib.rs`), which saves the EMPTY document plus the whole
+model as an edit log, so the editor-core Band 4 corpus file can load at
+every ε row. Dropping `edits` takes that design with it. The corpus
+needs another way to be ε-portable (regenerate per ε row, or a
+snapshot that re-stamps ε), decided in this row.

@@ -24,11 +24,13 @@
 //! [`Entry`] holds the edits its action performed, in the order they
 //! were applied, and undo steps over the whole group. A cascading
 //! delete is one action and one undo; a slider drag is one action and
-//! one undo; nothing here privileges the count. The saved log is the
-//! path's edits FLATTENED ([`History::path_edits`]), because the file
-//! format records edits and not actions — a reopened document
-//! therefore undoes a cascade one edit at a time, which is the price
-//! of grouping being viewer-local state rather than schema.
+//! one undo; nothing here privileges the count.
+//!
+//! # A history is a session's, and ends at an open
+//!
+//! A save file holds the document's state and no history (GQ3), so an
+//! opened file is a history of one state ([`History::new`]) and undo
+//! stops there.
 //!
 //! # Documents are values, so the tree is free
 //!
@@ -41,8 +43,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, DocEdit, EditError, ProfileProgram, apply_replayed};
-use pncad::geom_core::Tol;
+use pncad::document::{Doc, DocEdit, DocumentId, ProfileProgram};
 
 /// An entry's identity in the history arena.
 ///
@@ -104,37 +105,6 @@ pub struct History {
     current: HistoryId,
 }
 
-/// A history could not be seeded from a saved log.
-#[derive(Debug)]
-pub enum ReplayError {
-    /// The log's `index`-th edit was refused by `apply`.
-    Refused {
-        /// Which entry of the log.
-        index: usize,
-        /// The typed refusal.
-        error: EditError,
-    },
-}
-
-impl core::fmt::Display for ReplayError {
-    /// The position and the ending are this layer's; the problem is
-    /// [`EditError`]'s own. The edit door's recourse is not: nobody is
-    /// making that edit, and `save` replays every log it writes, so a
-    /// log that refuses here is a damaged file or a kernel defect.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Refused { index, error } => write!(
-                f,
-                "edit {index} of the saved log was refused: {}. {}",
-                error.problem(),
-                pncad::geom_core::KERNEL_OR_FILE_DEFECT_ENDING
-            ),
-        }
-    }
-}
-
-impl core::error::Error for ReplayError {}
-
 impl History {
     /// A history holding one state and no edits.
     pub fn new(doc: Doc<ProfileProgram>) -> Self {
@@ -150,32 +120,14 @@ impl History {
         }
     }
 
-    /// Seed a history from a saved snapshot and its edit log: the
-    /// snapshot is the root and each logged edit is a commit, so the
-    /// current path IS the file's log and a save with no further edits
-    /// writes the same bytes back.
-    ///
-    /// # Errors
-    ///
-    /// [`ReplayError::Refused`] naming the log position `apply`
-    /// refused. `save` verifies the same replay before writing, so a
-    /// file that reaches here replays — the arm exists because this
-    /// module will not assume another crate's postcondition.
-    pub fn replayed(
-        snapshot: Doc<ProfileProgram>,
-        edits: &[DocEdit<ProfileProgram>],
-        tol: Tol,
-    ) -> Result<Self, ReplayError> {
-        let mut history = Self::new(snapshot);
-        for (index, entry) in edits.iter().enumerate() {
-            // Replay never solves — no edit records a frame — so no
-            // store is in hand here and none is needed, and the edit
-            // itself is what the history commits.
-            let applied = apply_replayed(history.doc(), entry, tol)
-                .map_err(|error| ReplayError::Refused { index, error })?;
-            history.commit(entry.clone(), applied.doc);
+    /// **Every state, re-identified under `id`**, as one operation
+    /// and no undo step: the fork (DI4). No state keeps the old
+    /// identity, so no undo or redo can return the session to it.
+    /// Ids are not in the edits, so the edits stay as they were.
+    pub fn under_identity(&mut self, id: DocumentId) {
+        for entry in &mut self.entries {
+            entry.doc = entry.doc.clone().under_identity(id);
         }
-        Ok(history)
     }
 
     /// The state the cursor is on.
@@ -188,7 +140,8 @@ impl History {
         &self.entry(self.current).doc
     }
 
-    /// The root state — the snapshot a save writes.
+    /// The root state: the document the session opened or started
+    /// with.
     pub fn root(&self) -> HistoryId {
         HistoryId(0)
     }
@@ -337,17 +290,5 @@ impl History {
         }
         path.reverse();
         path
-    }
-
-    /// The edits along the current path, root first — the linear log a
-    /// save writes beside the root snapshot.
-    ///
-    /// FLAT: a grouped action contributes its edits individually, in
-    /// applied order, because the file records edits and not actions.
-    pub fn path_edits(&self) -> Vec<DocEdit<ProfileProgram>> {
-        self.path()
-            .into_iter()
-            .flat_map(|id| self.entry(id).edits.iter().cloned())
-            .collect()
     }
 }

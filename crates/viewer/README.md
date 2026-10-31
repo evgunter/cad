@@ -88,7 +88,8 @@ failure nor the offer appears until the assembly is opened again.
 (`xdg-desktop-portal` plus a frontend for your desktop) or a `zenity`
 binary. WSL distros ship neither. The app probes at startup: with
 confidently none (no `zenity` on PATH, no D-Bus session bus) the
-Open/Save As buttons are disabled with the reason as their tooltip.
+Open/Save As buttons, and Save for a document with no file yet, are
+disabled with the reason as their tooltip.
 `apt install zenity` (or a portal) fixes it, and the command-line
 document argument needs no dialog at all. The probe's portal arm is only
 a hint: a session bus *without* a working portal frontend still makes an
@@ -1049,9 +1050,10 @@ its own `Message` from `chooser.unusable()`, and a rule ranging over
 readers of the sentence would stay green under it. So the population is
 *every read of `ViewerApp::chooser`, this crate's only value of type
 `platform::ChooserBackend`*: one, in `ViewerApp::toolbar_ui`, consumed
-by the Open… and Save As… controls, each a `match` on `no_chooser` that
-draws the control disabled with the `Some`'s words as its reason or
-live on `None`, and nowhere else. No
+by the Open…, Save and Save As… controls, each a `match` on `no_chooser`
+(Save's beside the session's path, since a Save with a path puts up no
+dialog) that draws the control disabled with the `Some`'s words as its
+reason or live on `None`, and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
 the field — `platform::chooser_backend()` has one caller (the

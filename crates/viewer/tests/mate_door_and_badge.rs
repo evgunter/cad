@@ -1,6 +1,6 @@
 //! **The mate door and a space of a copy's own, through the session**
-//! (ASSEMBLY.md A11 (2)): a committed mate through undo, redo and
-//! replay, and the at-rest badge over a space other than the world.
+//! (ASSEMBLY.md A11 (2)): a committed mate through undo and redo, and
+//! the at-rest badge over a space other than the world.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -8,16 +8,14 @@ use crate::common;
 
 use common::asm;
 use pncad::geom_core::Tol;
-use viewer::history::History;
 use viewer::session::SessionOp;
 
 /// **The mate door through the session's history**: committing a mate
 /// between post_b, in a space of its own, and the shelf writes post_b's
 /// bundle and leaves the shelf's as it was; undo
-/// restores the document, redo commits it again, and the log replays to
-/// the same document with no store.
+/// restores the document, and redo commits it again.
 #[test]
-fn the_mate_door_commits_through_undo_redo_and_replay() {
+fn the_mate_door_commits_through_undo_and_redo() {
     let tol = Tol::witness();
     let bench = asm::bench("r2door", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -42,13 +40,6 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     let out = session.perform(SessionOp::Redo);
     assert!(out.refusal.is_none());
     assert!(session.doc().bit_eq(&after), "redo commits it again");
-    let h = session.history();
-    let root = h.entry(h.root()).doc().clone();
-    let replayed = History::replayed(root, &h.path_edits(), tol).expect("replays with no store");
-    assert!(
-        replayed.doc().bit_eq(&after),
-        "the log replays to the same document"
-    );
 }
 
 /// **The at-rest badge checks a `⊔` the product does not read** — the

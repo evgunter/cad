@@ -31,3 +31,10 @@ FALSE). Both designers recommend a random id. The store's module doc
 already says interactive authoring should mint one. The open question
 is whether anything relies on a name-derived id: a test fixture, a
 demo, or the tour. Check that before switching.
+
+## 2026-10-31 — the overwrite is live
+
+`work/vseam/session-save-is-two-acts` closed: Save now goes through
+`Workspace::save_at`, so the resave case above, where a second "bracket"
+overwrites the first's file with no refusal, is what a user meets today.
+`docio::save_path` is gone.

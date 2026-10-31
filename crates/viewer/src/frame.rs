@@ -783,6 +783,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }

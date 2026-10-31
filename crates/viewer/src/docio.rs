@@ -1,25 +1,20 @@
-//! Typed `open(path)` / `save(path)` over the shipped snapshot + edit
-//! log persistence.
+//! Typed `open(path)` / `save(path)` over the shipped persistence.
 //!
 //! # Where the I/O lives, and why here
 //!
 //! The kernel's persistence doors are pure: `save` returns a `String`,
-//! `load` consumes one, and neither touches a filesystem. Reading and
-//! writing the bytes is therefore an interaction-layer act, and these
-//! two functions are the whole of it. They are ordinary typed
-//! operations callable with no renderer — a file dialog is a way of
-//! choosing the `Path` argument, never a different code path — which
-//! is why the round trip is exercised headlessly and only the dialog
-//! itself escapes.
+//! `load` consumes one, and neither touches a filesystem. Reading the
+//! bytes is therefore an interaction-layer act, and writing them is the
+//! store's ([`save`]). These are ordinary typed operations callable with
+//! no renderer — a file dialog is a way of choosing the `Path` argument,
+//! never a different code path — which is why the round trip is
+//! exercised headlessly and only the dialog itself escapes.
 //!
-//! # A file becomes a history, not a document
+//! # A file is the document's state (GQ3)
 //!
-//! `load` answers with the snapshot, the log, and the replayed
-//! document. [`open`] keeps all three: the snapshot is the history's
-//! root and each logged edit is a commit, so the file's log IS the
-//! current path of the undo tree. Saving straight back therefore
-//! writes the same snapshot and the same log — persistence is
-//! untouched by the tree, which is exactly the plan's undo note.
+//! A save writes the current document with an empty edit log, and
+//! [`open`] answers a history whose root is the loaded document: undo
+//! is session state and ends at an open.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -28,13 +23,12 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use pncad::document::{
-    Doc, DocRef, PartResolver, PersistError, ProfileDoc, ProfileProgram, Recourse, ResolveFailure,
-    Staged, load, save,
+    DocRef, PartResolver, PersistError, ProfileDoc, Recourse, ResolveFailure, Staged, load,
 };
 use pncad::geom_core::Tol;
-use pncad::workspace::{Scan, Workspace};
+use pncad::workspace::{Scan, Workspace, WorkspaceError};
 
-use crate::history::{History, ReplayError};
+use crate::history::History;
 
 /// The viewer's document seam: part references resolve against **the
 /// opened file's own directory**, and nothing else.
@@ -129,7 +123,7 @@ impl PartResolver for NoFile {
     }
 }
 
-/// A refusal on the way to or from a file.
+/// A refusal on the way from a file.
 #[derive(Debug)]
 pub enum DocIoError {
     /// The file could not be read.
@@ -137,69 +131,60 @@ pub enum DocIoError {
         /// What the OS said.
         message: String,
     },
-    /// The file could not be written.
-    Write {
-        /// What the OS said.
-        message: String,
-    },
-    /// The document layer refused the bytes (or refused to produce
-    /// them). Boxed so the refusal stays a small `Err`.
+    /// The document layer refused the bytes. Boxed so the refusal
+    /// stays a small `Err`.
     Persist(Box<PersistError>),
-    /// The saved log did not replay through `apply`; boxed as `Persist`
-    /// is.
-    Replay(Box<ReplayError>),
 }
 
 impl core::fmt::Display for DocIoError {
-    /// Both payload arms delegate to the refusing layer's own `Display`
-    /// — `PersistError`'s and [`ReplayError`]'s — which is the same
-    /// rule the feature tree's badges follow.
+    /// The payload arm delegates to `PersistError`'s own `Display`,
+    /// which is the same rule the feature tree's badges follow.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Read { message } => write!(f, "cannot read the file: {message}"),
-            Self::Write { message } => write!(f, "cannot write the file: {message}"),
             Self::Persist(error) => write!(f, "{error}"),
-            Self::Replay(error) => write!(f, "{error}"),
         }
     }
 }
 
 impl core::error::Error for DocIoError {}
 
-/// Open a document file as an edit history.
+/// Open a document file as a history holding one state: the document
+/// the file carries.
 ///
 /// # Errors
 ///
 /// [`DocIoError::Read`] for the filesystem, [`DocIoError::Persist`]
-/// for a file the document layer refuses, [`DocIoError::Replay`] for a
-/// log that will not replay.
+/// for a file the document layer refuses.
 pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
     let text = std::fs::read_to_string(path).map_err(|e| DocIoError::Read {
         message: e.to_string(),
     })?;
     let loaded = load(&text, tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
-    History::replayed(loaded.snapshot, &loaded.edits, tol)
-        .map_err(|e| DocIoError::Replay(Box::new(e)))
+    Ok(History::new(loaded.doc))
 }
 
-/// Write the history's current path: its root snapshot and the edits
-/// along the branch the cursor is on.
-///
-/// Branches the cursor is not on are NOT written. That is the v1
-/// persistence contract — a linear log — and the states those branches
-/// hold stay in the session; the separable history sidecar is the
-/// future work that would carry them to disk.
+/// Write `doc` at `path` through the store of the folder the file
+/// lands in ([`file_dir`]): that folder's scan decides whether this is
+/// a create, a resave, or a refusal, before anything is written
+/// (`pncad::workspace::Workspace::save_at`).
 ///
 /// # Errors
 ///
-/// [`DocIoError::Persist`] if the document layer refuses to serialize
-/// (which includes its own replay check), [`DocIoError::Write`] for
-/// the filesystem.
-pub fn save_path(path: &Path, history: &History, tol: Tol) -> Result<(), DocIoError> {
-    let root: &Doc<ProfileProgram> = history.entry(history.root()).doc();
-    let text =
-        save(root, &history.path_edits(), tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
-    std::fs::write(path, text).map_err(|e| DocIoError::Write {
-        message: e.to_string(),
-    })
+/// The scan's own refusal (`Io`, `Header`, `DuplicateId`), then
+/// `save_at`'s: `SaveWouldDuplicateId` for an id the folder holds
+/// under another file name, `SaveTargetNotInStore` for a target that
+/// is not a `*.pncad` file, `Save` and `Io`.
+pub fn save(path: &Path, doc: &ProfileDoc, tol: Tol) -> Result<PathBuf, WorkspaceError> {
+    Workspace::open(file_dir(path))?.save_at(doc, path, tol)
+}
+
+/// The folder a document at `path` lives in — its parent, with a bare
+/// file name reading as the current directory. It is both the store a
+/// save writes through and the directory the session resolves against.
+pub fn file_dir(path: &Path) -> PathBuf {
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
+    }
 }
