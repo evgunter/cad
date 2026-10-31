@@ -98,3 +98,16 @@ and bodies unchanged. No orchestrator yet.
   - **Behaviour that moved:** the replace_face neighbour gate now refuses `VertexDisagreement` (filed on SHELF, P3).
   - **Filed** `a-one-loop-cylinder-pair-refuses-winds-unseparated-at-coarse-eps` (P2), unmeasured.
   - **Class to watch:** reordering margin reads can drop a premise a later read relied on. That is what made this MAJOR. A unit that reorders pose decisions sweeps every later read for that premise.
+- 2026-10-31 — **PR 6139 merged**: cylinder stage 1, with its dual-review row as the last commit. **Stage 2 dispatched** (`sectarms/cylinder-pair-readers`, tier single full): the operation's region at the glue door, and `section_door` and `section_cert` reading the value. The ruling-sweep stage and stage 3 follow, one at a time, because disk holds about one warm lane plus reviewers.
+  - **New process rules on main today** (Ev on #6132): a drawn third of design forks get a second Opus designer, and reconciliation runs until all designers agree or a round changes no one's mind, replacing the crossover rule. Both apply to this track's forks from now on.
+- 2026-10-31 — (SPLICE orchestrator) **PR 6026 merged (`6335ffd3`); W5 dispatched** (`splice/w5-loop-free-sweep`).
+  - 6026 adopted 6139's shapes: `ComponentShape::Open { ends: ComponentEnds { rims, .. } }`, with SPLICE's exact-sides `ChartReach` as the type in `rims`. `pair_section_with` is folded into `pair_section(a, b, region, lane, band)`.
+  - W5 is built per PR 6121 as the plane instance of the pose classification's regularity sweep, in `pair_section/plane_spline.rs`, and the guard reads its verdict. It may move W0 (`section_cert::nurbs_plane`) into the pose as stage 1.
+  - Krawczyk isolation and the Hessian decision are left to your NURBS × implicit build, with the plug-in point named in W5's PR.
+- 2026-10-31 — **Stage 2 open: PR 6151** (`cf488e3`, CI green).
+  - **Region at the glue door.** `section_door` and `section_cert` read two cylinders through the value, and node-joined arcs read as one component.
+  - **A guard I didn't ask for:** a `carried_at_the_join` gate keeps cylinder pairs off the join's carried lane until stage 3, because a node site desyncs before then.
+  - **SPLICE's 6026 merged mid-stage** and was absorbed: its march door and rim reaches.
+  - **Eight rows moved to the slow set** (1.3–4.1 s), because the guard now marches cut pairs. The ruling-sweep stage should bring them back.
+  - **Held before review:** GREEN's new P0 (18 sweep rows red on main) names 6139 as a suspect, so the same lane bisects it first. P0 work outranks the P1 review.
+- 2026-10-31 — **GREEN's P0 is not ours.** All 18 rows were red before PR 6139 (17 with identical panics at 6139's parent, at its merge and at stage 2; the 18th still running after 22 minutes at the parent). The evidence is on GREEN's row, and 6139 leaves its suspect list. **Stage 2's review dispatched** (single full, on `cf488e3`).

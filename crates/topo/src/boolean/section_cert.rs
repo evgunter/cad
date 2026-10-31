@@ -331,7 +331,7 @@
 //!   when `e + ρc < ρs`.
 //! - **NURBS × plane** (an approximated face read as its fit): the
 //!   pair's classification in the section value
-//!   ([`geom_brep::pair_section`], C5), read and never re-decided. Its
+//!   ([`geom_brep::pair_section()`], C5), read and never re-decided. Its
 //!   hull is W0: the control net's every point decided strictly on one
 //!   side of the plane, the patch lying in the net's convex hull (its
 //!   weights are positive); a net within the zero band everywhere is
@@ -805,7 +805,7 @@ pub(crate) fn classify<T: Decide>(
 }
 
 /// **A spline face against a plane, read off the pair's
-/// classification** ([`geom_brep::pair_section`] through `lane`, module
+/// classification** ([`geom_brep::pair_section()`] through `lane`, module
 /// docs): the hull's apart is W0 and its coincidence R-tan; the
 /// door's and the boundary pass's refusals map by name; the regularity
 /// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])

@@ -2,10 +2,12 @@
 id: quadrature-interval-floor-grows-with-the-body-past-the-band
 kind: issue
 title: the quadrature's interval floor grows with the body, so at scale 10^3 the volume backstop cannot tell a correct zero-margin result from a wrong one
-status: open
+status: closed
 opened: 2026-10-01
 priority: P2
 cost: M
+pr: 5842
+closed: 2026-10-27
 ---
 
 
@@ -151,3 +153,7 @@ still pins the refusal and cites this row. The threshold moved about
 20× outward, but it still exists and still grows with the body, so
 the band is kept at P2. The `row2_backstop_right_answer_by_scale` probe
 (`crates/sweep/tests/quad_frame_remeasure.rs:165`) was not re-run.
+
+## Closed (2026-10-27)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::volume_relations`), so nothing refuses or passes on it. Its consequence on the operation path, the backstop's `VolumeUndecided` on a correct large body, is gone, and with it `an_open_sign_beyond_the_band_at_the_last_round_refuses` and the `row2_backstop_right_answer_by_scale` probe. Nothing on the operation path decides a relation between bodies' volumes now; a deciding predicate that meets the floor at scale is a new row.

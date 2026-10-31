@@ -2,10 +2,13 @@
 id: a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp
 kind: issue
 title: A union whose true volume is its operands' sum refuses ResultVolumeImplausible at 1e-6, measured an ulp over vol(A) + vol(B)
-status: open
+status: closed
 opened: 2026-10-28
 priority: P2
 cost: M
+branch: cleave/volume-relations-a-test-oracle
+pr: 5842
+closed: 2026-10-31
 ---
 
 Found by SPLITDOOR's crescent short-arc lane (branch
@@ -37,3 +40,7 @@ operands' enclosures were refined at all before the sign was taken
 Neighbour: `main-red-reach-volume-backstop-rows-after-the-exact-sliver-bracket`
 (`a_result_equal_in_truth_but_larger_at_the_midpoint_passes`) is the
 same question, a result equal in truth to its bound, read larger.
+
+## Closed (2026-10-31)
+
+The volume backstop left the boolean's operation path (`[ev]` PR 5780: the volume relations are a test oracle the suites run on their own results, `topo::test_support::VolumeOracle`), so nothing refuses or passes on it. `short_arcs_at_a_crescents_tip` pins its two `s = 1e-4` rows `[Built; 2]` at ε 1e-6: `B ∪ A` builds one shell at the closed form through `united_at_the_run` (SOUND, the pinned volume within 1e-7, the mesh pinched only along the run), as `A ∪ B` does. Green at 1e-9, 1e-6 and 1e-12 on PR 5842's head; the `Tip::Backstop` cell is gone.

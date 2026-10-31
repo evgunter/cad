@@ -926,7 +926,8 @@ pub const fn pow2(e: i32) -> f64 {
 ///   [`RigidMotion::from_aim`](crate::RigidMotion::from_aim)), and
 ///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
 ///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents (`sweep_path_tangent`);
+///   and for a path sweep's station tangents and chords
+///   (`sweep_path_tangent`, `sweep_path_chord`);
 /// - `topo`'s `sector_shape`, which asks it of each bounding chord
 ///   separately because its arm is their `min` and [`Real::min`]
 ///   propagates `NaN` but not infinity, so a `min` hides an
@@ -1021,7 +1022,8 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 ///   [`linalg::frame`](crate::linalg::frame)'s normalizing sites, and
 ///   [`UnitVec3::new`](crate::UnitVec3::new), which `sweep` reaches
 ///   for the revolve's sketch axis (`revolve::axis::AxisFrame::build`)
-///   and for a path sweep's station tangents (`sweep_path_tangent`);
+///   and for a path sweep's station tangents and chords
+///   (`sweep_path_tangent`, `sweep_path_chord`);
 /// - `topo`'s `sector_shape`, per bounding CHORD rather than of the
 ///   arm — the arm is the two chords' `min`, which has no witness of
 ///   its own and which an underflowed chord always wins, so asking the

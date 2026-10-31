@@ -1010,17 +1010,22 @@ of the face by the face's trim.
 Implemented: the table (`curve_face::route`), the boundary pass
 (`curve_face::boundary`), which the boolean's sweep reads ahead of the
 carrier for a spline face and through which its on-carrier crossing
-reading reads every face's boundary, and the spline span × plane arm
-(`curve_face::composite`, the boolean's planar lane reading it). That
-arm composes the face's canonical residual along the span (the ring
+reading reads every face's boundary, and the spline span × analytic
+face arm (`curve_face::composite`, which the boolean's planar lane reads
+against a plane and its curved lane against a cylinder, cone, sphere or
+torus). That arm composes the face's canonical residual along the span (the ring
 composite) and reads it piece by piece, a piece never straddling a
 knot: clear where the residual, metered, is definitely past the band
 over the piece; one crossing where it is monotone and its ends lie
 definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
-crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it. The span ×
+crossings within the band of each other refuse. The composite is formed
+in a chart frame built in certification arithmetic, so the frame's
+rounding enters its enclosures. Where it refuses a count, the boolean
+localizes the span's meetings with the carrier and reads them against
+the face's trim: certified off the face, the span meets it nowhere
+inside. The span ×
 spline face arm is built for an analytic or a NURBS span
 (`curve_face::spline_face`, the boolean's spline-face door reading it
 past the boundary pass): it settles boxes of the state `(t, u, v)` on
@@ -1334,7 +1339,13 @@ reading takes a pole's side from this lane's own stereographic turning
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A face whose loop holds both poles is read through
+(`sphere_loop_side`). A wrap tip's spur bounds nothing and leaves the
+loop's chart image, taking the pole at its tip off the loop, but the
+face holds that pole: tier 3 hands each tip the image drops to the
+reader as a point the face holds (`boundary_material_sign_holding`), so
+the face lies on the side that holds its own singular vertices and no
+other pole. The closed-form lane's cross-check of the bit takes the
+same datum (`curved_face_holding`). A face whose loop holds both poles is read through
 its seam region, the faces of its surface it reaches across shared
 edges: a pole on an edge interior to the region lies inside it, so the
 region is the side of its boundary that holds such a pole

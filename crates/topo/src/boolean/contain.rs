@@ -864,11 +864,19 @@ pub(crate) fn curved_face_placement<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<CurvedPlacement, ContainError> {
-    curved_face_placement_decided(body, face, q, band).map(|(at, _)| at)
+    curved_face_placement_decided(body, face, q, band).map(|(at, _, _)| at)
 }
 
+/// A placement, the margin that decided a boundary verdict, and a
+/// spline face's in-trim foot ([`curved_face_placement_decided`]).
+pub(crate) type ChartedPlacement = (CurvedPlacement, Option<MarginDiag>, Option<(f64, f64)>);
+
 /// [`curved_face_placement`], with the margin that decided a boundary
-/// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it.
+/// verdict (`OnEdge`, `OnVertex`), as [`contfp_decided`] keeps it, and
+/// the chart point a spline face's `In` placement was decided at: the
+/// in-trim foot of `q` on the face's own sheet
+/// ([`super::spline_region::spline_face_placement`]), `None` for every
+/// other placement and every other kind.
 ///
 /// # Errors
 ///
@@ -878,22 +886,23 @@ pub(crate) fn curved_face_placement_decided<T: Decide>(
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-) -> Result<(CurvedPlacement, Option<MarginDiag>), ContainError> {
+) -> Result<ChartedPlacement, ContainError> {
     if let Some((v, margin)) = curved_boundary_containment(body, face, q, band)? {
-        return Ok((CurvedPlacement::Trim(Some(v)), Some(margin)));
+        return Ok((CurvedPlacement::Trim(Some(v)), Some(margin), None));
     }
-    curved_interior_placement(body, face, q, band).map(|at| (at, None))
+    curved_interior_placement(body, face, q, band).map(|(at, uv)| (at, None, uv))
 }
 
-/// [`curved_face_placement`] past the boundary pre-pass.
+/// [`curved_face_placement`] past the boundary pre-pass, with a spline
+/// face's in-trim foot ([`curved_face_placement_decided`]).
 fn curved_interior_placement<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-) -> Result<CurvedPlacement, ContainError> {
+) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, face_data) {
+    let analytic = match *body.face_surface_linked(face, face_data) {
         geom::Surface::Cylinder {
             origin,
             axis,
@@ -939,10 +948,11 @@ fn curved_interior_placement<T: Decide>(
             band,
         ),
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            super::spline_region::spline_face_placement(body, face, q, band)
+            return super::spline_region::spline_face_placement(body, face, q, band);
         }
         geom::Surface::Plane { .. } => Ok(CurvedPlacement::Trim(None)),
-    }
+    };
+    analytic.map(|at| (at, None))
 }
 
 /// The SPHERE arm of [`curved_face_containment`], reached after the

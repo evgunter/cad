@@ -392,3 +392,32 @@ Tier: **orchestrator's read** (a test-only counter and two pins).
 - The account's weekly usage limit stopped `sect-seamslow` mid-poll
   (2026-10-30); resumed today, as was `sect-rehome`'s PR 6047 fix pass
   (review: APPROVE-WITH-FIXES, no MAJOR).
+
+## 2026-10-31 — the seam-region door row at its cost again (PR 6062)
+
+PR 6062 closes `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`:
+PR 5894 let 20 of the row's 24 ball × cylinder booleans certify chords
+before refusing at the result gate; the projected-pcurve door recomputed
+`twin_span_hulls` per image, now memoized (`pcurve_cache::span_memo`, keyed
+by everything `spans_of` reads); the row is five tests, each pinning every
+boolean's stop by variant and raising door; the nightly's 1e-12 hold-out is
+removed (each part ≤ ~190 s at 1e-12). Tier: **single FULL**:
+APPROVE-WITH-FIXES, no MAJOR; one fix pass took all items, including a
+latent key collision (uncertified knots/weights keyed NaN) closed here and
+its twin in `limb2_memo` filed on PCERT. The lane found the nightly
+`full-suite` job no longer fits 180 min on slow nights (build 50–76 min);
+filed on GREEN (P1).
+
+## 2026-10-31 — a cylinder face re-homes its rings by the path (PR 6047)
+
+PR 6047 closes `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`:
+every curved face re-homes a bystander ring by the path parity
+(`path_ring_side`), the cylinder's chart walk (`chart_ring_side` and its
+predicates) is deleted, and `ring_path::path_parity` reads a segment ending
+on an arc's plane as a crossing at that end (all curved kinds). The drum ×
+two balls and drum × donut placement 5 now pass the join. Tier: **single
+FULL**: APPROVE-WITH-FIXES, no MAJOR (43,200 random bystanders, 0 wrong);
+one fix pass; every slow row it adds or re-pins run by the lane at
+opt-level 2 at all three ε (drum × donut 12.7 min, two balls 4.7 min at
+1e-12). An essential run on a seamless band is documented, not refused
+(not a regression; `pctail/a-seamless-band-mints-…`).
