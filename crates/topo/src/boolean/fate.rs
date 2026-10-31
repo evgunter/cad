@@ -577,14 +577,23 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 enum Holds {
     /// Strictly inside it.
     In,
-    /// Not strictly inside it, and not along its first bound.
+    /// Not strictly inside it: outside its turn, or along one of its
+    /// bounds at first order and bending away from the corner one order
+    /// down.
     Out,
     /// Along its first bound at first order, with no bend on one side
     /// to read it by one order down.
     Along,
-    /// Along its first bound at both orders: the two bends read equal,
-    /// a tie only a third-order reading would part.
-    Tied,
+    /// Along one of its bounds at both orders, the two bends reading
+    /// equal; `along_out` where that bound is the first, the face's own
+    /// edge leaving with the direction. Two arcs of one circle, or two
+    /// lines, coincide and never part; a curve of equal curvature but
+    /// another shape (an ellipse against its osculating circle) parts
+    /// only at third order, which is not read.
+    Tied {
+        /// Whether the bound is the corner's first.
+        along_out: bool,
+    },
 }
 
 /// Where unit `d.dir` lies against the corner swept counterclockwise
@@ -609,14 +618,16 @@ enum Holds {
 /// (`bool_fate_corner_bend_straddle`) refused, so a margin read short at
 /// one end refuses rather than flips.
 ///
-/// **Where the rule stops.** Along `out` with no bend to read on either
-/// side (a spline or spiric edge, a bisector, a secant), `d` is
-/// [`Holds::Along`]; with bends that read equal (one circle, two lines),
-/// a third-order tie, it is [`Holds::Tied`], which [`place`] refuses
-/// rather than read by its secant. Along `back`, with no bend to read or
-/// at a tie, `s2` is left Zero: the corner then holds `d` only as its
-/// turn holds a direction on that bound, a convex corner not and a
-/// reflex one by `s1` alone.
+/// **Where the rule stops.** Along a bound with no bend to read on
+/// either side (a spline or spiric edge, a bisector, a secant), `d` is
+/// [`Holds::Along`] at `out`, and at `back` leaves `s2` Zero: the corner
+/// then holds it only as its turn holds a direction on that bound, a
+/// convex corner not and a reflex one by `s1` alone. Along either bound
+/// with bends that read equal, `d` is [`Holds::Tied`], which [`place`]
+/// refuses rather than read by its secant. Both answer before `wraps` is
+/// asked: a direction along a dangling edge runs along it, and where it
+/// runs on to the cut's far end the face's own edge leaving with it is
+/// the place.
 fn corner_holds<T: Decide>(
     d: Ray<T>,
     (out, back): (Leaving<T>, Leaving<T>),
@@ -644,17 +655,18 @@ fn corner_holds<T: Decide>(
     if s1 == Sign::Zero && sign_at(out.dir.dot(d.dir), at_out, band)? == Sign::Positive {
         match past(out, at_out, n.cross(out.dir))? {
             None => return Ok(Holds::Along),
-            Some(Sign::Zero) => return Ok(Holds::Tied),
+            Some(Sign::Zero) => return Ok(Holds::Tied { along_out: true }),
             Some(s) => s1 = s,
         }
     }
     let at_back = reading_lever(back.reach, d.reach);
     let mut s2 = sign_at(n.dot(d.dir.cross(back.dir)), at_back, band)?;
-    if s2 == Sign::Zero
-        && sign_at(back.dir.dot(d.dir), at_back, band)? == Sign::Positive
-        && let Some(s) = past(back, at_back, back.dir.cross(n))?
-    {
-        s2 = s;
+    if s2 == Sign::Zero && sign_at(back.dir.dot(d.dir), at_back, band)? == Sign::Positive {
+        match past(back, at_back, back.dir.cross(n))? {
+            None => {}
+            Some(Sign::Zero) => return Ok(Holds::Tied { along_out: false }),
+            Some(s) => s2 = s,
+        }
     }
     let either = s1 == Sign::Positive || s2 == Sign::Positive;
     let both = s1 == Sign::Positive && s2 == Sign::Positive;
@@ -772,9 +784,11 @@ fn places<T: Decide>(
             };
             match corner_holds(d, (out, back), wraps, normal.vec(), band)? {
                 Holds::Along => found.push(Place::Along(h)),
-                Holds::Tied => {
+                Holds::Tied { along_out } => {
                     tied = true;
-                    found.push(Place::Along(h));
+                    if along_out {
+                        found.push(Place::Along(h));
+                    }
                 }
                 Holds::In => found.push(Place::Corner(h)),
                 Holds::Out => {}
@@ -2018,7 +2032,7 @@ mod tests {
         );
         assert_eq!(
             at(2.0, cusp),
-            Holds::Tied,
+            Holds::Tied { along_out: true },
             "the outer rim's own curvature ties with it"
         );
         let half = ((-y, y), (0.0, 0.0));
@@ -2028,6 +2042,11 @@ mod tests {
             "bending toward +x, into the corner"
         );
         assert_eq!(at(1.0, half), Holds::Out, "bending toward -x, out of it");
+        assert_eq!(
+            at(0.0, half),
+            Holds::Tied { along_out: false },
+            "straight along the bound it arrives by"
+        );
     }
 }
 
@@ -2150,7 +2169,10 @@ mod corner_bounds_rows {
             let bounds = (bound(x, reach), bound(y, LeverBounds::Exact(1.0)));
             corner_holds(edge.ray(), bounds, || Ok(false), n, band)
         };
-        assert!(matches!(at(LeverBounds::Exact(1.0)), Ok(Holds::Tied)));
+        assert!(matches!(
+            at(LeverBounds::Exact(1.0)),
+            Ok(Holds::Tied { along_out: true })
+        ));
         assert!(matches!(at(LeverBounds::Exact(5.0)), Ok(Holds::In)));
         straddles(
             at(LeverBounds::Between {
@@ -2200,6 +2222,87 @@ mod corner_bounds_rows {
             matches!(at(None, (short, short)), Ok(Holds::Along)),
             "at the arm"
         );
+    }
+}
+
+/// **A tangent tied with a corner's bound places no corner**: the top
+/// face of the unit brick at its corner `(0, 0, 1)`, bounded there by
+/// its edges along `+x` and `+y`, one leaving the vertex and one
+/// arriving. A straight cut leaving along either edge ties with it, both
+/// bending by zero, and its secant, pointed into the face, lies in the
+/// face's corner: `place` refuses rather than read that secant, at the
+/// bound the face's edge leaves by and at the one it arrives by. The
+/// same cut bending into the face places in the corner.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tie_rows {
+    use geom_brep::LeverBounds;
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{CutError, Limit, Place, Ray, place};
+    use crate::boolean::Operand;
+    use crate::lineage::{FaceDivisions, LineageRows};
+
+    #[test]
+    fn a_tangent_tied_with_either_bound_places_no_corner() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let top = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| {
+                crate::face_normal::face_outward_normal(&body, f).is_some_and(|n| n.vec().z > 0.5)
+            })
+            .expect("the top face");
+        let corner = body
+            .vertices()
+            .find(|(_, v)| {
+                body.get_point(v.point)
+                    .is_some_and(|p| (*p - Point3::new(0.0, 0.0, 1.0)).norm() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .expect("the corner");
+        let divisions = FaceDivisions::new(LineageRows::FaceDivisions);
+        let diagonal = Vec3::new(1.0, 1.0, 0.0).normalize();
+        let at = |dir: Vec3<f64>, bend: Vec3<f64>| {
+            let reach = Some(LeverBounds::Exact(0.5));
+            let tangent = Ray {
+                dir,
+                reach,
+                bend: Some(bend),
+            };
+            let secant = Ray {
+                dir: diagonal,
+                reach,
+                bend: None,
+            };
+            place(
+                (&body, Operand::A),
+                (&[corner], &[]),
+                top,
+                &divisions,
+                [tangent, secant],
+                band,
+            )
+        };
+        let straight = Vec3::new(0.0, 0.0, 0.0);
+        for (dir, into) in [
+            (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)),
+            (Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0)),
+        ] {
+            assert!(
+                matches!(at(dir, straight), Err(CutError::Limit(Limit::NoCorner))),
+                "tied along {dir:?}: {:?}",
+                at(dir, straight)
+            );
+            assert!(
+                matches!(at(dir, into), Ok(Some(Place::Corner(_)))),
+                "bending into the face along {dir:?}: {:?}",
+                at(dir, into)
+            );
+        }
     }
 }
 

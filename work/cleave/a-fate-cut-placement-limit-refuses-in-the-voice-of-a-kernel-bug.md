@@ -25,7 +25,7 @@ uncut and records it); the section path, which has no such fallback,
 refuses with the invariant's words.
 
 `Limit::NoCorner` ("a fate cut's end lies in no corner of the dropped
-face", `fate.rs:921`) is reached by at least these limits of the
+face", `fate.rs:935`) is reached by at least these limits of the
 reading, none of them a broken invariant:
 
 - **A spline or spiric bound.** Its bend carries no bound
@@ -33,20 +33,26 @@ reading, none of them a broken invariant:
   at first order is not read one order down (`corner_holds`'s
   `Holds::Along`) and falls to the secant pass, which can find no
   corner.
-- **A third-order tie.** A kept edge leaving along a bound with an
-  equal bend reads `Holds::Tied`; where it does not run along that
+- **A tie.** A kept edge leaving along either bound of a corner with
+  an equal bend reads `Holds::Tied`; where it does not run along that
   bound to the cut's other end, `place` refuses rather than read the
-  secant (`fate.rs:916`), whose verdict there would follow the two
+  secant (`fate.rs:930`), whose verdict there would follow the two
   edges' lengths rather than their sides.
 - **A reflex cusp.** Where a corner's two curved bounds leave along
   one ray and the face takes the reflex side, `wraps` reads only a
   dangling edge or two straight edges at a tip, so the corner is read
-  as the cusp between the bounds (`fate.rs:665`, `wraps()? || both`),
+  as the cusp between the bounds (`fate.rs:677`, `wraps()? || both`),
   and a direction off the ray, its sides of the two bounds opposite,
   never reads `both`: the corner holds nothing the face holds.
 
 The same voice, for a different limit:
 `work/cleave/a-glued-slit-intersection-refuses-a-classification-invariant-since-5505.md`.
+The family's rows: which of `ClassificationInvariant`'s states are
+bug-only is
+`work/cleavetail/classification-invariant-family-types-bug-only-states-against-d9-row-4.md`'s
+question, and
+`work/topo/contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant.md`
+is the same voice for containment's reachable refusals.
 
 ## Shape of a fix
 

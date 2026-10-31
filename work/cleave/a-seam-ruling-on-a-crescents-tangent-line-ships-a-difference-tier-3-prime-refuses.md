@@ -2,10 +2,13 @@
 id: a-seam-ruling-on-a-crescents-tangent-line-ships-a-difference-tier-3-prime-refuses
 kind: issue
 title: A difference whose minuend's seam ruling lies on a crescent's tangent line ships one shell that tier 3′ refuses (FaceThroughEdgeWedgeUndecided): the edge in the subtrahend's wall is not recorded, so EdgeInFaceGap::CurvedFace never reads it
-status: open
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
+closed: 2026-10-31
+refs: [5793]
+pr: 5852
 ---
 
 
@@ -75,3 +78,18 @@ reading: `CensusUndecidable`, the census declining a curved face of one
 solid within reach of another on a two-solid union. That is
 `work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`'s
 class, where those cells are recorded.
+
+## 2026-10-31 — refused typed since PR 5793
+
+PR 5793 (`cleave/riders-read-every-edge-in-a-face`) landed on `main`
+while PR 5852 was open, and its riders read every edge lying in a face,
+`B`'s seam ruling in `A`'s wall among them. On PR 5852's head merged
+with it, every cell of the footprint above refuses typed,
+`EdgeInFace { gap: CurvedFace }`, as the `A`'s-seam form always did:
+the 24 at the default ε, re-measured with the same probe, ship no body
+tier 3′ refuses. Building them is
+`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`'s.
+The test that pinned the shipped body
+(`a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit`)
+now takes those cells with the `CurvedFace` allowance it gives `A`'s
+seam.

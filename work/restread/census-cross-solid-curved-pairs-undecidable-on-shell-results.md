@@ -445,4 +445,8 @@ passing, and tier 3′ refuses with `CensusUndecidable` ("a curved face
 of one is within reach of the other"): 44 cells at the default ε, on
 PR 5852's head and on `main` (`45f6be756b`) alike, and at ε 1e-6 and
 1e-12 the same 44. With `A`'s vertex off the line every cell refuses
-typed, `CurvedPierceUnsupported`.
+typed, `CurvedPierceUnsupported`. With PR 5793 merged (riders reading
+every edge in a face), four more join them at the default ε: the
+one-segment unions with `B`'s vertex at 0 over `[−0.5, 1.5]`, at rest
+and turned, which refused `EdgeInFace` before, now build and reach the
+same `CensusUndecidable`, 48 in all.

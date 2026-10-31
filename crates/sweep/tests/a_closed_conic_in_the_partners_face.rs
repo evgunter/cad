@@ -879,25 +879,23 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 /// orders, at rest and turned. Each cell builds its closed form in one
 /// shell (read through `differential::outcome`, unmeshed: the mesher's
 /// certificate on `B`'s wall is its own question), or meets one of
-/// three pinned limits:
+/// two pinned limits:
 ///
 /// - With `A`'s vertex at the touch, where the op reads the two tops
 ///   facing one way and keeps `A`'s, the join does not take a rim lying
 ///   flush in a face at its one vertex (`boolean::join`'s `stands_on`),
 ///   and `A ∪ B` and `B ∩ A` refuse `SingleSiteSectionLoop`
 ///   (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
-/// - With `A`'s vertex at the touch, `A`'s seam ruling on the tangent
-///   line, any other op may refuse `EdgeInFaceGap::CurvedFace` rather
-///   than carry the ruling as one edge lying in `B`'s wall where the
-///   crescent's two cusps owe two ([`one_shell_or_gap_at`]).
-/// - With `A`'s vertex elsewhere the sweep splits its rim at `B`'s
-///   vertex, and the cut along it in `B`'s dropped top ends at that
-///   vertex, a corner of `B`'s closed rim, read at the rim's reach
-///   (`boolean::fate`'s `leaving`). There, with `B`'s seam ruling on
-///   the tangent line, `B ∖ A` ships one shell at its closed form that
-///   tier 3′ refuses, its one finding the wedge of `B`'s seam ruling
-///   lying in `A`'s wall unrecorded: a known limit, not a target
-///   (`work/cleave/a-seam-ruling-on-a-crescents-tangent-line-ships-a-difference-tier-3-prime-refuses.md`).
+/// - Where a seam ruling lies on the tangent line, `A`'s with its
+///   vertex at the touch (any other op) or `B`'s with its vertex there
+///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather
+///   than carry the ruling as one edge lying in the partner's wall where
+///   the crescent's two cusps owe two ([`one_shell_or_gap_at`]).
+///
+/// With `A`'s vertex elsewhere the sweep splits its rim at `B`'s
+/// vertex, and the cut along it in `B`'s dropped top ends at that
+/// vertex, a corner of `B`'s closed rim, read at the rim's reach
+/// (`boolean::fate`'s `leaving`).
 #[test]
 fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit() {
     let va = 0.09 * PI;
@@ -929,45 +927,9 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit
                         "{row}: {:?}",
                         r.map(|_| ())
                     );
-                } else if a_az != 0.0 && b_az == 0.0 && op == "B ∖ A" {
-                    // `B`'s seam ruling on the tangent line, lying in
-                    // `A`'s wall unrecorded: a known limit, not a target
-                    // (`work/cleave/a-seam-ruling-on-a-crescents-tangent-line-ships-a-difference-tier-3-prime-refuses.md`).
-                    // Tier 3′'s findings are that wedge alone, read in
-                    // band on an edge on the tangent line; any other is
-                    // not this limit.
-                    let r = r.unwrap_or_else(|e| panic!("{row}: {e:?}"));
-                    {
-                        let b = r.body().unwrap_or_else(|| panic!("{row}: empty"));
-                        let rest = placed.map_or_else(Affine3::identity, Affine3::inverse);
-                        let on_the_tangent_line = |e: topo::EdgeKey| {
-                            let edge = b.body.get_edge(e).expect("the finding's edge");
-                            [edge.he_plus, edge.he_minus].into_iter().all(|he| {
-                                let p = b.body.half_edge_start_point(he).expect("its end");
-                                let p = rest.transform_point(p);
-                                (p.x - 0.3).abs() < 1e-9 && p.y.abs() < 1e-9
-                            })
-                        };
-                        let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts, tol());
-                        assert!(
-                            t3p.as_ref().is_err_and(|es| es.iter().all(|e| matches!(
-                                e,
-                                ValidationError::FaceThroughEdgeWedgeUndecided {
-                                    edge,
-                                    why: topo::TouchUnread::InBand,
-                                    ..
-                                } if on_the_tangent_line(*edge)
-                            ))),
-                            "{row}: tier 3′ {t3p:?}"
-                        );
-                    }
-                    let line = outcome(Ok(r), want, tol());
-                    assert!(
-                        line.starts_with("OK BAD t2=true t3p=false cert=true operand=true"),
-                        "{row}: {line}"
-                    );
                 } else {
-                    one_shell_or_gap_at(&row, r, want, a_az == 0.0);
+                    let seam = a_az == 0.0 || (b_az == 0.0 && op == "B ∖ A");
+                    one_shell_or_gap_at(&row, r, want, seam);
                 }
             }
         }
@@ -1019,14 +981,11 @@ fn one_shell_or_gap_at(
 /// `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`
 /// builds it ([`one_shell_or_gap_at`]).
 ///
-/// Only the first pose turns on the bend: with the reading off, or its
-/// sign flipped, its `A ∩ B` refuses at rest and turned, the cut's end
-/// in no corner. The second reaches the reading at both of a corner's
-/// bounds, but no cell of it turns on it: every cell reads the same with
-/// the reading off, its sign flipped, or the corner levered at the
-/// closed rims' zero chord. It stays as the one-segment form of the same
-/// contact, the cut's end the boss's one vertex, whose cells this test
-/// keeps reading at their closed forms or the `CurvedFace` limit.
+/// The first pose's `A ∩ B` is the one that turns on the bend. The
+/// second is the one-segment form of the same contact, the cut's end
+/// the boss's one vertex: it reaches the reading at both of a corner's
+/// bounds, and its cells are read at their closed forms or the
+/// `CurvedFace` limit.
 #[test]
 fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
     for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {

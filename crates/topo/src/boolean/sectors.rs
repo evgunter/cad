@@ -1962,24 +1962,11 @@ pub(super) fn faces_at<T: Decide>(
 
 /// **How far a curve leaving a vertex stands past another it leaves
 /// tangent to, one order down**, at arc length `l` along their shared
-/// tangent `d̂`: with `û` the unit in-plane direction square to `d̂`
-/// toward the side read, a curve with curvature vector `κ` stands
-/// `κ·û·l²/2 + O(l³)` off the tangent line toward `û`, so the curve with
-/// `κ` stands past the one with `κ_b` toward `û` by `(κ − κ_b)·û·l²/2`.
-/// Its sign is the second-order term's at the vertex and does not depend
-/// on `l`, which sets only the size it is decided at; near enough the
-/// vertex the term dominates whatever the curves do further out. Equal
-/// curvatures (one circle, or two lines) read zero, a third-order tie
-/// this reading cannot part.
-///
-/// The one home of the reading: [`runs_into`] (an edge against a
-/// sector's bound), [`crescent`] (two sectors' bounds) and the fate
-/// cut's corner (`fate::corner_holds`, an edge against a dropped face's
-/// corner bound) each decide it at their own lever under their own
-/// name, since each is a different decision with its own lever: the
-/// two sector passes' reaches are exact, the fate corner's are known
-/// from both sides and straddle under a row of their own, and a refusal's
-/// diagnosis and `k_stats` name the site that read it.
+/// tangent: `(κ − κ_b)·û·l²/2`, with `κ` and `κ_b` the two curvature
+/// vectors and `û` the unit in-plane direction square to the tangent
+/// toward the side read. Positive where the curve with `κ` stands past
+/// the one with `κ_b` toward `û`. Its sign does not depend on `l`, which
+/// sets only the size the margin is decided at.
 pub(super) fn bend_parting<T: geom_core::Real>(
     (k, kb): (Vec3<T>, Vec3<T>),
     u: Vec3<T>,
@@ -1991,12 +1978,10 @@ pub(super) fn bend_parting<T: geom_core::Real>(
 /// **Whether an edge leaving the vertex along `dir`, coplanar with `s`,
 /// runs into its face**: within the sector and along neither of its
 /// bounds that is an edge of the face, or, along one of them, bending
-/// into the face off it one order down. Along a bound `d̂`, with `û`
-/// the unit in-plane direction square to it into `s`, the edge stands
-/// `κ·û·l²/2` off the tangent line at arc length `l` and the bound
-/// `κ_b·û·l²/2`, so the edge enters the face iff `(κ − κ_b)·û > 0`
-/// ([`bend_parting`], decided at the shorter reach). A bound or an
-/// edge with no bend to read (a fitted edge, a bisector) reads no entry.
+/// into the face off it one order down: along a bound, the edge enters
+/// the face where it stands past the bound toward `s`
+/// ([`bend_parting`], decided at the shorter reach). A bound or an edge
+/// with no bend to read (a fitted edge, a bisector) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
     (dir, reach): (Vec3<T>, Reach<T>),
@@ -2186,16 +2171,14 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 
 /// **Whether two coplanar sectors that share one bound direction, from
 /// opposite sides of it, overlap past it one order down**: the crescent
-/// between two curves tangent at the vertex. Let `d̂` be the shared
-/// direction and `û` the unit in-plane direction square to it into `a`.
-/// At arc length `s` along `d̂`, `a`'s bound stands `κ_a·û·s²/2 + O(s³)`
-/// off the tangent line toward `û`, with `a` on the `û` side of it, and
-/// `b`'s bound `κ_b·û·s²/2 + O(s³)`, with `b` on the other side; so the
-/// two overlap from the vertex iff `(κ_b − κ_a)·û > 0`
-/// ([`bend_parting`]). A line edge
-/// bends by zero, so two line edges read none; a fitted edge or a
-/// bisector reads no bend, and a pair holding one reads no crescent.
-/// Equal bends (one circle bounding both) read none.
+/// between two curves tangent at the vertex. With `a` on the side of
+/// its bound toward `û`, the unit in-plane direction square to the
+/// shared direction into `a`, and `b` on the other side of its own, the
+/// two overlap from the vertex where `b`'s bound stands past `a`'s
+/// toward `û` ([`bend_parting`]). A line edge bends by zero, so two line
+/// edges read none; a fitted edge or a bisector reads no bend, and a
+/// pair holding one reads no crescent. Equal bends (one circle bounding
+/// both) read none.
 ///
 /// The shared direction is read at the sector arm, no longer than the
 /// bounds' own reaches [`pair_search`] read the pair touching at. Two
