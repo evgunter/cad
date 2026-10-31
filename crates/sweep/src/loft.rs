@@ -114,8 +114,8 @@ use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
 
 use crate::skin::{
-    Section, SectionLoop, SkinError, check_counts, check_shapes, skin_validated, sweep_places,
-    validate_at_t, validate_guided, validate_loft,
+    Section, SectionLoop, SkinError, check_counts, check_shapes, compatible_strips, skin_validated,
+    sweep_places, validate_at_t, validate_guided, validate_loft,
 };
 use crate::swept::{
     CapEnd, CapPlaneError, SweptSeg, cap_plane, cap_points, describe_face_rim_at_rest,
@@ -686,6 +686,24 @@ fn lift_loop_walls<T: geom_core::spline::SpanLocate>(
         .collect()
 }
 
+/// One loop's compatible strips as the stacking door reads them
+/// ([`stacking::Strips`]): each section curve's control points, carried
+/// into the door's scalar by `lift`.
+fn strip_points<S: Real, T: Real>(
+    strips: &[Vec<geom::NurbsCurve3<S>>],
+    lift: impl Fn(&Point3<S>) -> Point3<T> + Copy,
+) -> Vec<Vec<Vec<Point3<T>>>> {
+    strips
+        .iter()
+        .map(|strip| {
+            strip
+                .iter()
+                .map(|c| c.control().iter().map(lift).collect())
+                .collect()
+        })
+        .collect()
+}
+
 /// The world point of a sketch-plane point under a lifted placement.
 fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
     place.transform_point(Point3::new(p.x, p.y, T::zero()))
@@ -835,7 +853,13 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     /// caps that enclose its family.
     fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
-        let pinned = stacking::stacking_door(self.places, &canonical, self.v_degree, band)?;
+        let strips = compatible_strips(&canonical, self.places)
+            .map_err(LoftError::Skin)?
+            .iter()
+            .map(|lp| strip_points(lp, |p| *p))
+            .collect();
+        let pinned =
+            stacking::stacking_door(self.places, &canonical, &strips, self.v_degree, band)?;
         let geometry = skin_validated(
             canonical,
             self.places,
@@ -927,7 +951,12 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
                 })
             })
             .collect();
-        let pinned = stacking::stacking_door(places, &lifted, self.v_degree, band)?;
+        let strips = compatible_strips(&canonical, channel_places)
+            .map_err(LoftError::Skin)?
+            .iter()
+            .map(|lp| strip_points(lp, |p| p.map(T::from_computed)))
+            .collect();
+        let pinned = stacking::stacking_door(places, &lifted, &strips, self.v_degree, band)?;
         let geometry = skin_validated(
             canonical,
             channel_places,

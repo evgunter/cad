@@ -2,18 +2,18 @@
 //! the skin: its pinned corners, whether its two sections are apart
 //! beyond them, and which way it stacks ([`stacking_door`]).
 
-use geom::NurbsCurve3;
-use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 use profile::{SegmentKind, SketchPlane, ValidatedProfile};
 
 use super::{LoftError, LoopSegment, PinnedSite};
-use crate::skin::compatible_strips;
 use crate::swept::decide;
 
-/// The compatible strips `[loop][segment][section]` the door reads: each
-/// segment's section curves, placed, on one knot vector.
-type Strips<T> = Vec<Vec<Vec<NurbsCurve3<T>>>>;
+/// The compatible strips the door reads, `[loop][segment][section]`:
+/// each segment's section curve, placed and on the strip's one knot
+/// vector, as its control points (every weight positive, so their hull
+/// holds the curve). The first is the segment's start corner and the
+/// last its end.
+pub(super) type Strips<T> = Vec<Vec<Vec<Vec<Point3<T>>>>>;
 
 /// **Which corners each slab pins**, `[loop][corner][slab]`: corner `j`
 /// is the start of segment `j`, and it is pinned in slab `s` where its
@@ -50,11 +50,11 @@ fn corner_pinned<T: Decide>(a: Point3<T>, b: Point3<T>, band: Band) -> Result<bo
 /// Whether every control row of a segment's two section curves decides
 /// one point: the segment is the same curve in both sections.
 fn rim_pinned<T: Decide>(
-    a: &NurbsCurve3<T>,
-    b: &NurbsCurve3<T>,
+    a: &[Point3<T>],
+    b: &[Point3<T>],
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    for (p, q) in a.control().iter().zip(b.control()) {
+    for (p, q) in a.iter().zip(b) {
         if decide("loft_rim_pinned", Margin::norm3(*q - *p), band)? != Sign::Zero {
             return Ok(false);
         }
@@ -96,27 +96,32 @@ fn rim_pinned<T: Decide>(
 ///
 /// # Errors
 ///
-/// The arms above, and [`LoftError::Skin`] where the sections are not
-/// compatible (the skin's own refusal, met here first), and
-/// [`LoftError::SectionStructure`] for a `places`/`canonical` length
-/// disagreement or a section count below two, which `build`'s
-/// callers refuse before.
-pub(super) fn stacking_door<T: Decide + SpanLocate>(
+/// The arms above, and [`LoftError::SectionStructure`] for a
+/// `places`/`canonical`/`strips` disagreement or a section count below
+/// two, which `build`'s callers refuse before.
+pub(super) fn stacking_door<T: Decide>(
     places: &[SketchPlane<T>],
     canonical: &[ValidatedProfile<T>],
+    strips: &Strips<T>,
     v_degree: usize,
     band: Band,
 ) -> Result<Pinned, LoftError> {
-    if places.len() < 2 || places.len() != canonical.len() {
+    let k = places.len();
+    let shaped = canonical.len() == k
+        && strips.len() == canonical[0].loops().len()
+        && strips
+            .iter()
+            .flatten()
+            .all(|strip| strip.len() == k && strip.iter().all(|c| c.len() >= 2));
+    if k < 2 || !shaped {
         return Err(LoftError::SectionStructure);
     }
-    let strips = compatible_strips(canonical, places).map_err(LoftError::Skin)?;
-    let pinned = corner_classes(&strips, v_degree, band)?;
+    let pinned = corner_classes(strips, v_degree, band)?;
     for slab in 0..places.len() - 1 {
-        clearance(&strips, canonical, places, &pinned, slab, band)?;
+        clearance(strips, canonical, places, &pinned, slab, band)?;
     }
     for slab in 0..places.len() - 1 {
-        step(&strips, places, &pinned, slab, band)?;
+        step(strips, places, &pinned, slab, band)?;
     }
     for slab in 0..places.len() - 1 {
         for (l, lp) in pinned.0.iter().enumerate() {
@@ -162,7 +167,7 @@ fn corner_classes<T: Decide>(
     for slab in 0..slabs {
         for (l, lp) in strips.iter().enumerate() {
             for (j, strip) in lp.iter().enumerate() {
-                let corner = |i: usize| strip[i].control()[0];
+                let corner = |i: usize| strip[i][0];
                 pinned[l][j][slab] =
                     corner_pinned(corner(slab), corner(slab + 1), band).map_err(|source| {
                         LoftError::CornerEscalated {
@@ -225,13 +230,13 @@ fn corner_classes<T: Decide>(
 /// positive).
 struct Piece<'a, T: Decide> {
     at: LoopSegment,
-    curve: &'a NurbsCurve3<T>,
+    curve: &'a [Point3<T>],
     line: bool,
 }
 
 impl<T: Decide> Piece<'_, T> {
     fn ends(&self) -> (Point3<T>, Point3<T>) {
-        let c = self.curve.control();
+        let c = self.curve;
         (c[0], c[c.len() - 1])
     }
 
@@ -326,8 +331,8 @@ fn clearance<T: Decide>(
                         .map_err(|s| undecided(Some(s)))?
                 } else {
                     let sides = [
-                        one_side(y.curve.control(), plane(slab), band),
-                        one_side(x.curve.control(), plane(slab + 1), band),
+                        one_side(y.curve, plane(slab), band),
+                        one_side(x.curve, plane(slab + 1), band),
                     ];
                     match sides {
                         [Ok(true), _] | [_, Ok(true)] => true,
@@ -369,7 +374,7 @@ fn clearance<T: Decide>(
                 }
             } else {
                 let beyond = |p: &Piece<'_, T>| -> Vec<Point3<T>> {
-                    let c = p.curve.control();
+                    let c = p.curve;
                     let [start, end] = p.corners(n);
                     let last = c.len() - 1;
                     c.iter()
@@ -445,7 +450,7 @@ fn step<T: Decide>(
     let mut d = Vec3::new(T::zero(), T::zero(), T::zero());
     let mut count = 0usize;
     for (j, strip) in strips[0].iter().enumerate() {
-        let (a, b) = (strip[slab].control(), strip[slab + 1].control());
+        let (a, b) = (&strip[slab], &strip[slab + 1]);
         let first = usize::from(pinned.at(0, j, slab));
         for (p, q) in a.iter().zip(b).take(a.len() - 1).skip(first) {
             d = d + (*q - *p);

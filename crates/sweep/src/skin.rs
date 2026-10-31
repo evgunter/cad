@@ -1315,7 +1315,7 @@ pub(crate) fn validate_guided<T: Decide, L: SectionLoop<T>>(
 /// everything else as authored. Whether two sections' senses agree
 /// depends on how their normals face along the stack, which this door
 /// does not check: the loft body door decides every section's normal
-/// against its slabs (`crate::loft`'s stacking fold). Beyond the sense, each loop starts
+/// against its slabs (`crate::loft`'s stacking door). Beyond the sense, each loop starts
 /// at its authored vertex 0 and holes keep their authored order. So segment `j` is
 /// counted from the author's start in every section, and which edges
 /// line up — the loft's twist — is the author's choice, carried by
@@ -1365,7 +1365,7 @@ pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
 /// the degree, each section's profile door, and the loop and segment
 /// counts every section must share. What it returns is the canonical
 /// form [`skin_validated`] skins, so a caller can decide something
-/// about the validated sections (the loft's stacking fold) before any
+/// about the validated sections (the loft's stacking door) before any
 /// wall is built, and each section's structure record, which a lane
 /// scalar's sections are validated along ([`validate_guided`]).
 #[allow(clippy::type_complexity)]

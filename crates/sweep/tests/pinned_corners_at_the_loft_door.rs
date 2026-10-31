@@ -279,10 +279,12 @@ fn a_lens_turned_about_its_chord_reaches_class_1_or_states_its_frontier() {
 
 /// **What a sweep reaches.** A sweep's stations are one profile moved
 /// rigidly along a path, so a corner is pinned only where the motion
-/// between two stations fixes it: a quarter circle of radius 1 swept
-/// with a square whose corner sits on the circle's centre turns every
-/// station about that corner, which is class 1 at every slab. (Two
-/// stations that coincide are `one_door_for_coincident_sections`'s.)
+/// between two stations fixes it. A quarter circle of radius 1 turns
+/// every station about the circle's axis, and a rectangle with one edge
+/// on that axis (from the centre, along it) is hinged there in every
+/// slab: class 1, as a partial revolve's on-axis segment is a legal
+/// wedge. (Two stations that coincide are
+/// `one_door_for_coincident_sections`'s.)
 #[test]
 fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
     let tol = Tol::witness();
@@ -319,7 +321,7 @@ fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
         Err(
             e @ LoftError::PinnedCornerUnsupported {
                 loop_index: 0,
-                at: PinnedSite::Corner(_),
+                at: PinnedSite::Segment(_),
                 slab: 0,
             },
         ) => {

@@ -138,8 +138,9 @@ fn r2_middle_slab_band_edges_at_interval() {
 /// base's first corner: the canonical start is the authored one, so
 /// the by-index pairing is the quarter turn the author drew. The mean displacement is the centroid displacement whatever
 /// the pairing (a sum of differences telescopes), so the verdict is
-/// the centroid's: builds at 1, sliver at ε/2, reversed at −1 — the
-/// same three verdicts the un-rotated stack gives.
+/// the centroid's: builds at 1, reversed at −1 — the verdicts the
+/// un-rotated stack gives. At ε/2 the two rectangles cross in one
+/// plane, which the clearance names before the step is read.
 #[test]
 fn r2_a_rotated_top_loop_still_measures_the_centroid() {
     let rect = quad([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)]);
@@ -151,7 +152,7 @@ fn r2_a_rotated_top_loop_still_measures_the_centroid() {
     assert!(a.is_ok(), "turned quarter: {:?}", a.err());
     assert!(matches!(
         loft_body::<f64>(&sections, &at(0.5 * tol.eps()), 1, tol),
-        Err(LoftError::DegenerateStacking { slab: 0 })
+        Err(LoftError::SectionsTouch { slab: 0, .. })
     ));
     assert!(matches!(
         loft_body::<f64>(&sections, &at(-1.0), 1, tol),
@@ -197,28 +198,28 @@ fn r2_differing_vertex_counts_are_the_skins_refusal() {
     }
 }
 
-/// **Claim 6: the fold mints `2(k − 1)` `loft_stacking` samples per
+/// **Claim 6: the door mints `2(k − 1)` `loft_stacking` samples per
 /// loft**, two per slab — and stops at the first non-positive verdict,
 /// so a refusal at slab 1's base decide of four sections leaves THREE
-/// verdicts, and an escalation there leaves two plus one escalation.
+/// verdicts. A slab in band escalates at its first corner
+/// (`loft_corner_pinned`), before any step is read: slab 0's four
+/// corners decided, then one escalation, and no `loft_stacking`
+/// sample.
 #[test]
-fn r2_the_fold_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
-    let count = |run: &dyn Fn()| {
+fn r2_the_door_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
+    let count_of = |name: &str, run: &dyn Fn()| {
         let b = Bracket::open();
         run();
         let rec = b.finish();
-        let v = rec
-            .verdicts
-            .iter()
-            .filter(|v| v.predicate == "loft_stacking")
-            .count();
+        let v = rec.verdicts.iter().filter(|v| v.predicate == name).count();
         let e = rec
             .escalations
             .iter()
-            .filter(|e| e.source.predicate == Some("loft_stacking"))
+            .filter(|e| e.source.predicate == Some(name))
             .count();
         (v, e)
     };
+    let count = |run: &dyn Fn()| count_of("loft_stacking", run);
     let tol = Tol::witness();
     let five = vec![loft_prism_sections()[0].clone(); 5];
     assert_eq!(
@@ -240,12 +241,11 @@ fn r2_the_fold_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
         (3, 0)
     );
     let mid = 0.5 * (1.0 + tol.k()) * tol.eps();
-    assert_eq!(
-        count(&|| {
-            let _ = loft_body::<f64>(&five[..4], &stacked_at(&[-1.0, 0.0, mid, 1.0]), 2, tol);
-        }),
-        (2, 1)
-    );
+    let in_band = || {
+        let _ = loft_body::<f64>(&five[..4], &stacked_at(&[-1.0, 0.0, mid, 1.0]), 2, tol);
+    };
+    assert_eq!(count(&in_band), (0, 0));
+    assert_eq!(count_of("loft_corner_pinned", &in_band), (4, 1));
 }
 
 /// The suite's arc spine, re-spelled here so this file stands alone.
