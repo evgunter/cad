@@ -111,11 +111,11 @@ const CARVED_STATES: usize = 22;
 /// their first operand's placement and deleting the second's (8); and
 /// the last, whose second operand nothing places, re-pointing only (1).
 const WORLD_EDITS: usize = 24;
-/// Edits on the FINAL saved path: the twenty-two carving actions'
+/// Edits on the session's FINAL path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
-const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
+const PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -651,9 +651,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             .is_none(),
         "the rook saves"
     );
-    // The file records the CURRENT PATH's linear log — the abandoned
-    // branch is session state, not document.
-    assert_eq!(session.history().path_edits().len(), SAVED_PATH_EDITS);
+    let history = session.history();
+    let path_edits: usize = history
+        .path()
+        .into_iter()
+        .map(|id| history.entry(id).edits().len())
+        .sum();
+    assert_eq!(path_edits, PATH_EDITS, "the edits on the current path");
     let saved_doc = session.committed_doc().clone();
     assert!(
         session.perform(SessionOp::Open(path)).refusal.is_none(),
@@ -663,12 +667,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         session.committed_doc().bit_eq(&saved_doc),
         "save → reopen is bit-identity on the document"
     );
-    assert_eq!(
-        session.history().path_edits().len(),
-        SAVED_PATH_EDITS,
-        "the reopened history replays exactly the saved log"
+    assert!(
+        !session.history().can_undo(),
+        "the file is the document's state, so undo ends at the open"
     );
-    // Same ids (the log replays in order), same solid, bit for bit.
+    // Same ids, same solid, bit for bit.
     let v_reopened = body_volume(&mut session, carved, tol);
     assert_eq!(
         v_tall.to_bits(),

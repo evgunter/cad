@@ -19,6 +19,8 @@ use pncad::document::{
     ParseError, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, ValuePayload, VarId,
     VarName,
 };
+use std::path::{Path, PathBuf};
+
 use pncad::workspace::WorkspaceError;
 
 // The recourse this module's `NoSuchVariable` arm ends on, read from its
@@ -765,6 +767,25 @@ impl Refusal {
         format!("create variable {}?", name.as_str())
     }
 
+    /// **The choice this refusal offers**, when it is a save that
+    /// would give the document a second file in one folder.
+    pub fn save_choice(&self) -> Option<SaveChoice> {
+        match self {
+            Self::Workspace(error) => match &**error {
+                WorkspaceError::SaveWouldDuplicateId {
+                    existing,
+                    requested,
+                    ..
+                } => Some(SaveChoice {
+                    existing: existing.clone(),
+                    requested: requested.clone(),
+                }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     /// The accept-offer question, and its one home — shown under an
     /// instance row whose pin no longer holds. It names the part by
     /// its file, as the row does, and says the accept reaches every
@@ -887,6 +908,46 @@ impl core::fmt::Display for Refusal {
 }
 
 impl core::error::Error for Refusal {}
+
+/// **The choice a save that would give the document a second file
+/// puts in front of the person** (DI4), drawn from
+/// `SaveWouldDuplicateId`'s own payload: save over the file that
+/// already holds this document, or save at the chosen name as a new
+/// document. Dismissing it is the third answer and emits nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SaveChoice {
+    existing: PathBuf,
+    requested: PathBuf,
+}
+
+impl SaveChoice {
+    /// The label of the control that saves over the existing file.
+    pub fn over_label(&self) -> String {
+        format!("Save over {}", file_name(&self.existing))
+    }
+
+    /// The label of the control that forks at the chosen name.
+    pub fn fork_label(&self) -> String {
+        format!("Save {} as a new document", file_name(&self.requested))
+    }
+
+    /// Saving over the file that holds this document already.
+    pub fn over(&self) -> SessionOp {
+        SessionOp::Save(self.existing.clone())
+    }
+
+    /// Saving at the chosen name as a new document.
+    pub fn fork(&self) -> SessionOp {
+        SessionOp::SaveAsNewDocument(self.requested.clone())
+    }
+}
+
+/// A path as a label names it: its file name, both files of a
+/// [`SaveChoice`] being in one folder.
+fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
+    path.file_name()
+        .map_or_else(|| path.to_string_lossy(), |name| name.to_string_lossy())
+}
 
 /// **The offer an instance whose pin no longer holds makes**: accept
 /// its part's updated version ([`crate::frame::version_offer`] reads
