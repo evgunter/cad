@@ -807,12 +807,12 @@ impl<T: crate::real::Real> Margin<T> {
     /// are unmoved.
     ///
     /// What this door deliberately does NOT serve (Ev's #213
-    /// layering ruling): the **consistency backstops** — inequalities
-    /// between integral RESULTS, the `volume_backstop` family. Those
-    /// are outside the length seam by design: they decide on bare `T`
-    /// through the invariant lane
-    /// ([`crate::k_stats::decide_invariant`]), and their firing is a
-    /// kernel-invariant (Corrupt-class) error, not a validity refusal.
+    /// layering ruling): a **consistency backstop** — an inequality
+    /// between integral RESULTS. One is outside the length seam by
+    /// design: it decides on bare `T` through the invariant lane
+    /// ([`crate::k_stats::decide_invariant`], which has no kernel caller
+    /// today), and its firing is a kernel-invariant (Corrupt-class)
+    /// error, not a validity refusal.
     pub fn over_lever(measure: T, lever: T) -> Self {
         Self(measure / lever)
     }

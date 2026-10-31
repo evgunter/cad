@@ -57,3 +57,14 @@ winds", cite this row, and still rest the path-independence of a
 crossing's parity on "no loop of the face winds". So the owed work is
 the second half of "The shape of a fix": either a winding loop refuses
 where `ring_path` needs it to, or `ring_path` decides its premise.
+
+## Evidence (2026-10-31, SECT `sect/rehome-by-path`, PR 6047)
+
+A cylinder face re-homes its rings by the parity of a path across the
+run (`chord_join::path_ring_side`). That reads membership only where
+the run bounds a disc of the face's chart: on a seamless band whose
+run winds round the axis, which side is the new face's would be read
+off the run's orientation, which the parity never sees
+(`crate::ring_path`'s module docs). A constructor that makes such a
+band needs that reading, or a typed refusal there, first.
+

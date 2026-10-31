@@ -2784,8 +2784,8 @@ impl<T: Real> Geo<T> {
     }
 }
 
-/// A witness position rendered as COORDINATES (the payload posture of
-/// `ResultVolumeImplausible`: display data, never load-bearing).
+/// A witness position rendered as COORDINATES (display data, never
+/// load-bearing).
 ///
 /// Coordinates rather than the point's own `Debug`, because this string
 /// is pasted verbatim into a user-facing refusal: `Point3`'s derived

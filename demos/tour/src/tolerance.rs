@@ -105,11 +105,9 @@
 //! **The plate with its holes cut is a wall.** The study's document
 //! reads the web off the hole extrudes and never subtracts them
 //! ([`crate::plate`]); [`crate::plate::cut_plate`] cuts them and reads
-//! the cut part's bore walls, and the drive certifies no box of it:
-//! each hole lies wholly inside the blank, so the subtract's volume
-//! bound `vol(A ∖ B) ≥ vol(A) − vol(B)` is a tie whose enclosure
-//! straddles zero at every width
-//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+//! the cut part's bore walls, and the drive certifies no box of it
+//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`;
+//! what refuses is not yet measured).
 //! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
 //! document certifies whole. The Monte-Carlo lane answers on the cut
 //! plate; only the certified lane, and the stackup over it, refuse.
@@ -265,12 +263,8 @@ pub fn narration(tol: Tol) {
 ///
 /// [`crate::plate::cut_plate`] is the natural spelling — the holes
 /// subtracted from the blank, the web read off the cut part's bore
-/// walls. Each hole lies wholly inside the blank, so
-/// `vol(A ∖ B) ≥ vol(A) − vol(B)` holds with equality, and the
-/// backstop's `volume_backstop_violation` enclosure straddles zero at
-/// every box width (measured to `1e-12` of the study). The probe is the
-/// whole box at `1e-9` of the study, one leaf: a box that narrow
-/// certifies whole on the study's own document.
+/// walls. The probe is the whole box at `1e-9` of the study, one leaf:
+/// a box that narrow certifies whole on the study's own document.
 fn cut_wall(tol: Tol) {
     let s = 1.0e-9;
     let whole = DriveConfig {

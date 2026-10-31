@@ -139,20 +139,22 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Ev's #213 layering ruling).** The consistency
-backstops — `volume_backstop` / `volume_backstop_operand` /
-`volume_backstop_violation`, inequalities between integral RESULTS
-(wrong-component detectors, never accuracy gates) — are outside the
-length seam by design: they decide on bare `T` through
-`k_stats::decide_invariant` (no `Margin` minted — not a door, not
-debt), keeping their predicate names and margin values byte-identical
-in the K stream, and a certified violation surfaces as the
-Corrupt-class `ResultVolumeImplausible` (which ends in the shared
-kernel-defect ending), separated in type and voice
-from every validity refusal. The former `per_boundary` door is renamed
-`over_lever` and re-scoped to the genuine geometric decisions
-(mean-width 2A/P, mean-thickness V/A containment, chart-orientation
-areas, the crossing advance).
+**The invariant lane (Ev's #213 layering ruling).** A consistency
+backstop — an inequality between integral RESULTS (a wrong-component
+detector, never an accuracy gate) — is outside the length seam by
+design: it decides on bare `T` through `k_stats::decide_invariant`
+(no `Margin` minted — not a door, not debt), and a certified
+violation is a Corrupt-class kernel-invariant error, separated in type
+and voice from every validity refusal. The kernel runs none today: the
+boolean's volume backstop, the lane's one member, left the operation
+path when Ev made its relations a test oracle the suites run on their
+own results (`[ev]` PR 5780, PR 5842;
+`topo::test_support::VolumeOracle`), so the lane has no caller and its
+three predicates (`volume_backstop`, `volume_backstop_operand`,
+`volume_backstop_violation`) are no longer decided. The former
+`per_boundary` door is renamed `over_lever` and re-scoped to the
+genuine geometric decisions (mean-width 2A/P, mean-thickness V/A
+containment, chart-orientation areas, the crossing advance).
 
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
@@ -216,7 +218,7 @@ roster"*) has a second edge here: **about thirty helpers in these two
 crates fix a name internally and have more than one caller** —
 `require_extent`, `require_rim_incidence`, `du_of_rims`,
 `classify_dihedral`, `enters_material`, `point_in_loop`,
-`volume_backstop`, `tangent_locus_relation` and the rest — so *"where a
+`tangent_locus_relation` and the rest — so *"where a
 decision is posed"* and *"where the funnel is called"* differ by a wide,
 convention-dependent margin. The roster is unharmed (every one of those
 names is a literal at the wrapper's own funnel call, so all are in the
@@ -581,11 +583,7 @@ which is what actually moves the number.
 | boolean/join.rs (`nearer_along`) | bool_join_foot_travel | a DIFFERENCE of two such parameters, metered by that speed: which partner's foot the germ reaches first | m | OK |
 | boolean/join.rs (`parallel_radical_plane`) | bool_join_cc_axis_offset | the axis-to-axis offset of a parallel cylinder pair, `‖Δ − a₁(Δ·a₁)‖` with `Δ` between the axes' feet at the germ sites (`parallel_axes_at`) and `a₁` unit — the radical plane normal's length before it is normalized (`UnitVec3::new`); only a definite offset names a plane | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/sectors.rs (`cone_side`, `arc_side`, `in_sector`, `apart`, `cone_read`) | bool_cone_arc / bool_cone_arc_span / bool_cone_within / bool_cone_facing / bool_cone_apart / bool_cone_pointed | a polygon cone's reading of a direction: `bool_cone_arc` is `det(d̂,p̂,b̂)` over `\|p̂×b̂\|/L_d + \|d̂×p̂\|/L_b + \|d̂×b̂\|/arm₀` — the least joint displacement of the direction's far point, the bound's far point and the reference levered at its arm that flips it (`least_lever`); `bool_cone_arc_span` the sine between `p` and that bound × the shorter of the two sectors' arms, which gates that plane's normal; `bool_cone_within` the sine of a direction past each of a sector's bound planes, and `bool_cone_facing` its cosine to the sector's middle, each levered at the least joint deviation of the points it reads (`least_lever`, `1/Σ(rate/L)`): the read point at its reach (the direction's, or for a crossing point the shorter of it and how well the point is located, `\|x\|·arm₀·L_d/(arm₀ + L_d)`) and each bound compared against at its own reach; `bool_cone_apart` the sine `(a×b)·n` of two of a sector's bounds, the direction and the reference, in that sector's plane, less eight ulp of rounding, levered at the least joint deviation of the two points at their reaches (the reference at its arm); `bool_cone_pointed` the length of the link's mean unit bound × the shortest sector arm, which gates reading `−c` | m | OK (TANG polygon cones) |
-| boolean/ops.rs (`bound_holds`, arm 2) | volume_backstop | ΔV over the summed area of the bodies the inequality compares — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
-| boolean/ops.rs (`Posture::read`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
-| boolean/ops.rs (`Posture::read`, the +V arm) | positive_volume / positive_volume_enclosure | V/A — tier 3's check-7 reading (`validate::plus_v_read`), shared | m | OK (one home with tier 3's check 7) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -765,9 +763,7 @@ which is what actually moves the number.
 | ring_path.rs (`path_parity`) | split_ring_path_line_across | `m̂·d̂` (the cosine between a circle piece's plane normal and a loop ruling), levered at the piece's radius | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_rulings_apart | `‖ê × d̂‖` (the sine between a segment's ruling and a loop ruling), levered at the segment's distance from the apex, shrunk toward zero by each direction's rounding: the coordinates' resolution over that distance and over the loop ruling's length (`charge`, `resolution`) | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_in_span | a crossing's distance to a span end (a circle's parameter levered at its radius, a conic's at its minor semi-axis, a line's length) times the slope `\|n̂·τ̂\|` the piece crosses the other's plane at: the carrier displacement that moves the root past the end, shrunk toward zero by the coordinates' resolution (`charge`, `resolution`: `slack / arm` in the parameter); a crossing any of whose readings is decided out of span is passed over, even where another escalates | m | OK (TANG) |
-| chord_join.rs (`chart_ring_side`, `run_window_over`) | split_ring_chart_window | the run's azimuth hull against one turn through the turn rule (`Period::turn`'s row) at `Exact(radius)`; `Over` refuses | m | OK |
-| chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_azimuth | azimuth difference (rad) levered at the radius | m | OK (cylinder only; a sphere or a cone reads `path_ring_side`) |
-| chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_height | axial height difference, bare | m | OK |
+| chord_join.rs (`chart_ring_side`, retired) | split_ring_chart_window, split_ring_chart_ray_azimuth, split_ring_chart_ray_height (retired: a cylinder face re-homes its rings by a path, `path_ring_side`, read by the `split_ring_path_*` rows) | — | — | retired |
 | chord_join.rs (`run_azimuth_images`' ring re-homing) | split_chart_azimuth_frame (retired: the read goes through `geom_brep::Azimuth::principal`, decided as `pcurve_chart_cut_side`) | — | — | retired |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
@@ -868,8 +864,9 @@ which is what actually moves the number.
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates
-now route through `k_stats::decide` under `volume_backstop_operand`,
-`volume_backstop` and `volume_backstop_violation`). **This audit's
+routed through `k_stats::decide` under `volume_backstop_operand`,
+`volume_backstop` and `volume_backstop_violation`, and have since left
+the operation path with the backstop). **This audit's
 scope — geom-brep and topo — has no funnel bypass left:** every
 shipped decision in the two crates goes through `k_stats::decide`, so
 every margin the recorder sees is attributed to the predicate that
@@ -985,7 +982,12 @@ speculative — each row below states what it measured):
   its predecessors. Pinned end-to-end by
   `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
   (verified red with the sign arm removed) and at band level by the
-  adopted `tests/probe_f34_review.rs`.
+  adopted `tests/probe_f34_review.rs`. The backstop has since left the
+  operation path (`[ev]` PR 5780), and those pins with it. The test
+  oracle that replaced it forgives any wrong volume up to ε·(area A +
+  area B), so it flags the plate's 3 mm cube at 1e-9 and 1e-12 and not
+  at 1e-6 (`test_support_volume`'s module docs; its
+  `the_slack_is_eps_over_the_operands_boundary` pins the slack).
 - **F4** `bool_ring_run_winding` (one predicate, three sites — the
   boolean join's ring lane, the merge's role assigner, tier 3's check
   6 — and one arithmetic home, `crate::loop_winding`, which all three

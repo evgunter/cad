@@ -111,7 +111,6 @@ pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
-pub(crate) use ops::volume_backstop;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
@@ -2955,8 +2954,9 @@ pub enum BooleanError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
-    /// A vertex the sector walk reads sits within the band of a crease
-    /// or an irregular point of a spline face of `operand`: a line its
+    /// A vertex the sector walk reads, or a point the pierce pass reads a
+    /// pierced face's normal at, sits within the band of a crease or an
+    /// irregular point of a spline face of `operand`: a line its
     /// chart's normal is not continuous across (an interior knot run of
     /// multiplicity at least the degree, a closed chart's seam), where
     /// the face has a normal on each side and the sector's side of the
@@ -2968,7 +2968,8 @@ pub enum BooleanError {
     /// No operand the boolean builds today reaches it: a crossing on a
     /// spline edge's own crease refuses first, at the crossing rung, and
     /// an at-rest body carries no pole. `sectors`' `spline_refusal_rows`
-    /// pins the mapping on the shared walk's fixture.
+    /// pins the mapping on the shared walk's fixture, and `vtxfac`'s
+    /// spline pierce rows on the pierce's.
     NormalAtSplineCrease {
         /// The operand the spline face belongs to.
         operand: Operand,
@@ -2977,6 +2978,22 @@ pub enum BooleanError {
         /// The band the vertex's distance from the crease was classified
         /// against.
         band: Band,
+    },
+    /// A pierce of a spline face of `operand` read no bound on how
+    /// sharply the face bends round the pierce point: the chart's
+    /// certified arm ([`geom_brep::NurbsLane::chart_arm`]) refused, for
+    /// the reason `cause` names. The side each sector bound reads is
+    /// charged for the face's bend over that arm, so with no arm no side
+    /// is read. A patch bound that refuses a whole integral chart with a
+    /// C⁰ crease anywhere refuses here too, however far the crease lies
+    /// (`work/encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`).
+    PierceLeverUnread {
+        /// The operand the spline face belongs to.
+        operand: Operand,
+        /// The spline face.
+        face: FaceKey,
+        /// Why no arm was read.
+        cause: geom_brep::ChartArmRefusal,
     },
     /// A lane met an edge whose carrier is a spiric or a spline, and has
     /// no row for either kind; `site` names the lane. At a crossing lane
@@ -3969,60 +3986,6 @@ pub enum BooleanError {
         /// The validator's findings.
         errors: Vec<ValidationError>,
     },
-    /// A `Seamed` result's volume violates a set-theoretic bound —
-    /// vol(∩) ≤ min(vol A, vol B), vol(∪) ≥ max(vol A, vol B),
-    /// vol(∖) ≤ vol A — checked at the op gate against the bodies'
-    /// certified mass properties (the review's volume-inequality backstop,
-    /// decided on the INVARIANT LANE — outside the length seam,
-    /// Ev's #213 layering ruling). A certified violation is a
-    /// **kernel invariant** failure — the Corrupt class: a bug in the
-    /// kernel, never in the caller's geometry — surfaced as this typed
-    /// error, never a panic and never a validity refusal.
-    ResultVolumeImplausible {
-        /// Which inequality failed (e.g. "vol(A ∖ B) ≤ vol(A)").
-        which: &'static str,
-        /// The result volume, Debug-formatted (the scalar is generic).
-        got: String,
-        /// The violated operand-volume bound, Debug-formatted.
-        bound: String,
-    },
-    /// The volume backstop could not measure one of the three bodies
-    /// its bounds compare — the operands and the result — so it cannot
-    /// say whether the result is the right one, and no body is
-    /// returned. `source` is a valid face the property layer has no
-    /// measurement for: an inventory gap, a quadrature that could not
-    /// certify its own convergence, a tolerance that forms no band.
-    VolumeUnmeasured {
-        /// The operand that would not measure; `None` is the result.
-        operand: Option<Operand>,
-        /// The property layer's refusal, whole.
-        source: crate::props::MassPropsError,
-    },
-    /// The volume backstop found a body whose structure does not
-    /// resolve where its volume is measured — a key that names
-    /// nothing, a placeholder edge. Tier 3 reads the same refusals the
-    /// same way (one reading, `validate::classify_mass_props`). On the
-    /// result that is a **kernel defect**, the Corrupt class
-    /// [`BooleanError::ResultVolumeImplausible`] is in; on an operand
-    /// it is the kernel's or the file's the operand came from.
-    VolumeCorrupt {
-        /// The operand whose structure does not resolve; `None` is the
-        /// result.
-        operand: Option<Operand>,
-        /// The property layer's refusal, whole.
-        source: crate::props::MassPropsError,
-    },
-    /// The volume backstop measured all three bodies, refined their
-    /// enclosures as far as the quadrature's schedule reaches, and
-    /// still could not decide whether the bound named by `which` holds:
-    /// what the enclosures leave open, metered as a boundary
-    /// displacement, is certified larger than the model's resolution.
-    /// The result may be right; nothing here can say, so no body is
-    /// returned.
-    VolumeUndecided {
-        /// The bound left open (e.g. "vol(A ∖ B) ≤ vol(A)").
-        which: &'static str,
-    },
     /// The result would be unbounded (only reachable with complement
     /// operands, e.g. ∪ of a body with its own complement) — no
     /// boundary representation exists for it.
@@ -4218,6 +4181,8 @@ pub enum BooleanErrorKind {
     NormalAtConeApex,
     /// [`BooleanError::NormalAtSplineCrease`].
     NormalAtSplineCrease,
+    /// [`BooleanError::PierceLeverUnread`].
+    PierceLeverUnread,
     /// [`BooleanError::EdgeCarrierUnsupported`].
     EdgeCarrierUnsupported,
     /// [`BooleanError::SplineCrossingUnsettled`].
@@ -4340,14 +4305,6 @@ pub enum BooleanErrorKind {
     Merge,
     /// [`BooleanError::ResultInvalid`].
     ResultInvalid,
-    /// [`BooleanError::ResultVolumeImplausible`].
-    ResultVolumeImplausible,
-    /// [`BooleanError::VolumeUnmeasured`].
-    VolumeUnmeasured,
-    /// [`BooleanError::VolumeCorrupt`].
-    VolumeCorrupt,
-    /// [`BooleanError::VolumeUndecided`].
-    VolumeUndecided,
     /// [`BooleanError::UnrepresentableResult`].
     UnrepresentableResult,
     /// [`BooleanError::GraftRecertify`].
@@ -4368,15 +4325,6 @@ pub enum BooleanErrorKind {
     SlitFaceClosesMidSlit,
     /// [`BooleanError::LineWedges`].
     LineWedges,
-}
-
-/// Which of the volume backstop's three bodies a refusal is about.
-fn backstop_subject(operand: Option<Operand>) -> &'static str {
-    match operand {
-        Some(Operand::A) => "the first solid",
-        Some(Operand::B) => "the second solid",
-        None => "the result",
-    }
 }
 
 impl BooleanError {
@@ -4487,6 +4435,14 @@ impl BooleanError {
             NormalAtError::NoFoot => Self::ClassificationInvariant {
                 what: "the pierce door read a normal at a foot, which it does not ask",
             },
+            // Decided and in band alike, as the sector walk's crease
+            // refuses: the arm has no escalating half.
+            NormalAtError::SplineCrease { band, .. }
+            | NormalAtError::SplineIrregular { band, .. } => Self::NormalAtSplineCrease {
+                operand,
+                face,
+                band,
+            },
         }
     }
 
@@ -4508,6 +4464,7 @@ impl BooleanError {
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
+            Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::SplineCrossingUnsettled { .. } => BooleanErrorKind::SplineCrossingUnsettled,
             Self::PointSplitCarrierUnsupported { .. } => {
@@ -4573,10 +4530,6 @@ impl BooleanError {
             Self::ZipCorrespondence { .. } => BooleanErrorKind::ZipCorrespondence,
             Self::Merge(_) => BooleanErrorKind::Merge,
             Self::ResultInvalid { .. } => BooleanErrorKind::ResultInvalid,
-            Self::ResultVolumeImplausible { .. } => BooleanErrorKind::ResultVolumeImplausible,
-            Self::VolumeUnmeasured { .. } => BooleanErrorKind::VolumeUnmeasured,
-            Self::VolumeCorrupt { .. } => BooleanErrorKind::VolumeCorrupt,
-            Self::VolumeUndecided { .. } => BooleanErrorKind::VolumeUndecided,
             Self::UnrepresentableResult => BooleanErrorKind::UnrepresentableResult,
             Self::GraftRecertify(_) => BooleanErrorKind::GraftRecertify,
             Self::Pieces(_) => BooleanErrorKind::Pieces,
@@ -4752,6 +4705,25 @@ impl core::fmt::Display for BooleanError {
                  other part's side by. Recourse: move the parts so the corner lies \
                  clear of the crease",
                 operand_word(*operand),
+            ),
+            Self::PierceLeverUnread { operand, cause, .. } => write!(
+                f,
+                "a corner of one part sits on a curved face of the {} operand whose bend \
+                 near the corner could not be bounded ({}), so the other part's side of \
+                 it is not read. Recourse: move the parts so the corner lies clear of \
+                 the face's creases and pinches",
+                operand_word(*operand),
+                match cause {
+                    geom_brep::ChartArmRefusal::PatchBound =>
+                        "the face's curvature bound refuses its whole surface",
+                    geom_brep::ChartArmRefusal::CreaseWithinReach => "a crease lies nearby",
+                    geom_brep::ChartArmRefusal::Unbounded =>
+                        "the face's bend at the corner has no bound",
+                    geom_brep::ChartArmRefusal::Poisoned =>
+                        "the corner's position is not one point",
+                    geom_brep::ChartArmRefusal::NoLane =>
+                        "this number type reads no curvature bound",
+                },
             ),
             Self::CurvedSectorSideUnsupported { verdict } => write!(
                 f,
@@ -5384,45 +5356,6 @@ impl core::fmt::Display for BooleanError {
                 format_args!("the Boolean's result"),
                 errors,
             ),
-            Self::ResultVolumeImplausible { which, got, bound } => write!(
-                f,
-                "the Boolean's result broke a bound a correct result's volume always meets \
-                 ({which}: got {got}, bound {bound}), so no body is returned. \
-                 {KERNEL_DEFECT_ENDING}"
-            ),
-            Self::VolumeUnmeasured { operand, source } => {
-                let reading = crate::validate::classify_mass_props(source);
-                write!(
-                    f,
-                    "the Boolean checks its result against its inputs' volumes, and the \
-                     volume of {} cannot be measured — {} — so no body is returned. {}",
-                    backstop_subject(*operand),
-                    reading.why,
-                    reading.recourse
-                )
-            }
-            Self::VolumeCorrupt { operand, source } => {
-                let ending = match operand {
-                    Some(_) => geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
-                    None => KERNEL_DEFECT_ENDING,
-                };
-                write!(
-                    f,
-                    "the Boolean checks its result against its inputs' volumes, and the \
-                     volume of {} cannot be measured — {} — so no body is returned. {ending}",
-                    backstop_subject(*operand),
-                    crate::validate::classify_mass_props(source).why
-                )
-            }
-            Self::VolumeUndecided { which } => write!(
-                f,
-                "the Boolean checks its result against its inputs' volumes, and measuring \
-                 them as finely as the kernel can still leaves open whether {which} holds, \
-                 by more than the tolerance, so no body is returned. The finest measurement \
-                 grows coarser with the size of the bodies. Recourse: build at a looser \
-                 tolerance, which the open range may fit inside — though on bodies large \
-                 enough no tolerance does"
-            ),
             Self::UnrepresentableResult => write!(
                 f,
                 "the result would be unbounded (complement operands) — no boundary \
@@ -5971,6 +5904,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     if FORGET_BRANCHES.with(core::cell::Cell::get) {
         branches.clear();
     }
+    let charts = acc.take_charts();
     let (mut contacts, mut pending) = acc.finish();
     let mut glued = Vec::with_capacity(declared.verified.touches.len());
     for touch in &declared.verified.touches {
@@ -6028,6 +5962,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                 &contacts,
                 reread,
                 branches.get(&(operand, c.vertex)).copied(),
+                charts.get(&(operand, c.vertex, c.face)).copied(),
                 &tips[usize::from(operand == Operand::B)],
                 band,
             ) {
@@ -6065,6 +6000,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                             &contacts,
                             rereads.get(&(operand, c.vertex)).copied(),
                             branches.get(&(operand, c.vertex)).copied(),
+                            charts.get(&(operand, c.vertex, c.face)).copied(),
                             &tips[usize::from(operand == Operand::B)],
                             band,
                         ) {
@@ -8969,6 +8905,11 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::PierceLeverUnread {
+                operand: Operand::B,
+                face,
+                cause: geom_brep::ChartArmRefusal::PatchBound,
+            },
             BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
@@ -9227,25 +9168,6 @@ mod tests {
             },
             BooleanError::ZipCorrespondence { what: "a record" },
             BooleanError::ResultInvalid { errors: Vec::new() },
-            BooleanError::ResultVolumeImplausible {
-                which: "vol(A ∖ B) ≤ vol(A)",
-                got: "1.0".to_owned(),
-                bound: "0.5".to_owned(),
-            },
-            BooleanError::VolumeUnmeasured {
-                operand: None,
-                source: crate::props::MassPropsError::Face {
-                    face,
-                    source: geom_brep::props::PropsError::Unimplemented,
-                },
-            },
-            BooleanError::VolumeCorrupt {
-                operand: Some(Operand::A),
-                source: crate::props::MassPropsError::Corrupt { what: "a face key" },
-            },
-            BooleanError::VolumeUndecided {
-                which: "vol(A ∖ B) ≤ vol(A)",
-            },
             BooleanError::UnrepresentableResult,
             BooleanError::Revert {
                 operand: Operand::B,
@@ -9313,6 +9235,7 @@ mod tests {
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
+                BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::SplineCrossingUnsettled => "SplineCrossingUnsettled",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
@@ -9374,10 +9297,6 @@ mod tests {
                 BooleanErrorKind::ZipCorrespondence => "ZipCorrespondence",
                 BooleanErrorKind::Merge => "Merge",
                 BooleanErrorKind::ResultInvalid => "ResultInvalid",
-                BooleanErrorKind::ResultVolumeImplausible => "ResultVolumeImplausible",
-                BooleanErrorKind::VolumeUnmeasured => "VolumeUnmeasured",
-                BooleanErrorKind::VolumeCorrupt => "VolumeCorrupt",
-                BooleanErrorKind::VolumeUndecided => "VolumeUndecided",
                 BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
                 BooleanErrorKind::GraftRecertify => "GraftRecertify",
                 BooleanErrorKind::Pieces => "Pieces",

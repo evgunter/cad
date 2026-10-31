@@ -102,8 +102,8 @@ scene means as its product; nothing else is product. One still does not denote
 the part its scene is about. `plate.pncad` places a blank slab, because the
 study's document never subtracts its holes: it reads the web off the hole
 extrudes. The cut plate places its cut part and has it as its product, but it
-is a live wall: the certified drive certifies no box of it, because its
-subtract volume bound is a tie
+is a live wall: the certified drive certifies no box of it, and what refuses
+it is not yet measured
 (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
 `chain.pncad` places its four bars and five pins, nine copies of two extrudes;
 the check registry reports separation findings over them, because no mate

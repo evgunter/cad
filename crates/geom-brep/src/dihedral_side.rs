@@ -72,7 +72,11 @@
 //! The regularity and crease readings are the door's own, and also
 //! [`regular_jet`] and [`chart_normal_at`] for a reader that holds the
 //! point's chart parameters already, as the boolean's sector walk does
-//! for a vertex on the face's boundary, read off the edge's pcurve.
+//! for a vertex on the face's boundary, read off the edge's pcurve. The
+//! foot's whole reading — regular, then decided onto the point, then
+//! continuous — is [`chart_point_normal`], which this door reads at its
+//! projection foot and the boolean's pierce at the chart point its sweep
+//! placed the point at.
 
 use geom::{NurbsSurface, Surface, SurfaceJet};
 use geom_core::k_stats::Magnitude;
@@ -280,24 +284,66 @@ fn spline_normal<T: Decide>(
             role,
             last_distance: e.last_distance,
         })?;
-    let (u, v) = (T::from_computed(foot.u), T::from_computed(foot.v));
-    let crease = |reading| SideEscalation::Crease { role, reading };
-    // A foot the projection accepted where the chart's speed vanishes is
-    // a stationary point of the distance, not a nearest one, so its
-    // distance decides nothing until the foot is regular.
-    let jet = regular_jet(chart, (u, v), reach, band).map_err(crease)?;
-    match crate::dihedral::decide_magnitude_reported(
-        "dihedral_side_foot",
-        Margin::of(foot.distance),
-        band,
-    ) {
-        Ok((Magnitude::Zero, _)) => {}
-        Ok((Magnitude::Positive, margin)) => {
-            return Err(SideEscalation::OffFace { role, margin });
+    let uv = (T::from_computed(foot.u), T::from_computed(foot.v));
+    chart_point_normal(chart, sense, uv, p, reach, "dihedral_side_foot", band).map_err(|refusal| {
+        match refusal {
+            ChartPointRefusal::Irregular(reading) | ChartPointRefusal::Crease(reading) => {
+                SideEscalation::Crease { role, reading }
+            }
+            ChartPointRefusal::Apart(margin) => SideEscalation::OffFace { role, margin },
+            ChartPointRefusal::Undecided(diag) => SideEscalation::FootUndecided { role, diag },
         }
-        Err(diag) => return Err(SideEscalation::FootUndecided { role, diag }),
+    })
+}
+
+/// Why [`chart_point_normal`] read no normal at a chart point.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ChartPointRefusal {
+    /// The chart point lies within the band of an irregular point of the
+    /// chart, where `S_u × S_v` vanishes ([`regular_jet`]).
+    Irregular(CreaseReading),
+    /// The chart's point there is definitely apart from the point.
+    Apart(MarginDiag),
+    /// Whether the chart's point there is the point is in band.
+    Undecided(Indeterminate),
+    /// The chart point lies within the band of a line the chart's normal
+    /// is not continuous across ([`chart_normal_at`]).
+    Crease(CreaseReading),
+}
+
+/// **A spline chart's outward normal at the chart point `(u, v)` of a
+/// point `p`**, and the radius of its largest principal curvature there
+/// folded with `reach`: the one reading of a chart point for every
+/// reader that holds one, a projection foot ([`dihedral_side`]) or a
+/// chart point the caller placed on the face's own sheet.
+///
+/// The jet is read where the chart is regular ([`regular_jet`]) first: a
+/// chart point where the chart's speed vanishes is a stationary point of
+/// the distance, not a nearest one, so its distance decides nothing until
+/// the point is regular. Then `S(u, v)` is decided onto `p` (`name`, a
+/// magnitude), and the normal read where it is continuous
+/// ([`chart_normal_at`]), with `sense` folded in there.
+///
+/// # Errors
+///
+/// [`ChartPointRefusal`], as its variants say.
+pub fn chart_point_normal<T: Decide>(
+    chart: &NurbsSurface<T>,
+    sense: bool,
+    (u, v): (T, T),
+    p: Point3<T>,
+    reach: T,
+    name: &'static str,
+    band: Band,
+) -> Result<(OutwardNormal<T>, T), ChartPointRefusal> {
+    let jet = regular_jet(chart, (u, v), reach, band).map_err(ChartPointRefusal::Irregular)?;
+    match crate::dihedral::decide_magnitude_reported(name, Margin::of((jet.point - p).norm()), band)
+    {
+        Ok((Magnitude::Zero, _)) => {}
+        Ok((Magnitude::Positive, margin)) => return Err(ChartPointRefusal::Apart(margin)),
+        Err(diag) => return Err(ChartPointRefusal::Undecided(diag)),
     }
-    chart_normal_at(chart, sense, &jet, (u, v), reach, band).map_err(crease)
+    chart_normal_at(chart, sense, &jet, (u, v), reach, band).map_err(ChartPointRefusal::Crease)
 }
 
 /// How near a point of a spline chart lies to where the chart's normal
