@@ -1833,6 +1833,17 @@ pub(crate) fn tube_boxes<T: Decide + Bounds + CertifiedEnclosure>(
         .collect()
 }
 
+/// [`tube_boxes`], each beside the carrier's parameter span it hulls.
+pub(crate) fn tube_chain<T: Decide + Bounds + CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    radius: f64,
+) -> Vec<(Box3, (f64, f64))> {
+    box_chain(carrier)
+        .into_iter()
+        .map(|(b, _, span)| (b.pad(radius), span))
+        .collect()
+}
+
 /// **The spans that hold an ℝ³ tube at the rung `radius`**
 /// ([`super::refine::refine_for_tube`]): with `up` the ladder's next
 /// rung above `radius` ([`tube_ladder`] over `extent` and `band`), the

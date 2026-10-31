@@ -388,7 +388,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
                 (w - k.witness).norm() == 0.0,
                 "{what}: the witness is the carrier's middle"
             );
-            assert_eq!(c.pad, k.pad, "{what}: the witness's pad is its loop's");
+            assert_eq!(
+                c.pad, k.reach,
+                "{what}: the witness's pad is its loop's reach"
+            );
             // Closeness: the witness lies on the carrier, within its
             // certified limb-2 bound of each surface.
             let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;

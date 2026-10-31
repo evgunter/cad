@@ -341,19 +341,6 @@ fn germ_row(
 /// certifies, at every ε row.
 #[test]
 fn the_germ_rows_donut_against_its_moved_drum() {
-    // Pinned red at 1e-6 since PR 6011: placement 5 refuses its winding
-    // (`work/sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot.md`).
-    test_utils::pinned_red::row(
-        geom_core::Tol::witness().eps(),
-        &[1e-6],
-        "the donut against its moved drum",
-        &["placement 5: Winds(Unseparated)"],
-        the_germ_rows_donut_against_its_moved_drum_row,
-    );
-}
-
-/// The row [`the_germ_rows_donut_against_its_moved_drum`] runs, under its pin.
-fn the_germ_rows_donut_against_its_moved_drum_row() {
     germ_row(
         |p| [donut(None), drum(p)],
         [
