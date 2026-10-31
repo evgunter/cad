@@ -724,7 +724,10 @@ pub fn make_compatible<T: SpanLocate>(
 /// COMPATIBLE sections: chord lengths accumulated down each control
 /// row, then **averaged across the rows** — one parameterization for
 /// the whole surface, which is what keeps the u-columns' solves
-/// consistent.
+/// consistent. A row that does not move abstains, read by an exact
+/// compare: a row that moves only by rounding counts as moving, and its
+/// shares are that rounding's ratios. This door decides nothing under a
+/// band; the loft body decides its corners pinned under one first.
 ///
 /// # Errors
 ///
@@ -752,7 +755,7 @@ pub fn skin_parameters<T: SpanLocate>(sections: &[NurbsCurve3<T>]) -> Result<Vec
             });
         }
     }
-    chord_length_parameters(k, (0..n).map(|i| control_row(sections, i)))
+    chord_length_parameters(k, (0..n).map(|i| (control_row(sections, i), false)))
 }
 
 /// Control row `i` of compatible `sections`: the `i`-th control point
@@ -761,11 +764,12 @@ fn control_row<T: SpanLocate>(sections: &[NurbsCurve3<T>], i: usize) -> Vec<Poin
     sections.iter().map(|c| c.control()[i]).collect()
 }
 
-/// Book Eq. 10.8 over `rows`, each one control row of `k` points: the
-/// chord lengths accumulated down the row, normalised to `[0, 1]`,
-/// averaged across the rows. Each section's per-row shares are SORTED
-/// before they are summed, so the answer is a function of the multiset
-/// of rows, bit for bit — the order the rows arrive in cannot move it.
+/// Book Eq. 10.8 over `rows`, each one control row of `k` points and
+/// whether a door has already decided it pinned: the chord lengths
+/// accumulated down the row, normalised to `[0, 1]`, averaged across
+/// the rows. Each section's per-row shares are SORTED before they are
+/// summed, so the answer is a function of the multiset of rows, bit for
+/// bit — the order the rows arrive in cannot move it.
 ///
 /// # Errors
 ///
@@ -773,20 +777,25 @@ fn control_row<T: SpanLocate>(sections: &[NurbsCurve3<T>], i: usize) -> Vec<Poin
 /// parameters do not strictly ascend.
 fn chord_length_parameters<T: SpanLocate>(
     k: usize,
-    rows: impl IntoIterator<Item = Vec<Point3<T>>>,
+    rows: impl IntoIterator<Item = (Vec<Point3<T>>, bool)>,
 ) -> Result<Vec<T>, SkinError> {
     let mut shares: Vec<Vec<T>> = vec![Vec::new(); k];
     let mut counted = 0usize;
-    for (index, row) in rows.into_iter().enumerate() {
+    for (index, (row, pinned)) in rows.into_iter().enumerate() {
+        if pinned {
+            continue;
+        }
         let chords: Vec<T> = row.windows(2).map(|w| w[0].distance(w[1])).collect();
         // Summed from `+0`: every chord is a length, `+0` or above, so
         // this is `f64`'s `Sum` (which starts at `-0`) bit for bit.
         let total = chords.iter().fold(T::zero(), |acc, c| acc + *c);
-        // A row that never moves (a corner pinned across every
-        // section) carries no parameterization information — it is not
-        // an error, it simply abstains from the average. A row that
-        // moves for some values its bracket stands for and not others
-        // would abstain for some members only, so it refuses.
+        // A row that never moves carries no parameterization
+        // information and abstains from the average. Read here, that is
+        // an exact compare, unbanded: a row that moves only by rounding
+        // counts as moving. A row a door decided pinned under the band
+        // arrives marked and abstains above. A row that moves for some
+        // values its bracket stands for and not others would abstain for
+        // some members only, so it refuses.
         if !total.structure_positive() {
             if total.point_value().is_none() && !total.is_poison() {
                 return Err(SkinError::RowMotionUndecided { row: index });
@@ -1347,6 +1356,7 @@ pub(crate) fn loft_geometry_by_chord_length<L: SectionLoop>(
         validate_loft(sections, places, v_degree, tol)?.0,
         places,
         v_degree,
+        None,
     )
 }
 
@@ -1436,7 +1446,7 @@ pub(crate) fn check_shapes<T: Real>(validated: &[ValidatedProfile<T>]) -> Result
 /// The compatible section curves of every strip, `[loop][segment]`,
 /// each strip one curve per section.
 #[allow(clippy::type_complexity)]
-fn compatible_strips<T: SpanLocate>(
+pub(crate) fn compatible_strips<T: SpanLocate>(
     validated: &[ValidatedProfile<T>],
     places: &[SketchPlane<T>],
 ) -> Result<Vec<Vec<Vec<NurbsCurve3<T>>>>, SkinError> {
@@ -1470,15 +1480,31 @@ fn compatible_strips<T: SpanLocate>(
 /// reading it is still label-free; and a hole cannot move the outer
 /// walls, so a hole that is the outer loop scaled lofts to the outer
 /// surface scaled.
+///
+/// `pinned[j]`, where given, is the loft door's verdict on the outer
+/// loop's corner `j` (pinned in every slab), and the vertex rows over a
+/// pinned corner abstain on it; the rows between them are read as
+/// [`chord_length_parameters`] reads a row. Without it every row is.
 fn strip_parameters<T: SpanLocate>(
     strips: &[Vec<Vec<NurbsCurve3<T>>>],
+    pinned: Option<&[bool]>,
 ) -> Result<Vec<T>, SkinError> {
     let k = strips[0][0].len();
+    let n = strips[0].len();
+    let corner = |j: usize| pinned.is_some_and(|p| p[j % n]);
     chord_length_parameters(
         k,
-        strips[0]
-            .iter()
-            .flat_map(|strip| (0..strip[0].control().len()).map(move |i| control_row(strip, i))),
+        strips[0].iter().enumerate().flat_map(|(j, strip)| {
+            let last = strip[0].control().len() - 1;
+            (0..=last).map(move |i| {
+                let at = if i == 0 {
+                    corner(j)
+                } else {
+                    i == last && corner(j + 1)
+                };
+                (control_row(strip, i), at)
+            })
+        }),
     )
 }
 
@@ -1508,14 +1534,16 @@ fn skin_strips<T: SpanLocate>(
 /// [`loft_geometry`]'s second half: the walls skinned over sections
 /// [`validate_loft`] already accepted, at [`loft_parameters`]' answer —
 /// one pass over the compatible strips serves both the parameters and
-/// the walls.
+/// the walls. `pinned` is the loft door's verdict on the outer loop's
+/// corners ([`strip_parameters`]).
 pub(crate) fn skin_validated<T: SpanLocate>(
     validated: Vec<ValidatedProfile<T>>,
     places: &[SketchPlane<T>],
     v_degree: usize,
+    pinned: Option<&[bool]>,
 ) -> Result<LoftGeometry<T>, SkinError> {
     let compat = compatible_strips(&validated, places)?;
-    let params = strip_parameters(&compat)?;
+    let params = strip_parameters(&compat, pinned)?;
     skin_strips(validated, compat, v_degree, &params)
 }
 
@@ -1539,10 +1567,16 @@ pub(crate) fn skin_validated<T: SpanLocate>(
 /// `v_degree` is not used to place the sections; it is validated with
 /// everything else [`loft_geometry`] checks before skinning, so this
 /// door refuses every section, count and degree fault
-/// [`loft_geometry`] would. It does NOT run the loft's stacking fold:
-/// it answers for a reversed stack or a sliver slab that
-/// [`loft_body`](crate::loft_body) refuses, and two sections the body
-/// refuses as not apart reach it as [`SkinError::NoParameterStep`].
+/// [`loft_geometry`] would. It does NOT run the loft's stacking door:
+/// it answers for a reversed stack, a sliver slab, a hinged section or
+/// sections that cross, all of which [`loft_body`](crate::loft_body)
+/// refuses; two sections that coincide reach it as
+/// [`SkinError::NoParameterStep`]. Without that door no corner is
+/// decided pinned under the band, so every control row is read as
+/// [`skin_parameters`] reads one; the body reads its vertex rows off the
+/// door's verdict instead, and the two agree wherever the body builds,
+/// since a pinned corner it accepts is one it then refuses as
+/// unsupported.
 ///
 /// # Errors
 ///
@@ -1599,7 +1633,7 @@ pub fn loft_parameters<L: SectionLoop>(
     tol: Tol,
 ) -> Result<Vec<f64>, SkinError> {
     let (validated, _) = validate_loft(sections, places, v_degree, tol)?;
-    strip_parameters(&compatible_strips(&validated, places)?)
+    strip_parameters(&compatible_strips(&validated, places)?, None)
 }
 
 // ---------------------------------------------------------------------

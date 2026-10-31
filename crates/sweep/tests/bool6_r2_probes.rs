@@ -50,11 +50,16 @@ fn r2_middle_slab_at_every_band_edge_at_the_run_band() {
         other => panic!("step {s:e}: expected DegenerateStacking slab 1, got {other:?}"),
     };
     let escalates = |s: f64| match middle_step(s) {
-        Err(LoftError::StackingEscalated { slab, source }) => {
-            assert_eq!(slab, 1, "step {s:e}");
-            assert_eq!(source.predicate, Some("loft_stacking"), "step {s:e}");
+        Err(LoftError::CornerEscalated {
+            slab,
+            corner,
+            source,
+            ..
+        }) => {
+            assert_eq!((slab, corner), (1, 0), "step {s:e}");
+            assert_eq!(source.predicate, Some("loft_corner_pinned"), "step {s:e}");
         }
-        other => panic!("step {s:e}: expected StackingEscalated slab 1, got {other:?}"),
+        other => panic!("step {s:e}: expected CornerEscalated slab 1, got {other:?}"),
     };
     let builds = |s: f64| match middle_step(s) {
         Ok(()) => {}
@@ -118,7 +123,7 @@ fn r2_middle_slab_band_edges_at_interval() {
     ));
     assert!(matches!(
         run(0.5 * (eps + k * eps)),
-        Err(LoftError::StackingEscalated { slab: 1, .. })
+        Err(LoftError::CornerEscalated { slab: 1, .. })
     ));
     assert!(run(2.0 * k * eps).is_ok());
     assert!(matches!(

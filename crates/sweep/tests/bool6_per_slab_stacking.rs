@@ -269,15 +269,15 @@ fn an_ambiguous_middle_slab_escalates_carrying_its_pair() {
     let tol = Tol::witness();
     let places = stacked_at(&[0.0, 1.0, 1.0 + band_midpoint(tol), 2.0]);
     match loft_body::<f64>(&four_sections(), &places, 2, tol) {
-        Err(LoftError::StackingEscalated { slab, source }) => {
+        Err(LoftError::CornerEscalated { slab, source, .. }) => {
             assert_eq!(slab, 1, "the escalation must carry the ambiguous pair");
             assert_eq!(
                 source.predicate,
-                Some("loft_stacking"),
+                Some("loft_corner_pinned"),
                 "and name the predicate that could not decide"
             );
         }
-        other => panic!("expected StackingEscalated carrying slab 1, got {other:?}"),
+        other => panic!("expected CornerEscalated carrying slab 1, got {other:?}"),
     }
 }
 

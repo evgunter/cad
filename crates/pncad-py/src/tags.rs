@@ -1654,6 +1654,11 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
         LoftError::FarStackingEscalated { .. } => "far_stacking_escalated",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
+        LoftError::PinnedCorner { .. } => "pinned_corner",
+        LoftError::PinnedCornerUnsupported { .. } => "pinned_corner_unsupported",
+        LoftError::CornerEscalated { .. } => "corner_escalated",
+        LoftError::SectionsTouch { .. } => "sections_touch",
+        LoftError::ClearanceUndecided { .. } => "clearance_undecided",
     }
 }
 

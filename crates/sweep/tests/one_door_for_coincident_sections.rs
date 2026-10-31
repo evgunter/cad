@@ -1,12 +1,13 @@
 //! **One door for two loft sections that are not apart.** The loft's
-//! stacking fold decides it, once, under the run's band, before the
+//! stacking door decides it, once, under the run's band, before the
 //! skin parameterizes anything: a sliver slab and an exactly
 //! coincident pair both refuse as `LoftError::DegenerateStacking`
-//! naming the slab. The skin's own `SkinError::NoParameterStep` is a
-//! different fact — the chord-length parameterization has no `f64`
-//! step — and through `loft_body` it is reachable only for sections
-//! the fold found definitely apart, so its text never says the
-//! sections coincide.
+//! naming the slab, and a section hinged on one of its own edges
+//! refuses naming the hinge. The skin's own
+//! `SkinError::NoParameterStep` is a different fact — the chord-length
+//! parameterization has no `f64` step — and through `loft_body` it is
+//! reachable only for sections the door found apart, so its text never
+//! says the sections coincide.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
@@ -17,8 +18,8 @@ use profile::RawLoop;
 use profile::SketchPlane;
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{
-    LoftError, ProfileLoop, SkinError, loft_body, loft_geometry, loft_parameters, sweep_body,
-    sweep_geometry,
+    LoftError, PinnedSite, ProfileLoop, SkinError, loft_body, loft_geometry, loft_parameters,
+    sweep_body, sweep_geometry,
 };
 
 fn squares(n: usize) -> Vec<sweep::Section> {
@@ -34,10 +35,11 @@ fn middle_step(step: f64) -> Vec<SketchPlane<f64>> {
 
 /// The chord steps BOOL-6 measured (5e-10, 1e-12, 1e-15, and 1e-16,
 /// where the normalised accumulation underflows), then the sub-ulp
-/// tail down to exact coincidence. Each rung is the fold's, with the
-/// verdict the run's band gives its margin: at the default ε every
-/// rung refuses; at ε = 1e-12 the 5e-10 rung is definitely apart and
-/// builds.
+/// tail down to exact coincidence. Each rung is the door's, with the
+/// verdict the run's band gives the corners' step: at the default ε
+/// every rung refuses; at ε = 1e-12 the 5e-10 rung is definitely apart
+/// and builds. A rung in the band escalates at the first corner it
+/// cannot call.
 #[test]
 fn a_slab_short_of_the_band_refuses_at_the_fold_at_every_scale() {
     let tol = Tol::witness();
@@ -50,7 +52,7 @@ fn a_slab_short_of_the_band_refuses_at_the_fold_at_every_scale() {
                     let msg = e.to_string();
                     assert!(
                         msg.contains(
-                            "sections 1 and 2 are not apart along section 1's normal at tolerance"
+                            "sections 1 and 2 do not step along section 1's normal at tolerance"
                         ),
                         "step {step:e}: the refusal names the pair and what it decided: {msg}"
                     );
@@ -67,12 +69,21 @@ fn a_slab_short_of_the_band_refuses_at_the_fold_at_every_scale() {
             );
         } else {
             match out {
-                Err(LoftError::StackingEscalated { slab: 1, source }) => {
-                    assert_eq!(source.predicate, Some("loft_stacking"), "step {step:e}");
+                Err(LoftError::CornerEscalated {
+                    loop_index: 0,
+                    corner: 0,
+                    slab: 1,
+                    source,
+                }) => {
+                    assert_eq!(
+                        source.predicate,
+                        Some("loft_corner_pinned"),
+                        "step {step:e}"
+                    );
                 }
                 other => panic!(
-                    "step {step:e} (ε = {eps:e}): expected StackingEscalated naming slab 1, \
-                     got {other:?}"
+                    "step {step:e} (ε = {eps:e}): expected CornerEscalated naming corner 0 of \
+                     slab 1, got {other:?}"
                 ),
             }
         }
@@ -106,8 +117,8 @@ fn below_1e_16_the_parameterization_has_no_step_on_the_same_placements() {
 /// as the skin's `NoParameterStep` naming the section, and the text
 /// does not claim the sections coincide — they do not. (A section
 /// hinged on one of its own edges steps: the loop's other rows move.
-/// [`a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check`]
-/// pins what it does instead.)
+/// [`a_hinged_section_refuses_naming_its_hinge`] pins what it does
+/// instead.)
 #[test]
 fn sections_apart_whose_parameterization_cannot_step_refuse_without_claiming_coincidence() {
     let tol = Tol::witness();
@@ -143,13 +154,13 @@ fn sections_apart_whose_parameterization_cannot_step_refuse_without_claiming_coi
     }
 }
 
-/// **A sweep whose two stations coincide refuses at the fold**, at
+/// **A sweep whose two stations coincide refuses at the door**, at
 /// `f64` and at `Interval`. The path is closed, C¹ and non-planar, so
 /// with two stations its start and end frames are bit-equal; the
-/// geometry door, which has no fold, says only what the skin can:
-/// `NoParameterStep` at section 1.
+/// geometry door, which has no stacking door, says only what the skin
+/// can: `NoParameterStep` at section 1.
 #[test]
-fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
+fn a_sweep_whose_two_stations_coincide_refuses_at_the_door() {
     let tol = Tol::witness();
     let path = NurbsCurve3::new(
         KnotVector::clamped(
@@ -199,17 +210,18 @@ fn a_sweep_whose_two_stations_coincide_refuses_at_the_fold() {
     }
 }
 
-/// **A hinge pinned only up to rounding passes the exact ascent check**
-/// — the measured state of
-/// `work/carve/a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door.md`,
-/// pinned as it is. A section hinged on one of its edges, exactly or
-/// up to rounding: the parameters are the outer loop's, whose other
-/// rows step, so `loft_geometry` answers `Ok` with walls the size of
-/// the sections; the hinge's pinned corners make their seams double
-/// back, and `loft_body` refuses at the attach gate. This row goes red
-/// when that item is fixed; rewrite it to the fix's refusal then.
+/// **A hinged section refuses naming its hinge**, exactly or up to
+/// rounding, on strip 0 (the edge `loft_parameters` once measured v on)
+/// and off it. Three squares, the middle one turned about one of its
+/// own edges, the last stacked clear: both corners of that edge are
+/// pinned between sections 0 and 1 and move between 1 and 2, so a
+/// v-degree-2 wall through them retraces itself, and the door names
+/// the hinged segment, the pinning slab and the moving one. The
+/// geometry door has no stacking door: up to rounding it answers walls
+/// the size of the sections, the parameters stepping on the loop's
+/// other rows.
 #[test]
-fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
+fn a_hinged_section_refuses_naming_its_hinge() {
     let tol = Tol::witness();
     let sections = squares(3);
     let pp = Affine3::translation(Vec3::new(0.37, -0.21, 0.13))
@@ -219,18 +231,18 @@ fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
         pp.transform_point(Point3::new(1.0, -1.0, 0.0)),
     );
     let n = pp.linear.c2;
-    let places = [
+    let rounding = [
         pp,
         Affine3::rotation_about_axis(a, b - a, 0.3) * pp,
         Affine3::translation(Vec3::new(2.0 * n.x, 2.0 * n.y, 2.0 * n.z)) * pp,
     ]
     .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(&m, tol)));
-    let params = loft_parameters(&sections, &places, 2, tol).expect("the sections parameterize");
-    let g =
-        loft_geometry(&sections, &places, 2, &params, tol).expect("the exact ascent check passes");
+    let params = loft_parameters(&sections, &rounding, 2, tol).expect("the sections parameterize");
+    let g = loft_geometry(&sections, &rounding, 2, &params, tol)
+        .expect("the geometry door has no stacking door");
     assert!(
         g.section_params[1] > 0.1,
-        "the outer loop's other rows step, so the hinge no longer decides v: {:?}",
+        "the outer loop's other rows step, so the hinge does not decide v: {:?}",
         g.section_params
     );
     let worst = g
@@ -247,19 +259,61 @@ fn a_hinge_pinned_only_up_to_rounding_passes_the_exact_ascent_check() {
         worst < 10.0,
         "the walls stay the size of the sections: largest control coordinate {worst:e}"
     );
-    // The hinge's corners are pinned between sections 0 and 1, so their
-    // seams double back and the attach gate refuses the body — as it
-    // refuses the exact hinge.
-    let exact = [
-        Affine3::identity(),
-        Affine3::rotation_about_axis(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.3),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ]
-    .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(&m, tol)));
-    for (what, places) in [("rounding hinge", &places), ("exact hinge", &exact)] {
+    // Segment 0 runs (−1, −1) → (1, −1); segment 2 runs (1, 1) → (−1, 1).
+    let hinged = |p: Point3<f64>, d: Vec3<f64>| {
+        [
+            Affine3::identity(),
+            Affine3::rotation_about_axis(p, d, 0.3),
+            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        ]
+        .map(|m| SketchPlane::from_frame(geom_core::test_support::rigid(&m, tol)))
+    };
+    let exact_strip_0 = hinged(Point3::new(0.0, -1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
+    let off_strip_0 = hinged(Point3::new(0.0, 1.0, 0.0), Vec3::new(-1.0, 0.0, 0.0));
+    for (what, places, segment) in [
+        ("rounding hinge on strip 0", &rounding, 0),
+        ("exact hinge on strip 0", &exact_strip_0, 0),
+        ("exact hinge on segment 2", &off_strip_0, 2),
+    ] {
         match loft_body::<f64>(&sections, places.as_slice(), 2, tol) {
-            Err(LoftError::Euler(_)) => {}
-            other => panic!("{what}: expected the attach gate's refusal, got {other:?}"),
+            Err(
+                e @ LoftError::PinnedCorner {
+                    loop_index: 0,
+                    at: PinnedSite::Segment(s),
+                    slab: 0,
+                    moving: 1,
+                },
+            ) => {
+                assert_eq!(s, segment, "{what}: the hinged segment is named");
+                let msg = e.to_string();
+                assert!(
+                    msg.contains(&format!(
+                        "loft sections 0 and 1 hold segment {segment} (both its corners) of \
+                         loop 0 at one point, and sections 1 and 2 do not"
+                    )),
+                    "{what}: the refusal names the hinge and both slabs: {msg}"
+                );
+                assert!(
+                    msg.contains(
+                        "Recourse: move it apart between sections 0 and 1, or loft at \
+                                  v-degree 1"
+                    ),
+                    "{what}: {msg}"
+                );
+            }
+            other => panic!("{what}: expected PinnedCorner naming the hinge, got {other:?}"),
         }
+    }
+    // The enclosure lane reads the same door on the lifted sections.
+    let lane = sweep::test_support::lift_sections::<Interval>(&sections);
+    let lane_places = sweep::test_support::lift_places::<Interval>(&off_strip_0, tol);
+    match loft_body::<Interval>(&lane, &lane_places, 2, tol) {
+        Err(LoftError::PinnedCorner {
+            loop_index: 0,
+            at: PinnedSite::Segment(2),
+            slab: 0,
+            moving: 1,
+        }) => {}
+        other => panic!("Interval: expected PinnedCorner naming segment 2, got {other:?}"),
     }
 }

@@ -40,14 +40,17 @@
 //!
 //! # Orientation (the canonical stacking arm)
 //!
-//! Each slab's displacement must point ALONG the plane normals of both
-//! sections it spans. That is a PER-SLAB statement and
-//! [`fn@stacking_fold`] is where it is made and where its shape is
-//! stated; a refusal names the pair it stopped at. It is a
-//! conservative orientation check, not an embedding one: it refuses
-//! some embedded lofts whose far section leans back across the stack,
-//! and nothing at this door yet certifies that the walls do not cross
-//! each other or the caps.
+//! Before the skin, the stacking door ([`stacking::stacking_door`])
+//! reads each slab's two sections: the corners they pin (a profile
+//! vertex at one world point in both), whether they are apart beyond
+//! those corners, and each slab's displacement, which must point ALONG
+//! the plane normals of both sections it spans. That is a PER-SLAB
+//! statement, and a refusal names the pair it stopped at. The
+//! displacement check is a conservative orientation check, not an
+//! embedding one: it refuses some embedded lofts whose far section
+//! leans back across the stack, and nothing at this door yet certifies
+//! that the walls do not cross each other or the caps away from the
+//! sections.
 //!
 //! The caps then orient exactly as extrude's (bottom reversed, top
 //! forward) and every wall's chart normal `S_u × S_v` points out of
@@ -59,7 +62,7 @@
 //! fight). Every rim reads the normal of the section it lies in: the
 //! bottom cap and its rims read section 0's, the top cap and its rims
 //! section `k − 1`'s, and an interior section's ring its own
-//! (`assemble`'s `rim_spec`). The fold has decided each of those normals
+//! (`assemble`'s `rim_spec`). The door has decided each of those normals
 //! against the displacement of the slab or slabs it bounds, and its
 //! margins are not read again.
 //!
@@ -78,7 +81,7 @@
 //! - at `f64`, `Probe`, and `Dual` and `Sym` over them, the sections
 //!   are validated at `T` along the `f64` record and the walls are
 //!   skinned in `T` ([`fn@crate::skin`]), so a wall, a cap and the
-//!   stacking fold's margins are the functions of the sections'
+//!   stacking door's margins are the functions of the sections'
 //!   variables the sections are;
 //! - at `Interval`, and the wrappers over it, the body encloses the
 //!   family its sections stand for. Sections and placements that are
@@ -87,13 +90,15 @@
 //!   (a seam column both walls end on lifted once and shared), and the
 //!   placements the skin was selected on are lifted the same way, so
 //!   the caps (the `f64` canonical form lifted onto them), the rims and
-//!   the fold read the one loft the body encloses. Wider sections or
+//!   the stacking door read the one loft the body encloses. Wider sections or
 //!   placements are validated and skinned in `T`, as at a projective
 //!   scalar, and the walls enclose the family. The skin's structure is
 //!   then what every value of the family shares, and a carrier's
 //!   weights and knots are points, so an arc section, or an interior
 //!   knot wider than a point, refuses typed
 //!   (`work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`).
+
+mod stacking;
 
 use core::fmt;
 use std::sync::Arc;
@@ -103,9 +108,7 @@ use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::spline::{ProjectiveScalar, ProjectiveSplit, SplineError};
-use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
-};
+use geom_core::{Affine3, Band, BandError, Decide, Indeterminate, Point2, Point3, Real, Tol};
 use profile::{CanonicalStructure, SketchPlane, ValidatedProfile};
 use topo::construction::{FaceSurface, MefSite, MevCreated, MevSite};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, PcurveMintError, ShellKey, SolidKey};
@@ -257,16 +260,95 @@ pub enum LoftError {
         /// in section order that is not definitely forward.
         slab: usize,
     },
-    /// One SLAB's stacking displacement — the step of the outer loop's
-    /// vertex centroid along the slab's base normal — is coincident
-    /// with zero at tolerance. Coincident, sliver-thin and in-plane
-    /// pairs land here, and so does a section tilted about an in-plane
-    /// axis through its centroid so that it crosses its neighbour; at
-    /// every scale down to exact coincidence this is the loft's one
-    /// refusal for two adjacent sections that are not apart.
+    /// One SLAB does not step along its base section's normal at
+    /// tolerance, so the loft has no direction there. Two cases land
+    /// here: coincidence, where every corner of every loop is pinned
+    /// ([`Self::PinnedCorner`]'s predicate) and every segment is the same
+    /// curve in both sections, at every scale down to bit-equal
+    /// sections; and sections apart whose moving control rows (the
+    /// outer loop's, its pinned corners left out) have no mean
+    /// displacement along the base normal — an in-plane pair, or a
+    /// symmetric lens turned about its chord. Sections that touch are
+    /// [`Self::SectionsTouch`], read before this.
     DegenerateStacking {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
+    },
+    /// A corner is pinned in one slab and moves in another, under a
+    /// wall that spans both (v-degree 2 or more through three sections
+    /// or more): the wall's boundary over that corner passes through
+    /// one point twice, so it retraces itself and is not embedded.
+    /// A corner is pinned where it is one world point in the slab's two
+    /// sections (`loft_corner_pinned`); two adjacent pinned corners are
+    /// a hinge, named as their segment.
+    PinnedCorner {
+        /// The loop, in canonical order (the outer first).
+        loop_index: usize,
+        /// The corner, or the segment hinged on two pinned corners.
+        at: PinnedSite,
+        /// The first slab that pins it — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The first slab it moves in.
+        moving: usize,
+    },
+    /// A corner is pinned throughout the span its wall covers (every
+    /// slab at v-degree 2 or more, or its slab at v-degree 1, which a
+    /// two-section wedge is), which is a legal body: the corner is one
+    /// vertex, and each wall beside it has a collapsed boundary column
+    /// there, a chart singularity. The kernel does not build it yet:
+    /// a face's loop walk resets a joint only on a sphere's pole or a
+    /// cone's apex (`geom_brep::chart_singularity::singular_points`),
+    /// and reads a spline chart's joint by its chart-space gap
+    /// (`topo` `pcurves.rs`, `decide_joint`), which a collapsed column
+    /// is (`work/charttail/a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint.md`).
+    /// A limit of the kernel, not a fault in the sections.
+    PinnedCornerUnsupported {
+        /// The loop, in canonical order (the outer first).
+        loop_index: usize,
+        /// The corner, or the segment hinged on two pinned corners.
+        at: PinnedSite,
+        /// The first slab that pins it — the pair [`SlabPair`] names.
+        slab: usize,
+    },
+    /// Whether a corner is the same world point in a slab's two
+    /// sections escalated (`loft_corner_pinned`).
+    CornerEscalated {
+        /// The loop, in canonical order (the outer first).
+        loop_index: usize,
+        /// The corner: the start of segment `corner`.
+        corner: usize,
+        /// The slab — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// Two segments of a slab's two sections meet beyond the pinned
+    /// corners they share: a hinge slid along its own edge, or sections
+    /// that cross. Both sections' loops lie on the body's boundary, so
+    /// the boundary would meet itself there off its own edges.
+    SectionsTouch {
+        /// The slab — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The segment of section `slab`, then the segment of section
+        /// `slab + 1`.
+        segments: [LoopSegment; 2],
+    },
+    /// Whether two segments of a slab's two sections are apart beyond
+    /// the corners they share is not decided.
+    ///
+    /// `Some`: a reading escalated. `None`: a pair with an arc in it
+    /// whose control polygon no section plane separates from the other
+    /// segment — the frontier of that reading (the control polygon
+    /// holds the arc, and the reading asks no more of it), not a
+    /// verdict that the two meet.
+    ClearanceUndecided {
+        /// The slab — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The segment of section `slab`, then the segment of section
+        /// `slab + 1`.
+        segments: [LoopSegment; 2],
+        /// The escalation, where one decided nothing.
+        source: Option<Indeterminate>,
     },
     /// One SLAB stacks along its base section's plane normal but not
     /// along its FAR section's: section `slab + 1`'s normal is
@@ -279,7 +361,7 @@ pub enum LoftError {
     /// the stack, and it also refuses some embedded, correctly
     /// oriented lofts: a 10×10 square base under a 4×4 top turned 100°
     /// about `y` (its normal leaning back across the stack) is one. It
-    /// retires with the fold when the loft door certifies embedding
+    /// retires when the loft door certifies embedding
     /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
     FarSectionNotForward {
         /// The slab — the pair [`SlabPair`] names; the far section is
@@ -305,6 +387,41 @@ pub enum LoftError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+}
+
+/// **Where a pinned corner is**, within its loop: a corner alone, or the
+/// segment between two adjacent pinned corners (a hinge).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PinnedSite {
+    /// The corner that starts segment `j`.
+    Corner(usize),
+    /// Segment `j`, both of whose corners are pinned.
+    Segment(usize),
+}
+
+impl fmt::Display for PinnedSite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Corner(j) => write!(f, "corner {j}"),
+            Self::Segment(j) => write!(f, "segment {j} (both its corners)"),
+        }
+    }
+}
+
+/// **A segment of a section**, by loop (canonical order, the outer
+/// first) and segment within it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LoopSegment {
+    /// The loop.
+    pub loop_index: usize,
+    /// The segment.
+    pub segment: usize,
+}
+
+impl fmt::Display for LoopSegment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "segment {} of loop {}", self.segment, self.loop_index)
+    }
 }
 
 /// **The two sections a slab spans**, and the one place this crate
@@ -386,9 +503,96 @@ impl fmt::Display for LoftError {
             ),
             Self::DegenerateStacking { slab } => write!(
                 f,
-                "loft {} are not apart along section {slab}'s normal at tolerance, so the \
-                 loft has no direction. Recourse: move them apart",
-                SlabPair(*slab)
+                "loft {} do not step along section {slab}'s normal at tolerance (they \
+                 coincide, or the rows that move between them have no mean step along it), \
+                 so the loft has no direction. Recourse: move section {far} along section \
+                 {slab}'s normal",
+                SlabPair(*slab),
+                far = SlabPair(*slab).far()
+            ),
+            Self::PinnedCorner {
+                loop_index,
+                at,
+                slab,
+                moving,
+            } => write!(
+                f,
+                "loft {} hold {at} of loop {loop_index} at one point, and {} do not, so a \
+                 wall through every section passes that point twice and retraces itself. \
+                 Recourse: move it apart between sections {slab} and {far}, or loft at \
+                 v-degree 1",
+                SlabPair(*slab),
+                SlabPair(*moving),
+                far = SlabPair(*slab).far()
+            ),
+            Self::PinnedCornerUnsupported {
+                loop_index,
+                at,
+                slab,
+            } => write!(
+                f,
+                "loft {} hold {at} of loop {loop_index} at one point; that is a legal body, \
+                 but the wall beside it collapses there to a chart singularity, which the \
+                 kernel does not build on a spline wall yet (a kernel limit, not an input \
+                 fault). Recourse: move it apart between sections {slab} and {far}",
+                SlabPair(*slab),
+                far = SlabPair(*slab).far()
+            ),
+            Self::CornerEscalated {
+                loop_index,
+                corner,
+                slab,
+                source,
+            } => write!(
+                f,
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether loft {} hold corner {corner} of loop {loop_index} at one point",
+                        SlabPair(*slab)
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
+            ),
+            Self::SectionsTouch { slab, segments } => write!(
+                f,
+                "loft section {slab}'s {} meets section {far}'s {} beyond the corners they \
+                 share, so the body's boundary would meet itself there. Recourse: move \
+                 section {far} clear of section {slab}",
+                segments[0],
+                segments[1],
+                far = SlabPair(*slab).far()
+            ),
+            Self::ClearanceUndecided {
+                slab,
+                segments,
+                source: None,
+            } => write!(
+                f,
+                "whether loft section {slab}'s {} and section {far}'s {} are apart beyond \
+                 the corners they share is not decided: an arc's control polygon is all \
+                 this reading asks of it, and no section plane separates the two. \
+                 Recourse: move section {far} clear of section {slab}, or split the arc",
+                segments[0],
+                segments[1],
+                far = SlabPair(*slab).far()
+            ),
+            Self::ClearanceUndecided {
+                slab,
+                segments,
+                source: Some(source),
+            } => write!(
+                f,
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether loft section {slab}'s {} and section {far}'s {} are apart",
+                        segments[0],
+                        segments[1],
+                        far = SlabPair(*slab).far()
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::FarSectionNotForward { slab } => write!(
                 f,
@@ -487,120 +691,17 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
     place.transform_point(Point3::new(p.x, p.y, T::zero()))
 }
 
-/// The outer loop's world vertices at one section, in the traversal
-/// order the assembly itself walks — [`swept_segments`]'s, over the
-/// canonical form the walls were skinned from.
-///
-/// `None` when the section has no loops at all, which the caller
-/// reports as [`LoftError::SectionStructure`]: a section that reached
-/// here without an outer loop is a corrupt [`LoftGeometry`](crate::skin::LoftGeometry), not an
-/// input fault.
-fn outer_world<T: Real>(
-    profile: &ValidatedProfile<T>,
-    place: Affine3<T>,
-) -> Option<Vec<Point3<T>>> {
-    let outer = profile.loops().first()?;
-    Some(
-        swept_segments(outer, false)
-            .iter()
-            .map(|s| world(&place, s.a))
-            .collect(),
-    )
-}
-
-/// **The stacking fold** — the loft's one stacking statement.
-///
-/// Slab `k` is the pair `(k, k + 1)`, and its displacement `d_k` is
-/// the mean displacement of the outer loop's vertices between the two
-/// sections. The fold decides, slab after slab and under
-/// `loft_stacking`, `n_k · d_k` and then `n_{k+1} · d_k` — both of the
-/// slab's own section normals — **refusing at the first verdict that is
-/// not `Positive`**. No minimum is formed: `Positive` is monotone in
-/// the margin, and stopping at the first non-`Positive` verdict keeps
-/// an ambiguous one from being answered for by a definite one later in
-/// the list.
-///
-/// The margin is a sum of per-vertex differences over a full zip of
-/// two equal-length loops, so it is the displacement of the vertex
-/// CENTROID: the by-index pairing carries no information and rotating
-/// one section's traversal cannot change the verdict.
-///
-/// The fold reads nothing but the two sections of the slab it is
-/// deciding: their authored placements and their canonical loops.
-///
-/// **It is the loft's one decision about whether two adjacent sections
-/// are apart.** It runs before the skin ([`fn@build`]), so a sliver
-/// slab and an exactly coincident pair are both refused here, as
-/// [`LoftError::DegenerateStacking`], and the skin only ever
-/// parameterizes sections this fold has found definitely apart.
-///
-/// # Preconditions, and why its guards are dead through `loft_body`
-///
-/// A `places`/`canonical` length disagreement, a section count below
-/// two, a section with no loops, and two sections whose outer loops
-/// differ in vertex count are this function's own preconditions, kept
-/// as refusals rather than assumptions. None is reachable through
-/// [`loft_body`] today: `validate_loft` refuses the counts and
-/// mismatched sections first (`SkinError::SectionShapeMismatch`), and
-/// a loopless section never leaves profile validation.
-fn stacking_fold<T: Decide>(
-    places: &[SketchPlane<T>],
-    canonical: &[ValidatedProfile<T>],
-    band: Band,
-) -> Result<(), LoftError> {
-    if places.len() < 2 || places.len() != canonical.len() {
-        return Err(LoftError::SectionStructure);
-    }
-    let mut outers = places
-        .iter()
-        .zip(canonical)
-        .map(|(place, c)| outer_world(c, place.placement()).ok_or(LoftError::SectionStructure));
-    let mut base: Vec<Point3<T>> = outers.next().ok_or(LoftError::SectionStructure)??;
-    // `outers` now yields section `slab + 1` beside the slab's base and
-    // far placements.
-    let slabs = places.iter().zip(&places[1..]);
-    for (slab, (next, (base_place, far_place))) in outers.zip(slabs).enumerate() {
-        let next: Vec<Point3<T>> = next?;
-        if base.is_empty() || next.len() != base.len() {
-            return Err(LoftError::SectionStructure);
-        }
-        let mut d = Vec3::new(T::zero(), T::zero(), T::zero());
-        for (qt, qb) in next.iter().zip(&base) {
-            d = d + (*qt - *qb);
-        }
-        #[allow(clippy::cast_precision_loss)]
-        let count = T::from_f64(next.len() as f64);
-        let facing = |place: &SketchPlane<T>| {
-            let margin = d.dot(place.normal().get()) / count;
-            geom_core::k_stats::decide("loft_stacking", Margin::of(margin), band)
-        };
-        match facing(base_place).map_err(|source| LoftError::StackingEscalated { slab, source })? {
-            Sign::Positive => {}
-            Sign::Zero => return Err(LoftError::DegenerateStacking { slab }),
-            Sign::Negative => return Err(LoftError::ReversedStacking { slab }),
-        }
-        match facing(far_place)
-            .map_err(|source| LoftError::FarStackingEscalated { slab, source })?
-        {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Err(LoftError::FarSectionNotForward { slab }),
-        }
-        base = next;
-    }
-    Ok(())
-}
-
 /// The shared engine of [`loft_body`], [`sweep_body`] and
 /// [`loft_profiles`]: refuse the counts, then a section or placement
 /// with no finite value, then run the half of the projective partition `T` is on
 /// ([`SpanLocate::split_projective`](geom_core::spline::SpanLocate::split_projective)),
 /// which [`LoftBuild`]'s two halves state.
 ///
-/// Each half decides the stacking fold BEFORE the skin, because it is
-/// the one decision about whether two adjacent sections are apart,
-/// banded under the run's tolerance; a pair it accepts is definitely
-/// apart, and a pair it refuses (down to exact coincidence) never
-/// reaches the skin's parameterization.
+/// Each half runs the stacking door ([`stacking::stacking_door`])
+/// BEFORE the skin, because it decides, under the run's tolerance,
+/// whether two adjacent sections are apart and which corners they pin;
+/// a pair it refuses (down to exact coincidence) never reaches the
+/// skin's parameterization, whose vertex rows read its verdict.
 fn build<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>>(
     sections: SectionsAtT<'_, T, L>,
     places: &[SketchPlane<T>],
@@ -726,7 +827,7 @@ struct LoftBuild<'a, T: Real, L> {
 
 impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     /// **The loft in `T`**, over `canonical`, the sections validated at
-    /// `T`: the fold, the skin ([`skin_validated`]: the section curves,
+    /// `T`: the stacking door, the skin ([`skin_validated`]: the section curves,
     /// their compatibility, the parameters and the solve) and the caps
     /// all read those, so a section or placement value that is a
     /// function of the variables gives walls and caps that are
@@ -734,9 +835,14 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
     /// caps that enclose its family.
     fn in_t(&self, canonical: Vec<ValidatedProfile<T>>) -> Result<Lofted<T>, LoftError> {
         let band = Band::linear(self.tol).map_err(LoftError::Band)?;
-        stacking_fold(self.places, &canonical, band)?;
-        let geometry =
-            skin_validated(canonical, self.places, self.v_degree).map_err(LoftError::Skin)?;
+        let pinned = stacking::stacking_door(self.places, &canonical, self.v_degree, band)?;
+        let geometry = skin_validated(
+            canonical,
+            self.places,
+            self.v_degree,
+            Some(&pinned.still_outer()),
+        )
+        .map_err(LoftError::Skin)?;
         assemble(
             self.places,
             &geometry.walls,
@@ -784,7 +890,7 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
     /// - Sections and placements that are points are a family of one,
     ///   and the body encloses its `f64` loft. The skin is the `f64`
     ///   one, the walls are lifted ([`lift_loop_walls`]), and the caps
-    ///   and the fold read the `f64` canonical form lifted onto the
+    ///   and the stacking door read the `f64` canonical form lifted onto the
     ///   lane's own placements ([`ValidatedProfile::lift_onto`]), whose
     ///   point values are the planes the skin was selected on.
     /// - Otherwise the loft is built in `T` ([`Self::in_t`]), each
@@ -821,9 +927,14 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
                 })
             })
             .collect();
-        stacking_fold(places, &lifted, band)?;
-        let geometry =
-            skin_validated(canonical, channel_places, self.v_degree).map_err(LoftError::Skin)?;
+        let pinned = stacking::stacking_door(places, &lifted, self.v_degree, band)?;
+        let geometry = skin_validated(
+            canonical,
+            channel_places,
+            self.v_degree,
+            Some(&pinned.still_outer()),
+        )
+        .map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()
@@ -969,7 +1080,7 @@ fn describe_section_rim<T: Decide + topo::AtRestPolicy>(
 }
 
 /// Assembles the loft BODY from its skinned geometry (module docs),
-/// over sections the stacking fold has already accepted.
+/// over sections the stacking door has already accepted.
 ///
 /// # Errors
 ///
@@ -1506,7 +1617,7 @@ pub fn loft_body<T: Decide + topo::AtRestPolicy>(
 /// canonical forms in the lane scalar: a document's profile values,
 /// which its own (guided) validation produced.
 ///
-/// No section is validated again: the walls, caps and fold read the
+/// No section is validated again: the walls, caps and stacking door read the
 /// given forms themselves, with the structure selected on their value
 /// channel ([`ValidatedProfile::value_channel`]) where it is a point.
 /// Everything else is [`loft_body`]'s.

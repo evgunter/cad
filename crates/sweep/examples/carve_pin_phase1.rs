@@ -183,4 +183,113 @@ fn main() {
         1,
         tol,
     );
+
+    // 5. Slid hinge, crossing sections, asymmetric lens, translated squares, exact/rounding strip-0 hinges.
+    let slid = places(
+        &[
+            Affine3::identity(),
+            Affine3::translation(Vec3::new(0.5, 0.0, 0.0))
+                * rot([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], 0.3),
+            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        ],
+        tol,
+    );
+    report("slid hinge (deg 2)", &vec![square(); 3], &slid, 2, tol);
+    let cross = places(
+        &[Affine3::identity(), rot([0.0; 3], [1.0, 0.0, 0.0], 0.5)],
+        tol,
+    );
+    report("crossing (deg 1)", &vec![square(); 2], &cross, 1, tol);
+    let alens = || {
+        vec![bulge_loop(vec![
+            (Point2::new(1.0, 0.0), -0.8),
+            (Point2::new(-1.0, 0.0), -0.3),
+        ])]
+    };
+    report(
+        "asym lens about its chord (deg 2)",
+        &vec![alens(); 3],
+        &lp,
+        2,
+        tol,
+    );
+    report(
+        "asym lens about its chord (deg 1, 2 sections)",
+        &vec![alens(); 2],
+        &lp2,
+        1,
+        tol,
+    );
+    let stack = places(
+        &[
+            Affine3::identity(),
+            Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        ],
+        tol,
+    );
+    report("plain stack (deg 2)", &vec![square(); 3], &stack, 2, tol);
+    report("plain lens stack (deg 2)", &vec![lens(); 3], &stack, 2, tol);
+    let exact = places(
+        &[
+            Affine3::identity(),
+            rot([0.0, -1.0, 0.0], [1.0, 0.0, 0.0], 0.3),
+            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        ],
+        tol,
+    );
+    report(
+        "exact strip-0 hinge (deg 2)",
+        &vec![square(); 3],
+        &exact,
+        2,
+        tol,
+    );
+    report(
+        "exact strip-0 hinge (deg 1)",
+        &vec![square(); 3],
+        &exact,
+        1,
+        tol,
+    );
+    let pp = Affine3::translation(Vec3::new(0.37, -0.21, 0.13))
+        * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.3, 0.4, 0.866), 0.7);
+    let (a, b) = (
+        pp.transform_point(Point3::new(-1.0, -1.0, 0.0)),
+        pp.transform_point(Point3::new(1.0, -1.0, 0.0)),
+    );
+    let n = pp.linear.c2;
+    let round = places(
+        &[
+            pp,
+            Affine3::rotation_about_axis(a, b - a, 0.3) * pp,
+            Affine3::translation(Vec3::new(2.0 * n.x, 2.0 * n.y, 2.0 * n.z)) * pp,
+        ],
+        tol,
+    );
+    report(
+        "rounding strip-0 hinge (deg 2)",
+        &vec![square(); 3],
+        &round,
+        2,
+        tol,
+    );
+    for step in [5e-10, 1e-12, 3e-9, 0.0] {
+        let st = places(
+            &[
+                Affine3::identity(),
+                Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+                Affine3::translation(Vec3::new(0.0, 0.0, 1.0 + step)),
+                Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+            ],
+            tol,
+        );
+        report(
+            &format!("step {step:e} (deg 2)"),
+            &vec![square(); 4],
+            &st,
+            2,
+            tol,
+        );
+    }
 }
