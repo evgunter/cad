@@ -4,12 +4,12 @@ kind: program
 title: ORIGIN — the D5/N6 identity channel: what a description's source says, and what the Live guard proves
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/topo/certify
 prefix: origin/
 tag: (ORIGIN orchestrator)
 ab_band: 6300-6399
 paths: [crates/topo/src/provenance.rs, crates/topo/src/source_walk.rs, crates/topo/src/readback.rs, crates/topo/src/live.rs]
-keep_out: [opened by TOPO's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TOPO keeps the Euler operators proper and its band 2700-2799, the sibling cuts are ORIGIN ATREST TQUERY WALKS PROBE, a row here that has to edit another of the six announces the seam in the PR that lands it rather than drawing a second fence]
+keep_out: [opened by TOPO's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TOPO keeps the Euler operators proper and its band 2700-2799, the sibling cuts are ORIGIN ATREST TQUERY WALKS PROBE, a row here that has to edit another of the six announces the seam in the PR that lands it where the changes are coupled rather than drawing a second fence]
 ---
 The D5/N6 identity channel as its own track: what a `GeomSource`
 records, what `GeomOrigin` separates, what the `Live` unforgeability

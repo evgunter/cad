@@ -38,10 +38,10 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    CapEnd, Dimension, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, PartSelect,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SlotKind, VarKind,
+    CapEnd, Dimension, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SlotKind, VarKind,
 };
-use fixture::{ang, desc, insert, len, scl, square};
+use fixture::{ang, desc, insert, len, square};
 use geom_core::Tol;
 
 /// What a miswired node owes.
@@ -75,7 +75,7 @@ struct Row {
 }
 
 /// One document holding every miswiring, plus the well-formed profile,
-/// body and pattern the miswirings borrow.
+/// body and family the miswirings borrow.
 ///
 /// One document and one evaluation rather than twenty: nextest is
 /// process-per-test, so a test per row would pay twenty document builds
@@ -116,17 +116,7 @@ fn wired() -> (
         &editor_core::Frame::IDENTITY,
         Tol::witness(),
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: body.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
+    let (doc, _, pattern) = crate::fixture::linear(doc, body, [1.0, 0.0, 0.0], 3.0, 3);
 
     let mut rows: Vec<Row> = Vec::new();
     // Inserts the miswired node, recording whether the EDIT door took
@@ -182,28 +172,23 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "a body operand over instances (Shell of a pattern)",
-        Owes::EditDoor(VarKind::Bodies, SlotKind::Is(VarKind::Body)),
-        Node::Shell {
-            thickness: len(0.1),
-            open: editor_core::Operand::select(pattern, vec![]),
-        },
-        pattern,
+        "placeable_operand over a profile (Place)",
+        Owes::EditDoor(VarKind::Profile, SlotKind::Placeable),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::from(
+            profile,
+        ))),
+        profile,
     );
     doc = add(
         doc,
         &mut rows,
-        "placeable_operand over a profile (Pattern)",
-        Owes::EditDoor(VarKind::Profile, SlotKind::Placeable),
-        Node::Pattern {
-            input: profile.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-        profile,
+        "an indexed read of a plain body (Place of body[0])",
+        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Bodies)),
+        crate::fixture::stood(editor_core::BodyRead::indexed(
+            editor_core::Operand::from(body),
+            vec![Formula::count(0)],
+        )),
+        body,
     );
     doc = add(
         doc,
@@ -254,33 +239,6 @@ fn wired() -> (
         },
         body,
     );
-    doc = add(
-        doc,
-        &mut rows,
-        "wire_part (an instance of a plain body)",
-        Owes::EditDoor(VarKind::Body, SlotKind::Is(VarKind::Bodies)),
-        Node::Part {
-            of: body.into(),
-            select: PartSelect::Instance(Formula::count(0)),
-        },
-        body,
-    );
-    doc = add(
-        doc,
-        &mut rows,
-        "stepped_map's circular axis (a Pattern about a plane)",
-        Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Axis)),
-        Node::Pattern {
-            input: body.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Circular {
-                axis: plane.clone().into(),
-                step: ang(0.5),
-            },
-        },
-        body,
-    );
-
     // ---- the section reads: a loft's and a sweep's profiles ----
 
     doc = add(
@@ -343,7 +301,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     // The rows are evidence about the door only if the well-formed
     // nodes they borrow actually evaluated: a poisoned body, profile or
-    // pattern would refuse for a reason that is not this test's.
+    // family would refuse for a reason that is not this test's.
     for (name, id) in [("profile", profile), ("body", body), ("pattern", pattern)] {
         assert!(
             ev.node_error(id).is_none(),
@@ -408,7 +366,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
         phrases.is_empty() && families.is_empty(),
         "no row reaches an operand door"
     );
-    assert_eq!(doors.len(), 12, "the rows the edit door refuses");
+    assert_eq!(doors.len(), 10, "the rows the edit door refuses");
     let mut found: Vec<VarKind> = doors.iter().map(|d| d.0).collect();
     found.sort_unstable_by_key(|k| format!("{k:?}"));
     found.dedup();

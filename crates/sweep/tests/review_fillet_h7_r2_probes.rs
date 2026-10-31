@@ -31,6 +31,7 @@ use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_R, assert_naming_totality, cube, rod_creases,
     rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
+use topo::construction::Construct;
 use topo::query;
 use topo::{Body, validate_geometric};
 
@@ -170,7 +171,11 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
     else {
         panic!("a cut-off arc is a circle");
     };
-    let EdgeDescription::Intersection { pair, witness } = c.description() else {
+    let EdgeDescription::Intersection {
+        pair,
+        selector: geom_brep::CurveSelector::Witness(witness),
+    } = c.description()
+    else {
         panic!("a cut-off arc is a transverse intersection");
     };
     let (pair, witness) = (*pair, *witness);
@@ -199,7 +204,10 @@ fn r2_the_mutant_cut_off_arc_is_refused_at_the_attachment_gate() {
         let attached = body.set_edge_curve(
             arc,
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection { pair, witness },
+                description: EdgeDescriptionSpec::Intersection {
+                    pair,
+                    selector: geom_brep::CurveSelector::Witness(witness),
+                },
                 carrier,
                 param_start: t0,
                 param_end: t1,

@@ -91,8 +91,11 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     // Two opposite faces opened: a square tube, one shell, ten faces
     // (four outer walls, two rims, four cavity walls), and the exact
     // volume `L²H − (L−2t)²H`.
-    let body =
-        topo::test_support::finished("body", topo::Body::clone(body_of(&ea, sa)), Tol::witness());
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(&(body_of(&ea, sa))),
+        Tol::witness(),
+    );
     assert_eq!(body.faces().count(), 10);
     assert_eq!(body.shells().count(), 1);
     let inner = cup::L - 2.0 * cup::T;
@@ -378,7 +381,7 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     let m = topo::mass_properties(
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(&ev, shell)),
+            topo::Body::clone(&(body_of(&ev, shell))),
             Tol::witness(),
         ),
         Tol::witness(),
@@ -407,6 +410,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![outer, hole],
         ids: Vec::new(),
+        on: None,
     }));
     let blank = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -431,8 +435,8 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
         .map(|(n, _)| n.clone())
         .collect();
     let body = body_of(&ev, shell);
-    assert_eq!(topo::validate(body), Ok(()));
-    assert_eq!(topo::validate_closed(body), Ok(()));
+    assert_eq!(topo::validate(&body), Ok(()));
+    assert_eq!(topo::validate_closed(&body), Ok(()));
     // Outer: bottom, four walls, four hole walls (9); the rim annulus
     // and the hole's rim annulus (2); cavity: floor, four walls, four
     // hole walls (9).

@@ -260,12 +260,16 @@ fn the_exit_demo_walk() {
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-    // …and the A5 at-rest verdict landed with the evaluation: the
+    // …and the at-rest badge landed with the evaluation: the
     // seat is recorded at the door and certified — the verification
     // does not die at the commit.
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        Some(&viewer::session::AtRestBadge {
+            loud: 0,
+            quiet: 0,
+            could_not_look: 0,
+        }),
         "the mated assembly certifies at rest"
     );
 

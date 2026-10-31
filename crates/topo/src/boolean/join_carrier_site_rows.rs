@@ -100,14 +100,21 @@ fn a_germ_along_a_curved_edge_refuses_at_the_germ_frame() {
     }
 }
 
-/// **A ring run holding a spline edge refuses before any closing winds
-/// it**: the planar closing, whose chord winding has no row for a
-/// spline; the wall closing, whose chart has no closed-form image of
-/// one; and the quadric closing, whose loop arcs carry none. The run is
-/// the arc alone, closed by its chord. The refusal precedes any reading
-/// of the face, so the sheet's plane face stands for the wall and the
+/// **A ring run holding a spline edge refuses before any closing but a
+/// carried chord's winds it**: the planar closing, whose chord winding
+/// has no row for a spline; the wall closing, whose chart has no
+/// closed-form image of one; and the quadric closing, which reads no
+/// spline it holds no evidence of lying on the face for. The run is the
+/// arc alone, closed by its chord. The refusal precedes any reading of
+/// the face, so the sheet's plane face stands for the wall and the
 /// quadric too: reverted, each closing answers its own way instead
 /// (`SectionInvariant` on the plane, `RingIslandUnread` on the others).
+/// The carried closing (`IslandClosing::Carried`) reads a spline run on
+/// a cylinder, sphere or torus face from its edges' certificates
+/// (`ring_path::SplineArc`): `cylinder_sphere_frame`'s turned-chart pose
+/// reaches it on the drum's wall and its two-loop poses on the ball,
+/// `germ_sphere_torus_placements` on the donut, and
+/// `ring_path::spline_fuzz` searches its readings.
 #[test]
 fn a_ring_run_along_a_spline_edge_refuses_at_the_ring_run() {
     let (body, edge) = arc_sheet(1.0, 1.0);

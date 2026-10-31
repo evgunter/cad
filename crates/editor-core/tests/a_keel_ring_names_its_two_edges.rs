@@ -80,22 +80,23 @@ fn a_keel_ring_names_its_two_edges_apart() {
     for (what, b, v) in [("above", above, 16.0 - 0.3), ("below", below, 16.0)] {
         let got = topo::test_support::pinned_volume(
             "the measured body",
-            &topo::test_support::finished("the measured body", topo::Body::clone(&**b), tol),
+            &topo::test_support::finished("the measured body", topo::Body::clone(b.body()), tol),
             tol,
         )
         .volume;
         assert!((got - v).abs() < 1e-9 * v, "{what}: volume {got}, not {v}");
     }
     let ring: Vec<topo::EdgeKey> = above
+        .body()
         .faces()
         .flat_map(|(_, f)| f.rings.clone())
-        .filter_map(|l| match above.get_loop(l).unwrap().boundary {
-            topo::LoopBoundary::Cycle { first } => Some(above.loop_cycle(first).unwrap()),
+        .filter_map(|l| match above.body().get_loop(l).unwrap().boundary {
+            topo::LoopBoundary::Cycle { first } => Some(above.body().loop_cycle(first).unwrap()),
             topo::LoopBoundary::Empty { .. } => None,
         })
         .filter(|hes| hes.len() == 2)
         .flatten()
-        .map(|he| above.get_half_edge(he).unwrap().edge)
+        .map(|he| above.body().get_half_edge(he).unwrap().edge)
         .collect();
     let [a, b] = ring[..] else {
         panic!("the half above's two-edge rings hold {ring:?}");

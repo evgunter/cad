@@ -14,6 +14,7 @@ use crate::fixture::resolver::{PartName, PartStore, with_resolver};
 use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
+use editor_core::Dimension;
 use editor_core::eval::bound_pose;
 use editor_core::pose::PoseDef;
 use editor_core::{
@@ -112,7 +113,7 @@ fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formu
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 len(0.0),
             ),
-            (editor_core::Coord::SPIN, fixture::ang(0.0)),
+            (editor_core::Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     }
     .bundle()
@@ -877,7 +878,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
     let (top, reader) = insert(top, crate::fixture::stood(Operand::Node(outer)));
     let ev = run(&top, &with_resolver(store));
     let body = match ev.value(reader).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Body(b)) => b.clone(),
+        Some(editor_core::ValuePayload::Body(b)) => crate::fixture::in_space(b),
         other => panic!("one copy reads one body, not {other:?}"),
     };
     let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);

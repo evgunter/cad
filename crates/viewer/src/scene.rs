@@ -418,6 +418,10 @@ pub struct ScenePart<'a> {
     /// both facts, so a part cannot be displaced without being marked
     /// or marked without being displaced.
     pub probe: Option<Frame>,
+    /// **The body's frame in its space**, where it is not the identity:
+    /// what [`pncad::document::in_space`] answers for the part's body,
+    /// applied to the positions at build, in `f64`, beneath the probe.
+    pub placed: Option<Affine3<f64>>,
 }
 
 impl<'a> ScenePart<'a> {
@@ -427,6 +431,7 @@ impl<'a> ScenePart<'a> {
             mesh,
             ids,
             probe: None,
+            placed: None,
         }
     }
 }
@@ -586,7 +591,12 @@ impl SceneMesh {
             // The probe's display map, applied in f64 BEFORE the f32
             // cast: the displaced picture takes the same one rounding
             // step an undisplaced one does.
-            let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
+            let map: Option<Affine3<f64>> =
+                match (part.probe.map(|frame| frame.affine()), part.placed) {
+                    (None, placed) => placed,
+                    (Some(probe), None) => Some(probe),
+                    (Some(probe), Some(placed)) => Some(probe * placed),
+                };
             let flag = if part.probe.is_some() {
                 probe_parts += 1;
                 Self::FLAG_PROBE
@@ -787,6 +797,7 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
     let profile = ProfileProgram {
         loops: vec![outline, hole],
         ids: Vec::new(),
+        on: None,
     };
     let (doc, profile_node) = insert(doc, Node::Profile(profile), tol)?;
     let (doc, extrude) = insert(
@@ -864,17 +875,40 @@ fn no_product(error: ProductError, doc: &Doc<ProfileProgram>) -> SceneError {
 pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, SceneError> {
     let cancel = CancelToken::new();
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
-    product(doc, &evaluation, tol).map_err(|error| no_product(error, doc))
+    let product = pncad::document::product_recorded(doc, &evaluation, tol)
+        .map_err(|error| no_product(error, doc))?;
+    product_in_world(product, doc, tol).map_err(|error| no_product(error, doc))
+}
+
+/// **A gathered product as the picture draws it**: its body in the
+/// world's coordinates, composed through the façade's read-out door
+/// (`pncad::export::product_body_in_space`), the product's own frame
+/// being the one its gather computed in. Every reader of a product's
+/// body for display — the scene and the session's display fit — reads
+/// it here, so none draws the computing frame.
+///
+/// # Errors
+///
+/// The door's [`ProductError::Frame`] refusal.
+pub fn product_in_world(
+    product: pncad::document::Product<f64>,
+    doc: &Doc<ProfileProgram>,
+    tol: Tol,
+) -> Result<Body<f64>, ProductError> {
+    let composed = match pncad::export::product_body_in_space(&product, doc, tol) {
+        Ok(std::borrow::Cow::Owned(body)) => Some(body),
+        Ok(std::borrow::Cow::Borrowed(_)) => None,
+        Err(error) => return Err(error),
+    };
+    Ok(composed.unwrap_or_else(|| product.body.into_body()))
 }
 
 /// **Gather the product of a pair the landing did not keep one for.**
 ///
 /// The expensive door, and the only one in this module that gathers a
-/// product for an evaluation someone else ran. It exists for exactly
-/// one case: an assembly whose A5 gate REFUSED consumed the body the
-/// landing would otherwise have kept
-/// ([`crate::session::DocSession::landed_body`]), so a consumer that
-/// needs one there has to pay for it. Naming that door rather than
+/// product for an evaluation someone else ran: a pair no landing kept a
+/// body for ([`crate::session::DocSession::landed_body`]), so a consumer
+/// that needs one there has to pay for it. Naming that door rather than
 /// hiding the gather inside a getter is what keeps the cost at the
 /// call site, where a reader meets it.
 ///
@@ -1170,7 +1204,7 @@ pub enum ProbeStop {
 ///
 /// **A default, not a clamp.** The caller applies this once per
 /// document that arrives
-/// ([`crate::app::ViewerApp::fit_delta_on_scene`]); from there δ is
+/// ([`crate::app::DocumentDerived::fit_delta`]); from there δ is
 /// whatever the user types in the View pane, however fine, and nothing
 /// re-reads it. A budget that bound every rebuild would disable that
 /// field on exactly the documents someone would want it for.

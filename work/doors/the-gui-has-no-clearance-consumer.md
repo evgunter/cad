@@ -2,12 +2,11 @@
 id: the-gui-has-no-clearance-consumer
 kind: issue
 title: the GUI has no clearance consumer: no verdict, no witness, no refusal
-status: parked
+status: open
 opened: 2026-09-30
 priority: P1
 cost: H
 design: true
-blocked_on: [clearance-refusal-names-one-face-twice-across-bodies]
 ---
 
 
@@ -39,3 +38,12 @@ Seams: CLEAR owns the engine (`crates/editor-core/src/clearance.rs`)
 and its refusals' words. The session seam is shared with CHROME,
 VSEAM and VGEOM (AUTHOR's `keep_out`, now DOORS's `work/doors/program.md`). Weigh it with
 designers before a lane builds it.
+
+## Unparked (CLEAR orchestrator, 2026-10-29)
+
+`clearance-refusal-names-one-face-twice-across-bodies` closed with
+CLEARTEXT (#5977). A refusal now names each face by its side, and in
+editor-core as "face K of body i of {node}" (`ClearanceRefusal`'s
+`Say`). `ClearanceRefusal` and `EngineRefusal` implement `Display`.
+The VIOLATED verdict line still prints two bare keys; that is filed as
+`work/cleartail/clearance-violated-verdict-names-its-pair-by-bare-keys.md`.

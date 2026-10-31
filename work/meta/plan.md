@@ -55,7 +55,6 @@ charged 2.5), and one deferred row.
 | P3 | `an-announced-seam-is-recorded-only-on-the-crossing-programs-side` | D | a crossing announced in one `keep_out` leaves no record on the owner |
 | P3 | `d321-row-number-reissued` | D | nothing checks that an id is never reissued |
 | P3 | `keep-out-prose-can-name-a-program-that-no-longer-exists` | E | `keep_out` can name a closed program |
-| P3 | `needs-ev-on-a-program-is-invisible-to-the-board` | E | `needs_ev` on a program never reaches Waiting on Ev |
 | P3 | `territory-base-main-is-stale-in-every-agent-checkout` | E | `territory --base main` reads a stale local ref |
 | — | `a-row-in-review-whose-pr-has-merged-is-lintable` | — | a `review` row whose PR merged is invisible to lint |
 | P4 | `the-2026-09-11-cuts-class-estimates-are-untested-and-both-tested-ones-were-wrong` | E | 38 rows carry a class sentence the tree does not back |
@@ -89,8 +88,7 @@ moved onto a program's slate.
 ## Order
 
 The cheap `scripts/work.py` checks first, as one PR where they share a
-reader: `needs-ev-on-a-program-is-invisible-to-the-board`,
-`keep-out-prose-can-name-a-program-that-no-longer-exists` and
+reader: `keep-out-prose-can-name-a-program-that-no-longer-exists` and
 `territory-base-main-is-stale-in-every-agent-checkout`, each with a
 `--selftest` mutation. Then the three `D` rows, each of which states the
 decision it opens on, and `a-row-in-review-whose-pr-has-merged-is-lintable`,

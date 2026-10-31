@@ -203,6 +203,7 @@
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
+use topo::construction::Construct;
 
 use geom::Curve3;
 use geom::Surface;
@@ -212,9 +213,9 @@ use geom_brep::{
 };
 use geom_core::period::Within;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
+use topo::construction::{FaceSurface, MefSite, MekrSite, MevSite};
 use topo::{
-    Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MekrSite,
-    MevSite, ShellKey, SurfaceKey, VertexKey,
+    Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopKey, ShellKey, SurfaceKey, VertexKey,
 };
 
 use super::admit::{
@@ -3765,7 +3766,7 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
     // is a length that may exceed 2π without meaning anything.
     let periodic = matches!(sc.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. });
     if periodic {
-        let Some(turn) = sc.certificate().turn else {
+        let Some(turn) = sc.turn().copied() else {
             unreachable!("check 2 mints a turn for every circle and ellipse")
         };
         match turn.turn() {
@@ -3981,7 +3982,7 @@ fn strut_foot<T: Decide + Bounds + topo::AtRestPolicy>(
     fp: Point3<T>,
     site: &'static str,
     tol: Tol,
-) -> Result<topo::MevCreated, BlendError> {
+) -> Result<topo::construction::MevCreated, BlendError> {
     let p = point_of(body, v).ok_or_else(|| unresolved(EntityId::Vertex(v), "a rim vertex"))?;
     let created = body
         .mev(
@@ -4408,7 +4409,7 @@ fn mef_trim<T: Decide + Bounds + topo::AtRestPolicy>(
     rim_edge: EdgeKey,
     site: &'static str,
     tol: Tol,
-) -> Result<topo::MefCreated, BlendError> {
+) -> Result<topo::construction::MefCreated, BlendError> {
     let (Some(v1), Some(v2)) = (
         body.get_half_edge(he1).map(|h| h.start),
         body.get_half_edge(he2).map(|h| h.start),
@@ -4463,7 +4464,7 @@ fn lone_host_trim<T: Decide + topo::AtRestPolicy>(
     foot: VertexKey,
     strut: EdgeKey,
     tol: Tol,
-) -> Result<(topo::MefCreated, EdgeKey), BlendError> {
+) -> Result<(topo::construction::MefCreated, EdgeKey), BlendError> {
     let Some((hp, hm)) = halves_of(body, strut) else {
         unreachable!("lone host trim: the strut was minted by this phase and nothing killed it")
     };
@@ -5540,7 +5541,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
         let witness = curve.mid_point(t0, t1);
         EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         }
     } else {
         // The band meets its support tangentially along the contact
@@ -5682,6 +5683,7 @@ fn merged_chord_spec<T: Decide>(
 mod tests {
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
+    use topo::construction::Construct;
 
     use topo::EdgeKey;
 
@@ -5857,7 +5859,7 @@ mod tests {
         // Lifts RechartUnvouched: the face's edges do not lie on the degenerate chart, which is the row's premise.
         body.set_face_surface_unvouched_for_tests(
             off,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: geom::Surface::Cylinder {
                     origin: Point3::origin(),
                     axis: Vec3::zero(),

@@ -54,7 +54,15 @@ fn certify_half_circle(
     };
     (
         bounds,
-        EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), 1.0, band()),
+        EdgeCurve::certify(
+            spec,
+            p0,
+            p1,
+            |k| map.get(k).cloned(),
+            1.0,
+            band(),
+            geom_brep::NurbsLane::certified(),
+        ),
     )
 }
 

@@ -12,6 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, ang, insert, len};
+use editor_core::Dimension;
 use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, Coord, EvalOptions, Formula, LoftSection, Mate, Node, NodeResult, Operand,
@@ -32,8 +33,10 @@ fn vertices(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<[f64; 3]> {
         panic!("{node} evaluates: {:?}", ev.result(node));
     };
     let body = match &value.payload {
-        ValuePayload::Body(b) => b.clone(),
-        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => body.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
+        ValuePayload::Boolean(editor_core::BooleanValue::Body { body, .. }) => {
+            crate::fixture::in_space(body)
+        }
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[f64; 3]> = body
@@ -271,7 +274,7 @@ fn a_bundle_with_no_mate_places_by_its_chain_in_written_order() {
         let mut values = slides();
         values.push((Coord::Spin(Some(first)), quarter()));
         values.push((Coord::Spin(Some(then)), quarter()));
-        values.push((Coord::Spin(Some(first)), ang(0.0)));
+        values.push((Coord::Spin(Some(first)), Formula::zero(Dimension::Angle)));
         values
     };
     // R = Rx·Rz: (x, y, z) ↦ (−y, −z, x), then slid by (1, 2, 3).
@@ -743,7 +746,7 @@ fn vertex_bounds<T: editor_core::EvalScalar>(
         panic!("{node} evaluates: {:?}", ev.result(node));
     };
     let body = match &value.payload {
-        ValuePayload::Body(b) => b.clone(),
+        ValuePayload::Body(b) => crate::fixture::in_space(b),
         other => panic!("{node} is a body: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = body
@@ -921,7 +924,7 @@ fn read_copy<T: editor_core::EvalScalar>(
         panic!("{node} evaluates: {:?}", ev.result(node));
     };
     let bodies = match &value.payload {
-        ValuePayload::Body(b) => std::slice::from_ref(b),
+        ValuePayload::Body(b) => vec![crate::fixture::in_space(b)],
         other => panic!("{node} is a placement: {other:?}"),
     };
     let mut points: Vec<[(f64, f64); 3]> = bodies

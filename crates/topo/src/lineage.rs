@@ -112,6 +112,7 @@ pub enum LineageError {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Lineage {
     rows: BTreeMap<Cell, Fate>,
+    fusions: Fusions,
     merged: BTreeMap<Cell, Cell>,
     joins: Vec<EdgeJoin>,
     meeting: MintedBacking,
@@ -123,6 +124,7 @@ impl Default for Lineage {
     fn default() -> Self {
         Self {
             rows: BTreeMap::new(),
+            fusions: Fusions::new(LineageRows::Fusions),
             merged: BTreeMap::new(),
             joins: Vec::new(),
             meeting: MintedBacking::Refused,
@@ -236,6 +238,16 @@ impl Lineage {
         self
     }
 
+    /// The lineage read through `fusions`, the vertex fusions the op
+    /// made before its merges and joins: each image a fusion killed is
+    /// the vertex that survives every fusion after it, read on through
+    /// the merges and joins as that vertex ([`settle_through`]).
+    #[must_use]
+    pub(crate) fn through_fusions(mut self, fusions: &Fusions) -> Self {
+        self.fusions = fusions.clone();
+        self
+    }
+
     /// The lineage of an op whose one cut made every pair of cells it
     /// minted on a record's two cells ([`MintedBacking::OneCut`]).
     #[must_use]
@@ -289,10 +301,18 @@ impl Lineage {
         out
     }
 
-    /// An image read through the merges, then the joins. A merge's
-    /// substitute is a live kept face, so the chase ends at once.
+    /// An image read through the fusions, then the merges, then the
+    /// joins ([`settle_through`]): the vertex a fused one survives in,
+    /// the kept face a merge substituted for that, and the edge a join
+    /// made of what is left.
     pub(crate) fn joined(&self, cell: Cell) -> Cell {
-        let cell = self.merged.get(&cell).copied().unwrap_or(cell);
+        let cell = settle_through(
+            &self.fusions,
+            cell,
+            |c| self.merged.get(&c).copied(),
+            |_| false,
+        )
+        .unwrap_or_else(|end| end);
         crate::boolean::joined_cell(&self.joins, cell)
     }
 }
@@ -664,6 +684,35 @@ impl LineageKey for crate::entity::EdgeKey {
 impl LineageKey for crate::entity::VertexKey {
     fn cell(self) -> Cell {
         Cell::Vertex(self)
+    }
+}
+
+/// **Where `cell`'s interior ends up** through an op's vertex fusions,
+/// then its substitutions: the vertex a fused vertex finally fused into
+/// ([`Substitutions::survivor`]), then each cell a later substitution
+/// (`next`) moved that to, until `live` holds one (`Ok`) or no row moves
+/// it on (`Err`, the last cell reached). A substitution can kill a
+/// fusion's survivor, so the fusions are read first. The boolean's
+/// `Settler::settle` and [`Lineage`]'s images read through this one
+/// chase. It ends: each list's rows run one way.
+pub(crate) fn settle_through(
+    fusions: &Fusions,
+    cell: Cell,
+    next: impl Fn(Cell) -> Option<Cell>,
+    live: impl Fn(Cell) -> bool,
+) -> Result<Cell, Cell> {
+    let mut at = match cell {
+        Cell::Vertex(v) => Cell::Vertex(fusions.survivor(v)),
+        other => other,
+    };
+    loop {
+        if live(at) {
+            return Ok(at);
+        }
+        match next(at) {
+            Some(by) if by != at => at = by,
+            _ => return Err(at),
+        }
     }
 }
 
@@ -1368,5 +1417,44 @@ mod tests {
             assert!(shown.contains(&row), "{shown}");
             assert!(shown.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{shown}");
         }
+    }
+
+    /// **A fused vertex's image follows the fusions, then the
+    /// substitutions.** Fusions A → B and B → C, then a merge that kills
+    /// C into face F: A, B and C all image to F. Red where the fusions
+    /// sit in the merges' one-hop map, which stops at C, a dead cell.
+    /// No body reaches a chain of fusions today, so the chain is
+    /// synthetic.
+    #[test]
+    fn a_fused_vertex_reads_through_a_later_substitution_of_its_survivor() {
+        let v = |n: u64| -> crate::entity::VertexKey {
+            slotmap::KeyData::from_ffi((1u64 << 32) | n).into()
+        };
+        let face: FaceKey = slotmap::KeyData::from_ffi((1u64 << 32) | 9).into();
+        let (a, b, c) = (v(1), v(2), v(3));
+        let mut fusions = Fusions::new(LineageRows::Fusions);
+        fusions.push((a, b)).unwrap();
+        fusions.push((b, c)).unwrap();
+        let lineage = Lineage::new()
+            .through_fusions(&fusions)
+            .through_merges([(Cell::Vertex(c), Cell::Face(face))]);
+        for x in [a, b, c] {
+            assert_eq!(
+                lineage.images(Cell::Vertex(x)),
+                vec![Cell::Face(face)],
+                "{x:?}'s image"
+            );
+        }
+        let live = |k: Cell| k == Cell::Face(face);
+        assert_eq!(
+            settle_through(
+                &fusions,
+                Cell::Vertex(a),
+                |k| (k == Cell::Vertex(c)).then_some(Cell::Face(face)),
+                live
+            ),
+            Ok(Cell::Face(face)),
+            "the settler's chase"
+        );
     }
 }

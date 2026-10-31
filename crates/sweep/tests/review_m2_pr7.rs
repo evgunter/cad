@@ -10,6 +10,7 @@
 
 use crate::revolve_common;
 use sweep::ExtrudeSide;
+use topo::construction::Construct;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
@@ -313,7 +314,8 @@ fn megascale_washer_matches_and_validates() {
 /// with the first of them, pinned below.
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
-    use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
+    use topo::construction::{FaceSurface, MefSite};
+    use topo::{LoopBoundary, MassPropsError, ValidationError};
     let lp = ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),

@@ -1183,7 +1183,7 @@ fn tear_landed(tear: Tear) -> String {
 /// refuses in its plan phase wherever the merge would re-base a
 /// certified member ([`EulerOpError::MergeRebasesCarriers`]) — on these
 /// fixtures, every kill whose far vertex carries a fan — so where it
-/// does, the same kill is driven again through [`Body::kev_describing`]
+/// does, the same kill is driven again through [`Body::kev_describing`](crate::construction::Construct::kev_describing)
 /// with every merged member re-described as its chord
 /// ([`crate::seqgen::try_chord_redescriptions`]). The first door's
 /// refusal leaves `body` untouched, so the second runs on the same one.
@@ -1191,7 +1191,7 @@ fn kev_either_door(
     body: &mut Body<f64>,
     he: HalfEdgeKey,
     tol: Tol,
-) -> Result<crate::KevResult, EulerOpError> {
+) -> Result<crate::construction::KevResult, EulerOpError> {
     match body.kev(he) {
         Err(refusal @ EulerOpError::MergeRebasesCarriers { .. }) => {
             match crate::seqgen::try_chord_redescriptions(body, he) {
@@ -1735,7 +1735,7 @@ const TWO_SHELLS_OF_ONE_SOLID: (&str, BuildFixture) = ("two shells of one solid"
     body
 });
 
-/// Null scaffolding on the declined cube ([`Body::mev_null`]): a null
+/// Null scaffolding on the declined cube ([`Body::mev_null`](crate::construction::Construct::mev_null)): a null
 /// strut at the seed vertex, and a null fan split there, whose kill
 /// merges a fan and moves nothing.
 const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
@@ -1748,7 +1748,8 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
             .emanating
             .unwrap();
         let site = MevSite::Fan { he1: he, he2: he };
-        body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        body.mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         body
     }),
     ("null fan split on the declined cube", |tol| {
@@ -1764,7 +1765,8 @@ const NULL_SCAFFOLDING: [(&str, BuildFixture); 2] = [
             he1,
             he2: orbit[orbit.len() - 1],
         };
-        body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        body.mev_null(site, crate::construction::NewVertexSide::Above)
+            .unwrap();
         body
     }),
 ];
@@ -1884,7 +1886,10 @@ fn valid_fixtures_never_refuse_a_fan_split_or_a_vertex_read() {
                     continue;
                 }
                 let site = MevSite::Fan { he1, he2 };
-                if let Err(err) = body.clone().mev_null(site, crate::NewVertexSide::Above) {
+                if let Err(err) = body
+                    .clone()
+                    .mev_null(site, crate::construction::NewVertexSide::Above)
+                {
                     panic!("{fixture}: mev_null at {site:?} refused {err:?}");
                 }
             }
@@ -3441,7 +3446,7 @@ fn an_empty_loop_write_panics_at_a_broken_cycle_before_a_collision() {
 const READ_DOORS: [&str; 20] = [
     "face_carrier",
     "carrier_pair_relation",
-    "carrier_pair_verdict",
+    "carrier_pair_decided",
     "flush_pair_relation",
     "mint_pcurves",
     "mint_pcurves_of",
@@ -3473,7 +3478,7 @@ const PREMISE_DOORS: [&str; 8] = [
     "contfp",
     "classify_neighborhood",
     "face_carrier",
-    "carrier_pair_verdict",
+    "carrier_pair_decided",
     "flush_pair_relation",
     "face_azimuth_window_traces",
     "revert",
@@ -3624,7 +3629,7 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
     let sound_face = sound.faces().next().map(|(k, _)| k).unwrap();
     for (face, data) in body.faces() {
         use crate::boolean::{
-            PairUnread, carrier_pair_relation, carrier_pair_verdict, face_carrier,
+            PairUnread, carrier_pair_decided, carrier_pair_relation, face_carrier,
             flush_pair_relation,
         };
         let outside = || match body.get_surface(data.surface) {
@@ -3649,13 +3654,13 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
             },
         );
         judge_read(capture, &mut census, "carrier_pair_relation", || {
-            pair(carrier_pair_relation(body, face, &sound, sound_face, false, band).err())
+            pair(carrier_pair_relation(body, face, &sound, sound_face, band).err())
         });
-        judge_read(capture, &mut census, "carrier_pair_verdict", || {
-            pair(carrier_pair_verdict(body, face, &sound, sound_face, false, band).err())
+        judge_read(capture, &mut census, "carrier_pair_decided", || {
+            pair(carrier_pair_decided(body, face, &sound, sound_face, band).err())
         });
         judge_read(capture, &mut census, "flush_pair_relation", || {
-            pair(flush_pair_relation(body, face, &sound, sound_face, false, band).err())
+            pair(flush_pair_relation(body, face, &sound, sound_face, band).err())
         });
     }
     // The mints write their body, so each runs on a clone, and a

@@ -61,7 +61,8 @@ pub struct ConicDeparture<T: Real> {
     /// `.norm()` is the sector predicates' lever arm, its
     /// `.normalize()` the direction.
     pub dir: Vec3<T>,
-    /// The edge's extent ([`crate::edge_extent`]).
+    /// The edge's extent from below ([`crate::edge_extent_inf`]): no
+    /// longer than its arc, which [`conic_bend_side`]'s witness needs.
     pub extent: T,
     /// How the edge bends off [`Self::dir`].
     pub bend: ConicBend<T>,
@@ -79,7 +80,7 @@ impl<T: Decide> ConicDeparture<T> {
     pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, chord: T) -> Self {
         let (t0, t1) = curve.params();
         let (tangent, _) = curve.walk_tangents(he_plus);
-        let extent = crate::edge_extent(curve.carrier(), t0, t1, chord);
+        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1, chord);
         let bend = ConicBend::of(
             curve.carrier(),
             tangent,
@@ -155,8 +156,8 @@ impl<T: Decide> ConicBend<T> {
 /// **A conic edge's side of a plane one order down**, where its
 /// departure tangent `dir` read `Zero` against the plane: which side
 /// the arc BENDS to. `extent` is the edge's extent
-/// ([`crate::edge_extent`]): no longer than its arc, so a point at that
-/// arc length lies on the edge.
+/// from below ([`crate::edge_extent_inf`]): no longer than its arc, so
+/// a point at that arc length lies on the edge.
 ///
 /// Put the arc in its own plane, in the frame of its unit tangent `t̂`
 /// and principal normal `N̂` at the vertex: a point at arc length `s`

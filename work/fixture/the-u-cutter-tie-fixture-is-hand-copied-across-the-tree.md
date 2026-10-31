@@ -56,3 +56,11 @@ the corner coordinate matched.
 ## Moved to FIXTURE (2026-10-26, tracker sweep)
 
 Moved from `work/tcost/`. The row is a test-side copy of a shared fixture door, which is FIXTURE's charter, and it is not a cost lever. It was re-checked against main and is still live. The id and body are unchanged.
+
+## One copy avoided (`wire/tie-summed-decline-witnessed`)
+
+`fixture` now has `prism`, `U_CUTTER` (the profile) and `u_cutter` (the
+tool alone, unplaced), and `u_cutter_tie` builds through `u_cutter`.
+`split_joined_keys_tie` uses `u_cutter` instead of a fourteenth copy.
+`resolve_group_membership`'s tie fixture reads `U_CUTTER` as its profile
+parameter. The other 13 copies are untouched.

@@ -20,10 +20,10 @@
 //!    counts cannot see a node that reused the WRONG entry. The row
 //!    here asserts the whole after-eval is deep-digest-identical to a
 //!    fresh evaluation of the bumped document.
-//! 3. **The census door at `Dual64`.** `assemble` is the third DL3
-//!    gating site (`AtRestPolicy::gate_at_rest_declared`) and the
+//! 3. **The census door at `Dual64`.** The gather's census is the third
+//!    DL3 gating site (`AtRestPolicy::gate_at_rest_declared`) and the
 //!    unit's suites never drive it at a dual; the row here does, over
-//!    every corpus document, refusal arms compared with `f64`.
+//!    every corpus document, its gathers compared with `f64`.
 //! 4. **An own-authored consumer document** built through the public
 //!    edit API (arc profile → extrude → tilted split → boolean-free
 //!    product) and driven at `Dual64` as an API consumer would.
@@ -43,8 +43,8 @@ use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
     AssertionVerdict, BooleanValue, CancelToken, ContentKey, Dimension, EvalOptions, Evaluation,
-    LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, assemble,
-    evaluate, product_recorded,
+    LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, evaluate,
+    product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
@@ -291,12 +291,12 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     }
                     ValuePayload::Body(b) => {
                         d.u64(14);
-                        d.body(b);
+                        d.body(b.body());
                     }
                     ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
                     ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
                         d.u64(16);
-                        d.body(body);
+                        d.body(body.body());
                     }
                     ValuePayload::Split { above, below } => {
                         d.u64(17);
@@ -305,16 +305,17 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                                 SplitSide::Empty => d.u64(0),
                                 SplitSide::Body(b) => {
                                     d.u64(1);
-                                    d.body(b);
+                                    d.body(b.body());
                                 }
                             }
                         }
                     }
+                    ValuePayload::Family => d.u64(19),
                     ValuePayload::Instances(bodies) => {
                         d.u64(18);
                         d.u64(bodies.len() as u64);
                         for b in bodies {
-                            d.body(b);
+                            d.body(b.body());
                         }
                     }
                     // The measured quantity IS a lane value, so it is
@@ -433,64 +434,49 @@ fn threaded_prior_never_contaminates_values_at_dual64() {
     }
 }
 
-/// Instrument 3: the census door (`assemble`, DL3's third gating site,
-/// `AtRestPolicy::gate_at_rest_declared`) opens at `Dual64` exactly
-/// where it opens at `f64`, over the whole corpus — including the
-/// mate-carrying documents — and refuses on the same documents where
-/// it refuses.
+/// Instrument 3: the census door (DL3's third gating site,
+/// `AtRestPolicy::gate_at_rest_declared`) at `Dual64`, over the whole
+/// corpus — including the mate-carrying documents: a document gathers
+/// at `Dual64` exactly where it gathers at `f64`, with a bit-identical
+/// value channel, and its census is structurally absent there
+/// (`topo::AtRestOutcome::NotRunAtThisScalar`, no finding kept), so a
+/// dual's product certifies nothing. The E4 pairing discipline — a dual
+/// pass rides BESIDE a validated base-scalar run — is what makes that
+/// sound.
 #[test]
-fn assemble_census_door_matches_f64_at_dual64() {
+fn the_census_door_is_absent_at_dual64_and_the_gather_matches_f64() {
     let tol = Tol::witness();
-    let mut assembled = 0usize;
-    let mut divergent: Vec<&'static str> = Vec::new();
+    let mut gathered = 0usize;
     for doc in documents() {
         let ev_f = eval::<f64>(&doc.doc);
         let ev_d = eval::<Dual64>(&doc.doc);
-        match assemble(&doc.doc, &ev_f, tol) {
-            Ok(asm_f) => {
-                let asm_d = assemble(&doc.doc, &ev_d, tol).unwrap_or_else(|e| {
-                    panic!("{}: assembles at f64 but refused at Dual64: {e}", doc.name)
-                });
+        let f = editor_core::product_recorded(&doc.doc, &ev_f, tol);
+        let d = editor_core::product_recorded(&doc.doc, &ev_d, tol);
+        match (f, d) {
+            (Ok(f), Ok(d)) => {
                 let (mut a, mut b) = (Fnv::new(), Fnv::new());
-                a.body(&asm_f.body);
-                b.body(&asm_d.body);
-                assert_eq!(a.0, b.0, "{}: assembly value channel", doc.name);
-                assembled += 1;
+                a.body(&f.body);
+                b.body(&d.body);
+                assert_eq!(a.0, b.0, "{}: the product's value channel", doc.name);
+                assert_eq!(
+                    d.body.outcome(),
+                    topo::AtRestOutcome::NotRunAtThisScalar,
+                    "{}: no census runs at a dual",
+                    doc.name
+                );
+                assert!(d.census.is_empty(), "{}: and keeps no finding", doc.name);
+                gathered += 1;
             }
-            Err(e) => match assemble(&doc.doc, &ev_d, tol) {
-                Err(_) => {}
-                Ok(_) => {
-                    eprintln!(
-                        "DIVERGENCE {}: f64 refuses [{e:?}] but Dual64 assembles",
-                        doc.name
-                    );
-                    divergent.push(doc.name);
-                }
-            },
+            (Err(_), Err(_)) => {}
+            (f, d) => panic!(
+                "{}: the gather disagreed across scalars: f64 {:?} vs Dual64 {:?}",
+                doc.name,
+                f.err(),
+                d.err()
+            ),
         }
     }
-    assert!(assembled > 0, "the corpus assembled nothing at all");
-    // THE PINNED DL3 CONSEQUENCE (R2's review finding, on record): at
-    // a dual the census door is structurally absent, so a document the
-    // f64 census REFUSES (an at-rest validity verdict about the
-    // geometry, not a "dual may not certify" refusal) assembles green
-    // at `Dual64`. The E4 pairing discipline — a dual pass rides
-    // BESIDE a validated base-scalar run — is what makes this sound,
-    // and nothing in the type system enforces that pairing at this
-    // public door. This assertion pins the divergence set so a change
-    // in either direction (a gate returning to duals, or new corpus
-    // members joining the divergence) is loud rather than silent.
-    // `kitchen_sink` and `cut_cylinder` refuse at f64 on
-    // `CensusUndecidable` (curved faces of two copies within reach),
-    // whose pairs' touches the gather records none of; both assemble
-    // green at `Dual64`. `heat_sink` left the set when the gather began
-    // recording copies' touches (D10): its fins' pierces are
-    // interference findings, which refuse nothing.
-    assert_eq!(
-        divergent,
-        vec!["kitchen_sink", "cut_cylinder"],
-        "the f64-refuses/Dual64-assembles divergence set changed"
-    );
+    assert!(gathered > 0, "the corpus gathered nothing at all");
 }
 
 /// Instrument 4: an own-authored consumer document through the public
@@ -505,6 +491,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![disc],
         ids: Vec::new(),
+        on: None,
     }));
     let puck = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -535,7 +522,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
     // The two arms agree EXCEPT where the certified at-rest gate
-    // decides: `RootInvalid` is minted only by `gate_at_rest`, which
+    // decides: `PieceInvalid` is minted only by `gate_at_rest`, which
     // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
     // gate refusal — which this document produces at tight ε, where
     // `props_quad_converged` escalates on the arc-walled split — is
@@ -548,7 +535,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             "f64 gathered but Dual64 refused: {:?}",
             p_d.as_ref().err()
         ),
-        Err(ProductError::RootInvalid { .. }) => assert!(
+        Err(ProductError::PieceInvalid { .. }) => assert!(
             p_d.is_ok(),
             "the at-rest gate is structurally absent at Dual64 (DL3), so an \
              f64 gate refusal must leave the Dual64 gather Ok; got {:?}",
@@ -586,8 +573,8 @@ fn direct_validation_door_behavior_at_dual64() {
     // runs and answers. That door is the `_structural` twin: the composed
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
-    let direct = topo::validate_geometric_structural(body, tol);
-    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
+    let direct = topo::validate_geometric_structural(&body, tol);
+    let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(&body, tol);
     assert_eq!(
         policy,
         Ok(topo::AtRestOutcome::NotRunAtThisScalar),
@@ -604,7 +591,7 @@ fn direct_validation_door_behavior_at_dual64() {
         // NURBS wall and says so as `VolumeUncomputable` rather than
         // passing it unbounded. Nothing else the battery consults refuses
         // this body.
-        let verdict = topo::validate_geometric_structural(body_n, tol);
+        let verdict = topo::validate_geometric_structural(&body_n, tol);
         assert!(
             matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
                 e,

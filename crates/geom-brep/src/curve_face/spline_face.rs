@@ -1,7 +1,10 @@
-//! **The analytic span × spline face arm** of the curve × face table
-//! ([`super::Door::SplineFace`]): a line, circle or ellipse span against
-//! a NURBS chart, settled on boxes of the state `(t, u, v)` on
-//! `F = C(t) − S(u, v)`.
+//! **The span × spline face arm** of the curve × face table
+//! ([`super::Door::SplineFace`]): a line, circle, ellipse or NURBS span
+//! against a NURBS chart, settled on boxes of the state `(t, u, v)` on
+//! `F = C(t) − S(u, v)`. A line or a conic reads `C` and `C′` over a
+//! parameter window in closed form; a NURBS span reads them off its
+//! ruled sheet (`sheet`), whose enclosures are the span's control hull
+//! and its hodograph's quotient bound, cut to the window.
 //!
 //! `F` is a displacement in metres, so a box is read against the band
 //! with no meter: the box is **clear** where `|F|` over it is decided
@@ -30,23 +33,33 @@
 //! is placed on the sheet it was found on.
 //!
 //! - **No box straddles a crease** (an interior knot run of
-//!   multiplicity at least the degree, `Knots::crease_values`): the
-//!   chart is cut at its creases before the walk, and an isolating box
-//!   is grown inside its own crease-free block. **The crease rule** has
+//!   multiplicity at least the degree, `Knots::crease_values`), the
+//!   span's or the chart's: the state is cut at both before the walk,
+//!   and an isolating box is grown inside its own crease-free block. **The crease rule** has
 //!   one home ([`Cuts::touch`]): a box touching a crease carries no
 //!   Krawczyk proof, so no isolating box holds it, and at the floor it
 //!   refuses [`Unsettled::Crease`]. That is what refuses a meeting within
 //!   the band of a crease: the carrier there lies within the band of the
-//!   crease's point `q`, so every box holding the state `(t, q)` touches
+//!   crease's point, so every box holding the meeting's state touches
 //!   the crease and is never decided past the band, and none is held. A
 //!   box at the floor refuses under that label where a crease lies within
 //!   the reach its test was read over; the label says where the refusal
 //!   stands, not how far.
 //! - **The span's ends are the end vertices'.** The walk reads the
-//!   carrier a little past each end ([`END_REACH`]), so a meeting at an
-//!   end is isolated like any other; one within the band of an end, or
-//!   past it, is not reported. A meeting on the chart's domain edge is
-//!   isolated by no box inside the domain, so it refuses like any other
+//!   carrier a little past each end ([`END_REACH`]), as far as it runs
+//!   smoothly (to its domain's end or the nearest crease beyond the end),
+//!   so a meeting at an end is isolated like any other; one within the
+//!   band of an end, or past it, is not reported. At every end, of every
+//!   kind of span, the walk also tries an **end's box**: a box it reads,
+//!   or one of the floor growths it tries a proof on, that holds the end's
+//!   state (the end's parameter and its foot on the chart) and on which
+//!   every solution lies within the band of the end, by the mean value
+//!   theorem over the box ([`crate::krawczyk::solution_reach`]). It claims
+//!   no solution, so it needs no reading past either domain: it is what
+//!   reads an end the walk cannot read past (a NURBS span ending at its
+//!   domain's end or on a crease of its own) and an end on the chart's
+//!   domain edge. Any other meeting on the chart's domain edge is isolated
+//!   by no box inside the domain, so it refuses like any other
 //!   unaccounted box, an open chart's edge and a closed chart's seam
 //!   alike.
 //! - A meeting must read ON the chart, the carrier's point within the
@@ -55,15 +68,18 @@
 //!
 //! The walk is `geom_core::bisect::bisect`, with its piece budget.
 
+use core::num::NonZeroUsize;
+
 use geom::{Curve3, NurbsSurface};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
+use geom_core::spline::Knots;
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Interval, Margin, Point3, Real, Sign,
     Vec3,
 };
 
-use crate::krawczyk::{det3, image, inverse3, meet3, midpoints, norm};
+use crate::krawczyk::{det3, image, inverse3, meet3, midpoints, norm, solution_reach};
 use crate::roots::Unsettled;
 use crate::ssi::enclose::{NurbsBoxes, UvWindow};
 
@@ -74,17 +90,18 @@ pub enum SplineFaceRefusal {
     /// whether a meeting lies ON the chart, or where it stands against
     /// an end of the span, a crease or the meeting before it.
     Escalated(Indeterminate),
-    /// The walk could not settle the span: [`Unsettled::Tangency`] (a box
-    /// at the floor within the band that no meeting accounts for: a pass
-    /// within the band, a tangency, two meetings the band cannot part, or
-    /// a meeting on the chart's domain edge), [`Unsettled::Crease`] (such
-    /// a box within its floor reach of a crease among its block's sides,
-    /// as a meeting within the band of a crease leaves one),
-    /// [`Unsettled::SignInBand`] (a meeting does not read on the chart)
-    /// or [`Unsettled::Exhausted`].
+    /// The walk reached a limit: [`Unsettled::Floor`] (a box at the floor
+    /// not read past the band that no meeting accounts for: a pass within
+    /// the band, a tangency, two meetings the band cannot part, or a
+    /// meeting on the chart's domain edge), [`Unsettled::Crease`] (such a
+    /// box within its floor reach of a crease among its block's sides, as
+    /// a meeting within the band of a crease leaves one),
+    /// [`Unsettled::Tangency`] (two meetings decided at one point),
+    /// [`Unsettled::Meter`] (a meeting does not resolve onto the chart, or
+    /// inside the span, to the band) or [`Unsettled::Exhausted`].
     Unsettled(Unsettled),
-    /// The arm could not read the pair: the carrier is not a line, circle
-    /// or ellipse, or a scalar, a knot or the chart's speeds did not
+    /// The arm could not read the pair: the carrier is a spiric, or a
+    /// scalar, a knot or a speed of the carrier or the chart did not
     /// certify.
     Unread(&'static str),
     /// Two enclosures of one residual share no point: an argument behind
@@ -114,12 +131,18 @@ pub struct ChartMeeting<T: Real> {
 /// apart or not.
 const PAST_THE_BAND: &str = "spline_face_past_the_band";
 
+/// K name: how far a solution in an end's box can lie from the end, read
+/// against the band.
+const AT_THE_END: &str = "spline_face_at_the_end";
+
 /// How far past each end of the span the walk reads the carrier, in
-/// escalation lengths. A meeting at an end is a split point decided ON
-/// within the band's zero, so its solution lies within `zero / sin θ` of
-/// the end, `θ` the crossing's angle: the reach covers every crossing
-/// steeper than `zero / (1024·escalate) < 1/1024` rad, and a shallower one
-/// at an end refuses. No answer but a refusal rests on its size.
+/// escalation lengths at the span's pace (a lower bound on its mean
+/// speed). A meeting at an end is a split point decided ON within the
+/// band's zero, so its solution lies within `zero / sin θ` of the end, `θ`
+/// the crossing's angle: where the carrier runs no faster near the end
+/// than its pace, the reach covers every crossing steeper than
+/// `zero / (1024·escalate) < 1/1024` rad, and any other is the end's box's
+/// to account for or refuses. No answer but a refusal rests on its size.
 const END_REACH: f64 = 1024.0;
 
 /// The growth an isolating box is tried at, largest first, in
@@ -196,14 +219,36 @@ impl Cell {
     }
 }
 
+/// A chart window, `u` by `v`: the sheet's is `t` by `{0}`.
+fn window(u: (f64, f64), v: (f64, f64)) -> Option<UvWindow> {
+    UvWindow::new(u.0, u.1, v.0, v.1)
+}
+
+/// The sheet's window over the parameter `t`, `None` where `t` does not
+/// certify: a NURBS carrier is read off boxes over the window, which
+/// carry no decoration of `t`'s, so the refusal is asked here.
+fn certified_window(t: Interval) -> Option<UvWindow> {
+    if !t.is_certified() {
+        return None;
+    }
+    window((t.lo(), t.hi()), (0.0, 0.0))
+}
+
+/// The enclosure of a vector that does not certify, which fails every
+/// test.
+fn poison() -> [Interval; 3] {
+    [Interval::from_bounds(f64::NAN, f64::NAN); 3]
+}
+
 /// The point enclosure of `x`.
 fn exact(x: f64) -> Interval {
     Interval::from_bounds(x, x)
 }
 
 /// The span's carrier crossed into certification arithmetic:
-/// `C(t) = o + d·t` or `C(θ) = c + e₁·cos θ + e₂·sin θ`.
-enum Path {
+/// `C(t) = o + d·t`, `C(θ) = c + e₁·cos θ + e₂·sin θ`, or a NURBS
+/// carrier read off its ruled sheet ([`sheet`]).
+enum Path<'a, T: CertifiedBounds> {
     Line {
         o: [Interval; 3],
         d: [Interval; 3],
@@ -213,10 +258,14 @@ enum Path {
         e1: [Interval; 3],
         e2: [Interval; 3],
     },
+    Spline {
+        boxes: Box<NurbsBoxes<'a, T>>,
+    },
 }
 
-impl Path {
-    fn of<T: CertifiedBounds>(carrier: &Curve3<T>) -> Option<Self> {
+impl<'a, T: CertifiedBounds> Path<'a, T> {
+    fn of(carrier: &'a SpanCarrier<'a, T>) -> Option<Self> {
+        let (sheet, carrier) = (carrier.sheet.as_ref(), carrier.curve);
         let p = |p: Point3<T>| [p.x, p.y, p.z].map(Interval::from_certified);
         let v = |v: Vec3<T>| [v.x, v.y, v.z].map(Interval::from_certified);
         let scaled = |v: [Interval; 3], s: T| v.map(|c| c * Interval::from_certified(s));
@@ -246,11 +295,17 @@ impl Path {
                 e1: scaled(v(u_ref), semi_u),
                 e2: scaled(geom_core::interval::cross(&v(axis), &v(u_ref)), semi_v),
             },
-            Curve3::Spiric { .. } | Curve3::Nurbs(_) => return None,
+            Curve3::Nurbs(_) => {
+                return sheet.map(|s| Self::Spline {
+                    boxes: Box::new(NurbsBoxes::new(s)),
+                });
+            }
+            Curve3::Spiric { .. } => return None,
         };
         let all = match &path {
             Self::Line { o, d } => o.iter().chain(d).all(|c| c.is_certified()),
             Self::Conic { c, e1, e2 } => c.iter().chain(e1).chain(e2).all(|c| c.is_certified()),
+            Self::Spline { .. } => true,
         };
         all.then_some(path)
     }
@@ -262,6 +317,13 @@ impl Path {
                 let (s, co) = Real::sin_cos(t);
                 core::array::from_fn(|k| c[k] + e1[k] * co + e2[k] * s)
             }
+            Self::Spline { boxes, .. } => match certified_window(t) {
+                Some(w) => {
+                    let b = boxes.rect_box(w);
+                    [b.x, b.y, b.z]
+                }
+                None => poison(),
+            },
         }
     }
 
@@ -272,15 +334,37 @@ impl Path {
                 let (s, co) = Real::sin_cos(t);
                 core::array::from_fn(|k| e2[k] * co - e1[k] * s)
             }
+            Self::Spline { boxes, .. } => match certified_window(t) {
+                Some(w) => {
+                    let b = boxes.deriv_box(w, true);
+                    [b.x, b.y, b.z]
+                }
+                None => poison(),
+            },
         }
     }
 
-    /// An upper bound on the carrier's speed, and a lower one; NaN where
-    /// either does not certify.
-    fn speeds(&self) -> (f64, f64) {
+    /// An upper bound on the carrier's speed over `domain`, and a lower
+    /// one, or zero where none certifies; NaN where the upper does not
+    /// certify. A NURBS carrier's are its sheet's meter
+    /// ([`NurbsSurface::stretch_floor`], [`NurbsBoxes::speed_sup`]): the
+    /// quotient bound `geom::NurbsCurve3`'s own speed bounds read, which
+    /// this arm's sole `CertifiedBounds` scalar cannot call.
+    fn speeds(&self, domain: (f64, f64)) -> (f64, f64) {
         let (a, b) = match self {
             Self::Line { d, .. } => (norm(*d), norm(*d)),
             Self::Conic { e1, e2, .. } => (norm(*e1), norm(*e2)),
+            Self::Spline { boxes } => {
+                let fast =
+                    window(domain, (0.0, 0.0)).map_or(f64::NAN, |w| boxes.speed_sup(w, true));
+                let slow = Interval::from_certified(boxes.surface().stretch_floor(true));
+                let slow = if slow.is_certified() { slow.lo() } else { 0.0 };
+                return if fast.is_finite() {
+                    (fast, slow)
+                } else {
+                    (f64::NAN, f64::NAN)
+                };
+            }
         };
         if !(a.is_certified() && b.is_certified()) {
             return (f64::NAN, f64::NAN);
@@ -289,19 +373,52 @@ impl Path {
     }
 }
 
+/// **A NURBS carrier's ruled sheet**, `S(t, s) = C(t)`: the carrier's
+/// knots along `t`, two copies of its net along `s` at degree one. The
+/// sheet's net is the carrier's, so its enclosures over a window
+/// `[t₀, t₁] × {0}` ([`NurbsBoxes`]: the control hull, the hodograph's
+/// quotient bound, each cut to the window below a knot span) are the
+/// carrier's over `[t₀, t₁]`, and its creases along `t` are the
+/// carrier's. `None` for any other carrier, or where the net does not
+/// form one.
+fn sheet<T: Decide>(carrier: &Curve3<T>) -> Option<NurbsSurface<T>> {
+    let Curve3::Nurbs(net) = carrier else {
+        return None;
+    };
+    let twice = NonZeroUsize::new(2)?;
+    let across = Knots::new(vec![(T::zero(), twice), (T::one(), twice)], 1).ok()?;
+    let control = net.control().iter().flat_map(|&p| [p, p]).collect();
+    let weights = net.weights().iter().flat_map(|&w| [w, w]).collect();
+    NurbsSurface::new(net.knot_values().clone(), across, control, weights).ok()
+}
+
+/// **A span's carrier as [`isolate`] reads it**: the carrier, and a NURBS
+/// carrier's ruled sheet ([`sheet`]), built from it here and nowhere else.
+pub struct SpanCarrier<'a, T: Real> {
+    curve: &'a Curve3<T>,
+    sheet: Option<NurbsSurface<T>>,
+}
+
+impl<'a, T: Decide> SpanCarrier<'a, T> {
+    /// `curve`, with its ruled sheet where it is a NURBS.
+    #[must_use]
+    pub fn of(curve: &'a Curve3<T>) -> Self {
+        Self {
+            curve,
+            sheet: sheet(curve),
+        }
+    }
+}
+
 /// The pair, read over boxes of the state.
 struct Pair<'a, T: CertifiedBounds> {
-    path: Path,
+    path: Path<'a, T>,
     boxes: NurbsBoxes<'a, T>,
     /// Metres per unit of each coordinate, upper bounds.
     speeds: [f64; 3],
 }
 
 impl<T: CertifiedBounds> Pair<'_, T> {
-    fn window(x: Cell) -> Option<UvWindow> {
-        UvWindow::new(x.0[1].0, x.0[1].1, x.0[2].0, x.0[2].1)
-    }
-
     /// `C` over `t` minus the chart's first-order box over `w`.
     fn gap(&self, t: Interval, w: UvWindow) -> [Interval; 3] {
         let s = self.boxes.rect_box(w);
@@ -313,14 +430,14 @@ impl<T: CertifiedBounds> Pair<'_, T> {
     fn at(&self, m: [f64; 3]) -> [Interval; 3] {
         match UvWindow::new(m[1], m[1], m[2], m[2]) {
             Some(w) => self.gap(exact(m[0]), w),
-            None => [Interval::from_bounds(f64::NAN, f64::NAN); 3],
+            None => poison(),
         }
     }
 
     /// `J = [C′ | −S_u | −S_v]` over `x`, by rows.
     fn jacobian(&self, x: Cell) -> [[Interval; 3]; 3] {
-        let Some(w) = Self::window(x) else {
-            return [[Interval::from_bounds(f64::NAN, f64::NAN); 3]; 3];
+        let Some(w) = window(x.0[1], x.0[2]) else {
+            return [poison(); 3];
         };
         let ct = self.path.tangent(x.interval(0));
         let su = self.boxes.deriv_box(w, true);
@@ -338,8 +455,8 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         jac: &[[Interval; 3]; 3],
         fm: [Interval; 3],
     ) -> Option<[Interval; 3]> {
-        let Some(w) = Self::window(x) else {
-            return Some([Interval::from_bounds(f64::NAN, f64::NAN); 3]);
+        let Some(w) = window(x.0[1], x.0[2]) else {
+            return Some(poison());
         };
         let plain = self.gap(x.interval(0), w);
         let m = x.mid();
@@ -404,6 +521,37 @@ impl<T: CertifiedBounds> Pair<'_, T> {
         None
     }
 
+    /// The state of the span's end at the parameter `end`: `end` and the
+    /// foot on `chart` of the carrier's point there, with an enclosure of
+    /// `F` at that state. The point's enclosure only seeds the foot, so its
+    /// middle is taken. `None` where the foot is not found.
+    fn end_state(&self, end: f64, chart: &NurbsSurface<T>) -> Option<End> {
+        let c = self.path.at(exact(end));
+        let [x, y, z] = c.map(|k| T::from_computed(k.lo() + (k.hi() - k.lo()) * 0.5));
+        let foot = chart.project(Point3::new(x, y, z)).ok()?;
+        let at = [end, foot.u, foot.v];
+        Some(End {
+            at: Cell(at.map(|c| (c, c))),
+            f: self.at(at),
+        })
+    }
+
+    /// **Whether `x` is an end's box** (module docs): it holds the state
+    /// of an end, and every solution in it lies within the band of that
+    /// end ([`crate::krawczyk::solution_reach`], `jac` an enclosure of `J`
+    /// over `x`).
+    fn holds_an_end(&self, x: Cell, jac: &[[Interval; 3]; 3], ends: &[End], band: Band) -> bool {
+        ends.iter().any(|e| {
+            e.at.within(x)
+                && solution_reach(e.f, jac, self.speeds).is_some_and(|r| {
+                    matches!(
+                        decide(AT_THE_END, Margin::of(Interval::from_bounds(0.0, r)), band),
+                        Ok(Sign::Zero)
+                    )
+                })
+        })
+    }
+
     /// The coordinate whose side of `x` is the longest in metres, and
     /// that length.
     fn widest(&self, x: Cell) -> (usize, f64) {
@@ -411,6 +559,13 @@ impl<T: CertifiedBounds> Pair<'_, T> {
             .map(|k| (k, (x.0[k].1 - x.0[k].0) * self.speeds[k]))
             .fold((0, f64::NEG_INFINITY), |a, b| if b.1 > a.1 { b } else { a })
     }
+}
+
+/// An end of the span as the walk reads it: its state, and an enclosure
+/// of `F` there.
+struct End {
+    at: Cell,
+    f: [Interval; 3],
 }
 
 /// A meeting the walk isolated: its narrowed box, and every box the
@@ -439,9 +594,10 @@ pub struct Isolated {
 
 /// **The walk** (module docs): every meeting of `carrier` over `params`
 /// with `chart`, each isolated by the Krawczyk test and read clear of the
-/// chart's creases, every decision taken on an enclosure. [`settle`]
-/// places them; the curve × face table's lane composes the two
-/// ([`crate::NurbsLane::chart_meetings`]).
+/// span's and the chart's creases, every decision taken on an enclosure.
+/// A NURBS carrier is read off its ruled sheet ([`SpanCarrier`]).
+/// [`settle`] places them; the curve × face table's lane composes the
+/// three ([`crate::NurbsLane::chart_meetings`]).
 ///
 /// # Errors
 ///
@@ -449,14 +605,14 @@ pub struct Isolated {
 // `!(a < b)` is deliberate: a NaN end refuses.
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 pub fn isolate<T: CertifiedBounds>(
-    carrier: &Curve3<T>,
+    carrier: &SpanCarrier<'_, T>,
     params: (T, T),
     chart: &NurbsSurface<T>,
     band: Band,
 ) -> Result<Isolated, SplineFaceRefusal> {
     let unread = SplineFaceRefusal::Unread;
     let path = Path::of(carrier).ok_or(unread(
-        "the carrier is not a line, a circle or an ellipse, or a scalar of it does not certify",
+        "the carrier is not a line, a circle, an ellipse or a NURBS, or a scalar of it does not certify",
     ))?;
     let (start, end) = (
         Interval::from_certified(params.0),
@@ -469,8 +625,29 @@ pub fn isolate<T: CertifiedBounds>(
     if !(a < b) {
         return Err(unread("the span's ends do not certify forward"));
     }
-    let (fast, slow) = path.speeds();
-    if !(fast.is_finite() && slow > 0.0) {
+    // The carrier's own cuts along `t`: its domain's ends and its creases.
+    let ts = match &carrier.sheet {
+        Some(s) => cuts(s, true)?,
+        None => vec![f64::NEG_INFINITY, f64::INFINITY],
+    };
+    let carried = (ts[0], ts[ts.len() - 1]);
+    if !(carried.0 <= a && b <= carried.1) {
+        return Err(unread("the span leaves its carrier's domain"));
+    }
+    let (fast, least) = path.speeds(carried);
+    // The span's pace: a lower bound on its mean speed over `[a, b]`, the
+    // larger of the carrier's least speed (a NURBS meter is signed, and
+    // may read nothing on a bent piece) and its chord over its parameter
+    // length. It sizes only the reach and the floor below.
+    let (ca, cb) = (path.at(exact(a)), path.at(exact(b)));
+    let chord = norm(core::array::from_fn(|k| cb[k] - ca[k]));
+    let mean = if chord.is_certified() {
+        (exact(chord.lo()) / (exact(b) - exact(a))).lo()
+    } else {
+        0.0
+    };
+    let pace = least.max(mean);
+    if !(fast.is_finite() && pace > 0.0) {
         return Err(unread("the carrier's speed does not certify"));
     }
     let boxes = NurbsBoxes::new(chart);
@@ -485,35 +662,63 @@ pub fn isolate<T: CertifiedBounds>(
     if !speeds.iter().all(|s| s.is_finite() && *s > 0.0) {
         return Err(unread("the chart's speeds do not certify"));
     }
-    let reach = END_REACH * band.escalate() / slow;
-    let t = (a - reach, b + reach);
-    let blocks: Vec<Cell> = us
-        .windows(2)
-        .flat_map(|u| {
-            vs.windows(2)
-                .map(move |v| Cell([t, (u[0], u[1]), (v[0], v[1])]))
-        })
-        .collect();
+    // Past each end of the span, as far as the carrier runs smoothly: to
+    // its domain's end or its nearest crease beyond the end, whichever
+    // comes first. A crease at an end is then a side of the walk, not a
+    // line through it, so the end's meeting is the end's.
+    let reach = END_REACH * band.escalate() / pace;
+    let before = ts
+        .iter()
+        .copied()
+        .filter(|&k| k <= a)
+        .fold(carried.0, f64::max);
+    let after = ts
+        .iter()
+        .copied()
+        .filter(|&k| k >= b)
+        .fold(carried.1, f64::min);
+    let t = ((a - reach).max(before), (b + reach).min(after));
+    let mut tcuts = vec![t.0];
+    tcuts.extend(ts[1..ts.len() - 1].iter().filter(|&&k| t.0 < k && k < t.1));
+    tcuts.push(t.1);
+    let mut blocks: Vec<Cell> = Vec::new();
+    for t in tcuts.windows(2) {
+        for u in us.windows(2) {
+            for v in vs.windows(2) {
+                blocks.push(Cell([(t[0], t[1]), (u[0], u[1]), (v[0], v[1])]));
+            }
+        }
+    }
     let pair = Pair {
         path,
         boxes,
         speeds,
     };
     // The shortest side a box is cut to, in metres: `tangency_floor`'s
-    // form over the shorter of the span and the chart. That length is no
+    // form over the shorter of the span (its length bounded below by its
+    // pace) and the chart. That length is no
     // parting radius, and the floor bounds no decision: a box at it that
     // no meeting holds refuses, so no answer but a refusal rests on it.
     let reach_of = |(lo, hi): (f64, f64), speed: f64| (hi - lo) * speed;
-    let rho = reach_of((a, b), slow).min(reach_of(du, speeds[1]) + reach_of(dv, speeds[2]));
+    let rho = reach_of((a, b), pace).min(reach_of(du, speeds[1]) + reach_of(dv, speeds[2]));
     let floor = (rho * band.escalate()).sqrt() / 8.0;
     let cut_lines = Cuts {
-        u: &us[1..us.len() - 1],
-        v: &vs[1..vs.len() - 1],
+        lines: [
+            &tcuts[1..tcuts.len() - 1],
+            &us[1..us.len() - 1],
+            &vs[1..vs.len() - 1],
+        ],
     };
+    // The span's ends, each at its foot on the chart (module docs).
+    let end_states: Vec<End> = [a, b]
+        .into_iter()
+        .filter_map(|end| pair.end_state(end, chart))
+        .collect();
+    let mut ends: Vec<Cell> = Vec::new();
     let mut found: Vec<Found> = Vec::new();
     let pieces = blocks.iter().map(|&x| (x, x));
     let walked = bisect(pieces, |(x, block): (Cell, Cell)| {
-        if found.iter().any(|f| f.holds(x)) {
+        if held(&found, &ends, x) {
             return Step::Settled;
         }
         let jac = pair.jacobian(x);
@@ -546,19 +751,30 @@ pub fn isolate<T: CertifiedBounds>(
         // No box touching a crease carries a proof (the crease rule): a
         // grown box stays inside the block's crease sides.
         let proof_block = cut_lines.inside(block);
-        let mut proof = (!creased)
-            .then(|| pair.krawczyk_with(x, &jac, fm))
-            .flatten()
-            .map(|k| (x, k));
-        for &by in reaches {
+        let grown = reaches.iter().filter_map(|&by| {
+            let g = x.grown(by, proof_block);
+            (g.within(proof_block) && !cut_lines.touch(g, block)).then_some(g)
+        });
+        let mut proof = None;
+        for g in (!creased).then_some(x).into_iter().chain(grown) {
+            let (jg, fg) = if g == x {
+                (jac, fm)
+            } else {
+                (pair.jacobian(g), pair.at(g.mid()))
+            };
+            // Each reading on `g` stands alone: an end's box accounts for
+            // the solutions in `g` whatever the proof below finds there, and
+            // a proved solution inside it is the end's (below).
+            if pair.holds_an_end(g, &jg, &end_states, band) {
+                ends.push(g);
+                if held(&found, &ends, x) {
+                    return Step::Settled;
+                }
+            }
+            proof = pair.krawczyk_with(g, &jg, fg).map(|k| (g, k));
             if proof.is_some() {
                 break;
             }
-            let g = x.grown(by, proof_block);
-            proof = (g.within(proof_block) && !cut_lines.touch(g, block))
-                .then(|| pair.krawczyk(g))
-                .flatten()
-                .map(|k| (g, k));
         }
         // A box the test proves holds one solution; one whose narrowed box
         // lies in a box already proved is that meeting's, the solution
@@ -567,13 +783,15 @@ pub fn isolate<T: CertifiedBounds>(
             let root = pair.narrow(k);
             match found.iter_mut().find(|f| f.holds(root)) {
                 Some(f) => f.isolating.push(proved),
+                // The one solution in an end's box is the end's.
+                None if ends.iter().any(|e| root.within(*e)) => ends.push(proved),
                 None => {
                     let mut isolating = vec![proved];
                     isolating.extend(pair.grown(root, proved, proof_block, band));
                     found.push(Found { root, isolating });
                 }
             }
-            if found.iter().any(|f| f.holds(x)) {
+            if held(&found, &ends, x) {
                 return Step::Settled;
             }
         }
@@ -587,11 +805,14 @@ pub fn isolate<T: CertifiedBounds>(
         // Labelled by the reach the test was read over: a crease within
         // it is where the refusal stands.
         let near_crease = cut_lines.touch(x.grown(FLOOR_REACHES[1], block), block);
-        Step::Stop(if near_crease {
-            Unsettled::Crease.into()
-        } else {
-            Unsettled::Tangency.into()
-        })
+        Step::Stop(
+            if near_crease {
+                Unsettled::Crease
+            } else {
+                Unsettled::Floor
+            }
+            .into(),
+        )
     });
     match walked {
         Err(geom_core::bisect::Exhausted) => return Err(Unsettled::Exhausted.into()),
@@ -636,23 +857,20 @@ fn cuts<T: CertifiedBounds>(
     Ok(out)
 }
 
-/// The chart's interior crease parameters along each direction.
+/// The interior crease parameters of the state along each coordinate:
+/// the carrier's along `t`, the chart's along `u` and `v`.
 #[derive(Clone, Copy)]
 struct Cuts<'a> {
-    u: &'a [f64],
-    v: &'a [f64],
+    lines: [&'a [f64]; 3],
 }
 
 impl Cuts<'_> {
-    /// **The crease rule** (module docs): whether the chart rectangle of
-    /// `x` touches a crease among its block's sides. Such a box carries no
-    /// proof, and at the floor it refuses [`Unsettled::Crease`].
     /// `block` with each side on a crease moved one `f64` step inward: the
     /// largest box inside it that touches no crease, which a proof's box
     /// is grown within.
     fn inside(self, block: Cell) -> Cell {
         let mut out = block;
-        for (k, lines) in [(1, self.u), (2, self.v)] {
+        for (k, lines) in self.lines.iter().enumerate() {
             let (lo, hi) = block.0[k];
             if lines.contains(&lo) {
                 out.0[k].0 = lo.next_up();
@@ -664,14 +882,21 @@ impl Cuts<'_> {
         out
     }
 
+    /// **The crease rule** (module docs): whether `x` touches a crease
+    /// among its block's sides, on the carrier or on the chart. Such a box
+    /// carries no proof, and at the floor it refuses [`Unsettled::Crease`].
     fn touch(self, x: Cell, block: Cell) -> bool {
-        let on = |side: (f64, f64), block: (f64, f64), lines: &[f64]| {
-            [block.0, block.1]
+        self.lines.iter().enumerate().any(|(k, lines)| {
+            [block.0[k].0, block.0[k].1]
                 .into_iter()
-                .any(|k| lines.contains(&k) && side.0 <= k && k <= side.1)
-        };
-        on(x.0[1], block.0[1], self.u) || on(x.0[2], block.0[2], self.v)
+                .any(|c| lines.contains(&c) && x.0[k].0 <= c && c <= x.0[k].1)
+        })
     }
+}
+
+/// Whether a meeting or an end accounts for `x`.
+fn held(found: &[Found], ends: &[Cell], x: Cell) -> bool {
+    found.iter().any(|f| f.holds(x)) || ends.iter().any(|e| x.within(*e))
 }
 
 /// **The meetings strictly inside the span**, ascending, from what
@@ -704,8 +929,10 @@ pub fn settle<T: Decide>(
         let [tm, um, vm] = root.mid();
         let point = carrier.eval(T::from_computed(tm));
         let foot = chart.eval(T::from_computed(um), T::from_computed(vm));
+        // Definitely off at the located meeting: the enclosure's point
+        // is not resolved to the band.
         if gap("spline_face_root_on", point, foot)? != Sign::Zero {
-            return Err(Unsettled::SignInBand.into());
+            return Err(Unsettled::Meter.into());
         }
         let mut at_end = false;
         for end in ends {
@@ -714,8 +941,10 @@ pub fn settle<T: Decide>(
         if at_end {
             continue;
         }
+        // An enclosure reaching past an end its point is definitely
+        // apart from is not resolved to the band.
         if !(a < root.0[0].0 && root.0[0].1 < b) {
-            return Err(Unsettled::Tangency.into());
+            return Err(Unsettled::Meter.into());
         }
         if let Some(before) = out.last()
             && gap("spline_face_roots_apart", point, before.point)? == Sign::Zero
@@ -733,3 +962,6 @@ pub fn settle<T: Decide>(
 
 #[cfg(test)]
 mod rows;
+
+#[cfg(test)]
+mod review_r2_rows;

@@ -71,7 +71,13 @@ fn answers(what: &str, ring: &Ring, wall: &Wall, want: &[Class]) {
 
 /// [`answers`], the pair classified within `reach`.
 fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: Reach<f64>) {
-    let sec = classify(&ring.surface(), &wall.surface(), reach, band());
+    let sec = classify(
+        &ring.surface(),
+        &wall.surface(),
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     let Section::Components { parts, single } = &sec else {
         panic!("{what}: not classified: {sec:?}");
     };
@@ -81,7 +87,13 @@ fn answers_within(what: &str, ring: &Ring, wall: &Wall, want: &[Class], reach: R
     want.sort_unstable();
     assert_eq!(got, want, "{what}: the classes");
     assert_eq!(*single, want.len() == 1, "{what}: single");
-    let back = classify(&wall.surface(), &ring.surface(), reach, band());
+    let back = classify(
+        &wall.surface(),
+        &ring.surface(),
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        band(),
+    );
     assert!(
         super::square_search::swapped_agrees(&sec, &back),
         "{what}: the swapped order: {back:?}"
@@ -269,10 +281,12 @@ fn dump_the_rows_for_the_mpmath_oracle() {
     }
 }
 
-/// **Tangencies refuse R-tan, naming the margin.** `K` tangent to the
+/// **Tangencies refuse R-tan, on the critical gap.** `K` tangent to the
 /// strip's top or bottom edge over the parallel, and tangent to a tube
-/// circle from outside or from inside. Mutant: answer a decided-`Zero`
-/// margin as either side, and the row goes red.
+/// circle from outside or from inside: each a critical value of the
+/// distance from the core to the wall's axis at the wall's radius off the
+/// tube's. Mutant: answer a decided-`Zero` gap as either side, and the
+/// row goes red.
 #[test]
 fn square_wall_tangencies_refuse() {
     let donut = ring(2.0, 0.5);
@@ -280,22 +294,22 @@ fn square_wall_tangencies_refuse() {
         (
             "tangent to the top edge",
             (1.0, 0.3, 0.2),
-            "section_torus_square_wall_top",
+            "ct_critical_gap",
         ),
         (
             "tangent to the bottom edge",
             (1.0, -0.3, 0.2),
-            "section_torus_square_wall_bottom",
+            "ct_critical_gap",
         ),
         (
             "touching T₊ from outside",
             (2.7, 0.0, 0.2),
-            "section_torus_square_wall_tube",
+            "ct_critical_gap",
         ),
         (
             "touching T₊ from inside",
             (2.3, 0.0, 0.2),
-            "section_torus_square_wall_tube",
+            "ct_critical_gap",
         ),
     ] {
         let w = wall(k);
@@ -313,9 +327,9 @@ fn square_wall_tangencies_refuse() {
 
 /// **The square reading is the band's.** A wall tilted off square by
 /// `1e-15` classifies as the square one does, witnesses on the tilted
-/// carrier; one tilted by `1e-3` is no pose an arm claims and refuses on
-/// reach. Mutant: decide the tilt unlevered, or read any tilt as square,
-/// and a row goes red.
+/// carrier; one tilted by `1e-3` is no pose an arm counts, and its
+/// section is the march's. Mutant: decide the tilt unlevered, or read
+/// any tilt as square, and a row goes red.
 #[test]
 fn a_square_wall_is_read_within_the_band_only() {
     let donut = ring(2.0, 0.5);
@@ -327,11 +341,23 @@ fn a_square_wall_is_read_within_the_band_only() {
         &[ON_WALL; 4],
     );
     let tilted = wall_along(v(1.0, 0.0, 1e-3), k);
-    assert!(matches!(classified(&donut, &tilted), Section::Intractable));
-    assert!(matches!(
-        super::section_cert_rows::classify(&tilted.surface(), &donut.surface()),
-        Section::Intractable
-    ));
+    assert!(
+        marched(&donut.surface(), &tilted.surface()),
+        "tilted by 1e-3"
+    );
+    assert!(
+        marched(&tilted.surface(), &donut.surface()),
+        "tilted by 1e-3, swapped"
+    );
+}
+
+/// Whether the section value reads the pair's components from the march:
+/// no closed form counts them.
+fn marched(f: &geom::Surface<f64>, g: &geom::Surface<f64>) -> bool {
+    match geom_brep::pair_section(f, g, None, None, band()) {
+        Ok(geom_brep::SectionRead::Built(s)) => s.counted().is_none(),
+        other => panic!("the value builds the pair: {other:?}"),
+    }
 }
 
 /// **A crossing at a tube circle's top refuses R-order, not R-tan.** `K`
@@ -374,43 +400,42 @@ fn a_wall_touching_a_strip_edge_beyond_the_parallel_answers() {
     );
 }
 
-/// **The square reading's lever is the reach's: a tilt just inside the
-/// band at a long reach answers, one just outside refuses on reach.** A
-/// reach of radius `50` about the origin puts the lever at
-/// `2·(|pivot| + 50)`, the pivot the wall axis's point nearest the
-/// origin. A tilt worth `0.6` of the band's Zero there reads square and
-/// answers as the untilted wall does; one worth `1.5` of it is undecided
-/// and is no pose an arm claims. Mutants: lever the tilt by half or a
-/// millionth of that (the outside row answers), or by twice it (the
-/// inside row refuses).
+/// **The square reading's lever is the torus's ball: a tilt just inside
+/// the band answers, one just outside refuses on reach.** The section
+/// value reads the tilt over the ball `|x| ≤ R + r` about the torus's
+/// centre, which holds every section of it, whatever reach the
+/// certificate hands it: the lever is `2·(|pivot| + R + r)`, the pivot
+/// the wall axis's point nearest the centre. A tilt worth `0.6` of the
+/// band's Zero there reads square and answers as the untilted wall does,
+/// read over a reach of `50` or of `1`; one worth `1.5` of it is no pose
+/// an arm counts, read from the march. Mutants: lever the tilt by half or a millionth of that
+/// (the outside row answers), or by twice it (the inside row refuses).
 #[test]
-fn the_square_reading_is_levered_by_the_reach() {
+fn the_square_reading_is_levered_by_the_tori_ball() {
     let donut = ring(2.0, 0.5);
     let k = (0.15, 0.1, 0.2);
-    let reach = Reach {
-        centre: p(0.0, 0.0, 0.0),
-        radius: 50.0,
-    };
     // The untilted axis passes `(0, e, z0)` along `x`, its point nearest
     // the origin; a tilt of `1e-10` and less moves it by far less than
     // the band.
-    let lever = 2.0 * (f64::hypot(k.0, k.1) + reach.radius);
+    let lever = 2.0 * (f64::hypot(k.0, k.1) + 2.5);
     let tilt = |of_zero: f64| of_zero * band().zero() / lever;
-    answers_within(
-        "a tilt 0.6 of the band's Zero",
-        &donut,
-        &wall_along(v(1.0, 0.0, tilt(0.6)), k),
-        &[ON_WALL; 4],
-        reach,
-    );
-    let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
-    for sec in [
-        classify(&donut.surface(), &outside.surface(), reach, band()),
-        classify(&outside.surface(), &donut.surface(), reach, band()),
-    ] {
+    for radius in [50.0, 1.0] {
+        let reach = Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius,
+        };
+        answers_within(
+            "a tilt 0.6 of the band's Zero",
+            &donut,
+            &wall_along(v(1.0, 0.0, tilt(0.6)), k),
+            &[ON_WALL; 4],
+            reach,
+        );
+        let outside = wall_along(v(1.0, 0.0, tilt(1.5)), k);
         assert!(
-            matches!(sec, Section::Intractable),
-            "a tilt 1.5 of the band's Zero: {sec:?}"
+            marched(&donut.surface(), &outside.surface())
+                && marched(&outside.surface(), &donut.surface()),
+            "a tilt 1.5 of the band's Zero"
         );
     }
 }
@@ -451,10 +476,6 @@ fn a_pipe_along_the_cores_tangent_places_its_folds_within_the_band() {
             big_r,
             r,
         };
-        let reach = Reach {
-            centre: c,
-            radius: 1.5 * (big_r + r),
-        };
         for delta in [3.0 * eps, 1e3 * eps, 1e-7 * r, 1e-5 * r, 1e-3 * r, 0.1 * r] {
             let (dy, dz) = (delta * 0.75f64.sqrt(), delta * 0.5);
             let o = p(c.x + 1.3 * big_r, c.y + big_r + dy, c.z + dz);
@@ -465,7 +486,7 @@ fn a_pipe_along_the_cores_tangent_places_its_folds_within_the_band() {
                 rc: r,
             };
             let what = format!("R {big_r}, δ {delta:e}");
-            let parts = match classify(&ring.surface(), &wall.surface(), reach, band()) {
+            let parts = match super::section_cert_rows::classify(&ring.surface(), &wall.surface()) {
                 Section::Tangent("section_torus_square_wall_fold_drift") => {
                     drifting += 1;
                     continue;

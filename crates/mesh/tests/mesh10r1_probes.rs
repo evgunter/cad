@@ -25,6 +25,7 @@
 )]
 
 use crate::common;
+use topo::construction::Construct;
 
 use common::*;
 use geom_core::Tol;

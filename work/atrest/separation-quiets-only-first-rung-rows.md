@@ -2,11 +2,12 @@
 id: separation-quiets-only-first-rung-rows
 kind: issue
 title: The Separation check quiets two copies only on a row the door's first rung proves, a subset of the spec's Structural rows
-status: open
+status: closed
 opened: 2026-10-23
 priority: P3
 cost: E
 rides_with: the-at-rest-census-is-a-check
+closed: 2026-10-26
 ---
 
 
@@ -31,3 +32,11 @@ check's verdict depend on whether a replay had run. Stage 5 C
 (`the-at-rest-census-is-a-check`) dissolves this suppression into
 `CheckId::AtRest`'s quieting rule; that unit decides whether replay-proven
 rows quiet, and this row closes with it.
+
+## Closed
+
+2026-10-26, absorbed by stage 5 C (`the-at-rest-census-is-a-check`):
+`Separation`, `mated_pairs` and their first-rung suppression retire. The
+at-rest check reports no contact at all, so no suppression is left to key
+on a rung; a contact is the `unproven-coincidence` lint's row, which the
+door proves by every rung it has, the replay's included.

@@ -59,7 +59,11 @@
 //!
 //! Both cut at [`EXIT_CUT`] and stop at [`EXIT_DEPTH`] cuts or
 //! [`EXIT_PIECES`] pieces. A walk that stops there proves nothing, and
-//! says so ([`Shortfall::Undecided`]).
+//! says so ([`Shortfall::Undecided`]). The two-chart tube's walk in ℝ⁴
+//! ([`super::four`]) renames that refusal where the carrier's shape
+//! accounts for it ([`Shortfall::AlongSide`], [`Shortfall::EndOnSides`]);
+//! these walks never do, since past the side arm an undecided reading may
+//! be the arm's own, which is indeterminate.
 
 use geom::{NurbsCurve2, Surface};
 use geom_core::{Band, Bounds, CertifiedBounds, Interval, Point2};
@@ -108,6 +112,17 @@ pub(crate) enum Shortfall {
     Short,
     /// A walk resolved no count, or a linking or end reading no sign.
     Undecided,
+    /// [`Self::Undecided`] from the two-chart tube's walk, renamed where
+    /// the carrier's image on chart `k` (`0` the first, `1` the second)
+    /// lies along a side of its domain within the end box
+    /// ([`super::four::along_side`]): the locus may run on a face of
+    /// every box rather than cross it, where no root is isolated.
+    AlongSide(u32),
+    /// [`Self::Undecided`] from the two-chart tube's walk at an end,
+    /// renamed where that end lies on this many sides of the charts'
+    /// domains at once, each within the end box: its root may sit on
+    /// their shared edge or corner, which no face's walk isolates.
+    EndOnSides(u32),
 }
 
 /// The point interval at `x`.

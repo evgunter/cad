@@ -2,8 +2,10 @@
 id: a-unions-vertex-group-size-reads-the-fold-steps-spelling
 kind: issue
 title: A union's published vertex group reads size 1 in one member order and no group in another
-status: open
+status: dispatched
 opened: 2026-10-26
+priority: P3
+cost: M
 ---
 
 
@@ -51,7 +53,7 @@ over the editor-core suite. The interval/range drives were not covered.
 ## Repair direction
 
 Answer a union's vertex groups from the end pass, as faces and seam
-edges are answered (`Rederived`): each published vertex is a group of
+edges are answered (`name_by_parents`'s record): each published vertex is a group of
 the entities its name holds. The record then reads the same in every
 member order. This moves the `grouped` record of every union vertex from
 no group to its count. Nothing published in a name table moves.

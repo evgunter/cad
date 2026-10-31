@@ -6,7 +6,8 @@
 
 use core::fmt;
 
-use geom_core::FileCoincidence;
+use geom_brep::recourse::{LeverOnly, RefusedArm, SizedDecision};
+use geom_core::{FileCoincidence, Indeterminate};
 
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
@@ -50,6 +51,52 @@ impl fmt::Display for AdoptionCandidate {
             Self::MappedCurve => "mapped curve",
         })
     }
+}
+
+/// What [`StepImportError::SingularityUndecided`] asks.
+pub(crate) const SINGULARITY_SUBJECT: &str = "whether a sphere pole or cone apex, or where a meridian minted from one meets a face's \
+     boundary, lies on that boundary or at one of its vertices";
+
+/// What [`StepImportError::SingularitySideUndecided`] asks.
+pub(crate) const SINGULARITY_SIDE_SUBJECT: &str =
+    "which side of a face's boundary a sphere pole or cone apex lies on";
+
+/// **Whether a chart singularity lies on a face's boundary**, the
+/// kernel's sized decision of it
+/// ([`geom_brep::chart_singularity::ON_BOUNDARY`]), which tier 3 ends
+/// the same refusal by.
+pub(crate) const SINGULARITY_ON_BOUNDARY: SizedDecision = geom_brep::chart_singularity::ON_BOUNDARY;
+
+/// The same decision where the FILE's band could not call it (`(ε_in,
+/// K·ε_in)`, coarser than the run's): no smaller tolerance decides it,
+/// so it ends in its lever alone, which names the file's coincidence
+/// distance.
+pub(crate) const SINGULARITY_IN_FILE_BAND: LeverOnly = LeverOnly {
+    lever: "move the face's boundary, or its vertex, onto that point or clear of it, or, if \
+            this distance is intended, re-export the file with a smaller declared \
+            uncertainty (or pass a smaller ε_in override): the distance lies in the band past \
+            the file's coincidence distance, which no tolerance of this run decides",
+};
+
+/// Which band a [`StepImportError::SingularityUndecided`] could not call
+/// its distance in.
+///
+/// **Not carried by the `pncad` façade, argued.** It picks the refusal's
+/// ending, and the ending is the whole of what it changes for a caller:
+/// a smaller tolerance decides a `Run` reading, a finer ε_in a `File`
+/// one, and the rendered message names the lever for each. The façade
+/// carries the variant (and Python its word, `singularity_undecided`),
+/// which is what a caller routes on. The falsifier: a caller that must
+/// act on WHICH knob decides it without reading the message (a GUI
+/// offering the ε_in override in place of a tolerance) — then the carry
+/// is `pncad::prelude`'s export, the façade's matchability row, and a
+/// Python attribute beside `variant`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SingularityBand {
+    /// The run's own band: a smaller tolerance decides it.
+    Run,
+    /// The file's band, `(ε_in, K·ε_in)`: a finer ε_in decides it.
+    File,
 }
 
 /// Typed import failure. `#id` fields are Part 21 entity instance
@@ -269,6 +316,45 @@ pub enum StepImportError {
         /// The file's ε_in: the import door the refusal is read at.
         file: FileCoincidence,
     },
+    /// Whether a sphere pole or cone apex lies on a face's boundary (at
+    /// one of its vertices, or inside one of its edges), or whether a
+    /// pole-form meridian minted from one lands at a boundary vertex or
+    /// beside it, reads in the band
+    /// the import decides it at, the coarser of the file's and the run's:
+    /// so whether it is a vertex of the face, lies inside an edge, or lies
+    /// inside the face is undecided, and the normalization that makes it a
+    /// vertex ([`crate::NormalizationKind::ChartSingularityVertex`])
+    /// refuses rather than guess. The distance is a size the file may
+    /// intend, so the refusal ends as the import door ends a sized
+    /// decision ([`SINGULARITY_ON_BOUNDARY`]).
+    SingularityUndecided {
+        /// The `ADVANCED_FACE` whose boundary the point lies near.
+        id: u64,
+        /// The decision's escalation: the distance, and the band.
+        cause: Indeterminate,
+        /// Which band could not call it.
+        band: SingularityBand,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
+    /// Which side of a face's boundary a sphere pole or cone apex lies on,
+    /// the point being off that boundary, cannot be read: its reading does
+    /// not clear its own error bound, or a band decision of it is in band
+    /// (`geom_brep::chart_singularity::SideUnread`). Whether the point lies
+    /// inside the face, and so whether the normalization that makes it a
+    /// vertex ([`crate::NormalizationKind::ChartSingularityVertex`]) owes
+    /// the face a cut, is undecided, and it refuses rather than guess. The
+    /// side is no distance the file's band or the run's decides, so the
+    /// refusal names neither: it ends as the kernel ends the side
+    /// ([`geom_brep::chart_singularity::LOOP_SIDE`]).
+    SingularitySideUndecided {
+        /// The `ADVANCED_FACE` whose boundary the point lies beside.
+        id: u64,
+        /// Why the side is unread.
+        side: geom_brep::chart_singularity::SideUnread,
+        /// The file's ε_in: the import door the refusal is read at.
+        file: FileCoincidence,
+    },
     /// An assembly instance's placement map is not admitted as a rigid
     /// motion at the kernel's decided door
     /// ([`geom_core::RigidMotion::check_rigid`]): a map this reader's
@@ -304,6 +390,24 @@ pub enum StepImportError {
         solid: u64,
         /// The graft's error, displayed.
         source: Box<topo::BooleanError>,
+    },
+    /// A face whose chart has an interior C⁰ knot whose iso line crosses
+    /// the face, or is not certified clear of it, where the import
+    /// door's split cannot place the line (`crate::knot_split`): every
+    /// face chart is C¹ by its knot
+    /// structure strictly inside its cell (`docs/DESIGN.md` [topology]),
+    /// and the split needs the line to part the face's single loop at
+    /// two points of its boundary, one chain on each sub-patch. A trim
+    /// that crosses the line more than once, or a face with rings, needs
+    /// the line's crossings with the trim, which the door cannot invert
+    /// yet. The refusal names the face, the knot and what is missing.
+    C0KnotUnsplit {
+        /// The `ADVANCED_FACE` entity instance.
+        face: u64,
+        /// The crease knot's value, in the chart's own parameter.
+        knot: f64,
+        /// What the split lacks (static description).
+        what: &'static str,
     },
     /// The adopted body failed the kernel's shared at-rest validation
     /// gate (M7-7, the #260 ruling (a)): `topo::validate_geometric` —
@@ -456,6 +560,14 @@ impl fmt::Display for StepImportError {
                 "step import: pcurve re-mint on the adopted body: {}",
                 source.render(*file)
             ),
+            Self::C0KnotUnsplit { face, knot, what } => write!(
+                f,
+                "step import: face #{face}: its B-spline chart has a C⁰ knot at {knot:e} whose \
+                 iso line crosses the face, or is not certified clear of it, where the import \
+                 splits it so that no cell \
+                 carries a crease, and the split cannot be placed: {what} \
+                 (work/foreign/the-c0-knot-split-refuses-what-it-cannot-place.md)"
+            ),
             Self::TierInvalid { solid, errors } => {
                 // Both forms of each verdict: the Debug shape names
                 // the failing CHECK and its entity keys structurally
@@ -489,6 +601,39 @@ impl fmt::Display for StepImportError {
                 "step import: joining the edges of the solid at #{solid}: {}",
                 refusal.render(*file)
             ),
+            Self::SingularityUndecided {
+                id,
+                cause,
+                band,
+                file,
+            } => {
+                let arm = RefusedArm::Undecided(cause);
+                let ending = match band {
+                    SingularityBand::Run => SINGULARITY_ON_BOUNDARY.recourse(arm, *file),
+                    SingularityBand::File => SINGULARITY_IN_FILE_BAND.recourse(arm, *file),
+                };
+                write!(
+                    f,
+                    "step import: face #{id}: {}",
+                    cause.undecided(SINGULARITY_SUBJECT, ending)
+                )
+            }
+            Self::SingularitySideUndecided { id, side, file } => {
+                use geom_brep::chart_singularity::{SideUnread, Undecided};
+                let ending = Undecided::Side(*side).recourse(*file);
+                match side {
+                    SideUnread::Banded(cause) => write!(
+                        f,
+                        "step import: face #{id}: {}",
+                        cause.undecided(SINGULARITY_SIDE_SUBJECT, ending)
+                    ),
+                    SideUnread::Straddle => write!(
+                        f,
+                        "step import: face #{id}: {SINGULARITY_SIDE_SUBJECT} cannot be read: \
+                         the reading lies within its own error bound. {ending}"
+                    ),
+                }
+            }
             Self::PlacementMap { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} is not admitted \
@@ -639,7 +784,6 @@ mod nested_at_the_door {
         let error = StepImportError::Pcurves {
             source: topo::PcurveMintError::Certify {
                 half_edge: topo::HalfEdgeKey::default(),
-                authority: geom_brep::EdgeAuthority::<f64>::Derived.kind(),
                 error: geom_brep::PcurveCertifyError::Escalated {
                     check: geom_brep::PcurveCheck::ChartWinding,
                     sample: 0,
@@ -659,5 +803,37 @@ mod nested_at_the_door {
                 && text.ends_with(DAMAGED_FILE_ENDING),
             "{text}"
         );
+    }
+
+    /// **An adopted curve off its face names the damaged file, with no
+    /// ε_in offer** (D3, D4 ¶1 (iv)): a definite incidence miss read at
+    /// the import door, with no margin or with the pose height it may
+    /// quote (`OffMargin::Past`, within ε_in here), is the file's, whoever
+    /// declared the curve; its margin is no reading of the miss, so the
+    /// door's "set ε to ε_in" stopgap is not offered.
+    #[test]
+    fn an_adopted_curve_off_its_face_names_the_damaged_file() {
+        for margin in [
+            None,
+            Some(geom_brep::OffMargin::Past(MarginDiag::value(5e-7))),
+        ] {
+            let error = StepImportError::Pcurves {
+                source: topo::PcurveMintError::Certify {
+                    half_edge: topo::HalfEdgeKey::default(),
+                    error: geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "the circle dips below the apex",
+                        margin,
+                    },
+                },
+                file: FileCoincidence::new(1e-6),
+            };
+            let text = error.to_string();
+            assert!(text.ends_with(DAMAGED_FILE_ENDING), "{margin:?}: {text}");
+            for word in ["ε_in", "declared", "kernel defect"] {
+                assert!(!text.contains(word), "{margin:?}: {word}: {text}");
+            }
+        }
     }
 }

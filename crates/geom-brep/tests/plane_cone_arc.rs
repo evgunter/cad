@@ -2,13 +2,14 @@
 //! section's arc over a window is a rational-quadratic `Curve3::Nurbs`,
 //! weights `(1, w, 1)` per span, on both surfaces to rounding, with `w`
 //! the closed form's, and limb 2 certifies it on the cone through the
-//! analytic rung-3 lane, whose tube has no cone enclosure.
+//! analytic rung-3 lane, where the pair's section states the bounds that
+//! retire the tube (C2).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, NurbsCurve3, Surface};
+use geom_brep::Reach;
 use geom_brep::intersect::{OpenConic, PlaneConeSection, SPAN_WEIGHT_MAX, plane_cone_section};
-use geom_brep::{AnalyticRung3Refusal, Reach};
 use geom_core::{Point3, Vec3};
 
 use crate::shared::tol::band;
@@ -164,6 +165,61 @@ fn a_hyperbolic_arc_lies_on_both_surfaces() {
     assert!(worst <= 32.0 * f64::EPSILON * scale, "tilted: {worst:e}");
 }
 
+/// **A seed names the branch on its own nappe whichever way the plane
+/// leans across the axis.** The section's near and far branches swap
+/// labels as `c = a·n` changes sign, and `branch_at` reads its side by
+/// the same sign, so the branch a seed gets must not swap: the plane
+/// `x = d` leaned by `ε` about `y` (`c = sin ε`, `ε` small of either
+/// sign, and zero), with a seed above the apex and one below, gives each
+/// the branch whose vertex is on the plane, on the cone and on the
+/// seed's nappe, and the arc of it between two of the section's points
+/// on that nappe (traced down the cone's generators) lies on both
+/// surfaces.
+#[test]
+fn a_seed_names_its_own_nappes_branch_on_either_lean() {
+    let alpha = core::f64::consts::FRAC_PI_6;
+    let d = 0.3;
+    let q = Point3::new(d, 0.0, 0.0);
+    let apex = Point3::new(0.0, 0.0, 1.0);
+    for lean in [1e-3, 1e-12, 0.0, -0.0, -1e-12, -1e-3] {
+        let n = Vec3::new(f64::cos(lean), 0.0, f64::sin(lean));
+        let section = open(alpha, q, n);
+        assert_eq!(section.conic(), OpenConic::Hyperbola, "lean {lean:e}");
+        // The plane's trace on the generator at `azimuth`: above the
+        // apex where the generator's `x` is positive, below it where
+        // negative.
+        let on_section = |azimuth: f64| {
+            let g = Vec3::new(
+                alpha.sin() * azimuth.cos(),
+                alpha.sin() * azimuth.sin(),
+                alpha.cos(),
+            );
+            apex + g * ((q - apex).dot(n) / g.dot(n))
+        };
+        for (side, azimuths) in [(1.0, (-0.9, 0.6)), (-1.0, (2.2, -2.5))] {
+            let branch = section
+                .branch_at(Point3::new(d, 0.0, 1.0 + side), band())
+                .expect("the seed names a branch");
+            let v = branch.vertex();
+            let (on_plane, on_cone) = ((v - q).dot(n).abs(), off_cone(alpha, v));
+            assert!(
+                on_plane <= 1e-14 && on_cone <= 1e-14 && (v.z - 1.0) * side > 0.1,
+                "lean {lean:e} side {side}: the branch's vertex {v:?} is not on the seed's \
+                 nappe's branch (plane {on_plane:e}, cone {on_cone:e})"
+            );
+            let (from, to) = (on_section(azimuths.0), on_section(azimuths.1));
+            let arc = branch
+                .arc(from, to, band())
+                .expect("the window is on the seed's branch");
+            let worst = worst_residual(nurbs(&arc), alpha, (q, n));
+            assert!(
+                worst <= 64.0 * f64::EPSILON,
+                "lean {lean:e} side {side}: worst residual {worst:e}"
+            );
+        }
+    }
+}
+
 /// **Each span's weight is the closed form's, `cosh` of half its
 /// hyperbolic span, and the arc is halved until it is at most `√2`.**
 /// On the plane `x = d` the hyperbola is `y = d·sinh t`, so a window's
@@ -315,11 +371,13 @@ fn a_window_off_the_branch_refuses() {
     );
 }
 
-/// **Limb 2 certifies the arc on the cone and on the plane, and the tube
-/// refuses the cone by name** (C2): the analytic rung-3 lane raises
-/// `NoTubeEnclosure` only once limb 2 holds against both operands.
+/// **Limb 2 certifies the arc on the cone and on the plane, and the
+/// section's bounds retire the tube** (C2): the plane×cone section states
+/// the crossing angle's floor over each window and the clearance of the
+/// tube it buys, so the analytic rung-3 lane owes no tube, which has no
+/// cone enclosure.
 #[test]
-fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
+fn limb_two_certifies_the_arc_and_the_sections_bounds_retire_the_tube() {
     let alpha = core::f64::consts::FRAC_PI_6;
     let d = 0.3;
     let n = Vec3::unit_x();
@@ -339,36 +397,30 @@ fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
         let curve = nurbs(&arc);
         let got =
             geom_brep::analytic_rung3(curve, curve.domain(), &plane(q, n), &cone(alpha), band());
-        assert!(
-            matches!(
-                got,
-                Err(AnalyticRung3Refusal::NoTubeEnclosure {
-                    operand: geom::SurfaceKind::Cone,
-                    ..
-                })
-            ),
-            "({y0}, {y1}): limb 2 holds and the tube names the cone, got {got:?}"
+        assert_eq!(
+            got,
+            Ok(()),
+            "({y0}, {y1}): limb 2 holds and the tube is retired"
         );
     }
 }
 
-/// **The chord the edge certificate levers a NURBS edge's dihedral by,
-/// on a steep arc.** `edge_extent` reads a NURBS carrier's chord as a
-/// lower bound on its point-set diameter; on a hyperbolic arc of a
+/// **The extent of a steep arc, bracketed.** On a hyperbolic arc of a
 /// needle cone, symmetric about its vertex and turning nearly a half
-/// turn, the farthest pair of points is a vertex and an end, not the
-/// two ends. Measured: the chord stays a lower bound, and on the needle
-/// it is under a fifth of the diameter. A lower bound is not the safe
-/// side here: the lever shrinks with it, so a margin Positive at the
-/// diameter can read a definite Zero at the chord
-/// (`work/select/edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short.md`,
-/// which this row goes red for once the bound reads more of the arc).
+/// turn, the farthest pair of points is the vertex and an end, not the
+/// two ends: the chord is under a fifth of the diameter. The bound from
+/// below (`edge_extent_inf`) reads the vertex as the arc's middle and
+/// comes within a thousandth of the diameter; the bound from above
+/// (`edge_extent_sup`, the control net's farthest pair) stays over it. A lever from below that
+/// stopped at the chord would let a margin Positive at the diameter
+/// read a definite Zero.
 #[test]
-fn the_chord_on_a_steep_arc() {
-    for (alpha, y, loose) in [
-        (core::f64::consts::FRAC_PI_6, 2.0, false),
-        (0.1, 2.0, true),
-        (0.05, 6.0, true),
+fn the_extent_on_a_steep_arc() {
+    for (alpha, (y0, y1), steep) in [
+        (core::f64::consts::FRAC_PI_6, (-2.0, 2.0), false),
+        (0.1, (-2.0, 2.0), true),
+        (0.05, (-6.0, 6.0), true),
+        (0.1, (-1.0, 4.0), false),
     ] {
         let d = 0.3;
         let section = open(alpha, Point3::new(d, 0.0, 0.0), Vec3::unit_x());
@@ -376,8 +428,8 @@ fn the_chord_on_a_steep_arc() {
             .branch_at(Point3::new(d, 0.0, 2.0), band())
             .expect("a branch");
         let (from, to) = (
-            vertical_point(alpha, d, -y, 1.0),
-            vertical_point(alpha, d, y, 1.0),
+            vertical_point(alpha, d, y0, 1.0),
+            vertical_point(alpha, d, y1, 1.0),
         );
         let arc = branch.arc(from, to, band()).expect("an arc");
         let curve = nurbs(&arc);
@@ -390,21 +442,33 @@ fn the_chord_on_a_steep_arc() {
             .flat_map(|a| pts.iter().map(move |b| a.distance(*b)))
             .fold(0.0, f64::max);
         let chord = from.distance(to);
-        let extent = geom_brep::edge_extent(&arc, lo, hi, chord);
+        let inf = geom_brep::edge_extent_inf(&arc, lo, hi, chord);
+        let sup = geom_brep::edge_extent_sup(&arc, lo, hi, chord);
         println!(
-            "[measured] steep arc α {alpha}, y ±{y}: chord {chord}, diameter {diameter}, \
-             edge_extent {extent}, ratio {}",
-            extent / diameter
-        );
-        assert!(
-            extent <= diameter * (1.0 + 1e-12),
-            "α {alpha}: a lower bound, {extent} against {diameter}"
+            "[measured] steep arc α {alpha}, y {y0}..{y1}: chord {chord}, diameter {diameter}, \
+             inf {inf}, sup {sup}, chord/D {}, inf/D {}, sup/D {}",
+            chord / diameter,
+            inf / diameter,
+            sup / diameter
         );
         assert_eq!(
-            extent < 0.25 * diameter,
-            loose,
+            chord < 0.25 * diameter,
+            steep,
             "α {alpha}: the chord reads {} of the diameter",
-            extent / diameter
+            chord / diameter
+        );
+        assert!(
+            inf <= diameter * (1.0 + 1e-12),
+            "α {alpha}: the bound from below {inf} exceeds the diameter {diameter}"
+        );
+        assert!(
+            inf >= diameter * 0.999,
+            "α {alpha}: the bound from below {inf} is short of the diameter {diameter} \
+             (the chord is {chord})"
+        );
+        assert!(
+            sup >= diameter,
+            "α {alpha}: the bound from above {sup} is short of the diameter {diameter}"
         );
     }
 }

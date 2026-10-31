@@ -109,7 +109,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
             let EntityKey::Vertex(w) = w.key else {
                 return false;
             };
-            (point(body, v) - point(mbody, w)).norm() < 1e-9
+            (point(&body, v) - point(&mbody, w)).norm() < 1e-9
                 && mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
                     mtable
                         .name_of(&editor_core::EntityRef {
@@ -152,7 +152,7 @@ fn seam_sides_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize
             continue;
         };
         let EntityKey::Edge(k) = e.key else { continue };
-        let faces: Vec<StableName> = faces_of(body, k)
+        let faces: Vec<StableName> = faces_of(&body, k)
             .iter()
             .map(|&f| {
                 t.name_of(&editor_core::EntityRef {
@@ -280,8 +280,7 @@ fn published(
                 match failure(ev, union) {
                     None => each(case, at, ev, ids, tag, union),
                     Some(e) => {
-                        let shown = format!("{e:?}");
-                        let kind = shown.split([' ', '(', '{']).next().unwrap_or("").to_owned();
+                        let kind = crate::fixture::variant_name(&format!("{e:?}"));
                         let slot = refused
                             .entry((case.label.clone(), tag.to_owned()))
                             .or_default();
@@ -361,9 +360,9 @@ fn wall_at_y0(ev: &Evaluation<f64>, union: RecipeNodeId, m: RecipeNodeId) -> Sta
         let EntityKey::Face(f) = e.key else {
             return None;
         };
-        face_vertices(body, f)
+        face_vertices(&body, f)
             .into_iter()
-            .all(|v| point(body, v).y.abs() < 1e-9)
+            .all(|v| point(&body, v).y.abs() < 1e-9)
             .then(|| name.clone())
     });
     StableName {

@@ -155,7 +155,7 @@ pub fn stored_reading(
     }
     let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
-        |p, f| ProfileProgram::lower(p, f),
+        |p, f, r| ProfileProgram::lower(p, f, r),
         &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
         &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )
@@ -465,22 +465,24 @@ pub fn placed_against_in(
     // point of it where the body stands in its space, which is where a
     // mate reads it.
     let own_plane = |shape: &crate::Operand| {
-        let (_, solid, table, motion) =
+        // A copy's body is its source's, in the source's coordinates.
+        let (_, framed, table, _) =
             crate::mate::corner::read_of(doc, &ev, shape).expect("the body has a value");
-        let motion = motion.map(|m| m.to_affine());
+        let solid = framed.body();
         solid.faces().find_map(|(face, _)| {
-            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            let kind = topo::readback::face_carrier_kind(solid, face).ok()?;
             (kind == geom::SurfaceKind::Plane).then_some(())?;
-            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let pose = topo::readback::face_pose(solid, face).ok()?;
             let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
             let o = pose.origin - geom_core::linalg::Point3::origin();
-            let (own_o, own_n) = match motion {
-                None => (o, n),
-                Some(m) => {
-                    let back = m.linear.transpose();
-                    (back * (o - m.translation), back * n)
-                }
-            };
+            // The body is in its own coordinates; where it stands in its
+            // space is its frame's (D10 `[placement.frame]`).
+            let (own_o, own_n) = (o, n);
+            let (o, n) = (
+                framed.point_in_space(geom_core::linalg::Point3::origin() + o)
+                    - geom_core::linalg::Point3::origin(),
+                framed.vec_in_space(n),
+            );
             let name = table.name_of(&crate::names::EntityRef {
                 body: 0,
                 key: crate::names::EntityKey::Face(face),
@@ -643,22 +645,19 @@ pub fn plane_on(
         &crate::EvalOptions::default(),
         tol,
     );
-    let (node, solid, table, motion) =
+    // A copy's body is its source's, in the source's coordinates.
+    let (node, framed, table, _) =
         crate::mate::corner::read_of(doc, &ev, &body).expect("the body has a value");
-    let motion = motion.map(|m| m.to_affine());
+    let solid = framed.body();
     let n = V::new(normal[0], normal[1], normal[2]);
     let n = n * (1.0 / n.norm());
     let o = Point3::new(origin[0], origin[1], origin[2]);
-    let (n, o) = match motion {
-        None => (n, o),
-        Some(m) => (m.linear * n, m.transform_point(o)),
-    };
     let parallel: Vec<_> = solid
         .faces()
         .filter_map(|(face, _)| {
-            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            let kind = topo::readback::face_carrier_kind(solid, face).ok()?;
             (kind == geom::SurfaceKind::Plane).then_some(())?;
-            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let pose = topo::readback::face_pose(solid, face).ok()?;
             let out = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
             let sense = if out.to_array() == n.to_array() {
                 1.0
@@ -785,21 +784,23 @@ pub fn frame_on_in(
     let band = geom_core::predicate::Band::linear(tol).expect("a band");
     let ev: crate::Evaluation<f64> =
         crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
-    let (node, solid, table, motion) =
+    // A copy's body is its source's, in the source's coordinates.
+    let (node, framed, table, _) =
         crate::mate::corner::read_of(doc, &ev, body).expect("the body has a value");
+    let solid = framed.body();
     let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
     let picked = solid.edges().find_map(|(edge, _)| {
-        let kind = topo::readback::edge_carrier_kind(&solid, edge).ok()?;
+        let kind = topo::readback::edge_carrier_kind(solid, edge).ok()?;
         matches!(
             kind,
             geom::CurveKind::Line | geom::CurveKind::Circle | geom::CurveKind::Ellipse
         )
         .then_some(())?;
-        let line = topo::readback::edge_pose(&solid, edge).ok()?;
+        let line = topo::readback::edge_pose(solid, edge).ok()?;
         let dir = UnitVec3::new(line.axis, topo::query::POSE_UNIT_NORM, band).ok()?;
         let edge_name = name(EntityKey::Edge(edge))?;
         solid.vertices().find_map(|(vertex, _)| {
-            let point = topo::readback::vertex_point(&solid, vertex).ok()?;
+            let point = topo::readback::vertex_point(solid, vertex).ok()?;
             let off = point - line.origin;
             let across = off - dir.get() * off.dot(dir.get());
             UnitVec3::new(across, "frame_vertex_off_the_line", band).ok()?;
@@ -818,7 +819,7 @@ pub fn frame_on_in(
     });
     let (edge_name, vertex_name, frame) =
         picked.unwrap_or_else(|| panic!("{node} offers a frame to read"));
-    let at = motion.map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    let at = at.affine();
     let read = |def: PoseDef<crate::Operand, Formula>| {
         RoleRead::plain(crate::Operand::Pose(Box::new(def)))
     };
@@ -914,6 +915,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) 
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, ext) = ins(
@@ -1037,8 +1039,6 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 /// variant of `names::VerbatimEdge`, without the operands it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VerbatimKind {
-    /// `VerbatimEdge::Selected`: one body of the input, projected.
-    Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
     Intact,
     /// `VerbatimEdge::Reflected`: a mirror's image.
@@ -1049,7 +1049,7 @@ pub enum VerbatimKind {
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
 /// `names::verbatim_edge`, the one statement of N1's pass-through set
-/// that the product's two-roots check and the mate member walk follow,
+/// that the recipe walks (refactor, coincidence, the mate member walk) follow,
 /// reduced to its variant.
 ///
 /// Carries no oracle: it IS the classification, lifted out of the
@@ -1060,7 +1060,6 @@ pub enum VerbatimKind {
 pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
-        VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
         VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
         VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
         VerbatimEdge::Copied { .. } => VerbatimKind::Copied,
@@ -1403,6 +1402,18 @@ pub fn assemble_world_copies_edits(
     (doc, log)
 }
 
+/// **What the at-rest check could not look at in one gathered
+/// `product`**, read as the `AtRest` resident reads it: for a row at a
+/// scalar the checks registry cannot run at (a dual, which carries no
+/// chart-coherence lane), whose census is structurally absent
+/// ([`crate::AtRestEvidence::NotRun`]).
+pub fn at_rest_could_not_look<T: crate::checks::at_rest::LocalizeLane>(
+    product: &crate::Product<T>,
+    tol: geom_core::Tol,
+) -> Vec<crate::AtRestEvidence> {
+    crate::checks::at_rest::reading(product, tol).could_not_look
+}
+
 /// The judgement whose naming [`with_judgement_naming_fault`] refuses,
 /// while it runs.
 static JUDGEMENT_FAULT: std::sync::Mutex<Option<usize>> = std::sync::Mutex::new(None);
@@ -1451,6 +1462,34 @@ pub(crate) fn judgement_naming_fault(k: usize) -> Option<crate::names::NamingErr
     .then_some(crate::names::NamingError::Emission {
         what: JUDGEMENT_NAMING_FAULT,
     })
+}
+
+// --- the quieting rule ---------------------------------------------
+
+/// **The row half of the quieting rule, asked of any row**
+/// (`checks::at_rest::quiet_row`): the assertion that quiets `row` in
+/// `evaluation`, or `None`. For a row of a kind no document reaches
+/// yet, pinned over cells of a real evaluation.
+#[must_use]
+pub fn quiet_row(
+    doc: &ProfileDoc,
+    evaluation: &crate::Evaluation<f64>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: geom_core::Tol,
+) -> Option<RecipeNodeId> {
+    crate::checks::at_rest::quiet_row(doc, evaluation, row, tol)
+}
+
+/// Whether an assertion could quiet `row` in `evaluation`
+/// (`checks::at_rest::row_quietable`), asked as [`quiet_row`] asks.
+#[must_use]
+pub fn row_quietable(
+    doc: &ProfileDoc,
+    evaluation: &crate::Evaluation<f64>,
+    row: &crate::coincide::NamedCoincidence,
+    tol: geom_core::Tol,
+) -> bool {
+    crate::checks::at_rest::row_quietable(doc, evaluation, row, tol)
 }
 
 #[cfg(test)]

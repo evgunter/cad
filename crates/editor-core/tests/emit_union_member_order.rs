@@ -211,7 +211,7 @@ fn a_unions_seam_chain_is_named_by_its_ends() {
                 let EntityKey::Edge(e) = r.key else {
                     panic!("swap={swap}: {n:?} names {:?}", r.key);
                 };
-                let [p, q] = ends(body, e).map(|v| point(body, v));
+                let [p, q] = ends(&body, e).map(|v| point(&body, v));
                 let lo = (p.x.min(q.x) * 1e6).round() as i64;
                 let key = (format!("{cap:?}"), lo);
                 if let Some(was) = named.insert(key, n.clone()) {
@@ -547,11 +547,12 @@ fn glued_rim_names(lift: f64) -> GluedRim {
     };
     let edge = named(&|k| {
         let EntityKey::Edge(e) = k else { return false };
-        let [p, q] = ends(body, e).map(|v| point(body, v));
+        let [p, q] = ends(&body, e).map(|v| point(&body, v));
         (near(p, (0.5, 0.25)) && near(q, (1.2, 0.25)))
             || (near(q, (0.5, 0.25)) && near(p, (1.2, 0.25)))
     });
-    let vertex = named(&|k| matches!(k, EntityKey::Vertex(v) if near(point(body, v), (1.2, 0.25))));
+    let vertex =
+        named(&|k| matches!(k, EntityKey::Vertex(v) if near(point(&body, v), (1.2, 0.25))));
     let table = bindings(&ev, u);
     let spelled = |geo: &str| {
         let hits: Vec<&String> = table

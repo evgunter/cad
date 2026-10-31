@@ -64,7 +64,7 @@ from pncad import (
     LiteralError,
     Node,
     VarName,
-    PatternKind,
+    StationMove,
     PersistError,
     WrittenAngle,
     WrittenLength,
@@ -461,22 +461,19 @@ class TestANodeSlotRecordsTheAuthoredNotation(unittest.TestCase):
     def test_a_count_is_not_a_continuous_literal(self):
         """A count is exact, so it has its own constructor and the
         continuous one cannot stand in: `Formula.literal(2)` is a Scalar,
-        and the count slot says so with the kernel's own words."""
+        and a count slot (a loft's `v_degree`) says so with the kernel's
+        own words."""
         self.assertEqual(Formula.literal(2).dimension, "scalar")
         self.assertEqual(Formula.count(2).dimension, "count")
         doc = Doc()
-        solid = doc.insert(Node.extrude(self.square(doc), Formula.literal(1 * mm)))
         with self.assertRaises(EditError) as raised:
-            Node.pattern(
-                solid,
+            Node.loft(
+                self.square(doc),
+                [(self.square(doc), [StationMove.slide("z", Formula.length_in(5, mm))])],
                 Formula.literal(2),
-                PatternKind.linear(
-                    (Formula.literal(1.0), Formula.literal(0.0), Formula.literal(0.0)),
-                    Formula.length_in(5, mm),
-                ),
             )
         self.assertEqual(raised.exception.variant, "slot_dimension_mismatch")
-        self.assertEqual(raised.exception.slot, "count")
+        self.assertEqual(raised.exception.slot, "v_degree")
 
     def test_an_angle_in_a_length_slot_refuses_at_the_door(self):
         """The slot's dimension is the kernel's `SlotId` table, read

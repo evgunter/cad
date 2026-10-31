@@ -4,7 +4,6 @@ kind: issue
 title: edge_chord_len's None defaults to a 1 m arm at two plane-identity sites
 status: closed
 opened: 2026-09-01
-github: 1529
 refs: [1398, 501]
 priority: P3
 cost: E

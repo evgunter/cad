@@ -2,12 +2,12 @@
 id: emit-rs-shared-helpers-raise-emission-for-torn-reads
 kind: issue
 title: names/emit.rs's shared helpers (to_u32, output_body, Incidence::of, the rim consts, vertex_point, face_half_edges, edge_ends) still raise NamingError::Emission for torn-body reads and u32 narrowings no body reaches
-status: parked
+status: open
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [names-emission-raises-panic-or-take-their-true-ending]
-blocked_on: [patterns-are-index-variables]
+
 ---
 
 
@@ -51,3 +51,7 @@ What remains here is the D10-held list above: `flat_body_index` ×2, `name_place
 ## Moved to WIREHOLD (2026-10-26)
 
 What is left is D10-held, so the row parks with WIRE's other D10 rows. Signed (WIRE orchestrator).
+
+## D10 exit walk (2026-10-29)
+
+The four D10-held raises this row lists are gone with their functions (`flat_body_index`, `name_placed_union`, `name_in_part`; stage 3 G, #5954). Their successors raise the same class, `NamingError::Emission`, for a torn member read: `name_family` (`crates/editor-core/src/names/emit.rs:1157`, "a family's member names a body the member does not have") and `name_assemble` (`emit.rs:1255`, `:1264`). The scene still stands under new names. Open, re-pointed at those three.

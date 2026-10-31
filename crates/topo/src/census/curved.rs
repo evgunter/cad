@@ -24,11 +24,12 @@
 use geom::Curve3;
 use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
 use geom_brep::roots::Unsettled;
-use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
 
 use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId};
+use crate::validate::Departure;
 
 /// An edge's certified curve as these lanes read it.
 struct Read<T: Real> {
@@ -185,23 +186,28 @@ fn on_interior_reading<T: Decide>(
 }
 
 /// **`e`'s tangent where `q` lies on its interior**, along its plus
-/// half and scaled to the edge's extent: `Some(None)` where `q` is not
-/// on the interior; `None` where a decision escalated or the edge is not
-/// read (pushed).
+/// half and scaled to the edge's reach from `q`
+/// ([`geom_brep::edge_reach_bounds`]): the corner it bounds is read by
+/// the wedge, which acts on every sign, so its lever is the region's own
+/// measure from where it is read, and where that is known only from both
+/// sides (an ellipse, spiric or spline edge, whose bound from above can
+/// pass it many times over) the tangent carries both and the wedge acts
+/// only on a sign both read. `Some(None)` where `q` is not on the
+/// interior; `None` where a decision escalated or the edge is not read
+/// (pushed).
 pub(super) fn tangent_on_interior<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     q: Point3<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
-) -> Option<Option<Vec3<T>>> {
+) -> Option<Option<Departure<T>>> {
     let r = read(body, e, band, errors)?;
     let (t0, t1) = r.span;
-    let chord = r.curve.eval(t0).distance(r.curve.eval(t1));
-    let extent = geom_brep::edge_extent(&r.curve, t0, t1, chord);
+    let lever = geom_brep::edge_reach_bounds(&r.curve, t0, t1, q);
     Some(
         on_interior_at(body, &r, q, band, errors)?
-            .map(|(t, _)| r.curve.deriv(t).normalize() * extent),
+            .map(|(t, _)| Departure::along(r.curve.deriv(t).normalize(), lever)),
     )
 }
 
@@ -385,7 +391,7 @@ fn interior_meeting<T: Decide>(
         },
     };
     let what = match refusal.fault {
-        MeetFault::Escalated(cause) => {
+        MeetFault::Escalated(cause) | MeetFault::Touch(cause) => {
             errors.push(ValidationError::CensusEscalated { cause });
             return None;
         }
@@ -414,9 +420,10 @@ mod tests {
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{Read, curved_interiors_meet, interior_meeting, reads_meet};
+    use crate::EdgeCurveSpec;
     use crate::body::Body;
+    use crate::construction::MevSite;
     use crate::entity::EdgeKey;
-    use crate::{EdgeCurveSpec, MevSite};
 
     /// Arcs of one unit circle, from `t0` to `t1` degrees, each its own
     /// solid in one arena.

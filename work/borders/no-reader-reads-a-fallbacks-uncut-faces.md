@@ -45,3 +45,14 @@ The cut's limit itself is FLUSH's
 Once that closes, `uncut` is empty on every known pose. A reader's
 answer still owes the rows a meaning for the next limit.
 
+
+## The first repro no longer refuses (OFFSET, 2026-10-27)
+
+PR 5875 levers the fate cut's corner at each bound's extent from above,
+and the boss over the holed plate (with and without the lid) now cuts
+its top: the row, renamed
+`a_closed_conic_in_the_partners_face::the_fallback_cuts_a_closed_rim_beside_a_ring`,
+asserts that nothing is uncut. FLUSH's
+`a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` keeps the
+plug-in-a-bore and pinch poses, which that PR did not measure, so a
+repro for this item is to be read from those.

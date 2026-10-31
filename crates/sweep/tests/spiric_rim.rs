@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use topo::construction::Construct;
 
 use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
@@ -112,17 +113,18 @@ fn the_minted_rim_lies_on_both_implicit_forms() {
     }
 }
 
-/// **Row 2 — `edge_extent` below the sampled point-set diameter on
-/// every sub-span**, on the vessel's minted rim. The certified lever
-/// `max(chord, r′(1 − cos Δv/2))` never exceeds the sampled diameter
-/// of the arc it describes. This fixture CANNOT see the wrong-arm
+/// **Row 2 — the edge's extent brackets the sampled point-set diameter
+/// on every sub-span**, on the vessel's minted rim. The lever from below
+/// (`edge_extent_inf`, `max(chord, r′(1 − cos Δv/2), sampled pairs)`)
+/// never exceeds the sampled diameter of the arc it describes, and the
+/// one from above (`edge_extent_sup`) never falls short of it. This fixture CANNOT see the wrong-arm
 /// mutant (`major_radius` in place of `minor_radius`): the fold only
 /// overtakes the chord on the LONG spans, where
 /// `R(1 − cos Δv/2) > 2r′·sin(Δv/2)` needs `R ≳ 2r′`, and the vessel's
 /// `R/r′ = 1.33`. The row below, at the elbow's ratio `R/r = 5.3`, is
 /// the one that reds under it.
 #[test]
-fn the_edge_extent_stays_below_the_sampled_diameter() {
+fn the_edge_extent_brackets_the_sampled_diameter() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let (_, carrier, (t0, t1)) = spiric_edges(&cavity).remove(0);
     for n in [1_usize, 2, 4, 8, 16, 64] {
@@ -130,7 +132,8 @@ fn the_edge_extent_stays_below_the_sampled_diameter() {
         for k in 0..n {
             let (a, b) = (t0 + step * k as f64, t0 + step * (k + 1) as f64);
             let chord = carrier.eval(a).distance(carrier.eval(b));
-            let extent = geom_brep::edge_extent(&carrier, a, b, chord);
+            let extent = geom_brep::edge_extent_inf(&carrier, a, b, chord);
+            let sup = geom_brep::edge_extent_sup(&carrier, a, b, chord);
             let samples: Vec<Point3<f64>> = (0..=200)
                 .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 200.0))
                 .collect();
@@ -144,6 +147,11 @@ fn the_edge_extent_stays_below_the_sampled_diameter() {
                 extent <= diameter + 1e-15,
                 "span [{a}, {b}]: extent {extent} exceeds the sampled diameter {diameter}"
             );
+            assert!(
+                sup >= diameter,
+                "span [{a}, {b}]: the bound from above {sup} is short of the sampled \
+                 diameter {diameter}"
+            );
         }
     }
 }
@@ -151,8 +159,8 @@ fn the_edge_extent_stays_below_the_sampled_diameter() {
 /// **Row 2′ — the extent arm at a ratio that can see it.** A spiric
 /// on the elbow's numbers (`R = 1.2`, `r = 0.225`, `d = 0.05`, so
 /// `R/r = 5.3`), minted through the kind's door: over the whole
-/// oval and its halves the certified lever stays below the sampled
-/// diameter, and the mutant that reads `major_radius` as the fold's
+/// oval and its halves the lever from below stays below the sampled
+/// diameter and the one from above stays over it, and the mutant that reads `major_radius` as the fold's
 /// arm exceeds it by `≈ 0.75` m on the full period (`R(1 − cos π)
 /// = 2.4` against a diameter of `≈ 1.65`). The lever is what
 /// transversality's dihedral pass classifies against, so a larger arm
@@ -178,7 +186,8 @@ fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
         (2.0, 5.5),
     ] {
         let chord = carrier.eval(a).distance(carrier.eval(b));
-        let extent = geom_brep::edge_extent(&carrier, a, b, chord);
+        let extent = geom_brep::edge_extent_inf(&carrier, a, b, chord);
+        let sup = geom_brep::edge_extent_sup(&carrier, a, b, chord);
         let samples: Vec<Point3<f64>> = (0..=400)
             .map(|i| carrier.eval(a + (b - a) * f64::from(i) / 400.0))
             .collect();
@@ -188,10 +197,17 @@ fn the_edge_extent_arm_is_the_minor_radius_at_the_elbows_ratio() {
                 diameter = diameter.max(p.distance(*q));
             }
         }
-        println!("[spiric] span [{a}, {b}]: extent {extent}, sampled diameter {diameter}");
+        println!(
+            "[spiric] span [{a}, {b}]: extent {extent}, sampled diameter {diameter}, sup {sup}"
+        );
         assert!(
             extent <= diameter + 1e-15,
             "span [{a}, {b}]: extent {extent} exceeds the sampled diameter {diameter}"
+        );
+        assert!(
+            sup >= diameter,
+            "span [{a}, {b}]: the bound from above {sup} is short of the sampled diameter \
+             {diameter}"
         );
     }
 }

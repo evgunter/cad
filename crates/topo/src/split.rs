@@ -56,7 +56,7 @@ pub(crate) const SMOOTH_PIECE_LEVER: &str =
 /// What a crossing's interiority margin measures.
 pub(crate) const CROSSING_SIZE: &str = "distance from the edge's end";
 
-/// [`Body::split_edge`]'s interiority decision: it passes only on a
+/// [`Body::split_edge`](crate::construction::Construct::split_edge)'s interiority decision: it passes only on a
 /// crossing definitely inside its edge.
 pub(crate) const SPLIT_PARAM_INTERIOR: SizedDecision = SizedDecision {
     lever: CROSSING_LEVER,
@@ -75,7 +75,7 @@ pub(crate) fn split_param_ending(arm: RefusedArm<'_>) -> String {
 }
 
 /// Every key minted (and the one possibly killed) by one
-/// [`Body::split_edge`] call.
+/// [`Body::split_edge`](crate::construction::Construct::split_edge) call.
 ///
 /// Direction conventions: the parent edge survives as the **first
 /// child** (`start(he_plus)` → the new vertex, carrier interval
@@ -110,124 +110,9 @@ pub struct SplitEdgeCreated {
 }
 
 impl<T: Decide> Body<T> {
-    /// Splits `edge` at carrier parameter `t`, minting a new vertex at
-    /// `carrier(t)` and a new edge so that the parent covers `[t₀, t]`
-    /// and the new edge `[t, t₁]` of the unchanged carrier (type docs
-    /// for the direction conventions; module docs for the ch. 14/15
-    /// consumers).
-    ///
-    /// Euler vector: `(v +1, e +1, f 0, h 0, r 0, s 0)` — `mev`'s
-    /// vector (an edge split IS a mev, applied mid-edge).
-    ///
-    /// **Interiority is trilean** (Q1): the two sub-spans `t − t₀` and
-    /// `t₁ − t` are metered into meters exactly like the certification
-    /// span gate (`·radius` for circle carriers) and each must classify
-    /// **definitely positive** through the
-    /// `split_edge_param_interior` predicate — at/outside an endpoint
-    /// refuses ([`EulerOpError::SplitParamNotInterior`]), in-band
-    /// escalates ([`EulerOpError::SplitParamEscalated`]; a poisoned
-    /// margin, e.g. an unmeterable carrier, escalates the same way).
-    ///
-    /// **Surgery** (derived from the interior-left rule, replacing the
-    /// book's `lmev(e->he1, e->he2->nxt, p)`): with parent halves
-    /// `hp = he_plus` (u → v) and `hm = he_minus` (v → u), the new
-    /// plus half is spliced immediately **after `hp`** (in `hp`'s
-    /// loop) and the new minus half immediately **before `hm`** (in
-    /// `hm`'s loop); `hm`'s start is rebound to the new vertex `w`.
-    /// `hp` then derives its end as `w` — the parent becomes the
-    /// first child with no further pointer changes. Degenerate sites
-    /// fall out of the same two splices: a strut
-    /// (`next(hp) == hm`) becomes the two-edge strut
-    /// `… hp → n⁺ → n⁻ → hm …`, and self-loop parents (u = v,
-    /// including one-half-edge circular loops) split into a two-edge
-    /// digon — the second splice reads `prev(hm)` **after** the first
-    /// splice precisely so these coincidence cases land correctly.
-    ///
-    /// **Emanating rules** (deterministic): `w.emanating = n⁺` (the
-    /// second child's plus half — the analogue of `mev`'s new-vertex
-    /// rule); `v.emanating` is rebound to `n⁻` iff it was `hm` (which
-    /// no longer starts at v); all other anchors are untouched.
-    ///
-    /// **Minting order** (D9, exact): point, first-child curve,
-    /// second-child curve, vertex, edge, `he_plus`, `he_minus`. **Kill
-    /// order**: the parent's curve iff orphaned, after the parent edge
-    /// is repointed to the first-child curve.
-    ///
-    /// # Precondition check order
-    ///
-    /// `edge` resolves ([`crate::BadArgument::Stale`]); its curve entry
-    /// is certified ([`EulerOpError::NullScaffoldCurve`] — null
-    /// scaffolding has nothing to split); the interiority trilean
-    /// (above); a tangent child's description by the must-carry rule
-    /// over the child ([`EulerOpError::SplitSmoothEscalated`],
-    /// [`EulerOpError::SplitSmoothBendEscalated`],
-    /// [`EulerOpError::SplitSmoothRefuted`]); both child specs certify
-    /// ([`EulerOpError::Certification`] — endpoints
-    /// `start(hp) → carrier(t)` and `carrier(t) → end(hp)`, he_plus
-    /// forward order on each child; the plane × NURBS lane is the
-    /// scalar's policy, and a scalar holding none refuses that class
-    /// [`EulerOpError::NurbsLaneUnsupported`] naming `edge`).
-    ///
-    /// **Pcurve rows** ([`crate::pcurves`]): a parent half-edge's
-    /// stored chart row passes to both children as each child's own
-    /// row. C4 places a row over its own edge's span in the chart's
-    /// principal window, so a closed-form or projected child is derived
-    /// over its sub-interval exactly as the mint derives it (and is the
-    /// mint's row, byte for byte); a fitted or general row, which has
-    /// no angular placement, is the parent's restricted to the
-    /// sub-interval. Either is certified through the door that states
-    /// it (`restate`: `PcurveCache::certify` for an exact row,
-    /// `certify_projected`, `certify_fitted` or `certify_general` for
-    /// the rest, the last three through the scalar's
-    /// [`crate::AtRestPolicy::fitted_lane`]). Both children are
-    /// certified in the plan phase
-    /// ([`crate::pcurves::split_cache`]), so a face this op touches is
-    /// never left half-minted and a refusal
-    /// ([`EulerOpError::PcurveSplit`]) arrives with the body
-    /// untouched. So do the joints, decided as every joint is: the one
-    /// between the two children at the split point, the way the half
-    /// runs, and, where a child was placed again, the parent's joints
-    /// into and out of it against their neighbours' rows (children
-    /// placed apart can sit whole turns from the parent's image). Where
-    /// one is undecided the op refuses
-    /// ([`EulerOpError::SplitJointUndecided`]) rather than write an
-    /// element nothing decided. A half-edge with no row keeps none: the op carries
-    /// what is there, and minting what is missing is the producer's
-    /// closing mint.
-    ///
-    /// The carry is exact on every chart; two readers of the split body are
-    /// narrower, both stated at `split_cache`. On a SPLINE chart the
-    /// recovery step the caveat below names, `mint_pcurves`, refuses on
-    /// a described-NURBS wall's split: the iso derivation's rim arms
-    /// map an edge's WHOLE interval onto the chart's whole `u` domain,
-    /// which a sub-edge no longer spans (pre-existing, filed on ISO's
-    /// slate; a split of such a wall no longer NEEDS that pass). And
-    /// the trimmed quadrature lane refuses a carried `General` row's
-    /// sub-range typed (filed on QUAD's slate).
-    ///
-    /// # Tier-3 caveat (review F2)
-    ///
-    /// Splitting a circle rim of an iso-rectangle patch (e.g. a
-    /// plane×cylinder intersection rim on an extruded disc) leaves the
-    /// curved wall's loop no longer an iso-rectangle: mass properties
-    /// / tier 3 then refuse **typed** (`NotIsoRectangle`) on a body
-    /// that was tier-3 before the split. Honest and loud, but the
-    /// split knocks the body out of the props inventory until the
-    /// patch machinery generalizes (pinned in
-    /// `review_m3_pr1_sweep.rs::split_circle_carrier_intersection_edge`).
-    ///
-    /// # Panics
-    ///
-    /// On a kernel bug: an edge the body stores, re-minted or restated on its
-    /// own carrier and interval, whose span or winding reads certainly
-    /// refused at the run's band.
-    ///
-    /// # Errors
-    ///
-    /// The first failing precondition above, a tangent child the
-    /// must-carry rule leaves in band or reads at a corner among them;
-    /// the body is untouched on `Err`.
-    pub fn split_edge(
+    /// The door [`Construct::split_edge`](crate::construction::Construct::split_edge) forwards to;
+    /// documented there.
+    pub(crate) fn split_edge(
         &mut self,
         edge: EdgeKey,
         t: T,
@@ -239,7 +124,7 @@ impl<T: Decide> Body<T> {
         self.split_edge_minting(edge, t, None, tol)
     }
 
-    /// [`Self::split_edge`], with the new vertex holding `at`'s own
+    /// [`Self::split_edge`](crate::construction::Construct::split_edge), with the new vertex holding `at`'s own
     /// bits rather than `carrier(t)`'s: the split lands on a point the
     /// caller already holds (another vertex's), and the two must read
     /// one point. Both children certify against `at`, so a point off
@@ -503,7 +388,6 @@ impl<T: Decide> Body<T> {
                         edge,
                         half_edge,
                         error,
-                        authority: curve.authority().kind(),
                     },
                     crate::pcurves::SplitRefusal::Joint(diag) => {
                         EulerOpError::SplitJointUndecided {

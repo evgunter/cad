@@ -9,7 +9,8 @@
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, MappedSource};
 use geom_core::{Decide, Point3, Tol, Vec3};
-use topo::{Body, FaceSurface, LoopKey};
+use topo::construction::FaceSurface;
+use topo::{Body, LoopKey};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::partial::LoopSwept;

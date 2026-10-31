@@ -23,9 +23,9 @@
 //! rigid up to rounding, a door-admitted factor within the band, and a
 //! product of `k` admitted factors — not decided again — within about
 //! `k` bands (`RigidMotion`'s module docs). On top of that, every edge
-//! carrier is **re-certified** against the mapped geometry through
-//! [`geom_brep::EdgeCurve::certify_via`] — with the plane × NURBS lane the
-//! scalar's policy holds ([`crate::AtRestPolicy::nurbs_lane`]) — so a
+//! carrier is **re-attached** against the mapped geometry through the
+//! scalar's edge door ([`crate::AtRestPolicy::attach_edge`]: certified in
+//! full where the scalar certifies, minted where it never does) — so a
 //! map that breaks carrier consistency
 //! surfaces as a typed [`TransformError::Certify`] refusal, never as
 //! silently corrupt geometry. Re-running the checks rather than
@@ -168,19 +168,6 @@ pub enum TransformError {
         /// The scalar the map ran at ([`geom_core::Real::NAME`]).
         scalar: &'static str,
     },
-    /// An edge whose certificate needs the NURBS lane (the classes are
-    /// listed on [`geom_brep::CertifyError::NurbsLaneNotSupplied`])
-    /// cannot be re-certified at this scalar: its certificate is
-    /// re-derived on the moved pair through that lane, and the scalar's
-    /// policy holds none ([`crate::AtRestPolicy::nurbs_lane`] answers
-    /// `None` — a dual, DL1). It is a fact about the scalar and not
-    /// about the body.
-    NurbsLaneUnsupported {
-        /// The edge whose carrier is of the class.
-        edge: EdgeKey,
-        /// The scalar the map ran at ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-    },
     /// The fit door refused a mapped approximating surface: the image
     /// of a fit that does not certify in its own frame either (a limb
     /// above tolerance), a door meter, a window the derivation does not
@@ -234,12 +221,6 @@ impl TransformError {
                  only {holders} holds that door (the fit is derived there alone). Recourse: \
                  move the body at {holders}",
                 holders = geom_brep::ScalarList(geom_brep::OFFSET_FIT_DOOR_HOLDERS),
-            ),
-            Self::NurbsLaneUnsupported { scalar, .. } => format!(
-                "an edge whose certificate needs the NURBS lane cannot be moved at the \
-                 {scalar} scalar: its certificate is re-derived on the moved pair through that \
-                 lane, and only a scalar with certification rights holds it. Recourse: move \
-                 the body at a certifying scalar"
             ),
             Self::ApproxRecertify { source } => format!(
                 "a moved approximating surface could not be re-certified or re-fitted: {source}"
@@ -608,6 +589,28 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
+/// The chart image `image` on `surface` of `body` under a map of `hand`:
+/// itself under a proper map, whose mapped surface carries the whole map,
+/// and reflected with its chart under an improper one.
+fn mapped_image<T: Real>(
+    body: &Body<T>,
+    surface: geom_brep::SurfaceKey,
+    image: &geom_brep::Pcurve<T>,
+    hand: Hand,
+) -> Result<geom_brep::Pcurve<T>, TransformError> {
+    match hand {
+        Hand::Proper => Ok(image.clone()),
+        Hand::Improper => {
+            let class = body.surfaces.get(surface).map(OrientationClass::of).ok_or(
+                TransformError::Corrupt {
+                    found: "a chart image lies on a missing surface",
+                },
+            )?;
+            reflected_image(image, class)
+        }
+    }
+}
+
 /// **An edge's chart image under a reflection, in the inside-out
 /// image's own terms** ([`map_isometry`] at [`Hand::Improper`]).
 ///
@@ -774,9 +777,28 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             // Re-mint (module docs above): construction-fresh witness
             // from the MAPPED carrier at the pinned mid parameter
             // (params are transform-invariant).
-            EdgeDescription::Intersection { pair, .. } => EdgeDescriptionSpec::Intersection {
+            EdgeDescription::Intersection { pair, selector } => EdgeDescriptionSpec::Intersection {
                 pair: *pair,
-                witness: carrier.mid_point(param_start, param_end),
+                selector: match selector {
+                    witness @ geom_brep::CurveSelector::Witness(_) => {
+                        witness.repinned(&carrier, param_start, param_end)
+                    }
+                    // Each wall's row maps as a chart image does.
+                    geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row)) => {
+                        let [ka, kb] = pair.keys();
+                        let mapped = |k| -> Result<_, TransformError> {
+                            let image = row.image_on(*pair, k).ok_or(TransformError::Corrupt {
+                                found: "a shared row names a surface outside its pair",
+                            })?;
+                            Ok((k, mapped_image(body, k, image, hand)?))
+                        };
+                        let row = geom_brep::SharedRow::new(*pair, mapped(ka)?, mapped(kb)?)
+                            .ok_or(TransformError::Corrupt {
+                                found: "a shared row's mapped image is no row",
+                            })?;
+                        geom_brep::CurveSelector::Structural(geom_brep::Structural::SharedRow(row))
+                    }
+                },
             },
             // TangentIntersection maps as Intersection does: keys are
             // stable, the witness re-mints from the mapped carrier.
@@ -804,17 +826,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             // The authority record travels with the map, because a
             // sketch pushforward is stated in 3-space.
             EdgeDescription::Chart(c) => {
-                let class = body
-                    .surfaces
-                    .get(c.surface)
-                    .map(OrientationClass::of)
-                    .ok_or(TransformError::Corrupt {
-                        found: "a chart image lies on a missing surface",
-                    })?;
-                let image = match hand {
-                    Hand::Proper => c.pcurve.clone(),
-                    Hand::Improper => reflected_image(&c.pcurve, class)?,
-                };
+                let image = mapped_image(body, c.surface, &c.pcurve, hand)?;
                 let chart = EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(image),
@@ -850,14 +862,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
         let origin =
             crate::policy_lane::Origin::Kernels(crate::policy_lane::KernelSite::RigidTransform);
         let mapped = crate::policy_lane::certify(origin, spec, start, end, surfaces, reach, band)
-            .map_err(|refusal| match refusal {
-            crate::policy_lane::ByPolicy::NoLane { scalar } => {
-                TransformError::NurbsLaneUnsupported { edge: ek, scalar }
-            }
-            crate::policy_lane::ByPolicy::Refused(source) => {
-                TransformError::Certify { edge: ek, source }
-            }
-        })?;
+            .map_err(|source| TransformError::Certify { edge: ek, source })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
         rewritten.insert(curve_key, ());
     }

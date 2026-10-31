@@ -9,7 +9,7 @@
 //! Two doors leave struts and delete them here:
 //!
 //! - the coplanar merge, whose absorption leaves the dangling legs of a
-//!   seam on its survivor (`Body::merge_coplanar_faces_declared`);
+//!   seam on its survivor (`Body::merge_coplanar_faces`);
 //! - the Boolean, whose zip glues a slit's face to itself where the
 //!   result keeps that face on both sides of the slit's line
 //!   (`boolean::slit::close_struts`).
@@ -185,7 +185,10 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
                  it reduces an outline to one"
             ),
         };
-        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+        let bridge = self.mekr_chord(
+            crate::construction::MekrSite::EmptyRing { target, ring },
+            tol,
+        )?;
         self.kev(bridge.he_plus)?;
         Ok(())
     }

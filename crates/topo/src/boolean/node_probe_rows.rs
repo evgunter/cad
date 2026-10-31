@@ -20,7 +20,9 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use crate::{Body, FaceSurface, MefSite, MevSite};
+use crate::Body;
+
+use crate::construction::{FaceSurface, MefSite, MevSite};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EqualCylinderSection, SurfacePair};
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -50,7 +52,7 @@ fn pair() -> (Surface<f64>, Surface<f64>, Curve3<f64>, Curve3<f64>) {
         lever: 1.0,
     };
     let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
-        geom_brep::cylinder_cylinder_section(&sa, &sb, &reach, band())
+        geom_brep::cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
     else {
         panic!("the table constructs the two ellipses");
     };
@@ -63,7 +65,7 @@ fn arc(pair: SurfacePair, carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> EdgeCu
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair,
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier: carrier.clone(),
         param_start: t0,
@@ -323,7 +325,7 @@ fn top_piece(flip: bool, rim_axis: Vec3<f64>) -> Body<f64> {
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(ka, kc),
-                witness: rim.mid_point(0.0, 2.0 * PI),
+                selector: geom_brep::CurveSelector::Witness(rim.mid_point(0.0, 2.0 * PI)),
             },
             carrier: rim,
             param_start: 0.0,

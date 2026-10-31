@@ -51,22 +51,10 @@ use super::role::{EntityKind, Qualifier, RoleSeg, RunLine, Sense, StableName, na
 /// (module docs). Only the name's OWN positions are ordered: a name it
 /// embeds reaches here already in canonical form, since the collapse
 /// and every rewriter canonicalize each embedded name on the way down.
-pub(crate) fn form(name: StableName) -> StableName {
-    order(name)
-}
-
-/// **One freshly minted segment in canonical form**, for an emitter
-/// that mints a segment rather than a whole path (`emit_blend`'s band
-/// face): [`form`]'s ordering, one segment at a time.
-pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
-    segment(seg)
-}
-
-/// Every position in order.
-fn order(mut name: StableName) -> StableName {
+pub(crate) fn form(mut name: StableName) -> StableName {
     name.path = core::mem::take(&mut name.path)
         .into_iter()
-        .map(segment)
+        .map(minted_segment)
         .collect();
     if is_junction(&name) {
         name.path.sort();
@@ -107,13 +95,15 @@ pub(crate) fn is_junction(name: &StableName) -> bool {
             .all(|seg| matches!(seg, RoleSeg::Seam { .. }))
 }
 
-/// **One segment's own name-ordered positions**, in order.
+/// **One segment's own name-ordered positions**, in order: [`form`]'s
+/// ordering one segment at a time, for an emitter that mints a segment
+/// rather than a whole path (`emit_blend`'s band face) as well.
 ///
 /// EXHAUSTIVE, with no wildcard (the `walk_names` rule): a variant
 /// added to [`RoleSeg`] says here whether it carries a name-ordered
 /// position, or stops the build.
 #[allow(clippy::too_many_lines)] // one arm per name-carrying RoleSeg variant
-fn segment(seg: RoleSeg) -> RoleSeg {
+pub(crate) fn minted_segment(seg: RoleSeg) -> RoleSeg {
     match seg {
         // The name-ordered positions.
         RoleSeg::Seam { a, b } if a > b => RoleSeg::Seam { a: b, b: a },
@@ -177,7 +167,7 @@ fn segment(seg: RoleSeg) -> RoleSeg {
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
-        | RoleSeg::Instance { .. }
+        | RoleSeg::Member { .. }
         | name_free_seg!() => seg,
     }
 }

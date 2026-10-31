@@ -92,7 +92,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
         ];
         want.sort_unstable();
         assert_eq!(
-            stored_minor_bits(body),
+            stored_minor_bits(&body),
             want,
             "outer {outer} wall {wall}: stored radii are not the caller's own numbers \
              bit for bit (inner must be {inner:?} = {:#018x})",
@@ -116,7 +116,7 @@ fn the_storage_contract_holds_at_non_dyadic_values() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     assert_eq!(
-        stored_minor_bits(body_of(&ev, tube)),
+        stored_minor_bits(&(body_of(&ev, tube))),
         vec![0.3_f64.to_bits(); 2],
         "the solid door must store a non-dyadic minor radius verbatim"
     );

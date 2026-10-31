@@ -4,7 +4,7 @@ kind: program
 title: POLISH — viewer chrome that shows the right information in a rougher shape than it could
 status: ready
 opened: 2026-10-01
-area: gui
+group: gui/viewer
 prefix: polish/
 tag: (POLISH orchestrator)
 ab_band: 10200-10299

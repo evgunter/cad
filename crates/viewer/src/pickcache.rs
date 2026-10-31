@@ -298,7 +298,7 @@ impl PickCache {
     ///
     /// **δ is built at, verbatim.** [`crate::scene::TRIANGLE_BUDGET`] chooses
     /// the δ a document OPENS at
-    /// ([`crate::app::ViewerApp::fit_delta_on_scene`]), and that is the
+    /// ([`crate::app::DocumentDerived::fit_delta`]), and that is the
     /// whole of the budget's authority: once a δ is in force it is the
     /// value someone asked for, and a cache that quietly built a
     /// different picture would make the View pane's δ field a control
@@ -520,6 +520,23 @@ impl PickCache {
         } else {
             IndexSeam::Idle
         }
+    }
+
+    /// **The held index, or why there is none** — [`unindexed`]'s
+    /// reading of an absence, for a consumer that needs the index rather
+    /// than a refusal: [`NotIndexed::Building`] while one is on its way,
+    /// [`NotIndexed::Absent`] when nothing is building one (the last
+    /// attempt refused, [`PickCache::error`], or nothing has evaluated).
+    ///
+    /// # Errors
+    ///
+    /// [`NotIndexed`]: `Building` or `Absent`, never `AnotherPicture`,
+    /// which is a question about the picture this cache does not hold.
+    pub fn index_or_why(&self, fit: &dyn FitService) -> Result<&PickIndex, NotIndexed> {
+        self.index().ok_or(match self.index_seam(fit) {
+            IndexSeam::Building => NotIndexed::Building,
+            IndexSeam::Idle => NotIndexed::Absent,
+        })
     }
 
     /// Why the last attempt refused, if it did.

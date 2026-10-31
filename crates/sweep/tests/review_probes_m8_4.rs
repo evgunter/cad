@@ -18,7 +18,9 @@ use geom_core::{Point2, Point3, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::{Body, FaceSurface, Pcurve};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, Pcurve};
 
 fn offset_square_prism() -> Body<f64> {
     let square = || -> sweep::Section {
@@ -164,7 +166,7 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(plane, bowed),
-                witness: carrier.eval((t0 + t1) * 0.5),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
             },
             carrier,
             param_start: t0,
@@ -313,7 +315,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(bowed, bowed),
-                    witness: carrier.eval((t0 + t1) * 0.5),
+                    selector: geom_brep::CurveSelector::Witness(carrier.eval((t0 + t1) * 0.5)),
                 },
                 carrier,
                 param_start: t0,

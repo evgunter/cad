@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use topo::construction::Construct;
 
 use geom_core::Tol;
 use step_export::{StepExportError, StepOptions, step_string};

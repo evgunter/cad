@@ -55,6 +55,7 @@ fn rod(
                 radius: len(A),
             }],
             ids: Vec::new(),
+            on: None,
         }),
     );
     let (doc, rod) = fixture::insert(doc, extrude(p, length));
@@ -281,12 +282,12 @@ fn a_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict()
             );
             let ev2 = fixture::run(&doc2, &EvalOptions::default());
             let out = corpus::body_of(&ev2, blend);
-            topo::validate_geometric(out, tol())
+            topo::validate_geometric(&out, tol())
                 .unwrap_or_else(|e| panic!("{what} ({verb}): tier 3, {e:?}"));
-            topo::validate_pseudomanifold(out, &topo::ContactRecords::default(), tol())
+            topo::validate_pseudomanifold(&out, &topo::ContactRecords::default(), tol())
                 .unwrap_or_else(|e| panic!("{what} ({verb}): tier 3′, {e:?}"));
             let pi = core::f64::consts::PI;
-            let dv = volume(out) - volume(corpus::body_of(&ev2, operand));
+            let dv = volume(&out) - volume(&(corpus::body_of(&ev2, operand)));
             let section = if chamfer {
                 r * r / 2.0
             } else {

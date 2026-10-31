@@ -41,7 +41,9 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use topo::{Body, CoherenceCondition, CoherenceFinding, EdgeKey, FaceSurface, MefSite, MevSite};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, CoherenceCondition, CoherenceFinding, EdgeKey};
 
 fn unit_sphere() -> Surface<f64> {
     Surface::Sphere {

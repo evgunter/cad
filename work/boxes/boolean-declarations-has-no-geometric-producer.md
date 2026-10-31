@@ -4,7 +4,6 @@ kind: issue
 title: API gap — BooleanDeclarations has no geometric producer, so every direct kernel caller hand-writes one
 status: open
 opened: 2026-08-20
-github: 757
 priority: P1
 cost: D
 ---

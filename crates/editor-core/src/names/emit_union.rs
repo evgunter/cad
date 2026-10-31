@@ -122,11 +122,12 @@ use crate::names::emit::{
     check_total, edge_ends, ent, face_half_edges, vertex_point,
 };
 use crate::names::emit_topo::{
-    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, Lone, UNSIDED, edge_reading,
-    edges_holding, is_straight, joined_along, joined_candidates, line_name as line_name_of,
-    name_corner_copies, name_edge_pieces, name_parent_faces, sense_along_line, sets_per_line,
+    CornerCopies, Cover, EdgeCarrier, EdgePieces, EdgeReading, Lone, ParentEntities, UNSIDED,
+    edge_reading, edges_holding, is_straight, joined_along, joined_candidates,
+    line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
+    sense_along_line, sets_per_line,
 };
-use crate::names::groups::Rederived;
+use crate::names::groups::{GroupRecord, Parent as GroupParent};
 use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
@@ -268,7 +269,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     fold: &Fold<'_>,
     links: &Links<T>,
     tol: geom_core::Tol,
-) -> Result<(Arc<NameTable>, Rederived), NamingError> {
+) -> Result<(Arc<NameTable>, GroupRecord), NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
     let parents = Parents::of(node, body, members, fold, links)?;
@@ -1263,7 +1264,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ) -> Result<(Sense, EdgeReading), NamingError> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
-        let m = self.member(*n, name.name());
+        // The member by its place in the list: the members of a family
+        // read whole share one read and one body's keys, and the name
+        // tells them apart.
+        let (at_member, m) = member_at(self.members, *n, name.name());
         // The member's rows on the line, each with its edge, a tied
         // row with each candidate's: the classified piece is the one at
         // `v`. The line itself need not be a row.
@@ -1289,7 +1293,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // Whether a judgement of the edge's member against one the name
         // cites recorded something at the point `at` that is `v`'s.
         let here = |member: usize, other: usize, at: geom_core::Point3<T>| {
-            if read(member) != Some(*n) || !read(other).is_some_and(|o| others.contains(&o)) {
+            // Another member of the line's own family is one the name
+            // cites: its read is the line's, which the name cites once.
+            let cited = |o: VarId| others.contains(&o) || (o == *n && other != at_member);
+            if member != at_member || !read(other).is_some_and(cited) {
                 return Ok(false);
             }
             let gap = Margin::of((at - p).norm());
@@ -1961,6 +1968,11 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
     }
+
+    /// An index is the document's own: re-citing a member edge keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
+    }
 }
 
 /// A member face, by entity: the member's position in the list and the
@@ -2421,7 +2433,7 @@ struct ByParents {
     /// The seam edges, grouped by their two parents.
     seams: Vec<PieceGroup>,
     /// The groups formed.
-    groups: Rederived,
+    groups: GroupRecord,
 }
 
 /// A parent's name: its one member face, or `Merged` of all of them,
@@ -2460,9 +2472,10 @@ fn parent_name(union: RecipeNodeId, from: &BTreeSet<MemberEntity>) -> StableName
 ///   edges between the same two parents are pieces of that seam, grouped
 ///   to be told apart by their ends once the vertices are named.
 /// - **Groups.** The groups formed are returned for the diagnosis
-///   ladder, except those of a tied parent, which are formed by name and
-///   so hold no one parent's count: those bases are left to the fold
-///   ([`Rederived`]).
+///   ladder. Each is one parent's: a face group holds one parent's
+///   faces, and a seam group is keyed by its two parents' member faces.
+///   So two tied parents, which share a base, form two groups, and each
+///   counts its own.
 /// - **Every other row** cites a face as its parent, and a re-derived
 ///   seam edge by its head (N2: a vertex cites an edge by its head,
 ///   never by a piece's qualifier).
@@ -2481,17 +2494,7 @@ fn name_by_parents<T: geom_core::Decide>(
 ) -> Result<ByParents, NamingError> {
     let mut out = NameTable::new();
     let mut tie = TieRows::default();
-    let mut rec = Rederived::default();
-    // A group is formed by parent NAME, so tied parents share one and it
-    // holds no one parent's count: the fold's entity-followed groups
-    // answer for it instead.
-    let mut record = |base: &StableName, members: Vec<_>, tied: bool| {
-        if tied {
-            rec.by_fold.insert(base.clone());
-        } else {
-            rec.groups.record_by_name(base, members, false);
-        }
-    };
+    let mut rec = GroupRecord::new();
     let mut held: Vec<(StableName, Entry)> = Vec::new();
 
     // ---- Seam edges, by the parents on their two sides. ----
@@ -2528,8 +2531,9 @@ fn name_by_parents<T: geom_core::Decide>(
         }
         seams.extend(edges);
     }
-    // Base → (from a tie, its edges).
-    let mut seam_groups: BTreeMap<StableName, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
+    // (base, the two parents) → (from a tie, its edges).
+    type SeamKey = (StableName, ParentEntities<MemberFace>);
+    let mut seam_groups: BTreeMap<SeamKey, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
     for &k in &seams {
         // `Incidence` dedups a wrap edge's one face: a wrap edge pierced
         // at a point and joined back after the boolean is one way in.
@@ -2562,18 +2566,19 @@ fn name_by_parents<T: geom_core::Decide>(
                 b: NameRef::new(b.clone()),
             }],
         };
-        let slot = seam_groups.entry(base).or_default();
+        let sides = BTreeSet::from([p0.entities.clone(), p1.entities.clone()]);
+        let slot = seam_groups.entry((base, sides)).or_default();
         slot.0 |= p0.tied || p1.tied;
         slot.1.push(k);
     }
     // Edge → its seam's head, for the rows that cite it.
     let mut seam_head: BTreeMap<topo::EdgeKey, StableName> = BTreeMap::new();
     let mut groups = Vec::with_capacity(seam_groups.len());
-    for (base, (tied, keys)) in seam_groups {
-        record(
+    for ((base, _), (tied, keys)) in seam_groups {
+        rec.record(
             &base,
             keys.iter().map(|&k| ent(0, EntityKey::Edge(k))).collect(),
-            tied,
+            GroupParent::Elsewhere,
         );
         for &k in &keys {
             seam_head.insert(k, base.clone());
@@ -2589,10 +2594,10 @@ fn name_by_parents<T: geom_core::Decide>(
     // ---- Faces, by parent. ----
     for parent in parents.all.iter().filter(|p| !p.faces.is_empty()) {
         let faces = &parent.faces;
-        record(
+        rec.record(
             &parent.name,
             faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect(),
-            parent.tied,
+            GroupParent::Elsewhere,
         );
         name_parent_faces(
             &mut out,
@@ -2681,6 +2686,11 @@ impl SegRewrite for CiteParents<'_> {
         walked: StableName,
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
+    }
+
+    /// An index is the document's own: citing a parent keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 
@@ -3180,6 +3190,7 @@ mod tests {
 
     use super::*;
     use crate::names::role::{CapEnd, EntityKind};
+    use topo::construction::Construct;
 
     fn face(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
         StableName {
@@ -3554,7 +3565,7 @@ mod tests {
                 .mvfs(geom_core::Point3::new(x, 0.0, 0.0), true)
                 .expect("mvfs births a lone vertex");
             body.mev_line(
-                topo::MevSite::Lone {
+                topo::construction::MevSite::Lone {
                     r#loop: born.r#loop,
                 },
                 geom_core::Point3::new(x + 1.0, 0.0, 0.0),
@@ -3643,7 +3654,7 @@ mod tests {
                 .expect("mvfs births a lone vertex");
             let edge = member_body
                 .mev_line(
-                    topo::MevSite::Lone {
+                    topo::construction::MevSite::Lone {
                         r#loop: born.r#loop,
                     },
                     geom_core::Point3::new(1.0, 0.0, 0.0),
@@ -3945,7 +3956,7 @@ mod tests {
                 .expect("mvfs births a lone vertex");
             let edge = body
                 .mev_line(
-                    topo::MevSite::Lone {
+                    topo::construction::MevSite::Lone {
                         r#loop: born.r#loop,
                     },
                     geom_core::Point3::new(q[0], q[1], q[2]),
@@ -4347,8 +4358,8 @@ mod tests {
         let fold_name = |i: u64| StableName {
             kind: EntityKind::Vertex,
             node: m.union,
-            path: vec![RoleSeg::Instance {
-                i: u32::try_from(i).unwrap(),
+            path: vec![RoleSeg::Member {
+                at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                 of: NameRef::new(tied.clone()),
             }],
         };
@@ -4444,8 +4455,8 @@ mod tests {
         for (i, v) in [v0, v1].into_iter().enumerate() {
             let fold = vertex(
                 tied.union,
-                vec![RoleSeg::Instance {
-                    i: u32::try_from(i).unwrap(),
+                vec![RoleSeg::Member {
+                    at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                     of: NameRef::new(tie.clone()),
                 }],
             );

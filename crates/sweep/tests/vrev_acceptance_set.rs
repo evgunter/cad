@@ -98,7 +98,7 @@ fn lofted_wall_verdict(k: usize) -> (Vec<f64>, bool) {
         .collect();
     let lofted =
         sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("the loft builds");
-    let fk = lofted.side_faces[0][0];
+    let fk = lofted.side_faces[0][0][0];
     let sk = lofted.body.get_face(fk).unwrap().surface;
     let n = match lofted.body.get_surface(sk) {
         Some(Surface::Nurbs(n)) => (**n).clone(),

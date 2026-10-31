@@ -4,7 +4,6 @@ kind: issue
 title: pncad-py: seven refusal doors still cross as tag-plus-message, with no per-variant field projection
 status: open
 opened: 2026-09-01
-github: 1479
 refs: [730]
 priority: P3
 cost: D

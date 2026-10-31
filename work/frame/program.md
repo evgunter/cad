@@ -4,7 +4,7 @@ kind: program
 title: FRAME — who answers "give me a frame", and by what rule
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/geom/numeric
 prefix: frame/
 tag: (FRAME orchestrator)
 ab_band: 5900-5999

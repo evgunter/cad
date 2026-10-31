@@ -4,12 +4,12 @@ kind: program
 title: FIXTURE — one body, fixture or helper spelled n times across the suites
 status: ready
 opened: 2026-09-20
-area: infra
+group: infra/tests
 prefix: fixture/
 tag: (FIXTURE orchestrator)
 ab_band: 8900-8999
 paths: []
-keep_out: [opened by TINT's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TINT measured 207.5 (97.5 once priced) budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are TINT VACUITY FIXTURE HELPER and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, the fixtures these rows share live under crates/*/tests and crates/test-utils which S-TCOST globs - a unit here adds or moves rows there as ordinary tests and says so in the PR, DUP owns the one-thing-spelled-n-times class on PRODUCTION code and these four own it on the test side]
+keep_out: [opened by TINT's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - TINT measured 207.5 (97.5 once priced) budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are TINT VACUITY FIXTURE HELPER and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, the fixtures these rows share live under crates/*/tests and crates/test-utils which S-TCOST globs - a unit here adds or moves rows there as ordinary tests and says so in the PR, DUP owns the one-thing-spelled-n-times class on PRODUCTION code and these four own it on the test side]
 ---
 The test-side half of *one thing spelled n times*: the unit cube at 49
 spellings across 19 suites under three conventions; the box wrapper at

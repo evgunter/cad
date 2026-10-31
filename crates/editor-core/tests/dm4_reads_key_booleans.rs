@@ -68,7 +68,7 @@ fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
         "mass properties",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(crate::corpus::body_of(ev, id)),
+            topo::Body::clone(&(crate::corpus::body_of(ev, id))),
             Tol::witness(),
         ),
         Tol::witness(),

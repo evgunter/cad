@@ -17,7 +17,11 @@
 //!   only when the operands have no crossings, and for a curved
 //!   boundary the extent certificates that run before it
 //!   (`ops::sphere_extent_scan`, `ops::section_extent_pass`) certify
-//!   that none was missed; `setopfinish` classifies a component that
+//!   that none was missed. The one pair they leave is a face pair the
+//!   reduction settled one carrier, whose section is no curve: the
+//!   section pass defers it to the shells' verdicts, and it refuses
+//!   unless both faces' shells read `On` each other, or both read a side
+//!   that one operand's patches certify (`ops::OnDeferred`). `setopfinish` classifies a component that
 //!   carries no section face, so its ground is the join's: every
 //!   crossing of the two boundaries was found and cut, and this
 //!   component met none.
@@ -68,10 +72,17 @@
 //! orientations, no partner covered back — the boolean refuses
 //! [`BooleanError::CoincidentShell`].
 //!
-//! The same shell is also what reaches `On` when its faces off the
-//! other boundary are all curved, since tier 3 reads planar faces only.
-//! Such a face has no settled pair unless the recipe or a declaration
-//! made it one carrier with a face of the other, so it refuses typed.
+//! A shell whose faces off the other boundary are all curved reaches
+//! the `On` question too, since the ladder takes an interior witness on
+//! a planar face only: on a curved face its witnesses are the face's
+//! vertices and its edges' midpoints. Such a shell reads `On` where each
+//! of its faces is settled one carrier with a face of the other (by the
+//! glue door's margin, a declaration or the recipe) and every one of
+//! those witnesses lies on the other's boundary. Two faces on one
+//! carrier whose patches differ read `On` only where their edges
+//! coincide as well; where an edge of one leaves the other solid's
+//! boundary, its midpoint sides the shell. Any other such shell refuses
+//! typed.
 
 use geom_core::{Band, Decide, Tol};
 use std::collections::BTreeSet;

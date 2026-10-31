@@ -41,3 +41,7 @@ merges says whether this row can close.
 ## Closed
 
 Nightly run 39728496598 (main `0ffab3663d`, 2026-10-22): the `k-lint (dev-probe)` job no longer dies on `lily_leaf_b`, because the quadrature wall is gone (PR 4438, and PR 5568's sign walk). It still stops before the lint step, now on `sweep::ray_wall_margin_twins` (`curve_foot_branch`'s margins do not scale with the model). That red is TCOST's, filed as `main-reds-editor-core-slow-set-and-the-k-probe-sweep`, so this row's own cause is closed.
+
+The ray-wall red that now stops `k-lint (dev-probe)` is owned by
+`work/issues/ray-wall-twins-curve-foot-branch-margin-scales-with-the-model-squared.md`
+(the base six pairs) since 2026-10-28, PR 5966, and pinned there.

@@ -4,7 +4,7 @@ kind: program
 title: VGEOM — the viewer's geometry, camera and numeric renders, and what it decides to show: the display budget and the pick index
 status: ready
 opened: 2026-09-17
-area: gui
+group: gui/viewer
 prefix: vgeom/
 tag: (VGEOM orchestrator)
 ab_band: 5300-5399

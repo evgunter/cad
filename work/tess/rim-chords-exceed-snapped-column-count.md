@@ -4,7 +4,6 @@ kind: issue
 title: Rim chords can exceed the snapped column count on a malign band (residual off-lattice risk under TESS-SPLIT)
 status: closed
 opened: 2026-08-23
-github: 950
 priority: P0
 cost: H
 closed: 2026-10-21

@@ -200,7 +200,7 @@
 //! SILENCE is a row a test can write; each states its own [`Tone`],
 //! which is the actionable-or-not rule the toolbar used to pick a
 //! colour for at four call sites; and one draw at the toolbar consumes
-//! them all. The members are the at-rest verdict ([`at_rest_badge`]),
+//! them all. The members are the at-rest check ([`at_rest_badge`]),
 //! the advisory checks ([`checks_badge`]), the δ the display budget
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the profiles
@@ -783,6 +783,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -792,6 +793,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
@@ -800,7 +802,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
@@ -852,77 +854,11 @@ pub fn batch_refusal(
     doc: &Doc<ProfileProgram>,
 ) -> Option<Refusal> {
     let refusal = refusal?;
-    Some(if ops.iter().any(replaces_the_document) {
+    Some(if ops.iter().any(SessionOp::replaces_the_document) {
         refusal
     } else {
         refusal.respoken(doc)
     })
-}
-
-/// **Whether `op` puts another document in the session**, whose ids say
-/// nothing about a refusal raised before it ([`batch_refusal`]). Every
-/// op is listed, so a new one is sorted here by whoever adds it: one
-/// left out of the `true` arm has its batch's refusal spoken from a
-/// document that is not the one it was raised in.
-fn replaces_the_document(op: &SessionOp) -> bool {
-    match op {
-        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
-        SessionOp::Hover(_)
-        | SessionOp::Select(_)
-        | SessionOp::DeleteNode { .. }
-        | SessionOp::RemoveConstraint { .. }
-        | SessionOp::IntoOwnSpace { .. }
-        | SessionOp::SetSlot { .. }
-        | SessionOp::SetSlotVariable { .. }
-        | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
-        | SessionOp::SetSlotUnit { .. }
-        | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetVariable { .. }
-        | SessionOp::SetVariableUnit { .. }
-        | SessionOp::SetVariableText { .. }
-        | SessionOp::DeclareVar { .. }
-        | SessionOp::RenameVar { .. }
-        | SessionOp::DeleteVar { .. }
-        | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginVariableGesture { .. }
-        | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewVariableGesture { .. }
-        | SessionOp::CommitVariableGesture { .. }
-        | SessionOp::CancelGesture
-        | SessionOp::Undo
-        | SessionOp::Redo
-        | SessionOp::CancelEvaluation
-        | SessionOp::Reevaluate
-        | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
-        | SessionOp::BeginFreeMove { .. }
-        | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove { .. }
-        | SessionOp::CancelFreeMove
-        | SessionOp::AddMate { .. }
-        | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
-        | SessionOp::EditProfile { .. }
-        | SessionOp::AddExtrude { .. }
-        | SessionOp::AddRevolve { .. }
-        | SessionOp::AddBoolean { .. }
-        | SessionOp::AddSplit { .. }
-        | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
-        | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
-        | SessionOp::AddFillet { .. }
-        | SessionOp::AddChamfer { .. }
-        | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. } => false,
-        SessionOp::CreateLabelled { creation, .. } => replaces_the_document(creation.op()),
-    }
 }
 
 /// **A [`Refusal`] as the line carries it** — the one place a refusal
@@ -2217,7 +2153,9 @@ pub fn tool_notice(
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
-            | BlendEvent::TargetHasNoValue { .. },
+            | BlendEvent::TargetHasNoValue { .. }
+            | BlendEvent::Unindexed { .. }
+            | BlendEvent::RimUnanswered { .. },
         ) => Retold::Again,
     };
     Message::new(Subject::Document, notice.said(landed), retold)
@@ -2257,46 +2195,42 @@ pub fn tool_news(refusal: &PanelRefusal) -> Message {
     Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
-/// **What the chrome badges about the A5 at-rest verdict**, and `None`
+/// **What the chrome badges about the at-rest check**, and `None`
 /// exactly when [`crate::session::DocSession::at_rest`] is — its own
 /// `None`, passed through; that doc says when.
 ///
-/// A certified assembly is [`Tone::Advisory`]: the verdict is good
-/// news and there is nothing to act on, unless it reports a loud
-/// overlap between copies, which only the reader can answer and which
-/// then leads the badge. A
-/// refusal is
-/// [`Tone::Actionable`] — it is the gate declining to certify the
-/// product on screen, and the reader is the only one who can answer
-/// it.
-///
-/// The refusal's words are [`crate::session::AtRestBadge`]'s own, the
-/// typed refusal rendered unaltered; the "at rest: " opening is this
-/// badge naming itself.
+/// Nothing at rest refuses, so the badge counts what the check found.
+/// A document with no loud finding is [`Tone::Advisory`]: there is
+/// nothing to act on. A loud overlap between copies, or a finding the
+/// census could not look at, is [`Tone::Actionable`]: only the reader
+/// can answer it, and it leads the badge. The badge says "clear" only
+/// where the census could look at everything, and counts what it could
+/// not look at by finding: a scalar that runs no census, a `⊔` that did
+/// not gather and a malformed body are no pair.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
-    Some(match at_rest? {
-        AtRestBadge::Certified { loud, quiet } => {
-            // A loud overlap leads: it is what the reader acts on, and
-            // "certified" before it would read as nothing to do.
-            let (text, tone) = match (loud, quiet) {
-                (0, 0) => ("at rest: certified".to_owned(), Tone::Advisory),
-                (0, quiet) => (
-                    format!("at rest: certified (interference: 0 loud, {quiet} quiet)"),
-                    Tone::Advisory,
-                ),
-                (loud, quiet) => (
-                    format!("at rest: interference: {loud} loud, {quiet} quiet"),
-                    Tone::Actionable,
-                ),
-            };
-            Badge::read(Subject::Document, text, tone)
-        }
-        AtRestBadge::Refused { message } => Badge::read(
-            Subject::Document,
-            format!("at rest: {message}"),
-            Tone::Actionable,
-        ),
-    })
+    let AtRestBadge {
+        loud,
+        quiet,
+        could_not_look,
+    } = *at_rest?;
+    // A loud overlap leads: it is what the reader acts on. "Clear" is
+    // said only where nothing is open: never beside what the census
+    // could not look at.
+    let interference = format!("interference: {loud} loud, {quiet} quiet");
+    let blind = format!("{could_not_look} finding(s) the census could not look at");
+    let text = match (loud, quiet, could_not_look) {
+        (0, 0, 0) => "at rest: clear".to_owned(),
+        (0, _, 0) => format!("at rest: clear ({interference})"),
+        (_, _, 0) => format!("at rest: {interference}"),
+        (0, 0, _) => format!("at rest: {blind}"),
+        _ => format!("at rest: {interference}; {blind}"),
+    };
+    let tone = if loud > 0 || could_not_look > 0 {
+        Tone::Actionable
+    } else {
+        Tone::Advisory
+    };
+    Some(Badge::read(Subject::Document, text, tone))
 }
 
 /// **What the chrome badges about the advisory checks**, and `None`
@@ -2365,12 +2299,12 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 /// the cells it names that can be selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The node the finding is about, which the button selects: for a
+    /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
-    /// places ([`crate::world::seat_of`]), the deciding node of an
-    /// unproven coincidence.
-    pub node: RecipeNodeId,
-    /// That node, spoken.
+    /// places, [`crate::world::seat_of`]; the deciding node of an
+    /// unproven coincidence), or the variable an unused finding names.
+    pub select: Selection,
+    /// That node or variable, spoken.
     pub button: String,
     /// The finding, its copies spoken.
     pub sentence: String,
@@ -2451,15 +2385,38 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| {
             let node = match finding.subject {
-                FindingSubject::Output { root, .. } => crate::world::seat_of(landed, root),
+                FindingSubject::Var(var) => {
+                    return CheckRow {
+                        select: Selection::Variable(var),
+                        button: by.read(var),
+                        sentence: Said(finding, by).to_string(),
+                        cells: Vec::new(),
+                    };
+                }
+                FindingSubject::Output { placement, .. } => {
+                    crate::world::seat_of(landed, placement)
+                }
                 FindingSubject::Node(node) => node,
+                // An overlap's row is the earlier copy's, as a contact's
+                // is; the findings beside it are the `⊔`'s whose census
+                // decided them, or the body the product slot reads.
+                FindingSubject::Census { read } => {
+                    let at = match &finding.evidence {
+                        CheckEvidence::Interference { finding } => finding.a.var,
+                        _ => read,
+                    };
+                    let node = landed.operation_of(at).unwrap_or_else(|| {
+                        unreachable!("a census is taken over an operation's output")
+                    });
+                    crate::world::seat_of(landed, node)
+                }
                 // The earlier copy's placement: the row's cells name both.
                 FindingSubject::Copies { a, .. } => landed
                     .operation_of(a.var)
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
             CheckRow {
-                node,
+                select: Selection::Node(node),
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
                 cells: coincidence_cells(finding, by, landed),
@@ -2529,15 +2486,15 @@ enum BadgeSite {
 }
 
 /// Which channel reports a refusal of this class, if any. The at-rest
-/// badge ([`at_rest_badge`]) is not one: it reports the A5 gate, which
+/// badge ([`at_rest_badge`]) is not one: it reads the at-rest check, which
 /// never runs on a product that did not gather.
 ///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductErrorKind::RootFailed`], [`ProductErrorKind::RootPoisoned`]
+/// [`ProductErrorKind::ReadFailed`], [`ProductErrorKind::ReadPoisoned`]
 /// and [`ProductErrorKind::UnknownNode`] — the classes of
-/// [`ProductError::Root`], by the placement's standing — are those same
+/// [`ProductError::Read`], by the read's standing — are those same
 /// three states seen from the gather.
 /// [`ProductErrorKind::StrandedProduct`] is the first of them seen
 /// from the recipe: a product read whose body is gone reads nothing,
@@ -2576,15 +2533,16 @@ enum BadgeSite {
 /// catches.
 fn badge_site(kind: ProductErrorKind) -> BadgeSite {
     match kind {
-        ProductErrorKind::RootFailed
-        | ProductErrorKind::RootPoisoned
+        ProductErrorKind::ReadFailed
+        | ProductErrorKind::ReadPoisoned
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
         | ProductErrorKind::StrandedProduct
         | ProductErrorKind::ProductOutsideWorld
+        | ProductErrorKind::Frame
         | ProductErrorKind::Graft
-        | ProductErrorKind::RootInvalid
+        | ProductErrorKind::PieceInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -3064,12 +3022,12 @@ pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionO
             ResolveFault::EpsilonSeam | ResolveFault::Unresolved => None,
         },
         // The reference resolved, or was never tried: the pin is not
-        // what failed. A part root failing on a mismatch of its OWN
+        // what failed. A part whose product fails on a mismatch of its OWN
         // references is repaired in that part, not here.
         PartFault::NoResolver
-        | PartFault::PartRootFailed { .. }
-        | PartFault::PartRootPoisoned { .. }
-        | PartFault::RootFailureUnrecorded { .. }
+        | PartFault::PartProductFailed { .. }
+        | PartFault::PartProductPoisoned { .. }
+        | PartFault::PartProductFailureUnrecorded { .. }
         | PartFault::PartProduct { .. }
         | PartFault::ReferenceCycle { .. }
         | PartFault::DepthExceeded
@@ -3447,18 +3405,18 @@ mod tests {
         for (quiet, site) in [
             (ProductError::EmptyProduct, BadgeSite::NotAFault),
             (
-                ProductError::Root(NodeStanding::Failed { node }),
+                ProductError::Read(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
             ),
             (
-                ProductError::Root(NodeStanding::Poisoned {
+                ProductError::Read(NodeStanding::Poisoned {
                     node,
                     through: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 }),
                 BadgeSite::FeatureTree,
             ),
             (
-                ProductError::Root(NodeStanding::NotEvaluated { node }),
+                ProductError::Read(NodeStanding::NotEvaluated { node }),
                 BadgeSite::FeatureTree,
             ),
         ] {
@@ -3481,7 +3439,7 @@ mod tests {
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::Graft,
-            ProductErrorKind::RootInvalid,
+            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -3532,13 +3490,13 @@ mod tests {
         let left_to_the_tree = [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::UnknownNode,
-            ProductErrorKind::RootFailed,
-            ProductErrorKind::RootPoisoned,
+            ProductErrorKind::ReadFailed,
+            ProductErrorKind::ReadPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedProduct,
             ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
-            ProductErrorKind::RootInvalid,
+            ProductErrorKind::PieceInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]
@@ -3546,8 +3504,8 @@ mod tests {
         .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
         // The row state each class reaches the pane as.
         .map(|kind| match kind {
-            ProductErrorKind::RootFailed => 0,
-            ProductErrorKind::RootPoisoned => 1,
+            ProductErrorKind::ReadFailed => 0,
+            ProductErrorKind::ReadPoisoned => 1,
             ProductErrorKind::UnknownNode => 2,
             other => unreachable!("{other:?} is not a class the tree draws"),
         })
@@ -3948,9 +3906,9 @@ mod tests {
                 ResolveFault::EpsilonSeam => 2,
                 ResolveFault::Unresolved => 3,
             },
-            PartFault::PartRootFailed { .. } => 4,
-            PartFault::PartRootPoisoned { .. } => 5,
-            PartFault::RootFailureUnrecorded { .. } => 6,
+            PartFault::PartProductFailed { .. } => 4,
+            PartFault::PartProductPoisoned { .. } => 5,
+            PartFault::PartProductFailureUnrecorded { .. } => 6,
             PartFault::PartProduct { .. } => 7,
             PartFault::ReferenceCycle { .. } => 8,
             PartFault::DepthExceeded => 9,
@@ -3960,7 +3918,7 @@ mod tests {
 
     /// **Only a pin that no longer holds offers the accept**, over one
     /// witness of every [`PartFault`] arm, naming the part by the file
-    /// the scan found. The part-root arms carry a NESTED pin mismatch:
+    /// the scan found. The part-product arms carry a NESTED pin mismatch:
     /// that pin is the part's own reference, repaired in the part, so
     /// it offers nothing here. Red if any other arm offers, or the
     /// offer names another part.
@@ -3983,18 +3941,18 @@ mod tests {
             unresolved(ResolveFault::PinMismatch),
             unresolved(ResolveFault::EpsilonSeam),
             unresolved(ResolveFault::Unresolved),
-            PartFault::PartRootFailed {
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::PartRootPoisoned {
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                 through: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 refusal: nested(),
             },
-            PartFault::RootFailureUnrecorded {
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
             },

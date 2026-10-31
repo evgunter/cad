@@ -72,7 +72,7 @@
 //! `INCIDENCE_CUTS` parts in the composite's own ring
 //! (`CurveCertData::with_breaks`; the net itself is never refined
 //! through an `f64` plan, which would re-round it), and further halved
-//! by the edge certificate's limb 2 (`net_offset_sup`). The conversion
+//! by the edge certificate's limb 2 (`limb2_offset_sup`). The conversion
 //! divides `|f|` by a lower bound on `|∇f|` along the segment from the
 //! point to its nearest point on the chart, so each is tight to first
 //! order: `|f|` on the plane;
@@ -102,10 +102,12 @@
 //! part's break (`distance_floor`), where the composite's value `f(p)`
 //! is enclosed and `p` is the part's end control: `|f(p)|`'s lower end
 //! over an upper bound on `Meters::divisor` at `p`, a factor with
-//! `|f| = distance · divisor` exactly on the plane, cylinder, sphere and
-//! every torus, and `|f| ≥ distance · divisor` on the cone. Every
-//! surface lies in its form's zero set, so the floor is a certified
-//! lower bound on the carrier's distance from it there. Limb 2 reads it
+//! `|f| ≤ distance · divisor`, the distance being from the form's zero
+//! set: equal on the plane, cylinder and sphere, and on the torus where
+//! the divisor's larger term is the one matching the nearer tube circle;
+//! in general below it on the cone. Every surface lies in its form's
+//! zero set, so the floor is a certified lower bound on the carrier's
+//! distance from it there. Limb 2 reads it
 //! as a measured miss.
 //!
 //! **The sector condition**, decided per piece: the piece's radial hull
@@ -1025,6 +1027,28 @@ fn chart_of<T: Decide>(
     framed: &FramedCarrier<T>,
     band: Band,
 ) -> Result<ProjectedChart<T>, PcurveCertifyError> {
+    chart_at(
+        surface,
+        || match framed {
+            FramedCarrier::Net(net) => {
+                let (d0, d1) = net.knot_values().domain();
+                net.eval(T::from_f64(0.5) * (d0 + d1)).z
+            }
+            FramedCarrier::Circle { origin, span, .. } => {
+                framed.eval(*origin + *span * T::from_f64(0.5)).z
+            }
+        },
+        band,
+    )
+}
+
+/// [`chart_of`] for a carrier whose middle sits at height `mid` in the
+/// surface's chart frame, read only on a cone.
+pub(crate) fn chart_at<T: Decide>(
+    surface: &Surface<T>,
+    mid: impl FnOnce() -> T,
+    band: Band,
+) -> Result<ProjectedChart<T>, PcurveCertifyError> {
     Ok(match *surface {
         Surface::Plane { .. } => ProjectedChart::Plane,
         Surface::Cylinder { .. } => ProjectedChart::Cylinder,
@@ -1034,15 +1058,7 @@ fn chart_of<T: Decide>(
         },
         Surface::Cone { half_angle, .. } => {
             let (sin, cos) = half_angle.sin_cos();
-            let mid = match framed {
-                FramedCarrier::Net(net) => {
-                    let (d0, d1) = net.knot_values().domain();
-                    net.eval(T::from_f64(0.5) * (d0 + d1)).z
-                }
-                FramedCarrier::Circle { origin, span, .. } => {
-                    framed.eval(*origin + *span * T::from_f64(0.5)).z
-                }
-            };
+            let mid = mid();
             let nappe =
                 match decide("pcurve_projected_nappe", Margin::of(mid), band).map_err(|cause| {
                     PcurveCertifyError::Escalated {
@@ -1544,6 +1560,17 @@ impl<S: Real> Meters<S> {
         })
     }
 
+    /// **The apex root**: on a cone, `√|f|` bounds a part's distance from
+    /// the cone's implicit surface wherever the lever does not decide
+    /// positive (a part reaching the apex). In the meridian half-plane
+    /// `f = a·b`, with `a = ρ cos α − z sin α` and `b = ρ cos α + z sin α`
+    /// the distances from the two generator lines, both on the implicit
+    /// cone, so the distance is at most `min(|a|, |b|) ≤ √|f|`. `None` off
+    /// the cone.
+    pub(crate) fn apex_root(self, f: S) -> Option<S> {
+        matches!(self, Self::Cone { .. }).then(|| f.sqrt())
+    }
+
     /// An upper bound in metres on the distance of a part whose `|f|` is
     /// at most `f`, whose `ρ` is at least `rho` and whose `z` ranges over
     /// `z`. The lever it divides by is `positive`'s answer on it first,
@@ -1574,22 +1601,25 @@ impl<S: Real> Meters<S> {
         })
     }
 
-    /// At a point `p` of the chart's frame, a factor whose magnitude
-    /// times the point's distance from the chart is at most `|f(p)|`, so
-    /// that `|f(p)|` over an upper bound on it bounds the distance from
-    /// below. On the cylinder, sphere and torus the distance is
-    /// `|f| / divisor` exactly: `|ρ − R|·(ρ + R)`, `||p| − r|·(|p| + r)`,
-    /// and on the torus `f = (m² − r²)(M² − r²)` with
+    /// At a point `p` of the chart's frame, a factor with
+    /// `|f(p)| ≤ d(p) · divisor(p)`, `d(p)` the point's distance from the
+    /// form's zero set, so that `|f(p)|` over an upper bound on the
+    /// divisor bounds that distance from below. It is a factor at `p`
+    /// itself, not a bound along a path to the zero set. On the cylinder
+    /// and the sphere it is exact: `|f|` is `|ρ − R|·(ρ + R)` and
+    /// `||p| − r|·(|p| + r)`. On the torus `f = (m² − r²)(M² − r²)`, with
     /// `m = √((ρ − R)² + z²)` and `M = √((ρ + R)² + z²)` the distances
-    /// from the meridian plane's two tube circles, so the distance
-    /// `min(|m − r|, |M − r|)` is `|f|` over
-    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)` at every `R` and `r`
-    /// (on a ring torus the first term is the larger). On the cone `|f|`
-    /// is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances from
-    /// the two generator lines of the meridian plane, the nearer of which
-    /// is the double cone's distance, and each factor is at most
-    /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set,
-    /// so it is no nearer than that set.
+    /// from the meridian plane's two tube circles, and the zero set's
+    /// distance is `min(|m − r|, |M − r|)`. Since
+    /// `|f| = |m − r|·(m + r)·|M² − r²| = |M − r|·(M + r)·|m² − r²|`, `|f|`
+    /// is at most that distance times
+    /// `max((m + r)·|M² − r²|, (M + r)·|m² − r²|)`, with equality where
+    /// the larger term is the one matching the nearer circle. On the cone
+    /// `|f|` is `|ρ cos α − z sin α|·|ρ cos α + z sin α|`, the distances
+    /// from the two generator lines of the meridian plane, the nearer of
+    /// which is the double cone's distance, and the other is at most
+    /// `ρ cos α + |z| sin α`. Each surface lies in its form's zero set, so
+    /// it is no nearer than that set.
     pub(crate) fn divisor(self, p: Vec3<S>) -> S {
         let rho = (p.x.powi(2) + p.y.powi(2)).sqrt();
         match self {
@@ -1723,7 +1753,8 @@ pub(crate) fn window_of<T: Decide>(
 /// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
 /// or one that does has no certified composite bound or floor; a cone's
 /// or a torus's lever that does not decide positive refuses
-/// [`SectorChannel::Lever`] at the part.
+/// [`SectorChannel::Lever`] at the part, except where `apex` reads such
+/// a cone part through [`Meters::apex_root`] (limb 2's reading).
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
     (t0, t1): (T, T),
@@ -1731,6 +1762,7 @@ pub(super) fn net_incidence<T: Decide>(
     twin: &Surface<T>,
     d: T,
     band: Band,
+    apex: bool,
 ) -> Result<(T, T), PcurveCertifyError> {
     let refuse = |why| PcurveCertifyError::ImageMismatch {
         image: PcurveKind::Projected,
@@ -1760,16 +1792,18 @@ pub(super) fn net_incidence<T: Decide>(
         let floor = (rho - d).max(T::zero());
         rho_floor = Some(rho_floor.map_or(floor, |m| m.min(floor)));
         let f = T::from_computed(span.f_sup);
-        let disp = meters.over(f, rho, span.z, |lever| {
-            require_positive(
-                "pcurve_projected_lever",
-                lever,
-                band,
-                PcurveCheck::Sector,
-                j,
-                sector_refused(j, SectorChannel::Lever),
-            )
-        })?;
+        let disp = meters
+            .over(f, rho, span.z, |lever| {
+                require_positive(
+                    "pcurve_projected_lever",
+                    lever,
+                    band,
+                    PcurveCheck::Sector,
+                    j,
+                    sector_refused(j, SectorChannel::Lever),
+                )
+            })
+            .or_else(|refusal| apex.then(|| meters.apex_root(f)).flatten().ok_or(refusal))?;
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
@@ -1788,7 +1822,9 @@ fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
         .fold(T::zero(), |m, (q, p)| m.max(q.distance(*p)))
 }
 
-/// What [`net_offset_sup`] read of a carrier's distance from a surface.
+/// What limb 2's reader ([`crate::pcurve_cache::limb2_offset_sup`]) read
+/// of a carrier's distance from a surface.
+#[derive(Debug)]
 pub(crate) enum Offset<T> {
     /// A certified upper bound on it over the edge's interval.
     Bound(T),
@@ -1801,121 +1837,214 @@ pub(crate) enum Offset<T> {
     },
 }
 
-/// **A spline carrier's distance from an analytic surface**, certified
-/// over the parts of its net the edge's `window` overlaps (a part the
-/// window ends inside is read whole, the conservative side): limb 2 of
-/// C2 for an analytic operand of a rung-3 edge
-/// ([`crate::analytic_rung3`]). The net is read as stored, never cut or
-/// refined through an `f64` plan. The net is written in the
-/// frame of the surface's orthonormal twin, which is the same point set
-/// (orthonormalising a frame moves no point of the implicit surface),
-/// and its incidence is [`net_incidence`] over its parts; no branch is
-/// chosen, because a distance reads no angle.
+impl<T: geom_core::CertifiedEnclosure> Offset<T> {
+    /// The upper bound's upper end, NaN where none was read or the bound
+    /// does not certify: at an enclosure scalar limb 2 decides this end
+    /// ([`crate::pcurve_cache::limb2_offset_sup`]), so a refused bound
+    /// stalls the limb rather than passing on its ordinary ends.
+    pub(crate) fn upper(&self) -> f64 {
+        match self {
+            Self::Bound(b) | Self::Miss { bound: Ok(b), .. } => {
+                b.certified_bracket().map_or(f64::NAN, |(_, hi)| hi)
+            }
+            Self::Miss { bound: Err(_), .. } => f64::NAN,
+        }
+    }
+}
+
+/// The carrier's own size in the frame a round's composite read it in
+/// ([`crate::carrier_net::CarrierNet::width`] and `extent`), in metres.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NetSize {
+    /// The widest enclosure among the net's controls.
+    pub(crate) width: f64,
+    /// The width no halving removes
+    /// ([`crate::carrier_net::CarrierNet::rounding`]).
+    pub(crate) rounding: f64,
+    /// The diagonal of the net's control box.
+    pub(crate) extent: f64,
+}
+
+/// [`Offset`] and the size of the net the rounds stopped on.
+#[derive(Debug)]
+pub(crate) struct OffsetRead<T> {
+    /// The reading.
+    pub(crate) offset: Offset<T>,
+    /// The net it was read on.
+    pub(crate) size: NetSize,
+    /// The upper bound's upper end in metres, for the refusal's payload
+    /// and story (`limb2_offset_sup` fills it at a bracket scalar); NaN
+    /// where none was read.
+    pub(crate) upper: f64,
+    /// The certified lower bound at the break the rounds stopped on,
+    /// in metres ([`Offset::Miss`]'s `floor`); `0` where they stopped
+    /// on the bound.
+    pub(crate) floor: f64,
+}
+
+/// How far above the net's rounding limb 2's bound may lie and still be
+/// at the floor its rounds stop at, and how far above the band's zero
+/// that rounding must itself lie ([`round_floored`]): an order of
+/// magnitude, the composite's arithmetic adding a few roundings at the
+/// net's scale to the net's own. It is the stop's own constant, not
+/// [`crate::KERNEL_LIMIT_ROUNDING_FACTOR`], which reads a stopped bound
+/// against the net's whole width for the kernel limit's story.
+pub(crate) const ROUND_FLOOR_FACTOR: f64 = 16.0;
+
+/// **Limb 2's round stop** ([`offset_rounds`]): a round whose bound
+/// `sup` is within [`ROUND_FLOOR_FACTOR`] of the net's `rounding`, that
+/// rounding itself that factor above the band's zero, and the bound not
+/// halved since the round `before` it, is at its floor — no halving
+/// takes it lower. The first round, with no `before`, never is.
 ///
-/// The parts are limb 2's subdivision's
-/// ([`crate::ssi::certify::subdivide`]): the overlapped parts whose
-/// certified metre bound ([`SpanHull::meters`]) does not clear the
-/// band's zero are halved under its budget, in the composite's own
-/// ring, and the rounds stop on a break inside the interval whose
-/// certified distance floor ([`SpanHull::floors`]) lies past the band's
-/// zero, a measured miss. Those bounds route the rounds and decide
-/// nothing: the bound is decided on [`net_incidence`] over the parts
-/// the rounds stopped on, and the floor at the caller's scalar.
+/// **The rounding is the whole net's, the bound the window's.** The net
+/// reports one rounding, the widest control over every part
+/// ([`NetSize::rounding`]), and a window reading parts whose own
+/// rounding is finer can be stopped while its bound would still fall.
+/// That costs liveness and never soundness: the stop only ends the
+/// rounds, and the limb reads the lowest hull any round reached exactly
+/// as the crate's other stops do (`crate::ssi::certify::subdivide_until`),
+/// so an early stop refuses a bound a later round might have cleared and
+/// passes none it would not. The halving clause keeps a bound still
+/// falling twofold a round going whatever the rounding says. A
+/// per-part rounding would need the net to carry one per part, which it
+/// does not.
+pub(crate) fn round_floored(sup: f64, before: Option<f64>, rounding: f64, band: Band) -> bool {
+    let slowed = before.is_some_and(|b| sup > 0.5 * b);
+    slowed && sup <= ROUND_FLOOR_FACTOR * rounding && rounding >= ROUND_FLOOR_FACTOR * band.zero()
+}
+
+/// Limb 2's rounds over a carrier's composite, read on the parts the
+/// edge's `window` overlaps: `hull` composes the carrier's twin with
+/// its parts cut at a round's breaks and says the size of the net it
+/// read, and the rounds halve as
+/// [`crate::pcurve_cache::limb2_offset_sup`]'s docs say, stopping
+/// ([`round_floored`]) once the bound is within [`ROUND_FLOOR_FACTOR`]
+/// of the net's rounding ([`NetSize::rounding`]), that rounding itself
+/// that factor above the band's zero, and the last round did not halve it: a
+/// bound held up by the carrier's own data (at a family scalar, its
+/// spread over the box) far above the band stops falling there, and
+/// the rounds past it buy nothing. A rounding near the band leaves the
+/// rounds on, since the bound may still fall the little way the band
+/// asks. The rounding alone is no floor — it is
+/// the widest control over every channel, and the distance may read a
+/// channel far sharper, as at a far placement whose length rounds wide
+/// along the carrier — so a bound still falling at least twofold a
+/// round goes on, near the rounding or below it. The bound is decided on [`net_incidence`] over the parts
+/// the rounds stopped on.
+pub(crate) fn offset_rounds<T: Decide>(
+    hull: impl Fn(&[f64]) -> Result<(ProjectedHull, NetSize), PcurveCertifyError>,
+    window: (T, T),
+    chart: &ProjectedChart<T>,
+    twin: &Surface<T>,
+    band: Band,
+) -> Result<OffsetRead<T>, PcurveCertifyError> {
+    use crate::ssi::certify::{Hull, Subdivided, subdivide_until};
+    let round = |cuts: &[f64]| {
+        let (hull, size) = hull(cuts)?;
+        read_round(hull, size, window)
+    };
+    // The stored carrier is the net itself, so the radial floor's
+    // fidelity term is zero; limb 2 reads the incidence alone.
+    let bound = |hull: &ProjectedHull| {
+        net_incidence(hull, window, chart, twin, T::zero(), band, true)
+            .map(|(incidence, _)| incidence)
+    };
+    // The last round's bound, replaced on every call before the stop
+    // reads it. `subdivide_until` asks the stop after its other
+    // exhaustions (`||`), so a round it does not ask about is one that
+    // ends the rounds anyway — nothing left to halve, or a NaN bound —
+    // and no later round reads a `before` that skipped one.
+    let last = core::cell::Cell::new(None::<f64>);
+    let floored = |h: &Hull<(ProjectedHull, NetSize)>| {
+        let before = last.replace(Some(h.sup));
+        round_floored(h.sup, before, h.data.1.rounding, band)
+    };
+    Ok(match subdivide_until(round, band, floored)? {
+        Subdivided::Bound(hull) => OffsetRead {
+            offset: Offset::Bound(bound(&hull.data.0)?),
+            size: hull.data.1,
+            upper: f64::NAN,
+            floor: 0.0,
+        },
+        Subdivided::Value { hull, floor, .. } => OffsetRead {
+            offset: Offset::Miss {
+                floor: T::from_computed(floor),
+                bound: bound(&hull.data.0),
+            },
+            size: hull.data.1,
+            upper: f64::NAN,
+            floor,
+        },
+    })
+}
+
+/// **Limb 2 on one composite, where it clears** — the first round of
+/// [`offset_rounds`] alone: `Some` with the reading [`offset_rounds`]
+/// gives a round that clears the band, decided on the same
+/// [`net_incidence`]; `None` where the bound does not clear, so the
+/// caller's full rounds decide.
 ///
 /// # Errors
 ///
-/// As [`net_incidence`]; [`PcurveCertifyError::UnsupportedChart`] off
-/// an analytic chart; the fitted door's refusal of the composite.
-pub(crate) fn net_offset_sup<T: Decide>(
-    net: &NurbsCurve3<T>,
+/// As [`net_incidence`] over a round that clears.
+pub(crate) fn offset_cleared<T: Decide>(
+    hull: ProjectedHull,
+    size: NetSize,
     window: (T, T),
-    surface: &Surface<T>,
+    chart: &ProjectedChart<T>,
+    twin: &Surface<T>,
     band: Band,
-    lane: crate::FittedLane<T>,
-) -> Result<Offset<T>, PcurveCertifyError> {
-    use crate::ssi::certify::{Hull, Subdivided, subdivide};
-    let Some((origin, e)) = chart_frame(surface) else {
-        return Err(PcurveCertifyError::UnsupportedChart {
-            chart: surface.kind(),
-        });
+) -> Result<Option<OffsetRead<T>>, PcurveCertifyError> {
+    let round = read_round(hull, size, window)?;
+    if !crate::ssi::certify::clears(round.sup, band) {
+        return Ok(None);
+    }
+    let (hull, size) = round.data;
+    let (incidence, _) = net_incidence(&hull, window, chart, twin, T::zero(), band, true)?;
+    Ok(Some(OffsetRead {
+        offset: Offset::Bound(incidence),
+        size,
+        upper: f64::NAN,
+        floor: 0.0,
+    }))
+}
+
+/// One round of limb 2 read on the parts `window` overlaps: its bound,
+/// its breaks and floors there, and its work over the whole composite.
+fn read_round<T: Decide>(
+    hull: ProjectedHull,
+    size: NetSize,
+    window: (T, T),
+) -> Result<crate::ssi::certify::Hull<(ProjectedHull, NetSize)>, PcurveCertifyError> {
+    use crate::ssi::certify::Hull;
+    let Window { parts, inside } = window_of(&hull, window)?;
+    let read = &hull.spans[parts.clone()];
+    let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
+    let floor = |k: usize| {
+        if !inside.contains(&k) {
+            return 0.0;
+        }
+        let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
+        let after = hull.spans.get(k);
+        before
+            .map_or(0.0, |s| s.floors.1)
+            .max(after.map_or(0.0, |s| s.floors.0))
     };
-    let framed = FramedCarrier::Net(Arc::new(framed_net(net, origin, &e)));
-    let chart = chart_of(surface, &framed, band)?;
-    let runs: Vec<f64> = net
-        .knots_f64_interim()
-        .knot_runs()
-        .map(|(k, _)| k)
-        .collect();
-    let pieces = runs.len() - 1;
-    let image = ProjectedImage {
-        chart,
-        carrier: framed,
-        breaks: breaks_vector(&runs),
-        azimuth: vec![0; pieces],
-        tube: if matches!(chart, ProjectedChart::Torus { .. }) {
-            vec![0; pieces]
-        } else {
-            Vec::new()
-        },
-        u_off: T::zero(),
-        v_off: T::zero(),
-        v_sign: T::one(),
-    };
-    let twin = super::orthonormal_chart(surface);
-    let Some((o, te)) = chart_frame(&twin) else {
-        unreachable!("an analytic chart has a frame")
-    };
-    let twin_net = framed_net(net, o, &te);
-    let FramedCarrier::Net(stored) = &image.carrier else {
-        unreachable!("built from the net above")
-    };
-    let d = net_fidelity(stored, &twin_net);
-    let round = |cuts: &[f64]| -> Result<Hull<ProjectedHull>, PcurveCertifyError> {
-        let hull = lane.projected_hull(&image, &twin_net, &twin, cuts)?;
-        let Window { parts, inside } = window_of(&hull, window)?;
-        let read = &hull.spans[parts.clone()];
-        let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
-        let floor = |k: usize| {
-            if !inside.contains(&k) {
-                return 0.0;
-            }
-            let before = k.checked_sub(1).and_then(|i| hull.spans.get(i));
-            let after = hull.spans.get(k);
-            before
-                .map_or(0.0, |s| s.floors.1)
-                .max(after.map_or(0.0, |s| s.floors.0))
-        };
-        Ok(Hull {
-            // A refused part refuses the bound (`f64::max` would pass
-            // over its NaN).
-            sup: spans.iter().fold(0.0, |m: f64, &b| {
-                if m.is_nan() || b.is_nan() {
-                    f64::NAN
-                } else {
-                    m.max(b)
-                }
-            }),
-            breaks: read
-                .iter()
-                .map(|s| s.range.0)
-                .chain(read.last().map(|s| s.range.1))
-                .collect(),
-            floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
-            spans,
-            // The lane composes the whole net, whatever the window reads.
-            work: hull.spans.len(),
-            data: hull,
-        })
-    };
-    let bound = |hull: &ProjectedHull| {
-        net_incidence(hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
-    };
-    Ok(match subdivide(round, band)? {
-        Subdivided::Bound(hull) => Offset::Bound(bound(&hull.data)?),
-        Subdivided::Value { hull, floor, .. } => Offset::Miss {
-            floor: T::from_computed(floor),
-            bound: bound(&hull.data),
-        },
+    Ok(Hull {
+        // A refused part refuses the bound.
+        sup: spans.iter().copied().fold(0.0, crate::carrier_net::widest),
+        breaks: read
+            .iter()
+            .map(|s| s.range.0)
+            .chain(read.last().map(|s| s.range.1))
+            .collect(),
+        floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
+        spans,
+        // The composite reads the whole carrier, whatever the
+        // window reads.
+        work: hull.spans.len(),
+        data: (hull, size),
     })
 }
 
@@ -2005,7 +2134,7 @@ pub(super) fn projected_envelope<T: Decide>(
                 hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
             }
             let (incidence, rho_floor) =
-                net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band)?;
+                net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band, false)?;
             (incidence, d, rho_floor)
         }
         (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle { .. }) => {
@@ -2417,6 +2546,7 @@ mod tests {
                 &plane,
                 S::from_f64(0.25),
                 band,
+                false,
             )
             .expect("the plane's part is certified");
             let z = [Nappe::Opening, Nappe::Mirror]

@@ -2,9 +2,8 @@
 id: a-two-carrier-curve-touch-has-no-bounded-locus
 kind: issue
 title: A face-face record on two carriers is confirmed at one point of its tangent line: the touch's endpoints are not bounded by vertex records or the locus's closure (C3)
-status: parked
+status: open
 opened: 2026-10-11
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 cost: M
 ---
 
@@ -39,3 +38,5 @@ at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
 plan (a row needing declared pairs or contact parks and moves to
 CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 `M` where it carried no cost. (RESTREAD orchestrator)
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Stages 4 and 5 have rebuilt the records and the at-rest findings it stood on, and the midpoint read it describes is still the code (`census::confirm_face_pair`, `crates/topo/src/census.rs:9688`, through `rest_line_in_both_faces` and `tangent_table_at_rest`). Bounding the touch's ends does not depend on the declared-rung question (`a-glued-pair-is-re-read-through-the-declared-rung-which-bridges-in-band`) or on `the-at-rest-face-face-confirm-bridges-an-in-band-relative-curvature`, which own the `declared = true` posture.

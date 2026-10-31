@@ -45,11 +45,36 @@ fn ball(r: f64, c: Vec3<f64>) -> AtRestBody<f64> {
     finished("the ball", b, Tol::witness())
 }
 
+/// [`assert_solid`], then a mesh at δ = 1e-2 that `check_mesh` passes:
+/// the sphere faces a tilted circle bounds mesh through the trimmed
+/// lane's sphere arm.
+///
+/// Meshed at δ 1e-2, and at 2e-2 and 4e-2 too: PR 5920's review found
+/// triangles folded over the chord beside a tilted circle at the coarser
+/// two (`sphere_pairs_tilted_against_both_charts…` at 2e-2,
+/// `a_pierce_off_the_seam_plane…` at 4e-2), which the mesher now drops
+/// and rebuilds, and every triangle is read for its winding.
+fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+    assert_solid(label, body, expected);
+    for delta in [1e-2, 2e-2, 4e-2] {
+        let mesh = mesh::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("{label}, δ {delta}: tessellate, got {e:?}"));
+        mesh::validate::check_mesh(&mesh)
+            .unwrap_or_else(|e| panic!("{label}, δ {delta}: the mesh: {e:?}"));
+        crate::common::differential::assert_meshed_geometry(
+            &format!("{label}, δ {delta}"),
+            body,
+            &mesh,
+            delta,
+        );
+    }
+}
+
 /// Every tier of validation, then the volume against `expected` through
 /// the kernel's mass properties — closed-form on every face here, so
 /// the slack is rounding's and a wrong arc (the complement of a cap
 /// selected) misses by the cap's own volume.
-fn assert_body(label: &str, body: &Body<f64>, expected: f64) {
+fn assert_solid(label: &str, body: &Body<f64>, expected: f64) {
     assert_eq!(topo::validate(body), Ok(()), "{label}: validate");
     assert_eq!(
         topo::validate_closed(body),
@@ -315,7 +340,9 @@ fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
 /// equal pair's lens, and the bitten cap `A ∖ B` keeps on B's sphere —
 /// encode their side by their loop, so a lone flip of the bit reads as
 /// `CurvedSenseInverted` in tier 3 and as `SenseContradicted` in the
-/// mass properties, rather than as the complement's volume.
+/// mass properties, rather than as the complement's volume. The
+/// complement the flipped bit claims holds both poles, which tier 3
+/// names too (`ChartSingularityNotAVertex`).
 #[test]
 fn a_flipped_tilted_face_is_refused_by_name() {
     let a = ball(1.0, BASE);
@@ -339,7 +366,19 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
             assert_eq!(
                 topo::validate_geometric(&inverted, Tol::witness()),
-                Err(vec![topo::ValidationError::CurvedSenseInverted { face: k }]),
+                Err(vec![
+                    topo::ValidationError::CurvedSenseInverted { face: k },
+                    topo::ValidationError::ChartSingularityNotAVertex {
+                        face: k,
+                        point: geom_brep::chart_singularity::Singularity::North,
+                        lies: topo::SingularityLies::Interior,
+                    },
+                    topo::ValidationError::ChartSingularityNotAVertex {
+                        face: k,
+                        point: geom_brep::chart_singularity::Singularity::South,
+                        lies: topo::SingularityLies::Interior,
+                    },
+                ]),
                 "{label}: face {k:?} flipped"
             );
             assert!(
@@ -470,6 +509,14 @@ fn a_tilted_split_of_a_sphere_body_refuses_at_the_reduce() {
 /// `NoGeneralLane { gap: LaneGap::Pose }`); splitting
 /// such an arc at the pole is the join's
 /// (`work/reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole.md`).
+///
+/// **What the mesher answers** (measured in release, PR 5920's second
+/// fix pass; `work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`):
+/// at 1e-4 and 1e-5 the circle's chord schedule near the pole asks
+/// more than the sphere arm's per-edge budget at δ = 1e-2, and refuses
+/// `ChordBudget` at once; at 3e-4 it is under the budget and folds a
+/// triangle beside the pole (`FoldedTriangle`, 0.2 s in release), which
+/// is not meshed here.
 #[test]
 fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
     let c = Vec3::new(2.0, 2.0, 0.5);
@@ -484,7 +531,21 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         let out = run(BooleanOp::Union, &a, &b)
             .unwrap_or_else(|e| panic!("δ {d}: the near-pole section refused: {e:?}"));
         let body = &out.body().unwrap_or_else(|| panic!("δ {d}: empty")).body;
-        assert_body(&format!("δ {d}"), body, expected);
+        assert_solid(&format!("δ {d}"), body, expected);
+        if d < 2e-4 {
+            let drawn = mesh::tessellate(body, 1e-2, Tol::witness());
+            assert!(
+                matches!(
+                    &drawn,
+                    Err(mesh::TessellateError::SphereTrimShape {
+                        cause: mesh::types::SphereTrimCause::ChordBudget,
+                        ..
+                    })
+                ),
+                "δ {d}: the near-pole schedule is past the arm's chord budget, got {:?}",
+                drawn.map(|m| m.positions.len())
+            );
+        }
     }
     let (a, b) = pair(0.0);
     let out = run(BooleanOp::Union, &a, &b);
@@ -506,5 +567,59 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         ),
         "δ 0: the arc through the pole refuses not yet on its azimuth sector (the general \
          lane's own gap, PCERT E1's P3), got {out:?}"
+    );
+}
+
+/// **A section near a pole meshes at every δ, coarse ones included.**
+/// Unit balls at the origin and at `(1, 0.8, 0)`: the radical circle
+/// passes the first ball's pole close enough that its chord schedule is
+/// fine there, and the sphere arm meshes it from δ = 0.1 down to 1e-3,
+/// each mesh enclosing the body. PR 5920's review measured the first
+/// cut's near-pole share refusing at δ = 0.1 and meshing finer: a cutoff
+/// that grows with δ. The schedule is held to `sizing::MAX_COUNT` alone
+/// now, so a coarser δ asks fewer chords, never more.
+#[test]
+fn a_section_near_a_pole_meshes_at_every_delta() {
+    let (a, b) = (
+        ball(1.0, Vec3::new(0.0, 0.0, 0.0)),
+        ball(1.0, Vec3::new(1.0, 0.8, 0.0)),
+    );
+    let out = run(BooleanOp::Union, &a, &b).expect("the pair unions");
+    let body = &out.body().expect("a body").body;
+    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.0f64.hypot(0.8));
+    assert_solid("the (1, 0.8, 0) pair", body, expected);
+    for delta in [1e-1, 5e-2, 2e-2, 1e-2, 5e-3, 1e-3] {
+        let m = mesh::tessellate(body, delta, Tol::witness())
+            .unwrap_or_else(|e| panic!("δ {delta}: the pair meshes, got {e:?}"));
+        mesh::validate::check_mesh(&m).unwrap_or_else(|e| panic!("δ {delta}: {e:?}"));
+        crate::common::differential::assert_meshed_geometry(&format!("δ {delta}"), body, &m, delta);
+    }
+}
+
+/// **A circle 1e-3 from the pole meshes at δ 1e-2 and folds at 4e-2.**
+/// The near-pole pair of
+/// [`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`]
+/// at `d = 1e-3`: at δ 1e-2 the sphere arm meshes it, enclosing the body
+/// and wound outward; at 4e-2 a triangle beside the pole folds over the
+/// chord with no grid corner to drop (its three corners are boundary
+/// points), and it refuses `FoldedTriangle`
+/// (`work/tess/a-tilted-circle-near-a-sphere-pole-refuses-at-the-sphere-arm.md`).
+#[test]
+fn a_circle_near_the_pole_folds_at_a_coarse_delta() {
+    let c = Vec3::new(2.0, 2.0, 0.5);
+    let s = 0.7f64 + 1e-3;
+    let lean = Vec3::new(1.4 * (1.0 - s * s).sqrt(), 1.4 * s, 0.0);
+    let out = run(BooleanOp::Union, &ball(1.0, c), &ball(1.0, c + lean)).expect("the pair unions");
+    let body = &out.body().expect("a body").body;
+    let expected = 2.0 * ball_volume(1.0) - lens_volume(1.0, 1.0, 1.4);
+    let m = mesh::tessellate(body, 1e-2, Tol::witness()).expect("δ 1e-2 meshes");
+    mesh::validate::check_mesh(&m).expect("and checks");
+    crate::common::differential::assert_meshed_geometry("d 1e-3, δ 1e-2", body, &m, 1e-2);
+    assert!((expected - crate::common::differential::body_volume(body)).abs() < 1e-9 * expected);
+    let coarse = mesh::tessellate(body, 4e-2, Tol::witness());
+    assert!(
+        matches!(&coarse, Err(mesh::TessellateError::FoldedTriangle { .. })),
+        "δ 4e-2: the boundary-only fold refuses typed, got {:?}",
+        coarse.map(|m| m.positions.len())
     );
 }

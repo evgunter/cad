@@ -8,6 +8,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Dual64, Point3, Real, Tol, Vec3};
+use topo::construction::Construct;
 use topo::{
     AtRestPolicy, BooleanError, BooleanOp, Operand, SplitError, SplitReduceError, SweepStrategy,
     ValidationError,

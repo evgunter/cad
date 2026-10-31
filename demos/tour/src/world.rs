@@ -284,3 +284,18 @@ fn written(
         edits,
     }
 }
+
+/// **A body where it stands in its space**, for a picture or a
+/// measurement read off it: the façade's read-out door
+/// ([`pncad::export::body_in_space`]), which composes the value's body
+/// into its space's coordinates. A body computed in its space's
+/// coordinates is itself.
+pub fn in_its_space<S: crate::scalar::Scalar>(
+    body: &pncad::document::Framed<S>,
+    tol: Tol,
+) -> pncad::topo::Body<S> {
+    pncad::topo::Body::clone(
+        &pncad::export::body_in_space(body, tol)
+            .unwrap_or_else(|e| panic!("a body composes into its space: {e}")),
+    )
+}

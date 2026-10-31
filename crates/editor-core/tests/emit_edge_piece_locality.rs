@@ -36,7 +36,7 @@ fn seam_pieces(
         let EntityKey::Edge(e) = r.key else { continue };
         let edge = body.get_edge(e).unwrap();
         let ps = [edge.he_plus, edge.he_minus]
-            .map(|he| point(body, body.get_half_edge(he).unwrap().start));
+            .map(|he| point(&body, body.get_half_edge(he).unwrap().start));
         if ps
             .iter()
             .all(|p| (p.y - 1.0).abs() < 1e-9 && (p.z - 1.0).abs() < 1e-9)
@@ -198,7 +198,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
     let below_crossings = |ev: &editor_core::Evaluation<f64>| {
         let below = match &ev.value(cut).unwrap().payload {
             editor_core::ValuePayload::Split { below, .. } => match below {
-                editor_core::SplitSide::Body(b) => std::sync::Arc::clone(b),
+                editor_core::SplitSide::Body(b) => std::sync::Arc::clone(b.shared()),
                 editor_core::SplitSide::Empty => panic!("a Below half"),
             },
             _ => panic!("a split value"),
@@ -321,6 +321,7 @@ pub(crate) fn d_rod(doc: ProfileDoc, end: (f64, f64)) -> (ProfileDoc, editor_cor
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(

@@ -2,10 +2,11 @@
 id: a-re-charted-operands-rows-may-name-cells-the-re-chart-minted
 kind: issue
 title: A boolean over re-charted sphere operands may emit rows naming cells the re-chart minted, which no input holds
-status: open
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: E
+closed: 2026-10-27
 ---
 
 
@@ -115,3 +116,5 @@ What the check measured:
   the check while naming the wrong input cell. The fix has to cover
   that case as well as the grafted ball.
 
+
+Closed by PR 5795 (2026-10-27). `Recharts` maps each re-charted shell's cells, moved keys included, and a re-charted cell reads as the set of its input shell's faces. A row that states a point becomes their sorted `Meet`. Any other relation refuses `RechartedRowUnstated`. The door check `rows_name_input_cells` runs in release. Census: 806 two-face shells and 1676 set meets, with zero refusals.

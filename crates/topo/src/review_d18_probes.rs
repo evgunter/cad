@@ -115,7 +115,13 @@ fn d18_split_edge_panics_at_a_dangling_next_of_he_plus() {
 
 /// The digon pillow, built by operators: two vertices, two edges, two
 /// faces. `kef` applies to either half of the second edge.
-fn pillow(tol: Tol) -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
+fn pillow(
+    tol: Tol,
+) -> (
+    Body<f64>,
+    crate::construction::MevCreated,
+    crate::construction::MefCreated,
+) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body

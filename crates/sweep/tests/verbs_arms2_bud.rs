@@ -45,7 +45,9 @@ use sweep::blend::BlendError;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{arcs_at, one_edge_rim_at, revolved_about_y};
-use topo::{Body, EdgeKey, FaceSurface, validate_geometric};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()

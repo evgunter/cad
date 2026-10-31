@@ -4,7 +4,7 @@ kind: program
 title: S-REROUTE — route the rest of a homed class onto its door
 status: ready
 opened: 2026-09-26
-area: infra
+group: infra/sweeps
 prefix: reroute/
 tag: (S-REROUTE orchestrator)
 paths: []

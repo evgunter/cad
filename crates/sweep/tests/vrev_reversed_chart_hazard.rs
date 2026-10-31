@@ -31,7 +31,9 @@ use geom_core::Point3;
 use geom_core::Tol;
 use profile::SketchPlane;
 use std::sync::Arc;
-use topo::{Body, FaceSurface, ValidationError};
+use topo::construction::Construct;
+use topo::construction::FaceSurface;
+use topo::{Body, ValidationError};
 
 fn prism() -> Body<f64> {
     let square = || crate::common::quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);

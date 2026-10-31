@@ -4,7 +4,6 @@ kind: issue
 title: voids - structural void-birth marking at insert_void (planned, unscheduled, the eventual outer/void rung)
 status: open
 opened: 2026-08-25
-github: 979
 refs: [978, 907]
 priority: P1
 cost: D

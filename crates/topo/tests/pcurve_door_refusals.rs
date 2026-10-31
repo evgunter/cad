@@ -11,10 +11,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Point3, Tol};
+use topo::construction::Construct;
+use topo::construction::{MevSite, NewVertexSide};
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{
-    Body, EntityId, FaceKey, HalfEdgeKey, MevSite, NewVertexSide, PcurveMintError, loop_windings,
-    mint_pcurves, mint_pcurves_of, pcurve_of,
+    Body, EntityId, FaceKey, HalfEdgeKey, PcurveMintError, loop_windings, mint_pcurves,
+    mint_pcurves_of, pcurve_of,
 };
 
 fn tol() -> Tol {

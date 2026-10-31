@@ -4,7 +4,6 @@ kind: issue
 title: Vec3::normalize maps a norm²-overflow axis to the ZERO vector silently, and rotation constructors then disagree by metres
 status: closed
 opened: 2026-08-30
-github: 1299
 refs: [1177, 1277]
 priority: P0
 cost: E

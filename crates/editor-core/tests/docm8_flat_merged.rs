@@ -139,7 +139,7 @@ fn a_three_member_chain_fuses_in_every_order() {
             "{label}: the chain refused: {:?}",
             failure(&ev, union)
         );
-        let v = volume(body_of(&ev, union));
+        let v = volume(&(body_of(&ev, union)));
         assert!(
             (v - 2.2).abs() < 1e-9,
             "{label}: one fused body, got volume {v}"
@@ -167,7 +167,7 @@ fn a_four_member_chain_fuses_in_every_order() {
             "{label}: the chain refused: {:?}",
             failure(&ev, union)
         );
-        let v = volume(body_of(&ev, union));
+        let v = volume(&(body_of(&ev, union)));
         assert!(
             (v - 2.9).abs() < 1e-9,
             "{label}: one fused body, got volume {v}"
@@ -196,7 +196,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
             "{label}: the chain refused: {:?}",
             failure(&ev, union)
         );
-        let v = volume(body_of(&ev, union));
+        let v = volume(&(body_of(&ev, union)));
         assert!(
             (v - 3.2).abs() < 1e-9,
             "{label}: the chain plus the far block, got volume {v}"

@@ -4,7 +4,7 @@ kind: program
 title: SYM — the E12 symbolic identity tier
 status: ready
 opened: 2026-09-13
-area: kernel
+group: kernel/symbolic
 prefix: sym/
 tag: (SYM orchestrator)
 ab_band: 4700-4799

@@ -7,7 +7,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point3;
-use topo::{Body, FaceSurface, MefSite, MevSite, validate, validate_closed, validate_geometric};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{Body, validate, validate_closed, validate_geometric};
 
 use crate::common;
 use common::{declined_cube, describe_as_intersections, geometric_cube, line};
@@ -403,8 +405,8 @@ fn merge_coplanar_glues_on_the_margin() {
     let outcome = mirrored.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups, vec![], "a mirrored pair does not glue");
     assert_eq!(mirrored.faces().count(), 7);
-    // Declared, per-call surface pair (F5): same geometry, fresh
-    // build, intent supplied by the call — merges after verification.
+    // Two surface keys of one plane: same geometry, fresh build — its
+    // margins decide one plane, so it merges.
     let mut declared = build(|_| FaceSurface::New {
         surface: plane(
             &[
@@ -429,9 +431,8 @@ fn merge_coplanar_glues_on_the_margin() {
         })
         .collect();
     assert_eq!(pair.len(), 2, "{pair:?}");
-    let outcome = declared
-        .merge_coplanar_faces_declared(&[(pair[0], pair[1])], Tol::witness())
-        .unwrap();
+    assert_ne!(pair[0], pair[1], "two keys");
+    let outcome = declared.merge_coplanar_faces(Tol::witness()).unwrap();
     assert_eq!(outcome.groups.len(), 1);
     assert_eq!(declared.faces().count(), 6);
     // Value-equal: geometrically the same plane, the description
@@ -461,24 +462,14 @@ fn top_plane(normal_z: f64) -> geom::Surface<f64> {
     }
 }
 
-/// The split top's two faces as a declared surface pair.
-fn declared_top_pair(
-    body: &Body<f64>,
-    top: topo::FaceKey,
-    twin: topo::FaceKey,
-) -> (topo::SurfaceKey, topo::SurfaceKey) {
-    let surface = |f| body.get_face(f).unwrap().surface;
-    (surface(top), surface(twin))
-}
-
-/// **A declared coplanar pair whose faces carry opposite senses is
-/// refused by name.** The twin is charted on z = 1 facing +z, as the
-/// top is, and then reversed through `Body::set_face_sense`, so the
-/// two outward normals are opposite while the charts agree. The merge
-/// door's gate is topological and admits the body; the declared rung
-/// reads the pair through the planar door, and the sense bit is the
-/// only thing that makes its verdict `SameOpposite`. A door that drops
-/// the bit reads two same-facing faces and glues them.
+/// **A coplanar pair whose faces carry opposite senses stays two
+/// faces.** The twin is charted on z = 1 facing +z, as the top is, and
+/// then reversed through `Body::set_face_sense`, so the two outward
+/// normals are opposite while the charts agree. The merge door's gate
+/// is topological and admits the body; the ladder reads the pair
+/// through the planar door, and the sense bit is the only thing that
+/// makes its verdict `SameOpposite`, a slit, which no rung glues. A
+/// door that drops the bit reads two same-facing faces and glues them.
 #[test]
 fn a_declared_pair_with_opposite_senses_refuses_as_opposite_orientation() {
     let (mut body, top, twin) = cube_with_split_top(|_| FaceSurface::New {
@@ -491,31 +482,26 @@ fn a_declared_pair_with_opposite_senses_refuses_as_opposite_orientation() {
         Ok(()),
         "the merge door's gate admits the reversed face"
     );
-    let pair = declared_top_pair(&body, top, twin);
-    let before = format!("{body:?}");
-    let err = body
-        .merge_coplanar_faces_declared(&[pair], Tol::witness())
-        .expect_err("a declared pair facing opposite ways must not glue");
-    match err {
-        topo::MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 } => {
-            let mut named = [f1, f2];
-            let mut pair_faces = [top, twin];
-            named.sort();
-            pair_faces.sort();
-            assert_eq!(named, pair_faces, "the refusal names the declared pair");
-        }
-        other => panic!("expected DeclaredOppositeOrientation, got {other:?}"),
-    }
-    assert_eq!(format!("{body:?}"), before, "the body is untouched");
+    let outcome = body
+        .merge_coplanar_faces(Tol::witness())
+        .expect("a slit is legal geometry");
+    assert!(
+        outcome.groups.is_empty(),
+        "a pair facing opposite ways must not glue: {:?}",
+        outcome.groups
+    );
+    assert!(
+        body.get_face(top).is_some() && body.get_face(twin).is_some(),
+        "both faces stand"
+    );
 }
 
 /// **A face reversed on a reversed chart glues to its coplanar
 /// neighbour.** The twin's chart faces -z and its sense is `false`, so
-/// its OUTWARD normal is +z like the top's, and the declared pair
-/// faces one way. The senses differ, so no hard
-/// rung takes the pair and the declared rung decides it on the two
-/// outward normals; a door that drops the bit reads the twin facing -z
-/// and refuses the pair as opposite.
+/// its OUTWARD normal is +z like the top's, and the pair faces one way.
+/// The senses differ, so no hard rung takes the pair and the ladder
+/// decides it on the two outward normals; a door that drops the bit
+/// reads the twin facing -z and leaves the pair as a slit.
 #[test]
 fn a_declared_pair_on_opposite_charts_with_opposite_senses_glues() {
     let (mut body, top, twin) = cube_with_split_top(|_| FaceSurface::New {
@@ -527,10 +513,9 @@ fn a_declared_pair_on_opposite_charts_with_opposite_senses_glues() {
         body.get_face(twin).unwrap().sense,
         "the fixture puts different sense bits on the pair"
     );
-    let pair = declared_top_pair(&body, top, twin);
     let outcome = body
-        .merge_coplanar_faces_declared(&[pair], Tol::witness())
-        .expect("a declared pair facing one way glues");
+        .merge_coplanar_faces(Tol::witness())
+        .expect("a pair facing one way glues");
     assert_eq!(outcome.groups.len(), 1, "{:?}", outcome.groups);
     assert_eq!(body.faces().count(), 6);
     assert_eq!(validate_closed(&body), Ok(()));

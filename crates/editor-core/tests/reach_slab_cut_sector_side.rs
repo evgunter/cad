@@ -30,6 +30,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, dz: f64) -> (ProfileDoc, Reci
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
+            on: None,
         }),
     );
     insert(
@@ -55,7 +56,7 @@ fn volume(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> f64 {
         "the volume integrates",
         &topo::test_support::finished(
             "the measured body",
-            topo::Body::clone(body_of(ev, n)),
+            topo::Body::clone(&(body_of(ev, n))),
             Tol::witness(),
         ),
         Tol::witness(),

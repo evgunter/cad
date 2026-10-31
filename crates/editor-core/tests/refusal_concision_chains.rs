@@ -24,7 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::NodeStanding;
-use editor_core::{NodeError, NodeErrorKind, RecipeNodeId, StepTurns};
+use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
 
@@ -117,10 +117,10 @@ const OVER_BUDGET: &[(&str, usize)] = &[
 /// here is English the person reads, not a pipeline stage.
 pub(crate) const ALLOWED_LABELS: &[(&str, &str)] = &[
     // A check finding's labels as its own `Display` says them, with no
-    // document at hand (`check separation: placement 000000000004 output
+    // document at hand (`check at-rest: placement 000000000004 output
     // 0: …`): the check the person ran, named as the menu names it, and
     // the placement it ran on, by its tag.
-    ("Check/", "check separation"),
+    ("Check/", "check at-rest"),
     ("Check/", "check connectedness"),
     ("Check/", "check chart-coherence"),
     ("Check/", "placement 000000000004 output 0"),
@@ -196,28 +196,17 @@ pub(crate) const FILED_DECLARE: &[&str] = &[];
 /// The rows that render a key or a hex id, by exact row id and the
 /// exact span, each filed with its owner.
 pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
-    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`) is
-    // the goldening form, and this arm prints it: faces as `FaceKey`
-    // `Debug`, a bound as its bits, a budget as its `Debug`.
+    // `EngineRefusal::say` (`topo/src/clearance.rs`) names a face by
+    // its side and its `FaceKey` `Debug`, and this arm says it.
     Admission {
         row: "MeasureClearanceRefused/Unsupported",
         span: "FaceKey(null)",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     Admission {
         row: "MeasureClearanceRefused/PoisonEnclosure",
-        span: "FaceKey(null)/FaceKey(null)",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
-    Admission {
-        row: "MeasureClearanceRefused/NotADistance",
-        span: "bff0000000000000",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
-    },
-    Admission {
-        row: "MeasureClearanceRefused/Budget",
-        span: "Depth { max_cell_depth: 24 }",
-        filed: "work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
+        span: "FaceKey(null)",
+        filed: "work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md",
     },
     // A smooth-join refusal names its edge by key.
     Admission {
@@ -272,13 +261,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MissingInput",
     "ParamBox/AxisUnrepresentable",
     "ParamBox/UnknownParam",
-    // work/wirehold/placement-rule-refusals-state-no-recourse.md
-    "InstanceOutOfRange",
-    "PlacementsUncertified",
-    "PlacementRule/CountSpelling",
-    "PlacementRule/NoPlacements",
-    "PlacementRule/NonFiniteFrame",
-    "PlacementRule/NonRigidFrame",
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "ShellLaneUnsupported",
     "ToleranceConflict",
@@ -314,18 +296,10 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "ProfileReplay/Path/UnderdeterminedLeg",
     "ProfileReplay/Path/ZeroDirection",
     "ProfileReplay/Transition",
-    // work/clear/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
-    "MeasureClearanceRefused/Budget",
+    // work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload.md
     "MeasureClearanceRefused/EmptyScope",
-    "MeasureClearanceRefused/NoAdmittedPair",
-    "MeasureClearanceRefused/NotADistance",
-    "MeasureClearanceRefused/NothingCertified",
     "MeasureClearanceRefused/PoisonEnclosure",
-    "MeasureClearanceRefused/Selection",
-    "MeasureClearanceRefused/Sliver",
-    "MeasureClearanceRefused/ToleranceHasNoBand",
     "MeasureClearanceRefused/Unsupported",
-    "MeasureClearanceRefused/WitnessUnverified",
     // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
     // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
@@ -373,9 +347,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Check/ChartCoherenceUnexamined(corrupt)",
     "Check/ChartCoherenceUnexamined(non-iso)",
     "Check/ChartCoherenceUnexamined(scaffold)",
-    "Check/SeparationUnavailable/Containment(CorruptFace)",
-    "Check/SeparationUnavailable/Containment(NoSuchSolid)",
-    "Check/SeparationUnavailable/Containment(ZeroVolumeBody)",
 ];
 
 /// The rows that render a door's generic fallback subject
@@ -779,11 +750,8 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
-use editor_core::clearance::ClearanceRefusal;
-use editor_core::{
-    BifurcationKind, Diagnosis, EvalError, ParamBoxError, PlacementRuleFault, ResolveError,
-    SeedError,
-};
+use editor_core::clearance::MinSeparationRefusal;
+use editor_core::{BifurcationKind, Diagnosis, EvalError, ParamBoxError, ResolveError, SeedError};
 
 test_utils::f6_variants! {
     /// `EvalError`'s arms, for the `Expr/`, `PoseScalar/`,
@@ -792,6 +760,8 @@ test_utils::f6_variants! {
         UnresolvedVar,
         OutputRead,
         DefinitionRefused,
+        IndexOutsideMember,
+        ModByNonPositive,
         VarKindMismatch,
         CountExprInContinuousEval,
         ContinuousExprInCountEval,
@@ -813,16 +783,6 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `PlacementRuleFault`'s arms, for the `PlacementRule/` rows.
-    const PLACEMENT_RULE_FAULT: PlacementRuleFault = [
-        CountSpelling,
-        NoPlacements,
-        NonFiniteFrame,
-        NonRigidFrame,
-    ];
-}
-
-test_utils::f6_variants! {
     /// `ResolveError`'s arms, for the `SelectResolve/` rows.
     const RESOLVE_ERROR: ResolveError = [Vanished, Ambiguous, ReadGone, NodeGone];
 }
@@ -832,14 +792,14 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
-        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchPiece, PieceShape,
+        UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
-        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
-        DegenerateStep, FullRangeStep, PlacementsUncertified, PlacementRule, UnschedulableCycle,
+        PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, UnschedulableCycle,
         Naming, UnionFoldStep, Shell, ShellLaneUnsupported,
         WitnessBifurcation, Part, Mate,
         SpaceMismatch, CrossingUnverified, MeasureRefUnreadable, MeasureNonFinite,
@@ -861,15 +821,16 @@ mod kernel {
     use sweep::blend::BlendError;
     pub(super) type ReplayErrorKind = profile::ReplayErrorKind<f64>;
     pub(super) type PathError = profile::path::PathError<f64>;
+    use editor_core::TraceStepFault;
     use profile::StructureRefusalKind;
     use topo::SplitError;
     use topo::SplitFinishError;
     use topo::SplitJoinError;
     use topo::SplitReduceError;
+    use topo::boolean::trace::TraceFault;
     pub(super) type ShellError = topo::ShellError<f64>;
     pub(super) type ReplaceFaceError = topo::ReplaceFaceError<f64>;
     use geom_core::BandError;
-    use topo::PointInSolidError;
 
     test_utils::f6_variants! {
         /// `ExtrudeError`'s arms, for the `Extrude/` rows.
@@ -905,7 +866,7 @@ mod kernel {
         pub(super) const SKIN_ERROR: SkinError = [
             TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
-            PathTangentReversal, PathTangentUndecided, StationNotFinite, Band,
+            PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
         ];
     }
@@ -914,7 +875,7 @@ mod kernel {
         /// `LoftError`'s arms, for the `Loft/` rows.
         pub(super) const LOFT_ERROR: LoftError = [
             Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
-            SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
+            SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             FarSectionNotForward, FarStackingEscalated, StackingEscalated,
         ];
     }
@@ -975,6 +936,21 @@ mod kernel {
     }
 
     test_utils::f6_variants! {
+        /// `TraceStepFault`'s arms, for the `Trace/` rows.
+        pub(super) const TRACE_STEP_FAULT: TraceStepFault = [
+            Undrawn, Unevaluated, NoSuchFace, NoPen, NoHeading, NotARun, OffTrace, NoTrace, NoSuchCrossing,
+            NoTangent, Unreached, Carrier,
+        ];
+    }
+
+    test_utils::f6_variants! {
+        /// `TraceFault`'s arms, for the `Trace/Carrier/` rows.
+        pub(super) const TRACE_FAULT: TraceFault = [
+            Unsupported, Grazing, Apex, OnCarrier, Escalated, Unsettled,
+        ];
+    }
+
+    test_utils::f6_variants! {
         /// `SplitError`'s arms, for the `Split/` rows.
         pub(super) const SPLIT_ERROR: SplitError = [
             Reduce, Join, Finish, Pcurves, Pieces,
@@ -987,7 +963,8 @@ mod kernel {
             Band, CurvedBooleanUnsupported, CurvedEdgeUnsupported, CrossingEscalated,
             TangencyUnsupported, KnifeEdge, ScaffoldingOperand, InsideOutOperand,
             UnjoinedOperand, SliverVertex, SliverSector, SectionGermsEscalated,
-            SectionGermsUnordered, NonFiniteSectorChord, UnderflowedSectorChord,
+            SectionGermsUnordered, ApexSection, ApexUndecided, NonFiniteSectorChord,
+            UnderflowedSectorChord,
             ConsecutiveOnSectors, StaleVertex, LoneVertex, NullEdgeAtVertex,
             UnrecordedSide, UnboundedFace, CrossingInsertion, Euler, LineageRow,
         ];
@@ -1002,10 +979,10 @@ mod kernel {
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
-            RingIslandUnread,
+            RunImageIncidence, RingIslandUnread,
             RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
-            SectionCrossings,
+            SectionCrossings, SectionDepartureGrazes,
         ];
     }
 
@@ -1013,7 +990,7 @@ mod kernel {
         /// `SplitFinishError`'s arms, for the `Split/Finish/` rows.
         pub(super) const SPLIT_FINISH_ERROR: SplitFinishError = [
             DegenerateSide, TornComponent, UnclassifiableComponent, Corrupt, Euler,
-            Band, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
+            Band, ConeCornerEscalated, ConeCornerUnread, ConeFusionDesync, DescribeEscalated, DescribeSideEscalated, DescribeBendEscalated,
             EdgeOnFacesEscalated, SmoothJoinRefuted, SectionWindingUndecided, KnifeEdge,
             NestingContradiction, SlitUnplaced, SlitHoming, ResultInvalid,
             ResultNotAtRest, ResultEscalated, EdgeJoin, Merge,
@@ -1050,16 +1027,6 @@ mod kernel {
     }
 
     test_utils::f6_variants! {
-        /// `PointInSolidError`'s arms, for the `Check/SeparationUnavailable/Containment(…)` rows.
-        pub(super) const POINT_IN_SOLID_ERROR: PointInSolidError = [
-            Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
-            KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
-            PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
-            RootCountDisagrees, NoSuchSolid,
-        ];
-    }
-
-    test_utils::f6_variants! {
         /// `BandError`'s arms, for the `Band/` rows.
         pub(super) const BAND_ERROR: BandError = [
             InvalidValue, InvalidLeverArm, Empty,
@@ -1070,7 +1037,7 @@ mod kernel {
 test_utils::f6_variants! {
     /// `Diagnosis`'s arms, for the `SelectResolve/Vanished(…)` rows.
     const DIAGNOSIS: Diagnosis = [
-        PredicateFlip, BorderDelta, GroupResized, StructuralParam, RecipeEdit, Cascade,
+        PredicateFlip, BorderDelta, GroupResized, StructuralParam, IndexCount, RecipeEdit, Cascade,
         WitnessBifurcation, Upstream,
     ];
 }
@@ -1081,11 +1048,9 @@ test_utils::f6_variants! {
 }
 
 test_utils::f6_variants! {
-    /// `ClearanceRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
-    const CLEARANCE_REFUSAL: ClearanceRefusal = [
-        Sliver, Budget, Unsupported, Selection, PoisonEnclosure, NothingCertified, NotADistance,
-        EmptyScope, ToleranceHasNoBand, NoAdmittedPair, WitnessUnverified,
-    ];
+    /// `MinSeparationRefusal`'s arms, for the `MeasureClearanceRefused/` rows.
+    const MIN_SEPARATION_REFUSAL: MinSeparationRefusal =
+        [Unsupported, PoisonEnclosure, EmptyScope];
 }
 
 /// Every roster the weld checks, by the refusal it is the census of.
@@ -1098,11 +1063,10 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("EvalError", EVAL_ERROR.identifiers()),
         ("ParamBoxError", PARAM_BOX_ERROR.identifiers()),
         ("SeedError", SEED_ERROR.identifiers()),
-        ("PlacementRuleFault", PLACEMENT_RULE_FAULT.identifiers()),
         ("ResolveError", RESOLVE_ERROR.identifiers()),
         ("Diagnosis", DIAGNOSIS.identifiers()),
         ("BifurcationKind", BIFURCATION_KIND.identifiers()),
-        ("ClearanceRefusal", CLEARANCE_REFUSAL.identifiers()),
+        ("MinSeparationRefusal", MIN_SEPARATION_REFUSAL.identifiers()),
         (
             "NamingError",
             crate::display_contract::NAMING_ERROR.identifiers(),
@@ -1121,13 +1085,14 @@ const ROSTERS: &[(&str, &[&str])] = {
         ("ReplayErrorKind", REPLAY_ERROR_KIND.identifiers()),
         ("PathError", PATH_ERROR.identifiers()),
         ("StructureRefusalKind", STRUCTURE_REFUSAL_KIND.identifiers()),
+        ("TraceStepFault", TRACE_STEP_FAULT.identifiers()),
+        ("TraceFault", TRACE_FAULT.identifiers()),
         ("SplitError", SPLIT_ERROR.identifiers()),
         ("SplitReduceError", SPLIT_REDUCE_ERROR.identifiers()),
         ("SplitJoinError", SPLIT_JOIN_ERROR.identifiers()),
         ("SplitFinishError", SPLIT_FINISH_ERROR.identifiers()),
         ("ShellError", SHELL_ERROR.identifiers()),
         ("ReplaceFaceError", REPLACE_FACE_ERROR.identifiers()),
-        ("PointInSolidError", POINT_IN_SOLID_ERROR.identifiers()),
         ("BandError", BAND_ERROR.identifiers()),
     ]
 };
@@ -1182,10 +1147,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::Expr { source, .. }
         | NodeErrorKind::PoseScalar { source, .. }
         | NodeErrorKind::MeasureNonFinite { source }
-        | NodeErrorKind::PayloadExpr { source, .. } => one("EvalError", source),
+        | NodeErrorKind::PayloadExpr { source, .. }
+        | NodeErrorKind::IndexCount { source, .. } => one("EvalError", source),
         NodeErrorKind::ParamBox { source } => one("ParamBoxError", source),
         NodeErrorKind::Seed { source } => one("SeedError", source),
-        NodeErrorKind::PlacementRule(e) => one("PlacementRuleFault", e),
         NodeErrorKind::Naming(e) => one("NamingError", e),
         NodeErrorKind::SelectResolve { error, .. } => {
             let mut levels = vec![level("ResolveError", error)];
@@ -1200,7 +1165,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::WitnessBifurcation(e) => one("BifurcationKind", &e.kind),
-        NodeErrorKind::MeasureClearanceRefused(e) => one("ClearanceRefusal", e),
+        NodeErrorKind::MeasureClearanceRefused(e) => one("MinSeparationRefusal", e),
         // Labelled by the standing each carries, the names the filed
         // rows cite them by.
         NodeErrorKind::MeasureRefUnreadable { error, .. } => Forward::Welded {
@@ -1220,6 +1185,13 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             Some(s) => one("StructureRefusalKind", &s.kind),
             None => welded(Vec::new()),
         },
+        NodeErrorKind::Trace(refusal) => {
+            let mut levels = vec![level("TraceStepFault", &refusal.fault)];
+            if let editor_core::TraceStepFault::Carrier(fault) = &refusal.fault {
+                levels.push(level("TraceFault", fault));
+            }
+            welded(levels)
+        }
         NodeErrorKind::Extrude(e) => one("ExtrudeError", e),
         NodeErrorKind::Revolve(e) => one("RevolveError", e),
         NodeErrorKind::Tube(e) => one("TubeError", e),
@@ -1275,6 +1247,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
         NodeErrorKind::Part { .. }
+        | NodeErrorKind::MemberRefused { .. }
         | NodeErrorKind::Transform(_)
         | NodeErrorKind::Mirror(_)
         | NodeErrorKind::Motion(_) => Forward::Unwelded(UNWELDED_PLACEMENT),
@@ -1285,7 +1258,8 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
-        | NodeErrorKind::InstanceOutOfRange { .. }
+        | NodeErrorKind::MemberOutOfRange { .. }
+        | NodeErrorKind::IndicesUnrelated { .. }
         | NodeErrorKind::NoSuchPiece { .. }
         | NodeErrorKind::PieceShape { .. }
         | NodeErrorKind::DegenerateDirection { .. }
@@ -1298,11 +1272,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::PoseDirectionEscalated { .. }
         | NodeErrorKind::PoseDegenerate { .. }
         | NodeErrorKind::CountOutOfRange { .. }
-        | NodeErrorKind::NegativeSpacing { .. }
-        | NodeErrorKind::DegenerateSpacing
-        | NodeErrorKind::DegenerateStep
-        | NodeErrorKind::FullRangeStep { .. }
-        | NodeErrorKind::PlacementsUncertified { .. }
+        | NodeErrorKind::IndexCountOutOfRange { .. }
         | NodeErrorKind::UnschedulableCycle
         | NodeErrorKind::UnionFoldStep { .. }
         | NodeErrorKind::ShellLaneUnsupported { .. }
@@ -1348,9 +1318,7 @@ fn names_arms(label: &str, arms: &[&str]) -> bool {
 /// arms are checked under is its row's `NodeErrorKind` arm followed by
 /// the arms of the levels above it (`Split/Reduce`), so a family cannot
 /// drop out of the check while the arm above it has a row, and the
-/// first census makes every arm have one. The separation finding's
-/// containment refusals (`check_findings`) are welded the same way, as
-/// the `Check/SeparationUnavailable/Containment` family.
+/// first census makes every arm have one.
 ///
 /// What it does not weld: the arms [`forward`] files as `Unwelded` or
 /// `RenderedIn`, and any refusal below a level's last roster (a
@@ -1419,17 +1387,6 @@ fn every_forwarded_arm_has_a_row() {
         }
         record(name, family, levels, &mut reports);
     }
-    let family = "Check/SeparationUnavailable/Containment";
-    for (label, e) in separation_reasons() {
-        let reason = level("PointInSolidError", &e);
-        if !names_arms(&label, &[reason.arm.as_str()]) {
-            reports.push(format!(
-                "{family}({label}): a row is named by its payload's arm, {}",
-                reason.arm
-            ));
-        }
-        record(&label, family, vec![reason], &mut reports);
-    }
     for (family, (roster, arms)) in &families {
         let Some((_, census)) = ROSTERS.iter().find(|(r, _)| r == roster) else {
             reports.push(format!(
@@ -1471,7 +1428,7 @@ fn drawn_lines(kind: NodeErrorKind) -> Vec<String> {
 }
 
 /// **Every line a carried refusal draws fits where it is drawn.** A
-/// part whose root failed and a mate whose pose did not evaluate each
+/// part whose piece failed and a mate whose pose did not evaluate each
 /// name that node and point at it; the refusal they carry is drawn as
 /// its own line, one per document level, and never inside theirs.
 ///
@@ -1522,7 +1479,7 @@ fn every_carried_refusal_draws_within_the_budget_at_every_line() {
         .to_owned();
     let part = |node: u64, refusal: NodeErrorKind| NodeErrorKind::Part {
         doc_ref: doc_ref(),
-        fault: PartFault::PartRootFailed {
+        fault: PartFault::PartProductFailed {
             held: Default::default(),
             node: RecipeNodeId::new(0, tagged(node)),
             refusal: refusal.into(),
@@ -1701,6 +1658,7 @@ fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     rows.extend(blend());
     rows.extend(profile());
     rows.extend(profile_replay());
+    rows.extend(trace());
     rows.extend(editor_payloads());
     rows.extend(document_arms());
     rows.extend(mate());
@@ -1812,11 +1770,27 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "InstanceOutOfRange",
-            NodeErrorKind::InstanceOutOfRange {
+            "MemberOutOfRange",
+            NodeErrorKind::MemberOutOfRange {
                 input: RecipeNodeId::new(0, tagged(3)),
-                index: 7,
-                count: 4,
+                at: vec![7, 2],
+            },
+        ),
+        row(
+            "IndicesUnrelated",
+            NodeErrorKind::IndicesUnrelated {
+                a: editor_core::VarId::new(0, tagged(2)),
+                b: editor_core::VarId::new(0, tagged(4)),
+            },
+        ),
+        row(
+            "MemberRefused",
+            NodeErrorKind::MemberRefused {
+                at: vec![(editor_core::VarId::new(0, tagged(2)), 0)],
+                source: Box::new(NodeErrorKind::MemberOutOfRange {
+                    input: RecipeNodeId::new(0, tagged(3)),
+                    at: vec![7],
+                }),
             },
         ),
         row(
@@ -1927,65 +1901,20 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "IndexCountOutOfRange",
+            NodeErrorKind::IndexCountOutOfRange {
+                index: editor_core::VarId::new(0, tagged(2)),
+                count: -3,
+                admits: 0..=i64::from(u32::MAX),
+            },
+        ),
+        row(
             "CountOutOfRange",
             NodeErrorKind::CountOutOfRange {
                 slot: SlotId::VDegree,
                 count: -1,
                 admits: 0..=i64::MAX,
             },
-        ),
-        row(
-            "NegativeSpacing",
-            NodeErrorKind::NegativeSpacing {
-                spacing: geom_core::MarginDiag::value(-4.0),
-                reversed: ["-1.0", "0.0", "0.0"].map(|text| Some(formula(text))),
-            },
-        ),
-        row("DegenerateSpacing", NodeErrorKind::DegenerateSpacing),
-        row("DegenerateStep", NodeErrorKind::DegenerateStep),
-        row(
-            "FullRangeStep(whole)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("360 deg"),
-                evaluated: None,
-                turns: StepTurns::Whole,
-            },
-        ),
-        row(
-            "FullRangeStep(whole, evaluated)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("720 deg * scalar(blades)"),
-                evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
-                turns: StepTurns::Whole,
-            },
-        ),
-        row(
-            "FullRangeStep(within)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("760 deg"),
-                evaluated: None,
-                turns: StepTurns::Within(formula("40 deg")),
-            },
-        ),
-        row(
-            "FullRangeStep(within, evaluated)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("360 deg / scalar(blades) - 400 deg"),
-                evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
-                turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
-            },
-        ),
-        row(
-            "FullRangeStep(unresolved)",
-            NodeErrorKind::FullRangeStep {
-                step: formula("1e20 rad"),
-                evaluated: None,
-                turns: StepTurns::Unresolved,
-            },
-        ),
-        row(
-            "PlacementsUncertified",
-            NodeErrorKind::PlacementsUncertified { i: 0, j: 1 },
         ),
         row("UnschedulableCycle", NodeErrorKind::UnschedulableCycle),
         row(
@@ -2449,6 +2378,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "SectionGermsUnordered(Singular)",
+            R::SectionGermsUnordered {
+                vertex,
+                fault: topo::SectionGermFault::Singular,
+            },
+        ),
+        (
             "SectionGermsUnordered(Alternation)",
             R::SectionGermsUnordered {
                 vertex,
@@ -2460,6 +2396,22 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             R::SectionGermsUnordered {
                 vertex,
                 fault: topo::SectionGermFault::Crossing,
+            },
+        ),
+        (
+            "ApexSection",
+            R::ApexSection {
+                vertex,
+                face,
+                reading: topo::ApexSectionReading::NoRulingInside,
+            },
+        ),
+        (
+            "ApexUndecided",
+            R::ApexUndecided {
+                vertex,
+                face,
+                diag: diag(),
             },
         ),
         ("ConsecutiveOnSectors", R::ConsecutiveOnSectors { vertex }),
@@ -2649,6 +2601,21 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
+                "RunImageIncidence",
+                J::RunImageIncidence {
+                    face,
+                    kind: geom::SurfaceKind::Cone,
+                    refusal: geom_brep::PcurveCertifyError::CarrierOffChart {
+                        chart: geom::SurfaceKind::Cone,
+                        carrier: geom::CurveKind::Circle,
+                        why: "the rim's height is not shown away from the apex's",
+                        margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                            4e-10,
+                        ))),
+                    },
+                },
+            ),
+            (
                 "RingIslandUnread",
                 J::RingIslandUnread {
                     face,
@@ -2688,6 +2655,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     band: band(),
                 },
             ),
+            (
+                "SectionDepartureGrazes",
+                J::SectionDepartureGrazes { face, band: band() },
+            ),
         ]
     };
     let join = join_arms().map(|(n, e)| (format!("Join/{n}"), SplitError::Join(e)));
@@ -2717,6 +2688,20 @@ fn split() -> Vec<(String, NodeErrorKind)> {
         (
             "DescribeEscalated",
             F::DescribeEscalated { edge, diag: diag() },
+        ),
+        (
+            "ConeCornerEscalated",
+            F::ConeCornerEscalated {
+                vertex,
+                source: diag(),
+            },
+        ),
+        ("ConeCornerUnread", F::ConeCornerUnread { vertex }),
+        (
+            "ConeFusionDesync",
+            F::ConeFusionDesync {
+                what: "a joint half-edge has no end",
+            },
         ),
         (
             "DescribeSideEscalated",
@@ -3415,7 +3400,11 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
                 sections: 2,
             },
         ),
-        ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("PathFoldsBack", E::PathFoldsBack { station: 4 }),
+        (
+            "PathStationsCoincide",
+            E::PathStationsCoincide { station: 4 },
+        ),
         ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (
@@ -3436,9 +3425,10 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             E::KnotAlgebra(geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 }),
         ),
         (
-            "PathTangentUndecided",
-            E::PathTangentUndecided {
+            "PathUndecided",
+            E::PathUndecided {
                 station: 2,
+                which: sweep::PathDecision::FoldBack,
                 source: payloads::diag(),
             },
         ),
@@ -3490,6 +3480,20 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         ("SectionStructure", E::SectionStructure),
+        (
+            "SectionRim",
+            E::SectionRim {
+                section: 1,
+                source: None,
+            },
+        ),
+        (
+            "SectionRim(Escalated)",
+            E::SectionRim {
+                section: 1,
+                source: Some(diag()),
+            },
+        ),
         ("PlacementNotFinite", E::PlacementNotFinite { section: 1 }),
         ("SectionNotFinite", E::SectionNotFinite { section: 1 }),
         ("ReversedStacking", E::ReversedStacking { slab: 1 }),
@@ -4383,13 +4387,72 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
         .collect()
 }
 
+/// A profile step reading a trace, refusing each way it can.
+fn trace() -> Vec<(String, NodeErrorKind)> {
+    use editor_core::{TraceCrossing, TracePassage, TraceRefusal, TraceStepFault as F};
+    use topo::boolean::trace::TraceFault;
+    let diag = || payloads::named(topo::boolean::trace::TRACE_CROSSING_SENSE);
+    let faults = vec![
+        ("Undrawn", F::Undrawn),
+        ("Unevaluated", F::Unevaluated),
+        ("NoSuchFace", F::NoSuchFace { traced: 1 }),
+        ("NoPen", F::NoPen),
+        ("NoHeading", F::NoHeading),
+        ("NotARun", F::NotARun),
+        ("OffTrace", F::OffTrace),
+        ("NoTrace", F::NoTrace),
+        (
+            "NoSuchCrossing",
+            F::NoSuchCrossing {
+                crossing: TraceCrossing {
+                    passage: TracePassage::Leave,
+                    nth: 2,
+                },
+                found: 1,
+            },
+        ),
+        ("NoTangent", F::NoTangent),
+        ("Unreached", F::Unreached),
+        (
+            "Carrier/Unsupported",
+            F::Carrier(TraceFault::Unsupported {
+                carrier: geom::SurfaceKind::Nurbs,
+            }),
+        ),
+        ("Carrier/Grazing", F::Carrier(TraceFault::Grazing)),
+        ("Carrier/Apex", F::Carrier(TraceFault::Apex)),
+        ("Carrier/OnCarrier", F::Carrier(TraceFault::OnCarrier)),
+        (
+            "Carrier/Escalated",
+            F::Carrier(TraceFault::Escalated(diag())),
+        ),
+        (
+            "Carrier/Unsettled",
+            F::Carrier(TraceFault::Unsettled(geom_brep::roots::Unsettled::Meter)),
+        ),
+    ];
+    faults
+        .into_iter()
+        .map(|(name, fault)| {
+            row(
+                &format!("Trace/{name}"),
+                NodeErrorKind::Trace(TraceRefusal {
+                    loop_: 0,
+                    step: 3,
+                    face: Some(0),
+                    fault,
+                }),
+            )
+        })
+        .collect()
+}
+
 /// The editor-core payloads `NodeErrorKind` forwards: expressions,
-/// analysis seeds, placement rules, naming, the name ladder.
+/// analysis seeds, naming, the name ladder.
 fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError,
-        PlacementRuleFault, RecipeEditRef, ResolveError, RimShare, SeedError, SlotId, StableName,
-        TieWitness, VarName,
+        Diagnosis, Dimension, EntityKind, EvalError, NamingError, ParamBoxError, RecipeEditRef,
+        ResolveError, RimShare, SeedError, SlotId, StableName, TieWitness, VarName,
     };
     use geom_core::Sign;
     use payloads::*;
@@ -4443,6 +4506,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 EvalError::CountToScalarOutOfRange(1 << 60),
             ),
             ("NonFiniteResult", EvalError::NonFiniteResult),
+            (
+                "IndexOutsideMember",
+                EvalError::IndexOutsideMember {
+                    var: editor_core::VarId::new(0, tagged(7)),
+                },
+            ),
+            ("ModByNonPositive", EvalError::ModByNonPositive(0)),
             // No node raises it — a lowered document holds no authored
             // leaf, so a node's expression never reaches it — but a formula
             // evaluated outside a document does, and it renders through the
@@ -4513,26 +4583,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("width")),
                 ),
-            },
-        ),
-    ];
-    let placement = [
-        (
-            "CountSpelling",
-            PlacementRuleFault::CountSpelling {
-                shape: editor_core::CountMismatch::ListedOnPattern,
-            },
-        ),
-        ("NoPlacements", PlacementRuleFault::NoPlacements),
-        (
-            "NonFiniteFrame",
-            PlacementRuleFault::NonFiniteFrame { index: 2 },
-        ),
-        (
-            "NonRigidFrame",
-            PlacementRuleFault::NonRigidFrame {
-                index: 2,
-                check: "transform_rigid_col0_unit",
             },
         ),
     ];
@@ -4803,7 +4853,14 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                 "Vanished(StructuralParam)",
                 vanished(Diagnosis::StructuralParam {
                     node: at,
-                    param: SlotId::Count,
+                    param: SlotId::Stations,
+                }),
+            ),
+            (
+                "Vanished(IndexCount)",
+                vanished(Diagnosis::IndexCount {
+                    node: at,
+                    index: editor_core::VarId::new(0, tagged(2)),
                 }),
             ),
             (
@@ -4857,7 +4914,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     };
     let mut rows: Vec<(String, NodeErrorKind)> = Vec::new();
     type EvalWrap = fn(EvalError) -> NodeErrorKind;
-    let eval_wraps: [(&str, EvalWrap); 4] = [
+    let eval_wraps: [(&str, EvalWrap); 5] = [
         ("Expr", |source| NodeErrorKind::Expr {
             slot: SlotId::Distance,
             source,
@@ -4874,6 +4931,10 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             index: 2,
             source,
         }),
+        ("IndexCount", |source| NodeErrorKind::IndexCount {
+            index: editor_core::VarId::new(0, tagged(2)),
+            source,
+        }),
     ];
     for (wrap, build) in eval_wraps {
         for (n, e) in eval() {
@@ -4888,12 +4949,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     }
     for (n, source) in seed {
         rows.push(row(&format!("Seed/{n}"), NodeErrorKind::Seed { source }));
-    }
-    for (n, e) in placement {
-        rows.push(row(
-            &format!("PlacementRule/{n}"),
-            NodeErrorKind::PlacementRule(e),
-        ));
     }
     for (n, e) in naming {
         rows.push(row(&format!("Naming/{n}"), NodeErrorKind::Naming(e)));
@@ -4930,7 +4985,6 @@ fn doc_ref() -> editor_core::DocRef {
 
 /// The contact, frame, witness, part and measure arms.
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, EntityKind, FaceName, Implicated, InterrogateError,
         PartFault, WitnessAge, WitnessBifurcation,
@@ -5007,51 +5061,26 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ));
     }
     {
-        use editor_core::clearance::{CellBudget, SelectionRefusal};
         for (n, refusal) in [
             (
-                "Sliver",
-                ClearanceRefusal::Sliver {
-                    predicate: "clearance_pair_separation",
-                },
-            ),
-            (
-                "Budget",
-                ClearanceRefusal::Budget(CellBudget::Depth { max_cell_depth: 24 }),
-            ),
-            (
                 "Unsupported",
-                ClearanceRefusal::Unsupported {
-                    carrier: "a free-form face",
+                MinSeparationRefusal::Unsupported {
+                    carrier: "an approximated face",
                     face: FaceKey::default(),
+                    side: topo::clearance::Which::First,
                 },
-            ),
-            (
-                "Selection",
-                ClearanceRefusal::Selection(SelectionRefusal::NoSuchBody {
-                    node: RecipeNodeId::new(0, tagged(6)),
-                    index: 2,
-                }),
             ),
             (
                 "PoisonEnclosure",
-                ClearanceRefusal::PoisonEnclosure {
+                MinSeparationRefusal::PoisonEnclosure {
                     a: FaceKey::default(),
                     b: FaceKey::default(),
                 },
             ),
             (
-                "NothingCertified",
-                ClearanceRefusal::NothingCertified { refused_leaves: 12 },
-            ),
-            ("NotADistance", ClearanceRefusal::NotADistance { c: -1.0 }),
-            ("EmptyScope", ClearanceRefusal::EmptyScope),
-            ("ToleranceHasNoBand", ClearanceRefusal::ToleranceHasNoBand),
-            ("NoAdmittedPair", ClearanceRefusal::NoAdmittedPair),
-            (
-                "WitnessUnverified",
-                ClearanceRefusal::WitnessUnverified {
-                    what: "the f64 rebuild found the pair clear of the bound".to_owned(),
+                "EmptyScope",
+                MinSeparationRefusal::EmptyScope {
+                    side: topo::clearance::Which::First,
                 },
             ),
         ] {
@@ -5123,7 +5152,7 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ));
     }
-    // A part's root failure carries the part's own node refusal, typed,
+    // A part's piece failure carries the part's own node refusal, typed,
     // and its sentence never renders it: the carried refusal is its own
     // line ([`every_carried_refusal_draws_within_the_budget_at_every_line`]).
     //
@@ -5134,16 +5163,16 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     let parts = [
         ("NoResolver", PartFault::NoResolver),
         (
-            "PartRootFailed",
-            PartFault::PartRootFailed {
+            "PartProductFailed",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "PartRootFailed(part)",
-            PartFault::PartRootFailed {
+            "PartProductFailed(part)",
+            PartFault::PartProductFailed {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Part {
@@ -5154,17 +5183,17 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "PartRootPoisoned",
-            PartFault::PartRootPoisoned {
+            "PartProductPoisoned",
+            PartFault::PartProductPoisoned {
                 held: Default::default(),
-                root: RecipeNodeId::new(0, tagged(8)),
+                node: RecipeNodeId::new(0, tagged(8)),
                 through: RecipeNodeId::new(0, tagged(7)),
                 refusal: NodeErrorKind::Extrude(sweep::ExtrudeError::DegenerateExtrusion).into(),
             },
         ),
         (
-            "RootFailureUnrecorded",
-            PartFault::RootFailureUnrecorded {
+            "PartProductFailureUnrecorded",
+            PartFault::PartProductFailureUnrecorded {
                 held: Default::default(),
                 node: RecipeNodeId::new(0, tagged(7)),
             },
@@ -5281,8 +5310,8 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
     };
     [
         (
-            "Part/PartProduct(RootInvalid)",
-            ProductError::RootInvalid {
+            "Part/PartProduct(PieceInvalid)",
+            ProductError::PieceInvalid {
                 findings: vec![SourceFinding {
                     node: RecipeNodeId::new(0, tagged(3)),
                     output: 0,
@@ -5903,10 +5932,11 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
         CheckFinding {
             check: CheckId::Connectedness,
             subject: editor_core::FindingSubject::Output {
-                root: RecipeNodeId::new(0, tagged(4)),
+                placement: RecipeNodeId::new(0, tagged(4)),
                 output_ix: 0,
             },
             evidence,
+            quiet: None,
         }
         .to_string()
     };
@@ -5992,12 +6022,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
     assert!(!unowned.contains("thicken"), "{unowned}");
     for (name, finding) in &check_findings() {
         let text = finding.to_string();
-        // The separation arm forwards the Boolean's own sentence, whose
-        // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
-        // repair (work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md).
-        if !name.starts_with("SeparationUnavailable/") {
-            assert!(!text.contains("lower"), "{name}: {text}");
-        }
+        assert!(!text.contains("lower"), "{name}: {text}");
     }
 }
 
@@ -6006,17 +6031,31 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
     use topo::{
-        BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
-        ShellClassifyError, ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
+        CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey, ShellClassifyError,
+        ShellKey, StructureRead, Unexaminable, Unexamined, VertexKey,
     };
     let shell = ShellKey::default();
+    let copy = |n| editor_core::CopyRef {
+        var: editor_core::VarId::new(0, tagged(n)),
+        member: 0,
+    };
+    let interference = |overlap| editor_core::InterferenceFinding {
+        a: copy(7),
+        b: copy(8),
+        evidence: Vec::new(),
+        overlap,
+        quiet: None,
+        quiet_at: Vec::new(),
+        quietable: true,
+    };
     let finding = |check, evidence| CheckFinding {
         check,
         subject: editor_core::FindingSubject::Output {
-            root: RecipeNodeId::new(0, tagged(4)),
+            placement: RecipeNodeId::new(0, tagged(4)),
             output_ix: 0,
         },
         evidence,
+        quiet: None,
     };
     let coherence = |condition| CoherenceFinding {
         face: FaceKey::default(),
@@ -6033,7 +6072,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         r#loop: LoopKey::default(),
         why,
     };
-    let mut rows = vec![
+    vec![
         (
             "Connectedness",
             finding(
@@ -6123,12 +6162,40 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             finding(CheckId::Connectedness, E::StaleExpectation { expected: 2 }),
         ),
         (
-            "NotSeparated",
+            "Interference(bounded)",
             finding(
-                CheckId::Separation,
-                E::NotSeparated {
-                    other_root: RecipeNodeId::new(0, tagged(7)),
-                    other_output: 0,
+                CheckId::AtRest,
+                E::Interference {
+                    finding: Box::new(interference(editor_core::Overlap::Bounded {
+                        faces: vec![editor_core::FaceSite {
+                            copy: copy(7),
+                            face: editor_core::StableName {
+                                kind: editor_core::EntityKind::Face,
+                                node: RecipeNodeId::new(0, tagged(9)),
+                                path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
+                            },
+                        }],
+                    })),
+                },
+            ),
+        ),
+        (
+            "Interference(unlocalized)",
+            finding(
+                CheckId::AtRest,
+                E::Interference {
+                    finding: Box::new(interference(editor_core::Overlap::Unlocalized(
+                        editor_core::Unlocalized::Lane,
+                    ))),
+                },
+            ),
+        ),
+        (
+            "AtRest(not run)",
+            finding(
+                CheckId::AtRest,
+                E::AtRest {
+                    evidence: editor_core::AtRestEvidence::NotRun,
                 },
             ),
         ),
@@ -6194,127 +6261,7 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     ]
     .into_iter()
     .map(|(n, f)| (n.to_owned(), f))
-    .collect::<Vec<_>>();
-    for (n, e) in separation_reasons() {
-        let source = BooleanError::Containment(e);
-        rows.push((
-            format!("SeparationUnavailable/Containment({n})"),
-            finding(
-                CheckId::Separation,
-                E::SeparationUnavailable {
-                    refusal: source.into(),
-                },
-            ),
-        ));
-    }
-    rows
-}
-
-/// Every containment refusal the separation read can raise, by its
-/// arm (and, for the loop walk's escalation, every form a site of it
-/// raises): the payloads `check_findings` renders through
-/// `SeparationUnavailable`.
-fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
-    use payloads::*;
-    use topo::{FaceKey, PointInSolidError};
-    let face = FaceKey::default();
-    let separation_reasons = [
-        (
-            "Escalated",
-            PointInSolidError::Escalated { face, diag: diag() },
-        ),
-        ("RayExhausted", PointInSolidError::RayExhausted),
-        (
-            "Loop(RayExhausted)",
-            PointInSolidError::Loop(topo::PointInLoopError::RayExhausted {
-                r#loop: topo::LoopKey::default(),
-            }),
-        ),
-        ("ZeroVolumeBody", PointInSolidError::ZeroVolumeBody),
-        ("InsideOut", PointInSolidError::InsideOut),
-        ("CorruptFace", PointInSolidError::CorruptFace { face }),
-        (
-            "KindUnsupported",
-            PointInSolidError::KindUnsupported {
-                face,
-                kind: geom::SurfaceKind::Nurbs,
-            },
-        ),
-        ("VolumeUncertified", PointInSolidError::VolumeUncertified),
-        (
-            "PartialSphereFace",
-            PointInSolidError::PartialSphereFace { face },
-        ),
-        (
-            "PartialConeFace",
-            PointInSolidError::PartialConeFace { face },
-        ),
-        (
-            "PartialTorusFace",
-            PointInSolidError::PartialTorusFace { face },
-        ),
-        (
-            "EdgeCarrierUnsupported",
-            PointInSolidError::EdgeCarrierUnsupported {
-                face,
-                cause: topo::Uncrossable {
-                    r#loop: topo::LoopKey::default(),
-                    edge: Default::default(),
-                    carrier: topo::UncrossableCarrier::Spiric,
-                },
-            },
-        ),
-        (
-            "WallOutlineUnsupported",
-            PointInSolidError::WallOutlineUnsupported { face },
-        ),
-        (
-            "RootCountDisagrees",
-            PointInSolidError::RootCountDisagrees {
-                face,
-                certified: 2,
-                constructed: 4,
-            },
-        ),
-        (
-            "NoSuchSolid",
-            PointInSolidError::NoSuchSolid {
-                solid: topo::SolidKey::default(),
-            },
-        ),
-    ];
-    // The loop walk's escalation, in every form a site of it raises.
-    let with = |margin| geom_core::Indeterminate { margin, ..diag() };
-    let poisoned = with(geom_core::MarginDiag::INVALID);
-    let over_wound = with(geom_core::MarginDiag::value(-3.0e-10));
-    let (margin, straddle) = (topo::Escalation::Margin, topo::Escalation::Straddle);
-    let walk = [
-        (topo::LoopDecision::Boundary, margin, diag(), "Value"),
-        (topo::LoopDecision::Boundary, margin, poisoned, "Invalid"),
-        (topo::LoopDecision::Boundary, straddle, poisoned, "Straddle"),
-        (topo::LoopDecision::Ray, margin, diag(), "Value"),
-        (topo::LoopDecision::Ray, margin, poisoned, "Invalid"),
-        (topo::LoopDecision::ArcSpan, margin, over_wound, "OverWound"),
-        (topo::LoopDecision::ArcSpan, straddle, poisoned, "Straddle"),
-        (topo::LoopDecision::Plane, margin, diag(), "Value"),
-        (topo::LoopDecision::Plane, margin, poisoned, "Invalid"),
-    ]
-    .map(|(decision, escalation, diag, kind)| {
-        (
-            format!("Loop(Escalated/{decision:?}/{kind})"),
-            PointInSolidError::Loop(topo::PointInLoopError::Escalated {
-                r#loop: topo::LoopKey::default(),
-                decision,
-                escalation,
-                diag,
-            }),
-        )
-    });
-    separation_reasons
-        .into_iter()
-        .map(|(n, e)| (n.to_owned(), e))
-        .chain(walk)
-        .collect()
+    .collect::<Vec<_>>()
 }
 
 /// **Every detail a blend refusal is raised with fits its chain.** The
@@ -6604,13 +6551,4 @@ fn decode(literal: &str) -> String {
         }
     }
     out
-}
-
-/// `text` parsed as the formula a refusal carries, `blades` a count.
-fn formula(text: &str) -> editor_core::Formula {
-    let names = std::collections::BTreeMap::from([(
-        editor_core::VarName::new("blades").expect("a name"),
-        editor_core::Dimension::Count,
-    )]);
-    editor_core::parse_formula(text, &names).expect("the formula parses")
 }

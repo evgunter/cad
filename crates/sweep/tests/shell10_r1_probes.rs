@@ -8,6 +8,7 @@
 
 use geom_core::{Point3, Tol, Vec3};
 use sweep::test_support::block;
+use topo::construction::Construct;
 use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
 use crate::common::approx::band;
@@ -269,7 +270,7 @@ fn r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour() {
     // Lifts RechartStrandsDescriptions: a cylinder the box face does not lie on is the unmintable neighbour.
     pair.set_face_surface_unvouched_for_tests(
         victim,
-        topo::FaceSurface::New {
+        topo::construction::FaceSurface::New {
             surface: geom::Surface::Cylinder {
                 origin: Point3::new(10.5, 0.5, 0.0),
                 axis: Vec3::new(0.0, 0.0, 1.0),

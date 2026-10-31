@@ -17,7 +17,7 @@
 //!   when the sentence is made. A part's labels are in its pin, which is
 //!   in the instance's key, so a fault from inside a part, and a row a
 //!   part carries up, hold the part's nodes as the pinned part says
-//!   them ([`crate::PartFault::held`], [`crate::assembly::CarriedAtRestFinding::held`]).
+//!   them ([`crate::PartFault::held`], [`crate::checks::at_rest::CarriedAtRestFinding::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
@@ -1176,7 +1176,8 @@ impl<'a> Speaker<'a> {
     /// **The read `var`, said**: its name where the document holds one,
     /// else the operation defining it (`Split 1ab2's above` for one of
     /// several outputs), else its id.
-    pub(crate) fn read(self, var: crate::var::VarId) -> String {
+    #[must_use]
+    pub fn read(self, var: crate::var::VarId) -> String {
         let Some(doc) = self.doc else {
             return ReadTag(var).to_string();
         };
@@ -1485,9 +1486,6 @@ pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Assemble { .. } => "Assemble",
         Node::Split { .. } => "Split",
         Node::Mirror { .. } => "Mirror",
-        Node::Pattern { .. } => "Pattern",
-        Node::Part { .. } => "Part",
-        Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
         Node::Shell { .. } => "Shell",

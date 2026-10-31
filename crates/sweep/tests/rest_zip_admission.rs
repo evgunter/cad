@@ -51,62 +51,8 @@ fn join_refuses(p: &AtRestBody<f64>, q: &AtRestBody<f64>) -> bool {
         .is_some()
 }
 
-/// Tier 3′ on `bb` passes, or, for a run [`CURVED`] names, refuses only
-/// that it cannot read the side of an edge with a curved face lying in a
-/// face of its own solid
-/// (`work/restread/tier-3-prime-reads-no-side-for-an-edge-with-a-curved-face-lying-in-a-face.md`).
-fn three_prime_or_curved_unread(what: &str, bb: &topo::BooleanBody<f64>) {
-    let errors = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
-        .err()
-        .unwrap_or_default();
-    assert!(
-        errors.iter().all(|e| matches!(
-            e,
-            topo::ValidationError::FaceThroughEdgeWedgeUndecided {
-                why: topo::TouchUnread::Unreadable,
-                ..
-            }
-        )),
-        "{what}: tier 3′: {errors:?}"
-    );
-    assert_eq!(
-        !errors.is_empty(),
-        CURVED.contains(&what),
-        "{what}: tier 3′ refuses where CURVED pins it, and only there: {errors:?}"
-    );
-}
-
-/// The runs whose union tier 3′ refuses for an edge with a curved face
-/// lying in a plane face of its own solid, whose side it cannot read.
-/// Every other run passes.
-const CURVED: &[&str] = &[
-    "dUp (0.25, 0.25) a ∪ b′",
-    "dUp (0.25, 0.25) b′ ∪ a",
-    "dUp (0.5, 0.5) a ∪ b′",
-    "dUp (0.5, 0.5) b′ ∪ a",
-    "dLeft (-0.5, -0.5) a ∪ b′",
-    "dLeft (-0.5, -0.5) b′ ∪ a",
-    "dLeft (-0.25, 0.25) a ∪ b′",
-    "dLeft (-0.25, 0.25) b′ ∪ a",
-    "dLeft (-0.1, -0.1) a ∪ b′",
-    "dLeft (-0.1, -0.1) b′ ∪ a",
-    "dLeft (-1, -1) a ∪ b′",
-    "dLeft (-1, -1) b′ ∪ a",
-    "dDown (-0.5, -0.5) a ∪ b′",
-    "dDown (-0.5, -0.5) b′ ∪ a",
-    "dDown (-0.1, -0.1) a ∪ b′",
-    "dDown (-0.1, -0.1) b′ ∪ a",
-    "dDown (-1, -1) a ∪ b′",
-    "dDown (-1, -1) b′ ∪ a",
-    "dRight (0.25, 0.25) a ∪ b′",
-    "dRight (0.25, 0.25) b′ ∪ a",
-    "pure dRight (0.5, 0.5), p ∪ q",
-    "pure dRight (0.5, 0.5), q ∪ p",
-];
-
 /// `r` refused, or is a body that has volume `want`, passes tiers 2
-/// and 3′ (but for [`three_prime_or_curved_unread`]'s one refusal) and
-/// the at-rest certificate, and is a legal operand.
+/// and 3′ and the at-rest certificate, and is a legal operand.
 /// `overlap` is the interiors' common volume, which a union that kept
 /// both solids whole would add back. Answers whether it built.
 fn never_twice(
@@ -127,7 +73,11 @@ fn never_twice(
         v - want
     );
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
-    three_prime_or_curved_unread(what, &bb);
+    assert_eq!(
+        topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+        Ok(()),
+        "{what}: tier 3′"
+    );
     assert!(
         topo::validate_geometric_certificate(&bb.body, tol()).is_ok(),
         "{what}: the at-rest certificate"
@@ -500,7 +450,11 @@ fn a_line_kiss_beside_a_tangent_site_records_its_contact() {
             let v = vol(&bb.body);
             assert!((v - want).abs() < 1e-9, "{what}: volume {v} against {want}");
             assert_eq!(topo::validate_closed(&bb.body), Ok(()), "{what}: tier 2");
-            three_prime_or_curved_unread(&what, &bb);
+            assert_eq!(
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()),
+                Ok(()),
+                "{what}: tier 3′"
+            );
         }
     }
 }

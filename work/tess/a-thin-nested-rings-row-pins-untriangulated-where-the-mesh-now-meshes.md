@@ -2,10 +2,11 @@
 id: a-thin-nested-rings-row-pins-untriangulated-where-the-mesh-now-meshes
 kind: issue
 title: thin_nested_rings_build pins every op untriangulated, but the mesh now meshes them
-status: open
+status: closed
 opened: 2026-10-26
 priority: P2
 cost: E
+closed: 2026-10-28
 ---
 
 
@@ -37,3 +38,7 @@ The volume and `outcome` lines pass. Only the mesh pin moved.
 Check that the thin rings mesh soundly (`check_mesh` passes at
 `w = 1e-3`, `9e-4`, `1e-4`), then narrow or empty the row's
 `untriangulated` list, re-baselining what moved.
+
+## Closed (2026-10-28, duplicate)
+
+The same finding as `main-red-thin-nested-rings-build-meshes-the-rings-its-pin-expects-refused` (P1), filed the same day by another lane. That row carries the fix; this row's evidence (the PR 5717 bisection pointer) is read there.

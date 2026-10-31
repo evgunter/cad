@@ -275,6 +275,17 @@ impl<T: Real> ReferenceNormal<T> {
         Self(normal)
     }
 
+    /// The side of a **germ** in a plane (a splitting plane, or a
+    /// face's tangent plane a section leaves a vertex in): `dir`, in the
+    /// plane whose normal is `normal`, turned a quarter counterclockwise
+    /// about it (`n̂ × d̂`), so Above is the side the plane's
+    /// counterclockwise turn leaves the germ to. Defined by the plane's
+    /// normal, as an order about it is.
+    #[must_use]
+    pub fn of_germ(normal: Vec3<T>, dir: Vec3<T>) -> Self {
+        Self(normal.normalize().cross(dir.normalize()))
+    }
+
     /// A **face's outward normal** as the reference side: Above is
     /// outside the face's material, Below is inside it. The sound
     /// widening (the sense bit was folded in when the
@@ -522,6 +533,57 @@ pub fn enters_material_order2<T: Decide>(
             Sign::Zero => EntersMaterial::Tangent,
         },
     )
+}
+
+/// Why [`tied_germ_turn`] gave no order.
+#[derive(Clone, Copy, Debug)]
+pub enum TiedGermsError {
+    /// A germ's bend did not read: its section's surface is singular at
+    /// the point (a cone's apex), has no implicit form, or meets the
+    /// plane tangentially there.
+    Singular,
+    /// The arm or the second-order reading escalated.
+    Lever(LeverEscalation),
+}
+
+/// **Two germs tied along one tangent, ordered one order down**: two
+/// germs leave a point along the unit `t` in the plane whose unit
+/// normal is `normal`, and `bends` say how fast each one's section
+/// leaves `t` toward `normal × t` at unit speed
+/// ([`crate::implicit_graph_acceleration`] in a plane,
+/// [`crate::implicit_section_acceleration`] in a curved face's tangent
+/// plane). Positive where germ 1 curves counterclockwise of germ 0 about
+/// `normal`, Negative where clockwise, and Zero where they curve alike:
+/// the caller's tie. The reading is [`enters_material_order2`]'s, the
+/// displacement the bends' difference makes at `arm`.
+///
+/// # Errors
+///
+/// [`TiedGermsError::Singular`] where a bend is poison or unbounded;
+/// [`TiedGermsError::Lever`] where [`enters_material_order2`] escalates.
+pub fn tied_germ_turn<T: Decide>(
+    normal: Vec3<T>,
+    t: Vec3<T>,
+    bends: [T; 2],
+    arm: T,
+    band: Band,
+) -> Result<Sign, TiedGermsError> {
+    let bend = bends[1] - bends[0];
+    if !bend.is_bounded() {
+        return Err(TiedGermsError::Singular);
+    }
+    match enters_material_order2(
+        normal.cross(t) * bend,
+        T::one(),
+        ReferenceNormal::of_germ(normal, t),
+        arm,
+        band,
+    ) {
+        Ok(EntersMaterial::Exits) => Ok(Sign::Positive),
+        Ok(EntersMaterial::Enters) => Ok(Sign::Negative),
+        Ok(EntersMaterial::Tangent) => Ok(Sign::Zero),
+        Err(escalation) => Err(TiedGermsError::Lever(escalation)),
+    }
 }
 
 /// The verdict of [`bends_into_material`]: which way a wall curves off

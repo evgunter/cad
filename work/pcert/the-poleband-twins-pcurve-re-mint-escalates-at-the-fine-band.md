@@ -24,3 +24,7 @@ This is not only a pcurve question. The edge the re-mint meters bounds a 0.9e-9 
 
 Whether the lever should be the NEARER face's extent, or the reading should refuse where ε/α exceeds the smaller face, is a design fork for a later unit; this PR implements the approved text as written. **This item must NOT close by certifying the chart image near the pole** until that question is decided: today the map residual is the only door that refuses this cap, and certifying it would ship an edge whose locus the faces do not fix.
 
+
+## The import route no longer reaches this door (FOREIGN implementer, 2026-10-29)
+
+`import-normalizes-the-rim-only-cap` gives import a reading that runs before adoption: every sphere pole or cone apex in a face's closure is made a vertex of it, read on, inside or off the boundary at the coarser of the file's band and the run's (`crates/step-import/src/normalize/singularity.rs`). Both twins' near-pole vertices sit 0.9e-9 m from the undeclared pole, inside that band at ambient 1e-12 (the file's ε_in = 1e-10 m, K·ε_in = 1e-9 m), so the import now refuses them there typed, as a pole neither on the boundary nor off it, before the pcurve re-mint is asked: `tier_gate.rs`'s two 1e-12 cells read `POLE_IN_BAND`, not `POLEBAND_PCURVE_REMINT`. The default and 1e-6 cells are unchanged (the vertices read AT the pole there). So the map residual is no longer the only door refusing this cap on the import route; the question above stands for any route that builds the cap without import, and the import fixtures no longer witness the re-mint's refusal.

@@ -25,3 +25,7 @@ it is an edge. `tangent_table`'s public callers
 left: the faces would have to be threaded in. This is issue 1439's
 sibling (the hand-rolled second-order spelling `tangent_second_order`'s
 docs name).
+
+## The edge extent's new home (OFFSET, 2026-10-27)
+
+`geom_brep::edge_extent` no longer exists (OFFSET, PR 5875). Its home is `geom_brep::extent`, beside the reach family, as three functions: `edge_extent_inf` (≤ the edge's diameter `D`: the chord, the minor-axis folds and the sampled pairs; the lever of a reading whose Zero only refuses), `edge_extent_sup` (≥ `D`; a reading whose Zero is acted on and whose definite signs only refuse) and `edge_reach_from` (the edge's farthest distance from a point of it; a reading that acts on every sign, read from that point). `contact_verify::tangent_table` now levers at `edge_extent_sup(carrier, t0, t1, chord)`: its parallel reading's Zero verifies the contact and a definite sign contradicts. The faces'-reach question this row asks is unchanged.

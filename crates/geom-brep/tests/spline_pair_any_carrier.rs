@@ -205,6 +205,13 @@ fn verdict(name: &str, got: &Limbs) -> (Verdict, f64) {
     match got {
         Ok(l) => (Verdict::Certified, l.hull_sup),
         Err(PlaneNurbsRefusal::Limb { limb, margin }) => (Verdict::Refused(*limb), upper(*margin)),
+        // A circle no boundary row holds reads its fitted image, and its
+        // limb's refusal carries that no exact image held.
+        Err(PlaneNurbsRefusal::ArcRim(geom_brep::ArcRimRefusal::Refused {
+            iso: None,
+            limb,
+            bound,
+        })) => (Verdict::Refused(*limb), upper(*bound)),
         // A miss inside the band refuses undecided, on the bound it read.
         Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
             (Verdict::Refused(*limb), upper(cause.margin))
@@ -703,7 +710,7 @@ fn door_spec(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness,
+                selector: geom_brep::CurveSelector::Witness(witness),
             },
             carrier,
             param_start: t0,
@@ -719,7 +726,7 @@ fn door_spec(
 /// refused every non-spline carrier before it read a limb.
 #[test]
 fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
-    let lane = Some(NurbsLane::certified());
+    let lane = NurbsLane::certified();
     let line = diagonal();
     let ends = (line.eval(0.0), line.eval(1.0));
     for (name, a, b) in [
@@ -735,7 +742,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         ),
     ] {
         let (arena, spec) = door_spec(a, b, line.clone(), (0.0, 1.0));
-        let edge = EdgeCurve::certify_via(spec, ends.0, ends.1, arena, 1.0, band(), lane)
+        let edge = EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band(), lane)
             .unwrap_or_else(|e| panic!("{name}: the line certifies through the door: {e}"));
         assert!(
             edge.certificate().max_residual <= eps(),
@@ -754,7 +761,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
     let foot = carrier_foot_sup(&arc, (t0, t1), &quarter_cylinder_wall());
     println!("the circle's own foot reads {foot:e} m at most");
     assert!(foot <= ON_THE_WALL, "the circle is on the wall: {foot:e} m");
-    let got = EdgeCurve::certify_via(spec, arc.eval(t0), arc.eval(t1), arena, 1.0, band(), lane);
+    let got = EdgeCurve::certify(spec, arc.eval(t0), arc.eval(t1), arena, 1.0, band(), lane);
     let Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::Limb { limb, margin })) = got else {
         panic!("the circle refuses at a limb through the door: {got:?}")
     };
@@ -779,7 +786,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
 /// `FittedLane::general_image`) is the same net for both.
 #[test]
 fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
-    let lane = Some(NurbsLane::certified());
+    let lane = NurbsLane::certified();
     let line = diagonal();
     let spline = twin(&line, (0.0, 1.0));
     let ends = (line.eval(0.0), line.eval(1.0));
@@ -791,7 +798,7 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
             carrier.clone(),
             (0.0, 1.0),
         );
-        let edge = EdgeCurve::certify_via(spec, ends.0, ends.1, arena, 1.0, band(), lane)
+        let edge = EdgeCurve::certify(spec, ends.0, ends.1, arena, 1.0, band(), lane)
             .unwrap_or_else(|e| panic!("{:?} certifies: {e}", carrier.kind()));
         bounds.push(edge.certificate().max_residual);
     }

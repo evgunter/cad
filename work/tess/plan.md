@@ -14,13 +14,11 @@ entry in the commit that opens this program, per that entry's rule.
 
 ## Charter
 
-What S-MESH's eleven units left the tessellation kernel with — every
-guard fires where somebody looks and none lies about its ε; ε's
-consumers are named operations; the iso-rectangle and one-chart-branch
-premises are doors mesh cites; input-quality detectors live body-side
-in `topo::coherence` — and what they did not fund: the findings below,
-the parked rim-chord question (MESH-9, issue 950, its typed trigger
-intact), and code-quality Track R's mesh rows as track lanes.
+The tessellation kernel's reach: a body that builds, passes the tiers
+and measures is drawn, or refused with a typed reason that names what
+is not built yet. The standing goal this serves is authoring arbitrary
+geometry through the UI, and a body the viewer cannot draw is the
+place it most visibly breaks.
 
 ## Ratified ground (cited, not re-litigated)
 
@@ -38,12 +36,27 @@ intact), and code-quality Track R's mesh rows as track lanes.
 
 The item files beside this plan, and nothing else, are the slate
 (`python3 scripts/work.py status --program tess`). TESS keeps the rows
-where the mesh LIES or REFUSES; the arithmetic and certificates beneath
-them — the register rows, the chart-frame and unit-direction rows, the
-memo dumps, the writable `Mesh` — went to CHORD at the 2026-09-20
-priority-seam cut (Ev, in chat), which shares `crates/mesh` whole with
-this program: neither fences the other, and a unit crossing announces
-the seam in its PR.
+where a body that builds and validates is refused by the mesh (two P0s:
+the sphere face bounded by a tilted circle, and the degree-1 loft's
+interior crease), plus the nightly-red pin on the thin nested rings,
+whose question is the same: does the mesh now mesh a face it used to
+refuse.
+
+**The 2026-10-28 semantic-seam split.** At 146 budget points against 30,
+TESS cut its slate by question (`work/README.md`, Track size), moving
+rows by `git mv` with ids kept:
+- **TESSLIE** — the mesh answers Ok, or panics, where it should refuse
+  or mesh right; the chart-coherence default came with it.
+- **TESSWALK** — what the walk and the lanes decide: structural
+  premises, and readings taken off undecided numbers.
+- **TESSSIZE** — the curved and trimmed lanes' sizing and its
+  theorems (holds the P0 `one-element-grid-axes-drop-schedule`).
+- **TESSLATTICE** — the NURBS lattice: share, rows, cells, cost.
+- **TESSWORD** — refusal words, mesh docs and contract hygiene.
+
+The arithmetic and certificates beneath the lanes went to CHORD at the
+2026-09-20 cut (Ev, in chat); CHORD shares `crates/mesh` whole with
+this program and its successors.
 
 ## Process
 
@@ -61,10 +74,9 @@ tokens and wall-clock; blinding discipline verbatim; hosted CI the only
 gate; the #1356 ε-trailer practice where a unit is band-sensitive; the
 implementer and reviewer prompts by path.
 
-## Exit shape (proposed)
+## Exit shape
 
-The patch bound encloses the described patch and the soundness sweep
-is green on a bilinear-stratified census; every refusal the slate names
-arrives at its door with its name; MESH-9 is either landed on its
-trigger or still parked with the trigger intact. Every unit merged on
-its own green hosted head; the walk convention applies at exit.
+Every row on the slate is closed or re-homed: each valid body it names
+tessellates at the δ its row measured, or refuses typed with a reason
+that names the unbuilt case. Every unit merged on its own green hosted
+head; the walk convention applies at exit.

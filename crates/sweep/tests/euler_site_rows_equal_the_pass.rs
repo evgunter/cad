@@ -19,8 +19,10 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::test_support::{dome_profile, revolved_about_y};
+use topo::construction::Construct;
+use topo::construction::{MefSite, MekrSite, MevSite};
 use topo::pcurves::validate_pcurves;
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, MefSite, MekrSite, MevSite, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -383,7 +385,7 @@ fn strut_and_chord(label: &str, body0: &Body<f64>, face: FaceKey) -> usize {
         .mef(
             MefSite::Chords { he1, he2 },
             spec,
-            topo::FaceSurface::Inherit,
+            topo::construction::FaceSurface::Inherit,
             tol(),
         )
         .unwrap_or_else(|e| panic!("{label} mef: {e:?}"));

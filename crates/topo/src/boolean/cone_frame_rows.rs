@@ -370,14 +370,14 @@ fn far_generator_wall() -> (crate::Body<f64>, FaceKey) {
     let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
     body.set_face_surface(
         seed.face,
-        crate::FaceSurface::New {
+        crate::construction::FaceSurface::New {
             surface: far_cone(),
             sense: true,
         },
     )
     .unwrap();
     body.mev_line(
-        crate::MevSite::Lone {
+        crate::construction::MevSite::Lone {
             r#loop: seed.r#loop,
         },
         Point3::new(1.01, 1.0, 0.0),

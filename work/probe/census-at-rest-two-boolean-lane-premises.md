@@ -4,7 +4,6 @@ kind: issue
 title: Census at rest - two more boolean-lane-derived premises the face rung leaves standing
 status: closed
 opened: 2026-08-23
-github: 973
 refs: [969, 1496, 1500]
 priority: P3
 cost: D

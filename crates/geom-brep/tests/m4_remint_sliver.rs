@@ -50,7 +50,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(keys[0], keys[1]),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         },
         carrier,
         param_start: t0,
@@ -63,6 +63,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
         &resolve,
         1.0,
         band,
+        geom_brep::NurbsLane::certified(),
     )
 }
 

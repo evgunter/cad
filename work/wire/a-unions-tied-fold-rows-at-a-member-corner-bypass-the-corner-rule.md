@@ -2,7 +2,7 @@
 id: a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule
 kind: issue
 title: A union's Tied fold rows at a member corner keep the fold's own Borders name and bypass name_corner_copies, so a corner the fold half-tied is spelled two ways
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P3
 cost: M

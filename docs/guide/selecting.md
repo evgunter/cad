@@ -67,7 +67,7 @@ let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None }),
 );
 doc = next;
 let (next, cube) = insert(&doc, Node::Extrude { profile: profile.into(), distance: len(1.0) });
@@ -166,7 +166,7 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -241,7 +241,14 @@ assert!(!Selector::of(NamePat::any().path([SegPat::any(), SegPat::any()]))
 
 A selector is a UNION of patterns — which is how a real selection
 reads ("the box edges AND the pip rim") — and a segment's sub-NAME
-arguments are patterns too, positionally, as a prefix.
+arguments are patterns too. A segment's slotted arguments (a
+`Crossing`'s edge, then its face) are matched slot for slot, as a
+prefix. A set is matched as a set: a seam's two sides, `Merged`
+constituents, an `EdgeCrossing`'s lines and a band's chain. Each
+pattern matches a distinct member, in any order, so a seam pattern does
+not depend on which side's name sorts first. A seam junction's path,
+the run of `Seam` lines meeting at a vertex, is a set the same way:
+each segment pattern matches a distinct line.
 
 ```
 use pncad::prelude::*;
@@ -266,12 +273,27 @@ let cap_band = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).
 ]));
 assert!(Selector::of(cap_band).matches(&seam));
 
-// A PREFIX: constraining only the A side is coarser and still
-// honest.
-let any_cap_seam = NamePat::any().seg(SegPat::tag(SegTag::Seam).of([
+// A seam's sides are a set: the same pattern written band first
+// matches too.
+let band_cap = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of([
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Band)),
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
+]));
+assert!(Selector::of(band_cap).matches(&seam));
+
+// Constraining one side is coarser and still honest: it matches a
+// seam where either side fits.
+let any_band_seam = NamePat::any().seg(SegPat::tag(SegTag::Seam).of([
+    NamePat::any().seg(SegPat::tag(SegTag::Band)),
+]));
+assert!(Selector::of(any_band_seam).matches(&seam));
+
+// Each pattern takes a side of its own: two caps fit no seam with one.
+let two_caps = NamePat::any().seg(SegPat::tag(SegTag::Seam).of([
+    NamePat::any().seg(SegPat::tag(SegTag::Cap)),
     NamePat::any().seg(SegPat::tag(SegTag::Cap)),
 ]));
-assert!(Selector::of(any_cap_seam).matches(&seam));
+assert!(!Selector::of(two_caps).matches(&seam));
 
 // `Selector::any_of` / `.or` — the union. An EMPTY selector
 // matches nothing.
@@ -323,7 +345,7 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 let len = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new() }),
+    Node::Profile(ProfileProgram { loops: vec![square], ids: Vec::new(), on: None }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -401,6 +423,7 @@ let footprint = |x0: f64, y0: f64, x1: f64, y1: f64| ProfileProgram {
             .expect("finite corners"),
     ],
     ids: Vec::new(),
+    on: None,
 };
 
 // A unit box, and a smaller box RESTING on its top cap. Each is a
@@ -432,7 +455,7 @@ let value = ev.value(uni).expect("the union evaluates");
 let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
     panic!("expected a body");
 };
-let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+let body = AtRestBody::validate(Body::clone(body.body()), tol).expect("a finished body");
 assert_eq!(mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass").met().expect("mass").volume, 1.125);
 assert_eq!(
     value.coincidences.len(),

@@ -2,12 +2,12 @@
 id: a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door
 kind: issue
 title: a loft section hinged on one of its own edges collapses that wall, and refuses at the attach gate (or as NoParameterStep on strip 0) rather than naming the pinned wall
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: H
-design: true
 refs: [loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body]
+branch: carve/pinned-corners
 ---
 
 
@@ -72,3 +72,56 @@ sections, and `loft_body` refuses at the attach gate. The exact hinge:
 their seams double back. Before, the refusal depended on WHICH edge was
 the hinge (strip 0: `NoParameterStep`; any other edge: this one). It is
 now the same for every edge, and still at the wrong door.
+
+## Weighed (2026-10-31): pinned corners are classified, and the sections are apart beyond them
+
+Two designers (an Opus and a Fable lane) were given the problem and no
+options. They split in round 1 and converged in round 2, each taking
+the other's point. Nothing went to Ev. The record is on
+`analysis/design-fork/carve-pinned-wall`.
+
+- **The fact is a pinned corner**: a profile vertex at the same world
+  point in sections k and k+1. A hinge is two adjacent pinned corners.
+  It is decided once per corner per slab, banded, at the loft door
+  before the skin, by one named predicate. It is the loft's analogue of
+  revolve's on-axis vertex (`revolve/axis.rs`).
+  - **Class 1**, pinned throughout the span its wall covers (every slab
+    at v-degree ≥ 2, or a slab at v-degree 1, which covers the
+    two-section wedge): **a legal body**. The two corners are one
+    vertex, and no strut is minted. A segment pinned at both ends has
+    no wall in that slab, and its neighbours share the edge, as
+    revolve's `WallClass::OnAxis` does. A wall beside a pinned corner
+    has a collapsed boundary column there, which is a chart
+    singularity and so a vertex (DESIGN's seam clause). The designers
+    believe it is **unbuilt today**: `pcurve_cache`'s iso lane refuses
+    a degenerate iso. If the unit's measurement confirms that, class 1
+    refuses typed as *unsupported* and names that blocker, never as
+    invalid input.
+  - **Class 2**, pinned in some slabs but moving in others under a wall
+    that spans both (v-degree ≥ 2): refuses typed, naming the corner
+    or hinged segment and the sections. A quadratic through one point
+    twice retraces a line, so the boundary is not embedded. Recourse:
+    move the corner apart, or loft at v-degree 1.
+  - **Class 3**, in band: escalates, naming the corner.
+- **Sections are apart beyond what they share.** The census's number
+  (`[topology.census]`): the minimum distance between the two placed
+  loops over every segment pair, beyond the corners classified pinned.
+  A Zero there refuses `SectionsTouch { slab, segments }`. It catches a
+  hinge slid along its own edge and sections that cross, which no
+  corner reading sees. A lens turned about its chord (both ends
+  pinned, arcs apart elsewhere) is a legal lune wall. Arc–arc pairs
+  read a conservative separation (control triangles), and where that
+  cannot decide, the door states the frontier.
+- **The centroid arm reads the moving control rows**, the outer loop's
+  compatible rows that are not classified pinned. Read off the
+  vertices, it both misses a hinge and refuses a legal lens.
+  Every corner pinned and every rim Zero is coincidence, named as
+  `DegenerateStacking`.
+- **The skin decides no pinning of its own.** Vertex rows read the
+  door's per-corner verdict. Interior control rows keep the unbanded C6
+  abstention.
+- **Order at the fold's site:** corner classes, then clearance, then
+  the normal step over moving rows, then the far normal (interim).
+
+This row no longer waits on the certificate. It reads inputs, not
+built walls.

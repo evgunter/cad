@@ -4,12 +4,12 @@ kind: program
 title: STACK — what a certified enclosure CLAIMS: the stackup's hull, the non-real contract and the forgeable certificate family
 status: ready
 opened: 2026-09-20
-area: kernel
+group: kernel/geom/numeric
 prefix: stack/
 tag: (STACK orchestrator)
 ab_band: 9100-9199
 paths: [crates/editor-core/src/stackup.rs]
-keep_out: [opened by ENCL's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - ENCL measured 40.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are ENCL STACK and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, PROPS owns the analysis lane and the flux arms, QUAD owns props/quad/, SSI and PCERT own the geom-brep certification lanes]
+keep_out: [opened by ENCL's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - ENCL measured 40.5 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are ENCL STACK and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR where the changes are coupled rather than drawing a fence, PROPS owns the analysis lane and the flux arms, QUAD owns props/quad/, SSI and PCERT own the geom-brep certification lanes]
 ---
 The contract half of certified enclosure, split from the arithmetic
 half ENCL keeps. P2 because these rows serve `docs/DESIGN.md`'s reach

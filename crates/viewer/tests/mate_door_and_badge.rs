@@ -8,14 +8,14 @@ use crate::common;
 
 use common::asm;
 use pncad::geom_core::Tol;
-use viewer::history::History;
 use viewer::session::SessionOp;
 
 /// **The mate door through the session's history**: committing a mate
 /// between post_b, in a space of its own, and the shelf writes post_b's
 /// bundle and leaves the shelf's as it was; undo
-/// restores the document, redo commits it again, and the log replays to
-/// the same document with no store.
+/// restores the document, redo commits it again, and the mate's edit
+/// log replays to the same document with no store — the load path a
+/// file that still carries a log takes.
 #[test]
 fn the_mate_door_commits_through_undo_redo_and_replay() {
     let tol = Tol::witness();
@@ -43,26 +43,33 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     assert!(out.refusal.is_none());
     assert!(session.doc().bit_eq(&after), "redo commits it again");
     let h = session.history();
-    let root = h.entry(h.root()).doc().clone();
-    let replayed = History::replayed(root, &h.path_edits(), tol).expect("replays with no store");
+    let edits: Vec<_> = h
+        .path()
+        .into_iter()
+        .flat_map(|id| h.entry(id).edits().to_vec())
+        .collect();
+    let text = pncad::document::save(h.entry(h.root()).doc(), &edits, tol)
+        .expect("a file carrying the log saves");
+    let loaded = pncad::document::load(&text, tol).expect("and loads, replaying with no store");
     assert!(
-        replayed.doc().bit_eq(&after),
+        loaded.doc.bit_eq(&after),
         "the log replays to the same document"
     );
 }
 
 /// **The at-rest badge checks a `⊔` the product does not read** — the
-/// one gate the kernel's `assemble` runs, reached through
-/// `assemble_gathered`. Two posts seated at one spot under the shelf
+/// at-rest check reads every `⊔`'s census. Two posts seated at one spot under the shelf
 /// fill one volume in the world, and the kernel reports one loud
 /// interference. With the shelf placed into a space of its own, the
 /// three live in that space beside one world instance, and a `⊔` of the
 /// three is authored there; the product has no overlap, the gate checks
 /// the `⊔` by itself and reports the posts' overlap there, and the badge
-/// counts it rather than certify the product clean.
+/// counts it rather than report the product clear.
 #[test]
 fn the_at_rest_badge_checks_a_space_of_its_own() {
-    use pncad::document::{CancelToken, EvalOptions, assemble, evaluate, load, save};
+    use pncad::document::{
+        CancelToken, CheckEvidence, ChecksConfig, EvalOptions, evaluate, load, run_checks, save,
+    };
     let tol = Tol::witness();
     let bench = asm::bench("r2badge", tol);
     let text = std::fs::read_to_string(&bench.asm_path).unwrap();
@@ -86,13 +93,19 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
         doc = crate::fixture::mated(doc, post, seat(post), &asm::middle_seat_values()).0;
     }
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    let loud = |kernel: &Result<_, _>| match kernel {
-        Ok(pncad::document::Assembly { interference, .. }) => {
-            Some(interference.iter().filter(|f| f.is_loud()).count())
-        }
+    let loud = |kernel: &Result<pncad::document::ChecksReport, _>| {
+        match kernel {
+        Ok(report) => Some(
+            report
+                .findings
+                .iter()
+                .filter(|f| matches!(&f.evidence, CheckEvidence::Interference { finding } if finding.is_loud()))
+                .count(),
+        ),
         Err(_) => None,
+    }
     };
-    let kernel = assemble(&doc, &ev, tol);
+    let kernel = run_checks(&doc, &ev, &ChecksConfig::default(), tol);
     assert_eq!(
         loud(&kernel),
         Some(1),
@@ -127,11 +140,11 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
     )
     .0;
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    let kernel = assemble(&doc, &ev, tol);
+    let kernel = run_checks(&doc, &ev, &ChecksConfig::default(), tol);
     assert_eq!(
         loud(&kernel),
         Some(1),
-        "the gate checks the shelf's `⊔` by itself: {:?}",
+        "the at-rest check reads the shelf's `⊔` by itself: {:?}",
         kernel.err()
     );
     std::fs::write(&bench.asm_path, save(&doc, &[], tol).unwrap()).unwrap();
@@ -139,7 +152,11 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
     let badge = session.at_rest().cloned();
     assert_eq!(
         badge,
-        Some(viewer::session::AtRestBadge::Certified { loud: 1, quiet: 0 }),
+        Some(viewer::session::AtRestBadge {
+            loud: 1,
+            quiet: 0,
+            could_not_look: 0,
+        }),
         "the badge counts the space's overlap with the kernel"
     );
 }

@@ -82,6 +82,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             loops: vec![corpus::die_pips::half_disc_program()],
             ids: Vec::new(),
+            on: None,
         }),
     );
     fixture::insert(
@@ -114,7 +115,7 @@ fn kernel_kind(
     let EntityKey::Face(f) = e.key else {
         panic!("a face key");
     };
-    readback::face_carrier_kind(body, f).expect("a live face")
+    readback::face_carrier_kind(body.body(), f).expect("a live face")
 }
 
 /// **The two read doors agree, kind by kind.** A box is all planes; a
@@ -201,8 +202,8 @@ fn face_frame_sense_matches_the_stored_flag_on_every_corpus_face() {
             let ValuePayload::Body(body) = &v.payload else {
                 continue;
             };
-            for (key, face) in body.faces() {
-                match readback::face_pose(body, key) {
+            for (key, face) in body.body().faces() {
+                match readback::face_pose(body.body(), key) {
                     Ok(pose) => {
                         assert_eq!(
                             pose.sense, face.sense,
@@ -227,7 +228,7 @@ fn face_frame_sense_matches_the_stored_flag_on_every_corpus_face() {
                 let EntityKey::Face(f) = e.key else {
                     panic!("a face name")
                 };
-                assert_eq!(pose.sense, body.get_face(f).expect("live").sense);
+                assert_eq!(pose.sense, body.body().get_face(f).expect("live").sense);
             }
         }
     }
@@ -259,7 +260,7 @@ fn kernel_edge_kind(
     let EntityKey::Edge(k) = e.key else {
         panic!("an edge key");
     };
-    readback::edge_carrier_kind(body, k).expect("a live edge")
+    readback::edge_carrier_kind(body.body(), k).expect("a live edge")
 }
 
 /// **The edge-side kind door answers a named edge and walks the same

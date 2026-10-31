@@ -52,7 +52,7 @@ test_utils::gated_to![
     "crates/geom-core/src/linalg/",
 ];
 
-use super::search_kit::{band, matched, offset, unit_vec};
+use super::search_kit::{band, find, label, matched, near_cells, offset, unit_vec};
 use super::*;
 use core::f64::consts::{PI, TAU};
 use geom::Surface;
@@ -80,14 +80,6 @@ pub(super) struct Traced {
     /// The cells whose corners alternate in sign round the cell: two
     /// arcs or a crossing, which cell adjacency cannot tell apart.
     pub(super) saddles: usize,
-}
-
-fn find(parent: &mut [usize], mut x: usize) -> usize {
-    while parent[x] != x {
-        parent[x] = parent[parent[x]];
-        x = parent[x];
-    }
-    x
 }
 
 /// Traces `f ∘ chart` over `u ∈ [0, 2π)` (periodic) and `v ∈ [v0, v1]`.
@@ -136,17 +128,9 @@ pub(super) fn trace(
             }
         }
     }
-    let mut index = std::collections::BTreeMap::new();
-    let mut comp = vec![None; n];
-    for k in 0..n {
-        if active[k] {
-            let root = find(&mut parent, k);
-            let next = index.len();
-            comp[k] = Some(*index.entry(root).or_insert(next));
-        }
-    }
-    let mut unbounded = vec![false; index.len()];
-    let mut seam = vec![0usize; index.len()];
+    let (comp, count) = label(&mut parent, &active);
+    let mut unbounded = vec![false; count];
+    let mut seam = vec![0usize; count];
     for i in 0..nu {
         if s(i, 0) != s(i + 1, 0) {
             unbounded[comp[cell(i, 0)].unwrap()] = true;
@@ -160,7 +144,7 @@ pub(super) fn trace(
             seam[comp[cell(nu - 1, j)].unwrap()] += 1;
         }
     }
-    let classes = (0..index.len())
+    let classes = (0..count)
         .map(|c| match (unbounded[c], seam[c] % 2) {
             (true, _) => Class::Unbounded,
             (false, 1) => Class::Essential,
@@ -184,22 +168,7 @@ impl Traced {
     pub(super) fn near(&self, u: f64, v: f64) -> Vec<usize> {
         let i = (u.rem_euclid(TAU) / TAU * self.nu as f64) as isize;
         let j = ((v - self.v0) / (self.v1 - self.v0) * self.nv as f64) as isize;
-        let mut out = Vec::new();
-        for dj in -1..=1 {
-            for di in -1..=1 {
-                let jj = j + dj;
-                if jj < 0 || jj >= self.nv as isize {
-                    continue;
-                }
-                let ii = (i + di).rem_euclid(self.nu as isize) as usize;
-                if let Some(c) = self.comp[jj as usize * self.nu + ii]
-                    && !out.contains(&c)
-                {
-                    out.push(c);
-                }
-            }
-        }
-        out
+        near_cells(&self.comp, (self.nu, self.nv), (i, j), 1, false)
     }
 }
 
@@ -476,8 +445,20 @@ fn check(k: &Frame, pose: &Pose) -> Vec<String> {
     let cone = k.surface();
     let reach = reach_of(k);
     let b = band();
-    let sec = classify(&cone, &pose.partner, reach, b);
-    let back = classify(&pose.partner, &cone, reach, b);
+    let sec = classify(
+        &cone,
+        &pose.partner,
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
+    let back = classify(
+        &pose.partner,
+        &cone,
+        reach,
+        Some(geom_brep::SsiLane::marched()),
+        b,
+    );
     let m = pose.margin.map_or(f64::INFINITY, f64::abs);
     // In the band's Zero: R-tan is the answer, except at the plane's
     // aperture, where Zero is the parabola's class — one part, essential,
@@ -637,7 +618,13 @@ fn the_cone_arms_agree_with_the_traced_section() {
             };
             done += 1;
             let bad = check(&k, &pose);
-            match classify(&k.surface(), &pose.partner, reach_of(&k), band()) {
+            match classify(
+                &k.surface(),
+                &pose.partner,
+                reach_of(&k),
+                Some(geom_brep::SsiLane::marched()),
+                band(),
+            ) {
                 Section::Components { parts, .. } => {
                     let mut cs: Vec<Class> = parts.iter().map(class_of).collect();
                     cs.sort();
@@ -719,7 +706,7 @@ fn near_axis_balls_agree_with_the_closed_form() {
             centre: apex,
             radius: 5.0 * scale,
         };
-        match classify(&cone, &ball, reach, b) {
+        match classify(&cone, &ball, reach, Some(geom_brep::SsiLane::marched()), b) {
             Section::Tangent(_) => {
                 tangent += 1;
                 if gap > 8.0 * b.escalate() + 64.0 * f64::EPSILON * scale {

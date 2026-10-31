@@ -4,7 +4,6 @@ kind: issue
 title: Nested patterns and pattern-of-transform mate heads refuse DanglingHead — narrower than the A11 rider's literal text
 status: closed
 opened: 2026-08-31
-github: 1411
 refs: [1400]
 closed: 2026-09-06
 ---

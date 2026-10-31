@@ -7,13 +7,16 @@
 //! and the shared [`crate::sector_face`] walk names the constructor
 //! itself for its curved arms.
 //!
-//! Three doors, one flip. By key: [`face_outward_normal`] answers for
+//! Five doors, one flip. By key: [`face_outward_normal`] answers for
 //! a PLANE, where the normal does not depend on where you stand, and
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged.
 //! By value, for a caller that has already resolved the face and must
 //! not discard a failed lookup: [`plane_outward_normal`] takes the
-//! [`Face`] and its plane's chart normal. Every one of them spells the
+//! [`Face`] and its plane's chart normal, [`chart_outward_normal`]
+//! takes a chart normal of any carrier and the bit, and
+//! [`surface_outward_normal`] takes a carrier, a point on it and the
+//! bit, for a reader that holds no face. Every one of them spells the
 //! fold through [`OutwardNormal::from_chart`], the type's only
 //! constructor, and this file is the only one under `topo/src` that
 //! names it in a file that ALSO destructures a plane pattern — that
@@ -87,6 +90,35 @@ pub(crate) fn plane_outward_normal<T: Real>(
     chart_normal: Vec3<T>,
 ) -> OutwardNormal<T> {
     OutwardNormal::from_chart(chart_normal, face.sense)
+}
+
+/// A face's OUTWARD normal from a chart normal its caller computed
+/// (`du × dv` of the face's chart at a station), with the face's `sense`
+/// folded in. The by-value door for a reader that holds a chart rather
+/// than a face key — the injectivity check's cusp reading — so the fold
+/// stays in this file whatever the carrier: on a plane the chart's
+/// `du × dv` is the plane's normal, and this is [`plane_outward_normal`]'s
+/// flip.
+pub(crate) fn chart_outward_normal<T: Real>(
+    chart_normal: Vec3<T>,
+    sense: bool,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(chart_normal, sense)
+}
+
+/// The OUTWARD normal of a carrier at a point on it, from its implicit
+/// gradient ([`geom_brep::implicit_gradient`]) with `sense` folded in —
+/// the by-value door for a reader that holds a surface and the bit
+/// rather than a face (a trace's crossing sense). On a plane the
+/// gradient is the plane's normal and this is [`plane_outward_normal`]'s
+/// flip. Nothing here certifies `p` onto the surface; that gate is
+/// [`face_outward_normal_at`]'s.
+pub(crate) fn surface_outward_normal<T: Real>(
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    sense: bool,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(geom_brep::implicit_gradient(surface, p), sense)
 }
 
 /// A planar face's OUTWARD normal — the chart normal with the face's
@@ -306,10 +338,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             }
             cone_axis_clearance(*apex, *axis, p, band)?;
             match on {
-                Ok(_) => Ok(Some(OutwardNormal::from_chart(
-                    geom_brep::implicit_gradient(surface, p),
-                    f.sense,
-                ))),
+                Ok(_) => Ok(Some(surface_outward_normal(surface, p, f.sense))),
                 Err(diag) => Err(NormalAtError::Escalated {
                     decision: NormalDecision::OnSurface,
                     diag,
@@ -349,26 +378,65 @@ fn face_nappe_or_double<T: Decide>(
     }
 }
 
-/// **Whether `p` stands definitely off a cone's axis**, the one place
-/// the boolean decides it has a normal at a point of a cone face. The
-/// implicit gradient is `0/0` on the axis, and the apex is the axis
-/// point ON the surface, so a point of the surface within the band of
-/// the axis has no tangent plane to read: `Zero` and in band refuse
-/// alike ([`NormalAtError::AtConeApex`]). The test is the distance off
-/// the axis, not off the apex: on a cone of half-angle `α` it refuses
-/// surface points up to `band / sin α` along the generator from the
-/// apex, which on a needle cone is a long way.
+/// Where a point of a cone face stands against the cone's axis
+/// ([`cone_point`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ConePoint {
+    /// Definitely off the axis: the face has a tangent plane there.
+    OffAxis,
+    /// Within the band of the axis, but definitely not at the apex: the
+    /// gradient reads, ill-conditioned (on a needle cone this reaches
+    /// `band / sin α` along a generator).
+    NearAxis,
+    /// At the apex, to the band: the face has no tangent plane there.
+    Apex,
+}
+
+/// **Where `p` stands against a cone's axis**: its distance off the axis
+/// (`cone_off_axis`, metres), and where that is not definitely positive,
+/// its distance from the apex (`cone_at_apex`, metres). The one test of
+/// a point of a cone face for the crate's readers of a normal there
+/// ([`cone_axis_clearance`], which refuses both of the last two, and
+/// [`crate::sector_face::resolve`], which reads the apex as its rulings
+/// and only the apex). The implicit gradient is `0/0` on the axis, and
+/// the apex is the axis point ON the surface.
+///
+/// # Errors
+///
+/// The escalation of either reading.
+pub(crate) fn cone_point<T: Decide>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<ConePoint, geom_core::Indeterminate> {
+    let q = p - apex;
+    let radial = q - axis * q.dot(axis);
+    // An off-axis reading in the band reads on: the apex test below
+    // decides whether the point is the apex or only near the axis.
+    if let Ok(Sign::Positive) = decide("cone_off_axis", Margin::norm3(radial), band) {
+        return Ok(ConePoint::OffAxis);
+    }
+    Ok(match decide("cone_at_apex", Margin::norm3(q), band)? {
+        Sign::Positive | Sign::Negative => ConePoint::NearAxis,
+        Sign::Zero => ConePoint::Apex,
+    })
+}
+
+/// [`cone_point`] as the pierce door reads it: a point with no
+/// tangent plane, definitely or in band, has no normal to answer with
+/// ([`NormalAtError::AtConeApex`]).
 pub(crate) fn cone_axis_clearance<T: Decide>(
     apex: Point3<T>,
     axis: Vec3<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<(), NormalAtError> {
-    let q = p - apex;
-    let radial = q - axis * q.dot(axis);
-    match decide("bool_cone_off_axis", Margin::norm3(radial), band) {
-        Ok(Sign::Positive) => Ok(()),
-        Ok(Sign::Zero | Sign::Negative) | Err(_) => Err(NormalAtError::AtConeApex { band }),
+    match cone_point(apex, axis, p, band) {
+        Ok(ConePoint::OffAxis) => Ok(()),
+        Ok(ConePoint::NearAxis | ConePoint::Apex) | Err(_) => {
+            Err(NormalAtError::AtConeApex { band })
+        }
     }
 }
 
@@ -528,7 +596,7 @@ mod tests {
         };
         body.lifting_rechart_refusals_for_tests(|body| {
             body.set_face_surfaces_describing(
-                vec![crate::Rechart::new(cone, face, true)],
+                vec![crate::construction::Rechart::new(cone, face, true)],
                 &[],
                 Tol::witness(),
             )
@@ -832,19 +900,40 @@ mod tests {
         // Each a genuinely signed SCALAR, negated at its point of use
         // as D6 spells it: a jet curvature measured along the plus
         // face's outward normal, the sphere's radial flux term
-        // `R·Area`, a witness's implicit residual read as its height
-        // above the face, a loop's chart-frame area, an offset distance
-        // into the material.
+        // `R·Area` and a closed surface's whole flux, a witness's
+        // implicit residual read as its height above the face, a loop's
+        // chart-frame area, an offset distance into the material.
         let sanctioned: Vec<(String, String)> = [
             ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
+            // A closed surface's whole flux, three times the volume it
+            // encloses, for a face whose chart image is empty.
+            ("crates/geom-brep/src/props/curved.rs", "enclosed"),
             ("crates/geom-brep/src/props/curved.rs", "radial"),
             ("crates/mesh/src/walk.rs", "area"),
             ("crates/topo/src/boolean/contact_verify.rs", "r"),
+            // The quarter-turn that rotates a line edge's chart direction
+            // toward its face, in the plane's chart frame.
+            ("crates/topo/src/injective.rs", "1.0"),
+            // A face's side of an iso edge's line, as the sign of the held
+            // chart coordinate.
+            ("crates/topo/src/injective.rs", "side"),
             ("crates/topo/src/shell.rs", "thickness"),
         ]
         .into_iter()
         .map(|(f, a)| (f.to_string(), a.to_string()))
         .collect();
+        // Pinned red, NOT sanctioned: hand folds main carries while the
+        // row that owns their repair is open, so the repair landing reds
+        // here too and strikes them
+        // (`work/tess/main-red-trimmed-rs-folds-the-face-sense-by-hand.md`).
+        let pinned = [
+            ("crates/mesh/src/trimmed.rs", "1.0"),
+            ("crates/mesh/src/trimmed.rs", "area"),
+            ("crates/mesh/src/trimmed.rs", "radial"),
+        ];
+        let mut expected = sanctioned;
+        expected.extend(pinned.map(|(f, a)| (f.to_string(), a.to_string())));
+        expected.sort();
         let mut hits = Vec::new();
         let mut walked = 0usize;
         for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
@@ -875,11 +964,12 @@ mod tests {
         );
         hits.sort();
         assert_eq!(
-            hits, sanctioned,
-            "a value is negated by hand under a face's sense bit outside the sanctioned \
-             scalar negations. A NORMAL folds through `OutwardNormal::from_chart` or a \
-             `face_normal` door; a genuinely signed scalar is named in this row's list \
-             with what it negates."
+            hits, expected,
+            "the hand folds under a face's sense bit are not `sanctioned` plus `pinned`. \
+             A hit on neither list: a NORMAL folds through `OutwardNormal::from_chart` or \
+             a `face_normal` door, and a genuinely signed scalar joins `sanctioned` with \
+             what it negates. A `pinned` hit gone: its row's repair landed, so strike it \
+             from `pinned`."
         );
     }
 

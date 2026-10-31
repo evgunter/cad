@@ -2,11 +2,10 @@
 //!
 //! A Python `Evaluation` is the immutable (document, evaluation) pair
 //! captured at `evaluate`, and a document's product is a pure function
-//! of that pair and the run's tolerance. Four bound doors want one —
-//! `run_checks`, `assemble`, `product` and `product_named` — and every
-//! one of them used to gather for itself, so a caller asking two
-//! questions of one evaluation paid for two gathers of the same
-//! answer. This module is where that answer is computed once and kept.
+//! of that pair and the run's tolerance. Three bound doors want one —
+//! `run_checks`, `product` and `product_named` — and this module is
+//! where that answer is computed once and kept, so a caller asking
+//! several questions of one evaluation pays for one gather.
 //!
 //! **The memo is OF the evaluation, and gathers from the document the
 //! evaluation captured.** A Python `Doc` is mutable and its identity
@@ -163,46 +162,30 @@ pub fn checks_report(
     }
 }
 
-/// **`assemble`'s body**: the A5 gate over a CLONE of the memoized
-/// product.
-///
-/// `assemble_gathered` consumes what it is handed, and the memo has to
-/// outlive the call so a later `run_checks` still finds it. The clone
-/// is what buys that, and it is measured: at the heat sink's 160-fin
-/// point (161 solids / 991 faces) it costs about 2% of the gather it
-/// replaces, so keeping the product is cheaper than re-earning it by
-/// two orders of magnitude.
-pub fn assembly(
-    memo: &ProductMemo,
-    doc: &d::ProfileDoc,
-    evaluation: &d::Evaluation<f64>,
-    tol: Tol,
-) -> Result<d::Assembly<f64>, d::AssemblyError> {
-    match memo.with(doc, evaluation, tol, |product| {
-        clone_product(product, doc, evaluation, tol)
-    }) {
-        Ok(product) => d::assemble_gathered(product, tol),
-        // The kernel's own wrapper over a refused gather: it still
-        // checks each new space's copies by themselves, then raises the
-        // gather's refusal.
-        Err(_) => d::assemble(doc, evaluation, tol),
-    }
-}
-
-/// **`product`'s body**: the memoized product's aggregate body.
+/// **`product`'s body**: the memoized product's aggregate body, as it
+/// stands in the world ([`pncad::export::product_body_in_space`]).
 pub fn body(
     memo: &ProductMemo,
     doc: &d::ProfileDoc,
     evaluation: &d::Evaluation<f64>,
     tol: Tol,
 ) -> Result<topo::Body<f64>, d::ProductError> {
-    memo.with(doc, evaluation, tol, |product| {
-        topo::Body::clone(&product.body)
-    })
+    memo.with(doc, evaluation, tol, |product| standing(product, doc, tol))?
 }
 
-/// **`product_named`'s body**: the aggregate and the names its entities
-/// answer to, in the product's own table order.
+/// The product's body composed into the world through the façade's
+/// read-out door, which builds the gather's `Frame` refusal itself.
+fn standing(
+    product: &d::Product<f64>,
+    doc: &d::ProfileDoc,
+    tol: Tol,
+) -> Result<topo::Body<f64>, d::ProductError> {
+    pncad::export::product_body_in_space(product, doc, tol).map(std::borrow::Cow::into_owned)
+}
+
+/// **`product_named`'s body**: the aggregate as it stands in the world
+/// and the names its entities answer to, in the product's own table
+/// order.
 pub fn body_and_names(
     memo: &ProductMemo,
     doc: &d::ProfileDoc,
@@ -210,42 +193,9 @@ pub fn body_and_names(
     tol: Tol,
 ) -> Result<(topo::Body<f64>, Vec<pncad::prelude::StableName>), d::ProductError> {
     memo.with(doc, evaluation, tol, |product| {
-        (
-            topo::Body::clone(&product.body),
+        Ok((
+            standing(product, doc, tol)?,
             product.names.iter().map(|(name, _)| name.clone()).collect(),
-        )
-    })
-}
-
-/// A product copied field for field, its `⊔`s gathered again.
-///
-/// Spelled out rather than derived: [`d::Product`] is the kernel's
-/// type and a `Clone` on it is the kernel's decision, while a struct
-/// literal here fails to compile the day the gather grows a field —
-/// which is the loud version of the same guarantee. The `⊔`s are the
-/// kernel's own gather of them ([`d::assemble_gathers`]) rather than a
-/// copy: a refused `⊔` holds a gather refusal, which is not `Clone`.
-fn clone_product(
-    product: &d::Product<f64>,
-    doc: &d::ProfileDoc,
-    evaluation: &d::Evaluation<f64>,
-    tol: Tol,
-) -> d::Product<f64> {
-    d::Product {
-        document: product.document,
-        body: product.body.clone(),
-        names: product.names.clone(),
-        contacts: product.contacts.clone(),
-        coincidences: product.coincidences.clone(),
-        cited_inputs: product.cited_inputs.clone(),
-        census: product.census.clone(),
-        solid_copies: product.solid_copies.clone(),
-        copies: product.copies.clone(),
-        gap_assertions: product.gap_assertions.clone(),
-        carried_interference: product.carried_interference.clone(),
-        carried_at_rest: product.carried_at_rest.clone(),
-        assembles: d::assemble_gathers(doc, evaluation, tol, doc.product()),
-        pieces: product.pieces.clone(),
-        parts: product.parts,
-    }
+        ))
+    })?
 }

@@ -24,6 +24,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};
+use topo::construction::Construct;
 
 use geom_brep::EdgeDescription;
 use geom_core::{Arc2, Bounds, Interval, Point2, Real, Tol};
@@ -629,10 +630,10 @@ fn a_lofted_one_segment_section_is_one_spline_wall_with_a_wrap_strut() {
         let one = sweep::loft_body::<f64>(&[section.clone(), section.clone()], &places, 1, tol())
             .unwrap_or_else(|e| panic!("{what}: the loft builds: {e}"));
         tiers(&one.body, what);
-        let [wall] = one.side_faces[li][..] else {
+        let [wall] = one.side_faces[li][0][..] else {
             panic!("{what}: one wall, got {:?}", one.side_faces[li]);
         };
-        let [strut] = one.seam_edges[li][..] else {
+        let [strut] = one.seam_edges[li][0][..] else {
             panic!("{what}: one strut, got {:?}", one.seam_edges[li]);
         };
         assert_eq!(
@@ -1153,7 +1154,7 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
     let wall_key = body
         .set_face_surface_unvouched_for_tests(
             wall,
-            topo::FaceSurface::New {
+            topo::construction::FaceSurface::New {
                 surface: geom::Surface::Nurbs(std::sync::Arc::new(tube)),
                 sense: true,
             },
@@ -1212,14 +1213,15 @@ fn a_moved_closed_walls_wrap_edge_is_a_row_of_its_fit() {
 }
 
 /// **A one-segment strut runs its column back without rounding a knot.**
-/// The wall's `u = 0` column carries the sections' chord-length
-/// parameters, and on many of these stacks some have no reflection
-/// about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not one; refusing
-/// those would stop 4 equal sections at degree 1, `[0, 1, 3]` at
-/// degree 1, and 6, 7 and 8 sections at several degrees), so the strut
+/// At degree ≥ 2 the wall's `u = 0` column carries the sections'
+/// chord-length parameters, and on many of these stacks some have no
+/// reflection about `[0, 1]` that is an `f64` (`1 − fl(1/3)` is not
+/// one; refusing those would stop 6, 7 and 8 sections at several
+/// degrees), so the strut
 /// is the column reflected through 0: on `[−1, 0]`, the column's knots
 /// negated. Every stack builds at every degree up to 3 it supports,
-/// and each strut's carrier is exactly that.
+/// and each strut's carrier is exactly that, on each slab's wall at
+/// degree 1.
 #[test]
 fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
     let stacks: Vec<Vec<f64>> = [&[0.0, 1.0, 3.0][..], &[0.0, 0.7, 2.0]]
@@ -1244,29 +1246,36 @@ fn a_one_segment_strut_runs_its_column_back_on_the_negated_knots() {
             .collect();
         let lofted = sweep::loft_body::<f64>(&sections, &places, degree, tol())
             .unwrap_or_else(|e| panic!("{z:?} at degree {degree}: the loft builds: {e}"));
-        let [(wall, strut)] = wrap_edges(&lofted.body)[..] else {
-            panic!("{z:?}: one wrap edge")
-        };
-        let Some(topo::CurveGeom::Certified(c)) = lofted
-            .body
-            .get_curve_geom(lofted.body.get_edge(strut).unwrap().curve)
-        else {
-            panic!("{z:?}: the strut is certified")
-        };
-        let geom::Curve3::Nurbs(carrier) = c.carrier() else {
-            panic!("{z:?}: the strut is a spline")
-        };
-        let Some(geom::Surface::Nurbs(chart)) = lofted
-            .body
-            .get_surface(lofted.body.get_face(wall).unwrap().surface)
-        else {
-            panic!("{z:?}: the wall is a spline chart")
-        };
-        assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
+        // A degree-1 stack is one wall per slab, each with its strut.
+        let wraps = wrap_edges(&lofted.body);
+        let slabs = if degree == 1 { z.len() - 1 } else { 1 };
         assert_eq!(
-            carrier.knots_f64_interim().knots(),
-            chart.knots_v_f64_interim().negated().knots(),
-            "{z:?}: the strut's knots are the column's, negated"
+            wraps.len(),
+            slabs,
+            "{z:?} at degree {degree}: a wrap edge per wall"
         );
+        for (wall, strut) in wraps {
+            let Some(topo::CurveGeom::Certified(c)) = lofted
+                .body
+                .get_curve_geom(lofted.body.get_edge(strut).unwrap().curve)
+            else {
+                panic!("{z:?}: the strut is certified")
+            };
+            let geom::Curve3::Nurbs(carrier) = c.carrier() else {
+                panic!("{z:?}: the strut is a spline")
+            };
+            let Some(geom::Surface::Nurbs(chart)) = lofted
+                .body
+                .get_surface(lofted.body.get_face(wall).unwrap().surface)
+            else {
+                panic!("{z:?}: the wall is a spline chart")
+            };
+            assert_eq!(c.params(), (-1.0, 0.0), "{z:?}: the strut's interval");
+            assert_eq!(
+                carrier.knots_f64_interim().knots(),
+                chart.knots_v_f64_interim().negated().knots(),
+                "{z:?}: the strut's knots are the column's, negated"
+            );
+        }
     }
 }

@@ -33,10 +33,9 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
-use topo::{
-    AtRestBody, Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite, ValidationError,
-    validate_geometric,
-};
+use topo::construction::Construct;
+use topo::construction::{FaceSurface, MefSite, MevSite};
+use topo::{AtRestBody, Body, EdgeKey, FaceKey, ValidationError, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()

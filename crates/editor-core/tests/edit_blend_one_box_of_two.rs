@@ -93,7 +93,7 @@ fn blend_one_box(
         2,
         "{label}: a disjoint union is two solids"
     );
-    let selection: Vec<StableName> = named(t, body, true)
+    let selection: Vec<StableName> = named(t, &body, true)
         .into_iter()
         .filter(|(_, k)| matches!(k, EntityKey::Edge(_)))
         .map(|(n, _)| n)
@@ -103,7 +103,7 @@ fn blend_one_box(
         12,
         "{label}: box a's twelve edges, by name"
     );
-    let carried = named(t, body, false);
+    let carried = named(t, &body, false);
     assert_eq!(
         carried.len(),
         6 + 12 + 8,
@@ -121,7 +121,7 @@ fn blend_one_box(
     assert_eq!(body.solids().count(), 2, "{label}: still two solids");
     let v = topo::test_support::pinned_volume(
         "closed-form mass properties",
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
         tol(),
     )
     .volume;
@@ -147,7 +147,7 @@ fn blend_one_box(
             )
         })
         .collect();
-    let mut after = named(t, body, false);
+    let mut after = named(t, &body, false);
     after.sort_by(|x, y| x.0.cmp(&y.0));
     let mut want = carried;
     want.sort_by(|x, y| x.0.cmp(&y.0));

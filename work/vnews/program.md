@@ -4,7 +4,7 @@ kind: program
 title: VNEWS — the viewer's news vocabulary
 status: ready
 opened: 2026-09-17
-area: gui
+group: gui/viewer
 prefix: vnews/
 tag: (VNEWS orchestrator)
 ab_band: 5200-5299
