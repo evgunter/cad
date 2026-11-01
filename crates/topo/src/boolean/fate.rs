@@ -611,7 +611,7 @@ enum Holds {
 ///
 /// Where `d` leaves along a bound at first order, its side of that bound
 /// is read one order down off the two bends
-/// ([`super::sectors::bend_parting`], with `û` the unit in-plane
+/// ([`geom_brep::parting`], with `û` the unit in-plane
 /// direction square to the bound into the corner), at the lever that
 /// bound's first-order sign is read at: from both sides where a reach is
 /// known only so, a verdict only where the two agree and their straddle
@@ -644,7 +644,7 @@ fn corner_holds<T: Decide>(
         crate::validate::decide_at_lever(
             ("bool_fate_corner_bend", "bool_fate_corner_bend_straddle"),
             lever,
-            |l| super::sectors::bend_parting((k, kb), u, l),
+            |l| geom_brep::parting((k, kb), u, l),
             band,
         )
         .map(Some)

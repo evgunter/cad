@@ -1167,11 +1167,9 @@ pub(super) fn tangent_relative_side<T: Decide>(
 ) -> Result<SideCode, BooleanError> {
     let n_ref = other_outward.vec();
     let d_hat = d.normalize();
-    let graph_accel = |s| geom_brep::implicit_graph_acceleration(s, p, d_hat, n_ref);
-    let rel_accel = graph_accel(sector_surface) - graph_accel(other_surface);
-    match geom_brep::enters_material_order2(
-        n_ref * rel_accel,
-        T::one(),
+    let bend = |s| n_ref * geom_brep::implicit_graph_acceleration(s, p, d_hat, n_ref);
+    match geom_brep::parting_side(
+        (bend(sector_surface), bend(other_surface)),
         geom_brep::ReferenceNormal::of_face_outward(other_outward),
         arm,
         band,
@@ -1960,27 +1958,12 @@ pub(super) fn faces_at<T: Decide>(
     Ok(out)
 }
 
-/// **How far a curve leaving a vertex stands past another it leaves
-/// tangent to, one order down**, at arc length `l` along their shared
-/// tangent: `(κ − κ_b)·û·l²/2`, with `κ` and `κ_b` the two curvature
-/// vectors and `û` the unit in-plane direction square to the tangent
-/// toward the side read. Positive where the curve with `κ` stands past
-/// the one with `κ_b` toward `û`. Its sign does not depend on `l`, which
-/// sets only the size the margin is decided at.
-pub(super) fn bend_parting<T: geom_core::Real>(
-    (k, kb): (Vec3<T>, Vec3<T>),
-    u: Vec3<T>,
-    l: T,
-) -> Margin<T> {
-    Margin::of((k - kb).dot(u) * l.powi(2) / (T::one() + T::one()))
-}
-
 /// **Whether an edge leaving the vertex along `dir`, coplanar with `s`,
 /// runs into its face**: within the sector and along neither of its
 /// bounds that is an edge of the face, or, along one of them, bending
 /// into the face off it one order down: along a bound, the edge enters
 /// the face where it stands past the bound toward `s`
-/// ([`bend_parting`], decided at the shorter reach). A bound or an edge
+/// ([`geom_brep::parting`], decided at the shorter reach). A bound or an edge
 /// with no bend to read (a fitted edge, a bisector) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
@@ -2014,7 +1997,7 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let entered = bend_parting((k, kb), u, l.min(lb));
+        let entered = geom_brep::parting((k, kb), u, l.min(lb));
         return Ok(
             decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
@@ -2175,7 +2158,7 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 /// its bound toward `û`, the unit in-plane direction square to the
 /// shared direction into `a`, and `b` on the other side of its own, the
 /// two overlap from the vertex where `b`'s bound stands past `a`'s
-/// toward `û` ([`bend_parting`]). A line edge bends by zero, so two line
+/// toward `û` ([`geom_brep::parting`]). A line edge bends by zero, so two line
 /// edges read none; a fitted edge or a bisector reads no bend, and a
 /// pair holding one reads no crescent. Equal bends (one circle bounding
 /// both) read none.
@@ -2256,7 +2239,7 @@ fn crescent<T: Decide>(
             {
                 continue;
             }
-            let opened = bend_parting((kb, ka), u, l);
+            let opened = geom_brep::parting((kb, ka), u, l);
             if decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive {
                 return Ok(true);
             }
