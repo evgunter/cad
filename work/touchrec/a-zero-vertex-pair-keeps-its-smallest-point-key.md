@@ -2,11 +2,12 @@
 id: a-zero-vertex-pair-keeps-its-smallest-point-key
 kind: issue
 title: A vertex pair the boolean decides Zero moves onto its smallest live point key, an arena-order choice, not the glue's kept side
-status: dispatched
+status: review
 opened: 2026-10-27
 priority: P1
 cost: M
 branch: touchrec/kept-side-reads-the-glue
+pr: 6210
 ---
 
 
