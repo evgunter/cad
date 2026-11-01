@@ -302,3 +302,12 @@ Signed: (CARVE orchestrator)
   - **Now decided rather than turned away at the door:** the arc spine past a full turn, CONTACTHOLD's closed spine and CARVETAIL's loft read `Violated`, all real crossings checked by hand. The long helix holds again. Receipts for faces already admitted are unchanged.
   - **The review.** A single FULL review at `ae2561ad94` returned APPROVE-WITH-FIXES. M5b (min-side only) and M6 (a poison half narrows) survived. The fix pass (`4dfb0439`) added max-side ribbons and the `narrows` finiteness rule with its row, built the real x = 1 bow-tie wall, and made `arc_spine_places` one shared fixture. The orchestrator read it and accepted it.
   - **Main red during the unit:** #6200's blend rewording, filed under CHROME as P0 (#6222) and fixed by #6227.
+- 2026-11-01 — **SLIVER merges (#6229)** with this commit last.
+  - **The cause.** `restricted_jet` divided by a cell's few-ulp overlap with the next knot span, so rounding became slope at every depth.
+  - **The fix.** `SpanRow::restrict_derivative` (geom-core) takes the derivative across the span's own knots, then restricts. `rect_jet` and `span_deriv` read through it. It decides nothing and adds no ε.
+  - **Rows.** The curl walls hold, and REFINES's short-of-a-turn row now holds at the default budget.
+  - **The review.** A single FULL review at `80e5fcc1eb` returned **APPROVE**. It ran 1.4M exact-oracle checks with 0 misses, and every mutant was killed. A cleanup pass (`905cfeb4`) widened the fuzzer to cells and knots a few ulps off, which now catches lax shape (a); un-skipped wall 4v1; and filed the follow-ups. The orchestrator read it and accepted it.
+  - **Filed:**
+    - `restrict-derivative-widens-on-a-few-ulp-knot-span` (P3);
+    - CLEARTAIL's `derivative-bernstein-row-over-a-sub-interval-has-three-homes` (P3);
+    - **`rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot` (P2).** It was found by the widened fuzzer and is pre-existing. At a knot of multiplicity ≥ the degree, a cell ending on the knot drops the one-point meet, so its jet misses the derivative `ders` reads from the next span. It awaits a ruling on `a <= b`, which would widen jets at every p-fold knot.

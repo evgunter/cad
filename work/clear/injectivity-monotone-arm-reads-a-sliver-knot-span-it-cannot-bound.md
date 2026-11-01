@@ -2,10 +2,11 @@
 id: injectivity-monotone-arm-reads-a-sliver-knot-span-it-cannot-bound
 kind: issue
 title: A NURBS wall whose interior knot sits a few ulps off a bisection point never certifies against itself: the cell beside the knot restricts to a sliver span, rect_jet's degree/length scaling blows its Jacobian hull up, and the monotone arm splits that iso line until the pair budget runs out
-status: review
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: M
+closed: 2026-11-01
 ---
 
 
