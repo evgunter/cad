@@ -28,6 +28,13 @@ lump's bottom edge), either union order. `y` is the box
 of its face": 16 cells per pose, at every pose of
 `test_support::meeting::poses`, at ε default, 1e-6 and 1e-12.
 
+The same, 4 cells per pose each (one op per partner, both union
+orders), at rest, turned and flipped and
+turned, at all three ε, with the S `[1, 2] × [0.3, 0.7] × [1, 2]` (its
+whole bottom edge inside the box's top edge) and `[1, 2] × [0, 2] ×
+[1, 2]` (the box's top edge inside its bottom edge), the partner
+`[−0.5, 2.5] × [−0.5, 1.5]` over `[1, 1.5]` or `[0.5, 1]`.
+
 ## Cause
 
 The refusing site is the fate cut's pierced corner (`fate::cut`, the
