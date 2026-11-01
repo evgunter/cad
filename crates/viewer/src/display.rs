@@ -1060,6 +1060,29 @@ impl DisplayState {
         }
     }
 
+    /// **The frame an "Add part…" gesture writes for `space`**,
+    /// holding `node`: display metadata of the kind a free-move commits
+    /// (IDENTITY DI5), written by the session where its gesture's
+    /// history step puts it ([`crate::session::DocSession`]).
+    pub(crate) fn place_space(&mut self, space: VarId, node: RecipeNodeId, frame: Frame) {
+        self.moves.insert(space, Moved { frame, node });
+        self.revision += 1;
+    }
+
+    /// **The frame of `space` taken back with the gesture that wrote
+    /// it**: an undo of an insert takes the frame the insert wrote, which
+    /// is no withdrawal — nobody's frame is lost.
+    pub(crate) fn take_space_frame(&mut self, space: VarId, frame: Frame) {
+        if self
+            .moves
+            .get(&space)
+            .is_some_and(|held| held.frame == frame)
+        {
+            self.moves.remove(&space);
+            self.revision += 1;
+        }
+    }
+
     /// Hide or show the body `node` builds.
     ///
     /// # Errors

@@ -454,7 +454,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
         .expect("the third instance's wall is under this ray");
     assert_eq!(
         face.node,
-        common::copy_of(session.committed_doc(), third),
+        common::drawn_node(session.committed_doc(), third),
         "the youngest instance's copy is hit"
     );
     session.perform(SessionOp::Select(Selection::Face(face.clone())));

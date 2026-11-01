@@ -221,3 +221,9 @@ Newest entries at the bottom; the tail is the program's live status.
   `a-family-placed-into-an-instances-space-hides-that-space` (PR 6265,
   merged ahead of 6269). Its dual-review row rides 6265 as its last
   commit. (SPACES orchestrator)
+- 2026-11-01 — PR 6265 merged (`5b462518`) after the merge lane reconciled
+  DOORS' 6262 (one pick-body rule) with its copy→body door: `copy_source`
+  stays the one copy→body home, 6262's `read_body` answers a plain read.
+  `a-new-body-lands-unplaced` closed with its four carried rows (PR 6269,
+  merged right after). The product door and the View pane toggles are in
+  flight on cloud lanes. (SPACES orchestrator)
