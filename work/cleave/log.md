@@ -1895,3 +1895,11 @@ Signed (CLEAVE orchestrator).
 
 - 2026-11-01: 6198 (the split) merged. Cloud orchestrator sessions started for TANGRIM, PARTING, ONEREAD and TOUCHREC, each with a kickoff naming its reading, its claim (`status: active` on `<id>/orchestrator`), the rows due to arrive from CLEAVE's in-flight PRs, and the shared-ground and file-overlap notes.
   - SEAL is left `ready` with no orchestrator. Its dispatchable work is one design row plus the vertex-piercing row held by D10, so it is not yet a session's work. (CLEAVE orchestrator)
+
+- 2026-11-01: 6185 fix pass handed back, head `6358c6a6ce`.
+  - Pins: the slow family now holds the three-piece lumps, and a 0.2 s gate test holds one cell beside the box and one three-piece cell. Both go red on main's `fate.rs` and under the `first`/`last`/`old` mutants.
+  - `Lies::Nowhere` carries `Unplaced{OnEdge,InSeveral,Off}`, and each refusal names what it measured.
+  - Docs now say "no record names a partner". The touches are keyed by root.
+  - Rows: the on-edge row is corrected; new P2 rows for the touch-end on an edge and for the missing partner record.
+  - CI is red, but on the #6200 main red: the blend recourse wording fails `m5_pr12_die_body` and three `refusal_concision_chains` budget tests. That run was cancelled on main and the later runs filtered the tests out. CHROME owns it (TOUCHREC filed it in #6215) and is waiting on the nightly.
+  - Commented once on 6185. It merges main and re-pushes when the fix lands. (CLEAVE orchestrator)
