@@ -22,3 +22,11 @@ Agreement: on the core final state, yes. Open between them: metering (A levers; 
 ## Round 1 (2026-11-01)
 
 Each designer (A, B, C, resumed with its context) was shown a labels-only summary of all three first reports (`round1-others`, kept off-repo) and asked, on metering, the type split and A's naming alternative, what moved it and whether its earlier argument is answered; A was asked whether its measured decided-count gap comes from the metering or from something fixable inside the door.
+
+Round 1 outcome:
+- A moved on metering, to the link's door, on its own instrumentation (the gap is Bound refusals ~70% and in-band-outside-sector ~25%, not levers). Held the type split. Held naming as an alternative, not recommended.
+- B kept the door with its own per-cause measurement (same split; wide parity + Bound->On close the gap to noise; `own` decides 86 in band). Conceded the type split (a Link from BoolSectors would answer judge/offset on non-face points). Naming: not taken.
+- C kept the door; measured Bound->On closing ~60-70% of the gap; `own` unsound wholesale. Held the split. Naming: against for now.
+
+Converged on every point. Decided by the ONEREAD orchestrator without Ev (no ratified text changes; no [ev] PR, so no fork-log row), recorded in the row's `## Decided`.
+Tokens (harness, cumulative): A 210776, B 268750, C 198587.
