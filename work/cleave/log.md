@@ -1854,3 +1854,15 @@ Signed (CLEAVE orchestrator).
   - A multi-face plug nests whole in `outermost_survivor`, across the mergeable adjacency.
   - Witnesses cover the steep wedge-beside cells, which need `tie_winding` over `best_arc`, and the diagonal `Merge` cells, in both union orders at three ε.
   - It filed a P3 row for the two remaining `PinchRaysInAFace` arms, and a dated note on honeone's germ-order row. (CLEAVE orchestrator)
+- 2026-11-01 — PR 6177 reviewed (claims and style). Changes requested.
+  - The claims lane verified all three fixes are load-bearing, and the 206 → SOUND diff holds (214 merged with main, including 5852's 8 cells). Nothing ships invalid.
+  - The 4 S7 unions 5793 moved are right bodies (closed-form volume, 400/400 samples), which the census can't certify (`CensusUndecidable{MayOverlap}`). They are the same on main.
+  - Blocking:
+    - B1: the slow pin `a_boss_over_a_hole_by_pose` goes red. The flush coplanar bottoms now refuse `SectionLoopUndecided`.
+    - B2: conflicts with main.
+  - Should-fix:
+    - The diff hid 16 + 32 refusal-kind changes.
+    - `closed_on_partner` is a second, one-midpoint reader beside `slit::carrier_on_surface`, and disagrees with `closed_reach` on `Outside`.
+    - Two fallbacks still use the old site-record reading.
+    - `place_strut` copies `join_lone_ring`'s promotion.
+  - Fix pass sent. (CLEAVE orchestrator)
