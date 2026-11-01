@@ -158,6 +158,7 @@ REGISTER=(
   "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
   "crates/topo/src/boolean/ops.rs|face_boundary_meets||1|unaudited"
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_arcs||1|unaudited"
+  "crates/topo/src/sector_shape.rs|of||1|audited: a lone-vertex loop holds no half-edge, so no half-edge its loop follows by its own mate: it has no wrap tip to read, and the slit pairs above are read off edges, not loops"
   "crates/topo/src/stands.rs|face_loops||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|boundary_point||1|audited: the discarded variant is refused by name — an outer loop with no cycle has no boundary point, and the arm returns CorruptFace for the face"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"

@@ -608,11 +608,13 @@ impl SlitTips {
                 else {
                     continue;
                 };
-                let cycle = body
-                    .loop_cycle(first)
-                    .unwrap_or_else(|| unreachable!("{lk:?}: an at-rest loop walks"));
-                let wrap = crate::surface_boundary::tips(body, &cycle)
-                    .unwrap_or_else(|| unreachable!("{lk:?}: an at-rest loop's mates resolve"));
+                let cycle = body.loop_walk(first).closed("loop", first);
+                let wrap = crate::surface_boundary::tips(body, &cycle).unwrap_or_else(|| {
+                    unreachable!(
+                        "{lk:?}'s walk names a half-edge whose mate does not resolve: on a \
+                         tier-1-valid body every half-edge has its mate"
+                    )
+                });
                 wraps.extend(wrap.into_iter().map(|v| (v, f)));
             }
         }
