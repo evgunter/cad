@@ -30,3 +30,10 @@ AUTHOR's narrative is recoverable from
   - `face-pick-cannot-name-which-face` is re-priced from legacy D to M. Its names-layer blocker is in (`names::words::leaf_role`).
 
   The track then weighed about 52 against 30, so it was **cut along its seam**. HELD (`work/held/`) takes the nine rows on what the viewer holds, marks and reads back: held picks, committed-node marks, authored picks, read-back frames, `moves_of` and the sketch preview. That is 23 points, top P2, `ready`. DOORS keeps the takeover and the rulings' doors, at 29 points. Re-aimed three citations (`sketch.rs`, `pane/viewport.rs`, PROFILETAIL's close-from-a-tip row). Plan rewritten. Sitting: the P0 rebind, the extrude side and the face words as three lanes, and designers on the clearance consumer.
+- 2026-11-01 — (DOORS orchestrator) Dispatched:
+  - `doors/take-over-rebinds`, the P0 rebind. Tier: style review plus a correctness reviewer.
+  - `doors/extrude-side` (P1). Tier: style review.
+  - `doors/face-words` (P1). Tier: style review.
+  - The designers on `the-gui-has-no-clearance-consumer`: a three-designer arm, A, B and C, drawn per `docs/DESIGN-FORK-PROTOCOL.md`; the bytes are on `analysis/design-fork/doors-clearance-consumer`.
+
+  All three lanes run on this box. That is 4 vCPU and about 28 GB of disk, under the one build slot, with hosted CI as the record.
