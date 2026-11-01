@@ -3626,12 +3626,14 @@ mod tests {
     /// `Out`.
     #[test]
     fn a_needle_wedge_is_read_off_its_rays_bisector() {
-        let p = Point3::new(1.0, 0.500_000_03, 0.5);
+        // The channel 30ε across, at the session's ε.
+        let w = 30.0 * geom_core::Tol::witness().get().eps;
+        let p = Point3::new(1.0, 0.5 + w, 0.5);
         let (y, tip) = (
             Point3::new(1.0, 0.8, 0.5),
-            Point3::new(1.0, 0.500_000_045_000_000_1, 0.500_000_03),
+            Point3::new(1.0, 0.5 + 1.5 * w, 0.5 + w),
         );
-        let far = Point3::new(0.0, 0.500_000_03, 0.5);
+        let far = Point3::new(0.0, 0.5 + w, 0.5);
         let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
             outward,
             apex: p,
@@ -3642,10 +3644,7 @@ mod tests {
             [
                 fan(Vec3::new(1.0, 0.0, 0.0), vec![y, tip]),
                 fan(Vec3::new(0.0, 0.0, -1.0), vec![far, y]),
-                fan(
-                    Vec3::new(0.0, -0.894_427_190_999_915_7, 0.447_213_595_499_957_87),
-                    vec![tip, far],
-                ),
+                fan(Vec3::new(0.0, -2.0, 1.0).normalize(), vec![tip, far]),
             ],
             Vec::new(),
         )
