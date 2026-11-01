@@ -6430,6 +6430,84 @@ mod tests {
         (tangent.normalize() * extent, Reach::Conic { extent, bend })
     }
 
+    /// **The split walk and the boolean read one edge's side of a plane
+    /// alike**, each by its own path on one body: the split's
+    /// [`crate::splitting::entry_side`] (the walk's departure read off the
+    /// body) and the vertex-on-face pass's [`pierce_side`] of the bound
+    /// [`build_sectors`] built. The rim is the oblique wall's closed
+    /// ellipse ([`crate::test_support_fixtures::oblique_rim_wall`]), its
+    /// two departures along `±y` at the vertex `(1, 0, tan φ)`. Planes
+    /// through the vertex square to `y` tie at first order and are read
+    /// by the side the rim bends to; tilted ones decide at first order.
+    #[test]
+    fn the_split_walk_and_the_boolean_read_one_edges_side_alike() {
+        let b = band();
+        let (body, _, vertex) = crate::test_support_fixtures::oblique_rim_wall(0.3);
+        let sectors = build_sectors(
+            &body,
+            Operand::A,
+            vertex,
+            &crate::sector_shape::SlitTips::default(),
+            b,
+        )
+        .unwrap();
+        let orbit = body.vertex_orbit_linked(vertex);
+        let (mut read, mut descended) = (0, 0);
+        for a in (0..12).map(|k| f64::from(k) * core::f64::consts::TAU / 12.0 + 0.05) {
+            for lift in [0.0, 0.3, -0.3] {
+                let n = Vec3::new(a.cos(), lift, a.sin()).normalize();
+                for &he in &orbit {
+                    let (dir, split) = crate::splitting::entry_side(
+                        &body,
+                        vertex,
+                        he,
+                        geom_brep::ReferenceNormal::of_split_plane(n),
+                        |_| Err::<crate::splitting::PlaneSide, ()>(()),
+                        b,
+                    )
+                    .unwrap();
+                    let (bound, reach) = sectors
+                        .iter()
+                        .flat_map(|s| [(s.start, s.start_reach), (s.end, s.end_reach)])
+                        .find(|(d, r)| {
+                            matches!(r, Reach::Conic { .. })
+                                && d.normalize().dot(dir.normalize()) > 1.0 - 1e-12
+                        })
+                        .expect("a sector bound along the walk's departure");
+                    let boolean = pierce_side(
+                        bound,
+                        reach,
+                        OutwardNormal::from_chart(n, true),
+                        FaceShape::Plane,
+                        NO_CURVATURE(),
+                        b,
+                    )
+                    .unwrap();
+                    let want = match split {
+                        crate::splitting::PlaneSide::Below => SideCode::In,
+                        crate::splitting::PlaneSide::Above => SideCode::Out,
+                        crate::splitting::PlaneSide::On => SideCode::On,
+                    };
+                    assert_eq!(
+                        boolean.code, want,
+                        "n = {n:?}, departure {dir:?}: the boolean reads {boolean:?}, \
+                         the split {split:?}"
+                    );
+                    read += 1;
+                    if boolean.tied && boolean.code != SideCode::On {
+                        descended += 1;
+                    }
+                }
+            }
+        }
+        assert_eq!(read, 72, "every plane read at both departures");
+        assert!(
+            descended >= 8,
+            "the planes square to the departures tie and are read one order \
+             down ({descended} were)"
+        );
+    }
+
     /// **A conic tangent to a face's plane at the vertex reads the side
     /// it bends to, where the first order reads it On.** The arc's far
     /// end stands a whole radius off the plane, on the side it bends

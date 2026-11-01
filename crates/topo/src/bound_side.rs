@@ -553,41 +553,6 @@ mod tests {
         (tangent.normalize() * extent, Reach::Conic { extent, bend })
     }
 
-    /// **The split's plane and a face's plane read one bound alike**: the
-    /// reading the split walk takes (a reference side, no charge) and
-    /// the one the boolean's vertex-on-face pass takes (an outward
-    /// normal, a plane's lever) give one verdict for every bound, at
-    /// first order where it decides and one order down where it ties.
-    #[test]
-    fn a_split_plane_and_a_face_plane_read_one_bound_alike() {
-        let b = band();
-        let z = Vec3::new(0.0, 0.0, 1.0);
-        let split = FaceDatum::of_plane(ReferenceNormal::of_split_plane(z));
-        let face = FaceDatum::of_face(
-            OutwardNormal::from_chart(z, true),
-            FaceShape::Plane,
-            f64::MAX,
-        );
-        let down = Vec3::new(0.0, 0.0, -1.0);
-        let up = Vec3::new(0.0, 0.0, 1.0);
-        let side_y = Vec3::new(0.0, 1.0, 0.0);
-        let cases = [
-            (quarter_arc(down, 0.0), BoundSide::Tangent(Side::Below)),
-            (quarter_arc(up, 0.0), BoundSide::Tangent(Side::Above)),
-            // Bending against its tilt: first order decides.
-            (quarter_arc(down, 0.2), BoundSide::Off(Side::Above)),
-            (quarter_arc(up, -0.2), BoundSide::Off(Side::Below)),
-            // Bending within the plane: the whole edge lies in it.
-            (quarter_arc(side_y, 0.0), BoundSide::Rides),
-        ];
-        for ((dir, reach), want) in cases {
-            let by_split = read_side(dir, reach, split, b).unwrap();
-            let by_face = read_side(dir, reach, face, b).unwrap();
-            assert_eq!(by_split, want, "the split's reading of {dir:?}");
-            assert_eq!(by_face, want, "the face's reading of {dir:?}");
-        }
-    }
-
     /// **A tie is kept whole at first order and descended on asking**: a
     /// line in the plane rides it, and a tie against a curved face is
     /// not read one order down.
