@@ -1,7 +1,9 @@
 //! **The E7 clearance engine's body-level half**: the inner subdivision
-//! of two sets of faces' GEOMETRY domains, which answers `separation ≥
-//! c` as a trichotomy ([`Sweep`]) and "what IS the minimum separation"
-//! as a certified bracket ([`min_separation`]).
+//! of two sets of faces' GEOMETRY domains, which answers a separation
+//! bounded below, above or both as a trichotomy ([`Sweep`]), the two
+//! bounds classified together in one subdivision. "What IS the minimum
+//! separation" is a certified bracket ([`min_separation`]) no
+//! evaluation asks: a clearance is a requirement, decided at its bounds.
 //!
 //! It reads a body, the proximity tree and the carriers, and nothing
 //! else. Which document, node or parameter box a body came from is the
@@ -4342,14 +4344,6 @@ pub struct ClearanceLane<T: Decide> {
     ) -> BoundReport<()>,
     /// [`Candidate::on_face_stations`].
     face_stations: fn(Candidate<'_, '_, T>) -> (Stations, Stations),
-    /// [`min_separation`].
-    min_separation: fn(
-        &Side<'_, T>,
-        &Side<'_, T>,
-        bool,
-        Band,
-        Budgets,
-    ) -> Result<MinSeparation, MinSeparationRefusal>,
 }
 
 impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
@@ -4361,7 +4355,6 @@ impl<T: Decide + CertifiedBounds> ClearanceLane<T> {
             windows: Self::windows_of,
             bound_sweep: Self::sweep_of,
             face_stations: Self::stations_of,
-            min_separation: min_separation::<T>,
         }
     }
 
@@ -4447,30 +4440,6 @@ impl<T: Decide> ClearanceLane<T> {
     pub fn on_face_stations(self, candidate: Candidate<'_, '_, T>) -> (Stations, Stations) {
         (self.face_stations)(candidate)
     }
-
-    /// [`min_separation`], at this lane, with its bracket re-entered as
-    /// a value of `T`: the hull of `T::from_computed` of each end. At
-    /// `Interval` that is [`MinSeparation::enclosure`]; at a symbolic
-    /// scalar each end is its own unknown, so two measures with equal
-    /// brackets are never proved equal. `None` when the bracket has no
-    /// upper end ([`MinSeparation::hi`]).
-    ///
-    /// # Errors
-    ///
-    /// [`min_separation`]'s own.
-    pub fn min_separation(
-        self,
-        a: &Side<'_, T>,
-        b: &Side<'_, T>,
-        same_body: bool,
-        band: Band,
-        budgets: Budgets,
-    ) -> Result<Option<T>, MinSeparationRefusal> {
-        let m = (self.min_separation)(a, b, same_body, band, budgets)?;
-        Ok(m.hi.map(|hi| {
-            geom_core::SpanLocate::enclosure_hull(T::from_computed(m.lo), T::from_computed(hi))
-        }))
-    }
 }
 
 /// **The door's WIRING**: which function each field of
@@ -4479,7 +4448,7 @@ impl<T: Decide> ClearanceLane<T> {
 /// module doc.
 #[cfg(test)]
 mod wiring_rows {
-    use super::{ClearanceLane, min_separation};
+    use super::ClearanceLane;
 
     /// `Ok(())` when every field holds its door; otherwise the name of
     /// the first field that does not.
@@ -4503,12 +4472,6 @@ mod wiring_rows {
             ClearanceLane::<T>::stations_of as fn(_) -> _,
         ) {
             return Err("face_stations is not `Candidate::on_face_stations`");
-        }
-        if !std::ptr::fn_addr_eq(
-            lane.min_separation,
-            min_separation::<T> as fn(_, _, _, _, _) -> _,
-        ) {
-            return Err("min_separation is not `min_separation`");
         }
         Ok(())
     }
