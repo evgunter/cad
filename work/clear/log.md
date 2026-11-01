@@ -288,3 +288,8 @@ Signed: (CARVE orchestrator)
     - CLEARTAIL's `one-home-for-the-clearance-witness-verifier` (P3).
   - **The spec's curved twin and box rows** are pinned to their typed upstream refusals: OFFSET's arc-necked extrude row, and `shell_moved_walls_overlap`.
   - **Not a handback.** CARVE filed four CLEAR rows at P0 on 2026-10-31 (`6d2622ba97`), parking its embedding certificate on them. CLEAR still has dispatchable P0 work, so the sitting goes on.
+- 2026-11-01 — **SEAMDIAG merges (#6224)** with this commit last. It is a diagnosis unit; the orchestrator read it and accepted it. The parent row is parked on the two causes it found, each filed P0 with a fix shape:
+  - **Twisted seams.** `graph_of` subtracts heading perpendiculars normalised before the along-edge part is dropped. So for two cells offset along a seam, the farther face weighs less, and at a dihedral cosine above `|hy⊥|/|hx⊥|` both faces read one side. The fix is the bisector, two lines, measured by SEAMDIAG: all four seams hold in about 0.2 s. HEADING is dispatched.
+  - **Cap corners.** No reading presents a plane cap at a corner of two arcs. The carrier arm would certify it, but it reads the wall's zero side through the centred form over a rational spline net. That is second order in the cell, so it decides only at depth 51–73. ZEROSIDE is dispatched to read the side off its own control points.
+  - **`m8_14`'s half-turn helix** no longer reproduces on main; it is pinned as holding.
+  - **Rows pinned** at both scalars (the tour rows at f64). HEADING and ZEROSIDE flip them.
