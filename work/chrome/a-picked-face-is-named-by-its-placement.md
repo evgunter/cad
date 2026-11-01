@@ -5,6 +5,7 @@ title: a picked face is named by its placement and body index, not by what it is
 status: open
 opened: 2026-10-31
 priority: P2
+cost: M
 ---
 
 

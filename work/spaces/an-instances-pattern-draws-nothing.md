@@ -5,6 +5,7 @@ title: a pattern with output instances commits a family no product reads, so not
 status: open
 opened: 2026-10-31
 priority: P0
+cost: M
 ---
 
 ## Finding

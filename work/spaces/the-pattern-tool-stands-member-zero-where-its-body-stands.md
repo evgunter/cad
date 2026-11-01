@@ -4,6 +4,8 @@ kind: issue
 title: The viewer's unfused pattern tool stands member 0 where its body stands, so the first copy is drawn over the original
 status: open
 opened: 2026-10-28
+priority: P1
+cost: M
 ---
 
 Found in INTENT stage 3 G (PR 5954), disclosed there for review.

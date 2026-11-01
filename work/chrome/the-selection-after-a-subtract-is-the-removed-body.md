@@ -5,6 +5,7 @@ title: after a subtract commits, the selection is the removed body rather than t
 status: open
 opened: 2026-10-31
 priority: P3
+cost: E
 ---
 
 

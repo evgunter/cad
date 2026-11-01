@@ -5,6 +5,7 @@ title: a face picked on an instance is named by the part file's node, which the 
 status: open
 opened: 2026-10-31
 priority: P2
+cost: M
 ---
 
 ## Finding

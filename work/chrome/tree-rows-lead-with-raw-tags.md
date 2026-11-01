@@ -5,6 +5,7 @@ title: tree rows lead with a raw tag and repeat the kind
 status: open
 opened: 2026-10-31
 priority: P2
+cost: E
 ---
 
 

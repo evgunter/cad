@@ -5,6 +5,8 @@ title: after one feature fails, later edits commit and read Ok but nothing is dr
 status: open
 opened: 2026-10-31
 priority: P0
+cost: H
+design: true
 ---
 
 ## Finding
