@@ -1928,9 +1928,13 @@ operation rather than a second test beside it, following
 `pane::create`'s catalogue entry (*carrying the op's own refusal, read
 off the entry, not minted here*). That the two cannot come to disagree
 is held by `gesture_table.rs`'s
-`a_closed_door_says_what_its_own_operation_refuses`, which performs
-each door's operation with no gesture open and compares both the
-rendering and the variant. **And reachable at every window width**:
+`a_door_is_closed_exactly_when_its_own_operation_refuses`, which
+performs each door's operation with no gesture open and compares both
+the rendering and the variant. **The controls that stand at rest keep
+the other posture** — disabled rather than absent, saying their
+refusal: Undo and Redo (`Refusal::nothing_to_step`), Open…, Save and
+Save As… with no chooser backend, and a part-chooser entry that cannot
+be picked (the open document's own file). **And reachable at every window width**:
 the toolbar is laid out `horizontal_wrapped`, so a window narrower than
 the row gets a second line rather than a clipped one — a clipped
 control is not small, it is gone, and for these two that would mean no

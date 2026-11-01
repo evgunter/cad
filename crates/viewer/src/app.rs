@@ -1595,14 +1595,14 @@ impl ViewerApp {
         self.checks_shown = open;
     }
 
-    /// The toolbar row: the controls the chrome keeps drawn in every
-    /// state, the two gesture cancel doors among them.
+    /// The toolbar row: the document's controls, and the two gesture
+    /// cancel doors while their gestures are in flight.
     ///
     /// **Wrapped, not one line.** A non-wrapping row is laid out on
     /// one line and clipped, so a window narrower than the row's
     /// natural width does not shrink the right-hand end — it puts it
-    /// out of reach, with nothing saying so. The two cancel doors sit
-    /// there, and a cancel door is the ONE exit from a state in which
+    /// out of reach, with nothing saying so. A cancel door in flight
+    /// sits in this row, and it is the ONE exit from a state in which
     /// every other operation refuses [`Refusal::GestureInFlight`],
     /// which is why it is in the panel that is always drawn. Wrapping
     /// costs a second line only at widths where the alternative was a
@@ -1745,10 +1745,11 @@ impl ViewerApp {
                 }
             }
             ui.separator();
-            // **The history controls**, drawn the way the cancel
-            // doors below are: the refusal the step would be answered
-            // with decides both whether the button is live and what it
-            // says while it is not (`Refusal::nothing_to_step`). These
+            // **The history controls**, drawn at rest as well, and
+            // disabled rather than absent when they can do nothing: the
+            // refusal the step would be answered with decides both
+            // whether the button is live and what it says while it is
+            // not (`Refusal::nothing_to_step`). These
             // two buttons are the only hand that pushes
             // `SessionOp::Undo` or `SessionOp::Redo`, so a sentence
             // they do not show is one no reader ever meets — and the
@@ -1962,31 +1963,23 @@ impl ViewerApp {
             //
             // A combo lays itself out at the cursor whether the row has
             // room or not (`egui`'s `button_frame` takes the rect before
-            // the wrap), so the wrapping row is asked first: a picker
-            // that would run past the edge starts the next line.
-            let spacing = ui.spacing();
-            let picker_width = egui::WidgetText::from(chosen.name)
-                .into_galley(
-                    ui,
-                    Some(egui::TextWrapMode::Extend),
-                    f32::INFINITY,
-                    egui::TextStyle::Button,
-                )
-                .size()
-                .x
-                + spacing.icon_width
-                + spacing.item_spacing.x
-                + 2.0 * spacing.button_padding.x;
-            if ui.available_size_before_wrap().x < picker_width {
+            // the wrap), so the wrapping row is asked first, against the
+            // width the picker took when it was last drawn: a picker that
+            // would run past the edge starts the next line.
+            let picker_id = ui.id().with("viewer_theme_width");
+            let last_width: Option<f32> = ui.ctx().data(|data| data.get_temp(picker_id));
+            if last_width.is_some_and(|width| ui.available_size_before_wrap().x < width) {
                 ui.end_row();
             }
-            egui::ComboBox::from_id_salt("viewer_theme")
+            let picker = egui::ComboBox::from_id_salt("viewer_theme")
                 .selected_text(chosen.name)
                 .show_ui(ui, |ui| {
                     for theme in Theme::ALL {
                         ui.selectable_value(&mut *chosen, *theme, theme.name);
                     }
                 });
+            let width = picker.response.rect.width() + ui.spacing().item_spacing.x;
+            ui.ctx().data_mut(|data| data.insert_temp(picker_id, width));
             // **Beside the picker, not in the badge row above**:
             // it is the only badge that is about a control rather
             // than about the document or the picture, and a
@@ -3414,11 +3407,8 @@ mod tests {
     /// it.
     ///
     /// **Three controls, hand-listed, and that is this row's blind
-    /// spot.** `gesture_table.rs`'s
-    /// `a_closed_door_says_what_its_own_operation_refuses` walks
-    /// `DocSession::cancel_doors`, so a fifth cancel door is held the
-    /// day it is added. There is no such value here — a toolbar's
-    /// disabled controls are not enumerable — so a fourth control
+    /// spot.** A toolbar's disabled controls are not enumerable, so a
+    /// fourth control
     /// added to `toolbar_ui` is not caught by this row. The instrument
     /// that finds one is the `add_enabled` sweep
     /// (`crates/viewer/README.md`, the disabled-control rule), and the
@@ -5576,7 +5566,12 @@ mod properties_pane_tests {
         }]);
         driven.click(NEW_VARIABLE_COMMIT);
         assert!(
-            driven.app.session.committed_doc().var_named("gap").is_none(),
+            driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("gap")
+                .is_none(),
             "refused while the drag is in flight"
         );
         assert!(
@@ -5586,7 +5581,12 @@ mod properties_pane_tests {
         driven.app.perform_batch(vec![SessionOp::CancelGesture]);
         driven.click(NEW_VARIABLE_COMMIT);
         assert!(
-            driven.app.session.committed_doc().var_named("gap").is_some(),
+            driven
+                .app
+                .session
+                .committed_doc()
+                .var_named("gap")
+                .is_some(),
             "declared"
         );
         assert!(
