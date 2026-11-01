@@ -1068,3 +1068,230 @@ fn a_point_beside_one_torus_window_reads_in_the_face_at_the_certified_scalar() {
         }
     }
 }
+
+// ===================== REVIEW PROBE (PR 6244) =====================
+mod review_probe_6244 {
+    use super::*;
+    use geom_core::{Band, Interval};
+    use std::fmt::Write as _;
+
+    fn revolved_ex<T: Scalar>(loops: &[&[(f64, f64, f64)]], rev: Option<f64>) -> Option<Body<T>> {
+        let ls = loops
+            .iter()
+            .map(|pts| {
+                bulge_loop(
+                    pts.iter()
+                        .map(|&(x, y, b)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b)))
+                        .collect(),
+                )
+            })
+            .collect();
+        let profile = Profile::new(SketchPlane::xy(), ls).validate(tol()).ok()?;
+        let r = match rev {
+            None => Revolution::Full,
+            Some(a) => Revolution::Partial(T::from_f64(a)),
+        };
+        Some(
+            revolve(
+                &profile,
+                RevolveAxis {
+                    origin: Point2::new(T::zero(), T::zero()),
+                    dir: Vec2::new(T::zero(), T::one()),
+                },
+                r,
+                tol(),
+            )
+            .ok()?
+            .body,
+        )
+    }
+
+    type Win = ((f64, f64), (f64, f64));
+
+    struct Case {
+        name: &'static str,
+        loops: Vec<Vec<(f64, f64, f64)>>,
+        rev: Option<f64>,
+        wins: Vec<Win>,
+    }
+
+    fn cases() -> Vec<Case> {
+        let donut = vec![vec![(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]];
+        let hollow = vec![
+            vec![(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)],
+            vec![(1.5, 0.0, -1.0), (2.5, 0.0, -1.0)],
+        ];
+        // tube angle +-0.8 around the outer side: arc from (2+cos.8, -sin.8) to (2+cos.8, sin.8) through (3,0)
+        let (c8, s8) = (0.8f64.cos(), 0.8f64.sin());
+        let band = vec![vec![(2.0 + c8, -s8, (0.4f64).tan()), (2.0 + c8, s8, 0.0)]];
+        let band_r = vec![vec![(2.0 + c8, -s8, -(0.4f64).tan()), (2.0 + c8, s8, 0.0)]];
+        // quarter fillet: inner equator (1,0) to top (2,1)
+        let q = (core::f64::consts::FRAC_PI_8).tan();
+        let fillet = vec![vec![(1.0, 0.0, -q), (2.0, 1.0, 0.0), (2.0, 0.0, 0.0)]];
+        let fillet_r = vec![vec![(1.0, 0.0, q), (2.0, 1.0, 0.0), (2.0, 0.0, 0.0)]];
+        let mut v = Vec::new();
+        let w1 = ((-0.5, 0.5), (-0.4, 0.4));
+        for (name, loops) in [("donut", donut.clone()), ("hollow", hollow), ("band", band), ("band_r", band_r), ("fillet", fillet), ("fillet_r", fillet_r)] {
+            v.push(Case { name, loops: loops.clone(), rev: None, wins: vec![] });
+            v.push(Case { name, loops: loops.clone(), rev: Some(4.5), wins: vec![] });
+            v.push(Case { name, loops: loops.clone(), rev: Some(-2.0), wins: vec![] });
+        }
+        let dn = |name, wins| Case { name, loops: donut.clone(), rev: None, wins };
+        v.push(dn("d-one", vec![w1]));
+        v.push(dn("d-hair1", vec![((-0.5, 0.5), (-1.0, -0.001)), ((-0.5, 0.5), (0.001, 1.0))]));
+        v.push(dn("d-hair3", vec![((-0.5, 0.5), (-1.0, -0.003)), ((-0.5, 0.5), (0.003, 1.0))]));
+        v.push(dn("d-hair-asym", vec![((-0.5, 0.5), (-1.0, -0.002)), ((-0.4, 0.6), (0.0005, 1.0))]));
+        v.push(dn("d-rimtop", vec![((-0.5, 0.5), (0.0, 1.0)), ((-0.5, 0.5), (-1.0, -0.002))]));
+        v.push(dn("d-rimtop1", vec![((-0.5, 0.5), (0.0, 1.0))]));
+        v.push(dn("d-nearrim", vec![((-0.5, 0.5), (1.2, 1.5698))]));
+        v.push(dn("d-nested", vec![((-0.6, 0.6), (-0.6, 0.6)), ((-0.3, 0.3), (-0.3, 0.3))]));
+        v.push(dn("d-wide", vec![((-1.5, 1.5), (-0.4, 0.4))]));
+        v.push(dn("d-widehair", vec![((-1.5, 1.5), (-1.0, -0.001)), ((-1.5, 1.5), (0.001, 1.0))]));
+        v.push(dn("d-azgap", vec![((-0.5, -0.001), (-0.4, 0.4)), ((0.001, 0.5), (-0.4, 0.4))]));
+        v.push(dn("d-tiny", vec![((-0.5, 0.5), (-1e-4, 1e-4))]));
+        v.push(dn("d-lowtube", vec![((-0.5, 0.5), (-1.5, -1.0)), ((-0.5, 0.5), (1.0, 1.5))]));
+        v
+    }
+
+    fn build<T: Scalar>(c: &Case) -> Option<(Body<T>, Vec<FaceKey>)> {
+        let loops: Vec<&[(f64, f64, f64)]> = c.loops.iter().map(|l| l.as_slice()).collect();
+        let at_f64 = revolved_ex::<f64>(&loops, c.rev)?;
+        let mut body = revolved_ex::<T>(&loops, c.rev)?;
+        if !c.wins.is_empty() {
+            let (face64, frame) = wall(&at_f64, is_torus);
+            let face = same_face(&at_f64, face64, &body);
+            for &(us, ss) in &c.wins {
+                plant(&mut body, face, frame, us, ss);
+            }
+        }
+        let tori: Vec<FaceKey> = body
+            .faces()
+            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Torus { .. })))
+            .map(|(k, _)| k)
+            .collect();
+        Some((body, tori))
+    }
+
+    fn torus_point(s: &Surface<f64>, u: f64, v: f64) -> Point3<f64> {
+        let Surface::Torus { center, axis, major_radius, minor_radius, u_ref } = *s else { panic!() };
+        let e2 = axis.cross(u_ref);
+        let rad = u_ref * u.cos() + e2 * u.sin();
+        center + rad * (major_radius + minor_radius * v.cos()) + axis * (minor_radius * v.sin())
+    }
+
+    fn points(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
+        let s = body.get_surface(body.get_face(face).unwrap().surface).unwrap().clone();
+        let mut us: Vec<f64> = (0..26).map(|i| -core::f64::consts::PI + i as f64 * core::f64::consts::TAU / 26.0 + 0.0123).collect();
+        us.extend([0.0, core::f64::consts::PI, -core::f64::consts::PI, 0.5, -0.5, 1e-7, -1e-7, core::f64::consts::PI - 1e-7, core::f64::consts::FRAC_PI_2, 2.0, -2.0, 4.5, 4.5 - 1e-7]);
+        let mut vs: Vec<f64> = (0..31).map(|i| -core::f64::consts::PI + i as f64 * core::f64::consts::TAU / 31.0 + 0.0071).collect();
+        vs.extend([0.0, core::f64::consts::FRAC_PI_2, -core::f64::consts::FRAC_PI_2, core::f64::consts::PI, 0.8, -0.8, 0.8 + 1e-3, 0.8 - 1e-3]);
+        // the donut frame: face middle is the top, s -> tube v via shift; add window-ish tube angles around the top
+        for d in [0.0, 0.0005, 0.001, 0.002, 0.003, 0.004, -0.0005, -0.001, -0.002, -0.003, 0.4, -0.4, 1.0, -1.0, 0.3, -0.3, 0.6, -0.6] {
+            vs.push(core::f64::consts::FRAC_PI_2 + d);
+        }
+        let mut out = Vec::new();
+        for &u in &us {
+            for &v in &vs {
+                out.push(torus_point(&s, u, v));
+            }
+        }
+        out
+    }
+
+    fn answer<T: Scalar>(body: &Body<T>, f: FaceKey, q: Point3<f64>, band: Band) -> String {
+        match topo::curved_face_containment(body, f, pt::<T>(q), band) {
+            Ok(Some(topo::FaceContainment::In)) => "In".into(),
+            Ok(Some(topo::FaceContainment::Out)) => "Out".into(),
+            Ok(Some(topo::FaceContainment::OnEdge(_))) => "OnEdge".into(),
+            Ok(Some(topo::FaceContainment::OnVertex(_))) => "OnVertex".into(),
+            Ok(None) => "None".into(),
+            Err(e) => {
+                let s = format!("{e:?}");
+                format!("Err:{}", s.split(['(', ' ', '{']).next().unwrap_or(""))
+            }
+        }
+    }
+
+    #[test]
+    #[ignore]
+    fn review_differential() {
+        let band = Band::linear(tol()).unwrap();
+        let mut log = String::new();
+        for c in cases() {
+            let (Some((b64, tori)), Some((biv, tiv))) = (build::<f64>(&c), build::<Interval>(&c)) else {
+                writeln!(log, "{} {:?} BUILD-FAIL", c.name, c.rev).unwrap();
+                continue;
+            };
+            let v64 = format!("{:?}", topo::validate_geometric_structural(&b64, tol()).map_err(|e| e.len()));
+            let viv = format!("{:?}", topo::validate_geometric_structural(&biv, tol()).map_err(|e| e.into_iter().map(|e| format!("{e:?}").chars().take(160).collect::<String>()).collect::<Vec<_>>()));
+            writeln!(log, "V {} {:?} f64={} iv={}", c.name, c.rev, v64, viv).unwrap();
+            for (fi, (&f, &fiv)) in tori.iter().zip(&tiv).enumerate() {
+                for (pi, q) in points(&b64, f).into_iter().enumerate() {
+                    let a = answer(&b64, f, q, band);
+                    let b = answer(&biv, fiv, q, band);
+                    writeln!(log, "P {}|{:?}|{}|{} {} {} {:?}", c.name, c.rev, fi, pi, a, b, q).unwrap();
+                }
+            }
+        }
+        std::fs::write(std::env::var("PROBE_OUT").unwrap(), log).unwrap();
+    }
+
+    fn hair<T: Scalar>(g: f64) -> Result<(), Vec<ValidationError>> {
+        let at_f64 = donut::<f64>();
+        let (face64, frame) = wall(&at_f64, is_torus);
+        let donut = donut::<T>();
+        let face = same_face(&at_f64, face64, &donut);
+        let mut body = donut.clone();
+        plant(&mut body, face, frame, (-0.5, 0.5), (-1.0, -g));
+        plant(&mut body, face, frame, (-0.5, 0.5), (g, 1.0));
+        topo::validate_geometric_structural(&body, tol())
+    }
+
+    #[test]
+    #[ignore]
+    fn review_hair_rows() {
+        for g in [0.0005, 0.001, 0.003, 0.01, 1e-4, 1e-5] {
+            let a = hair::<f64>(g).map_err(|e| e.into_iter().map(|e| format!("{e:?}").chars().take(200).collect::<String>()).collect::<Vec<_>>());
+            let b = hair::<Interval>(g).map_err(|e| e.into_iter().map(|e| format!("{e:?}").chars().take(200).collect::<String>()).collect::<Vec<_>>());
+            println!("HAIR eps={} g={g} f64={a:?}\n   iv={b:?}", tol().eps());
+        }
+    }
+}
+
+mod review_probe_6244_b {
+    use super::*;
+    use geom_core::Interval;
+    fn wins<T: Scalar>(ws: &[((f64, f64), (f64, f64))]) -> Result<(), Vec<String>> {
+        let at_f64 = donut::<f64>();
+        let (face64, frame) = wall(&at_f64, is_torus);
+        let mut body = donut::<T>();
+        let face = same_face(&at_f64, face64, &body);
+        for &(us, ss) in ws {
+            plant(&mut body, face, frame, us, ss);
+        }
+        topo::validate_geometric_structural(&body, tol())
+            .map_err(|e| e.into_iter().map(|e| format!("{e:?}").chars().take(230).collect()).collect())
+    }
+    #[test]
+    #[ignore]
+    fn review_antipodal() {
+        let pi = core::f64::consts::PI;
+        let cases: Vec<(&str, Vec<((f64, f64), (f64, f64))>)> = vec![
+            ("antipodal-az", vec![((-1.2, -0.2), (-0.4, 0.4)), ((pi - 1.2, pi - 0.2), (-0.4, 0.4))]),
+            ("antipodal-az-tube", vec![((-1.2, -0.2), (-0.4, 0.4)), ((pi - 1.2, pi - 0.2), (0.6, 1.2))]),
+            ("antipodal-rim", vec![((-1.2, -0.2), (0.0, 0.5)), ((pi - 1.2, pi - 0.2), (-0.5, -0.1))]),
+            ("seam-opposite-meridian", vec![((-0.5, 0.0), (-0.4, 0.4))]),
+            ("hair-in-band-2e-6", vec![((-0.5, 0.5), (-1.0, -2e-6)), ((-0.5, 0.5), (2e-6, 1.0))]),
+            ("hair-in-band-2e-12", vec![((-0.5, 0.5), (-1.0, -2e-12)), ((-0.5, 0.5), (2e-12, 1.0))]),
+            ("hair-in-band-2e-9", vec![((-0.5, 0.5), (-1.0, -2e-9)), ((-0.5, 0.5), (2e-9, 1.0))]),
+            ("rim-hair", vec![((-0.5, 0.5), (0.0, 1.0)), ((-0.5, 0.5), (-1.0, -0.001))]),
+            ("az-hair-opp", vec![((-1.0, -0.001), (-0.4, 0.4)), ((0.001, 1.0), (-0.4, 0.4))]),
+            ("nested", vec![((-0.6, 0.6), (-0.6, 0.6)), ((-0.3, 0.3), (-0.3, 0.3))]),
+            ("nested-hair", vec![((-0.6, 0.6), (-1.0, 1.0)), ((-0.5, 0.5), (-0.003, 0.003))]),
+            ("overlap-hair", vec![((-0.5, 0.5), (-1.0, 0.003)), ((-0.5, 0.5), (-0.003, 1.0))]),
+        ];
+        for (n, ws) in cases {
+            println!("ANT eps={} {n}\n  f64={:?}\n  iv={:?}", tol().eps(), wins::<f64>(&ws), wins::<Interval>(&ws));
+        }
+    }
+}

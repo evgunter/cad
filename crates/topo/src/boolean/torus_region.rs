@@ -383,8 +383,8 @@ impl<T: Decide> TorusFaceRegion<T> {
             Margin::of(radius - self.major),
             band,
         ) {
-            Ok(Sign::Positive | Sign::Negative) => CircleFamily::Parallel,
-            Ok(Sign::Zero) | Err(_) => CircleFamily::Rim,
+            Ok(Sign::Positive | Sign::Negative) if mutant() != 7 => CircleFamily::Parallel,
+            Ok(_) | Err(_) => CircleFamily::Rim,
         }
     }
 
@@ -616,7 +616,7 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 // parallel too, and near the top or bottom circle in a
                 // near-double root whose margin is quadratic in the two
                 // parallels' distance.
-                let w = radial * radius;
+                let w = if mutant() == 1 { -(radial * radius) } else { radial * radius };
                 if let Some((theta, sideless)) = arc_place(
                     (edge.t0, edge.t1),
                     (w.dot(u_ref), w.dot(axis.cross(u_ref))),
@@ -780,13 +780,20 @@ fn arc_place<T: Decide>(
         Ok(at) => return Ok(at.map(|sideless| (theta, sideless))),
         Err(fault) => fault,
     };
+    if mutant() == 2 { return Err(fault); }
     let two = T::from_f64(2.0);
     let (mid, half) = ((t0 + t1) / two, (t1 - t0) / two);
     let from_mid = (x * mid.cos() + y * mid.sin()) / (x.powi(2) + y.powi(2)).sqrt();
     match decide(ROW, Margin::of(lever * (from_mid - half.cos())), band) {
-        Ok(Sign::Negative) => Ok(None),
+        Ok(Sign::Negative) if mutant() != 4 => Ok(None),
+        Ok(Sign::Positive) if mutant() == 4 => Ok(None),
+        _ if mutant() == 3 => Ok(None),
         _ => Err(fault),
     }
+}
+
+fn mutant() -> u32 {
+    std::env::var("REVIEW_MUT").ok().and_then(|v| v.parse().ok()).unwrap_or(0)
 }
 
 #[cfg(test)]
