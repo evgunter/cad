@@ -196,3 +196,29 @@ mod r1_mesh2_review_probes {
         }
     }
 }
+
+/// **The Klein loop's caps refuse where a wall seam meets them**
+/// (`work/clear/injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams.md`).
+/// The loop's section circle is split into four arcs, one per wall, so
+/// each cap is a plane bounded by four arcs of one circle. A cap cell
+/// holding a vertex where two arcs meet is read by no presentation; the
+/// wall's departure from the cap's plane decides it only on cells
+/// smaller than the depth budget reaches. Every cap–wall pair refuses
+/// so. The tour builds at `f64` only; the `Interval` twin of this
+/// locus is `self_intersection_proves_injectivity`'s lens-loft row.
+mod cap_corner_departure {
+    use crate::common::cap_corner::{assert_refuses_at_depth, cap_wall_pairs};
+    use demo_tour::klein::bottle;
+    use pncad::geom_core::Tol;
+
+    #[test]
+    fn each_cap_of_the_loop_refuses_departure_at_its_arc_vertices() {
+        let tol = Tol::witness();
+        let float = bottle::<f64>(tol).top;
+        let pairs = cap_wall_pairs(&float);
+        assert_eq!(pairs.len(), 8, "two caps against four walls: {pairs:?}");
+        for &pair in &pairs {
+            assert_refuses_at_depth("klein loop", &float, pair);
+        }
+    }
+}

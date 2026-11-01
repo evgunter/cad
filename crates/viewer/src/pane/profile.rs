@@ -1732,7 +1732,10 @@ mod tests {
         assert_eq!(row.source.as_deref(), Some("w"), "by the same expression");
         let moved = row_of(&session, profile, corner(3, StepArg::TargetY));
         assert_eq!(
-            moved.value.map(|value| value.as_f64()).ok(),
+            moved
+                .value
+                .map(|value| value.one().expect("one value").as_f64())
+                .ok(),
             Some(0.02),
             "the moved number landed"
         );
@@ -1765,7 +1768,12 @@ mod tests {
         let out = session.perform(formed.expect("Apply formed the op"));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         let row = row_of(&session, profile, slot);
-        assert_eq!(row.value.map(|value| value.as_f64()).ok(), Some(0.012));
+        assert_eq!(
+            row.value
+                .map(|value| value.one().expect("one value").as_f64())
+                .ok(),
+            Some(0.012)
+        );
         assert_eq!(
             row.unit,
             Some(pncad::quantity::MM.def()),

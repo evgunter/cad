@@ -70,3 +70,9 @@ Rows moved with `git mv` and keep their ids.
   - **Guard:** `every_rung_reads_the_operands_one_build_of_each_cell`.
   - **Next:** products-once with de Casteljau halving, then the cut becomes exact restriction (`analysis/design-fork/nurbs-quotient-cost`, converged). — (NURBS orchestrator)
 - 2026-10-25 — **Band rule (work/README.md, Priority):** `plane-nurbs-certificate-bound-does-not-refine-with-eps` (P1) un-parked from KNOT's P2 `f64-refinement-inside-an-enclosure-has-five-more-sites` and from PR 3524. It waited on site 5 (the convex form at `insert_once_ring`), which PR 3524 closed. The site still open there (`mesh/src/chords.rs`) plays no part in limb 2. The schedule-contract design question is now open to take, after the lerp-era table is re-taken. (band-rule triage)
+- 2026-11-01 — **Claimed** `the-nurbs-pair-boundary-pass-reports-no-side-or-corner-region` into `work/splice/` as the SSI half of SPLICE's NURBS × NURBS guard arm (PR 6171), closed there. SSI edits:
+  - `row_crossing` gains a width (`four::row_cover`; zero width is today's rim behaviour);
+  - `face_walk` skips pieces inside handed-in covers and corner cells (`four::covered`);
+  - the pair accounting accepts a cell covered by the union of region boxes (`SweepCell::covered_by`);
+  - new `SsiError::PairRowTangent`.
+  `the-nurbs-pair-boundary-pass-is-slow-beside-a-near-coincident-side-row` and `all-depends-on-the-branch-at-calls-before-it` are no different for it. — (SPLICE orchestrator)
