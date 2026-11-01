@@ -577,3 +577,248 @@ fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
         wrong.len()
     );
 }
+
+/// Review probe (PR 6168): a ray just INSIDE the tube at a rim's
+/// bottom or top point, along the parallel's tangent, where the tube is
+/// parabolic (`f ≈ −δ + s⁴/16`): its far exit root has `off·|n·d| ≈ 4δ`.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_rays_inside_a_rims_parabolic_point() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let clear = 10.0 * k_eps;
+    let (mut n, mut wrong, mut aside) = (0usize, Vec::new(), 0usize);
+    for turn in [1.25, 1.5, 1.75] {
+        let name = format!("torus {turn}π");
+        let (body, truth) = revolved(&name, tube(), Revolution::Partial(turn * PI), tol);
+        let fractions = [0.5];
+        let mut seen: Vec<f64> = Vec::new();
+        for f in topo::test_support::edge_frames(&body, &fractions, band) {
+            if !(f.label.starts_with("Circle") && f.label.contains("[Torus | Plane]")) {
+                continue;
+            }
+            let th = f.point.z.atan2(f.point.x);
+            if seen.iter().any(|s| (s - th).abs() < 1e-6) {
+                continue;
+            }
+            seen.push(th);
+            let tangent = Vec3::new(-th.sin(), 0.0, th.cos());
+            for ny in [-1.0, 1.0] {
+                // `ny` the outward normal's y at the point: bottom −1, top +1.
+                let b = Point3::new(2.0 * th.cos(), 0.5 * ny, 2.0 * th.sin());
+                for frac in [0.02, 0.05, 0.1, 0.15, 0.2, 0.24, 0.3, 0.5, 0.9] {
+                    let p = b - Vec3::new(0.0, ny, 0.0) * (frac * k_eps);
+                    for sgn in [-1.0, 1.0] {
+                        for a in [0.0, 1e-6, 3e-6, 1e-5, -1e-6, 1e-4] {
+                            let d = (tangent * sgn + Vec3::new(0.0, ny * a, 0.0)).normalize();
+                            for back in [8.0, 0.05] {
+                                n += 1;
+                                let q = p - d * back;
+                                match whole_ray(&body, f.face, (q, d), (&truth, false), band, clear) {
+                                    Err(w) => wrong.push(format!(
+                                        "{name} {} δ={frac}Kε sgn={sgn} a={a} back={back}: {w}",
+                                        f.label
+                                    )),
+                                    Ok(()) => {
+                                        if let Err(e) = topo::test_support::ray_counts(&body, f.face, (q, d), band, (0, false))
+                                        {
+                                            if aside < 12 {
+                                                eprintln!("ASIDE δ={frac} sgn={sgn} a={a} back={back} ny={ny}: {}", &e[..e.len().min(300)]);
+                                            }
+                                            aside += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("PROBE at ε {:e}: {} of {n} wrong, {aside} set aside", tol.eps(), wrong.len());
+    for w in &wrong {
+        eprintln!("  {w}");
+    }
+    assert!(wrong.is_empty());
+}
+
+/// Review probe (PR 6168): a near-full turn. A ray grazes rim A just
+/// outside the tube's bottom (top), crosses cap A's plane leaving the
+/// face's side, crosses the missing wedge, and dips into the tube
+/// near-tangent just past cap B: an entering root `off < r` from the
+/// passage, held by the face, with `off·|n·d| ≤ Kε` and a decided
+/// incidence. The rim's halves would pair the plane's exit with that
+/// entry.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_near_full_turn_tangent_entry_past_the_other_cap() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let clear = 10.0 * k_eps;
+    let (mut n, mut wrong, mut aside) = (0usize, Vec::new(), 0usize);
+    for turn in [1.9, 1.95, 1.97, 1.98, 1.99] {
+        let name = format!("torus {turn}π");
+        let Ok((body, truth)) = std::panic::catch_unwind(|| {
+            revolved(&name, tube(), Revolution::Partial(turn * PI), tol)
+        }) else {
+            eprintln!("{name}: no build");
+            continue;
+        };
+        let gap = (2.0 - turn) * PI;
+        let deep = |th: f64| truth(Point3::new(2.0 * th.cos(), 0.013, 2.0 * th.sin()));
+        let mut seen: Vec<f64> = Vec::new();
+        let mut face = None;
+        for f in topo::test_support::edge_frames(&body, &[0.5], band) {
+            if f.label.starts_with("Circle") && f.label.contains("[Torus | Plane]") {
+                let th = f.point.z.atan2(f.point.x);
+                face = Some(f.face);
+                if !seen.iter().any(|s| (s - th).abs() < 1e-6) {
+                    seen.push(th);
+                }
+            }
+        }
+        let face = face.expect("a torus face");
+        for &tha in &seen {
+            // The gap's side of cap A.
+            let sg = if deep(tha + 0.01) { -1.0 } else { 1.0 };
+            if !(deep(tha - 0.01 * sg) && !deep(tha + 0.01 * sg)) {
+                eprintln!("{name}: θA={tha} unclear: {} {} {} {}", deep(tha - 0.01), deep(tha + 0.01), truth(Point3::new(2.0,0.0,0.0)), truth(Point3::new(0.0,0.0,2.0)));
+                continue;
+            }
+            for ny in [-1.0f64, 1.0] {
+                for extra in [0.02, 0.04, 0.08] {
+                    let th1 = tha + sg * (gap + extra);
+                    let span = gap + extra;
+                    let off = 4.0 * (span / 2.0).sin();
+                    let kappa = 2.0 * (span / 2.0).sin().powi(2);
+                    for dfrac in [0.3, 0.9, 3.0, 30.0] {
+                        for m in [1.2, 1.5, 2.0, 2.2, 2.5, 3.0, 3.5, 4.0, 5.0, 8.0] {
+                            let slope = m * k_eps;
+                            let h = slope * slope / (2.0 * kappa);
+                            let a = Point3::new(2.0 * tha.cos(), 0.5 * ny, 2.0 * tha.sin())
+                                + Vec3::new(0.0, ny, 0.0) * (dfrac * k_eps);
+                            let p1 = Point3::new(2.0 * th1.cos(), 0.5 * ny, 2.0 * th1.sin())
+                                - Vec3::new(0.0, ny, 0.0) * h;
+                            let d = (p1 - a).normalize();
+                            for back in [8.0, 0.05] {
+                                n += 1;
+                                let q = a - d * back;
+                                match whole_ray(&body, face, (q, d), (&truth, false), band, clear) {
+                                    Err(w) => wrong.push(format!(
+                                        "{name} θA={tha:.4} ny={ny} extra={extra} δ={dfrac}Kε m={m} off={off:.3} back={back} q={q:?} d={d:?}: {w}"
+                                    )),
+                                    Ok(()) => {
+                                        if let Err(e) = topo::test_support::ray_counts(&body, face, (q, d), band, (0, false)) {
+                                            if back == 8.0 && dfrac > 1.0 && extra == 0.04 && ny < 0.0 && turn == 1.97 {
+                                                eprintln!("ASIDE2 {name} θA={tha:.3} m={m} off={off:.3}: {}", &e[..e.len().min(240)]);
+                                            }
+                                            aside += 1;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("PROBE2 at ε {:e}: {} of {n} wrong, {aside} set aside", tol.eps(), wrong.len());
+    for w in wrong.iter().take(40) {
+        eprintln!("  {w}");
+    }
+    assert!(wrong.is_empty());
+}
+
+/// Review probe (PR 6168): every corpus body's rays about its edges, as
+/// `rays_about_edges` casts them, each ray's reading written out line by
+/// line (read counts, set aside, or wrong) to `$REVIEW_OUT`, and a grid
+/// of `point_in_solid` readings against the analytic truth beside it, so
+/// base and head can be line-diffed.
+#[test]
+#[ignore = "review probe"]
+fn review_probe_corpus_readings() {
+    use std::io::Write;
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let clear = 10.0 * k_eps;
+    let path = std::env::var("REVIEW_OUT").expect("REVIEW_OUT");
+    let mut out = std::io::BufWriter::new(std::fs::File::create(path).expect("out"));
+    let mut rng = test_utils::fuzz::Rng::from_seed(0x6168_0001);
+    let (mut n, mut wrong, mut aside) = (0usize, 0usize, 0usize);
+    let (mut pn, mut pwrong, mut prefused) = (0usize, 0usize, 0usize);
+    for (name, body, truth) in corpus(tol) {
+        let reverted = body.revert().expect("the body reverts");
+        for (inside_out, b) in [(false, &body), (true, &reverted)] {
+            let fractions: Vec<f64> = (0..4).map(|_| rng.range(0.02, 0.98)).collect();
+            for f in topo::test_support::edge_frames(b, &fractions, band) {
+                let p = f.point
+                    + f.into * (rng.range(-3.0, 3.0) * k_eps)
+                    + f.normal * (rng.range(-3.0, 3.0) * k_eps);
+                let along = f.normal.cross(f.into);
+                let random = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+                let shallow = f.into * rng.range(-1.0, 1.0)
+                    + along * rng.range(-1.0, 1.0)
+                    + f.normal * rng.range(-0.02, 0.02);
+                let inside_chord = along + f.normal * rng.range(-0.01, 0.01);
+                for (kind, d) in [("random", random), ("shallow", shallow), ("along", along + random * 0.05), ("chord", inside_chord)] {
+                    let d = d.normalize();
+                    for back in [8.0, 0.05] {
+                        n += 1;
+                        let q = p - d * back;
+                        let w = whole_ray(b, f.face, (q, d), (&truth, inside_out), band, clear);
+                        let r = topo::test_support::ray_counts(b, f.face, (q, d), band, (0, false));
+                        let tag = match (&w, &r) {
+                            (Err(e), _) => {
+                                wrong += 1;
+                                format!("WRONG {e}")
+                            }
+                            (Ok(()), Err(e)) => {
+                                aside += 1;
+                                format!("ASIDE {}", e.split('(').next().unwrap_or(""))
+                            }
+                            (Ok(()), Ok(h)) => format!(
+                                "READ {:?}",
+                                h.iter().map(|x| (x.2, x.3)).collect::<Vec<_>>()
+                            ),
+                        };
+                        writeln!(out, "RAY {name} io={inside_out} {} {kind} back={back}: {tag}", f.label).ok();
+                    }
+                }
+            }
+        }
+        // A grid of points about the body against the analytic truth.
+        for i in 0..9 {
+            for j in 0..9 {
+                for k in 0..9 {
+                    let pt = Point3::new(
+                        -3.1 + 6.2 * f64::from(i) / 8.0 + 1e-3,
+                        -1.1 + 2.2 * f64::from(j) / 8.0 + 2e-3,
+                        -3.1 + 6.2 * f64::from(k) / 8.0 + 3e-3,
+                    );
+                    let Some(t) = robust(&truth, pt, clear) else { continue };
+                    pn += 1;
+                    let got = topo::point_in_solid(&body, pt, band, tol);
+                    let tag = match got {
+                        Ok(topo::SolidContainment::In) if t => "in".to_owned(),
+                        Ok(topo::SolidContainment::Out) if !t => "out".to_owned(),
+                        Ok(c) => {
+                            pwrong += 1;
+                            format!("WRONG {c:?} truth {t}")
+                        }
+                        Err(e) => {
+                            prefused += 1;
+                            format!("REFUSED {}", format!("{e:?}").split('{').next().unwrap_or(""))
+                        }
+                    };
+                    writeln!(out, "PT {name} {i} {j} {k}: {tag}").ok();
+                }
+            }
+        }
+    }
+    eprintln!("PROBE3 at ε {:e}: rays {n}, wrong {wrong}, aside {aside}; points {pn}, wrong {pwrong}, refused {prefused}", tol.eps());
+}
