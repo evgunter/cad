@@ -551,6 +551,7 @@ fn index_request(session: &DocSession, generation: Generation) -> IndexRequest {
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
+        shown: std::collections::BTreeSet::new(),
     }
 }
 

@@ -956,8 +956,11 @@ impl Rims {
     }
 }
 
-/// **What a picture IS**: the landed generation an index describes and
-/// the δ its copies were tessellated at.
+/// **What a picture IS**: the landed generation an index describes,
+/// the δ its copies were tessellated at, and the revision of the
+/// author's shows it draws ([`crate::display::DisplayState::shown_revision`]):
+/// a show draws a body the default leaves out, which the index must
+/// hold to draw and pick it.
 ///
 /// **One value because it is one question.** *Is this the same
 /// picture?* is asked at every step of an index's life — by the cache
@@ -971,9 +974,10 @@ impl Rims {
 /// while checking something else; and a δ is a tessellation OF a
 /// generation, so a δ-only comparison has no subject at all.
 ///
-/// **The halves are compared together because there is no way to
-/// compare them apart.** [`PictureKey::of`] is the only door and takes
-/// both, `PartialEq` is over the pair, and every site that asks the
+/// **The parts are compared together because there is no way to
+/// compare them apart.** [`PictureKey::showing`] is the only door and
+/// takes all three ([`PictureKey::of`] is it at no show), `PartialEq` is
+/// over them, and every site that asks the
 /// question holds one of these rather than two fields — so the
 /// comparison a site means is the comparison it can write. Reading a
 /// half ([`PictureKey::generation`], [`PictureKey::delta`]) is for
@@ -1001,13 +1005,25 @@ impl Rims {
 pub struct PictureKey {
     generation: Generation,
     delta: DisplayTolerance,
+    shown: u64,
 }
 
 impl PictureKey {
-    /// The picture a run at `generation`, tessellated at `delta`, is.
+    /// The default picture a run at `generation`, tessellated at
+    /// `delta`, is: no body shown that the default leaves out.
     #[must_use]
     pub fn of(generation: Generation, delta: DisplayTolerance) -> Self {
-        Self { generation, delta }
+        Self::showing(generation, delta, 0)
+    }
+
+    /// [`PictureKey::of`] drawing the shows at revision `shown`.
+    #[must_use]
+    pub fn showing(generation: Generation, delta: DisplayTolerance, shown: u64) -> Self {
+        Self {
+            generation,
+            delta,
+            shown,
+        }
     }
 
     /// The run half — what the index was built from.
@@ -1081,7 +1097,23 @@ impl PickIndex {
         key: PictureKey,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
-        Self::assemble(doc, eval, key, |node, bodies| match bodies {
+        Self::build_showing(doc, eval, key, tol, &BTreeSet::new())
+    }
+
+    /// [`PickIndex::build`] of the picture drawing `shown` too
+    /// ([`crate::world::Picture::showing`]); `key` names that picture.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::build`].
+    pub fn build_showing(
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+        key: PictureKey,
+        tol: Tol,
+        shown: &BTreeSet<RecipeNodeId>,
+    ) -> Result<Self, PickIndexError> {
+        Self::assemble(doc, eval, key, shown, |node, bodies| match bodies {
             None => NodePick::build_all(eval, node, key.delta().get(), tol),
             Some(bodies) => bodies
                 .iter()
@@ -1090,7 +1122,7 @@ impl PickIndex {
         })
     }
 
-    /// [`PickIndex::build`] over `memo`: a drawn node the evaluation
+    /// [`PickIndex::build_showing`] over `memo`: a drawn node the evaluation
     /// reused keeps its previous picture's `NodePick`, and one that was
     /// recomputed is tessellated through the per-face
     /// patch memo — the same index, byte for byte, built from what did
@@ -1112,9 +1144,10 @@ impl PickIndex {
         eval: &Evaluation<f64>,
         key: PictureKey,
         tol: Tol,
+        shown: &BTreeSet<RecipeNodeId>,
         memo: &mut PickMemo,
     ) -> Result<Self, PickIndexError> {
-        let index = Self::assemble(doc, eval, key, |node, bodies| match bodies {
+        let index = Self::assemble(doc, eval, key, shown, |node, bodies| match bodies {
             None => NodePick::build_all_with(eval, node, key.delta().get(), tol, memo),
             Some(bodies) => bodies
                 .iter()
@@ -1133,6 +1166,7 @@ impl PickIndex {
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         key: PictureKey,
+        shown: &BTreeSet<RecipeNodeId>,
         mut build_parts: impl FnMut(
             RecipeNodeId,
             Option<Vec<u32>>,
@@ -1145,7 +1179,7 @@ impl PickIndex {
         // built once, for the bodies some drawing of it covers — a family
         // less the members read alone, a `⊔`'s piece alone. A body two
         // drawings cover is one part.
-        let picture = crate::world::Picture::of(doc);
+        let picture = crate::world::Picture::showing(doc, shown);
         let mut outside = BTreeSet::new();
         for node in picture.nodes() {
             if let Some(space) = doc.node_space(node) {
@@ -2939,6 +2973,7 @@ mod tests {
                 crate::generation::Generation::FIRST,
                 crate::test_support::plate_delta(),
             ),
+            &BTreeSet::new(),
             |_, _| Err(refusal.clone()),
         )
         .expect("a copy that cannot be drawn does not refuse the index");

@@ -417,14 +417,15 @@ pub enum SessionOp {
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
     /// is then backed by the path and its resolver follows the folder.
     SaveAsNewDocument(PathBuf),
-    /// Hide or show the body `node` builds (G3): a DISPLAY operation —
-    /// the scene and the pick index drop what draws it; the document
-    /// and the feature tree keep it, and nothing is persisted
-    /// ([`crate::display::DisplayState::set_body_hidden`]).
+    /// Turn the toggle of the body `node` builds off or on (G3): a
+    /// DISPLAY operation over the default picture — off drops what
+    /// draws the body, on draws a body the default leaves out; the
+    /// document and the feature tree keep it either way, and nothing is
+    /// persisted ([`crate::display::DisplayState::set_body_hidden`]).
     SetBodyHidden {
         /// The node building the body.
         node: RecipeNodeId,
-        /// Hidden, or shown again.
+        /// Off, or on.
         hidden: bool,
     },
     /// Hide or show a space, every body drawn in it: a DISPLAY operation

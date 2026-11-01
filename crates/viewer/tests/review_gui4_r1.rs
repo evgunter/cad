@@ -802,8 +802,9 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
          and the member reads are each read as a body"
     );
 
-    // HIDE: accepted on the instance, which the picture does not draw,
-    // so the picture keeps every copy.
+    // HIDE: accepted on the instance, which the picture does not draw:
+    // its toggle is already off, so nothing is held and the picture
+    // keeps every copy.
     assert!(
         session
             .perform(SessionOp::SetBodyHidden {
@@ -815,8 +816,8 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
         "hide is accepted on the patterned instance"
     );
     assert!(
-        session.display().is_body_hidden(instance),
-        "the state says hidden"
+        !session.display_view().body_on(instance) && !session.display().is_body_hidden(instance),
+        "the toggle reads off, and an off turned off holds nothing"
     );
     assert_eq!(
         index

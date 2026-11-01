@@ -567,7 +567,7 @@ impl ViewerBehavior<'_> {
             node,
             self.session.part_files(),
         ));
-        let mut shown = !self.display.hidden_bodies.contains(&node);
+        let mut shown = self.display.body_on(node);
         if hide_toggle(ui, &mut shown) {
             self.ops.push(SessionOp::SetBodyHidden {
                 node,

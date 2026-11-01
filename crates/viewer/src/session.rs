@@ -2059,6 +2059,9 @@ impl DocSession {
     /// pick up a generation without the run it answers. The fourth,
     /// `tol`, is this session's ε — construction-time, never rewritten
     /// by a landing — and rides along because the build needs it.
+    /// The author's shows ride too ([`DisplayState::shown_bodies`]): a
+    /// show draws a body the default leaves out, so the picture the
+    /// index describes is the landing's drawing them.
     ///
     /// `pickcache` is a vocabulary and may not name this driver, so
     /// the read is hoisted rather than the rule widened
@@ -2067,12 +2070,10 @@ impl DocSession {
     #[must_use]
     pub fn index_inputs(&self) -> Option<pickcache::IndexInputs<'_>> {
         let run = self.derived.landed.as_ref()?;
-        Some(pickcache::IndexInputs::of(
-            run.generation,
-            run.doc.as_ref(),
-            &run.evaluation,
-            self.tol,
-        ))
+        Some(
+            pickcache::IndexInputs::of(run.generation, run.doc.as_ref(), &run.evaluation, self.tol)
+                .showing(self.display.shown_revision(), self.display.shown_bodies()),
+        )
     }
 
     /// **What the display budget is handed to price `requested` on**,

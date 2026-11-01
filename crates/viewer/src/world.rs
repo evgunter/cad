@@ -89,6 +89,12 @@ impl Drawn {
     pub fn draws(&self, node: RecipeNodeId, body: u32) -> bool {
         self.node == node && self.covers.covers(body)
     }
+
+    /// Whether this is a drawing of `node`'s body: `node`'s own, or a
+    /// piece of `node` when it is a `⊔`.
+    pub fn of_node(&self, node: RecipeNodeId) -> bool {
+        self.node == node || self.within.contains(&node)
+    }
 }
 
 /// **What `var`, read as a body by `reader` with the indices `at`,
@@ -304,6 +310,34 @@ impl Picture {
             }
         }
         Self { drawn, product }
+    }
+
+    /// **The picture `doc` draws with `shown` drawn too**: [`Picture::of`],
+    /// and every body of a node in `shown` the default leaves out —
+    /// an operand a boolean took over, a fillet's input — drawn whole
+    /// where it stands, a `⊔` as its pieces. What the author's show
+    /// adds is the picture's only: the product is the document's.
+    pub fn showing(doc: &Doc<ProfileProgram>, shown: &BTreeSet<RecipeNodeId>) -> Self {
+        let mut picture = Self::of(doc);
+        for &node in shown {
+            if !doc.node(node).is_some_and(builds_a_body) {
+                continue;
+            }
+            let mut added = Vec::new();
+            pieces(doc, node, Covers::all(), &mut Vec::new(), &mut added);
+            for drawn in added {
+                if !picture.drawn.contains(&drawn) {
+                    picture.drawn.push(drawn);
+                }
+            }
+        }
+        picture
+    }
+
+    /// **Whether a drawing is of `node`'s body**: the body itself, or
+    /// for a `⊔` one of its pieces.
+    pub fn draws_node(&self, node: RecipeNodeId) -> bool {
+        self.drawn.iter().any(|drawn| drawn.of_node(node))
     }
 
     /// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):

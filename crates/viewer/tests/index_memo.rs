@@ -174,6 +174,7 @@ fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
+        shown: std::collections::BTreeSet::new(),
     }
 }
 

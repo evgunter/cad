@@ -157,7 +157,7 @@ fn a_fillet_of_a_construction_draws_the_fillet_alone() {
 /// The bench's post, an instance moved into a space of its own, and a
 /// row of three of its copies placed into that same space: the stored
 /// assembly, the instance, its space and the family.
-fn family_in_an_instances_space(
+pub(crate) fn family_in_an_instances_space(
     tag: &str,
     tol: Tol,
 ) -> (
@@ -178,7 +178,7 @@ fn family_in_an_instances_space(
 }
 
 /// The session over the stored assembly at `path`, landed.
-fn opened(path: std::path::PathBuf, tol: Tol) -> DocSession {
+pub(crate) fn opened(path: std::path::PathBuf, tol: Tol) -> DocSession {
     let mut session = DocSession::inline(Doc::empty_derived("picture-boot", tol), tol);
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

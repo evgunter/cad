@@ -117,11 +117,12 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use pncad::document::{
     CancelToken, Doc, DoorFindings, DoorJob, EvalOptions, EvalOutcome, Evaluation, PartResolver,
-    ProfileProgram, coincide, evaluate,
+    ProfileProgram, RecipeNodeId, coincide, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::select::PickMemo;
@@ -388,6 +389,10 @@ pub struct IndexRequest {
     pub evaluation: Arc<Evaluation<f64>>,
     /// The ε the tessellation decides at.
     pub tol: Tol,
+    /// The bodies the author showed that the default picture leaves
+    /// out ([`crate::world::Picture::showing`]), at the revision `key`
+    /// names.
+    pub shown: BTreeSet<RecipeNodeId>,
 }
 
 /// A finished index build, carrying **the whole key it was built for**.
@@ -500,6 +505,7 @@ fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {
         &request.evaluation,
         request.key,
         request.tol,
+        &request.shown,
         memo,
     );
     IndexDone {

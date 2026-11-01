@@ -54,9 +54,10 @@
 //! the pick cache needs from a session arrives as [`IndexInputs`],
 //! which the session mints.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use pncad::document::{Doc, Evaluation, ProfileProgram};
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 
 use crate::evalseam::{FitService, IndexDone, IndexRequest, IndexService, InlineIndexer};
@@ -87,7 +88,14 @@ pub struct IndexInputs<'a> {
     doc: &'a Doc<ProfileProgram>,
     evaluation: &'a Arc<Evaluation<f64>>,
     tol: Tol,
+    /// The author's shows the picture draws, at their revision
+    /// ([`IndexInputs::showing`]): display state, not the landing's,
+    /// and part of the picture's key.
+    shown: (u64, &'a BTreeSet<RecipeNodeId>),
 }
+
+/// No show: the default picture.
+static NO_SHOW: BTreeSet<RecipeNodeId> = BTreeSet::new();
 
 impl<'a> IndexInputs<'a> {
     /// One landing's inputs, minted together.
@@ -108,6 +116,17 @@ impl<'a> IndexInputs<'a> {
             doc,
             evaluation,
             tol,
+            shown: (0, &NO_SHOW),
+        }
+    }
+
+    /// These inputs drawing the author's shows `shown`, at `revision`
+    /// ([`crate::display::DisplayState::shown_revision`]).
+    #[must_use]
+    pub fn showing(self, revision: u64, shown: &'a BTreeSet<RecipeNodeId>) -> Self {
+        Self {
+            shown: (revision, shown),
+            ..self
         }
     }
 }
@@ -329,6 +348,7 @@ impl PickCache {
                 doc,
                 evaluation,
                 tol,
+                shown: (revision, shown),
             }),
             Some(delta),
         ) = (landed, delta)
@@ -336,7 +356,7 @@ impl PickCache {
             self.forget();
             return CacheStep::Nothing;
         };
-        let wanted = PictureKey::of(generation, delta);
+        let wanted = PictureKey::showing(generation, delta, revision);
         if self
             .index
             .as_ref()
@@ -380,6 +400,7 @@ impl PickCache {
             doc: doc.clone(),
             evaluation: Arc::clone(evaluation),
             tol,
+            shown: shown.clone(),
         });
         CacheStep::Submitted
     }

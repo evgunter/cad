@@ -91,9 +91,11 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// a method on `ViewerBehavior`, which borrows the whole application,
 /// and all it does with the answer is push the ops it names.
 ///
-/// `hidden` is whether the display hides this row's body. Only an
-/// instance row draws the hide toggle here (the View pane holds one
-/// for every body and space): a hidden body stays IN this tree (that is
+/// `hidden` is whether this row's body's toggle is off
+/// ([`crate::display::DisplayView::body_on`]), the one the View pane
+/// lists too, so an instance an operation reads reads as off and its
+/// check shows it. Only an instance row draws the toggle here (the
+/// View pane holds one for every body and space): a hidden body stays IN this tree (that is
 /// the point — the tree is the document, the viewport is the display),
 /// and the checkbox is the display op's chrome.
 ///
@@ -364,7 +366,7 @@ impl ViewerBehavior<'_> {
     /// One feature-tree row ([`feature_row_ui`]), and the ops its
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
-        let hidden = self.display.hidden_bodies.contains(&row.id);
+        let hidden = !self.display.body_on(row.id);
         let refusal = self.session.body_hidden_refusal(row.id);
         let clicks = feature_row_ui(
             ui,

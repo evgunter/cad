@@ -20,14 +20,20 @@
 //! ([`crate::world::shown_spaces`]). Keeping a position means stating
 //! it, as a placement's mates and typed values.
 //!
-//! # Hides are keyed by body and by space
+//! # A body's toggle overrides the default picture; a space's hides
 //!
-//! The picture is drawn per drawn body ([`crate::world::drawn_bodies`]).
-//! A body's hide names the node building it and drops what draws it:
-//! the body, or for a `⊔` its pieces. A space's hide drops every body
-//! drawn in the space. Either is admitted on any live body or space,
-//! drawn or not ([`body_check`], [`space_hide_check`]): a hide is the
-//! state of a toggle the View pane holds for every body and space.
+//! The picture is drawn per drawn body ([`crate::world::drawn_bodies`]),
+//! and that is only its default. Every body has one toggle, keyed by
+//! the node building it ([`DisplayState::set_body_hidden`]): turned
+//! off on a body the default draws, it is a **hide**, which drops what
+//! draws it — the body, or for a `⊔` its pieces; turned on on a body
+//! the default leaves out (an operand a boolean took over, a fillet's
+//! input), it is a **show**, which draws it whole where it stands
+//! ([`crate::world::Picture::showing`]). A toggle turned back to the
+//! default holds nothing, so the body follows the default again. A
+//! space's hide drops every body drawn in the space. Either is admitted
+//! on any live body or space ([`body_check`], [`space_hide_check`]),
+//! and the View pane lists a toggle for each ([`toggles`]).
 //!
 //! # Free-move admits any shown space but the world's
 //!
@@ -768,6 +774,8 @@ pub struct DisplayView {
     /// Bodies the author hid, by the node building each (the chrome's
     /// reading).
     pub hidden_bodies: BTreeSet<RecipeNodeId>,
+    /// Bodies the default leaves out that the author showed.
+    pub shown_bodies: BTreeSet<RecipeNodeId>,
     /// Spaces the author hid (the chrome's reading).
     pub hidden_spaces: BTreeSet<VarId>,
     /// Space → the display frame composed over its drawn bodies. An
@@ -798,6 +806,85 @@ impl DisplayView {
             .any(|drawn| drawn.draws(node, body))
             && !self.shown_drawn.iter().any(|drawn| drawn.draws(node, body))
     }
+
+    /// **Whether `node`'s toggle is on**: some drawing is of its body
+    /// (the default's, or the author's show) and the author did not
+    /// hide it. A body whose space is hidden keeps its own toggle on.
+    pub fn body_on(&self, node: RecipeNodeId) -> bool {
+        !self.hidden_bodies.contains(&node)
+            && self
+                .shown_drawn
+                .iter()
+                .chain(&self.hidden_drawn)
+                .any(|drawn| drawn.of_node(node))
+    }
+
+    /// Whether `space`'s toggle is on: the author did not hide it.
+    pub fn space_on(&self, space: VarId) -> bool {
+        !self.hidden_spaces.contains(&space)
+    }
+}
+
+/// **One space's toggle and its bodies'** — a group of the View
+/// pane's list ([`toggles`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpaceToggles {
+    /// The space, or `None` for the bodies in no space, which have no
+    /// space toggle.
+    pub space: Option<VarId>,
+    /// Whether the space's toggle is on ([`DisplayView::space_on`]).
+    pub on: bool,
+    /// Every body in the space, in document order.
+    pub bodies: Vec<BodyToggle>,
+}
+
+/// **One body's toggle** in the View pane's list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BodyToggle {
+    /// The node building the body.
+    pub node: RecipeNodeId,
+    /// Whether its toggle is on ([`DisplayView::body_on`]).
+    pub on: bool,
+    /// Whether the default picture draws it: `false` for a body an
+    /// operation reads as a body, which the pane says.
+    pub drawn_by_default: bool,
+}
+
+/// **The View pane's toggles** (`crates/viewer/README.md`, *The picture
+/// draws bodies*): the world first, then every other space that holds
+/// a body, in the document order of its first, each with every body of
+/// `doc` in it; then the bodies in no space, if any. Each toggle reads
+/// `view`, the one state the feature tree's and the Properties pane's
+/// toggles read too.
+pub fn toggles(doc: &Doc<ProfileProgram>, view: &DisplayView) -> Vec<SpaceToggles> {
+    let default = crate::world::Picture::of(doc);
+    let mut groups = vec![SpaceToggles {
+        space: Some(VarId::WORLD),
+        on: view.space_on(VarId::WORLD),
+        bodies: Vec::new(),
+    }];
+    for node in doc.ids() {
+        if !doc.node(node).is_some_and(crate::world::builds_a_body) {
+            continue;
+        }
+        let space = doc.node_space(node);
+        let body = BodyToggle {
+            node,
+            on: view.body_on(node),
+            drawn_by_default: default.draws_node(node),
+        };
+        match groups.iter_mut().find(|group| group.space == space) {
+            Some(group) => group.bodies.push(body),
+            None => groups.push(SpaceToggles {
+                space,
+                on: space.is_none_or(|space| view.space_on(space)),
+                bodies: vec![body],
+            }),
+        }
+    }
+    // The bodies in no space last.
+    groups.sort_by_key(|group| group.space.is_none());
+    groups
 }
 
 /// **What a display fact was held on**: a body, by the node building
@@ -949,6 +1036,13 @@ struct Moved {
 pub struct DisplayState {
     /// The bodies the author hid, by the node building each.
     hidden_bodies: BTreeSet<RecipeNodeId>,
+    /// The bodies the default leaves out that the author showed —
+    /// never one [`DisplayState::hidden_bodies`] holds.
+    shown_bodies: BTreeSet<RecipeNodeId>,
+    /// Bumped on every change to `shown_bodies`: the picture's own key
+    /// ([`crate::pickindex::PictureKey`]), since a show draws a body the
+    /// pick index must hold.
+    shown_revision: u64,
     /// The spaces the author hid.
     hidden_spaces: BTreeSet<VarId>,
     /// The committed free-move frames, keyed by the space each was
@@ -1007,6 +1101,17 @@ impl DisplayState {
         &self.hidden_spaces
     }
 
+    /// The bodies the default leaves out that the author showed.
+    pub fn shown_bodies(&self) -> &BTreeSet<RecipeNodeId> {
+        &self.shown_bodies
+    }
+
+    /// The revision of [`DisplayState::shown_bodies`], which the
+    /// picture key carries.
+    pub fn shown_revision(&self) -> u64 {
+        self.shown_revision
+    }
+
     /// The committed free-move frame of `space`, if any. The in-flight
     /// preview is NOT reported here — [`DisplayState::view`] is the door
     /// that composes both.
@@ -1038,7 +1143,7 @@ impl DisplayState {
         let mut hidden_drawn = Vec::new();
         let mut shown_drawn = Vec::new();
         let mut moved_nodes = BTreeMap::new();
-        for drawn in crate::world::Picture::of(doc).drawn {
+        for drawn in crate::world::Picture::showing(doc, &self.shown_bodies).drawn {
             let space = doc.node_space(drawn.node);
             if let Some(&frame) = space.and_then(|space| moved.get(&space)) {
                 moved_nodes.insert(drawn.node, frame);
@@ -1057,6 +1162,7 @@ impl DisplayState {
         }
         DisplayView {
             hidden_bodies: self.hidden_bodies.clone(),
+            shown_bodies: self.shown_bodies.clone(),
             hidden_spaces: self.hidden_spaces.clone(),
             moved,
             hidden_drawn,
@@ -1090,7 +1196,10 @@ impl DisplayState {
         }
     }
 
-    /// Hide or show the body `node` builds.
+    /// **Turn the toggle of the body `node` builds** off (`hidden`) or
+    /// on, over `doc`'s default picture (module docs): off on a body
+    /// the default draws is a hide, on on one it leaves out is a show,
+    /// and either turned to the default holds nothing.
     ///
     /// # Errors
     ///
@@ -1103,12 +1212,21 @@ impl DisplayState {
         hidden: bool,
     ) -> Result<(), DisplayFault> {
         body_check(doc, node)?;
-        let changed = if hidden {
+        let by_default = crate::world::Picture::of(doc).draws_node(node);
+        let hid = if hidden && by_default {
             self.hidden_bodies.insert(node)
         } else {
             self.hidden_bodies.remove(&node)
         };
-        if changed {
+        let showed = if !hidden && !by_default {
+            self.shown_bodies.insert(node)
+        } else {
+            self.shown_bodies.remove(&node)
+        };
+        if showed {
+            self.shown_revision += 1;
+        }
+        if hid || showed {
             self.revision += 1;
         }
         Ok(())
@@ -1371,6 +1489,17 @@ impl DisplayState {
                 Held::Space(space) => self.hidden_spaces.remove(&space),
             };
         }
+        // A show of a body the document no longer holds goes unsaid: it
+        // drew a body the default left out, and that body is gone with
+        // its node, which the tree says.
+        let shows = self.shown_bodies.len();
+        self.shown_bodies
+            .retain(|&node| body_check(doc, node).is_ok());
+        let dropped_shows = self.shown_bodies.len() != shows;
+        if dropped_shows {
+            self.shown_revision += 1;
+            self.revision += 1;
+        }
         // The fault is CARRIED, not tested: `is_err()` here would
         // throw away the one value that says why the drag under the
         // user's hand stopped, at the instant it is computed.
@@ -1457,13 +1586,19 @@ impl DisplayState {
     pub fn clear(&mut self) {
         let Self {
             hidden_bodies,
+            shown_bodies,
+            shown_revision,
             hidden_spaces,
             moves,
             free_move,
             inserted,
             revision,
         } = self;
+        if !shown_bodies.is_empty() {
+            *shown_revision += 1;
+        }
         if !hidden_bodies.is_empty()
+            || !shown_bodies.is_empty()
             || !hidden_spaces.is_empty()
             || !moves.is_empty()
             || free_move.held().is_some()
@@ -1471,6 +1606,7 @@ impl DisplayState {
             *revision += 1;
         }
         hidden_bodies.clear();
+        shown_bodies.clear();
         hidden_spaces.clear();
         moves.clear();
         free_move.discard();
