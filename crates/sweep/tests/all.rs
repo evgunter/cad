@@ -1330,8 +1330,8 @@ mod a_mirrored_body_is_its_image;
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
 mod a_seam_inside_a_face_is_no_boundary_of_it;
-#[path = "an_aimed_ray_from_far_reads_a_split_side_inside_out.rs"]
-mod an_aimed_ray_from_far_reads_a_split_side_inside_out;
+#[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
+mod an_aimed_ray_from_far_reads_a_split_side_right;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
