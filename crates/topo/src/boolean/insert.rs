@@ -2277,19 +2277,16 @@ fn walk_faces_first<T: Decide>(
         return Ok(before);
     }
     let s = &sectors[first.entry];
-    // The arrival edge bounds the half of its corner that ends on it:
-    // every corner's last sector ends on its own chord. Its bound there
-    // is the edge's tangent at the vertex, which a germ leaving along a
-    // curved edge's tangent meets, where the edge's chord would put it
-    // outside the corner.
-    let arrival = sectors
-        .iter()
-        .find(|t| t.he == s.he && t.end_edge())
-        .ok_or(BooleanError::ClassificationInvariant {
+    // The germs are read from the corner's arrival bound: the arrival
+    // edge's departure from the vertex, which a germ leaving along a
+    // curved edge's tangent lies on.
+    let (arrival, reach) = super::sectors::corner_edge_bound(sectors, s, true).ok_or(
+        BooleanError::ClassificationInvariant {
             what: "no sector of a corner ends on its arrival edge",
-        })?;
+        },
+    )?;
     strut_order(
-        (arrival.end.normalize(), arrival.end_reach.length()),
+        (arrival.normalize(), reach.length()),
         s.normal.vec(),
         (first.dir, second.dir),
         s.arm,
@@ -2312,10 +2309,11 @@ fn walk_faces_first<T: Decide>(
 /// half-turn is the nearer. Within one half-turn the nearer germ is the
 /// one the other follows clockwise, `(g0 × g1)·n < 0`
 /// (`bool_strut_order`). Both readings are sines levered as distances:
-/// a germ's side of the arrival edge at the edge's `reach`, where the
-/// edge's far end lies that far off the germ's line, as a germ's side
-/// of a bound is read throughout (`sectors::within_reaching`); two
-/// germs' order at `arm`, the germs' entry's bounding chord. A sine is
+/// a germ's side of the arrival bound at its `reach` (a line edge's
+/// length, where its far end lies that far off the germ's line; a
+/// curved edge's extent from below), as a germ's side of a bound is
+/// read throughout (`sectors::within_reaching`); two germs' order at
+/// `arm`, the germs' entry's shorter bound reach. A sine is
 /// linear in the spacing at every angle, where a cosine is flat beside
 /// 0 and π. That is
 /// `splitting::containment`'s doctrine for angular windows: decided as

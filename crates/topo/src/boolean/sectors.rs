@@ -9,7 +9,8 @@
 //! `face(loop(mate(he_i)))`) sweeps CCW around that face's outward
 //! normal **from `dir(he_{i+1})` to `dir(he_i)`**. We store each sector
 //! with explicit `start`/`end` bound VECTORS (start = the CCW-first
-//! bound = the next orbit chord), so `sectors[k].start ==
+//! bound = the next orbit half-edge's departure: a line's chord, a
+//! curved edge's tangent at the vertex), so `sectors[k].start ==
 //! sectors[k+1].end` — the shared-bound chain the reclassification
 //! neighbor propagation walks. Wide (≥ 180°) sectors are convexly
 //! subdivided at an interior direction (PR 2's derivation: the cone
@@ -83,7 +84,8 @@ use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
 /// What stands behind a sector bound, which decides how its side of a
-/// plane is read ([`side_code`]).
+/// plane is read ([`side_code`]). A bound is its edge's departure from
+/// the base vertex: a line's chord, a curved edge's tangent there.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Reach<T: geom_core::Real> {
     /// A line edge: its far vertex, read in metres off the base vertex.
@@ -153,9 +155,11 @@ fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: T) -> T {
 pub(super) struct BoolSector<T: geom_core::Real> {
     /// The orbit half-edge the sector follows (CW-after `he`).
     pub he: HalfEdgeKey,
-    /// CCW-first bound direction (the next orbit chord, or a bisector).
+    /// CCW-first bound direction (the next orbit half-edge's departure,
+    /// or a bisector).
     pub start: Vec3<T>,
-    /// CCW-last bound direction (this entry's own chord, or a bisector).
+    /// CCW-last bound direction (this entry's own half-edge's departure,
+    /// or a bisector).
     pub end: Vec3<T>,
     /// What stands behind `start`: how its side of a plane is read.
     pub start_reach: Reach<T>,
@@ -168,7 +172,7 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     /// bit (S10). Consumers pair it with the stored orbit order and
     /// must NOT re-apply the sense — the type says the sense is in.
     pub normal: OutwardNormal<T>,
-    /// The metering arm (shorter bounding chord, in meters).
+    /// The metering arm: the shorter of its bounds' reaches, in metres.
     pub arm: T,
 }
 
@@ -270,16 +274,17 @@ impl<T: Decide> BoolSector<T> {
 /// One corner of a vertex neighborhood as its orbit reads it, before
 /// any subdivision: the corner after orbit half-edge `he`, sweeping CCW
 /// around its face's outward normal from `start` (the next orbit
-/// half-edge's chord) to `end` (`he`'s own), each unnormalized and as
-/// [`Reach`] says it was read.
+/// half-edge's departure) to `end` (`he`'s own), each unnormalized and
+/// as [`Reach`] says it was read: a line's chord, a curved edge's
+/// tangent at the vertex.
 pub(super) struct OrbitCorner<T: geom_core::Real> {
     /// The orbit half-edge the corner follows.
     pub he: HalfEdgeKey,
-    /// The next orbit half-edge's chord: the CCW-first bound.
+    /// The next orbit half-edge's departure: the CCW-first bound.
     pub start: Vec3<T>,
     /// What stands behind `start`.
     pub start_reach: Reach<T>,
-    /// `he`'s own chord: the CCW-last bound.
+    /// `he`'s own departure: the CCW-last bound.
     pub end: Vec3<T>,
     /// What stands behind `end`.
     pub end_reach: Reach<T>,
@@ -303,7 +308,8 @@ pub(super) fn build_sectors<T: Decide>(
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
     let corners = orbit_corners(body, operand, vertex, band);
-    // A lone orbit half-edge's corner runs from its chord round to it.
+    // A lone orbit half-edge's corner runs from its departure round to
+    // it.
     let alone = corners.len() == 1;
     let mut sectors = Vec::with_capacity(corners.len() + 2);
     for corner in corners {
@@ -406,7 +412,8 @@ pub(super) fn build_sectors<T: Decide>(
 /// four convex quarter sectors in the chained order [`build_sectors`]
 /// pushes a subdivided corner in: the end-sharing quarter first. The
 /// quarter bounds are levered at the turn's arm; `start_reach` and
-/// `end_reach` stand behind the next chord and the corner's own.
+/// `end_reach` stand behind the next half-edge's departure and the
+/// corner's own.
 fn push_full_turn<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     he: HalfEdgeKey,
@@ -453,7 +460,7 @@ pub(super) fn orbit_corners<T: Decide>(
     // carrier's outgoing tangent at the base vertex scaled by
     // `edge_extent_inf` for every curved one, a spline's included (its
     // chord is not where it leaves).
-    let chord = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
+    let departure = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
         let end = body.proven_half_edge_end(he);
         let p_base = body.resolve_vertex_point(vertex, Proven);
         let p_end = body.resolve_vertex_point(end, Proven);
@@ -499,8 +506,8 @@ pub(super) fn orbit_corners<T: Decide>(
     let n = orbit.len();
     (0..n).map(move |i| {
         let he = orbit[i];
-        let (end, end_reach) = chord(he); // this entry's own chord = CCW-last
-        let (start, start_reach) = chord(orbit[(i + 1) % n]); // next chord = CCW-first
+        let (end, end_reach) = departure(he); // CCW-last
+        let (start, start_reach) = departure(orbit[(i + 1) % n]); // CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he, band)?;
         Ok(OrbitCorner {
             he,
@@ -2331,6 +2338,26 @@ struct RunEdge<T: geom_core::Real> {
     far: Vec<VertexKey>,
 }
 
+/// **The edge bound of `s`'s corner** that its sectors chain from:
+/// with `arrival`, the bound the corner's first sector ends on (its own
+/// half-edge's departure, the CCW-last bound); else the one its last
+/// sector starts on (the next half-edge's departure). `None` where the
+/// sectors hold no such bound of the corner.
+pub(super) fn corner_edge_bound<T: geom_core::Real>(
+    sectors: &[BoolSector<T>],
+    s: &BoolSector<T>,
+    arrival: bool,
+) -> Option<(Vec3<T>, Reach<T>)> {
+    let mut corner = sectors.iter().filter(|o| o.he == s.he && o.face == s.face);
+    if arrival {
+        corner.find(|o| o.end_edge()).map(|o| (o.end, o.end_reach))
+    } else {
+        corner
+            .find(|o| o.start_edge())
+            .map(|o| (o.start, o.start_reach))
+    }
+}
+
 /// The edge across `corner` from its `start` bound (or its end), where
 /// it is an open line or an arc of at most a half-turn
 /// ([`within_half_turn`], [`coincident_run`]).
@@ -2340,16 +2367,11 @@ fn far_edge<T: Decide>(
     band: Band,
 ) -> Result<Option<RunEdge<T>>, BooleanError> {
     let (body, s) = (corner.body, corner.sector);
-    let same = |o: &&BoolSector<T>| o.he == s.he && o.face == s.face;
-    let (he, bound) = if start {
-        let bound = corner.sectors.iter().filter(same).find(|o| o.end_edge());
-        (s.he, bound.map(|o| (o.end, o.end_reach)))
+    let bound = corner_edge_bound(corner.sectors, s, start);
+    let he = if start {
+        s.he
     } else {
-        let bound = corner.sectors.iter().filter(same).find(|o| o.start_edge());
-        (
-            body.proven_orbit_step(s.he),
-            bound.map(|o| (o.start, o.start_reach)),
-        )
+        body.proven_orbit_step(s.he)
     };
     let Some((dir, reach)) = bound else {
         return Ok(None);
