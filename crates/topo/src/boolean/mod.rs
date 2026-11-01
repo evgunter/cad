@@ -280,8 +280,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance"
         | "bool_line_face_carrier_offset"
-        | slit::RIDER_ON_CURVED
-        | sectors::CLOSED_ON_CARRIER => Coincide::EdgeOnCurvedFace.subject(),
+        | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
         | "bool_flank_offset"

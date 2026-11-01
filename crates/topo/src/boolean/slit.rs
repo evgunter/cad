@@ -1001,9 +1001,10 @@ fn holding<T: Decide>(
         BooleanError::Escalated { .. } if crossed_only => Ok(None),
         read => Err(read),
     };
-    match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
-        Ok(true) => {}
-        Ok(false) => return Ok(None),
+    let closed = body.edge_vertices(e).is_some_and(|(u, v)| u == v);
+    match carrier_on_surface(body, &carrier, (t0, t1), closed, f, band) {
+        Ok(Some(true)) => {}
+        Ok(Some(false) | None) => return Ok(None),
         // Whether the edge lies on the surface matters only where both
         // its faces go into the face's material: where they do not, the
         // parting is not asked whatever the answer.
@@ -1099,40 +1100,52 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
-/// The points of an edge [`carrier_on_surface`] reads on a face's surface.
+/// How many points of an edge [`carrier_on_surface`] reads on a face's
+/// surface: more than the carrier and the surface can share without the
+/// one lying on the other.
 #[derive(Clone, Copy)]
 enum Samples {
-    /// Its ends.
+    /// A line and a plane: its ends.
     Ends,
-    /// Its ends, its midpoint and its quarter points.
+    /// A conic and a quadric: the quadric meets the conic's plane in a
+    /// conic, and two conics of one plane meet at four points unless they
+    /// are one.
     Five,
+    /// A conic and a torus: the torus meets the conic's plane in a
+    /// quartic, which meets a conic at eight points unless it holds it.
+    Nine,
 }
 
 /// **Whether edge carrier `carrier`, over `(t0, t1)`, lies on face `f`'s
 /// surface**: a line on a plane at both its ends, and on a cylinder or
 /// cone by [`crate::census::line_on_quadric_carrier`]
-/// (`bool_line_face_carrier_offset`); a conic in a plane by its own plane's offset
-/// from it (`bool_conic_face_plane_offset`), and on a sphere, cylinder
-/// or cone at five points along it (two conics of one plane meet at
-/// four unless they are one). Each point's offset from the surface is
-/// decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]), every
-/// point before the answer: one point definitely off decides that the
-/// carrier is not on the surface, whatever the others read.
-/// Any other pair lies on nothing here.
+/// (`bool_line_face_carrier_offset`); a conic in a plane by its own
+/// plane's offset from it (`bool_conic_face_plane_offset`), on a sphere,
+/// cylinder or cone at five points along it, and on a torus at nine
+/// ([`Samples`]), spread over the whole turn where the edge is `closed`
+/// (its two ends one point) and from end to end otherwise. Each point's
+/// offset from the surface is decided on the band ([`RIDER_ON_PLANE`],
+/// [`RIDER_ON_CURVED`]), every point before the answer: one point
+/// definitely off decides that the carrier is not on the surface,
+/// whatever the others read. `None` for any other pair, which nothing
+/// here reads: a spline on either side, a line on a sphere or a torus.
+/// The rider reading and the germ's closed-edge reading
+/// (`sectors::closed_reach`) both ask here.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where no point is definitely off and an
 /// offset is in band.
-fn carrier_on_surface<T: Decide>(
+pub(super) fn carrier_on_surface<T: Decide>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
+    closed: bool,
     f: FaceKey,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<bool>, BooleanError> {
     let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
-        return Ok(false);
+        return Ok(Some(false));
     };
     let (samples, site, coincide) = match (carrier, surface) {
         (geom::Curve3::Line { .. }, geom::Surface::Plane { .. }) => {
@@ -1152,15 +1165,15 @@ fn carrier_on_surface<T: Decide>(
                     Margin::of(offset),
                     band,
                 ) {
-                    Ok(Sign::Zero) => Ok(true),
-                    Ok(Sign::Positive | Sign::Negative) => Ok(false),
+                    Ok(Sign::Zero) => Ok(Some(true)),
+                    Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
                     Err(diag) => Err(BooleanError::coincidence(
                         Coincide::EdgeOnPlane,
                         DeclarationRead::Moot,
                         diag,
                     )),
                 },
-                _ => Ok(false),
+                _ => Ok(Some(false)),
             };
         }
         // A line on a cylinder or a cone: the one reading of it
@@ -1176,8 +1189,8 @@ fn carrier_on_surface<T: Decide>(
                 "bool_line_face_carrier_offset",
                 band,
             ) {
-                Some(Ok(on)) => Ok(on),
-                None => Ok(false),
+                Some(Ok(on)) => Ok(Some(on)),
+                None => Ok(Some(false)),
                 Some(Err(diag)) => Err(BooleanError::coincidence(
                     Coincide::EdgeOnCurvedFace,
                     DeclarationRead::Moot,
@@ -1191,21 +1204,41 @@ fn carrier_on_surface<T: Decide>(
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. },
         ) => (Samples::Five, RIDER_ON_CURVED, Coincide::EdgeOnCurvedFace),
-        _ => return Ok(false),
+        (
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
+            geom::Surface::Torus { .. },
+        ) => (Samples::Nine, RIDER_ON_CURVED, Coincide::EdgeOnCurvedFace),
+        _ => return Ok(None),
     };
-    let mid = geom::mid_param(t0, t1);
-    let at: &[T] = match samples {
-        Samples::Ends => &[t0, t1],
-        Samples::Five => &[
-            t0,
-            geom::mid_param(t0, mid),
-            mid,
-            geom::mid_param(mid, t1),
-            t1,
-        ],
+    let at: Vec<T> = match (samples, closed) {
+        (Samples::Ends, _) => vec![t0, t1],
+        (Samples::Five, false) => {
+            let mid = geom::mid_param(t0, t1);
+            vec![
+                t0,
+                geom::mid_param(t0, mid),
+                mid,
+                geom::mid_param(mid, t1),
+                t1,
+            ]
+        }
+        (Samples::Five | Samples::Nine, _) => {
+            let n = if matches!(samples, Samples::Five) {
+                5
+            } else {
+                9
+            };
+            // Over the whole turn a closed edge's last point is its first.
+            let steps = if closed { n } else { n - 1 };
+            let step = (t1 - t0) / T::from_f64(f64::from(steps));
+            (0..n)
+                .map(|k| t0 + step * T::from_f64(f64::from(k)))
+                .collect()
+        }
     };
     let points: Vec<Point3<T>> = at.iter().map(|&t| carrier.eval(t)).collect();
     crate::census::points_on_surface(surface, &points, site, band)
+        .map(Some)
         .map_err(|diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag))
 }
 

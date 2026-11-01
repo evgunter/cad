@@ -56,14 +56,21 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-/// A circle of radius `r` about `(cx, 0)`: one segment with its vertex
+/// The cylinder's radius, about the `z` axis.
+const R: f64 = 0.3;
+/// The cylinder's foot and height.
+const CYLINDER: (f64, f64) = (-1.0, 2.0);
+/// The plate's foot and thickness, under `[−1, 1]²`.
+const PLATE: (f64, f64) = (-0.5, 0.5);
+
+/// A circle of radius `r` about `(cx, cy)`: one segment with its vertex
 /// at azimuth `az`, or two arcs with vertices there and opposite.
-fn rim(one: bool, cx: f64, r: f64, az: f64) -> ProfileLoop<f64> {
+fn rim(one: bool, (cx, cy): (f64, f64), r: f64, az: f64) -> ProfileLoop<f64> {
     let arc = |a: f64, sweep: f64| {
         (
-            Point2::new(cx + r * a.cos(), r * a.sin()),
+            Point2::new(cx + r * a.cos(), cy + r * a.sin()),
             Segment::Arc(Arc2 {
-                centre: Point2::new(cx, 0.0),
+                centre: Point2::new(cx, cy),
                 radius: r,
                 sweep,
             }),
@@ -124,12 +131,13 @@ enum Vertices {
 /// One run's verdict: a body `SOUND` at its closed form that passes
 /// tier 3, or, where `slit` says so, the typed refusal of the cylinder's
 /// wrap edge lying along the hole's wall.
-// Pinned red: the `CurvedFace` gap retires when the walk meshes a slit
-// in a curved face (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)
-// and its mass properties measure one
-// (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
 fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, slit: bool) {
     if slit {
+        // Pinned red: the `CurvedFace` gap retires when the walk meshes a
+        // slit in a curved face
+        // (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)
+        // and its mass properties measure one
+        // (`work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
         assert!(
             matches!(
                 r,
@@ -150,14 +158,17 @@ fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, slit
 }
 
 /// The cylinder through the plate holed by radius `hr`, `inside` or
-/// outside its wall, vertices as `vertices` says, both turned by
+/// outside its wall, vertices as `vertices` says, and by one-segment
+/// holes `others` `(centre, radius)` clear of both walls, all turned by
 /// `turn`: every op in both orders.
-fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
-    let (hx, hole_at) = if inside {
-        (0.3 - hr, 0.0)
-    } else {
-        (0.3 + hr, PI)
-    };
+fn through(
+    hr: f64,
+    inside: bool,
+    vertices: Vertices,
+    others: &[((f64, f64), f64)],
+    turn: &Affine3<f64>,
+) {
+    let (hx, hole_at) = if inside { (R - hr, 0.0) } else { (R + hr, PI) };
     let (one, hole_az, cylinder_az) = match vertices {
         Vertices::BothThere => (true, hole_at, 0.0),
         Vertices::CylindersAlone => (true, hole_at + PI, 0.0),
@@ -165,19 +176,31 @@ fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
         Vertices::TwoArcs => (false, hole_at, 0.0),
     };
     let what = format!(
-        "hole r = {hr} {}, {vertices:?}",
-        if inside { "inside" } else { "outside" }
+        "hole r = {hr} {}, {vertices:?}, {} more",
+        if inside { "inside" } else { "outside" },
+        others.len()
     );
-    let cylinder = extruded(vec![rim(one, 0.0, 0.3, cylinder_az)], -1.0, 2.0, turn);
-    let plate = extruded(vec![square(), rim(one, hx, hr, hole_az)], -0.5, 0.5, turn);
-    let hole = PI * hr * hr;
-    let va = 0.09 * PI * 2.0;
-    let vb = 2.0 - hole * 0.5;
-    let vab = if inside {
-        (0.09 * PI - hole) * 0.5
-    } else {
-        0.09 * PI * 0.5
-    };
+    let cylinder = extruded(
+        vec![rim(one, (0.0, 0.0), R, cylinder_az)],
+        CYLINDER.0,
+        CYLINDER.1,
+        turn,
+    );
+    let mut loops = vec![square(), rim(one, (hx, 0.0), hr, hole_az)];
+    loops.extend(others.iter().map(|&(c, r)| rim(true, c, r, 0.0)));
+    let plate = extruded(loops, PLATE.0, PLATE.1, turn);
+    let disc = |r: f64| PI * r * r;
+    let in_cylinder = |&((x, y), r): &((f64, f64), f64)| x.hypot(y) + r < R;
+    let others_in: f64 = others
+        .iter()
+        .filter(|o| in_cylinder(o))
+        .map(|o| disc(o.1))
+        .sum();
+    let others_all: f64 = others.iter().map(|o| disc(o.1)).sum();
+    let va = disc(R) * CYLINDER.1;
+    let vb = (4.0 - disc(hr) - others_all) * PLATE.1;
+    let hole_in = if inside { disc(hr) } else { 0.0 };
+    let vab = (disc(R) - hole_in - others_in) * PLATE.1;
     for (op, r, want) in every_op_both_orders(&cylinder, &plate, (va, vb, vab), tol()) {
         // The op that keeps the cylinder's wall along the hole's.
         let both_walls = matches!((inside, op), (false, "B ∖ A") | (true, "A ∩ B" | "B ∩ A"));
@@ -189,9 +212,10 @@ fn through(hr: f64, inside: bool, vertices: Vertices, turn: &Affine3<f64>) {
 
 /// **By pose, at rest**: holes `r = 0.1` and `0.15`, outside the wall
 /// and inside it, both vertices on the ruling, the cylinder's alone, the
-/// hole's alone, and the two-arc form. Each op builds at its closed form, but, with the
-/// vertex of one alone there, the op keeping both walls, which refuses
-/// the slit its wrap edge would leave in the other's wall.
+/// hole's alone, and the two-arc form. Each op builds at its closed
+/// form, but, with the vertex of one alone there, the op keeping both
+/// walls, which refuses the slit its wrap edge would leave in the
+/// other's wall.
 #[test]
 fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {
     let rest = Affine3::identity();
@@ -203,7 +227,7 @@ fn a_cylinder_through_a_hole_tangent_to_its_wall_by_pose() {
                 Vertices::HolesAlone,
                 Vertices::TwoArcs,
             ] {
-                through(hr, inside, vertices, &rest);
+                through(hr, inside, vertices, &[], &rest);
             }
         }
     }
@@ -220,7 +244,24 @@ fn a_cylinder_through_a_hole_tangent_to_its_wall_turned() {
             Vertices::CylindersAlone,
             Vertices::HolesAlone,
         ] {
-            through(0.1, inside, vertices, &turn);
+            through(0.1, inside, vertices, &[], &turn);
+        }
+    }
+}
+
+/// **Beside other holes**: the plate holed besides by `r = 0.05` inside
+/// the cylinder's wall, about `(−0.15, 0.05)`, and by `r = 0.1` outside it,
+/// about `(−0.6, 0.5)`. Each plate face's section circle walls off the
+/// region it encloses, which takes the first hole's ring and leaves the
+/// face the second's: the disc where the tangent hole lies outside the
+/// wall, the crescent about it where it lies inside.
+#[test]
+fn a_cylinder_through_a_hole_tangent_to_its_wall_beside_other_holes() {
+    let rest = Affine3::identity();
+    let others = [((-0.15, 0.05), 0.05), ((-0.6, 0.5), 0.1)];
+    for inside in [false, true] {
+        for vertices in [Vertices::BothThere, Vertices::TwoArcs] {
+            through(0.1, inside, vertices, &others, &rest);
         }
     }
 }

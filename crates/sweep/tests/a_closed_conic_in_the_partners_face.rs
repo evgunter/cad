@@ -457,8 +457,8 @@ enum Reads {
     Undecided,
     /// `TangentCrescentUnsupported`.
     Crescent,
-    /// `Join(SingleSiteSectionLoop { count: 1 })`.
-    SingleSite,
+    /// `Join(SectionLoopUndecided)`.
+    LoopsUndecided,
     /// `Join(UnpairedLooseEnds { count })`.
     Loose(usize),
 }
@@ -473,7 +473,7 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
     let refused = |r: &Result<BooleanResult<f64>, BooleanError>| match r {
         Err(BooleanError::TangentCrescentUnsupported { .. }) => Some(Reads::Crescent),
         Err(BooleanError::Join(j)) => match j.error() {
-            SplitJoinError::SingleSiteSectionLoop { count: 1 } => Some(Reads::SingleSite),
+            SplitJoinError::SectionLoopUndecided { .. } => Some(Reads::LoopsUndecided),
             SplitJoinError::UnpairedLooseEnds { count } => Some(Reads::Loose(*count)),
             _ => None,
         },
@@ -790,14 +790,23 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 ///
 /// The same crescent between faces aligned (a holed plate standing on
 /// `z = 0` beside the boss, its hole tangent inside the boss's rim)
-/// overlaps the operands, and every op refuses at the join.
+/// overlaps the operands, and every op refuses at the join. In the
+/// one-segment form the plate's top cuts the boss's wall at the hole's
+/// vertex, and the piece of wall between the two floors has every edge
+/// on the plate's boundary: its rims in the plate's top and floor, its
+/// wrap edge along the hole's wall. No witness reads that curved face's
+/// interior, and the boss's floor is flush with the plate's, so neither
+/// loop of the floor rim's section reads a side.
 #[test]
 fn a_boss_over_a_hole_by_pose() {
-    use Reads::{Loose, SingleSite};
+    use Reads::{LoopsUndecided, Loose};
     for pose in poses() {
         by_pose(pose, None);
     }
-    for (form, refusal) in [(true, SingleSite), (false, Loose(4))] {
+    // Pinned red: the one-segment form's refusal is the witness
+    // ladder's,
+    // `work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`.
+    for (form, refusal) in [(true, LoopsUndecided), (false, Loose(4))] {
         let what = if form { "one segment" } else { "two arcs" };
         let boss = fin(
             "the boss",
@@ -1035,11 +1044,11 @@ fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
 /// **Ellipse rims tangent outside, one segment**: both cylinders of
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
-/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. No
-/// join arm copies a closed ellipse, so the union refuses typed: with
-/// both vertices at the touch, the pair's carrier
-/// (`GermEdgeCarrierUnsupported`); with the boss's there alone, the
-/// one-site loop (`SingleSiteSectionLoop`)
+/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. Each
+/// closed rim's germ is read from its own carrier against the other's
+/// faces (`boolean::sectors`'s `closed_reach`), with both vertices at the
+/// touch or the boss's there alone; no join arm copies a closed ellipse,
+/// so the union refuses the one-site loop typed (`SingleSiteSectionLoop`)
 /// (`work/cleave/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
 /// Both orders, at rest and turned.
 #[test]
@@ -1053,7 +1062,7 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
         brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
     );
     for (pose, hole_az, refused) in [
-        ("vertices there", PI, "GermEdgeCarrierUnsupported"),
+        ("vertices there", PI, "SingleSiteSectionLoop"),
         ("the boss's there", 0.0, "SingleSiteSectionLoop"),
     ] {
         let tall = fin(

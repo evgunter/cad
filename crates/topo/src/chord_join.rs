@@ -105,7 +105,8 @@
 //! whole-turn chord (a wrap edge's pierce) keeps [`Leave`]: each of its
 //! two chords walls off a face bounded by one conic, and which of them
 //! is the hole is read after the join, from the geometry ([`RimSide`]),
-//! so either direction joins. A
+//! so either direction joins. A null strut's two chords run one way, so
+//! that the face holding the strut bounds no area ([`Lone`]). A
 //! section of two loops (a torus's) is first narrowed to the loop the
 //! chord's sites lie on. What reaches it is bounded upstream, not here:
 //! the boolean's planar side wires a cylinder, sphere, cone or torus
@@ -117,7 +118,7 @@
 //! face, whose interior that edge pierces
 //! ([`ChordJoiner::join_lone_ring`]) or whose boundary it meets at a
 //! vertex, where the null edge hangs from that vertex into the face as a
-//! strut ([`strut_half`], [`ChordJoiner::place_strut`]); and in the
+//! strut ([`Lone`], [`ChordJoiner::place_strut`]); and in the
 //! boolean a closed edge
 //! (one vertex, both its ends) lying in the other operand, which copies
 //! that edge whole on its own side ([`closed_edge_spec`]) and is the
@@ -4822,15 +4823,15 @@ fn join_shape<T: Decide>(
 }
 
 /// The first chord's plan, or `None` where the adjacency skip drops
-/// it. Same loop: `mef(Chords { he1: h1, he2: next(h2) })`, from `h1`.
-/// Two loops: the `mekr` that kills the loop which is not the face's
-/// outer (both rings: `h2`'s, the book's order), from the target's
-/// site.
+/// it. Same loop: `mef(Chords { he1: h1, he2: next(h2) })`, from `h1`,
+/// or a null strut's leaving half ([`Lone::leaving`]). Two loops: the
+/// `mekr` that kills the loop which is not the face's outer (both rings:
+/// `h2`'s, the book's order), from the target's site.
 fn first_chord<T: Decide>(
     body: &Body<T>,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
     face: FaceKey,
-    shape: &JoinShape,
+    (shape, strut): (&JoinShape, Option<Lone>),
     skip: SkipTest<'_, T>,
 ) -> Result<Option<ChordPlan>, SplitJoinError> {
     let half = |he: HalfEdgeKey| body.get_half_edge(he).ok_or_else(|| corrupt_he(he));
@@ -4844,7 +4845,7 @@ fn first_chord<T: Decide>(
                 he1: h1,
                 he2: d2.next,
             }),
-            from: h1,
+            from: strut.map_or(h1, |lone| lone.leaving((h1, h2))),
             ends: (d1.start, half(d2.next)?.start),
         }));
     }
@@ -4865,10 +4866,12 @@ fn first_chord<T: Decide>(
 /// chord's surgery, or before it where the first was skipped — or `None`
 /// where the adjacency skip drops it: `mef(Chords { he1: h2, he2:
 /// next(h1) })`, from `h2`: the first chord's segment taken the other
-/// way (the null edges are zero-length).
+/// way (the null edges are zero-length); a null strut's, from its
+/// leaving half, the way the first runs ([`Lone::leaving`]).
 fn second_chord<T: Decide>(
     body: &Body<T>,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    strut: Option<Lone>,
     skip: SkipTest<'_, T>,
 ) -> Result<Option<ChordPlan>, SplitJoinError> {
     let half = |he: HalfEdgeKey| body.get_half_edge(he).ok_or_else(|| corrupt_he(he));
@@ -4882,33 +4885,60 @@ fn second_chord<T: Decide>(
             he1: h2,
             he2: d1.next,
         }),
-        from: h2,
+        from: strut.map_or(h2, |lone| lone.leaving((h1, h2))),
         ends: (half(h2)?.start, half(d1.next)?.start),
     }))
 }
 
-/// **A null strut's two chords** ([`JoinPlan::of`]): where the joined
-/// halves are one null edge hanging from a vertex of a ring into the
-/// face, exactly one of the two `mef`s walls off an empty run (`he1 =
-/// he2`), the one at the strut's free end. Each `mef` gives the run from
-/// its `he1` up to its `he2` to the new face with the chord's minus half;
-/// the empty one walls off the chord's minus half alone and keeps its
-/// plus half with the strut, the other gives its minus half to the
-/// strut. So the face left holding the strut, which bounds no area,
-/// holds the two chords' halves of opposite signs, and both chords run
-/// one way. That way is read at the ring's vertex, the strut's only end
-/// with a sector: from the strut's half leaving it, which leaves the
-/// corner after the ring half arriving there, as the chord's plus half
-/// does: the half the other `mef` runs from. `None` for any other pair
-/// of chords, which keep their own halves.
-fn strut_half(first: Option<&ChordPlan>, second: Option<&ChordPlan>) -> Option<HalfEdgeKey> {
-    let empty = |plan: &ChordPlan| matches!(plan.site, ChordSite::Mef(MefSite::Chords { he1, he2 }) if he1 == he2);
-    let (first, second) = (first?, second?);
-    match (empty(first), empty(second)) {
-        (true, false) => Some(second.from),
-        (false, true) => Some(first.from),
-        _ => None,
+/// **Which of a null strut's two chords walls off a face alone**
+/// ([`strut_of`]): where the joined halves are one null edge hanging
+/// from a vertex of a ring into the face, exactly one of the two `mef`s
+/// walls off an empty run (`he1 = he2`), the one at the strut's free
+/// end. Each `mef` gives the run from its `he1` up to its `he2` to the
+/// new face with the chord's minus half; the empty one walls off the
+/// chord's minus half alone and keeps its plus half with the strut, the
+/// other gives its minus half to the strut. So the face left holding
+/// the strut, which bounds no area, holds the two chords' halves of
+/// opposite signs, and both chords run one way, read at the ring's
+/// vertex, the strut's only end with a sector ([`Self::leaving`]). The
+/// lone face is placed after the join ([`ChordJoiner::place_strut`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Lone {
+    /// The first `mef`'s: `h1` starts at the strut's free end.
+    First,
+    /// The second `mef`'s: `h2` starts there.
+    Second,
+}
+
+impl Lone {
+    /// The half both chords run from: the strut's half leaving the
+    /// ring's vertex, from the corner after the ring half arriving there,
+    /// as the chord's plus half leaves it.
+    fn leaving(self, (h1, h2): (HalfEdgeKey, HalfEdgeKey)) -> HalfEdgeKey {
+        match self {
+            Self::First => h2,
+            Self::Second => h1,
+        }
     }
+}
+
+/// The [`Lone`] chord of `halves`, where they are a null strut's: one
+/// loop, and one of `next(h2) = h1` and `next(h1) = h2` alone (both is a
+/// lone ring's null edge, neither two sites').
+fn strut_of<T: Real>(
+    body: &Body<T>,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> Result<Option<Lone>, SplitJoinError> {
+    let half = |he: HalfEdgeKey| body.get_half_edge(he).ok_or_else(|| corrupt_he(he));
+    let (d1, d2) = (half(h1)?, half(h2)?);
+    if d1.parent_loop != d2.parent_loop {
+        return Ok(None);
+    }
+    Ok(match (d2.next == h1, d1.next == h2) {
+        (true, false) => Some(Lone::First),
+        (false, true) => Some(Lone::Second),
+        _ => None,
+    })
 }
 
 /// **A join's two chords, planned once** — each one's site, end
@@ -4936,10 +4966,9 @@ pub(crate) struct JoinPlan {
     /// ([`closed_edge_spec`]), and a ring that holds nothing but it and
     /// the null edge joins as a lone ring ([`lone_ring`]).
     closed: Option<EdgeKey>,
-    /// Whether the halves are a null strut's ([`strut_half`]): one of the
-    /// two chords walls off a face of its own, placed after the join
-    /// ([`ChordJoiner::place_strut`]).
-    strut: bool,
+    /// Where the halves are a null strut's, the chord that walls off a
+    /// face alone ([`Lone`]).
+    strut: Option<Lone>,
 }
 
 impl JoinPlan {
@@ -4970,23 +4999,16 @@ impl JoinPlan {
             }
             None => None,
         };
+        let strut = strut_of(body, halves)?;
         let mut skip = |b: &Body<T>, he| segment.is(b, he, face, band);
-        let mut first = first_chord(body, halves, face, &shape, &mut skip)?;
-        let mut second = second_chord(body, halves, &mut skip)?;
-        let strut = strut_half(first.as_ref(), second.as_ref());
-        if let Some(from) = strut {
-            for chord in [&mut first, &mut second].into_iter().flatten() {
-                chord.from = from;
-            }
-        }
         Ok(Self {
             halves,
             face,
-            first,
-            second,
+            first: first_chord(body, halves, face, (&shape, strut), &mut skip)?,
+            second: second_chord(body, halves, strut, &mut skip)?,
             locus,
             closed,
-            strut: strut.is_some(),
+            strut,
         })
     }
 
@@ -5056,12 +5078,13 @@ fn lone_ring<T: Real>(
     Ok((l != outer).then_some((l, kind)))
 }
 
-/// **How [`ChordJoiner::join_lone_ring`] reads which side of a
-/// walled-off face's conic its region lies on**, by the pierced face's
-/// surface ([`Self::of`]). A face it has no arm for (a cone, a cylinder,
-/// a torus, which a plane can cut in more than the conic) is not joined
-/// at a one-site pierce: `boolean::join`'s `closes_at_its_site` reads
-/// this same table.
+/// **How a one-site loop's join reads which side of a walled-off face's
+/// conic its region lies on**, by the divided face's surface
+/// ([`Self::of`]): a lone ring's ([`ChordJoiner::join_lone_ring`]) on a
+/// plane or a sphere, a null strut's ([`ChordJoiner::place_strut`]) on a
+/// plane. A face it has no arm for (a cone, a cylinder, a torus, which a
+/// plane can cut in more than the conic) is not joined at one site:
+/// `boolean::join`'s `closes_at_its_site` reads this same table.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RimSide {
     /// A plane: a conic loop winding with the old face's outer loop, on
@@ -5105,7 +5128,7 @@ impl RimSide {
             Some(Ok(sign @ (Sign::Positive | Sign::Negative))) => Ok(sign),
             Some(Err(diag)) => Err(escalated(diag)),
             _ => Err(invariant(
-                "a one-site loop's conic in a pierce ring does not wind definitely on its plane",
+                "a one-site loop's walled-off conic does not wind definitely on its plane",
             )),
         };
         match self {
@@ -5116,7 +5139,7 @@ impl RimSide {
             Self::Sphere => {
                 let Some(&[he]) = outer_cycle(body, face)?.as_deref() else {
                     return Err(invariant(
-                        "a one-site loop's walled-off face is bounded by other than one conic",
+                        "a one-site loop's walled-off face on a sphere is bounded by other than one conic",
                     ));
                 };
                 let h = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
@@ -5360,11 +5383,16 @@ impl ChordJoiner {
             minted.push(created.edge);
             second = Some(created.face);
         }
-        if plan.strut
+        // A placeholder's strut (no curve) keeps the re-homing below.
+        if let Some(lone) = plan.strut
             && curve.spec.is_some()
             && let (Some((first, _)), Some(second), &[e1, e2]) = (newf, second, &minted[..])
-            && self.place_strut(body, plan, [(first, e1), (second, e2)], tol)?
         {
+            let (lone, kept) = match lone {
+                Lone::First => (first, e2),
+                Lone::Second => (second, e1),
+            };
+            self.place_strut(body, oldf, lone, kept, tol)?;
             return Ok(minted);
         }
         // Ring re-homing (`laringmv`, the lkemr/ring-placement mirror
@@ -5389,51 +5417,41 @@ impl ChordJoiner {
         Ok(minted)
     }
 
-    /// **Where a null strut's chords leave the faces** ([`Self::join`]):
-    /// `chords` the two `(new face, chord)` of the join in order. One
-    /// chord walls off a face bounded by it alone, and the other's plus
-    /// half stays in the loop of `oldf` that holds the strut's vertex.
-    /// Where the lone chord's region holds `oldf`'s outer loop
-    /// ([`RimSide::holds_outer`]), the conic encloses the strut's vertex
-    /// with the ring it lies on, so the lone face is the hole the conic
-    /// cuts in `oldf` and becomes its ring (`kfmrh_minting`), and that
-    /// ring bounds the region the conic encloses, promoted to a face of
-    /// its own (`mfkrh`), as in a lone ring ([`Self::join_lone_ring`]).
-    /// Otherwise the lone face is the region the conic encloses. The
-    /// enclosed region takes the rings of `oldf` it holds. `false`, with
-    /// nothing done, on a face no whole conic is sided on: the join's
-    /// own re-homing places its rings, as it does a placeholder's
-    /// ([`Self::join`] asks only of a chord with a curve).
+    /// **Where a null strut's lone face goes** ([`Self::join`]): `lone`
+    /// the face its lone chord walls off alone, and `kept` the other
+    /// chord, whose plus half stays in the loop of `oldf` holding the
+    /// strut's vertex. Where the lone face's region holds `oldf`'s outer
+    /// loop ([`RimSide::holds_outer`]), the conic encloses the strut's
+    /// vertex with the ring it lies on: the lone face is the hole the
+    /// conic cuts in `oldf` ([`Self::cut_hole`]), and the ring holding the
+    /// kept chord bounds the region the conic encloses, promoted to a face
+    /// of its own ([`Self::promote_ring`]), as in a lone ring
+    /// ([`Self::join_lone_ring`]). Otherwise the lone face is that region.
+    /// It takes the rings of `oldf` it holds.
+    ///
+    /// The strut's face is a plane: the boolean joins a loop at a
+    /// boundary vertex only in a planar face (`boolean::join`'s
+    /// `closes_at_its_site`), and the split's self-loops are pierces or
+    /// placeholders. Any other face is refused as this lane's invariant.
     fn place_strut<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
-        plan: &JoinPlan,
-        chords: [(FaceKey, EdgeKey); 2],
+        oldf: FaceKey,
+        lone: FaceKey,
+        kept: EdgeKey,
         tol: Tol,
-    ) -> Result<bool, SplitJoinError> {
-        let oldf = plan.face;
+    ) -> Result<(), SplitJoinError> {
         let invariant = |what| SplitJoinError::SectionInvariant { face: oldf, what };
         let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
-        let (outer, sense) = (old.outer, old.sense);
+        let outer = old.outer;
         let surface = body
             .get_surface(old.surface)
             .ok_or_else(|| corrupt_face(oldf))?;
-        let Some(side) = RimSide::of(surface) else {
-            return Ok(false);
-        };
-        let lone = |face: FaceKey| -> Result<bool, SplitJoinError> {
-            Ok(outer_cycle(body, face)?.is_some_and(|cycle| cycle.len() == 1))
-        };
-        let [(f1, e1), (f2, e2)] = chords;
-        let (lone, kept) = match (lone(f1)?, lone(f2)?) {
-            (true, false) => (f1, e2),
-            (false, true) => (f2, e1),
-            _ => {
-                return Err(invariant(
-                    "a null strut's join walled off other than one lone conic",
-                ));
-            }
-        };
+        if RimSide::of(surface) != Some(RimSide::Plane) {
+            return Err(invariant(
+                "a null strut's chords divide a face that is not a plane",
+            ));
+        }
         let plus = body
             .get_edge(kept)
             .ok_or_else(|| corrupt_edge(kept))?
@@ -5442,28 +5460,57 @@ impl ChordJoiner {
             .get_half_edge(plus)
             .ok_or_else(|| corrupt_he(plus))?
             .parent_loop;
-        if !side.holds_outer(body, oldf, outer, lone, self.band)? {
-            self.rehome_rings(body, oldf, lone, held)?;
-            return Ok(true);
+        if !RimSide::Plane.holds_outer(body, oldf, outer, lone, self.band)? {
+            return self.rehome_rings(body, oldf, lone, held);
         }
         if held == outer {
             return Err(invariant(
                 "a null strut's conic encloses the outer loop its vertex lies on",
             ));
         }
-        let cut = body.kfmrh_minting(oldf, lone, tol)?.ring;
-        self.slivers.remove(lone);
-        self.absorbed
-            .push((lone, oldf))
-            .map_err(SplitJoinError::LineageRow)?;
-        let enclosed = body.mfkrh(held, FaceSurface::Inherit)?.face;
-        body.set_face_sense(enclosed, sense)?;
-        self.slivers.insert(enclosed, ());
+        let cut = self.cut_hole(body, oldf, lone, tol)?;
+        let enclosed = self.promote_ring(body, oldf, held)?;
+        self.rehome_rings(body, oldf, enclosed, cut)
+    }
+
+    /// **`ring` of `oldf` promoted to a face of its own** (`mfkrh`), a
+    /// fragment of `oldf` lying in its region with its material on the
+    /// same side, where `mfkrh` derives a promoted ring's face as facing
+    /// the other way. No door states the bit: `mfkrh` refuses a stated
+    /// sense on the old face's chart that disagrees with the one it
+    /// derives (`SenseContradictsChart`), so the bit is set after.
+    fn promote_ring<T: Decide + crate::props::AtRestPolicy>(
+        &mut self,
+        body: &mut Body<T>,
+        oldf: FaceKey,
+        ring: LoopKey,
+    ) -> Result<FaceKey, SplitJoinError> {
+        let sense = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.sense;
+        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
+        body.set_face_sense(promoted, sense)?;
+        self.slivers.insert(promoted, ());
         self.fragments
-            .push((enclosed, oldf))
+            .push((promoted, oldf))
             .map_err(SplitJoinError::LineageRow)?;
-        self.rehome_rings(body, oldf, enclosed, cut)?;
-        Ok(true)
+        Ok(promoted)
+    }
+
+    /// **`hole`, a face a conic walled off whose region holds `oldf`'s
+    /// outer loop, made a ring of `oldf`** (`kfmrh_minting`, which re-mints
+    /// `oldf` where the hole's rows do not stand on it): the ring.
+    fn cut_hole<T: Decide + crate::props::AtRestPolicy>(
+        &mut self,
+        body: &mut Body<T>,
+        oldf: FaceKey,
+        hole: FaceKey,
+        tol: Tol,
+    ) -> Result<LoopKey, SplitJoinError> {
+        let cut = body.kfmrh_minting(oldf, hole, tol)?.ring;
+        self.slivers.remove(hole);
+        self.absorbed
+            .push((hole, oldf))
+            .map_err(SplitJoinError::LineageRow)?;
+        Ok(cut)
     }
 
     /// [`Self::join`] of a one-site section loop whose site is a pierce
@@ -5502,23 +5549,12 @@ impl ChordJoiner {
                 ))?)
             }
         };
-        let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
-        let (outer, sense) = (old.outer, old.sense);
-        // The promoted face lies in the old face's region, its material
-        // on the same side, where `mfkrh` derives a promoted ring's face
-        // as facing the other way. No door states the bit: `mfkrh`
-        // refuses a stated sense on the old face's chart that disagrees
-        // with the one it derives (`SenseContradictsChart`), so the bit
-        // is set after. The loop is the null edge alone, which winds no
-        // area to disagree with it, and the seam zip reads each wall-off
-        // face's conic against its partner's
+        let outer = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.outer;
+        // The promoted loop is the null edge alone, which winds no area to
+        // disagree with the sense set on it, and the seam zip reads each
+        // wall-off face's conic against its partner's
         // (`boolean::zip::one_vertex_sense`).
-        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
-        body.set_face_sense(promoted, sense)?;
-        self.slivers.insert(promoted, ());
-        self.fragments
-            .push((promoted, oldf))
-            .map_err(SplitJoinError::LineageRow)?;
+        self.promote_ring(body, oldf, ring)?;
         let replan = JoinPlan::of(body, plan.halves, SegmentEdge::Locus(plan.locus), self.band)?;
         let walled_from = self.fragments.rows().len();
         // The halves' loop is now the promoted face's outer, which
@@ -5552,11 +5588,7 @@ impl ChordJoiner {
                 ));
             }
         };
-        let cut = body.kfmrh_minting(oldf, hole, tol)?.ring;
-        self.slivers.remove(hole);
-        self.absorbed
-            .push((hole, oldf))
-            .map_err(SplitJoinError::LineageRow)?;
+        let cut = self.cut_hole(body, oldf, hole, tol)?;
         if let Some(disc) = disc {
             self.rehome_rings(body, oldf, disc, cut)?;
         }
