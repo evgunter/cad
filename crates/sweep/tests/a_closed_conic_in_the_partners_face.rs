@@ -894,7 +894,7 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
 ///   facing one way and keeps `A`'s, the join does not take a rim lying
 ///   flush in a face at its one vertex (`boolean::join`'s `stands_on`),
 ///   and `A ∪ B` and `B ∩ A` refuse `SingleSiteSectionLoop`
-///   (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+///   (`work/tangrim/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 /// - Where a seam ruling lies on the tangent line, `A`'s with its
 ///   vertex at the touch (any other op) or `B`'s with its vertex there
 ///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather
@@ -1049,7 +1049,7 @@ fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
 /// faces (`boolean::sectors`'s `closed_reach`), with both vertices at the
 /// touch or the boss's there alone; no join arm copies a closed ellipse,
 /// so the union refuses the one-site loop typed (`SingleSiteSectionLoop`)
-/// (`work/cleave/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
+/// (`work/tangrim/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
 /// Both orders, at rest and turned.
 #[test]
 fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {

@@ -1142,7 +1142,7 @@ fn closes_at_its_site<T: Decide>(
 /// both faces facing one way, is not: joined there, the piece of the
 /// face the rim walls off is bounded by the copy's half that runs
 /// against the rim's own
-/// (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+/// (`work/tangrim/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 fn stands_on<T: Decide>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
