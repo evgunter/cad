@@ -1357,14 +1357,16 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     "prev",
                 )
                 .edge;
-                let germ = |t: usize, (cells, dir, _): Germ<T>| (t, cells, dir);
+                // A pierce's germs lie in the pierced face, through no
+                // edge of the pierced solid: their cuts run beside none.
+                let germ =
+                    |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
                 let facing = super::insert::strut_faces_first(
                     piercing_body,
                     (piercing, &sectors),
                     (arrival, corner_half.edge),
                     germ((run.0 + n - 1) % n, start_germ),
                     germ((run.0 + run.1 - 1) % n, end_germ),
-                    [None, None],
                     band,
                 )?;
                 // At a closed edge's lone vertex with a germ along it the
