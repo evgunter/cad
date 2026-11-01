@@ -2,10 +2,11 @@
 id: rect-jet-forms-the-rational-derivative-in-the-absolute-frame
 kind: issue
 title: rect_jet forms a rational net's derivative from separately hulled position and slope in world coordinates, so its width grows with the body's distance from the origin and never shrinks with the cell: rational walls never certify against themselves
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: M
+closed: 2026-11-01
 ---
 
 

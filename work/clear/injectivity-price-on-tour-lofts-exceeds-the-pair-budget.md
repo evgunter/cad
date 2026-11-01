@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-31
 priority: P0
 cost: H
-blocked_on: [rect-jet-forms-the-rational-derivative-in-the-absolute-frame, distance-test-separates-boxes-not-directions]
+blocked_on: [distance-test-separates-boxes-not-directions]
 ---
 
 
