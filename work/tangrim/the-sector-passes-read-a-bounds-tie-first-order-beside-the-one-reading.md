@@ -72,3 +72,22 @@ Still owed, each against the design's numbered items:
    `split_bisector_side` is a K-REPORT/k-lint row
    (`docs/K-REPORT.md`, `tools/k-lint`), so moving it renames a
    tracked predicate and the baseline needs re-deriving with it.
+6. **Second-order side readings landing beside the reading.** PR 6219
+   (`tangrim/fillet-line-arc-junction`, open when this row was filed)
+   re-keys a flanker glued `Tangent` to the reference in
+   `recl::resolve_edge_sector` through `tangent_relative_side`, and reads
+   a tangent sector's germ bounds at second order in
+   `vtxfac::classify_vertex_on_face` (`TangentRead`). Both are instances
+   of the class this row retires: fold them into `bound_side` with item
+   1, keeping `crates/sweep/tests/a_box_along_a_fillets_line_arc_junction.rs`
+   green.
+
+## Coupled: ONEREAD's cone reader
+
+ONEREAD's lane 2 (`the-boolean-reads-the-other-operand-through-one-cone`)
+deletes `sectors.rs`'s `wedge_read`…`cone_side` block and moves
+`sector_face` / `sector_shape` to a neutral home. `cone_side` and
+`wedge_classes` read a bound's side through `side_code`, so through
+`bound_side::read`: that lane deletes callers of the reading, not a copy
+of it, and item 1's descent no longer has to reach `cone_side` once it
+lands.
