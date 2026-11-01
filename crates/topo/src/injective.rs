@@ -676,6 +676,14 @@ fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
     v - t * v.dot(t)
 }
 
+/// The unit bisector across two headings' parts perpendicular to `t`:
+/// `m·hx⊥ > 0 > m·hy⊥` at any dihedral between them off 0, whatever
+/// the headings' along-`t` parts. Only a separator: [`sign_on`] decides
+/// both faces' signs against it.
+fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
+    unit(unit(perp(hx, t))? - unit(perp(hy, t))?)
+}
+
 fn sign_of(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
@@ -4535,7 +4543,7 @@ fn plane_through(
         .collect::<Option<_>>()?;
     let n = match lines.as_slice() {
         [] => unit(hx - hy)?,
-        [d] => unit(perp(hx, *d) - perp(hy, *d))?,
+        [d] => bisector(hx, hy, *d)?,
         [d, e] if !near.vertices.is_empty() => unit(d.cross(*e))?,
         _ => return None,
     };
@@ -4621,8 +4629,9 @@ fn edge_piece(
 
 /// **The shared edge's graph**: one shared edge, projected onto the
 /// plane of `t`, its direction over the piece both images can reach,
-/// and `m`, across the faces' headings. Where `t·c′` is decided positive
-/// over the piece, the projected piece is the graph of `γ` over `s`.
+/// and `m`, bisecting the faces' headings about `t` ([`bisector`]).
+/// Where `t·c′` is decided positive over the piece, the projected piece
+/// is the graph of `γ` over `s`.
 fn graph_of(
     x: &Piece<'_>,
     near: &Near,
@@ -4645,7 +4654,7 @@ fn graph_of(
     let t = unit(vmid(carrier.deriv(middle)))?;
     let q0 = pmid(carrier.eval(middle));
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
-    let m = unit(perp(hx, t) - perp(hy, t))?;
+    let m = bisector(hx, hy, t)?;
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
