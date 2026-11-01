@@ -1073,6 +1073,71 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: T, own: Option<T>) -> T {
     reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
 }
 
+/// A unit direction with its **lean**: `|n_a × n_b| = sin φ` for two
+/// faces' line (a germ the faces' normals cross into), `1` for an edge,
+/// a bound, a tangent locus or any direction read off one carrier.
+/// Every reading of it against another direction levers by the lean
+/// ([`leaned_lever`]); read against a sector's bounds ([`rays_within`])
+/// the same lean scales the direction itself, its [`Leaned::line`].
+#[derive(Clone, Copy, Debug)]
+pub(super) struct Leaned<T: geom_core::Real> {
+    /// The unit direction.
+    pub dir: Vec3<T>,
+    /// Its lean, in `(0, 1]`.
+    pub lean: T,
+}
+
+impl<T: geom_core::Real> Leaned<T> {
+    /// A direction read off one carrier: lean 1.
+    pub(super) fn upright(dir: Vec3<T>) -> Self {
+        Self {
+            dir,
+            lean: T::from_f64(1.0),
+        }
+    }
+
+    /// Two faces' line from its un-normalized cross `m = n_a × n_b`.
+    pub(super) fn of_line(m: Vec3<T>) -> Self {
+        Self {
+            dir: m.normalize(),
+            lean: m.norm(),
+        }
+    }
+
+    /// The direction scaled by its lean: two faces' line un-normalized.
+    pub(super) fn line(self) -> Vec3<T> {
+        self.dir * self.lean
+    }
+
+    /// The opposite ray, its lean unchanged.
+    pub(super) fn reversed(self) -> Self {
+        Self {
+            dir: -self.dir,
+            lean: self.lean,
+        }
+    }
+}
+
+/// **The lever a reading of two directions' sides carries, given their
+/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]).
+///
+/// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
+/// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,
+/// turns their line in the reading's plane by up to `δ / sin φ`. A side
+/// read at `lever` therefore carries noise up to
+/// `lever · (δ₀ / s₀ + δ₁ / s₁)`, `sᵢ` each direction's lean (an edge's
+/// `δ` its own departure, its lean 1). Levered at `lever · min(s₀, s₁)`
+/// that noise is at most `lever · (δ₀ + δ₁)`: the two directions' own
+/// tolerances, whatever the faces' angle. One direction tilted within
+/// the zero therefore decides as the upright pose; two tilted the same
+/// way can add past it, as they do between two edges. Against an edge
+/// lying in the reading's plane, the reading is the edge's far end's
+/// offset from the face line's other face; an edge off that plane adds
+/// its own departure, foreshortened by `cos φ` ([`rays_within`]).
+pub(super) fn leaned_lever<T: geom_core::Real>(lever: T, (l0, l1): (T, T)) -> T {
+    lever * l0.min(l1)
+}
+
 /// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:
 /// which side of `start`, then of `end`, it lies on, `Positive` toward
 /// the other.
@@ -1095,8 +1160,10 @@ fn within_signs<T: Decide>(
 /// **Which rays of `line` lie within every one of `sectors`**:
 /// `(+line, −line)`, each `true` where [`within`] holds it in all.
 ///
-/// Two faces' line is passed un-normalized, `m = n_a × n_b`. Read
-/// against a bound `e` of `a`'s sector at `e`'s reach `L`, it measures
+/// The line is read scaled by its lean ([`Leaned::line`]): two faces'
+/// line is read un-normalized, `m = n_a × n_b`, the bounds' reaches its
+/// lever as [`leaned_lever`] would give them. Read against a bound `e`
+/// of `a`'s sector at `e`'s reach `L`, it measures
 /// `L·(m × e)·n_a = L·((n_a·e) cos φ − n_b·e)`: the bound's own
 /// departure from `a`'s plane, foreshortened by `cos φ`, less its far
 /// end's offset from `b`'s plane. The two terms can add or cancel; the
@@ -1105,10 +1172,9 @@ fn within_signs<T: Decide>(
 /// ([`side_code`]); a curved bound's code reads the edge where this
 /// reads its tangent. The unit line would divide the whole by
 /// `|m| = sin φ`, so a far end within the zero of both planes would read
-/// off their line wherever the two faces are near parallel. A line with
-/// no such conditioning (a tangent locus) is passed unit.
+/// off their line wherever the two faces are near parallel.
 pub(super) fn rays_within<T: Decide>(
-    line: Vec3<T>,
+    line: Leaned<T>,
     sectors: &[&BoolSector<T>],
     read: DeclarationRead,
     band: Band,
@@ -1121,7 +1187,8 @@ pub(super) fn rays_within<T: Decide>(
         }
         Ok(true)
     };
-    Ok((holds(line)?, holds(-line)?))
+    let m = line.line();
+    Ok((holds(m)?, holds(-m)?))
 }
 
 /// The sector's bounds that are edges of its face, with their unit
@@ -2373,7 +2440,8 @@ pub(super) fn pair_search<T: Decide>(
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?
             } else {
-                let (plus, minus) = rays_within(int, &[sa, sb], DeclarationRead::Moot, band)?;
+                let line = Leaned::of_line(int);
+                let (plus, minus) = rays_within(line, &[sa, sb], DeclarationRead::Moot, band)?;
                 plus || minus
             };
             if !hit {
@@ -2837,7 +2905,7 @@ mod tests {
         );
         let rays = |a: &BoolSector<f64>, b_: &BoolSector<f64>| {
             let m = a.normal.vec().cross(b_.normal.vec());
-            rays_within(m, &[a, b_], DeclarationRead::Moot, b).unwrap()
+            rays_within(Leaned::of_line(m), &[a, b_], DeclarationRead::Moot, b).unwrap()
         };
         let read = |a, b_: BoolSector<f64>| {
             let found = pair_search(&[a], &[b_], b).unwrap_or_else(|e| panic!("refused: {e:?}"));
