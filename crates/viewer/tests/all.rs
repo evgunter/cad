@@ -104,6 +104,8 @@ mod eval_seam;
 mod focus_highlight;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gesture_placements.rs"]
+mod gesture_placements;
 #[path = "gesture_table.rs"]
 mod gesture_table;
 #[path = "gui_variables.rs"]
