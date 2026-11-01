@@ -9,6 +9,7 @@ priority: P1
 cost: M
 refs: [validate-tier3-curved-boundary-containment, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt, import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave]
 branch: restcurve/pole-door
+pr: 6252
 ---
 
 ## What
