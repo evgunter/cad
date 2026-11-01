@@ -164,6 +164,9 @@ pub(super) fn apart_in_plane<T: Decide>(
     b: FaceKey,
     band: Band,
 ) -> bool {
+    if std::env::var("REV_MUT").is_ok_and(|v| v == "off") {
+        return false;
+    }
     let (Some(la), Some(lb)) = (loops(body, a), loops(body, b)) else {
         return false;
     };
@@ -178,7 +181,9 @@ pub(super) fn apart_in_plane<T: Decide>(
     if one_plane {
         return regions_apart(body, (a, &la), (b, &lb), band);
     }
-    beside(body, (a, &la), &lb, band) || beside(body, (b, &lb), &la, band)
+    (std::env::var("REV_MUT").is_ok_and(|v| v == "r1all") && regions_apart(body, (a, &la), (b, &lb), band))
+        || beside(body, (a, &la), &lb, band)
+        || beside(body, (b, &lb), &la, band)
 }
 
 /// The first reading (module docs): `a` and `b` on one plane, apart as
@@ -225,7 +230,7 @@ fn beside<T: Decide>(
             return false;
         };
         for s in [s0, s1] {
-            if s != Sign::Zero && *sense.get_or_insert(s) != s {
+            if s != Sign::Zero && *sense.get_or_insert(s) != s && !std::env::var("REV_MUT").is_ok_and(|v| v == "side") {
                 return false;
             }
         }
@@ -254,7 +259,7 @@ fn beside<T: Decide>(
             Ok(Sign::Positive)
         )
     };
-    arcs.into_iter().all(off)
+    (std::env::var("REV_MUT").is_ok_and(|v| v == "arc") || arcs.into_iter().all(off))
         && touching.iter().all(|&(e, ends, signs)| {
             ends.iter()
                 .zip(signs)

@@ -923,3 +923,222 @@ fn a_block_over_a_plates_top_still_refuses() {
         "through the arm, a wall: {errs:?}"
     );
 }
+
+// ---- rev5918-r2 probes (not for merge) ----
+
+/// The curved-pair refusals between solids, described for printing.
+fn rev_curved_pairs(body: &AtRestBody<f64>, errs: &[ValidationError]) -> Vec<String> {
+    let desc = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
+        Some(geom::Surface::Plane { normal, origin, .. }) => {
+            format!("plane n={:.3?} o={:.3?} s{:?}", normal, origin, body.solid_of_face(f))
+        }
+        Some(geom::Surface::Cylinder { .. }) => format!("cyl s{:?}", body.solid_of_face(f)),
+        Some(_) => format!("other s{:?}", body.solid_of_face(f)),
+        None => "?".into(),
+    };
+    errs.iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusUndecidable { a: EntityId::Face(a), b: EntityId::Face(b), what, .. }
+                if what.contains(CURVED_WITHIN_REACH) =>
+            {
+                Some(format!("{} | {}", desc(*a), desc(*b)))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Whether the refusals hold a curved-pair refusal between faces of two
+/// solids whose plane normals satisfy `p` and `q`.
+fn rev_refuses(
+    body: &AtRestBody<f64>,
+    errs: &[ValidationError],
+    p: &dyn Fn(Vec3<f64>) -> bool,
+    q: &dyn Fn(Vec3<f64>) -> bool,
+) -> bool {
+    let normal = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
+        Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
+        _ => None,
+    };
+    errs.iter().any(|e| match e {
+        ValidationError::CensusUndecidable { a: EntityId::Face(a), b: EntityId::Face(b), what, .. }
+            if what.contains(CURVED_WITHIN_REACH) =>
+        {
+            [(*a, *b), (*b, *a)].into_iter().any(|(x, y)| {
+                body.solid_of_face(x) != body.solid_of_face(y)
+                    && normal(x).is_some_and(p)
+                    && normal(y).is_some_and(q)
+            })
+        }
+        _ => false,
+    })
+}
+
+fn rev_env(name: &str, default: f64) -> f64 {
+    std::env::var(name).ok().and_then(|s| s.parse().ok()).unwrap_or(default)
+}
+
+/// In-band tilt: a block whose base is tilted, its low edge `REV_DELTA`
+/// below the plate top's plane z = 1 (Zero) and its high edge `REV_HIGH`
+/// above (Positive); the base crosses z = 1 at x = δ/(δ + high), over the
+/// island plate top x ∈ [0.02, 0.07].
+#[test]
+fn rev5918_inband_tilt_crossing_pair() {
+    use sweep::test_support::{corners, prism_at, prism_on, sketch_from_axes};
+    let t = tol();
+    let delta = rev_env("REV_DELTA", 0.9e-9);
+    let high = rev_env("REV_HIGH", 2e-8);
+    let mut plate_pts = corners::<f64>(&[(0.02, 0.9), (0.07, 0.9), (0.07, 1.1), (0.02, 1.1)]);
+    plate_pts[1].1 = rev_env("REV_BULGE", 0.2);
+    let mut body = prism_at(plate_pts, 0.0, 1.0, t);
+    let plane = sketch_from_axes(
+        geom_core::Point3::new(0.0, rev_env("REV_Y0", 0.5), 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        t,
+    );
+    let block_pts = corners::<f64>(&[(0.0, 1.0 - delta), (1.0, 1.0 + high), (1.0, 2.0), (0.0, 2.0)]);
+    let block = prism_on(plane, block_pts, 1.0, t);
+    for (_, d) in block.faces() {
+        if let Some(geom::Surface::Plane { normal, origin, .. }) = block.get_surface(d.surface) {
+            eprintln!("block face n={normal:?} o={origin:?}");
+        }
+    }
+    topo::graft_disjoint(&mut body, &block).expect("grafts");
+    let body = finished("tilt", body, t);
+    let res = census(&body);
+    eprintln!("census: {:?}", res.as_ref().map(|_| ()).map_err(|e| e.len()));
+    if let Err(errs) = &res {
+        for l in rev_curved_pairs(&body, errs) {
+            eprintln!("  CWR {l}");
+        }
+        for e in errs {
+            if !matches!(e, ValidationError::CensusUndecidable { what, .. } if what.contains(CURVED_WITHIN_REACH)) {
+                eprintln!("  other {e:?}");
+            }
+        }
+    }
+    let up = |n: Vec3<f64>| n.z > 0.999_999;
+    let base = |n: Vec3<f64>| n.z < -0.999_999;
+    let top_vs_base = res.as_ref().err().is_some_and(|e| rev_refuses(&body, e, &up, &base));
+    eprintln!("plate top vs tilted base refuses: {top_vs_base}");
+    assert!(top_vs_base, "the plate top and the tilted base cross and are not apart");
+}
+
+/// Arc witness: a square plate with its (2, 2) corner rounded (r 0.5),
+/// and a diamond prism whose wall on x + y = 3.6 cuts the corner arc's
+/// bulge (x + y up to 3.707) while every vertex of the plate top has
+/// x + y ≤ 3.5. The top and that wall meet; only the arc check refuses.
+#[test]
+fn rev5918_arc_bulge_across_the_wall() {
+    use sweep::test_support::{corners, prism_at};
+    let t = tol();
+    let mut pts = corners::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.5), (1.5, 2.0), (0.0, 2.0)]);
+    pts[2].1 = rev_env("REV_ARC_BULGE", (core::f64::consts::PI / 8.0).tan());
+    let mut body = prism_at(pts, 0.0, 1.0, t);
+    let diamond = prism_at(
+        corners::<f64>(&[(2.1, 1.5), (2.6, 2.0), (2.0, 2.6), (1.5, 2.1)]),
+        0.5,
+        1.0,
+        t,
+    );
+    topo::graft_disjoint(&mut body, &diamond).expect("grafts");
+    let body = finished("arc", body, t);
+    let errs = census(&body).expect_err("they overlap");
+    for l in rev_curved_pairs(&body, &errs) {
+        eprintln!("  CWR {l}");
+    }
+    let up = |n: Vec3<f64>| n.z > 0.999_999;
+    let wall = |n: Vec3<f64>| n.z.abs() < 1e-9 && (n.x - n.y).abs() < 1e-9;
+    assert!(rev_refuses(&body, &errs, &up, &wall), "the top and the wall on x + y = 3.6 refuse");
+}
+
+/// Reading 1 near-coincident: the notch pose with the block lifted off
+/// or sunk into the top's plane by a little.
+#[test]
+fn rev5918_notch_lifted() {
+    for l in [1e-12, -1e-12, 5e-10, -5e-10, 1e-9, 5e-9, 3e-8] {
+        let pair = ell_and_block((3.5, 6.0), (3.5, 6.0), (1.0 + l, 2.0));
+        let r = census(&pair);
+        eprintln!(
+            "lift {l:e}: {:?}",
+            r.as_ref().map(|_| ()).map_err(|e| rev_curved_pairs(&pair, e))
+        );
+    }
+}
+
+/// A rounded plate with a square hole and a block on the top's plane:
+/// standing in the hole (apart), over the hole (the hole's loop inside
+/// the base), across the hole's rim.
+#[test]
+fn rev5918_block_in_a_hole() {
+    use profile::{Open, ProfileLoop, Start};
+    use sweep::test_support::{brick, corners, extruded, sketch_at};
+    let t = tol();
+    let mut path = Open.at(Point2::new(1.0, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (c, (dx, dy)) in [
+        (Point2::new(6.0, 1.0), (0.0, 1.0)),
+        (Point2::new(5.0, 6.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 5.0), (0.0, -1.0)),
+    ] {
+        path = path.fillet(0.5, t).unwrap().at(c, t).unwrap().toward(dx, dy, t).unwrap();
+    }
+    let outer: ProfileLoop<f64> = path.fillet(0.5, t).unwrap().to(Start, t).unwrap().into();
+    let hole = profile::test_support::bulge_loop(corners::<f64>(&[(2.0, 2.0), (2.0, 4.0), (4.0, 4.0), (4.0, 2.0)]));
+    for (bx, by, what) in [
+        ((2.5, 3.5), (2.5, 3.5), "in the hole"),
+        ((1.5, 4.5), (1.5, 4.5), "over the hole"),
+        ((2.5, 3.5), (1.0, 3.0), "across the hole's rim"),
+    ] {
+        let mut body = extruded(sketch_at(0.0), vec![outer.clone(), hole.clone()], 1.0, t);
+        topo::graft_disjoint(&mut body, &brick(bx, by, (1.0, 2.0), t)).expect("grafts");
+        let body = finished("hole", body, t);
+        let r = census(&body);
+        eprintln!(
+            "{what}: {:?}",
+            r.as_ref().map(|_| ()).map_err(|e| rev_curved_pairs(&body, e))
+        );
+    }
+}
+
+/// The PR body's counterexample to reading 1 on two planes: a pentagon
+/// top `A` (z = 1) holding y = 5 over x ∈ [0, 10], and a triangle `B` in
+/// the plane z − 1 = y − 5 with a vertex at (−1, 5, 1), crossing z = 1
+/// along y = 5 over x ∈ [−1, 5]. They cross along x ∈ [0, 5].
+#[test]
+fn rev5918_tilted_triangle_across_the_pentagon() {
+    use sweep::test_support::{prism_at, prism_on, sketch_from_axes};
+    let t = tol();
+    let mut total = 0;
+    let mut cleared = Vec::new();
+    for ra in 0..5 {
+        for rb in 0..5 {
+            let mut ring = vec![(0.0, 2.0, 0.0), (6.0, 0.0, 0.0), (10.0, 5.0, 0.0), (6.0, 10.0, 0.05), (0.0, 8.0, 0.0)];
+            ring.rotate_left(ra);
+            let pts: Vec<_> = ring.iter().map(|&(x, y, b)| (Point2::new(x, y), b)).collect();
+            let mut body = prism_at(pts, 0.0, 1.0, t);
+            let mut chevron = vec![(0.0, 0.0), (-2.0, -3.0), (5.5, -0.2), (5.5, 0.2), (-2.0, 3.0)];
+            chevron.rotate_left(rb);
+            let tri: Vec<_> = chevron.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
+            let plane = sketch_from_axes(
+                geom_core::Point3::new(-1.0, 5.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 1.0),
+                t,
+            );
+            let block = prism_on(plane, tri, 0.5, t);
+            topo::graft_disjoint(&mut body, &block).expect("grafts");
+            let body = finished("tilted chevron", body, t);
+            let errs = census(&body).expect_err("they cross");
+            let up = |n: Vec3<f64>| n.z > 0.999_999;
+            let tilted = |n: Vec3<f64>| n.x.abs() < 1e-9 && (n.y + n.z).abs() < 1e-9;
+            let n = errs.iter().filter(|e| rev_refuses(&body, std::slice::from_ref(e), &up, &tilted)).count();
+            eprintln!("ra {ra} rb {rb}: top vs tilted caps refusals: {n}");
+            total += 1;
+            if n < 2 {
+                cleared.push((ra, rb));
+            }
+        }
+    }
+    assert!(cleared.is_empty(), "of {total}, a tilted cap crossing the top cleared at {cleared:?}");
+}
