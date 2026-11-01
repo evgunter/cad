@@ -2,7 +2,8 @@
 id: injectivity-price-on-tour-lofts-exceeds-the-pair-budget
 kind: issue
 title: The injectivity check needs more than 65536 cell pairs on a wall against itself or against a near-parallel wall of the tour's lily blades and Klein loop, and costs 1 to 10 s where it holds
-status: open
+status: closed
+closed: 2026-11-01
 opened: 2026-10-31
 priority: P0
 cost: H
@@ -140,3 +141,15 @@ interval arithmetic, rather than the geometry or the budget.
 Where the question answers, it still costs 100–6000× the build, between
 0.2 s and 47 s. That is still too dear to pay on every rebuild. The
 "Left open" question above can now be decided on these numbers.
+
+## Closed (CLEAR, 2026-11-01)
+
+Every tour body now answers within the default pair budget; the Klein
+loop, the busiest, uses 73% of it. What this row named (the question not
+answering, and the area frontier) is fixed by JETFRAME, ZEROSIDE,
+HEADING and DIRSUPPORT.
+
+What remains is the cost per pair, 100–6,000× the build. It is
+`clearance-recomputes-a-cells-net-and-jet-per-pair` (P0). The door
+policy for CARVE's loop (whether it runs this question on every rebuild)
+goes to Ev with that unit's numbers.
