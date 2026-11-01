@@ -2,10 +2,12 @@
 id: the-vertex-vertex-material-rows-read-a-curved-face-with-no-curvature-charge
 kind: issue
 title: The vertex-vertex material rows read a curved partner face at its tangent plane with no curvature charge, where the vertex-on-face pass charges the sagitta
-status: open
+status: closed
 opened: 2026-11-01
 priority: P2
 cost: M
+closed: 2026-11-01
+refs: [vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces]
 ---
 
 
@@ -16,3 +18,7 @@ Found by all three designers weighing `the-booleans-cone-reader-is-a-second-link
 `the-boolean-reads-the-other-operand-through-one-cone` moves these readings onto a `Cone` of tangent sectors without fixing this; afterwards the charge belongs on the `Cone` builder's tangent sectors, one home. ONEHOME's `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways` is the layer below (a germ's side of one face).
 
 Owed: a witness, and the charge, or a stated reason a germ reading owes none.
+
+## Closed (2026-11-01, duplicate)
+
+A duplicate of APEX's `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`, which TANGRIM claimed and closes with its carrying unit `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways` (one bound-side reading, charged at first order, one order down on a tie). `the-boolean-reads-the-other-operand-through-one-cone` reads that bound-side reading for a curved partner face. (ONEREAD orchestrator)
