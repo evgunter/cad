@@ -378,6 +378,44 @@ mod missed_pick_bounds {
         );
     }
 
+    /// **The miss names what the tool's pick kind did not find**: under
+    /// the blend tool, which picks edges only, a click on the plate's
+    /// material away from every edge met a face, not nothing.
+    #[test]
+    fn an_edges_only_tool_says_no_edge_was_under_the_cursor() {
+        let mut driver = started("missed-pick-blend");
+        driver.click("Blend edges", 0).expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Blend tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.35, 0.5);
+        let dump = driver.dump();
+        assert!(
+            dump.contains("blend tool: no edge under the cursor — no pick taken"),
+            "{dump}"
+        );
+        assert!(!dump.contains("nothing under the cursor"), "{dump}");
+    }
+
+    /// **Closing the tool retires its miss**: once the boolean tool is
+    /// cancelled, nothing on screen says it took no pick.
+    #[test]
+    fn closing_the_tool_retires_its_miss() {
+        let mut driver = started("missed-pick-close");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.02, 0.02);
+        assert!(driver.dump().contains("no pick taken"), "the premise");
+        driver.click("Cancel", 0).expect("the tool closes");
+        driver.settle().expect("settles");
+        let dump = driver.dump();
+        assert!(!dump.contains("no pick taken"), "{dump}");
+    }
+
     /// **Repeated misses say it once, and a pick retires it**: the line
     /// carries one telling however many misses, and the click that
     /// seats something clears it.

@@ -1186,7 +1186,10 @@ impl ViewerBehavior<'_> {
                         if matches!(op, SessionOp::Select(crate::session::Selection::None))
                             && let Some(kind) = self.tools.open_kind()
                         {
-                            self.notices.push(frame::missed_pick(kind));
+                            self.notices.push(frame::tool_notice(
+                                &crate::tools::ToolNotice::Missed(kind),
+                                Some((doc, eval)),
+                            ));
                         }
                         self.ops.push(op);
                     }
