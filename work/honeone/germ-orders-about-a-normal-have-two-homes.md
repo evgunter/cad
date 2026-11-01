@@ -90,3 +90,18 @@ where they apply:
 
 The first-order readings, their K names and the sense difference are
 as before.
+
+## The orbit walk and the ring's ties read second order now (2026-11-01, CLEAVE `cleave/two-lumps-pinch-rays`)
+
+The last bullet above is stale since `119e857190` (PR 5812): the orbit
+walk's tie of two germs along one direction in one entry, each along
+one of the other solid's coincident edges, is read one order further by
+`insert::beside_order` (`walks_before_beside`): each germ lies on the
+side of the line where the other solid's face flush with the sector
+borders its edge (`bool_beside_flush`), read by `walks_after`. That is a
+second home for "which cone's copy lies on which side of the ray",
+beside `vtxfac::tie_breaks_after` (the ring's two pierces' germs along
+one ray, by their chords' nesting). Since PR 6170 the join reads the
+ring's tie too: `PierceRingRecord::ties` keeps each tie's two strut
+halves in the ring's order, and `join::tie_winding` winds a ring run of
+no area by it, so one door would also serve that reader.

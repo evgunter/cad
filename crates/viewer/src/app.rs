@@ -82,6 +82,10 @@ use crate::tools::Tools;
 // path to assert the unit/tick pair on it.
 pub use crate::forms::FieldWriting;
 
+#[cfg(all(any(test, feature = "test-support"), not(target_family = "wasm")))]
+#[doc(hidden)]
+pub mod drive;
+
 /// Where this build keeps preferences.
 ///
 /// One `cfg` alias rather than a trait object: there is exactly one
@@ -816,6 +820,16 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
+        Self::assemble_with(egui_ctx, tol, prefs_store())
+    }
+
+    /// [`Self::assemble`] over the preferences `store` it reads and
+    /// writes.
+    fn assemble_with(
+        egui_ctx: &egui::Context,
+        tol: Tol,
+        store: Store,
+    ) -> Result<Self, StartupError> {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         // The startup plate is a new document, so it mints its id as
         // `SessionOp::NewDocument` does; the scene fixture derives one.
@@ -839,7 +853,6 @@ impl ViewerApp {
         // colour scheme was unreadable would be trading the whole
         // product for a preference, so every arm ends in a message
         // and the defaults.
-        let store = prefs_store();
         let (saved, mut notices) = match store.load() {
             Ok(Some(text)) => match Prefs::from_toml(&text) {
                 Ok((prefs, notices)) => (prefs, notices.iter().map(ToString::to_string).collect()),
@@ -3901,85 +3914,7 @@ mod properties_pane_tests {
     /// a taller one.
     pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1000.0);
 
-    /// **One frame of the real app**, in a `window`-sized window, with
-    /// `time` and `events` as its input: every text run it painted and
-    /// where. The one frame body every whole-app row here draws with.
-    pub(super) fn app_frame(
-        ctx: &egui::Context,
-        app: &mut ViewerApp,
-        frame: &mut eframe::Frame,
-        window: egui::Vec2,
-        time: Option<f64>,
-        events: Vec<egui::Event>,
-    ) -> Vec<crate::pane::headless::Landed> {
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, window)),
-            time,
-            events,
-            ..Default::default()
-        };
-        let mut output = ctx.run_ui(input, |ui| {
-            eframe::App::ui(app, ui, frame);
-        });
-        // Nothing here paints, so the frame's texture delta is
-        // dropped rather than uploaded.
-        output.textures_delta.clear();
-        crate::pane::headless::landed_in(&output.shapes)
-    }
-
-    /// How many frames [`settle`] paints before it calls the app stuck.
-    const SETTLE_FRAMES: usize = 3000;
-
-    /// Whether the index attempt for the picture on screen is
-    /// answered: an index held, or its refusal. One that is neither is
-    /// one `sync` has not asked for yet.
-    pub(super) fn index_answered(app: &ViewerApp) -> bool {
-        app.picks.index().is_some() || app.picks.error().is_some()
-    }
-
-    /// **Nothing the toolbar's progress read names can change before
-    /// the next op**: no wait is outstanding (so the document landed
-    /// and its evaluation is current), and the index attempt is
-    /// answered.
-    pub(super) fn quiescent(app: &ViewerApp) -> bool {
-        app.progress().is_none() && index_answered(app)
-    }
-
-    /// **Paint until `until` holds of the app**, and answer the first
-    /// frame painted in that state. Most rows wait for
-    /// [`quiescent`]; a row whose fixture keeps a wait open on purpose
-    /// names what it waits for instead.
-    ///
-    /// The evaluation, the display fit and the index build run on
-    /// worker threads, so a fixed number of frames catches whichever
-    /// phase the scheduler reached. Everything `until` reads moves only
-    /// inside a frame (the session's and the seams' `pump`/`poll` at
-    /// its top, the cache's `sync`, an op's submit in the batch at its
-    /// end), so a frame read as settled afterwards painted that state.
-    ///
-    /// # Panics
-    ///
-    /// When [`SETTLE_FRAMES`] frames go by without `until` holding.
-    pub(super) fn settle<T>(
-        app: &mut ViewerApp,
-        until: impl Fn(&ViewerApp) -> bool,
-        mut paint: impl FnMut(&mut ViewerApp) -> T,
-    ) -> T {
-        for _ in 0..SETTLE_FRAMES {
-            let painted = paint(app);
-            if until(app) {
-                return painted;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        panic!(
-            "the app did not settle in {SETTLE_FRAMES} frames: progress {:?}, index held {}, \
-             refusal held {}",
-            app.progress(),
-            app.picks.index().is_some(),
-            app.picks.error().is_some(),
-        );
-    }
+    pub(super) use super::drive::{app_frame, index_answered, quiescent, settle};
 
     /// **The wait answers a frame that paints nothing outstanding.**
     /// The startup evaluation, the display fit and the index build
@@ -5417,16 +5352,39 @@ mod properties_pane_tests {
     }
 
     /// **The creation doors that are not tools are reachable too**: the
-    /// extrude form, under "Add feature", paints its button (withheld,
-    /// with nothing selected), and the `Add part…` button opens the part
-    /// chooser. The add-profile form is the subject of
-    /// rows of its own above, which open the section and read it.
+    /// extrude form, under "Add feature", is drawn while a profile is
+    /// selected and not while anything else is (its door's own kind
+    /// test), and the `Add part…` button opens the part chooser. The
+    /// add-profile form is the subject of rows of its own above, which
+    /// open the section and read it.
     #[test]
     fn the_extrude_form_and_the_part_chooser_are_reachable() {
         use crate::pane::create::{ADD_FEATURE, ADD_PART, EXTRUDE};
-        let mut driven = Driven::with(Vec::new());
+        // The button's words for `node`, as the form spells them.
+        let button = |driven: &Driven, node: RecipeNodeId| {
+            format!(
+                "{EXTRUDE} {}",
+                pncad::document::Speaker::of(driven.app.session.doc()).node(node)
+            )
+        };
+        let offers = |painted: &[(String, egui::Rect)], words: &str| {
+            painted.iter().any(|(run, _)| run == words)
+        };
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         driven.click(ADD_FEATURE);
-        Driven::only(&driven.frame(Vec::new()), EXTRUDE);
+        let painted = driven.frame(Vec::new());
+        let refused = button(&driven, extrude());
+        assert!(
+            !offers(&painted, &refused) && !offers(&painted, EXTRUDE),
+            "an extrude selected is not a profile, so no extrude is offered: {painted:?}"
+        );
+        driven.select(Selection::Node(startup_node(0)));
+        let painted = driven.frame(Vec::new());
+        let offered = button(&driven, startup_node(0));
+        assert!(
+            offers(&painted, &offered),
+            "the startup profile selected offers {offered:?}: {painted:?}"
+        );
         assert!(driven.app.part_chooser.is_none(), "the startup app");
         driven.click(ADD_PART);
         assert!(

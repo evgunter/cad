@@ -880,3 +880,5 @@ mod union_flush_fuses;
 mod union_member_orders_decide_alike;
 #[path = "value_chart_sweeps.rs"]
 mod value_chart_sweeps;
+#[path = "vessel_cavity_interval.rs"]
+mod vessel_cavity_interval;

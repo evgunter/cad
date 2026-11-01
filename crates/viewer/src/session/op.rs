@@ -921,7 +921,7 @@ pub enum SessionOp {
     /// The original's placements are untouched. The copy is a body of its
     /// own rather than a second placement of the original, because a
     /// feature gesture re-points every placement of its target body
-    /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
+    /// (`work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md`).
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
