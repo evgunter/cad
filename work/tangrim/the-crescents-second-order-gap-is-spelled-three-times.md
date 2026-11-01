@@ -7,6 +7,7 @@ opened: 2026-10-31
 priority: P2
 cost: E
 refs: [5793, 5852]
+parent: the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways
 ---
 
 Found by the re-review of PR 5793 (CLEAVE).
