@@ -1228,16 +1228,15 @@ pub(super) fn carrier_on_surface<T: Decide>(
             ]
         }
         (Samples::Five | Samples::Nine, _) => {
-            let n = if matches!(samples, Samples::Five) {
-                5
-            } else {
-                9
-            };
             // Over the whole turn a closed edge's last point is its first.
-            let steps = if closed { n } else { n - 1 };
-            let step = (t1 - t0) / T::from_f64(f64::from(steps));
-            (0..n)
-                .map(|k| t0 + step * T::from_f64(f64::from(k)))
+            let (n, steps) = match (samples, closed) {
+                (Samples::Nine, true) => (9, T::from_f64(9.0)),
+                (Samples::Nine, false) => (9, T::from_f64(8.0)),
+                (_, _) => (5, T::from_f64(5.0)),
+            };
+            let step = (t1 - t0) / steps;
+            core::iter::successors(Some(t0), |&t| Some(t + step))
+                .take(n)
                 .collect()
         }
     };
