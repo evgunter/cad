@@ -2,13 +2,14 @@
 id: main-red-a-partner-tipped-off-the-face-refuses-line-wedges-overlap
 kind: issue
 title: Main red (slow set): a partner tipped 0.5ε off the face refuses LineWedges Overlap where it must build or refuse typed
-status: review
+status: closed
 branch: oneread/partner-tipped-off-the-face
 pr: 6272
 opened: 2026-11-01
 priority: P1
 cost: M
-refs: [6247]
+refs: [6247, a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap]
+closed: 2026-11-01
 ---
 
 
@@ -31,3 +32,7 @@ Measured on main `bc859043` (after PR 6247's merge), default ε: the row passes 
 - **Cause** (SPLITDOOR's row, confirmed here): the refusal is honest. `boolean::ops` `coincident_wedges_disjoint` raises `LineWedges { Overlap }` where the result holds two coincident edges on one line whose four sheets it pairs otherwise than the material does, the unbuilt re-pairing of `work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`. The exact on-top scene is pinned to refuse it (`REFUSING`: "around the lying pyramid, x − y"). Once PR 6212 read a 0.5ε tilt as upright, the tipped pose refused as the on-top one does, as the test's own contract asks ("within the zero every scene builds as on the top"); `builds_or_refuses` looked its pins up by the decorated label ("…, the pyramid lying 0.5ε off the top"), which never matches `REFUSING`. PR 6256 passes the on-top scene's label as the pins for poses within the zero, and enforces `not_pinned` there too.
 
 Nothing remains to fix on ONEREAD's ground: the vertex-pair reading is not involved, and the kernel side is the open topo row above.
+
+## Closed (2026-11-01, duplicate)
+
+A duplicate of SPLITDOOR's closed `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap`, fixed on main by PR 6256 before this row was filed; the measurements above confirm it green on main. The underlying re-pairing of coincident edges is `work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`. (ONEREAD orchestrator)
