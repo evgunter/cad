@@ -151,7 +151,10 @@ the end of the session (the badge paragraph above).
   The picture is partial the same way. The pick index and the scene
   draw every drawn copy whose node has a value, and hold a copy
   without one as undrawn, with its reason: a failure takes away its
-  own copies' picture and no other. The index refuses as a whole only
+  own copies' picture and no other. A copy that has a value and still
+  cannot be drawn (not a body, or a tessellation the kernel refused) is
+  held undrawn the same way, and said loudly, naming the copy, because
+  no row of the tree reports it. The index refuses as a whole only
   for a fault of the index itself (an id map that is not one-to-one, a
   body drawn twice, names from another document).
   Progress reporting and in-op yield points are absent; v1 shows a busy
@@ -251,9 +254,11 @@ is a different answer from *nothing under the cursor*, and a hover is
 left alone because it is an observation pushed on every frame and not
 an act.
 
-That build-in-flight window is the only time an older picture stays
-on screen. The picture keeps the index's promise: an index refused as
-a whole draws nothing, never the picture from before the refusal.
+That build-in-flight window, and a canceled evaluation (whose toolbar
+says it is showing an older result), are the only times an older
+picture stays on screen. The picture keeps the index's promise: an
+index refused as a whole draws nothing, never the picture from before
+the refusal.
 
 **What that does to the frame-state inventory** — the per-field
 justifications on `ViewerApp`'s own non-document fields, in
