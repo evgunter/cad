@@ -6,27 +6,26 @@ status: open
 opened: 2026-10-31
 priority: P2
 cost: M
-refs: [the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt]
+refs: [the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt]
 ---
 
 ## What
 
 DESIGN `[topology.tiers]` gives a point's place in a face one reading,
-the point-in-face doors'. Tier 3's chart-singularity arm reads a sphere
-pole's or cone apex's side through them: the face's door at the point,
-every surface cycle kept (`boolean::cycle_side`), after
-`geom_brep::chart_singularity::place_on_boundary` places it off the
-boundary
-(`work/restcurve/the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar.md`,
-which retired tier 3's use of `locate`'s side reading and of
-`walk_loop`). Import shares only `place_on_boundary` with it now.
+the point-in-face doors'. Tier 3's chart-singularity arm is to read a
+sphere pole's or cone apex's side through them
+(`work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`,
+which retires tier 3's use of `geom_brep::chart_singularity::walk_loop`).
+Today tier 3 and import share `locate` (whose boundary placement is now
+`place_on_boundary`, split out by RESTCURVE's region-arm PR), so they
+agree.
 
 Step-import's normalization cannot follow tier 3 there
 (`crates/step-import/src/normalize/singularity.rs`: `scan` calls
 `home::locate`, `holds` calls `home::holds`, `nappe` calls
 `home::walk_loop`). It runs on `FaceSpec`s before any `Body` exists, and
-the topo doors read keys. So import and tier 3 read one point's side
-by two instruments. Where the walk's certified area bound
+the topo doors read keys. Once tier 3 moves, import and tier 3 read one
+point's side by two instruments. Where the walk's certified area bound
 straddles and a door decides, import can leave a pole the doors place in
 the face as no vertex, and tier 3 then refuses the imported body.
 

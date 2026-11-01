@@ -2,7 +2,8 @@
 id: the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar
 kind: issue
 title: The sphere door cannot settle a pole at the certified (interval) scalar, so tier 3's pole side still reads locate
-status: dispatched
+status: closed
+closed: 2026-11-01
 opened: 2026-10-31
 priority: P1
 cost: M
@@ -80,3 +81,24 @@ Branch `restcurve/pole-door`. Review tier: **dual**: the fix is in a door the bo
    - PR 6054's 10 µm sliver 1 cm from a pole passes;
    - a pole read in band escalates typed with its margin.
 5. **No false refusal:** topo, step-import, step-export and sweep at ε 1e-6, the default and 1e-12, plus every interval/certified sweep test. **No answer moves:** a base-vs-head differential of `curved_face_containment` on sphere bodies (grid, near-pole and arc-edge points, f64 and Interval). Any definite flip must be explained.
+
+## Closed — the door half landed; the switch moved (pole door, 2026-11-01)
+
+The six enclosures had one cause: a crossing at a ray's antipode placed
+by `atan2` on its branch cut. Every great circle through a pole passes
+the other pole there, and each body's face has an arc ending at it, so
+`bool_sphere_region_at` enclosed `[0, π·R]` on every ray. The door now
+reads a place round a circle by the half-angle form
+(`region::between`), and a root as a direction
+(`circle_roots::first_harmonic_root_directions`) against its span by the
+unsigned angle from the span's middle (`region::span_from_middle`); all
+six read the pole `out` with the switch built. The `span` enclosures
+were set-aside paths of the same shape (a root a half turn from its
+arc's middle; the phase on its cut), fixed and pinned beside it.
+
+The switch itself stops on a false refusal at ε 1e-6
+(`blend4_r1_probes::p2_slim_skews_carve_valid_or_refuse_typed_never_worse`),
+which no great-circle ray can read. It moved, with the retirement of
+tier 3's `walk_loop`, to
+`the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band`
+(orchestrator's ruling: option 2). Tier 3's pole side stays on `locate`.

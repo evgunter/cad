@@ -759,22 +759,20 @@ mod tests {
         );
     }
 
-    /// **A pole whose side the door reads in band refuses typed, with
-    /// its margin** (D4 ¶1): the zone of the unit sphere between rims at
+    /// **A pole whose side the door reads in band escalates, with its
+    /// margin** (D4 ¶1): the zone of the unit sphere between rims at
     /// heights `0.5` and `0.5 − 3ε·sin 60°`, `3ε` apart along every
     /// meridian, inside the band — the ball split by the upper rim, and
     /// the lower rim planted on the face below it as a ring. Each pole is
     /// far off the zone's boundary, and every great circle through it is
     /// a meridian, which meets the two rims at places the band cannot
-    /// order: tier 3 refuses both poles as undecided sides carrying the
-    /// order row's margin, never as a pass or a place. (The two caps the
-    /// construction leaves each hold a pole, refused as they should be.)
+    /// order: the face's door, every surface cycle kept, escalates on the
+    /// order row with its margin at both poles, never a side.
     #[test]
-    fn a_pole_read_in_band_refuses_typed_with_its_margin() {
+    fn a_pole_read_in_band_escalates_with_its_margin() {
         use crate::construction::{FaceSurface, MefSite, MevSite};
         use crate::entity::LoopBoundary;
         use geom_brep::EdgeCurveSpec;
-        use geom_brep::chart_singularity::{SideUnread, Singularity, Undecided};
         let tol = geom_core::Tol::witness();
         let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
         let (z1, z2) = (0.5, 0.5 - 3.0 * tol.eps() * (pi / 3.0).sin());
@@ -887,30 +885,24 @@ mod tests {
             .find(|(_, f)| !f.rings.is_empty())
             .expect("the lower rim is a ring")
             .0;
-        let (errors, _) = crate::validate::tier3_local_checks(&body, tol, None);
-        for pole in [Singularity::North, Singularity::South] {
+        let band = Band::linear(tol).unwrap();
+        let every: Vec<usize> = (0..crate::surface_boundary::surface_cycles(&body, zone)
+            .unwrap()
+            .len())
+            .collect();
+        for (pole, z) in [("north", 1.0), ("south", -1.0)] {
+            let got =
+                crate::boolean::cycle_side(&body, zone, &every, Point3::new(0.0, 0.0, z), band);
             assert!(
-                errors.iter().any(|e| matches!(
-                    e,
-                    crate::ValidationError::ChartSingularityUndecided {
-                        face: f,
-                        point,
-                        reading: Undecided::Side(SideUnread::Banded(diag)),
-                    } if *f == zone
-                        && *point == pole
-                        && diag.predicate == Some("bool_sphere_region_order")
-                        && !diag.margin.is_invalid()
-                )),
-                "{pole:?} is undecided on the order row: {errors:?}"
+                matches!(
+                    &got,
+                    Err(crate::boolean::ContainError::Escalated { diag, .. })
+                        if diag.predicate == Some("bool_sphere_region_order")
+                            && !diag.margin.is_invalid()
+                ),
+                "the {pole} pole is undecided on the order row: {got:?}"
             );
         }
-        assert!(
-            !errors.iter().any(|e| matches!(
-                e,
-                crate::ValidationError::ChartSingularityNotAVertex { face: f, .. } if *f == zone
-            )),
-            "no place is read off a margin in band: {errors:?}"
-        );
     }
 
     /// The unit sphere's lune between azimuths `π` and `3π/2`, below the

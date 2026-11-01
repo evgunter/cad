@@ -665,13 +665,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    whether it is joinable is undecided, refuses too, with the
    tighten-the-tolerance recourse: a size the run's ε cannot tell from
    a pole or apex), **chart singularities as vertices** (every sphere
-   pole and cone apex in a face's closure is a vertex of it, placed on
-   the boundary by `geom_brep::chart_singularity::place_on_boundary`,
-   the reading STEP import normalizes by, and in the interior by the
-   face's point-in-face door; one in the interior or inside an edge is
-   `ChartSingularityNotAVertex`, and one whose distance to the boundary
-   is in band, or whose side the door reads in band, is
-   `ChartSingularityUndecided`; and every wrap
+   pole and cone apex in a face's closure is a vertex of it, read off
+   the face's region by `geom_brep::chart_singularity::locate`, the
+   reading STEP import normalizes by; one in the interior or inside an
+   edge is `ChartSingularityNotAVertex`, and one whose distance to the
+   boundary is in band, or whose side of a loop its reading cannot clear
+   of its own error bound, is `ChartSingularityUndecided`; and every wrap
    edge's tip lies on its face's chart singularity, read at the joint
    between the edge's two halves by the incidence the loop walk resets
    that joint by, `WrapTipOffChartSingularity`,

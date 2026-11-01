@@ -355,9 +355,12 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
 }
 
 /// **A cap whose rim is tilted against its sphere's axis holds a pole
-/// by its region** (DESIGN `[topology.tiers]`, a chart singularity in a
-/// face's closure is a vertex of it; tier 3 reads the pole's side through
-/// the face's point-in-face door). The cut stays at `z = 0.5` and the
+/// by its region, as `locate` reads it** (DESIGN `[topology.tiers]`, a
+/// chart singularity in a face's closure is a vertex of it, read off the
+/// face's region rather than off a meridian). It pins tier 3's pole
+/// reading, `geom_brep::chart_singularity::locate`'s closed form, which
+/// `work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`
+/// moves onto the doors; the row then pins the doors. The cut stays at `z = 0.5` and the
 /// sphere's axis tilts by `tilt` about `y`, so the rim is no parallel of
 /// the chart: at `0.3` the north pole stands at `z = cos 0.3 > 0.5`, in the
 /// cap, and is refused; at `1.2` it stands at `z = cos 1.2 < 0.5`, the
@@ -480,18 +483,17 @@ where
         .collect()
 }
 
-/// **A pole a hair inside or outside a cap's rim is placed by the face's
-/// door, at `f64` and at the certified scalar.** The cap above `z = 0.5`
+/// **A pole a hair inside or outside a cap's rim is placed by tier 3, at
+/// `f64` and at the certified scalar.** The cap above `z = 0.5`
 /// of a sphere whose axis tilts by `π/3 ∓ δ`, so its north pole stands
 /// `δ` (along the sphere) inside the rim or outside it, for `δ` of
 /// `1e-2`, `1e-3` and `1e-4` rad: inside, tier 3 refuses the pole as
 /// interior to the face; outside, the face holds neither pole and tier 3
 /// says nothing of them. Each pole is off the boundary by far more than
-/// the band, so the reading is the door's side, read along great circles
-/// through the pole, every one of which passes the other pole at its
-/// antipode.
+/// the band, so the reading is a side of the face's region, which no
+/// distance to its boundary decides.
 #[test]
-fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_by_the_door_at_both_scalars() {
+fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars() {
     use geom_core::Interval;
     let z = 0.5_f64;
     let rim = z.acos();
