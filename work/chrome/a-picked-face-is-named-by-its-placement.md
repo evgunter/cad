@@ -38,3 +38,7 @@ click "on the picked face"
 click "rectangle"
 dump
 ```
+
+## The mate tool's held picks
+
+Second walk (2026-10-31; Ev: P2, "maybe it could highlight the face if you hover over the selection"). The mate panel reads `on: face of InstantiatePart "InstantiatePart 1" (…); to: face of …`. A pick aimed at a plate's top face landed on its side face, and the mate stood the plate on its edge; nothing in the panel said which face was held. A good name may not exist, so the proposal is to light the held face in the viewport while the pointer is over its line in the panel.
