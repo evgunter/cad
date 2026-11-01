@@ -2,10 +2,11 @@
 id: a-closed-edge-lying-in-a-face-is-never-read-by-the-parting
 kind: issue
 title: The Boolean's parting skips every closed edge, so a full circle lying in a face keeps the rider form
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: E
+branch: parting/closed-and-torus-riders
 ---
 
 

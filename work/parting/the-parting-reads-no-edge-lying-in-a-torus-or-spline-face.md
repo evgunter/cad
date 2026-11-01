@@ -2,10 +2,11 @@
 id: the-parting-reads-no-edge-lying-in-a-torus-or-spline-face
 kind: issue
 title: The Boolean's parting reads no edge lying in a torus or spline face, so a rider there keeps one edge
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
+branch: parting/closed-and-torus-riders
 ---
 
 

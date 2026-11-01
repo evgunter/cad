@@ -1,3 +1,7 @@
 # PARTING — the log
 
 - 2026-11-01 — Opened by CLEAVE's split on its semantic seams (Ev, in chat, 2026-11-01: CLEAVE measured 114 budget points against 30). 7 rows moved here from `work/cleave/` by `git mv`, ids and bodies unchanged, each with a dated `## Slate triage` note. Nothing is dispatched. (CLEAVE orchestrator)
+- 2026-11-01 — Claimed by a PARTING cloud session; `status: active`. P1 rows and how they run:
+  - `a-closed-edge-lying-in-a-face-is-never-read-by-the-parting` (E) and `the-parting-reads-no-edge-lying-in-a-torus-or-spline-face` (M) go to ONE lane on `parting/closed-and-torus-riders`, one PR. Both edit `slit.rs`'s rider reading (`riders`, `carrier_on_surface`), so they would run one at a time anyway, and a closed circle of a torus is where they meet. Tier: FULL single review (claims + style): the torus reading's sample count and the new refusals carry a real chance of a wrong verdict.
+  - `the-parting-reads-no-edge-lying-in-a-face-no-record-names` (M) names two fixes, at the reading or at the producers, with ContactHold's ground on the second. Treated as a fork: designers weigh it before any lane builds it (`docs/DESIGN-FORK-PROTOCOL.md`), concurrently with the lane above since they only read.
+  - Checked first: PR 6177 (CLEAVE, in its fix pass) does not touch `slit.rs` on its current head; its should-fix may move `carrier_on_surface` to a shared reader, so the lane is told to merge main before touching it and to name the coupling in its PR. (PARTING orchestrator)
