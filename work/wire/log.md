@@ -7258,4 +7258,6 @@ Signed (WIRE orchestrator).
   - Moved `a-unions-member-edge-group-size-…` to WIREREST (29/30). WIRE is now 29/30.
   - Dispatched `wire-carries` for both P1 rows, as two PRs. The split row gets the interim carry only; the HELDRECORDS split-gate fork is still open.
   - Dispatched `wirehold-triage` (read-only): every WIREHOLD row checked against post-D10 main as moot, still real or changed.
-- 2026-11-01 (WIRE orchestrator) WIREHOLD re-read after D10 (triage): 2 rows closed as moot, 10 re-scoped. Kept as a track (WIRE is full, and tests cite its row paths), retitled to WIRE's post-D10 residue. Load 25/30.
+- 2026-11-01 (WIRE orchestrator) WIREHOLD re-read after D10 (triage): 2 rows closed as moot, 10 re-scoped. Kept as a track (WIRE is full, and tests cite its row paths), retitled to WIRE's post-D10 residue. Load 20/30.
+- 2026-11-01 (WIRE orchestrator) DESIGN's cancelation bullet already lists in-op yield points as remaining work. It was written by a Claude editing pass (99cc678bfd), not an Ev ruling. So per-member yielding builds toward the text and needs no `[ev]`.
+  - Dispatched `wire-members` (wirehold/a-family-yields-per-member): per-member cancelation in a family, an overflow check on nested counts, and a measured recommendation on a size ceiling (no ceiling built without a designer pair). FULL review.

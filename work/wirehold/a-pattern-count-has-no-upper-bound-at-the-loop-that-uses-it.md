@@ -2,12 +2,11 @@
 id: a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it
 kind: issue
 title: A member family's count is admitted up to u32::MAX per index and evaluated inside one node, with the cancel token checked only between nodes
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P1
 cost: M
 refs: [need-count-spells-every-failure-as-a-pattern-count]
-
 ---
 
 

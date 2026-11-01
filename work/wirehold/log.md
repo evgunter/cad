@@ -22,4 +22,4 @@ INTENT closed on 2026-10-30, so every trigger fired. A read-only triage (`wireho
   - the pivot turn (the axis half is answered);
   - the carry prose;
   - the weld rows (still real; tests cite their paths).
-- **The track is kept, not folded into WIRE:** WIRE is at 29/30, and tests cite these rows' paths. Retitled, and the plan rewritten. Load is 25/30.
+- **The track is kept, not folded into WIRE:** WIRE is at 29/30, and tests cite these rows' paths. Retitled, and the plan rewritten. Load is 20/30.

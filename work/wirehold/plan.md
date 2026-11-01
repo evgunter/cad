@@ -6,7 +6,7 @@ Opened 2026-10-17 by WIRE's priority-seam cut as a parked track. Re-read on 2026
 
 ## The slate
 
-**25 budget points** against 30.
+**20 budget points** against 30.
 
 | pri | item | cost |
 |---|---|---|
