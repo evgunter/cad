@@ -1346,6 +1346,8 @@ mod review_5956_delta_needle;
 mod review_5993_probe;
 #[path = "review_6002_needle_join.rs"]
 mod review_6002_needle_join;
+#[path = "review_6230_probes.rs"]
+mod review_6230_probes;
 #[path = "review_6020_seam_probes.rs"]
 mod review_6020_seam_probes;
 #[path = "review_r1_roots_split.rs"]
