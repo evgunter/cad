@@ -15,38 +15,40 @@ use crate::tree::{self, Readout, RowStatus, TreeRow};
 /// Points of indent per level of the feature tree.
 pub(crate) const INDENT_STEP: f32 = 12.0;
 
+/// **The level every node row draws at**: one column, since a node's
+/// row claims no parent (`tree`'s module doc, Order and columns). What
+/// is drawn under a row — its constraints, its result's lines — sits
+/// one level past it.
+const NODE_LEVEL: usize = 0;
+
 /// The deepest level the tree indents for.
 ///
-/// A backstop, not the working limit: `tree`'s depth counts BRANCHES
-/// off a node's primary input, so a chained document sits a handful
-/// of levels deep however long its chain is. A document that does
-/// nest genuinely deeper than this stops moving right here; the rows
-/// stay in evaluation order, so the tree is still readable as a
-/// sequence, and what is lost is depth information that had already
-/// stopped fitting the pane.
+/// A backstop, not the working limit: only a failure's carried
+/// refusals nest past one level, one per document a part's refusal
+/// crosses. A traceback deeper than this stops moving right here; its
+/// lines stay in order, so it still reads as a sequence.
 pub(crate) const INDENT_MAX_DEPTH: usize = 8;
 
-/// The indent a row at `depth` draws at.
-pub(crate) fn indent(depth: usize) -> f32 {
-    depth.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP
+/// The indent a line at `level` draws at.
+pub(crate) fn indent(level: usize) -> f32 {
+    level.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP
 }
 
-/// **The indent a line UNDER a row draws at** — a failure's own
-/// words, the pointer at the row that has them, why a measure has no
-/// value, what a mate did in the solve, a standing note.
+/// **The indent a line UNDER something at `level` draws at** — a
+/// failure's own words, the pointer at the row that has them, why a
+/// measure has no value, what a mate did in the solve, a standing note.
 ///
-/// One step past the row's own [`indent`], so the line reads as the
+/// One step past `level`'s own [`indent`], so the line reads as that
 /// row's — for as long as that leaves the line the width
 /// [`crate::widgets::message_floor`] names. Past that the indent gives
-/// way first: a deep row in a narrow pane draws its line further left
-/// rather than wrapping it into a ribbon or pushing it past the pane's
-/// edge, since the depth the indent shows is already on the row above
-/// it and the sentence's width is not on screen anywhere else.
+/// way first: a deep line in a narrow pane draws further left rather
+/// than wrapping into a ribbon or pushing past the pane's edge, since
+/// the sentence's width is not on screen anywhere else.
 ///
 /// `ui` is the line's own row, before anything is placed in it.
-pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
+pub(crate) fn message_indent(ui: &egui::Ui, level: usize) -> f32 {
     let spare = (ui.available_width() - crate::widgets::message_floor(ui)).max(0.0);
-    (indent(depth) + INDENT_STEP).min(spare)
+    (indent(level) + INDENT_STEP).min(spare)
 }
 
 /// **What one feature-tree row reads as, drawn**: its headline
@@ -116,7 +118,6 @@ pub(crate) fn feature_row_ui(
 ) -> RowClicks {
     let mut clicks = RowClicks::default();
     ui.horizontal(|ui| {
-        ui.add_space(indent(row.depth));
         if row_label(ui, row, selected).clicked() {
             clicks.select = Some(row.id);
         }
@@ -140,7 +141,7 @@ pub(crate) fn feature_row_ui(
         clicks.select = Some(to);
     }
     if let Some(offer) = &row.version_offer
-        && version_offer_lines(ui, row.depth, offer, theme)
+        && version_offer_lines(ui, offer, theme)
     {
         clicks.accept = Some(offer.accept());
     }
@@ -157,7 +158,7 @@ fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
     let mut clicked = None;
     for child in &row.constraints {
         ui.horizontal(|ui| {
-            ui.add_space(indent(row.depth + 1));
+            ui.add_space(indent(NODE_LEVEL + 1));
             ui.label(&child.said);
             if ui.small_button(REMOVE_CONSTRAINT).clicked() {
                 clicked = Some(child.mate);
@@ -173,15 +174,10 @@ pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
 /// **The accept a pin-mismatched instance row offers, drawn** under
 /// its failure: the question, and the button that is the edit the
 /// failure's recourse names. Whether the button was clicked.
-fn version_offer_lines(
-    ui: &mut egui::Ui,
-    depth: usize,
-    offer: &VersionOffer,
-    theme: &Theme,
-) -> bool {
-    advisory_line(ui, depth, &Refusal::version_question(offer), theme);
+fn version_offer_lines(ui: &mut egui::Ui, offer: &VersionOffer, theme: &Theme) -> bool {
+    advisory_line(ui, NODE_LEVEL, &Refusal::version_question(offer), theme);
     ui.horizontal(|ui| {
-        ui.add_space(message_indent(ui, depth));
+        ui.add_space(message_indent(ui, NODE_LEVEL));
         ui.button(VersionOffer::LABEL).clicked()
     })
     .inner
@@ -223,7 +219,7 @@ pub(crate) fn failure_lines(
     let mut clicked = None;
     match row.status.jump() {
         Some(to) => {
-            if link_line(ui, row.depth, message) {
+            if link_line(ui, NODE_LEVEL, message) {
                 clicked = Some(to);
             }
         }
@@ -231,7 +227,7 @@ pub(crate) fn failure_lines(
         // badge's, read off `RowStatus::tone` on the row above.
         // The line under it is that verdict's words, and a failed
         // row drawn loud twice would be the one loud row twice.
-        None => advisory_line(ui, row.depth, message, theme),
+        None => advisory_line(ui, NODE_LEVEL, message, theme),
     }
     // The refusals the row's words point at, each one step further in:
     // the traceback reads down the way the failure reaches in. Each is
@@ -239,16 +235,16 @@ pub(crate) fn failure_lines(
     // the refusal is drawn as its own tree draws it.
     if let RowStatus::Failed { carried, .. } = &row.status {
         for (level, carried) in carried.iter().enumerate() {
-            let depth = row.depth + 1 + level;
+            let under = NODE_LEVEL + 1 + level;
             ui.horizontal(|ui| {
-                ui.add_space(message_indent(ui, depth));
+                ui.add_space(message_indent(ui, under));
                 ui.weak(&carried.document);
             });
-            advisory_line(ui, depth, &carried.line, theme);
+            advisory_line(ui, under, &carried.line, theme);
         }
     }
     if let Some(to) = &row.repair_at {
-        clicked = link_to(ui, row.depth, to).or(clicked);
+        clicked = link_to(ui, NODE_LEVEL, to).or(clicked);
     }
     clicked
 }
@@ -297,19 +293,19 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
     let mut clicked = failure_lines(ui, row, theme);
     match &row.readout {
         Some(Readout::Unavailable(reason)) => {
-            advisory_line(ui, row.depth, &reason.to_string(), theme);
+            advisory_line(ui, NODE_LEVEL, &reason.to_string(), theme);
         }
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
             } => {
                 if let Some(measure) = &asserted.measure {
-                    clicked = link_to(ui, row.depth, measure).or(clicked);
+                    clicked = link_to(ui, NODE_LEVEL, measure).or(clicked);
                 }
             }
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },
-            } => advisory_line(ui, row.depth, &reason.to_string(), theme),
+            } => advisory_line(ui, NODE_LEVEL, &reason.to_string(), theme),
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
         },
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
@@ -317,29 +313,29 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
     clicked
 }
 
-/// A line under a row at `depth` that reports and links nowhere. A
+/// A line under something at `level` that reports and links nowhere. A
 /// payload's own words are a sentence, so `widgets::message`, not
 /// `ui.weak`.
-fn advisory_line(ui: &mut egui::Ui, depth: usize, text: &str, theme: &Theme) {
+fn advisory_line(ui: &mut egui::Ui, level: usize, text: &str, theme: &Theme) {
     ui.horizontal(|ui| {
-        ui.add_space(message_indent(ui, depth));
+        ui.add_space(message_indent(ui, level));
         crate::widgets::message_toned(ui, text, theme, frame::Tone::Advisory);
     });
 }
 
-/// **A line under a row at `depth` that links to the node `to`**, in
+/// **A line under something at `level` that links to the node `to`**, in
 /// [`tree::link_wording`]'s words: `to`'s id when it was clicked. The
 /// wording and the target are one argument, so they cannot name two
 /// different nodes.
-fn link_to(ui: &mut egui::Ui, depth: usize, to: &SpokenNode) -> Option<RecipeNodeId> {
-    link_line(ui, depth, &tree::link_wording(to)).then_some(to.id())
+fn link_to(ui: &mut egui::Ui, level: usize, to: &SpokenNode) -> Option<RecipeNodeId> {
+    link_line(ui, level, &tree::link_wording(to)).then_some(to.id())
 }
 
-/// A line under a row at `depth` that is a click; whether it was
+/// A line under something at `level` that is a click; whether it was
 /// clicked.
-fn link_line(ui: &mut egui::Ui, depth: usize, text: &str) -> bool {
+fn link_line(ui: &mut egui::Ui, level: usize, text: &str) -> bool {
     ui.horizontal(|ui| {
-        ui.add_space(message_indent(ui, depth));
+        ui.add_space(message_indent(ui, level));
         crate::widgets::message_link(ui, text).clicked()
     })
     .inner
@@ -429,11 +425,11 @@ mod tests {
     /// number.
     const FAILURE: &str = "the offset is 0.30000000000000004 mm, which the solver refused";
 
-    /// One headless frame of a line under a row at `depth`, drawn the
+    /// One headless frame of a line under something at `level`, drawn the
     /// way `feature_row` draws one, in a region `spare` points wider
     /// than [`message_floor`]. Answers with the region, the floor, and
     /// the rows [`FAILURE`] landed in.
-    fn line_under_a_row(depth: usize, spare: f32) -> (egui::Rect, f32, Vec<egui::Rect>) {
+    fn line_under_a_row(level: usize, spare: f32) -> (egui::Rect, f32, Vec<egui::Rect>) {
         let region = core::cell::Cell::new(egui::Rect::NOTHING);
         let floor = core::cell::Cell::new(f32::NAN);
         let painted = landed(|ui| {
@@ -441,7 +437,7 @@ mod tests {
             ui.allocate_ui(egui::vec2(floor.get() + spare, 400.0), |ui| {
                 region.set(ui.max_rect());
                 ui.horizontal(|ui| {
-                    ui.add_space(message_indent(ui, depth));
+                    ui.add_space(message_indent(ui, level));
                     message(ui, FAILURE);
                 });
             });
@@ -485,7 +481,7 @@ mod tests {
     }
 
     /// **And where there is room, the line keeps the row's indent
-    /// whole** — the depth a person reads the tree by does not move
+    /// whole** — the nesting a person reads the tree by does not move
     /// for a pane that has space for it.
     #[test]
     fn a_line_under_a_row_in_a_wide_pane_keeps_its_whole_indent() {
@@ -509,7 +505,6 @@ mod tests {
                 Some("InstantiatePart"),
             ),
             which: Some(file.to_owned()),
-            depth: 0,
             placed: false,
             status: RowStatus::Ok,
             repair_at: None,
@@ -560,7 +555,6 @@ mod tests {
                 Some("Extrude"),
             ),
             which: None,
-            depth: 0,
             placed: true,
             status: RowStatus::Ok,
             repair_at: None,
@@ -610,7 +604,6 @@ mod tests {
                 Some("Mate"),
             ),
             which: None,
-            depth: 0,
             placed: false,
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
@@ -1005,7 +998,6 @@ mod tests {
                 Some("Split"),
             ),
             which: None,
-            depth: 0,
             placed: false,
             status: RowStatus::Ok,
             repair_at: None,
@@ -1538,7 +1530,6 @@ mod tests {
                 Some("InstantiatePart"),
             ),
             which: Some(crate::test_support::PART_FILE.to_owned()),
-            depth: 0,
             placed: false,
             status: RowStatus::Ok,
             repair_at: None,
@@ -1678,5 +1669,103 @@ mod tests {
                 && !drawn.contains(&Refusal::version_question(&offer)),
             "{drawn}"
         );
+    }
+
+    /// **No node row is drawn under another**: every node row's label
+    /// begins in one column, over a document shaped like the bracket a
+    /// person drives — a boss stood on a plate and unioned with it, a
+    /// third body stood there and cut from the union, the result placed
+    /// in the world.
+    ///
+    /// A boolean's second operand is a branch, and the row above a
+    /// boolean is whatever evaluated just before it: indenting the
+    /// boolean draws it as that row's child, which it need not be.
+    #[test]
+    fn no_node_row_is_drawn_under_another() {
+        use crate::test_support::{inserted, len, placed, rectangle, square};
+        use pncad::document::{
+            Bodies, BodyRead, CancelToken, Doc, EvalOptions, Node, Operand, evaluate, stand,
+        };
+        use pncad::geom_core::Tol;
+
+        let tol = Tol::witness();
+        let extrude = |profile: RecipeNodeId| Node::Extrude {
+            profile: profile.into(),
+            distance: len(0.01),
+        };
+        let doc = Doc::empty_derived("no-node-row-under-another", tol);
+        let (doc, plate_section) = inserted(&doc, rectangle([0.0, 0.0], 0.06, 0.04), tol);
+        let (doc, plate) = inserted(&doc, extrude(plate_section), tol);
+        let (doc, boss_section) = inserted(&doc, rectangle([0.01, 0.01], 0.005, 0.03), tol);
+        let (doc, boss) = inserted(&doc, extrude(boss_section), tol);
+        let body = |id: RecipeNodeId| BodyRead::plain(Operand::from(id));
+        // A tool stands in the plate's space, where the boolean reads it.
+        let stood_in_the_plate = |doc: &Doc<_>, tool: RecipeNodeId| {
+            let space = doc.node_space(plate).expect("the plate is in a space");
+            inserted(
+                doc,
+                Node::place(body(tool), Operand::Var(space), stand().bundle()),
+                tol,
+            )
+        };
+        let (doc, boss) = stood_in_the_plate(&doc, boss);
+        let (doc, union) = inserted(
+            &doc,
+            Node::Union {
+                members: Bodies::Spelled(vec![body(plate), body(boss)]),
+            },
+            tol,
+        );
+        let (doc, hole_section) = inserted(&doc, square(0.005), tol);
+        let (doc, hole) = inserted(&doc, extrude(hole_section), tol);
+        let (doc, hole) = stood_in_the_plate(&doc, hole);
+        let (doc, cut) = inserted(
+            &doc,
+            Node::Subtract {
+                from: body(union),
+                tool: body(hole),
+            },
+            tol,
+        );
+        let (doc, _) = placed(&doc, cut, tol);
+        let eval = evaluate(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let rows = tree::rows(&doc, Some(&eval), &crate::parts::PartFiles::Unscanned);
+        assert_eq!(
+            rows.len(),
+            11,
+            "one row per authored node: {:?}",
+            rows.iter().map(|row| row.spoken.kind()).collect::<Vec<_>>()
+        );
+
+        let painted = landed(|ui| {
+            for row in &rows {
+                feature_row_drawn(ui, row, &Theme::DEFAULT);
+            }
+        });
+        let columns: Vec<(String, f32)> = rows
+            .iter()
+            .map(|row| {
+                let lead = tree::headline(&row.spoken, row.which.as_deref()).lead;
+                let label = painted
+                    .iter()
+                    .find(|landed| landed.text.starts_with(&lead))
+                    .unwrap_or_else(|| panic!("`{lead}`'s row was painted"));
+                (lead, label.rows[0].left())
+            })
+            .collect();
+        let column = columns[0].1;
+        for (lead, left) in &columns {
+            assert!(
+                (left - column).abs() <= SLACK,
+                "`{lead}` begins at {left}, not in the node column at {column}: \
+                 {columns:?}"
+            );
+        }
     }
 }

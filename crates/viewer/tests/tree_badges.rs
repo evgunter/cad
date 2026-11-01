@@ -863,7 +863,6 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         id: RecipeNodeId::new(0, id),
         spoken: spoken(RecipeNodeId::new(0, id), Some("Place")),
         which: None,
-        depth: 0,
         placed: false,
         status,
         repair_at: None,
