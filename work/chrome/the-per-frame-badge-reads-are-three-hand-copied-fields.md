@@ -2,10 +2,11 @@
 id: the-per-frame-badge-reads-are-three-hand-copied-fields
 kind: issue
 title: The per-frame badge reads are three hand-copied fields, each wired five times in app.rs
-status: review
+status: closed
 opened: 2026-09-30
 priority: P1
 cost: M
+closed: 2026-11-01
 branch: chrome/per-frame-reads
 pr: 6199
 ---
@@ -51,3 +52,7 @@ member. The badge doors in `crate::frame` stay one per read.
 
 `crates/viewer/src/app.rs` (CHROME, VSEAM, AUTHOR), and
 `crates/viewer/src/pane/viewport.rs` for the writes.
+
+## Closed (2026-11-01, PR 6199)
+
+The viewport's per-frame badge reads are one `ViewportReads` value, which derives `Default` and is reset whole each frame, after the toolbar reads last frame's value and before the panes draw. A member added to it cannot latch. The row's premise was off: there were two reads (`profiles_undrawn`, `held_edges_refused`), not three. The style review held both claims. The whole-value guard test covers only `held_edges_refused`, because no fixture makes `profiles_undrawn` non-zero (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
