@@ -2,10 +2,11 @@
 id: a-findings-face-reference-reads-as-stale
 kind: issue
 title: clicking a face a check finding names says it no longer resolves
-status: open
+status: parked
 opened: 2026-10-31
 priority: P1
 cost: M
+blocked_on: [a-mate-on-a-taken-over-copys-face-goes-stale]
 ---
 
 
