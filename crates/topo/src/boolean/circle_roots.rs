@@ -333,13 +333,28 @@ pub(super) fn first_harmonic_leg_roots<T: Decide>(
     harmonic_roots(h, speed, None, rows, band)
 }
 
-/// **The roots of a first harmonic as unit directions** `(cos θ, sin θ)`
-/// in its circle's frame: the decisions of [`first_harmonic_roots_in_band`]
-/// with their rows, and each root read without an angle, by turning the
-/// phase's unit vector `(cos_part, sin_part)/A₁` by the half-chord either
-/// way. A phase or a root read as an angle has a cut, where an enclosing
-/// scalar holds it as a whole turn's hull; a direction has none, so it
-/// is as tight wherever the root lies.
+/// One root of a first harmonic, read two ways
+/// ([`first_harmonic_root_directions`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct HarmonicRoot<T> {
+    /// `(cos θ, sin θ)` in the circle's frame: the phase's unit vector
+    /// `(cos_part, sin_part)/A₁` turned by the half-chord, with no angle
+    /// in it.
+    pub(super) direction: (T, T),
+    /// `θ` itself, unreduced (`φ ± half-chord`), its phase read on the
+    /// branch whose cut is a half turn from it: a reader takes it
+    /// relative to a point it already knows lies near the root, where it
+    /// keeps its relative precision.
+    pub(super) raw: T,
+}
+
+/// **The roots of a first harmonic as directions**, each with its raw
+/// angle: the decisions of [`first_harmonic_roots_in_band`] with their
+/// rows. A phase or a root reduced onto a window has a cut, where an
+/// enclosing scalar holds it as a whole turn's hull; the direction has
+/// none, and the raw angle's phase is read by `atan2` on the half plane
+/// of its own sign of `cos_part`, so its cut is a half turn from the
+/// phase.
 ///
 /// # Errors
 ///
@@ -349,17 +364,29 @@ pub(super) fn first_harmonic_root_directions<T: Decide>(
     speed: T,
     rows: &FirstHarmonicRows,
     band: Band,
-) -> Result<Roots<(T, T), 2, OnCarrier>, RootRefusal> {
+) -> Result<Roots<HarmonicRoot<T>, 2, OnCarrier>, RootRefusal> {
     Ok(match harmonic_crossing(h, speed, rows, band)? {
         Harmonic::Miss => Roots::Miss,
         Harmonic::On => Roots::On(OnCarrier),
         Harmonic::Crosses { half_chord } => {
-            let amplitude = (h.cos_part.powi(2) + h.sin_part.powi(2)).sqrt();
-            let (pc, ps) = (h.cos_part / amplitude, h.sin_part / amplitude);
+            let (c, s) = (h.cos_part, h.sin_part);
+            let amplitude = (c.powi(2) + s.powi(2)).sqrt();
+            let (pc, ps) = (c / amplitude, s / amplitude);
             let (sin, cos) = half_chord.sin_cos();
+            // `atan2` where `cos_part ≥ 0`; past that, the same angle
+            // read from the opposite vector, whose cut lies where
+            // `cos_part > 0`.
+            let phi = (T::zero() - c)
+                .select_le_zero(s.atan2(c), T::pi() + (T::zero() - s).atan2(T::zero() - c));
             Roots::all([
-                (pc * cos + ps * sin, ps * cos - pc * sin),
-                (pc * cos - ps * sin, ps * cos + pc * sin),
+                HarmonicRoot {
+                    direction: (pc * cos + ps * sin, ps * cos - pc * sin),
+                    raw: phi - half_chord,
+                },
+                HarmonicRoot {
+                    direction: (pc * cos - ps * sin, ps * cos + pc * sin),
+                    raw: phi + half_chord,
+                },
             ])
         }
     })
@@ -507,5 +534,62 @@ pub(super) fn door_answer<T: geom_core::Real>(
         Ok(found) => found.map_err(Some),
         Err(BooleanError::Escalated { .. }) => Err(None),
         Err(other) => panic!("the door refused outside its decision: {other:?}"),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::{Bounds, Interval};
+
+    /// **A first harmonic whose phase sits on `atan2`'s cut reads its
+    /// roots tight**: `cos_part = −1` and `sin_part` an enclosure of zero,
+    /// so `atan2(sin_part, cos_part)` is a whole turn's hull at
+    /// `Interval`. The roots, at `π/2` and `3π/2`, come back as directions
+    /// and raw angles each far narrower than a turn.
+    #[test]
+    fn a_phase_on_its_cut_reads_its_roots_tight() {
+        let i = <Interval as geom_core::Real>::from_f64;
+        let h = FirstHarmonic {
+            lo: i(-1.0),
+            hi: i(1.0),
+            cos_part: i(-1.0),
+            sin_part: Interval::from_bounds(-1e-17, 1e-17),
+            lo_noise: i(1e-16),
+            hi_noise: i(1e-16),
+            phase_noise: i(0.0),
+        };
+        let rows = FirstHarmonicRows {
+            noise: "test_noise",
+            coaxial: "test_coaxial",
+            extreme: "test_extreme",
+            root_slack: "test_slack",
+            decision: BooleanDecision::CONTAINMENT_UNNAMED,
+        };
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let Ok(Roots::Certified(found)) = first_harmonic_root_directions(&h, i(1.0), &rows, band)
+        else {
+            panic!("two roots")
+        };
+        let width = |x: Interval| x.hi() - x.lo();
+        let mut sines = Vec::new();
+        for root in found.roots() {
+            let (cos, sin) = root.direction;
+            assert!(
+                width(cos) < 1e-9 && width(sin) < 1e-9 && width(root.raw) < 1e-9,
+                "a tight root: {root:?}"
+            );
+            assert!(cos.hi().abs() < 1e-9, "on the y axis: {root:?}");
+            let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
+            let (s, c) = mid(root.raw).sin_cos();
+            assert!(
+                (s - mid(sin)).abs() < 1e-9 && (c - mid(cos)).abs() < 1e-9,
+                "{root:?}"
+            );
+            sines.push(mid(sin).signum());
+        }
+        sines.sort_by(f64::total_cmp);
+        assert_eq!(sines, [-1.0, 1.0], "one root each side");
     }
 }

@@ -483,15 +483,18 @@ where
         .collect()
 }
 
-/// **A pole a hair inside or outside a cap's rim is placed by tier 3, at
-/// `f64` and at the certified scalar.** The cap above `z = 0.5`
+/// **A pole a hair inside or outside a cap's rim is placed by tier 3, and
+/// read by the face's door, at `f64` and at the certified scalar.** The cap above `z = 0.5`
 /// of a sphere whose axis tilts by `π/3 ∓ δ`, so its north pole stands
 /// `δ` (along the sphere) inside the rim or outside it, for `δ` of
 /// `1e-2`, `1e-3` and `1e-4` rad: inside, tier 3 refuses the pole as
 /// interior to the face; outside, the face holds neither pole and tier 3
 /// says nothing of them. Each pole is off the boundary by far more than
 /// the band, so the reading is a side of the face's region, which no
-/// distance to its boundary decides.
+/// distance to its boundary decides. Tier 3 reads it by `locate` today
+/// (`work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`
+/// owes the switch); the door's own reading at the pole is pinned beside
+/// it.
 #[test]
 fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars() {
     use geom_core::Interval;
@@ -516,6 +519,13 @@ fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars() {
                     Vec::new()
                 }
             };
+            let side = Some(if inside {
+                topo::FaceContainment::In
+            } else {
+                topo::FaceContainment::Out
+            });
+            let pole = Point3::new(tilt.sin(), 0.0, tilt.cos());
+            let band = geom_core::Band::linear(Tol::witness()).unwrap();
             let at_f64 = cap_at::<f64>(z, &tilted);
             let face = at_f64.faces().next().unwrap().0;
             assert_eq!(
@@ -523,12 +533,27 @@ fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars() {
                 want(face),
                 "δ {delta:e}, pole inside {inside}, at f64"
             );
+            assert_eq!(
+                topo::curved_face_containment(&at_f64, face, pole, band),
+                Ok(side),
+                "δ {delta:e}, the door at the pole, at f64"
+            );
             let at_interval = cap_at::<Interval>(z, &tilted);
             let face = at_interval.faces().next().unwrap().0;
             assert_eq!(
                 pole_findings(&at_interval),
                 want(face),
                 "δ {delta:e}, pole inside {inside}, at Interval"
+            );
+            let lifted = Point3::new(
+                <Interval as geom_core::Real>::from_f64(pole.x),
+                <Interval as geom_core::Real>::from_f64(pole.y),
+                <Interval as geom_core::Real>::from_f64(pole.z),
+            );
+            assert_eq!(
+                topo::curved_face_containment(&at_interval, face, lifted, band),
+                Ok(side),
+                "δ {delta:e}, the door at the pole, at Interval"
             );
         }
     }

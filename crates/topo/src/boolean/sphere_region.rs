@@ -104,7 +104,7 @@ use super::BooleanDecision;
 use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions};
 use super::region::{
     self, Fault, Landing, Leg, Legs, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
-    between, circle_edge_hit, found, span_from_middle, targets,
+    between, circle_edge_hit, found, span_at_nearer_end, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -396,22 +396,44 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         let v_ref = axis.cross(u_ref);
         let two = T::from_f64(2.0);
         let (mid, half) = ((arc.t0 + arc.t1) / two, (arc.t1 - arc.t0) / two);
-        let (sin_mid, cos_mid) = mid.sin_cos();
-        let middle = u_ref * cos_mid + v_ref * sin_mid;
+        let on_circle = |t: T| {
+            let (sin, cos) = t.sin_cos();
+            u_ref * cos + v_ref * sin
+        };
+        let (start, middle, end) = (on_circle(arc.t0), on_circle(mid), on_circle(arc.t1));
+        let quarter = T::pi() / two;
         let mut out = Vec::new();
-        for (cos, sin) in found(roots)? {
+        for root in found(roots)? {
+            let (cos, sin) = root.direction;
             let toward = u_ref * cos + v_ref * sin;
             let off = between(toward, middle);
+            // The signed angle to each end, positive inside: within a
+            // quarter turn of the end, the raw root less the end's
+            // parameter, a difference of two near numbers that keeps its
+            // relative precision; past that, the half-width less the
+            // angle from the middle.
+            let to_end = |end: Vec3<T>, local: T| {
+                (between(toward, end) - quarter).select_le_zero(local, half - off)
+            };
+            let tau = T::tau();
+            // Which half of the span: the side of `middle`'s diameter
+            // `toward` lies.
+            let ahead = middle.cross(toward).dot(axis);
+            let to_end = (T::zero() - ahead).select_le_zero(
+                to_end(end, (arc.t1 - root.raw).reduce_periodic_centred(tau)),
+                to_end(start, (root.raw - arc.t0).reduce_periodic_centred(tau)),
+            );
             let Some(sideless) =
-                span_from_middle("bool_sphere_region_span", off, half, radius, band)?
+                span_at_nearer_end("bool_sphere_region_span", to_end, radius, band)?
             else {
                 continue;
             };
-            // Which way round from the middle: the side of `middle`'s
-            // diameter `toward` lies, which only a root a half turn off
-            // the middle leaves undecided, and that one lies at a whole
-            // turn's ends, sideless.
-            let ahead = middle.cross(toward).dot(axis);
+            // `ahead` is undecided only for a root at the middle, where
+            // both choices agree, or a half turn from it. There the
+            // parameter is a whole turn's hull, and a root inside the
+            // span lies at a whole turn's ends, which the span reading
+            // places sideless wherever the enclosure is narrower than
+            // the band's zero.
             let theta = (T::zero() - ahead).select_le_zero(mid + off, mid - off);
             out.push((center + toward * radius, theta, sideless));
         }
@@ -767,7 +789,10 @@ mod tests {
     /// far off the zone's boundary, and every great circle through it is
     /// a meridian, which meets the two rims at places the band cannot
     /// order: the face's door, every surface cycle kept, escalates on the
-    /// order row with its margin at both poles, never a side.
+    /// order row with its margin at both poles, never a side. A pin of the
+    /// door's in-band reading at `f64`, where it reads alike before and
+    /// after its roots are read as directions; tier 3 reads it through
+    /// the door once the switch lands.
     #[test]
     fn a_pole_read_in_band_escalates_with_its_margin() {
         use crate::construction::{FaceSurface, MefSite, MevSite};
@@ -905,33 +930,6 @@ mod tests {
         }
     }
 
-    /// [`crate::boolean::region::fixture_turn`] at `Interval`.
-    fn interval_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<geom_core::Interval>> {
-        use geom_core::Interval;
-        let band = Band::new(1e-9, 1e-8).ok()?;
-        let lift = <Interval as geom_core::Real>::from_f64;
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
-            axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-            radius: lift(1.0),
-            u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
-        };
-        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), lift(t0), lift(t1))?;
-        let (start, end) = (circle.eval(lift(t0)), circle.eval(lift(t1)));
-        geom_brep::EdgeCurve::certify(
-            spec,
-            start,
-            end,
-            |_| None,
-            lift(1.0),
-            band,
-            geom_brep::NurbsLane::certified(),
-        )
-        .ok()?
-        .turn()
-        .copied()
-    }
-
     /// The unit sphere's lune between azimuths `π` and `3π/2`, below the
     /// parallel at polar angle `1`, at `T`: its two meridian arcs run down
     /// to the south pole, a vertex of the face, and its parallel arc is
@@ -1008,7 +1006,7 @@ mod tests {
             }
         }
         read::<f64>("f64", crate::boolean::region::fixture_turn);
-        read::<geom_core::Interval>("Interval", interval_turn);
+        read::<geom_core::Interval>("Interval", crate::boolean::region::fixture_turn_interval);
     }
 
     /// **A root a half turn from its arc's middle, or on its phase's cut,
@@ -1051,6 +1049,10 @@ mod tests {
             }
         }
         read::<f64>("f64", crate::boolean::region::fixture_turn, |x| x);
-        read::<geom_core::Interval>("Interval", interval_turn, geom_core::Bounds::hi);
+        read::<geom_core::Interval>(
+            "Interval",
+            crate::boolean::region::fixture_turn_interval,
+            geom_core::Bounds::hi,
+        );
     }
 }

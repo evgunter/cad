@@ -127,25 +127,31 @@ pub(crate) fn span<T: Decide>(
         .then_some(start == Sign::Zero || end == Sign::Zero))
 }
 
-/// **A root at the unsigned angle `off` from the middle of its edge's
-/// span**, `half` the span's half-width: [`span`]'s reading, its two
-/// ends' margins `lever·(half ∓ off)` the same two numbers, read with no
-/// angle whose cut a root can sit on.
+/// **A root against its edge's span, read at the nearer end**: `to_end`
+/// is the root's signed angle to the end of the span nearer it, positive
+/// inside, and `lever` the edge's speed — [`span`]'s reading, whose
+/// nearer end's margin is this number, without the angle of the root
+/// itself. The farther end's margin is at least `lever` times the
+/// span's half-width, so it is not read. `None` definitely past the end;
+/// `Some(sideless)` within, `sideless` where it lies within the band of
+/// the end, where no side is read.
 ///
 /// # Errors
 ///
 /// As [`span`]'s.
-pub(crate) fn span_from_middle<T: Decide>(
+pub(crate) fn span_at_nearer_end<T: Decide>(
     row: &'static str,
-    off: T,
-    half: T,
+    to_end: T,
     lever: T,
     band: Band,
 ) -> Result<Option<bool>, Fault> {
-    let near = decide(row, Margin::of(lever * (half - off)), band).map_err(in_band)?;
-    let far = decide(row, Margin::of(lever * (half + off)), band).map_err(in_band)?;
-    Ok((near != Sign::Negative && far != Sign::Negative)
-        .then_some(near == Sign::Zero || far == Sign::Zero))
+    Ok(
+        match decide(row, Margin::of(lever * to_end), band).map_err(in_band)? {
+            Sign::Negative => None,
+            Sign::Zero => Some(true),
+            Sign::Positive => Some(false),
+        },
+    )
 }
 
 /// **The unsigned angle between the unit vectors `a` and `b`**, in
@@ -874,33 +880,42 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
     .unwrap();
 }
 
-/// A fixture edge's turn over `(t0, t1)`: a unit circle's arc over that
-/// interval, certified, whose interval and extent are what a conic
-/// reading of the fixture reads (its own carrier supplies the rest).
-#[cfg(test)]
-pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<f64>> {
-    let band = Band::new(1e-9, 1e-8).ok()?;
-    let circle = geom::Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
-    let (start, end) = (circle.eval(t0), circle.eval(t1));
-    geom_brep::EdgeCurve::certify(
-        spec,
-        start,
-        end,
-        |_| None,
-        1.0,
-        band,
-        geom_brep::NurbsLane::certified(),
-    )
-    .ok()?
-    .turn()
-    .copied()
+/// A fixture edge's turn over `(t0, t1)`, at each scalar a fixture is
+/// built at: a unit circle's arc over that interval, certified, whose
+/// interval and extent are what a conic reading of the fixture reads (its
+/// own carrier supplies the rest).
+macro_rules! fixture_turns {
+    ($($name:ident: $t:ty),*) => {$(
+        #[cfg(test)]
+        pub(crate) fn $name(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<$t>> {
+            let lift = <$t as geom_core::Real>::from_f64;
+            let band = Band::new(1e-9, 1e-8).ok()?;
+            let circle = geom::Curve3::Circle {
+                center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+                axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+                radius: lift(1.0),
+                u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+            };
+            let (t0, t1) = (lift(t0), lift(t1));
+            let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
+            let (start, end) = (circle.eval(t0), circle.eval(t1));
+            geom_brep::EdgeCurve::certify(
+                spec,
+                start,
+                end,
+                |_| None,
+                lift(1.0),
+                band,
+                geom_brep::NurbsLane::certified(),
+            )
+            .ok()?
+            .turn()
+            .copied()
+        }
+    )*};
 }
+
+fixture_turns!(fixture_turn: f64, fixture_turn_interval: geom_core::Interval);
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]

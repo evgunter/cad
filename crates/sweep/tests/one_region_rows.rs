@@ -1129,3 +1129,66 @@ fn points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_sc
         );
     }
 }
+
+/// **A point a band's width off a lune's pole vertex reads as it did
+/// before the sphere door read roots as directions**: on the 90° lune of
+/// a revolved ball (poles on `y`) and its 270° complement, at the band
+/// `(1e-12, 1e-11)`, points `1e-11` off the north pole decide out of the
+/// one face and in the other. A root's place against its arc's end read
+/// as the half-width less its angle from the middle loses the end's
+/// relative precision there, and `(0, 1, 1e-11)` escalated on
+/// `bool_sphere_region_span` at `9.99956e-12`.
+#[test]
+fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
+    let disc = [(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)];
+    let meridian = bulge_loop(
+        disc.iter()
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
+        .validate(tol())
+        .unwrap();
+    let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let (out, inside) = (
+        Some(topo::FaceContainment::Out),
+        Some(topo::FaceContainment::In),
+    );
+    for (deg, rows) in [
+        (
+            90.0_f64,
+            vec![
+                (Point3::new(0.0, 1.0, 1e-11), out),
+                (Point3::new(0.0, -1.0, 1e-11), out),
+                (Point3::new(-1e-11, 1.0, 0.0), out),
+            ],
+        ),
+        (
+            270.0,
+            vec![
+                (Point3::new(-1e-11, 1.0, 0.0), inside),
+                (Point3::new(0.0, 1.0, -1e-11), inside),
+            ],
+        ),
+    ] {
+        let lune: Body<f64> = revolve(&profile, axis, Revolution::Partial(deg.to_radians()), tol())
+            .unwrap()
+            .body;
+        let face = lune
+            .faces()
+            .find(|(_, f)| matches!(lune.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .unwrap()
+            .0;
+        for (q, want) in rows {
+            assert_eq!(
+                topo::curved_face_containment(&lune, face, q, band),
+                Ok(want),
+                "{q:?} on the {deg}° lune"
+            );
+        }
+    }
+}
