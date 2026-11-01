@@ -1657,9 +1657,9 @@ defect (`ResultInvalid`).
 
 **An assertion checks and never places.** `Assert { measure,
 relation, bound }` (`≤`, `≥`, `=`, the bound a variable) states a
-relation the author claims and the kernel checks; `Clears { a, b, by
-}` states that two selections are at least `by` apart, decided by
-ERROR-DESIGN E7's sweep without computing the minimum.
+relation the author claims and the kernel checks. Its subject may be `clearance(a, b)` between two
+selections, decided by ERROR-DESIGN E7's sweep at the bound without
+computing the minimum.
 
 **The at-rest census.** The census is each `⊔`'s door: at rest it
 examines the meetings between that operator's operands pairwise, and

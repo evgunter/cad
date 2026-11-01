@@ -182,16 +182,23 @@ content-key cached like everything.
 
 **E3 amendments (revision E12, 2026-09-03).**
 
-- **A clearance is a requirement, not a measurement.** `Clears { a, b,
-  by }` states that `a` and `b` are at least `by` apart. Each of `a`
-  and `b` selects which faces of which body: a body reference means
-  all of its faces, a face reference means that one face. `by` is a
-  length formula. The node is an E10 assertion form. It checks and
-  never places, it defines no body and no variable, and it has no
-  relation field.
-  - **Its verdict** is E7's sweep at `by`: `Holds`, `Violated` with a
-    violating pair (two face points that the `f64` rebuild decides are
-    closer than `by`), or a typed refusal.
+- **A clearance is a requirement, not a measurement.** An E10
+  assertion may state a relation on `clearance(a, b)`: `clearance(a,
+  b) ≥ c`, `≤ c` or `= c`. Each of `a` and `b` selects which faces of
+  which body: a body reference means all of its faces, a face
+  reference means that one face. `c` is a length formula. The
+  assertion reads like an equation, though no clearance value exists.
+  - **Its verdict** comes from E7's sweep at `c`, never from the
+    minimum. Each relation is decided with the margin every assertion
+    carries.
+    - `≥ c` holds when every pair is certified clear of `c`. It is
+      violated by a violating pair: two face points that the `f64`
+      rebuild decides are closer than `c`.
+    - `≤ c` is the same sweep read the other way. A verified pair
+      within `c` proves it, and that pair is its witness. It is
+      violated when every pair is certified clear of `c`.
+    - `= c` holds when both of the above hold.
+    - A refusal, typed, is the verdict's third state.
   - **The minimum is never computed.** No node holds a clearance
     value, so a definition's arithmetic over a clearance cannot be
     written.
@@ -344,7 +351,7 @@ ratified default).
 For a **certified leaf** (fixed topology), the analysis answers two
 questions:
 global self-intersection-freedom, and clearance `≥ c` for a pair of
-selections (E3's `Clears` requirement, answered by the sweep at `c`).
+selections (E3's clearance assertion, answered by the sweep at `c`).
 
 **Mechanism**: two nested subdivisions. Outer: the E6 parameter
 leaves. Inner: geometry-domain subdivision with interval exclusion
@@ -797,6 +804,6 @@ d's — tail mass 1 − 0.9973² ≈ 0.54%, carried additively throughout.
 - **Implicit quantities over a box** (E12's frontier): per-family
   box certificates for iterated quantities — S-CERT's item; the
   driver names the refusal until then.
-- **The complement selection** for `Clears` (E3): "this
+- **The complement selection** for a clearance assertion (E3): "this
   selection against everything else" as a selection spelling, for
   the assembly consumer.

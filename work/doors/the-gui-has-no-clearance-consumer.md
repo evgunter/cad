@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-30
 priority: P1
 cost: H
-design: true
 ---
 
 ## What the GUI is missing
@@ -27,64 +26,63 @@ the first verified violation. Yet its only door,
 `editor_core::clearance`, spells the question a second time
 (`Selection` plus `c`), and nothing outside tests calls it.
 
-## The design
+## The design (ratified by Ev on PR 6261)
 
-- **The document.** A clearance is a requirement, `Clears { a, b, by
-  }` (ERROR-DESIGN E3), and not a measure.
-  - `a` and `b` take the reference seats `min_clearance` has today, a
-    body or a face each; `by` is a length formula.
-  - It has no relation field and defines no variable, so a computed
-    minimum, arithmetic over a clearance, and `=` or `≤` cannot be
-    written.
-  - `min_clearance` leaves the measure primitives. Python's
-    constructor becomes the requirement's.
-- **Evaluation.** At a certifying scalar the node resolves its two seats
-  and runs `Sweep` at `by`. `by` is an enclosure there, so the sweep's
-  bound changes from `f64` to an enclosure: `Holds` is decided against
-  its upper end and a violation against its lower end. Each verdict
-  is one of:
-  - `Holds`;
-  - `Violated` with a violating pair: two face points that the `f64`
+- **The document.** An E10 assertion may state a relation on
+  `clearance(a, b)`: `≥`, `≤` or `=`, against a length formula `c`
+  (ERROR-DESIGN E3).
+  - `a` and `b` take the reference seats `min_clearance` has today: a
+    body or a face each.
+  - No clearance value exists. `min_clearance` leaves the measure
+    primitives, so a computed minimum and arithmetic over a clearance
+    cannot be written.
+  - Python's constructor becomes the assertion's.
+- **Evaluation.** At a certifying scalar, the assertion resolves its two
+  seats and runs `Sweep` at `c`. There `c` is an enclosure, so the
+  sweep's bound changes from `f64` to an enclosure. Each relation is
+  decided with the margin every assertion carries:
+  - `≥ c`: `Holds` when every pair is certified clear of `c`. Otherwise
+    `Violated` with a violating pair: two face points that the `f64`
     rebuild (`LaneEnv::nominal_results`, whose build condition widens)
-    decides are closer than `by`, with their distance;
-  - a typed refusal, which is the verdict's third state (sliver, budget,
-    unsupported carrier, …) and carries its recourse.
+    decides are closer than `c`, together with their distance.
+  - `≤ c`: the same sweep read inverted. A verified pair within `c`
+    proves it, and that pair is shown. `Violated` when every pair is
+    certified clear of `c`.
+  - `= c`: both.
 
-  At `f64` the node reads its third state, naming the certifying
-  lane, and never poisons.
-- **Retiring.** Over a tolerance box, `drive::assertion_at` is the same
-  evaluation per leaf, and `editor_core::clearance`'s second spelling
+  A typed refusal (sliver, budget, unsupported carrier, …) is the
+  verdict's third state, with its recourse. At `f64` the assertion
+  reads that third state, naming the certifying lane.
+- **What retires.** Over a tolerance box, `drive::assertion_at` is the
+  same evaluation per leaf. `editor_core::clearance`'s second spelling
   retires into it. With the measure, these retire too:
-  - `MeasureUnavailableAt`;
-  - `ValuePayload::MeasureUnavailable`;
-  - `Observed::Unavailable`;
-  - `UnevaluatedReason::MeasureUnavailable`.
+  - `MeasureUnavailableAt`
+  - `ValuePayload::MeasureUnavailable`
+  - `Observed::Unavailable`
+  - `UnevaluatedReason::MeasureUnavailable`
 
   `min_separation` leaves evaluation.
-- **The viewer.** An at-rest certify seam has the coincidence door's
-  shape. `DocSession::land` submits it when the landed `f64` evaluation
-  holds a `Clears` node. It is keyed by generation, cancelled by the
-  next submit, and settled into `LandedRun`. It returns one verdict
-  per node, in plain numbers, from a `pncad` door that runs the nominal
-  at `Interval`. The requirement's row reads:
-  - `certifying…` while the seam runs;
-  - `Holds: clears 2 mm`, with no other number, because none is
-    computed;
-  - `Violated: a violating pair 1.84 mm apart (needs ≥ 2 mm)`, spelled
-    so rounding never reaches the bound. While the row is selected or
-    hovered, the viewport draws the pair as a leg with its two faces
-    lit.
-  - the refusal's sentence and recourse.
-
-  There is no bare clearance row and no bracket. The create pane gains
-  "add a clearance requirement": two seats and a bound.
+- **The viewer.**
+  - An at-rest certify seam with the coincidence door's shape.
+    `DocSession::land` submits it when the landed `f64` evaluation
+    holds a clearance assertion. It is keyed by generation, cancelled
+    by the next submit, and settled into `LandedRun`.
+  - The seam returns one verdict per assertion, in plain numbers, from
+    a `pncad` door that runs the nominal at `Interval`.
+  - The row reads like an equation: `clearance(<a>, <b>) ≥ 2 mm`. It
+    then shows `certifying…`, `Holds`, `Violated` (for `≥`: "a
+    violating pair 1.84 mm apart"), or the refusal's sentence and
+    recourse.
+  - A witness pair is drawn as a leg, with its two faces lit, while the
+    row is selected or hovered.
+  - There is no bracket.
+  - The create pane gains "add a clearance requirement": two seats, a
+    relation and a bound.
 - `crates/viewer/README.md`'s clause that a landing is "taken in that
   pair's single `land`" is reworded: a landing may owe answers that
   settle later.
 
 Not part of this row:
-- a "within" requirement (`≤`), which is the same sweep read inverted
-  and is additive;
 - a clearance value door;
 - the faces that floor a minimum.
 
