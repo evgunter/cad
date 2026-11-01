@@ -27,7 +27,10 @@
 //!   shares with a cap and nothing else;
 //! - of the three bodies the shell's cavity gate asks, the corpus pot
 //!   and the cone frustum's cavity hold at both scalars, and the klein
-//!   elbow's cavity refuses typed at a spiric cap edge.
+//!   elbow's cavity refuses typed at a spiric cap edge;
+//! - a lens loft's cap refuses typed at the depth budget against a wall
+//!   at the lens tip, a twisted loft's seam refuses so, and the
+//!   half-turn helix's caps hold against its walls.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
@@ -1793,5 +1796,215 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
         "the frustum's cavity",
         &cavity_at::<f64>("the frustum's cavity"),
         &cavity_at::<Interval>("the frustum's cavity at Interval"),
+    );
+}
+
+// ------------------------------------- cap corners and twisted seams
+
+/// The row these pin:
+/// `work/clear/injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams.md`.
+const SEAMDIAG_ROW: &str =
+    "injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams";
+
+/// **Two faces of `body` asked alone**, each in its own window, at the
+/// default depth and the pair budget `budget`. No candidate is
+/// witnessed: the verdict is the certificates'.
+fn pair_report<T: Scalar>(
+    body: &Body<T>,
+    a: FaceKey,
+    b: FaceKey,
+    budget: usize,
+) -> BoundReport<()> {
+    let window = |f| {
+        Side {
+            body,
+            faces: vec![f],
+        }
+        .windows(Which::First)
+        .expect("every face has a window")
+    };
+    let sweep = Sweep {
+        bound: ClearanceBound::StrictlyPositive,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: budget,
+        },
+    };
+    sweep.run(&window(a), &window(b), true, |_| {
+        Err::<(), _>("no witness asked".to_owned())
+    })
+}
+
+/// **The pair refuses `Uncertified { Departure }` across an edge it
+/// shares, at the depth budget**, not at the root.
+fn assert_refuses_at_depth<T: Scalar>(what: &str, body: &Body<T>, a: FaceKey, b: FaceKey) {
+    let report = pair_report(body, a, b, 8192);
+    println!(
+        "[seamdiag] {what}: {:?} {:?} deepest {}",
+        report.verdict, report.receipt, report.widths.deepest
+    );
+    assert!(
+        matches!(
+            report.verdict,
+            BoundVerdict::Refused(EngineRefusal::Uncertified {
+                a: ra,
+                b: rb,
+                shared: SharedCell::Edge(_),
+                arm: CertificateArm::Departure,
+            }) if (ra, rb) == (a, b)
+        ),
+        "{what}: {a:?} against {b:?} refuses Uncertified Departure across their shared edge \
+         ({SEAMDIAG_ROW}); a fix flips this row: {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+    assert_eq!(
+        report.widths.deepest, DEFAULT_MAX_CELL_DEPTH,
+        "{what}: {a:?} against {b:?} refuses at the depth budget ({SEAMDIAG_ROW}): {:?}",
+        report.receipt
+    );
+}
+
+/// Whether `f` of `body` is a plane.
+fn is_plane<T: Real>(body: &Body<T>, f: FaceKey) -> bool {
+    matches!(surface(body, f), Surface::Plane { .. })
+}
+
+/// The face pairs of `body` sharing a vertex, of a plane and a spline
+/// (`caps`) or of two splines.
+fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
+    touching_pairs(body)
+        .into_iter()
+        .filter(|&(a, b)| (is_plane(body, a) != is_plane(body, b)) == caps)
+        .filter(|&(a, b)| caps || !(is_plane(body, a) || is_plane(body, b)))
+        .collect()
+}
+
+/// **A lens loft's caps refuse at the lens tip, at both scalars.** Two
+/// unit lens sections, two arcs on one chord, one above the other: each
+/// cap is a plane bounded by two circles meeting at the two tips. A cap
+/// cell holding a tip holds both arcs, and no presentation reads a
+/// corner of two curved edges on a plane; the one reading left there
+/// is the wall's departure from the cap's plane, whose zero side the
+/// centred form reads to second order in the wall cell, so it decides
+/// only on cells the depth budget does not reach. This is the tour's
+/// `lily_leaf_a` cap corner (`demos/tour/tests/lily.rs`), built here at
+/// both scalars.
+#[test]
+fn a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars() {
+    fn lens_loft<T: Scalar>() -> Body<T> {
+        let lens = vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(0.5, 0.0), -0.3),
+            (Point2::new(-0.5, 0.0), -0.3),
+        ])];
+        let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
+        let places = sweep::test_support::lift_places::<T>(
+            &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
+            tol(),
+        );
+        loft_body::<T>(&sections, &places, 2, tol())
+            .expect("the lens loft lofts")
+            .body
+    }
+    let (float, interval) = (lens_loft::<f64>(), lens_loft::<Interval>());
+    let pairs = adjacent(&float, true);
+    assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
+    assert_eq!(
+        adjacent(&interval, true),
+        pairs,
+        "one topology at both scalars"
+    );
+    let (cap, wall) = if is_plane(&float, pairs[0].0) {
+        pairs[0]
+    } else {
+        (pairs[0].1, pairs[0].0)
+    };
+    assert_refuses_at_depth("the lens loft's cap", &float, cap, wall);
+    assert_refuses_at_depth("the lens loft's cap at Interval", &interval, cap, wall);
+}
+
+/// **A twisted loft refuses along a seam, at both scalars.** The
+/// prism's sections, the top square authored from its second corner, so
+/// every strut runs a quarter turn round (the tour's `twisted_loft`,
+/// `demos/tour/src/skinned.rs`). Across a seam the departure arm's graph
+/// separator takes its normal across the two faces' headings, each
+/// toward its cell's middle and normalised before its along-edge part is
+/// dropped; for two cells offset along the seam the farther one weighs
+/// less, and at this seam's dihedral (about 51°) the normal leaves both
+/// faces on one side of it. Every seam refuses so; one is asked here.
+#[test]
+fn a_twisted_loft_refuses_departure_along_a_seam_at_both_scalars() {
+    fn twisted<T: Scalar>() -> Body<T> {
+        use sweep::test_support::{
+            PRISM_SQUARE, PRISM_TRAPEZOID, lift_places, lift_sections, stacked_at,
+        };
+        let mut top = PRISM_SQUARE;
+        top.rotate_left(1);
+        let sections = lift_sections::<T>(&[quad(PRISM_SQUARE), quad(PRISM_TRAPEZOID), quad(top)]);
+        let places = lift_places::<T>(&stacked_at(&[0.0, 1.0, 2.0]), tol());
+        loft_body::<T>(&sections, &places, 2, tol())
+            .expect("the twisted sections loft")
+            .body
+    }
+    let (float, interval) = (twisted::<f64>(), twisted::<Interval>());
+    let seams = adjacent(&float, false);
+    assert_eq!(seams.len(), 4, "four walls meet at four seams: {seams:?}");
+    assert_eq!(
+        adjacent(&interval, false),
+        seams,
+        "one topology at both scalars"
+    );
+    let (a, b) = seams[0];
+    assert_refuses_at_depth("the twisted loft's seam", &float, a, b);
+    assert_refuses_at_depth("the twisted loft's seam at Interval", &interval, a, b);
+}
+
+/// **The half-turn helix's caps hold against its walls, at both
+/// scalars.** `m8_14_long_turn_sweep`'s half-turn helix at 33 stations,
+/// a 0.16 square swept along it: CARVE's measurement found two of its
+/// top cap's four wall pairs refusing Departure at depth (the row
+/// [`SEAMDIAG_ROW`] names), on a branch from before the carried frame
+/// and the clip sides' run-on past a corner. Every cap–wall pair now
+/// holds, at a depth far under the budget.
+#[test]
+fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
+    fn helical<T: Scalar>() -> Body<T> {
+        let path = helix(0.5, 0.4);
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([
+            (-0.08, -0.08),
+            (0.08, -0.08),
+            (0.08, 0.08),
+            (-0.08, 0.08),
+        ]));
+        sweep_body::<T>(&profile, place, &path, 33, 3, tol())
+            .expect("the helix sweeps")
+            .body
+    }
+    fn holds<T: Scalar>(what: &str, body: &Body<T>) -> usize {
+        let pairs = adjacent(body, true);
+        for &(a, b) in &pairs {
+            let report = pair_report(body, a, b, 8192);
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds) && report.widths.deepest < 20,
+                "{what}: {a:?} against {b:?} holds well under the depth budget: {:?} {:?} \
+                 deepest {}",
+                report.verdict,
+                report.receipt,
+                report.widths.deepest
+            );
+        }
+        pairs.len()
+    }
+    assert_eq!(
+        holds("the half-turn helix", &helical::<f64>()),
+        8,
+        "two caps against four walls"
+    );
+    assert_eq!(
+        holds("the half-turn helix at Interval", &helical::<Interval>()),
+        8,
+        "two caps against four walls"
     );
 }
