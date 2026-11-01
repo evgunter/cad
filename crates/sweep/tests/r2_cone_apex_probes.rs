@@ -804,3 +804,21 @@ fn r2_nearly_square_to_the_axis() {
     }
     assert_eq!(wrong, 0);
 }
+
+/// The near-graze ladder at one pose, the full refusal printed.
+#[test]
+fn r2_near_graze_detail() {
+    for alpha in [45.0f64] {
+        let r = alpha.to_radians().tan();
+        let c = body(Form::Tipped, r);
+        for f in [0.99, 0.999, 0.9999, 0.99999, 0.999_999, 0.999_999_9, 0.999_999_99] {
+            let n = normal((alpha * f).to_radians(), 0.0);
+            let h = half_space(n);
+            match intersect(&c, &h, tol()) {
+                Ok(BooleanResult::Body(_)) => println!("α{alpha} f{f}: body"),
+                Ok(BooleanResult::Empty) => println!("α{alpha} f{f}: empty"),
+                Err(e) => println!("α{alpha} f{f}: {e:?}"),
+            }
+        }
+    }
+}
