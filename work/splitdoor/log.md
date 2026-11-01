@@ -122,3 +122,9 @@
   - **An honest refusal, not a kernel defect.** Since my PR 6212, the 0.5ε pose decides as upright, as the row's contract asks. So it refuses `LineWedges` exactly as the on-top scene does: that scene is already pinned in the file's `REFUSING` table, where it waits on the unbuilt re-pairing in `topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.
   - **Why the row went red.** `builds_or_refuses` looked its pins up by the tipped label, which never matched, so its pin calls were dead.
   - **The fix.** A cell within the zero now inherits the on-top scene's pins, enforced in both directions. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `the-boolean-sectors-read-a-wrap-tip-as-a-one-edge-slit-tip` (PR 6221). Review tier: FULL, REQUEST CHANGES, then a delta review, APPROVE-WITH-FIXES, then the orchestrator's read of the final pass.
+  - `SlitTips` reads `validate::wrap_tips`, and the tip's corner reads the full turn. `strut_faces_first` faces a germ along a wrap tip's edge by the same rule.
+  - The FULL review's MAJOR (CLASS) was a two-tip sphere edge regressing from a build to `SectionLoopUndecided`. Root cause: `seam_germ_side` skipped curved chords, which is HONESPLIT's frontier.
+  - **Ruled:** fix it at the cause, in this PR. `seam_germ_side` now reads every chord at first order. The delta review found 59 ops main refuses now build correctly, and none builds wrong over 254 ops at three ε.
+  - Seam note left on `work/honesplit/log.md`.
+  - **Found while driving it:** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap`, a main red bisected to my PR 6212. Banded P1 here. (SPLITDOOR orchestrator)

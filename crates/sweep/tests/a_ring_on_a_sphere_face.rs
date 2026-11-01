@@ -21,7 +21,7 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use sweep::test_support::{ball_poled, ball_poled_y, ball_poled_z, brick, finished};
-use topo::{AtRestBody, BooleanError, BooleanResult};
+use topo::{AtRestBody, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
 
@@ -259,42 +259,149 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
     );
 }
 
-/// **A ring inside a sphere island is re-homed into it, and the op stops
-/// at the role read.** The slab with a well `[0.1, 0.4] × [1.8, 2.2]`
-/// down to `z = 0.5` against the probe ball: the well's walls cut the
-/// ball's face in a ring inside the island the slab's top edge walls
-/// off, which the path reads inside and moves. The section loop about
-/// the well then flanks only sphere patches, every witness of which
-/// lies on the slab, and the role read refuses
-/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// **A ring inside a sphere island is re-homed into it, and the op
+/// builds.** The slab with a well `[0.1, 0.4] × [1.8, 2.2]` down to
+/// `z = 0.5` against the probe ball: the well's walls cut the ball's face
+/// in a ring inside the island the slab's top edge walls off, which the
+/// path reads inside and moves. The section loop about the well then
+/// flanks only sphere patches, every witness of which lies on the slab
+/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
+/// and the join reads the patches' sides at the seam instead
+/// (`boolean::join`'s `seam_germ_side`). Every op, either way round,
+/// holds the slice integral's volume and places a lattice about the ball
+/// as the analytic region does.
 #[test]
-fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
+fn a_ring_inside_a_sphere_island_moves_and_builds() {
+    let c = Vec3::new(0.3, 2.0, 1.2);
+    the_well_builds("the well", ((0.1, 0.4), (1.8, 2.2)), c, ball_y(0.5, c));
+}
+
+/// **The well at other poses**, each reaching the seam read
+/// ([`a_ring_inside_a_sphere_island_moves_and_builds`]): wider in `y`,
+/// narrow, under a lower ball, and with the ball poled on `x`. Each op,
+/// either way round, holds its slice integral and lattice.
+#[test]
+fn the_well_at_other_poses_builds_at_the_seam() {
+    let c = Vec3::new(0.3, 2.0, 1.2);
+    let lower = Vec3::new(0.3, 2.0, 1.05);
+    let x_poled = || {
+        let at = ball_poled(
+            0.5,
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        );
+        placed(at, Affine3::identity(), c)
+    };
+    for (what, well, at, ball) in [
+        (
+            "the well wide in y",
+            ((0.1, 0.4), (1.6, 2.4)),
+            c,
+            ball_y(0.5, c),
+        ),
+        (
+            "the narrow well",
+            ((0.25, 0.35), (1.95, 2.05)),
+            c,
+            ball_y(0.5, c),
+        ),
+        (
+            "the well under a lower ball",
+            ((0.1, 0.4), (1.8, 2.2)),
+            lower,
+            ball_y(0.5, lower),
+        ),
+        (
+            "the well under an x-poled ball",
+            ((0.1, 0.4), (1.8, 2.2)),
+            c,
+            x_poled(),
+        ),
+    ] {
+        the_well_builds(what, well, at, ball);
+    }
+}
+
+/// The slab with the well `x × y` down to `z = 0.5` against `ball`, of
+/// radius ½ about `c`: every op, either way round, at the slice
+/// integral's volume and placing a lattice about the ball as the
+/// analytic region does.
+fn the_well_builds(
+    what: &str,
+    (x, y): ((f64, f64), (f64, f64)),
+    c: Vec3<f64>,
+    ball: AtRestBody<f64>,
+) {
+    use crate::common::membership::{Region, ball as round, cuboid, holds};
     let tol = Tol::witness();
-    let well = boxed([(0.1, 0.4), (1.8, 2.2), (0.5, 2.0)]);
-    let slab = topo::subtract(&boxed(SLAB), &well, tol)
+    let well_bounds = [x, y, (0.5, 2.0)];
+    let slab = topo::subtract(&boxed(SLAB), &boxed(well_bounds), tol)
         .unwrap()
         .body()
         .unwrap()
         .body
         .clone();
-    let ball = ball_y(0.5, Vec3::new(0.3, 2.0, 1.2));
-    for (op, out) in [
-        ("a ∪ b", topo::union(&slab, &ball, tol)),
-        ("b ∪ a", topo::union(&ball, &slab, tol)),
-        ("a ∖ b", topo::subtract(&slab, &ball, tol)),
-        ("b ∖ a", topo::subtract(&ball, &slab, tol)),
-        ("a ∩ b", topo::intersect(&slab, &ball, tol)),
-        ("b ∩ a", topo::intersect(&ball, &slab, tol)),
-    ] {
-        assert!(
-            matches!(
-                out,
-                Err(BooleanError::Join(ref j))
-                    if matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. })
-            ),
-            "the well, {op}: wanted the role read's refusal, got {:?}",
-            out.map(|_| "a body")
+    let in_slab = [x, y, (0.5, 1.0)];
+    let va = box_volume(SLAB) - box_volume(in_slab);
+    let vb = ball_volume(0.5);
+    let shared = ball_in_box(0.5, c, SLAB) - ball_in_box(0.5, c, in_slab);
+    let solid = move || -> Region {
+        let (s, w) = (
+            cuboid(SLAB[0], SLAB[1], SLAB[2]),
+            cuboid(well_bounds[0], well_bounds[1], well_bounds[2]),
         );
+        Box::new(move |p| s(p).min(-w(p)))
+    };
+    let sphere = move || round(Point3::new(c.x, c.y, c.z), 0.5);
+    let about = (
+        Point3::new(c.x - 0.6, c.y - 0.6, c.z - 0.6),
+        Point3::new(c.x + 0.6, c.y + 0.6, c.z + 0.6),
+    );
+    for (op, out, want, region) in [
+        (
+            "a ∪ b",
+            topo::union(&slab, &ball, tol),
+            va + vb - shared,
+            Box::new(move |p| solid()(p).max(sphere()(p))) as Region,
+        ),
+        (
+            "b ∪ a",
+            topo::union(&ball, &slab, tol),
+            va + vb - shared,
+            Box::new(move |p| solid()(p).max(sphere()(p))),
+        ),
+        (
+            "a ∖ b",
+            topo::subtract(&slab, &ball, tol),
+            va - shared,
+            Box::new(move |p| solid()(p).min(-sphere()(p))),
+        ),
+        (
+            "b ∖ a",
+            topo::subtract(&ball, &slab, tol),
+            vb - shared,
+            Box::new(move |p| sphere()(p).min(-solid()(p))),
+        ),
+        (
+            "a ∩ b",
+            topo::intersect(&slab, &ball, tol),
+            shared,
+            Box::new(move |p| solid()(p).min(sphere()(p))),
+        ),
+        (
+            "b ∩ a",
+            topo::intersect(&ball, &slab, tol),
+            shared,
+            Box::new(move |p| solid()(p).min(sphere()(p))),
+        ),
+    ] {
+        let what = format!("{what}, {op}");
+        let body = match out {
+            Ok(BooleanResult::Body(b)) => b.body,
+            other => panic!("{what}: {:?}", other.map(|_| "empty")),
+        };
+        holds(&what, &body, want, &region, about, 9);
     }
 }
 
