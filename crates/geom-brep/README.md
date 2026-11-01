@@ -544,14 +544,17 @@ side's image on the other chart:
   across it to hold the accounting floor's cells beside it, over which
   the pair's crossing reading (`graph_margin`, `ssi::four::row_cover`,
   `row_crossing` at that width) is zero-free. Each slice across the row then holds at
-  most one solution, and the row is that solution. Its cells are
+  most one solution, so no closed loop lies in the cover; where the
+  row is an exact solution, it is that solution. Its cells are
   contact cells in the accounting.
 - **A `Corner` region** comes from a shared vertex at a corner of both
   rectangles. The reading certifies the crossing reading zero-free
   over the corner cell, and reads the signs of the direction the
-  section leaves along there, as the plane lane reads a corner's
-  inward partials: either the section leaves the domain (an isolated
-  point), or a branch starts there.
+  section runs along there, as the plane lane reads a corner's
+  inward partials. Mixed signs make every arc in the cell monotone
+  in all four coordinates, so no arc closes in the cell, which is a
+  contact cell; uniform signs make the corner a crossing where a
+  branch starts.
 
 A face the walk does not resolve within its pieces and that no handed-in
 row or vertex covers (the section touching or running along a side, or

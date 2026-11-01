@@ -1,6 +1,6 @@
 # CHROME — viewer chrome and coverage (plan)
 
-**STATUS: OPEN; slate re-cut 2026-09-15, and cut again 2026-09-22** (see *The slate after the 2026-09-22 cut*). The opening slate of nine
+**STATUS: OPEN; slate re-cut 2026-09-15, cut again 2026-09-22 and 2026-11-01** (see *The slate after the 2026-11-01 cut*). The opening slate of nine
 units all landed on 2026-09-04 and the program then went dormant for
 eleven days. What it holds now is the residue those units filed, five
 hand-offs from DOCM, and rows other programs filed onto this slate
@@ -257,28 +257,30 @@ record.
 
 **Waves 7 and 8 LANDED 2026-09-29**: PRs 3475, 3477, 3478, 3486 and 3487. No non-design row is dispatchable, and `work/chrome/log.md` has the record.
 
-**Next is the designer pass on the design forks below.** Nothing else is dispatchable.
+**The slate after the 2026-11-01 cut.** Ev's GUI walks of 2026-10-31
+(the bracket, then revolve, pattern, mirror, assembly and save) filed
+most of what is open now; the cut sent the landing and placement rows
+to SPACES and PLACING (`work/chrome/log.md`, 2026-11-01). What is left
+at P0 and P1:
 
-**On Ev:**
-- `a-long-cascades-maintenance-crowds-the-status-line`: options (a)–(d) were asked in chat.
-- `cluster-maintenance-acts-reach-the-outcome-but-not-the-line`: worded or silent.
+- `a-failed-feature-hides-every-later-edit` (P0, design): after one
+  feature fails, later edits commit and read Ok and nothing is drawn.
+  Whether a failure should hold up the picture of everything else, or
+  the chrome should stop presenting later edits as taking effect, is
+  the question; it goes to designers first.
+- `the-chrome-shows-every-form-at-once` (P1): every form and tool is
+  drawn at rest; the extrude form's shape (drawn only where its op
+  would accept the selection) is the shape the row names for the rest.
+- `committing-a-mate-floods-the-banner` (P1): a label the form cannot
+  use, and four raw-id dropped-value lines that say one thing.
+- `the-tree-nests-rows-under-unrelated-placements` (P1): indentation
+  is a distance, not the document's structure.
+- `a-findings-face-reference-reads-as-stale` (P1): a held face
+  selection does not survive an edit upstream of it.
+- `the-per-frame-badge-reads-are-three-hand-copied-fields` (P1).
 
-**Design forks, all weighed and ruled on 2026-10-01** (designer pairs,
-`docs/DESIGN-FORK-LOG.md` rows 24 to 30):
-- `kernel-refusals-say-node-where-the-tree-says-feature`: superseded by
-  PR 3565's node labels (#3605), now parked on `node-labels-are-document-data`
-- `the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`:
-  ruled on #3607, row moved to POLISH
-- `failed-row-repair-links-for-arms-with-two-candidate-repairs`: no
-  links, empty readout (#3609)
-- `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`:
-  silent on a gather refusal, `Result` in `LandedRun` (#3604)
-- `a-computed-slots-value-reads-in-metres-and-radians`: per-person
-  working notation (#3602)
-- `a-fields-open-edit-and-a-held-draft-are-as-wide-as-their-text`:
-  edit in the row, capped (#3606), row moved to POLISH
-- `chrome-weight-is-outside-the-palette`: rename to actionable plus a
-  salience check, no new `Theme` fields (#3608)
+The P2 and below rows stay on the slate and are not dispatched this
+sitting.
 
 **What this program takes on, from 2026-10-01** (Ev, in chat): rows
 that change WHAT the chrome shows. A row whose information is already

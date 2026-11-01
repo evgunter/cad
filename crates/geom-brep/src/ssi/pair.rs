@@ -41,9 +41,10 @@
 //!   it, each at least [`COVER_FLOOR_CELLS`] accounting-floor cells wide
 //!   across it, over which the crossing reading is zero-free across the
 //!   first chart's coordinate along the row. Each slice of a box at that
-//!   coordinate holds a row point and so no other solution: the section
-//!   in the cover is the row. Its boxes are contact cells in the
-//!   accounting, and the pass walks no piece they hold.
+//!   coordinate holds at most one solution, so no closed loop lies in the
+//!   cover; where the row is an exact solution, it is that solution. Its
+//!   boxes are contact cells in the accounting, and the pass walks no
+//!   piece they hold.
 //! - **A shared corner** ([`PairCorner`]), a corner of both rectangles,
 //!   is read over a cell as deep along each coordinate (the widest of
 //!   the same rungs that reads it). The section's

@@ -52,3 +52,7 @@ geometry: circle pieces and rulings for `ring_path`, and face sectors
 at a vertex for `cone_side`. Weigh first whether the circle-piece case
 generalises the sector case cleanly, since a sector is an arc of a
 great circle.
+
+## Note (2026-11-01, ONEREAD)
+
+`work/oneread/the-booleans-cone-reader-is-a-second-link.md` decided that `cone_side` is deleted (`the-boolean-reads-the-other-operand-through-one-cone`), which removes this row's `cone_side` half; `ring_path::path_parity` against `topo::link`'s parity stays this row's question. (ONEREAD orchestrator)

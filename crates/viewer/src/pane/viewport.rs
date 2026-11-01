@@ -13,7 +13,7 @@ use crate::camera::{self, Camera, CameraOp};
 use crate::display::DisplayView;
 use crate::drafts::ProfileDoors;
 use crate::frame;
-use crate::gpu::{IdQuery, ViewportCallback};
+use crate::gpu::{ID_PASS_ASKED, IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
 use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
@@ -618,13 +618,13 @@ mod composed {
 /// # Why a read of the index can need this and not the evaluation
 ///
 /// `ViewerBehavior::index` is the index for the document the session
-/// has landed. `ViewerBehavior::scene` is the mesh of whatever picture
-/// last succeeded in being built, which is the same thing on almost
-/// every frame and is NOT the same thing whenever a scene rebuild
-/// refused: `ViewerApp::sync_scene` marks the pair current only on
-/// success, so a landed index over a refused rebuild leaves a new index
-/// beside an older picture, and nothing retries while the display and
-/// the focus hold still.
+/// has landed. `ViewerBehavior::scene` is the mesh on screen, which is
+/// that index's picture on almost every frame and is NOT whenever a
+/// scene rebuild refused: `ViewerApp::sync_scene` then draws nothing
+/// and keys the scene to no index, so a landed index over a refused
+/// rebuild stands beside a picture no index minted, and nothing retries
+/// while the display and the focus hold still. The startup mesh is the
+/// same shape: no index minted its corners.
 ///
 /// Three reads care. Two of them have a pick **id** for their
 /// currency:
@@ -1205,7 +1205,7 @@ impl ViewerBehavior<'_> {
             self.drafts,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
-        *self.held_edges_refused = composed
+        self.viewport_reads.held_edges_refused = composed
             .edges()
             .held_refused
             .clone()
@@ -1254,7 +1254,9 @@ impl ViewerBehavior<'_> {
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all. A ray path that could not be
         // asked — no evaluation to ask it of — is no comparison either.
-        let outstanding = self.id_log.outstanding();
+        // A build that asks the id pass nothing has no answer coming
+        // to compare, so it casts no ray for one ([`ID_PASS_ASKED`]).
+        let outstanding = self.id_log.outstanding().filter(|_| ID_PASS_ASKED);
         let said = outstanding.and_then(|_| {
             let (doc, eval) = self.session.landed_pair()?;
             let question = RayQuestion {
@@ -1305,7 +1307,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         let id_query = match (step, cursor_px) {
-            (IdStep::Ask { serial }, Some(cursor)) => viewport
+            (IdStep::Ask { serial }, Some(cursor)) if ID_PASS_ASKED => viewport
                 .ndc_of(cursor)
                 .and_then(|ndc| ndc.narrow())
                 .map(|cursor_ndc| IdQuery {
@@ -1360,7 +1362,7 @@ impl ViewerBehavior<'_> {
     fn committed_lane(&mut self) -> marks::LegLane {
         let mut profiles = marks::LegLane::default();
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            *self.profiles_undrawn = push_committed(
+            self.viewport_reads.profiles_undrawn = push_committed(
                 &mut profiles,
                 doc,
                 evaluation,
