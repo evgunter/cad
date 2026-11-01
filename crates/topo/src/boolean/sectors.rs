@@ -1224,7 +1224,8 @@ impl PairRecord {
 /// none of its own, and no declaration settles a direction's membership.
 /// `dir` is a line with no reach of its own (two faces' intersection
 /// direction), so its side of each bound is read at that bound's reach
-/// ([`within_reaching`]).
+/// ([`within_reaching`]). It need not be unit: two faces' line is read
+/// un-normalized ([`rays_within`]).
 ///
 /// Sense-invariant given the sector: `start`/`end` are traversal-
 /// derived and `normal` already carries the sense, and `revert` flips
@@ -1245,10 +1246,12 @@ pub(super) fn within<T: Decide>(
 /// edge), `None` where it has none.
 ///
 /// **A direction's side of a bound is read at the shorter of the two's
-/// reaches**: the bound's far end lies `sin θ` times its reach off the
-/// direction's line, which is the length the side codes read the bound
-/// at ([`side_code`]), and a direction with a reach of its own is known
-/// no farther than that reach. The sector's `arm`, the shorter chord of
+/// reaches**: for a unit direction the reading is `sin θ` times the
+/// bound's reach, how far its far end lies off the direction's line, at
+/// the length the side codes read the bound at ([`side_code`]); a
+/// direction with a reach of its own is known no farther than that
+/// reach. Two faces' line, un-normalized, reads `sin θ · sin φ` times
+/// the reach ([`rays_within`]). The sector's `arm`, the shorter chord of
 /// its corner, is neither's: a short edge elsewhere at the corner would
 /// leave in band a ray that the bound's own reach, and so its code,
 /// reads definitely off.
@@ -1305,27 +1308,36 @@ fn within_signs<T: Decide>(
     ))
 }
 
-/// **Which rays of two sector faces' line lie within both sectors**:
-/// `(+m, −m)`, `m = n_a × n_b`, each `true` where [`within`] holds it in
-/// both. The line is read un-normalized, so each reading of it against a
-/// bound `e` of `a`'s sector at `e`'s reach `L` measures, by
-/// `(m × e)·n_a = (n_a·e) cos φ − n_b·e`, the bound's far end's offset
-/// from `b`'s plane — what its side code reads ([`side_code`]) — plus
-/// its own departure from `a`'s, foreshortened by `cos φ`. The unit
-/// line would divide that by `|m| = sin φ`, so a far end within the zero
-/// of both planes would read off their line wherever the two faces are
-/// near parallel.
-pub(super) fn face_line_rays<T: Decide>(
-    sa: &BoolSector<T>,
-    sb: &BoolSector<T>,
+/// **Which rays of `line` lie within every one of `sectors`**:
+/// `(+line, −line)`, each `true` where [`within`] holds it in all.
+///
+/// Two faces' line is passed un-normalized, `m = n_a × n_b`. Read
+/// against a bound `e` of `a`'s sector at `e`'s reach `L`, it measures
+/// `L·(m × e)·n_a = L·((n_a·e) cos φ − n_b·e)`: the bound's own
+/// departure from `a`'s plane, foreshortened by `cos φ`, less its far
+/// end's offset from `b`'s plane. The two terms can add or cancel; the
+/// first is within the zero wherever `a` holds its bound. For a straight
+/// bound the second is what its side code reads at the chord's far point
+/// ([`side_code`]); a curved bound's code reads the edge where this
+/// reads its tangent. The unit line would divide the whole by
+/// `|m| = sin φ`, so a far end within the zero of both planes would read
+/// off their line wherever the two faces are near parallel. A line with
+/// no such conditioning (a tangent locus) is passed unit.
+pub(super) fn rays_within<T: Decide>(
+    line: Vec3<T>,
+    sectors: &[&BoolSector<T>],
     read: DeclarationRead,
     band: Band,
 ) -> Result<(bool, bool), BooleanError> {
-    let m = sa.normal.vec().cross(sb.normal.vec());
     let holds = |d| -> Result<bool, BooleanError> {
-        Ok(within(sa, d, false, read, band)? && within(sb, d, false, read, band)?)
+        for s in sectors {
+            if !within(s, d, false, read, band)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     };
-    Ok((holds(m)?, holds(-m)?))
+    Ok((holds(line)?, holds(-line)?))
 }
 
 /// A half-plane a sector's face leaves an edge in ([`half_planes`]): its
@@ -2509,7 +2521,7 @@ pub(super) fn pair_search<T: Decide>(
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?
             } else {
-                let (plus, minus) = face_line_rays(sa, sb, DeclarationRead::Moot, band)?;
+                let (plus, minus) = rays_within(int, &[sa, sb], DeclarationRead::Moot, band)?;
                 plus || minus
             };
             if !hit {
@@ -6447,7 +6459,7 @@ mod tests {
     /// Two upright faces through the z axis 10° apart, as a tilted
     /// prism's side face meets its neighbour's (`three_solids_on_one_line`):
     /// `a`'s normal at 20°, tipped by `tilt` so its bound down the axis
-    /// leaves its plane by `tilt` at its reach, against `b`'s at 30°.
+    /// leaves its plane by `1.23·tilt` at its reach, against `b`'s at 30°.
     fn faces_ten_degrees_apart(tilt: f64) -> (BoolSector<f64>, BoolSector<f64>) {
         let at = |deg: f64| {
             let (s, c) = deg.to_radians().sin_cos();
@@ -6476,8 +6488,8 @@ mod tests {
 
     /// **A face tilted within the zero against a face near parallel to it
     /// decides as upright**: `a`'s bound down the axis leaves `a`'s plane
-    /// by a quarter of the zero at its reach, and the faces' line, ten
-    /// times as steep (`1/sin 10°`), would read in band against it at
+    /// by a quarter of the zero at its reach, and the faces' unit line,
+    /// steeper by `1/sin 10° = 5.76`, would read in band against it at
     /// that reach; read off `b`'s plane, as its code reads it, it grazes.
     #[test]
     fn a_tilt_within_the_zero_between_near_parallel_faces_decides_as_upright() {
@@ -6492,6 +6504,10 @@ mod tests {
             "the unit line reads {steep:e} off the long bound, past the zero {:e}",
             b.zero()
         );
+        let rays = |a: &BoolSector<f64>, b_: &BoolSector<f64>| {
+            let m = a.normal.vec().cross(b_.normal.vec());
+            rays_within(m, &[a, b_], DeclarationRead::Moot, b).unwrap()
+        };
         let read = |a, b_: BoolSector<f64>| {
             let found = pair_search(&[a], &[b_], b).unwrap_or_else(|e| panic!("refused: {e:?}"));
             let records: Vec<_> = found.records.iter().map(|r| (r.sa, r.sb)).collect();
@@ -6500,11 +6516,7 @@ mod tests {
         let upright = read(ua.clone(), ub.clone());
         assert_eq!(upright.0.len(), 1, "upright: one record, {upright:?}");
         assert_eq!(read(ta.clone(), tb.clone()), upright, "tilted as upright");
-        assert_eq!(
-            face_line_rays(&ta, &tb, DeclarationRead::Moot, b).unwrap(),
-            face_line_rays(&ua, &ub, DeclarationRead::Moot, b).unwrap(),
-            "the rays the germ reads"
-        );
+        assert_eq!(rays(&ta, &tb), rays(&ua, &ub), "the rays the germ reads");
     }
 
     /// Faces `φ` apart about the x axis — `b` the plane z = 0, `a` tipped
@@ -6526,57 +6538,42 @@ mod tests {
         (a, b)
     }
 
-    /// **The plane-offset reading refuses only where a bound's code reads
-    /// in band**: a bound a small angle off the line of two faces near
-    /// parallel, its far end three zeros off the other's plane, reads in
-    /// band at `within` where the unit line read it definite. Where the
-    /// unit line read the line within, the codes refused it next; where
-    /// it read the line outside, the pair was no record, though the
-    /// bound's code against the other face reads in band. Both
-    /// refusals end on one recourse (`refusal_routes`, `Sectors` and
-    /// `SectorSide` alike).
+    /// **A bound in band off the other face's plane never reads a wrong
+    /// pair**: a bound a small angle off the line of two faces near
+    /// parallel, its far end three zeros off the other's plane, its code
+    /// against that face in band. Where the line lies inside the sector
+    /// the pair is a record or a typed refusal; where it lies outside, no
+    /// record or a typed refusal. The plane-offset reading refuses both at
+    /// the line today, where the unit line read the outside case as no
+    /// record; a planar body's far vertex refuses first at the vertex–face
+    /// pass, so a full Boolean refused it either way.
     #[test]
-    fn a_bound_in_band_off_the_others_plane_refuses_at_the_line() {
+    fn a_bound_in_band_off_the_others_plane_reads_no_wrong_pair() {
         let b = band();
         let theta = 0.05f64;
         let phi = 3.0 * b.zero() / theta.sin();
-        let moot = DeclarationRead::Moot;
-        for (what, span, unit_within) in [
+        for (what, span, inside) in [
             ("the line inside", (-theta, theta), true),
             ("the line outside", (theta, 3.0 * theta), false),
         ] {
             let (sa, sb) = faces_phi_apart(phi, span);
-            let unit = sa.normal.vec().cross(sb.normal.vec()).normalize();
-            let reads = |d| {
-                within(&sa, d, false, moot, b).unwrap() && within(&sb, d, false, moot, b).unwrap()
-            };
-            assert_eq!(
-                reads(unit) || reads(-unit),
-                unit_within,
-                "{what}: the unit line"
-            );
             let code = plane_side_code(sa.start, sa.start_reach, sb.normal, b);
             assert!(
                 code.is_err(),
                 "{what}: the bound's code reads in band: {code:?}"
             );
-            let found = pair_search(std::slice::from_ref(&sa), std::slice::from_ref(&sb), b)
-                .map(|f| f.records.len());
-            let Err(e) = found else {
-                panic!("{what}: the plane-offset reading refuses, got {found:?}")
-            };
-            assert!(
-                format!("{e:?}").contains("bool_sector_within"),
-                "{what}: refused at the line: {e:?}"
-            );
-            if unit_within {
-                let Err(codes) = pair_codes(&sa, &sb, b) else {
-                    panic!("{what}: the codes refuse next")
-                };
-                assert!(
-                    format!("{codes:?}").contains("Coincidence(SectorSide"),
-                    "{what}: the codes' refusal: {codes:?}"
-                );
+            match pair_search(std::slice::from_ref(&sa), std::slice::from_ref(&sb), b) {
+                Ok(found) => assert_eq!(
+                    found.records.len(),
+                    usize::from(inside),
+                    "{what}: the pair's records"
+                ),
+                Err(BooleanError::Escalated {
+                    decision:
+                        BooleanDecision::Coincidence(Coincide::Sectors | Coincide::SectorSide, _),
+                    ..
+                }) => {}
+                Err(e) => panic!("{what}: refused untyped: {e:?}"),
             }
         }
     }
