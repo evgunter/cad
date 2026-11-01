@@ -232,7 +232,9 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::span::Span;
 use super::{Arm, MeetFault, Method};
 use crate::Conic;
-use crate::half_angle::{DegreeTwo, SubdivisionFrame, SubdivisionRows, certified_subdivision};
+use crate::half_angle::{
+    DegreeTwo, SubdivisionFrame, SubdivisionRows, TouchRows, certified_subdivision_touching,
+};
 use crate::roots::{Roots, Unsettled, arc_past, extreme_sign};
 
 /// How two carriers read as one curve run: their parameters increase the
@@ -325,6 +327,13 @@ const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
     monotone: "curve_pair_coplanar_sub_monotone",
     side: "curve_pair_coplanar_sub_side",
     width: "curve_pair_coplanar_sub_width",
+};
+
+/// The coplanar subdivision's touch rows (module docs, "A touch in the
+/// subdivision").
+const COPLANAR_TOUCH: TouchRows = TouchRows {
+    convex: "curve_pair_coplanar_sub_convex",
+    gap: "curve_pair_coplanar_sub_touch",
 };
 
 /// **The pose of `a`'s and `b`'s carriers** (module docs), dispatched
@@ -1260,8 +1269,10 @@ fn coplanar_ellipse_circle<T: Decide>(
     subdivided(&poly, &residual, &frame, place, band)
 }
 
-/// A coplanar pair's roots from the certified subdivision, each placed
-/// as a candidate: none is [`Pose::Apart`], and a refusal is typed.
+/// A coplanar pair's roots and touches from the certified subdivision
+/// (module docs, "A touch in the subdivision"), each placed as a
+/// candidate: none is [`Pose::Apart`], one touch alone is
+/// [`Pose::Tangent`], and a refusal is typed.
 fn subdivided<T: Decide>(
     poly: &crate::half_angle::TrigPoly<T>,
     residual: &impl Fn(T) -> T,
@@ -1269,13 +1280,24 @@ fn subdivided<T: Decide>(
     place: &impl Fn(T) -> Candidate<T>,
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    match certified_subdivision(poly, residual, frame, &COPLANAR_ROWS, None, band) {
-        Ok(Roots::Miss) => Ok(Pose::Apart),
-        Ok(Roots::Certified(found)) => Ok(Pose::Generic(
-            found.roots().iter().map(|&t| place(t)).collect(),
-        )),
-        Err(why) => Err(why.into()),
-    }
+    let found =
+        certified_subdivision_touching(poly, residual, frame, (&COPLANAR_ROWS, &COPLANAR_TOUCH), band)?;
+    let roots: &[T] = match &found.roots {
+        Roots::Miss => &[],
+        Roots::Certified(r) => r.roots(),
+        Roots::On(never) => match *never {},
+    };
+    Ok(match (roots, &found.touches[..]) {
+        ([], []) => Pose::Apart,
+        ([], &[touch]) => Pose::Tangent(place(touch)),
+        _ => Pose::Generic(
+            roots
+                .iter()
+                .chain(&found.touches)
+                .map(|&t| place(t))
+                .collect(),
+        ),
+    })
 }
 
 /// **Two ellipses in one plane** (module docs): the first's level on

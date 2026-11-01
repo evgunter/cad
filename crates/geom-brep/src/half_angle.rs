@@ -256,6 +256,29 @@ pub struct SubdivisionRows {
     pub width: &'static str,
 }
 
+/// **The rows a caller of [`certified_subdivision_touching`] places a
+/// touch under**: where a piece neither clear nor monotone is convex
+/// toward its ends' common side, the walk reads its extremum as a
+/// touch ([`certified_subdivision_touching`]).
+pub struct TouchRows {
+    /// `F″` is one-signed on the piece, read exactly (a sign, not a
+    /// length).
+    pub convex: &'static str,
+    /// The arc that holds every root of `F` on the piece, as metres:
+    /// zero is one touch.
+    pub gap: &'static str,
+}
+
+/// The roots and touches [`certified_subdivision_touching`] certifies:
+/// `roots` as [`certified_subdivision`]'s, and `touches` the double
+/// roots it placed, each standing for every root of `F` on its piece.
+pub struct Touching<T> {
+    /// The simple roots.
+    pub roots: TrigRoots<T>,
+    /// The touches' parameters.
+    pub touches: Vec<T>,
+}
+
 /// Where [`half_angle_roots`] works: the subdivision's frame (`walk`),
 /// the carrier's least speed `|C′|` (a circle's radius; an ellipse's
 /// semi-minor axis; the top speed is `walk`'s), and the ladder's `lever`
@@ -565,7 +588,6 @@ const BISECTIONS: u32 = 64;
 /// own rows pass as `None`), and the meterless walks are the ruling
 /// charts' uncharged reading, which only chooses a refusal's row, and
 /// the rows.
-#[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
 pub fn certified_subdivision<T: Decide>(
     f: &TrigPoly<T>,
     residual: &impl Fn(T) -> T,
@@ -574,6 +596,59 @@ pub fn certified_subdivision<T: Decide>(
     slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<TrigRoots<T>, RootRefusal> {
+    subdivision(f, residual, frame, rows, slack, None, band).map(|t| t.roots)
+}
+
+/// **[`certified_subdivision`] that places a touch** where the walk
+/// would refuse one. A piece neither clear nor monotone, whose ends
+/// read one side and on which `F″` is definitely one-signed toward it
+/// (`convex`: the least `|F″|` on the piece, `c`, from the same Taylor
+/// terms and charges as the monotone reading), holds no root or two
+/// (a double root counted twice), both about `F`'s one extremum there.
+/// That extremum `θ*` is bisected on `F′`, which is monotone on the
+/// piece, and the residual there is read (`side`):
+///
+/// - **ON** (the zero band): `G = ±F`, positive at the ends, is at
+///   least `G(θ*) − G′(θ*)²/(2c)` on the piece, and a root lies where
+///   `G` has fallen to zero from its least, within
+///   `|G′(θ*)|/c + √(2·depth/c)` of `θ*`, `depth` that least's depth
+///   below zero. Read at the least depth `F`'s rounding allows (the
+///   value less its noise), as the circle pair reads its root gap, the
+///   arc between the farthest two such roots at the carrier's top speed
+///   (`gap`) decides: zero is one touch at `θ*`, standing for every
+///   root on the piece, and the piece settles; in the gap it refuses
+///   [`RootRefusal::Touch`]. Roots the band can part are the walk's.
+/// - otherwise the walk goes on as [`certified_subdivision`]'s.
+///
+/// A touch counts two roots toward the degree's bound. With no touch
+/// placed the answer is [`certified_subdivision`]'s on every input.
+///
+/// # Errors
+///
+/// As [`certified_subdivision`], and [`RootRefusal::Touch`] on a touch
+/// whose roots' arc reads in the band's gap.
+pub fn certified_subdivision_touching<T: Decide>(
+    f: &TrigPoly<T>,
+    residual: &impl Fn(T) -> T,
+    frame: &SubdivisionFrame<'_, T>,
+    (rows, touch): (&SubdivisionRows, &TouchRows),
+    band: Band,
+) -> Result<Touching<T>, RootRefusal> {
+    subdivision(f, residual, frame, rows, None, Some(touch), band)
+}
+
+/// [`certified_subdivision`]'s walk, placing touches where `touch` is
+/// given ([`certified_subdivision_touching`]).
+#[allow(clippy::too_many_lines)] // one walk: the cut, the pieces, the bisection
+fn subdivision<T: Decide>(
+    f: &TrigPoly<T>,
+    residual: &impl Fn(T) -> T,
+    frame: &SubdivisionFrame<'_, T>,
+    rows: &SubdivisionRows,
+    slack: Option<&RootSlack<'_, T>>,
+    touch: Option<&TouchRows>,
+    band: Band,
+) -> Result<Touching<T>, RootRefusal> {
     let SubdivisionFrame {
         t0,
         t1,
@@ -690,6 +765,7 @@ pub fn certified_subdivision<T: Decide>(
     // [`Unsettled::Exhausted`].
     let pieces: Vec<((T, Sign), (T, Sign))> = ends.windows(2).map(|w| (w[0], w[1])).collect();
     let mut roots: Vec<T> = Vec::new();
+    let mut touches: Vec<T> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
         let half = (r - l) / two;
         let m = l + half;
@@ -798,6 +874,49 @@ pub fn certified_subdivision<T: Decide>(
             roots.push(root);
             return Step::Settled;
         }
+        if let Some(touch) = touch
+            && sl == sr
+        {
+            let toward = if sl == Sign::Positive {
+                T::one()
+            } else {
+                T::zero() - T::one()
+            };
+            let exactly = |x: T| decide(touch.convex, Margin::of(x), Band::least()).ok();
+            let curve = toward * f2 - e2 - d3_hi * half - fourth_hi * half.powi(2) / two;
+            let slope = |t: T| toward * taylor(t)[1].0;
+            if exactly(curve) == Some(Sign::Positive)
+                && exactly(slope(l)) == Some(Sign::Negative)
+                && exactly(slope(r)) == Some(Sign::Positive)
+            {
+                let (mut lo, mut hi) = (l, r);
+                for _ in 0..BISECTIONS {
+                    let c = (lo + hi) / two;
+                    let rising = slope(c);
+                    lo = rising.select_le_zero(c, lo);
+                    hi = rising.select_le_zero(hi, c);
+                }
+                let at = (lo + hi) / two;
+                if matches!(
+                    decide(rows.side, Margin::of(residual(at)), band),
+                    Ok(Sign::Zero)
+                ) {
+                    let [(g0, n0), (g1, _), _, _] = taylor(at);
+                    let depth = (T::zero() - toward * g0 - n0).max(T::zero())
+                        + g1.powi(2) / (two * curve);
+                    let reach = g1.abs() / curve + (two * depth / curve).sqrt();
+                    match decide(touch.gap, Margin::of(two * speed_hi * reach), band) {
+                        Ok(Sign::Zero) => {
+                            let mid = (t0 + t1) / two;
+                            touches.push(mid + (at - mid).reduce_periodic_centred(T::tau()));
+                            return Step::Settled;
+                        }
+                        Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
+                        Ok(Sign::Positive | Sign::Negative) => {}
+                    }
+                }
+            }
+        }
         // The clear margin is a lower bound on the residual, not a
         // reading of it: a looser bound reads it lower, so where it falls
         // says how good the bound is, not how near the carrier passes.
@@ -824,11 +943,15 @@ pub fn certified_subdivision<T: Decide>(
     // and its harmonics disagreeing by more than `noise` — and more than
     // `2N` is more than a degree-`N` polynomial has. Either way a root was
     // lost or invented, and nothing is certified.
-    if roots.len() > 2 * n_deg || roots.len() % 2 == 1 {
+    if roots.len() + 2 * touches.len() > 2 * n_deg || roots.len() % 2 == 1 {
         return Err(RootFault::ImpossibleCount.into());
     }
     // At most `2N ≤ 2·MAX_DEGREE` roots: the capacity holds them.
-    Ok(Roots::of(&roots).unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")))
+    Ok(Touching {
+        roots: Roots::of(&roots)
+            .unwrap_or_else(|| unreachable!("at most 2N roots, within the capacity")),
+        touches,
+    })
 }
 
 #[cfg(test)]
