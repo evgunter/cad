@@ -122,14 +122,16 @@
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
 //!   to it; a cone against a non-coaxial torus; a NURBS or approximated
-//!   face paired with anything but a plane, and one whose net a plane
-//!   cuts that the whole reading refused short of a tangency). Every
+//!   face paired with anything but a plane or another spline face, and a
+//!   spline pair the whole reading refused short of a tangency). Every
 //!   pair with a face that is not a
 //!   plane is examined; two planes meet in a line, which W1 clears.
 //! - **R-tan**: a classification margin `Zero` or undecided — a
 //!   tangency, where components pinch and the count is not certified;
 //!   on a spline section, a tangency the march meets, or the section
-//!   grazing or running along a side of the wall's rectangle.
+//!   grazing or running along a side of the wall's rectangle (on two
+//!   spline faces, one no shared row or corner handed in covers, or a
+//!   handed-in row the walls are tangent along at a point).
 //!   A margin decided `Zero` where the carriers touch at one point is a
 //!   touch instead (below), and refuses R-tan only when it is not
 //!   certified out of either face.
@@ -448,9 +450,9 @@ pub(crate) struct Component<T: Real> {
     /// `F` where it reaches both faces' (one is enough).
     pub reaches: Option<Side>,
     /// **How far the witness may stand from the component**, in metres:
-    /// a marched loop's pad ([`geom_brep::CarriedComponent::pad`], where
-    /// closeness is argued: the component within it of the carrier, the
-    /// carrier within it of each surface), zero for a closed form. W3
+    /// a marched loop's reach ([`geom_brep::CarriedComponent::reach`]:
+    /// a box of its uniqueness tube holds both the witness and a piece of
+    /// the component), zero for a closed form. W3
     /// reads the witness `w` against the band padded by twice it
     /// (`certify`): a face's placement margins are lengths read at a
     /// point's foot on the face's surface, and for the point `c` of the
@@ -731,12 +733,26 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 
 /// **The classifier: two carriers in, the section's components out.**
 /// Pure: surfaces, the pair's reach (module docs) and the band.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: Reach<T>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
+) -> Section<T> {
+    classify_known(f, g, reach, lane, band, geom_brep::KnownPair::default())
+}
+
+/// [`classify`] with what the boolean knows of a spline pair handed in
+/// (`known`, read by the spline pair's arm alone).
+pub(crate) fn classify_known<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    reach: Reach<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+    known: geom_brep::KnownPair<T>,
 ) -> Section<T> {
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
@@ -800,8 +816,29 @@ pub(crate) fn classify<T: Decide>(
         ) => sphere_sphere(c1, r1, c2, r2, band),
         (S::Nurbs(_) | S::Approx(_), S::Plane { .. })
         | (S::Plane { .. }, S::Nurbs(_) | S::Approx(_)) => spline_plane(f, g, lane, band),
+        (S::Nurbs(_) | S::Approx(_), S::Nurbs(_) | S::Approx(_)) => {
+            spline_pair(f, g, known, lane, band)
+        }
         _ => Section::Intractable,
     }
+}
+
+/// **Two spline faces, read whole** ([`geom_brep::spline_pair_section`]
+/// through `lane`, module docs): C3's reading of the pair with the rows
+/// and corners the faces share handed in, its components listed (a closed
+/// branch a loop with its witness; an open branch, a `Side` region and a
+/// `Corner` region reaching the sides they end on, cleared by W1′ where
+/// one bounds its face), its refusals mapped by name. With no lane it is
+/// R-lane.
+fn spline_pair<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    known: geom_brep::KnownPair<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+) -> Section<T> {
+    let read = geom_brep::spline_pair_section(f, g, known, lane, band);
+    of_pair_section(&read, band, |_| Section::Unmarched)
 }
 
 /// **A spline face against a plane, read off the pair's
@@ -1964,9 +2001,9 @@ fn bounding<'a, T: Decide>(
 /// **A section no closed form counts, read from its march** (W0 to W4
 /// on the march's components): no branch is W0, its receipt being the
 /// march's exhaustiveness; each loop winds as its turns about each
-/// surface's axis and core read off the loop do (W2,
+/// surface's axis and core read over its uniqueness tube do (W2,
 /// `geom_brep::pair_section::winds`); its witness is its carrier's
-/// middle point, within its tube of the component, so W3 places it with
+/// middle point, within its reach of the component, so W3 places it with
 /// that pad ([`Component::pad`]); and the march's count is certified, so
 /// a lone loop is W4's. At
 /// a scalar with no march it is R-lane; a march or loop reading that
@@ -1983,6 +2020,7 @@ pub(super) fn of_carried<T: Decide>(
             | CarryError::March(_)
             | CarryError::Winds(_)
             | CarryError::PadShort { .. }
+            | CarryError::TubeUnread
             | CarryError::Escalated(_)
             | CarryError::Desync(_)
             | CarryError::Seat(_),
@@ -1998,7 +2036,7 @@ pub(super) fn of_carried<T: Decide>(
                 essential_g: c.winds[1],
                 witness: Some(c.witness),
                 reaches: None,
-                pad: c.pad,
+                pad: c.reach,
             })
             .collect(),
         single: components.len() == 1,
@@ -2126,6 +2164,9 @@ mod section_cert_parallel_tori_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
 pub(super) mod section_cert_rows;
+#[cfg(test)]
+#[path = "section_cert_spline_pair_rows.rs"]
+mod section_cert_spline_pair_rows;
 #[cfg(test)]
 #[path = "section_cert_spline_rows.rs"]
 mod section_cert_spline_rows;

@@ -1011,13 +1011,63 @@ fn half_edge_curve<T: Real>(
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
 
+/// **The image on `wall`'s chart of a carrier that runs along a side of
+/// it**, over `[t0, t1]`, admitted by a shared row's one test
+/// ([`geom_brep::side_row_certifies`]): a circle's arc rim over the whole
+/// side or part of it ([`geom_brep::pick_arc_rim`]), any other carrier's
+/// boundary row or column traversing the chart's whole domain along its
+/// moving axis, in either direction ([`probe_pick`]). `None` where no candidate
+/// certifies. The image is on the carrier's own parameter, so a second
+/// wall's image of one edge's carrier is stated over that edge.
+pub(crate) fn side_image_of<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    wall: &Surface<T>,
+    band: Band,
+) -> Option<Pcurve<T>> {
+    use geom_core::{Point2, Vec2};
+    let chart = wall.spline_chart()?;
+    let span = t1 - t0;
+    let picked = if matches!(carrier, geom::Curve3::Circle { .. }) {
+        geom_brep::pick_arc_rim(carrier, (t0, span), wall, band).ok()?
+    } else {
+        let ((u0, u1), (v0, v1)) = (
+            chart.knot_values_u().domain(),
+            chart.knot_values_v().domain(),
+        );
+        let line = |p0: Point2<T>, pl: Vec2<T>| Pcurve::IsoLine { p0, pl };
+        let rows = [v0, v1].into_iter().flat_map(|y| {
+            [(u0, u1), (u1, u0)].map(|(a, b)| {
+                let slope = (b - a) / span;
+                line(Point2::new(a - slope * t0, y), Vec2::new(slope, T::zero()))
+            })
+        });
+        let columns = [u0, u1].into_iter().flat_map(|x| {
+            [(v0, v1), (v1, v0)].map(|(a, b)| {
+                let slope = (b - a) / span;
+                line(Point2::new(x, a - slope * t0), Vec2::new(T::zero(), slope))
+            })
+        });
+        probe_pick(
+            "pcurve_shared_side",
+            carrier,
+            (t0, span),
+            wall,
+            band,
+            rows.chain(columns),
+        )
+        .ok()?
+    }?;
+    geom_brep::side_row_certifies(wall, &picked, (carrier, (t0, t1)), band).then_some(picked)
+}
+
 /// The certified carrier and parameter interval of `half_edge`'s edge.
 ///
 /// # Errors
 ///
 /// [`half_edge_curve`]'s.
 #[track_caller]
-fn half_edge_carrier<T: Decide>(
+pub(crate) fn half_edge_carrier<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<(geom::Curve3<T>, T, T), PcurveMintError> {

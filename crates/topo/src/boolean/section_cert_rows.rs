@@ -402,7 +402,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
                 (w - k.witness).norm() == 0.0,
                 "{what}: the witness is the carrier's middle"
             );
-            assert_eq!(c.pad, k.pad, "{what}: the witness's pad is its loop's");
+            assert_eq!(
+                c.pad, k.reach,
+                "{what}: the witness's pad is its loop's reach"
+            );
             // Closeness: the witness lies on the carrier, within its
             // certified limb-2 bound of each surface.
             let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;
@@ -561,9 +564,11 @@ fn bump() -> Surface<f64> {
 /// plane that cuts the net and one that touches its top row are read
 /// whole (`section_cert_spline_rows`), which a scalar with no march door
 /// does not; a placeholder's poison net is refused at the hull, with or
-/// without a door (R-reach). Red against W0 reading any one point clear
-/// rather than all (the cut and touching planes), against W0 dropped
-/// (the clear ones), and against the poison read past the hull (R-lane).
+/// without a door (R-reach). Two spline patches are read whole too
+/// (`section_cert_spline_pair_rows`), so with no door they are R-lane.
+/// Red against W0 reading any one point clear rather than all (the cut
+/// and touching planes), against W0 dropped (the clear ones), and against
+/// the poison read past the hull (R-lane).
 #[test]
 fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
@@ -591,7 +596,10 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
     assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
-    assert!(matches!(unmarched(&bump(), &bump()), Section::Intractable));
+    assert!(matches!(
+        unmarched(&bump(), &bump()),
+        Section::NoLane("f64")
+    ));
 }
 
 // -------------------------------------------------------------------

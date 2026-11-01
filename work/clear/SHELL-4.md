@@ -2,12 +2,13 @@
 id: SHELL-4
 kind: unit
 title: shell runs the curved wall-clearance gate at certifying scalars — the cavity clone checked embedded before insertion
-status: parked
+status: closed
 opened: 2026-09-04
 refs: [shell-curved-clearance-consumer, shell-curved-wall-clearance-window, 1737]
 priority: P1
 cost: H
-blocked_on: [injectivity-reads-no-spiric-edge-on-a-torus]
+branch: clear/shell4
+closed: 2026-11-01
 ---
 
 

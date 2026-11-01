@@ -82,6 +82,10 @@ use crate::tools::Tools;
 // path to assert the unit/tick pair on it.
 pub use crate::forms::FieldWriting;
 
+#[cfg(all(any(test, feature = "test-support"), not(target_family = "wasm")))]
+#[doc(hidden)]
+pub mod drive;
+
 /// Where this build keeps preferences.
 ///
 /// One `cfg` alias rather than a trait object: there is exactly one
@@ -370,10 +374,10 @@ pub struct ViewerApp {
     /// **What the last scene rebuild refused**, held until one
     /// succeeds — the state [`crate::frame::scene_badge`] reads.
     ///
-    /// Held rather than announced: the viewport keeps drawing the mesh
-    /// it already has, so "the picture is older than the document and
-    /// the rebuild will not run" is true on every frame until a
-    /// rebuild lands, and a badge is a read of exactly this.
+    /// Held rather than announced: the viewport draws nothing under it,
+    /// so "the picture is missing and the rebuild will not run" is true
+    /// on every frame until a rebuild lands, and a badge is a read of
+    /// exactly this.
     scene_fault: Option<SceneError>,
     /// **What the last projection refused**, written by the viewport
     /// as it paints and read by [`crate::frame::projection_badge`].
@@ -384,23 +388,11 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
-    /// **How many committed profiles the viewport could not draw on
-    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
-    /// undrawn`), read by [`crate::frame::profiles_badge`].
-    ///
-    /// One frame behind for the reason above. Unlike the fault above
-    /// it is not held past the frame that made it: the frame entry
-    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
-    /// panes write and assigns the result back unconditionally, so
-    /// this says what the LAST FRAME found and never what some
-    /// earlier one did.
-    profiles_undrawn: usize,
-    /// **What the index could not name on the held edge set's body on
-    /// the last frame the viewport drew** (`marks::EdgeOverlay::
-    /// held_refused`), read by [`crate::frame::held_edges_badge`].
-    /// Zeroed and assigned back every frame as
-    /// [`Self::profiles_undrawn`] is.
-    held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
+    /// **What the viewport found on the last frame**, read by the
+    /// per-read badges in [`crate::frame`]. One frame behind for the
+    /// reason above, and unlike the fault above never held past the
+    /// frame that made it ([`ViewportReads`]).
+    viewport_reads: ViewportReads,
     /// What the incoming document is owed when its scene lands, and the
     /// budget's verdict about it ([`DocumentDerived`]).
     derived: DocumentDerived,
@@ -816,6 +808,16 @@ impl ViewerApp {
     /// Every arm of [`StartupError`] except
     /// [`StartupError::NoWgpuRenderState`], which is [`Self::new`]'s.
     fn assemble(egui_ctx: &egui::Context, tol: Tol) -> Result<Self, StartupError> {
+        Self::assemble_with(egui_ctx, tol, prefs_store())
+    }
+
+    /// [`Self::assemble`] over the preferences `store` it reads and
+    /// writes.
+    fn assemble_with(
+        egui_ctx: &egui::Context,
+        tol: Tol,
+        store: Store,
+    ) -> Result<Self, StartupError> {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         // The startup plate is a new document, so it mints its id as
         // `SessionOp::NewDocument` does; the scene fixture derives one.
@@ -839,7 +841,6 @@ impl ViewerApp {
         // colour scheme was unreadable would be trading the whole
         // product for a preference, so every arm ends in a message
         // and the defaults.
-        let store = prefs_store();
         let (saved, mut notices) = match store.load() {
             Ok(Some(text)) => match Prefs::from_toml(&text) {
                 Ok((prefs, notices)) => (prefs, notices.iter().map(ToString::to_string).collect()),
@@ -907,8 +908,7 @@ impl ViewerApp {
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
-            profiles_undrawn: 0,
-            held_edges_refused: None,
+            viewport_reads: ViewportReads::default(),
             // The startup document's δ goes through the same budget an
             // opened one's does: it is small enough that the budget
             // will not move it, and a first picture that took a
@@ -1049,7 +1049,9 @@ impl ViewerApp {
         // one. A refusal is held by the cache and badged, not
         // announced; a superseded answer is nothing to say
         // (`pickcache::IndexLanding::Stale` is what restart-without-cancel
-        // produces, once per δ changed mid-build).
+        // produces, once per δ changed mid-build). A copy the index
+        // could not draw is not a refusal: the index draws the rest and
+        // holds the copy's reason (`PickIndex::undrawn`).
         let mut rebuilt = false;
         for landing in self.picks.pump() {
             match landing {
@@ -1065,11 +1067,16 @@ impl ViewerApp {
         }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
-        // re-attempted every frame behind a stale picture.
+        // re-attempted every frame.
         //
-        // Every arm but `Current` leaves the viewport drawing the mesh
-        // it already has — an older picture, which the indexing
-        // indicator names and `pickcache::unindexed` refuses picks against.
+        // **A held refusal draws nothing**, never the picture from
+        // before it: that picture is of a run the index no longer
+        // describes, and every pick against it is refused. The arms that
+        // wait for a build (`Submitted`, `Indexing`) and the one with
+        // nothing settled to build (`Nothing`) leave the viewport
+        // drawing the mesh it already has — an older picture, which the
+        // indexing indicator names and `pickcache::unindexed` refuses
+        // picks against (a canceled run is the other, `CANCELED_LINE`).
         // **The index waits for the budget's answer.** A build
         // submitted at the δ in force while the fit is still pricing
         // the document IS the un-budgeted build the budget exists to
@@ -1086,8 +1093,14 @@ impl ViewerApp {
         // second on the frames just after a document opens.
         let settled = (!self.fit.busy()).then_some(self.delta);
         match self.picks.sync(self.session.index_inputs(), settled) {
-            pickcache::CacheStep::Held
-            | pickcache::CacheStep::Nothing
+            pickcache::CacheStep::Held => {
+                // The index's badge says it; a scene fault about the
+                // picture this replaces is no longer true of any.
+                self.draw_nothing();
+                self.scene_fault = None;
+                return;
+            }
+            pickcache::CacheStep::Nothing
             | pickcache::CacheStep::Submitted
             | pickcache::CacheStep::Indexing => return,
             pickcache::CacheStep::Current => {}
@@ -1105,10 +1118,9 @@ impl ViewerApp {
         }
         match index.scene_focused(&self.session.display_view(), &focus) {
             Ok(mesh) => {
-                // Marked current ONLY on success: a refused build must
-                // not consume this (generation, display) pair, or the
-                // stale picture stays on screen marked as the current
-                // one and is never retried.
+                // The key is set ONLY on success: a refused build
+                // leaves the empty picture on screen with no key, so
+                // nothing reads its ids as this index's.
                 // Taken from the INDEX, not from the session: the
                 // pair that matters is the one whose id map is in this
                 // mesh, and reading the session's generation here would
@@ -1134,11 +1146,32 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            // Held, not announced: this pair is deliberately left
-            // unmarked above so the rebuild is retried, and the fault
-            // is true of the picture on screen until one succeeds.
-            Err(error) => self.scene_fault = Some(error),
+            // Held, not announced: the fault is true of the empty
+            // picture on screen until a rebuild succeeds — never of the
+            // picture from before it.
+            Err(error) => {
+                self.draw_nothing();
+                // Tried under these inputs: the next index, display or
+                // focus change retries it, and an unchanged frame does not.
+                self.scene_display = Some(display_revision);
+                self.scene_focus = focus;
+                self.scene_fault = Some(error);
+            }
         }
+    }
+
+    /// Put the empty picture on screen, once: the scene under a pick
+    /// index or a scene rebuild refused as a whole. No index minted its
+    /// ids, so it carries no key.
+    fn draw_nothing(&mut self) {
+        if self.scene_key.is_none() && self.scene.positions().is_empty() {
+            return;
+        }
+        self.scene = Arc::new(SceneMesh::nothing(self.delta));
+        self.scene_key = None;
+        self.scene_display = None;
+        self.scene_focus = BTreeSet::new();
+        self.revision = self.revision.wrapping_add(1);
     }
 
     /// Change δ to `delta`, rebuilding the picture from the evaluation
@@ -1886,17 +1919,17 @@ impl ViewerApp {
             // **The three display seams that hold a refusal.**
             // Each is a read of held state — the scene fault kept
             // until a rebuild lands, the pick cache's own held
-            // refusal, the projection the viewport could not form
-            // — so each stands for as long as the picture is stale
-            // rather than until the next acting batch sweeps a
-            // line. What a pick aimed at the missing index gets is
+            // refusal or the copies its index could not draw, the
+            // projection the viewport could not form — so each stands
+            // for as long as what it reads holds, rather than until the
+            // next acting batch sweeps a line. What a pick aimed at the missing index gets is
             // still the line's, because that is an outcome
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
                 frame::index_badge(
                     self.picks.error(),
-                    self.session.doc(),
+                    self.picks.index(),
                     self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
@@ -1911,12 +1944,12 @@ impl ViewerApp {
             // refusal until the seam they name succeeds, and this is a
             // count the frame re-takes. A profile left out of the
             // picture is otherwise a document without it.
-            if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
+            if let Some(badge) = frame::profiles_badge(self.viewport_reads.profiles_undrawn) {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
             if let Some(badge) = frame::held_edges_badge(
-                self.held_edges_refused.as_ref(),
+                self.viewport_reads.held_edges_refused.as_ref(),
                 self.session.landed_pair().map(|(doc, _)| doc),
             ) {
                 draw_badge(ui, &self.theme, &badge);
@@ -2029,13 +2062,12 @@ impl eframe::App for ViewerApp {
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
         let mut profile_drawn = ProfileDoors::<bool>::default();
-        // **Zeroed here and assigned back below, every frame.** The
-        // viewport writes it while it draws; a frame the viewport does
-        // not draw at all is a frame with no profile left undrawn in it,
+        // **Zeroed here, every frame: after the toolbar has read last
+        // frame's value and before the panes draw.** A frame the
+        // viewport does not draw at all is a frame it found nothing in,
         // and this is where that is said rather than left to whatever
-        // the field last held.
-        let mut profiles_undrawn = 0_usize;
-        let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
+        // the last drawn frame found.
+        self.viewport_reads = ViewportReads::default();
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -2060,6 +2092,9 @@ impl eframe::App for ViewerApp {
         // already stands on — so the chrome follows [`Polarity`]
         // through the toolkit's visuals, exactly as
         // [`apply_polarity`] intends, instead of one panel escaping it.
+        // The revolve tool's held profile as the viewport will draw its
+        // axis over it, for the repaint request after the picks are fed.
+        let revolve_held = self.tools.revolve().and_then(|tool| tool.profile());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
             .show(ui, |ui| {
@@ -2085,8 +2120,7 @@ impl eframe::App for ViewerApp {
                     profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
-                    profiles_undrawn: &mut profiles_undrawn,
-                    held_edges_refused: &mut held_edges_refused,
+                    viewport_reads: &mut self.viewport_reads,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -2104,8 +2138,6 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
         self.profile_drawn = profile_drawn;
-        self.profiles_undrawn = profiles_undrawn;
-        self.held_edges_refused = held_edges_refused;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2151,6 +2183,12 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
+        // A revolve profile picked or cleared after the viewport drew
+        // this frame's axis (`pane::viewport::push_revolve_axis`) asks
+        // for the next.
+        if self.tools.revolve().and_then(|tool| tool.profile()) != revolve_held {
+            ui.ctx().request_repaint();
+        }
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined
@@ -2177,6 +2215,28 @@ impl eframe::App for ViewerApp {
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
         visuals.panel_fill.to_normalized_gamma_f32()
     }
+}
+
+/// **What the viewport found while it drew one frame**: the per-frame,
+/// unlatched reads the toolbar badges, one [`crate::frame`] badge door
+/// per member.
+///
+/// `Default` is the frame the viewport did not draw. The frame entry
+/// point (`<ViewerApp as eframe::App>::ui`) resets the whole value to
+/// it before the panes draw, so a member says what the LAST frame found
+/// and never what an earlier one did: a viewport dragged shut or tabbed
+/// away reports nothing. That reset names no member, so a member added
+/// here is zeroed by the line that zeroes the rest.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct ViewportReads {
+    /// How many committed profiles the viewport drew nothing of
+    /// (`crate::sketch::CommittedProfiles::undrawn`), for
+    /// [`frame::profiles_badge`].
+    pub(crate) profiles_undrawn: usize,
+    /// What the index could not name on the held edge set's body
+    /// (`marks::EdgeOverlay::held_refused`), for
+    /// [`frame::held_edges_badge`].
+    pub(crate) held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
 }
 
 /// The `Behavior` egui_tiles renders panes through: a borrow of the
@@ -2242,23 +2302,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
-    /// **How many committed profiles the viewport drew nothing of this
-    /// frame** ([`ViewerApp::profiles_undrawn`]), for
-    /// [`frame::profiles_badge`] to read.
-    ///
-    /// Written by the viewport pane and read by the toolbar next
-    /// frame, like the fault above — and unlike it, it does not have
-    /// to be cleared by anyone. The frame entry point
-    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
-    /// borrows before the panes draw and assigns the result back
-    /// after, whether or not the viewport was one of them, so a
-    /// viewport dragged shut or tabbed away reports none rather than
-    /// leaving the last count it made standing.
-    pub(crate) profiles_undrawn: &'a mut usize,
-    /// What the index could not name on the held edge set's body
-    /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
-    /// point and written by the viewport, as `profiles_undrawn` is.
-    pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
+    /// What the viewport finds while it draws this frame, for the
+    /// toolbar to badge next frame ([`ViewerApp::viewport_reads`]).
+    /// Defaulted by the frame entry point before the panes draw, so no
+    /// writer has to clear it.
+    pub(crate) viewport_reads: &'a mut ViewportReads,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -3892,85 +3940,7 @@ mod properties_pane_tests {
     /// a taller one.
     pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1000.0);
 
-    /// **One frame of the real app**, in a `window`-sized window, with
-    /// `time` and `events` as its input: every text run it painted and
-    /// where. The one frame body every whole-app row here draws with.
-    pub(super) fn app_frame(
-        ctx: &egui::Context,
-        app: &mut ViewerApp,
-        frame: &mut eframe::Frame,
-        window: egui::Vec2,
-        time: Option<f64>,
-        events: Vec<egui::Event>,
-    ) -> Vec<crate::pane::headless::Landed> {
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, window)),
-            time,
-            events,
-            ..Default::default()
-        };
-        let mut output = ctx.run_ui(input, |ui| {
-            eframe::App::ui(app, ui, frame);
-        });
-        // Nothing here paints, so the frame's texture delta is
-        // dropped rather than uploaded.
-        output.textures_delta.clear();
-        crate::pane::headless::landed_in(&output.shapes)
-    }
-
-    /// How many frames [`settle`] paints before it calls the app stuck.
-    const SETTLE_FRAMES: usize = 3000;
-
-    /// Whether the index attempt for the picture on screen is
-    /// answered: an index held, or its refusal. One that is neither is
-    /// one `sync` has not asked for yet.
-    pub(super) fn index_answered(app: &ViewerApp) -> bool {
-        app.picks.index().is_some() || app.picks.error().is_some()
-    }
-
-    /// **Nothing the toolbar's progress read names can change before
-    /// the next op**: no wait is outstanding (so the document landed
-    /// and its evaluation is current), and the index attempt is
-    /// answered.
-    pub(super) fn quiescent(app: &ViewerApp) -> bool {
-        app.progress().is_none() && index_answered(app)
-    }
-
-    /// **Paint until `until` holds of the app**, and answer the first
-    /// frame painted in that state. Most rows wait for
-    /// [`quiescent`]; a row whose fixture keeps a wait open on purpose
-    /// names what it waits for instead.
-    ///
-    /// The evaluation, the display fit and the index build run on
-    /// worker threads, so a fixed number of frames catches whichever
-    /// phase the scheduler reached. Everything `until` reads moves only
-    /// inside a frame (the session's and the seams' `pump`/`poll` at
-    /// its top, the cache's `sync`, an op's submit in the batch at its
-    /// end), so a frame read as settled afterwards painted that state.
-    ///
-    /// # Panics
-    ///
-    /// When [`SETTLE_FRAMES`] frames go by without `until` holding.
-    pub(super) fn settle<T>(
-        app: &mut ViewerApp,
-        until: impl Fn(&ViewerApp) -> bool,
-        mut paint: impl FnMut(&mut ViewerApp) -> T,
-    ) -> T {
-        for _ in 0..SETTLE_FRAMES {
-            let painted = paint(app);
-            if until(app) {
-                return painted;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
-        panic!(
-            "the app did not settle in {SETTLE_FRAMES} frames: progress {:?}, index held {}, \
-             refusal held {}",
-            app.progress(),
-            app.picks.index().is_some(),
-            app.picks.error().is_some(),
-        );
-    }
+    pub(super) use super::drive::{app_frame, index_answered, quiescent, settle};
 
     /// **The wait answers a frame that paints nothing outstanding.**
     /// The startup evaluation, the display fit and the index build
@@ -5408,16 +5378,39 @@ mod properties_pane_tests {
     }
 
     /// **The creation doors that are not tools are reachable too**: the
-    /// extrude form, under "Add feature", paints its button (withheld,
-    /// with nothing selected), and the `Add part…` button opens the part
-    /// chooser. The add-profile form is the subject of
-    /// rows of its own above, which open the section and read it.
+    /// extrude form, under "Add feature", is drawn while a profile is
+    /// selected and not while anything else is (its door's own kind
+    /// test), and the `Add part…` button opens the part chooser. The
+    /// add-profile form is the subject of rows of its own above, which
+    /// open the section and read it.
     #[test]
     fn the_extrude_form_and_the_part_chooser_are_reachable() {
         use crate::pane::create::{ADD_FEATURE, ADD_PART, EXTRUDE};
-        let mut driven = Driven::with(Vec::new());
+        // The button's words for `node`, as the form spells them.
+        let button = |driven: &Driven, node: RecipeNodeId| {
+            format!(
+                "{EXTRUDE} {}",
+                pncad::document::Speaker::of(driven.app.session.doc()).node(node)
+            )
+        };
+        let offers = |painted: &[(String, egui::Rect)], words: &str| {
+            painted.iter().any(|(run, _)| run == words)
+        };
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         driven.click(ADD_FEATURE);
-        Driven::only(&driven.frame(Vec::new()), EXTRUDE);
+        let painted = driven.frame(Vec::new());
+        let refused = button(&driven, extrude());
+        assert!(
+            !offers(&painted, &refused) && !offers(&painted, EXTRUDE),
+            "an extrude selected is not a profile, so no extrude is offered: {painted:?}"
+        );
+        driven.select(Selection::Node(startup_node(0)));
+        let painted = driven.frame(Vec::new());
+        let offered = button(&driven, startup_node(0));
+        assert!(
+            offers(&painted, &offered),
+            "the startup profile selected offers {offered:?}: {painted:?}"
+        );
         assert!(driven.app.part_chooser.is_none(), "the startup app");
         driven.click(ADD_PART);
         assert!(
@@ -6179,6 +6172,46 @@ mod properties_pane_tests {
         assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
     }
 
+    /// **An index refused as a whole draws nothing**, never the picture
+    /// from before the refusal, and says so loudly. Such a refusal is a
+    /// fault of the index itself, which no document produces, so the
+    /// seam here refuses every build it answers.
+    #[test]
+    fn a_whole_index_refusal_clears_the_picture() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.scene.stats().triangles > 0 && driven.app.scene_key.is_some(),
+            "the premise: the plate is drawn from an index"
+        );
+        let (refusing, _) =
+            crate::test_support::RefusingIndexer::new(crate::evalseam::InlineIndexer::new());
+        driven.app.picks = crate::pickcache::PickCache::new(Box::new(refusing));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(driven.app.picks.error().is_some(), "the refusal is held");
+        assert!(
+            driven.app.scene.positions().is_empty(),
+            "nothing is drawn under a refused index"
+        );
+        assert_eq!(driven.app.scene_key, None, "and no index minted its ids");
+        let badge = crate::frame::index_badge(
+            driven.app.picks.error(),
+            driven.app.picks.index(),
+            driven.app.session.landed_pair(),
+        )
+        .expect("the refusal badges");
+        assert_eq!(badge.tone(), crate::frame::Tone::Actionable);
+        assert!(
+            badge
+                .label()
+                .ends_with("nothing is drawn or picked until the index builds"),
+            "{}",
+            badge.label()
+        );
+    }
+
     /// **The mate tool's two picks are marked once the selection moves
     /// on, and not once the tool closes.**
     #[test]
@@ -6303,7 +6336,16 @@ mod properties_pane_tests {
 
         // A read of the frame the viewport drew, not a latch: with the
         // viewport not drawn, the same held set and the same refusing
-        // index badge nothing, and drawn again they badge again.
+        // index badge nothing, and drawn again they badge again. Only
+        // `held_edges_refused` is non-zero here, so the whole-value
+        // asserts below guard that member alone; `profiles_undrawn`
+        // waits on a fixture that makes it non-zero
+        // (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
+        assert_ne!(
+            driven.app.viewport_reads,
+            super::ViewportReads::default(),
+            "the drawn viewport found the refusal"
+        );
         let viewport = driven
             .app
             .tree
@@ -6317,6 +6359,11 @@ mod properties_pane_tests {
                 .iter()
                 .any(|(run, _)| run.starts_with("held edges:")),
             "a viewport that did not draw leaves no badge standing: {undrawn:?}"
+        );
+        assert_eq!(
+            driven.app.viewport_reads,
+            super::ViewportReads::default(),
+            "a viewport that did not draw leaves none of its reads standing"
         );
         driven.app.tree.set_visible(viewport, true);
         assert!(driven.quiet().iter().any(|(run, _)| run == badge.label()));
@@ -7122,6 +7169,8 @@ mod properties_pane_tests {
                     .row(profile(), outline(step as u32, StepArg::TargetX))
                     .value
                     .expect("reads")
+                    .one()
+                    .expect("one value")
                     .as_f64()
             }
         }
@@ -7246,7 +7295,9 @@ mod properties_pane_tests {
                 eprintln!(
                     "  {} = {:?} src {:?}",
                     row.slot.label(),
-                    row.value.as_ref().map(|v| v.as_f64()),
+                    row.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64()),
                     row.source
                 );
             }
@@ -7412,8 +7463,14 @@ mod properties_pane_tests {
                 let rx = driven.row(profile(), outline(1, StepArg::TargetX));
                 let ry = driven.row(profile(), outline(1, StepArg::TargetY));
                 let (lx, ly) = (
-                    rx.value.as_ref().map(|v| v.as_f64()).ok(),
-                    ry.value.as_ref().map(|v| v.as_f64()).ok(),
+                    rx.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64())
+                        .ok(),
+                    ry.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64())
+                        .ok(),
                 );
                 eprintln!(
                     "{i}: said {said:?} x {lx:?} {:?} y {ly:?} {:?}",
@@ -7533,7 +7590,13 @@ mod properties_pane_tests {
                 assert_eq!(row.source.as_deref(), Some("w"), "step {step} kept w");
             }
             let moved = driven.row(profile(), outline(3, StepArg::TargetY));
-            assert_eq!(moved.value.map(|v| v.as_f64()).ok(), Some(0.05));
+            assert_eq!(
+                moved
+                    .value
+                    .map(|v| v.one().expect("one value").as_f64())
+                    .ok(),
+                Some(0.05)
+            );
             assert!(
                 !driven
                     .app
@@ -7562,7 +7625,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(2, StepArg::TargetX))
                     .value
-                    .map(|v| v.as_f64())
+                    .map(|v| v.one().expect("one value").as_f64())
             );
             let painted = driven.quiet();
             eprintln!(
@@ -7582,7 +7645,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(2, StepArg::TargetX))
                     .value
-                    .map(|v| v.as_f64())
+                    .map(|v| v.one().expect("one value").as_f64())
             );
             perform(&mut driven, SessionOp::Undo);
             driven.quiet();
@@ -7591,7 +7654,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(3, StepArg::TargetY))
                     .value
-                    .map(|v| v.as_f64()),
+                    .map(|v| v.one().expect("one value").as_f64()),
                 driven.row(profile(), outline(2, StepArg::TargetX)).source,
                 held_point(&driven, 3).y
             );

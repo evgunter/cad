@@ -101,7 +101,7 @@ use crate::theme::Theme;
 /// still be broken where epaint's own rule breaks it.
 ///
 /// A message that reaches the floor is a finding about the layout that
-/// put it there; `crate::pane::features`'s `message_indent` is one this
+/// put it there; `crate::pane::features`'s `nested_indent` is one this
 /// chrome answered. The toolbar's status line is another: the panel it
 /// is in does not scroll, so the line has a row of its own that does
 /// (`crate::app`'s `toolbar_ui`).
@@ -1170,8 +1170,16 @@ pub(crate) fn vec3_row(ui: &mut egui::Ui, label: &str, speed: f64, value: &mut [
 /// the half of this that is easy to leave out: a tick in metres
 /// applied to a field showing millimetres is the same gesture made a
 /// thousand times finer by a change of notation.
-pub(crate) fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical: &mut f64) {
-    named_field(ui, "", unit, speed, canonical);
+///
+/// Answers whether the person edited the value this frame
+/// ([`named_field`]).
+pub(crate) fn unit_field(
+    ui: &mut egui::Ui,
+    unit: UnitDef,
+    speed: f64,
+    canonical: &mut f64,
+) -> bool {
+    named_field(ui, "", unit, speed, canonical)
 }
 
 /// [`unit_field`] with the quantity's NAME written into the field
@@ -1205,13 +1213,17 @@ pub(crate) fn unit_field(ui: &mut egui::Ui, unit: UnitDef, speed: f64, canonical
 /// show exactly the wrong number it is greyed for. The marker names
 /// the unit because the unit is half of what failed and the picker
 /// beside the form is the repair.
+///
+/// Answers whether the person edited the value this frame — the
+/// widget's own word, so a caller that has to react to an edit asks
+/// the field rather than comparing values.
 pub(crate) fn named_field(
     ui: &mut egui::Ui,
     name: &str,
     unit: UnitDef,
     speed: f64,
     canonical: &mut f64,
-) {
+) -> bool {
     let Some(mut written) = props::written(*canonical, unit) else {
         let marker = props::no_reading(unit);
         ui.weak(if name.is_empty() {
@@ -1219,7 +1231,7 @@ pub(crate) fn named_field(
         } else {
             format!("{name} {marker}")
         });
-        return;
+        return false;
     };
     let mut field = number_field(&mut written, props::in_written(speed, unit));
     if !name.is_empty() {
@@ -1232,6 +1244,7 @@ pub(crate) fn named_field(
     if response.changed() {
         *canonical = props::from_written(written, unit);
     }
+    response.changed()
 }
 
 /// A dimensionless field with its own name written in — the scalar
@@ -1262,9 +1275,12 @@ pub(crate) fn unit_vec3_row(
 /// the axis it is, because a row of a path form holds several points
 /// and a bare pair of numbers says which of them it belongs to only
 /// by position.
-pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) {
-    named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
-    named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
+///
+/// Answers whether the person edited either coordinate this frame.
+pub(crate) fn point_fields(ui: &mut egui::Ui, unit: UnitDef, point: &mut Point2<f64>) -> bool {
+    let x = named_field(ui, "x", unit, FIELD_DRAG_SPEED, &mut point.x);
+    let y = named_field(ui, "y", unit, FIELD_DRAG_SPEED, &mut point.y);
+    x || y
 }
 
 /// **What a step row's fields draw for each argument** — the seam
@@ -1312,8 +1328,12 @@ impl WrittenIn {
 impl ArgDoors for WrittenIn {
     fn field(&mut self, ui: &mut egui::Ui, _: usize, arg: StepArg, name: &str, value: &mut f64) {
         match arg.dimension() {
-            Dimension::Length => named_field(ui, name, self.length, FIELD_DRAG_SPEED, value),
-            Dimension::Angle => named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value),
+            Dimension::Length => {
+                named_field(ui, name, self.length, FIELD_DRAG_SPEED, value);
+            }
+            Dimension::Angle => {
+                named_field(ui, name, self.angle, ANGLE_DRAG_SPEED, value);
+            }
             Dimension::Scalar | Dimension::Count => named_scalar(ui, name, UNIT_DRAG_SPEED, value),
         }
     }

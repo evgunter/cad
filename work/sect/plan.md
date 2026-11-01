@@ -44,17 +44,22 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 
 ## Where it stands
 
-- **Step 1 is built.** PR 5872 built the section object (`geom_brep::pair_section`,
-  `topo::boolean::section_table`, matching by foot parameter). PR 5894
-  added the cylinder × sphere chords and island closure. All 54 pinned
-  poses pass the join and stop typed downstream: props' `Projected` arm on
-  SPIRICARM, and `edge_join`'s spline carrier on SPLICE.
-- **The lily's wall 1 builds** (PR 5869, its tie fixed in PR 5925).
-- **The torus certificate** (PR 5886) serves sphere × torus at rung 3.
-- **The torus poses** decide tangency on one critical gap
-  (`each-torus-pair-decides-tangency-on-one-pose`, PR 5924, in fix pass).
-- **The section object's other arms are on SECTARMS**, and the C5 and
-  rung-3 P2/P3 residue on SECTRUNG (split 2026-10-28, Ev in chat).
+Handed back 2026-10-31 (the sitting's P0 and P1 rows are done):
+
+- **Every torus pair has a section and passes the germ mint**: sphere ×
+  torus by its closed-form readings and the torus ring path (PRs 5924,
+  5974), cylinder × torus and torus × torus by their doors (PR 5972), and
+  every pose by its foot on the carried section (PR 6011, fork row 212),
+  read at 1e-6 again (PR 6153). Teapot wall 2 stops at SPIRICARM's volume
+  door. C5 now holds the ratified rule that an analytic pair decides
+  tangency once, on its pose (PR 5975).
+- **Reds closed**: the cs near-node march (PR 5961), the seam-region row's
+  15× cost (PR 6062), PR 6011's 1e-6 rows (PR 6153). Decided-twice rows
+  (PR 5994), the circle crossing (PR 6001), cylinder-face re-homing
+  (PR 6047), the march counter (PR 6056).
+- **Left**: the P2/P3/P4 rows in the slate. Elsewhere: the nightly
+  `full-suite` job outgrowing 180 minutes (GREEN P1), and the per-op
+  certificate cost of fitted chord edges (SECTRUNG's cost row).
 
 ## The slate
 

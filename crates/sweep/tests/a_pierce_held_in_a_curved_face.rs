@@ -412,8 +412,12 @@ struct Closed<'a> {
 /// contact an op `drops_line` names leaves unrecorded. Each that
 /// `meshes` names for its op and order tessellates to a mesh
 /// `check_mesh` passes, or refuses typed; the others meet a known
-/// tessellator panic.
-#[allow(clippy::too_many_arguments)] // the row's closed forms and its two pinned run sets
+/// tessellator panic. Each op and order `parts_curved` names refuses
+/// `EdgeInFace` (`CurvedFace`) instead: its result keeps an edge lying
+/// in a curved face with both the edge's faces leaving into the face's
+/// material, two coincident edges a curved face does not yet carry
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
+#[allow(clippy::too_many_arguments)] // the row's closed forms and its three pinned run sets
 fn every_op(
     what: &str,
     held: &Closed,
@@ -422,6 +426,7 @@ fn every_op(
     read_pct: usize,
     meshes: &dyn Fn(&str, bool) -> bool,
     drops_line: &dyn Fn(&str, bool) -> bool,
+    parts_curved: &dyn Fn(&str, bool) -> bool,
 ) {
     for (name, op, material) in OPS {
         for held_first in [true, false] {
@@ -443,7 +448,11 @@ fn every_op(
                 topo::SweepStrategy::Realized,
                 tol(),
             ) {
-                Ok(BooleanResult::Body(r)) => r,
+                Err(topo::BooleanError::EdgeInFace {
+                    gap: topo::EdgeInFaceGap::CurvedFace,
+                    ..
+                }) if parts_curved(name, held_first) => continue,
+                Ok(BooleanResult::Body(r)) if !parts_curved(name, held_first) => r,
                 other => panic!("{what}: {other:?}"),
             };
             let body = &r.body;
@@ -550,6 +559,10 @@ fn every_order(
 /// rod's ruling pierces the plate's top inside the rod's wall. Every
 /// op of the joined pair and the plate, the pair joined either way
 /// round, either operand first; and every member order of the fold.
+/// The plate less the pair keeps the square's edge along the ruling
+/// lying in the rod's wall, both its faces leaving into the wall's
+/// material, and refuses `EdgeInFace` (`CurvedFace`) rather than ship
+/// one edge there.
 #[test]
 fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
     let plate = finished(
@@ -584,6 +597,7 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
                 99,
                 &|_, _| true,
                 &|_, _| false,
+                &|name, held_first| name == "subtraction" && !held_first,
             );
         }
         every_order(
@@ -645,6 +659,7 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
                 read_pct,
                 &|_, _| true,
                 &|name, held_first| name == "intersection" || (name == "subtraction" && held_first),
+                &|_, _| false,
             );
         }
         every_order(
@@ -725,7 +740,10 @@ fn a_ringed_wall_holding_the_pierce_builds_either_operand_first_and_pocketed_las
 /// wall. Both points are read before either ring vertex is minted, so
 /// the second does not read the first's strut as a ring. Every op of the
 /// pair and the slab, the pair joined either way round, either operand
-/// first, and every member order of the fold, at the three turns.
+/// first, and every member order of the fold, at the three turns. The
+/// slab less the pair refuses `EdgeInFace` (`CurvedFace`), as the plate
+/// less the pair does
+/// ([`a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order`]).
 #[test]
 fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
     const SLAB_Z: (f64, f64) = (0.8, 1.2);
@@ -771,6 +789,7 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
                 // held pierces.
                 &|name, held_first| !(name == "subtraction" && !held_first),
                 &|_, _| false,
+                &|name, held_first| name == "subtraction" && !held_first,
             );
         }
         every_order(

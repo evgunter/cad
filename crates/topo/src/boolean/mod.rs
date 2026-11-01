@@ -111,6 +111,7 @@ pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
+mod spline_known;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
@@ -247,8 +248,11 @@ pub use voids::{
 /// decisions has no words here, since neither decision's words are
 /// true of it: `bool_contact_vertex` (the contact sweep's
 /// [`BooleanDecision::VertexOnVertex`], and containment's boundary
-/// pre-pass) and `bool_contact_arc` (the split point on its circle, and
-/// the same pre-pass).
+/// pre-pass), `bool_contact_arc` (the split point on its circle, and
+/// the same pre-pass) and `bool_sector_crescent` (the sectors'
+/// coincidence where its crescent reads in band, and
+/// [`BooleanDecision::ConicBend`] where a bound's bend carries no
+/// bound).
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = crate::sector_shape::rung_words(predicate) {
@@ -275,9 +279,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
-        "bool_line_cylinder_clearance" | "bool_line_face_carrier_offset" => {
-            Coincide::EdgeOnCurvedFace.subject()
-        }
+        "bool_line_cylinder_clearance"
+        | "bool_line_face_carrier_offset"
+        | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
+        slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
         | "bool_flank_offset"
         | "bool_wedge_reflex"
@@ -287,10 +292,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_cone_facing"
         | "bool_cone_apart"
         | "bool_rider_wall_side"
-        | "bool_rider_wall_bend"
+        | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
         | "bool_touch_sheets_part"
         | "bool_sector_runs_into_bend"
+        | "bool_fate_corner"
+        | "bool_fate_corner_straddle"
+        | "bool_fate_corner_bend"
+        | "bool_fate_corner_bend_straddle"
         | "bool_rim_face_opposed" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
@@ -339,6 +348,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         }
         "cone_off_axis" => "whether a point of a cone face stands clear of the cone's axis",
         "cone_at_apex" => "whether a point of a cone face near its axis is the cone's apex",
+        "foot_off_locus" => {
+            "whether a point stands clear of the locus where a face's carrier has no one \
+             nearest point: a cylinder's axis, a sphere's centre, or a cone's apex plane"
+        }
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
         "torus_tube_positive" => TorusConvention::Tube.subject(),
@@ -496,7 +509,7 @@ impl BooleanOp {
     /// A list cannot be derived from a match in safe Rust, so SOMEONE
     /// writes it by hand; the only question is where. Written here, it
     /// sits in the crate whose exhaustive matches over `BooleanOp`
-    /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
+    /// (`finish::kept_side`, `tables::lump_keeps_one`) fail to compile on
     /// a fourth operation — so the author adding one is already in this
     /// module with the list in front of them, and the
     /// `all_is_every_operation` census below puts a second visit right
@@ -2217,10 +2230,12 @@ pub struct PierceRingRecord {
     /// The piercing vertices the ring serves, in the other operand's
     /// clone keys.
     pub pierces: Vec<VertexKey>,
-    /// Whether two of those pierces' germs lie along one direction (two
+    /// Each two of those pierces' germs that lie along one direction (two
     /// cones touching along a ray in the face), an order the ring broke
-    /// by their chords (`vtxfac::germ_order`): a corner of no angle.
-    pub tied: bool,
+    /// by their chords (`vtxfac::germ_order`), leaving a corner of no
+    /// angle between them: the strut halves facing them, the germ first
+    /// clockwise about the face's outward normal first.
+    pub ties: Vec<[HalfEdgeKey; 2]>,
 }
 
 /// **Two pierces of one face decided one point** (`vtxfac::ring_groups`):
@@ -2749,6 +2764,10 @@ pub enum SectionUnbuilt {
         /// The certificate's limb-2 bound, in metres.
         hull_sup: f64,
     },
+    /// A marched loop's uniqueness tube could not be read: an empty box
+    /// chain, or a refused box or carrier point
+    /// (`geom_brep::CarryError::TubeUnread`).
+    TubeUnread,
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2772,6 +2791,11 @@ impl core::fmt::Display for SectionUnbuilt {
                 f,
                 "a marched loop's turns about an operand's axis or core could not be read \
                  ({why:?})"
+            ),
+            Self::TubeUnread => write!(
+                f,
+                "a marched loop's uniqueness tube could not be read (an empty box chain, or a \
+                 refused box or carrier point)"
             ),
             Self::PadShort { pad, hull_sup } => write!(
                 f,

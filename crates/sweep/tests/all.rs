@@ -60,6 +60,8 @@ mod seam_region_common;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
+mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -158,6 +160,8 @@ mod a_torus_off_its_ring_reads_as_at_rest;
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]
 mod a_vertex_on_a_grazing_plane;
+#[path = "a_vertex_piercing_a_lens_wall.rs"]
+mod a_vertex_piercing_a_lens_wall;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]
@@ -523,6 +527,8 @@ mod contfp_reads_arcs_on_their_carriers;
 mod copied_carriers_at_interval;
 #[path = "corner_patch_chart_poles.rs"]
 mod corner_patch_chart_poles;
+#[path = "edges_lying_in_a_face_part_wherever_they_lie.rs"]
+mod edges_lying_in_a_face_part_wherever_they_lie;
 #[path = "ellipse_torus.rs"]
 mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]
@@ -795,6 +801,8 @@ mod s393_start_frame_door;
 mod s49_census_jurisdiction;
 #[path = "seam_vertex_sites.rs"]
 mod seam_vertex_sites;
+#[path = "shell_cavity_embedded.rs"]
+mod shell_cavity_embedded;
 #[path = "shell_general_door.rs"]
 mod shell_general_door;
 #[path = "strut_cover_on_cylinder_pairs.rs"]
@@ -1330,6 +1338,8 @@ mod sphere_aims_reader_ties;
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
 
+#[path = "a_box_along_a_fillets_line_arc_junction.rs"]
+mod a_box_along_a_fillets_line_arc_junction;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]

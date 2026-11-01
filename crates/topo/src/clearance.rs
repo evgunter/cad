@@ -83,21 +83,24 @@
 //! in `docs/predicate-dimension-audit.md`. No DECISION here compares a
 //! float raw, mints a tolerance, or reads a width as evidence.
 //!
-//! One raw compare survives, and it is not a decision: the proximity
-//! tree's admission test, which decides which pairs are EXAMINED
+//! Two raw compares survive, and neither is a decision. The first is
+//! the proximity tree's admission test, which decides which pairs are EXAMINED
 //! rather than what any of them means. It is padded by the funnel's
 //! own escalate threshold (`c + band.escalate()`), so a pair it drops
 //! is one the funnel would have discharged definitely — the two agree
 //! in the only direction that matters, and everything inside the band
-//! reaches the funnel. Stated because a reviewer should meet it here
-//! rather than find it.
+//! reaches the funnel. The second is the window door's [`refines`],
+//! whose bound compares decide which charts are ADMITTED to the sweep,
+//! never what a pair means: a chart admitted wrongly costs depth or
+//! budget, which the sweep refuses typed. Stated because a reviewer
+//! should meet them here rather than find them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
 
 use bvh::{Aabb, Bvh};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{Channel, Pcurve};
+use geom_brep::{Channel, Pcurve, SpiricImage, WallTorus};
 use geom_core::interval::Interval;
 use geom_core::k_stats::{self, decide};
 use geom_core::{Band, Bounds, CertifiedBounds, Decide, Margin, Point2, Point3, Real, Sign, Vec3};
@@ -2800,8 +2803,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     }
     if !refines(&charted, u, v) {
         return unsupported(
-            "a face whose interval chart does not refine — halving its window leaves the \
-             enclosure where it was, so no subdivision can decide anything about it",
+            "a face whose interval chart does not refine — on one axis of its window, \
+             neither half narrows the enclosure at one halving",
         );
     }
     Ok(Window {
@@ -2975,31 +2978,48 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
 /// carrier's enclosure — the door that turns a chart the subdivision
 /// could not refine into a typed refusal rather than a budget burn.
 ///
-/// BOTH axes must move a bound, and that is the admission rule rather
-/// than the refusal one: a chart that refines on `u` alone gives a
+/// BOTH axes must refine: a chart that refines on `u` alone gives a
 /// subdivision that can only ever narrow one direction, which for a
-/// two-dimensional window is not convergence. An analytic carrier's
-/// interval evaluation shrinks monotonically under sub-boxes (inclusion
-/// isotony), so an axis that does not move here never moves. A spline
-/// chart's enclosure ([`Surface::rect_enclosure`]) is a hull of the
-/// restricted control net, and a sub-rectangle's restricted net lies in
-/// the hull of the rectangle's: the premise holds there too, up to the
-/// rounding of the restriction's own interval steps, which can widen a
-/// sub-box's hull by ulps.
+/// two-dimensional window is not convergence. An axis refines when
+/// EITHER of its halves [`narrows`] the whole window's box. One half
+/// alone says nothing: every extreme of a wall can be attained in its
+/// lower half, which then spans the whole box while the upper half
+/// narrows. Inclusion isotony (an analytic carrier's interval
+/// evaluation shrinks under sub-boxes; a spline chart's
+/// [`Surface::rect_enclosure`] hulls a restricted net lying in its
+/// parent's hull, up to the restriction's rounding) holds each half
+/// inside the whole, so an axis neither of whose halves narrows is one
+/// the subdivision gives no evidence of narrowing.
+///
+/// This is an admission rule, not a certificate: a chart admitted that
+/// the subdivision then cannot decide costs depth or budget, which the
+/// sweep refuses typed.
 fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
     let boxed = |u, v| cell_box(&enclosure(surface, u, v));
     let whole = boxed(u, v);
-    let half_u = boxed((u.0, geom::mid_param(u.0, u.1)), v);
-    let half_v = boxed(u, (v.0, geom::mid_param(v.0, v.1)));
-    let narrower = |b: &Aabb| {
-        b.max_x < whole.max_x
-            || b.max_y < whole.max_y
-            || b.max_z < whole.max_z
-            || b.min_x > whole.min_x
-            || b.min_y > whole.min_y
-            || b.min_z > whole.min_z
+    let (mu, mv) = (geom::mid_param(u.0, u.1), geom::mid_param(v.0, v.1));
+    let axis = |lower: Aabb, upper: Aabb| narrows(&whole, &lower) || narrows(&whole, &upper);
+    axis(boxed((u.0, mu), v), boxed((mu, u.1), v)) && axis(boxed(u, (v.0, mv)), boxed(u, (mv, v.1)))
+}
+
+/// Whether `half` moves a bound of `whole` inward. A box with a bound
+/// that is not finite (poison, where the enclosure did not evaluate)
+/// certifies nothing, so it gives no evidence of narrowing, on either
+/// side of the comparison.
+fn narrows(whole: &Aabb, half: &Aabb) -> bool {
+    let finite = |b: &Aabb| {
+        [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z]
+            .iter()
+            .all(|x| x.is_finite())
     };
-    narrower(&half_u) && narrower(&half_v)
+    finite(whole)
+        && finite(half)
+        && (half.max_x < whole.max_x
+            || half.max_y < whole.max_y
+            || half.max_z < whole.max_z
+            || half.min_x > whole.min_x
+            || half.min_y > whole.min_y
+            || half.min_z > whole.min_z)
 }
 
 /// The face's boundary enclosure, and the boundary itself lifted.
@@ -3080,6 +3100,7 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                                 [lift(t0), lift(t1)],
                                 iso_of(&row.pcurve),
                                 harmonic_of(&row.pcurve),
+                                wall_of(&row.pcurve),
                             ),
                         );
                     }
@@ -3107,10 +3128,11 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                 let found = images.get(he);
                 Use {
                     plus: e.he_plus == *he,
-                    image: found.map(|(image, _, _)| *image),
-                    harmonic: found.and_then(|(_, _, h)| *h),
+                    image: found.map(|(image, ..)| *image),
+                    harmonic: found.and_then(|(_, _, h, _)| *h),
+                    wall: found.and_then(|(.., w)| *w),
                     iso: found
-                        .and_then(|(_, iso, _)| *iso)
+                        .and_then(|(_, iso, ..)| *iso)
                         .map(|(held, at, angle)| Iso {
                             held,
                             at,
@@ -3135,27 +3157,29 @@ enum Row {
     /// ([`monotone_line`]): its two ends' chart points `[u, v]`, whose
     /// hull is the row's.
     Ends([[Interval; 2]; 2]),
-    /// A harmonic image that may bulge past its ends: its enclosure over
+    /// A harmonic or wall image that may bulge past its ends: its enclosure over
     /// its whole span, `[u, v]`, which holds it.
     Bulging([Interval; 2]),
 }
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
-/// harmonic image by its enclosure over its whole span; `None` for any
-/// other image.
+/// harmonic or spiric wall image by its enclosure over its whole span;
+/// `None` for any other image.
 fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
     (t0, t1): (T, T),
     ends: [[Interval; 2]; 2],
 ) -> Option<Row> {
     if !monotone_line(pcurve) {
-        let h = harmonic_of(pcurve)?;
         let t = Interval::from_bounds(
             Interval::from_certified(t0).lo(),
             Interval::from_certified(t1).hi(),
         );
-        return Some(Row::Bulging(h.at(t)));
+        if let Some(w) = wall_of(pcurve) {
+            return Some(Row::Bulging(w.at(t)));
+        }
+        return Some(Row::Bulging(harmonic_of(pcurve)?.at(t)));
     }
     Some(Row::Ends(ends))
 }
@@ -3163,7 +3187,7 @@ fn row_of<T: CertifiedBounds>(
 /// **The face's own extent in its chart** ([`Boundary::extent`]): the
 /// hull, on each axis, of the outer loop's lifted chain. A row that is a
 /// monotone coordinate line contributes its ends, which are its hull; a
-/// harmonic row its enclosure over its span, which holds it, so the
+/// harmonic or wall row its enclosure over its span, which holds it, so the
 /// extent is then a superset. A superset spanning a whole turn on an
 /// axis `periodic` marks is not taken: a reader would read it as a loop
 /// that wraps. On an axis that is not periodic no width means a wrap. Any
@@ -3231,11 +3255,13 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
 type IsoImage = (Axis, Interval, bool);
 
 /// A half-edge's chart image as the boundary lifts it: its two end
-/// points, the coordinate line it is, and its harmonic form.
+/// points, the coordinate line it is, its harmonic form, and its spiric
+/// wall form.
 type Image = (
     [Point2<Interval>; 2],
     Option<IsoImage>,
     Option<injective::Harmonic>,
+    Option<injective::Wall>,
 );
 
 /// **A harmonic chart image's coefficients, lifted**
@@ -3267,6 +3293,44 @@ fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic>
         pa: [au, av],
         pb: [bu, bv],
         pl: [lu, lv],
+    })
+}
+
+/// **A spiric's wall image, lifted** ([`injective::Wall`]); `None` for
+/// every other image, and for a wall whose `sense` does not lift to
+/// exactly `±1`, which every minted image's does.
+fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Wall> {
+    let Pcurve::Spiric {
+        major,
+        minor,
+        offset,
+        image:
+            SpiricImage::Wall {
+                u0,
+                v0,
+                sense,
+                torus,
+            },
+    } = *p
+    else {
+        return None;
+    };
+    let lift = Interval::from_certified;
+    let sigma = [1.0, -1.0]
+        .into_iter()
+        .find(|&s| injective::exactly(lift(sense), s))?;
+    let mu = match torus {
+        WallTorus::Own => 1.0,
+        WallTorus::Mirror => -1.0,
+    };
+    Some(injective::Wall {
+        u0: lift(u0),
+        v0: lift(v0),
+        sigma,
+        kappa: sigma * mu,
+        major: lift(major),
+        minor: lift(minor),
+        offset: lift(offset),
     })
 }
 
@@ -3925,6 +3989,66 @@ mod extent_rows {
             "a superset a turn wide on an axis that is not periodic is taken"
         );
     }
+
+    /// A spiric's wall image: `R = 2`, `r = 0.5`, `d = 0.3`, on the
+    /// carrier's own torus or its mirror, wound with `sense`.
+    fn wall(sense: f64, torus: geom_brep::WallTorus) -> Pcurve<f64> {
+        Pcurve::Spiric {
+            major: 2.0,
+            minor: 0.5,
+            offset: 0.3,
+            image: geom_brep::SpiricImage::Wall {
+                u0: 0.4,
+                v0: TAU,
+                sense,
+                torus,
+            },
+        }
+    }
+
+    /// **A wall row's lift is the pcurve's own image**
+    /// ([`super::wall_of`]): its chart point encloses the pcurve's at
+    /// each parameter, wound either way on either torus, and a sense
+    /// that is no unit sign is not lifted. Red if the azimuth's sign
+    /// forgets the torus's.
+    #[test]
+    fn a_wall_rows_lift_is_its_pcurves_image() {
+        use geom_brep::WallTorus::{Mirror, Own};
+        for (sense, torus) in [(1.0, Own), (-1.0, Own), (1.0, Mirror), (-1.0, Mirror)] {
+            let p = wall(sense, torus);
+            let w = super::wall_of(&p).expect("a wall image");
+            for k in 0..8 {
+                let t = -2.0 + 0.6 * f64::from(k);
+                let q = p.eval(t);
+                let [u, v] = w.at(geom_core::interval::Interval::from_bounds(t, t));
+                assert!(
+                    u.lo() <= q.x && q.x <= u.hi() && v.lo() <= q.y && q.y <= v.hi(),
+                    "{sense} {torus:?} at {t}: {q:?} outside {u:?} × {v:?}"
+                );
+            }
+        }
+        assert!(super::wall_of(&wall(0.5, Own)).is_none(), "no unit sign");
+    }
+
+    /// **A wall row's extent holds its bulge**: over `t ∈ [−1, 1]` its
+    /// azimuth `atan2(f, d)` is greatest at `t = 0`, between its ends.
+    /// Red if a wall row is read by its ends.
+    #[test]
+    fn a_wall_rows_extent_holds_its_bulge() {
+        let p = wall(1.0, geom_brep::WallTorus::Own);
+        let end = |t: f64| {
+            let q = p.eval(t);
+            [q.x, q.y].map(|x| geom_core::interval::Interval::from_bounds(x, x))
+        };
+        let Some(Row::Bulging([u, _])) = row_of(&p, (-1.0, 1.0), [end(-1.0), end(1.0)]) else {
+            panic!("the wall is read by its enclosure");
+        };
+        let top = p.eval(0.0).x;
+        assert!(
+            top > p.eval(1.0).x && u.hi() >= top,
+            "the enclosure holds the bulge {top}: {u:?}"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -4147,5 +4271,117 @@ mod cone_window {
                 w.v
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod refines_rows {
+    use std::sync::Arc;
+
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Interval, Point3, Real};
+
+    use super::{Aabb, narrows, refines};
+
+    /// A patch over `[0, 1]²` linear in `v`, lifted to `Interval`: the
+    /// polyline `along` in `u` (degree 1, knots at the even splits),
+    /// raised by `v` in `z`.
+    fn ribbon(along: &[(f64, f64, f64)], rise: f64) -> Surface<Interval> {
+        let n = along.len();
+        let mut knots = vec![0.0];
+        knots.extend((0..n).map(|k| k as f64 / (n - 1) as f64));
+        knots.push(1.0);
+        let ku = KnotVector::clamped(knots, 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = along
+            .iter()
+            .flat_map(|&(x, y, z)| [Point3::new(x, y, z), Point3::new(x, y, z + rise)])
+            .map(|p| p.map(Interval::from_f64))
+            .collect();
+        let knots = |k: KnotVector| Knots::from(k).lift(Interval::from_f64);
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(knots(ku), knots(kv), control, vec![Interval::one(); 2 * n]).unwrap(),
+        ))
+    }
+
+    const WHOLE: (f64, f64) = (0.0, 1.0);
+
+    /// **A wall whose extremes all lie in one `u` half refines**, by the
+    /// other half moving a bound: a `min` bound for the first pair, a
+    /// `max` bound only for the second. Red if the door reads only the
+    /// lower halves, only the upper ones, asks both halves to move, or
+    /// counts only one side's bounds.
+    #[test]
+    fn a_wall_reaching_its_extremes_in_one_half_refines() {
+        let o = (0.0, 0.0, 0.0);
+        let (i, ii) = ((1.0, 1.0, 0.0), (2.0, 2.0, 0.0));
+        for (what, along) in [
+            ("lower half, the upper moving a min", [o, ii, i]),
+            ("upper half, the lower moving a min", [i, ii, o]),
+            ("lower half, the upper moving a max", [ii, o, i]),
+            ("upper half, the lower moving a max", [i, o, ii]),
+        ] {
+            assert!(refines(&ribbon(&along, 1.0), WHOLE, WHOLE), "{what}");
+        }
+    }
+
+    /// **The x = 1 wall of a loft whose top faces down does not refine.**
+    /// `PRISM_SQUARE`'s edge `(1, -1) → (1, 1)` at `z = 0`, and the same
+    /// edge of a copy turned half a turn about `x` at `z = 1`, where it
+    /// runs `(1, 1, 1) → (1, -1, 1)`: the degree-1 wall between them,
+    /// its net written out (the loft door refuses the body at its fold,
+    /// before this door). It is a bow-tie whose `u` iso collapses to
+    /// `(1, 0, ½)` at `v = ½`, so each `u` half spans the whole box and
+    /// neither narrows it, whichever halves the door reads.
+    #[test]
+    fn a_bow_tie_wall_does_not_refine() {
+        let at = |x, y, z| Point3::new(x, y, z).map(Interval::from_f64);
+        let kv = || Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap());
+        let wall = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                kv().lift(Interval::from_f64),
+                kv().lift(Interval::from_f64),
+                vec![
+                    at(1.0, -1.0, 0.0),
+                    at(1.0, 1.0, 1.0),
+                    at(1.0, 1.0, 0.0),
+                    at(1.0, -1.0, 1.0),
+                ],
+                vec![Interval::one(); 4],
+            )
+            .unwrap(),
+        ));
+        assert!(!refines(&wall, WHOLE, WHOLE));
+    }
+
+    /// **A box that does not certify narrows nothing.** A half with a
+    /// poison bound beside one that moves inward, a poison half, and a
+    /// half inside an unbounded whole each give no evidence. Red if a
+    /// half's or the whole's finiteness goes unread.
+    #[test]
+    fn a_box_that_does_not_certify_narrows_nothing() {
+        let unit = Aabb {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 1.0,
+        };
+        let inward = Aabb { max_x: 0.5, ..unit };
+        assert!(narrows(&unit, &inward), "the finite control narrows");
+        let partly_poison = Aabb {
+            min_y: f64::NAN,
+            ..inward
+        };
+        assert!(!narrows(&unit, &partly_poison), "a half with a NaN bound");
+        assert!(!narrows(&unit, &Aabb::poison()), "a poison half");
+        let unbounded = Aabb {
+            max_x: f64::INFINITY,
+            ..unit
+        };
+        assert!(!narrows(&unbounded, &inward), "an unbounded whole");
     }
 }

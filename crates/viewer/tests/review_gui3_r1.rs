@@ -351,7 +351,10 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         .find(|row| row.slot == SlotId::Distance)
         .expect("the extrude still has a distance");
     assert!(matches!(row.driver, SlotDriver::Expression { .. }));
-    assert_eq!(row.value, Ok(SlotValue::Continuous(0.008)));
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
+    );
     let refused = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,

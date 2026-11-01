@@ -542,16 +542,19 @@ side's image on the other chart:
   that the caller hands in with its two certified images. The region
   is the row's cover, a chain of boxes along the row, each wide enough
   across it to hold the accounting floor's cells beside it, over which
-  the pair's crossing reading (`graph_margin`, `ssi::row_crossing` at
-  that width) is zero-free. Each slice across the row then holds at
-  most one solution, and the row is that solution. Its cells are
+  the pair's crossing reading (`graph_margin`, `ssi::four::row_cover`,
+  `row_crossing` at that width) is zero-free. Each slice across the row then holds at
+  most one solution, so no closed loop lies in the cover; where the
+  row is an exact solution, it is that solution. Its cells are
   contact cells in the accounting.
 - **A `Corner` region** comes from a shared vertex at a corner of both
   rectangles. The reading certifies the crossing reading zero-free
   over the corner cell, and reads the signs of the direction the
-  section leaves along there, as the plane lane reads a corner's
-  inward partials: either the section leaves the domain (an isolated
-  point), or a branch starts there.
+  section runs along there, as the plane lane reads a corner's
+  inward partials. Mixed signs make every arc in the cell monotone
+  in all four coordinates, so no arc closes in the cell, which is a
+  contact cell; uniform signs make the corner a crossing where a
+  branch starts.
 
 A face the walk does not resolve within its pieces and that no handed-in
 row or vertex covers (the section touching or running along a side, or
@@ -908,8 +911,8 @@ the end of exactly one branch, each listed witness on exactly one
 branch, each claimed winding held, else a desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
-operand's axis and core circle, read off the loop in ℝ³, say
-(`pair_section::winds`); a point is read on a carried loop within the
+operand's axis and core circle, read over the loop's uniqueness tube
+in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within the
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,

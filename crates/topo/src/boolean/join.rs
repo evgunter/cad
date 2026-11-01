@@ -1131,11 +1131,10 @@ fn closes_at_its_site<T: Decide>(
 /// reach from `e`; a subtrahend's normals read reversed). A rim
 /// standing on the face (a boss on a plate, or over a hole whose rim it
 /// touches) is joined at the boundary vertex. A rim lying flush in it,
-/// both faces facing one way, is not: the operation keeps one copy of
-/// the shared region, and the cut that divides the dropped copy along
-/// the rim cannot place the rim's chord at its one vertex, where the rim
-/// is tangent to the face's boundary
-/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+/// both faces facing one way, is not: joined there, the piece of the
+/// face the rim walls off is bounded by the copy's half that runs
+/// against the rim's own
+/// (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 fn stands_on<T: Decide>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
@@ -1599,9 +1598,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         sa.joiner.place_pending(&mut red.a, (ea, ra))?;
         sb.joiner.place_pending(&mut red.b, (eb, rb))?;
+        let (a_tie, b_tie) = (
+            tie_winding(red, Operand::A, (ea, ra)),
+            tie_winding(red, Operand::B, (eb, rb)),
+        );
         let a_lane = choose_roles(
             (&red.a, Operand::A),
-            (ea, ra),
+            ((ea, ra), a_tie),
             &a_loose,
             seg_a,
             a_closure,
@@ -1610,7 +1613,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(
             (&red.b, Operand::B),
-            (eb, rb),
+            ((eb, rb), b_tie),
             &b_loose,
             seg_b,
             b_closure,
@@ -1651,6 +1654,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             sa.plan(&red.a, a_halves, seg_a)?,
             sb.plan(&red.b, b_halves, seg_b)?,
         );
+        let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
+            matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
+        });
+        let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (
                 sa.curve(&mut red.a, &plan_a, JoinLane::AlongEdge, leave_a)?,
@@ -1688,15 +1695,23 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     )?,
                 )
             }
+            // A germ along a line edge of the wall's solid lies on that
+            // line, a ruling the plane holds, so the plane's chord is
+            // straight: where the plane is tangent to the wall along the
+            // ruling, no section of the pair names it.
             Some(GermLane::PlaneWall(plane)) => (
-                sa.bool_planar_curve(
-                    &mut red.a,
-                    &plan_a,
-                    (gb.clone(), cone_window(&red.b, germ.b_face, &gb, band)),
-                    germ.b_face,
-                    germ.branch,
-                    leave_a,
-                )?,
+                if along_line(Operand::B) {
+                    sa.curve(&mut red.a, &plan_a, JoinLane::Planar, leave_a)?
+                } else {
+                    sa.bool_planar_curve(
+                        &mut red.a,
+                        &plan_a,
+                        (gb.clone(), cone_window(&red.b, germ.b_face, &gb, band)),
+                        germ.b_face,
+                        germ.branch,
+                        leave_a,
+                    )?
+                },
                 sb.split_curve(
                     &mut red.b,
                     &plan_b,
@@ -1715,15 +1730,19 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     germ.branch,
                     leave_a,
                 )?;
-                let window = cone_window(&red.a, germ.a_face, &ga, band);
-                let curve_b = sb.bool_planar_curve(
-                    &mut red.b,
-                    &plan_b,
-                    (ga.clone(), window),
-                    germ.a_face,
-                    germ.branch,
-                    leave_b,
-                )?;
+                let curve_b = if along_line(Operand::A) {
+                    sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?
+                } else {
+                    let window = cone_window(&red.a, germ.a_face, &ga, band);
+                    sb.bool_planar_curve(
+                        &mut red.b,
+                        &plan_b,
+                        (ga.clone(), window),
+                        germ.a_face,
+                        germ.branch,
+                        leave_b,
+                    )?
+                };
                 (curve_a, curve_b)
             }
             Some(GermLane::Radical(radical)) => {
@@ -1819,10 +1838,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         };
         // The ring lane's order, wound with the curve.
         let a_roles = a_lane
-            .resolve((&red.a, Operand::A), (ea, ra), &a_loose, &curve_a, band)
+            .resolve(
+                (&red.a, Operand::A),
+                ((ea, ra), a_tie),
+                &a_loose,
+                &curve_a,
+                band,
+            )
             .or_else(|e| glued_slit_roles(e, red, Operand::A, (ea, ra), &a_loose))?;
         let b_roles = b_lane
-            .resolve((&red.b, Operand::B), (eb, rb), &b_loose, &curve_b, band)
+            .resolve(
+                (&red.b, Operand::B),
+                ((eb, rb), b_tie),
+                &b_loose,
+                &curve_b,
+                band,
+            )
             .or_else(|e| glued_slit_roles(e, red, Operand::B, (eb, rb), &b_loose))?;
         sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
@@ -2201,20 +2232,8 @@ fn nearer_or_scan<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match nearest_sign(cand, best, band) {
         Ok(sign) => Ok(sign == Sign::Negative),
-        Err(diag) if in_band(&diag) => Ok(false),
+        Err(diag) if crate::validate::in_band(&diag) => Ok(false),
         Err(diag) => Err(join_escalate(diag)),
-    }
-}
-
-/// Whether an undecided reading lies inside the band: a point margin,
-/// or an enclosure wholly inside one sliver band.
-fn in_band(diag: &geom_core::Indeterminate) -> bool {
-    match diag.margin.kind() {
-        geom_core::MarginKind::Value => true,
-        // An interval-lane reading; one straddling the band's edge is
-        // not in band.
-        geom_core::MarginKind::Enclosure => diag.terminal_sliver,
-        geom_core::MarginKind::Invalid => false,
     }
 }
 
@@ -3640,6 +3659,7 @@ pub(super) fn section_unbuilt(
                 hull_sup: *hull_sup,
             })
         }
+        Uncarried::Carry(CarryError::TubeUnread) => unbuilt(SectionUnbuilt::TubeUnread),
         Uncarried::Carry(CarryError::NoLane { scalar }) => {
             unbuilt(SectionUnbuilt::NoLane { scalar })
         }
@@ -4732,7 +4752,7 @@ fn loose_partners<T: Decide>(
 /// the runtime witness.
 fn choose_roles<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
-    (ea, ra): (HalfEdgeKey, HalfEdgeKey),
+    ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
     segment: Option<EdgeKey>,
     closure: RingClosure<T>,
@@ -4856,7 +4876,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             let ccw = ring_run_ccw(
                 (body, operand),
                 face,
-                (ea, ra),
+                ((ea, ra), tie),
                 IslandClosing::Wall(section),
                 band,
             )?;
@@ -4908,7 +4928,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
     fn resolve(
         self,
         (body, operand): (&Body<T>, Operand),
-        (ea, ra): (HalfEdgeKey, HalfEdgeKey),
+        ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
         loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
         curve: &SegmentCurve<T>,
         band: Band,
@@ -4919,7 +4939,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
             RoleLane::CarriedRing { face } => (face, IslandClosing::Carried(curve)),
             RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
         };
-        let ccw = ring_run_ccw((body, operand), face, (ea, ra), closing, band)?;
+        let ccw = ring_run_ccw((body, operand), face, ((ea, ra), tie), closing, band)?;
         ring_order(body, (ea, ra), loose, ccw)
     }
 }
@@ -4963,7 +4983,8 @@ fn ring_order<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). A spline run edge refuses first
+/// merges), unless an end of the run faces a tied germ, where it winds
+/// as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
 /// and `face`) on every closing but a carried chord's, whose path reads
 /// one where it is certified on the face
@@ -4984,7 +5005,7 @@ fn ring_order<T: Decide>(
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
     face: FaceKey,
-    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    ((h1, h2), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
     closing: IslandClosing<'_, T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -5004,7 +5025,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
         IslandClosing::Wall(section) => {
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Quadric(curve) => {
             let closing = curve.run_closing(h1, face)?;
@@ -5015,7 +5036,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 closing.as_ref(),
                 band,
             )?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Carried(curve) => {
             let closing = curve.run_closing(h1, face)?;
@@ -5026,7 +5047,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 (closing.as_ref(), curve.carried_arc()),
                 band,
             )?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
@@ -5048,7 +5069,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 },
             })
         })?;
-    ring_winding_order(wound.map(|decided| decided.sign))
+    ring_winding_order(wound.map(|decided| decided.sign), tie)
 }
 
 /// The split root of the first spline (NURBS) edge on the run `h1 → h2`
@@ -5094,10 +5115,11 @@ fn run_spline_edge<T: Decide>(
 /// A degenerate ring-run winding ([`DEGENERATE_RING_WINDING`]) at a run
 /// of `side`'s from `h1` through `h2` that passes the point of a ring
 /// whose cones touch along a ray in its face
-/// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
-/// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
-/// naming that ring's face; one that passes the tip of a slit or ring
-/// of either operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
+/// ([`super::PierceRingRecord::ties`]): a run [`tie_winding`] read no
+/// order for (one it reads winds, and never refuses degenerate), the
+/// unbuilt shape, refused [`BooleanError::PinchRaysInAFace`] naming that
+/// ring's face; one that passes the tip of a slit or ring of either
+/// operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
 /// the other's, paired with the run's vertex there or piercing at its
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
@@ -5136,7 +5158,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
     }
     red.pierce_rings
         .iter()
-        .filter(|r| r.tied && r.operand == side)
+        .filter(|r| !r.ties.is_empty() && r.operand == side)
         .find(|r| point(r.ring_vertex).is_some_and(|k| on_run.contains(&k)))
         .map(|r| BooleanError::PinchRaysInAFace {
             operand: side.other(),
@@ -5234,13 +5256,70 @@ fn glued_slit_roles<T: Decide>(
     }
 }
 
+/// **How a ring run whose chord leaves along a tied germ winds**, where
+/// its winding reads no area (`side`'s run `h1 → h2`, closed back to `h1`
+/// by its chord; [`ring_winding_order`] reads this only at a `Zero`).
+/// Where two cones touch along a ray in a face, each cone's section runs
+/// along that ray, and the ring places their two germs apart in an order
+/// ([`super::PierceRingRecord::ties`]), the first clockwise about the
+/// face's outward normal first. What this checks is that an end of the
+/// run, `h1` or `h2`, is the strut half facing a tied germ, so the chord
+/// leaves the ring along one of the two. That suffices: no third germ of
+/// the ring lies on the ray (`vtxfac::germ_order` refuses one), so a
+/// cycle through that chord enclosing no area runs back along the other
+/// germ's copy, the sliver between the two cones' sections. The chord
+/// lies beside that copy on the side the order puts it, so the run winds
+/// counterclockwise where the chord leaves `start(h1)` along the first
+/// germ, or reaches `end(h2)` along the second. `None` where neither end
+/// faces a tied germ, or the two ends read different ties that disagree.
+fn tie_winding<T: geom_core::Real>(
+    red: &BooleanReduction<T>,
+    side: Operand,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> Option<TieWinding> {
+    let ties = || {
+        red.pierce_rings
+            .iter()
+            .filter(move |r| r.operand == side)
+            .flat_map(|r| &r.ties)
+    };
+    let at = |h: HalfEdgeKey, first: bool| {
+        ties().find_map(|&[a, b]| {
+            if h == a {
+                Some(first)
+            } else if h == b {
+                Some(!first)
+            } else {
+                None
+            }
+        })
+    };
+    let ccw = match (at(h1, true), at(h2, false)) {
+        (Some(a), Some(b)) if a != b => None,
+        (a, b) => a.or(b),
+    }?;
+    Some(TieWinding { ccw })
+}
+
+/// The order a tie reads for a ring run that encloses no area
+/// ([`tie_winding`]): whether the run winds counterclockwise about the
+/// face's outward normal.
+#[derive(Clone, Copy, Debug)]
+struct TieWinding {
+    ccw: bool,
+}
+
 /// The ring lane's refusal of a run that encloses no area.
 const DEGENERATE_RING_WINDING: &str = "ring-run winding is degenerate (zero enclosed area)";
 
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
-/// kernel's too.
-fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<bool, BooleanError> {
+/// kernel's too, unless an end of the run faces a tied germ, whose
+/// order `tie` reads ([`tie_winding`]).
+fn ring_winding_order(
+    wound: Result<Sign, geom_core::Indeterminate>,
+    tie: Option<TieWinding>,
+) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let sign = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
@@ -5249,7 +5328,7 @@ fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<b
     match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(desync(DEGENERATE_RING_WINDING)),
+        Sign::Zero => tie.map(|t| t.ccw).ok_or(desync(DEGENERATE_RING_WINDING)),
     }
 }
 
@@ -6083,7 +6162,7 @@ mod self_check_rows {
         let err = super::ring_run_ccw(
             (body, super::super::Operand::A),
             prism.top_face,
-            (h1, h2),
+            ((h1, h2), None),
             up,
             b,
         )
