@@ -1009,6 +1009,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
+    // `ops::OnDeferred::answered` relies on what follows: a pierce whose
+    // lumped classes read two sides mints its null edges or refuses, so
+    // a fallback with no null pair saw each such vertex one-sided.
     // "Coplanar" is against the pierced face's TANGENT plane at `p`,
     // whose normal is `n_pierced` — the same vector `face_plane` hands
     // back on a planar face, so the planar lane's margin is unmoved.

@@ -449,3 +449,4 @@ rows are P2 (`a-counted-sections-winding-is-a-claim-not-a-reading`,
 `a-wall-islands-planar-closing-reads-its-run-on-the-chart`), P3 and P4,
 none an E this sitting is best placed for. `plan.md` "Where it stands"
 says what landed and what is left.
+- 2026-11-01 — **A note from SPLITDOOR** (`splitdoor/sided-followups`): `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`, cited in the two 2026-10-28 entries above, is now `subtract_and_intersect_reach_the_doors_union_does`. PR 6070 made its dumbbell row build: each difference is its minuend, and the intersection is nothing. The two-tori, slab and grazing-cylinder rows that PR 5925 re-pinned still refuse `FallbackExtentUnsupported` with the R-loop sentence. (SPLITDOOR)
