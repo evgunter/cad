@@ -38,3 +38,14 @@ AUTHOR's narrative is recoverable from
 
   All three lanes run on this box. That is 4 vCPU and about 28 GB of disk, under the one build slot, with hosted CI as the record.
 - 2026-11-01 — (DOORS orchestrator) `the-create-pane-has-no-extrude-side` closed as superseded by D10: FORK-S3P moved the side to the mates, and INTENT D removed `side` from `Node::Extrude`. PR 6260 (merged) filed the stale negative-depth recourse on LATHE. **Class: a row specified before a later ratified redesign read as live.** The dispatch brief and this plan were built from the row's pre-D10 text, and the lane caught it, not the orchestrator. Before writing a brief from a row older than the ratified decisions it touches, check those decisions. The clearance designers' first reports are in. All three corrected the row's premise (the measure's door is topo's `min_separation`, and `editor_core::clearance` is E7's toleranced question) and differ on four points, so round 1 is running.
+- 2026-11-01 — (DOORS orchestrator) **Clearance consumer fork to Ev: `[ev]` PR 6261, fork row 231.** Three designers converged in two rounds on:
+  - a kernel door on `pncad` giving certified readings at nominal, on `Interval`, with numbers across the seam;
+  - topo keeping the closest pair found in the measure payload;
+  - a viewer certify seam shaped like the coincidence door;
+  - outward-rounded brackets.
+
+  Residue left for Ev: whether the faces that floor `lo` go in the value, and whether to reword E3. The row is rewritten to the recommended design. **Class: the row's premise named the wrong engine** (`editor_core::clearance` is E7's toleranced door, and the measure is topo's `min_separation`); all three designers caught it. Off-question findings filed on CLEARTAIL:
+  - `the-clearance-leaf-doors-ask-an-assertions-question-a-second-way` (P3);
+  - `needs-enclosures-recourse-sends-the-reader-to-a-parameter-box-and-a-type-path` (P4).
+
+  CLEARTAIL's `measure-clearance-refused-states-no-recourse-…` (P4) words the refusals the consumer will draw. It is re-banded when the consumer's unit is specified and parks on it.
