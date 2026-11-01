@@ -33,6 +33,7 @@
 use std::path::{Path, PathBuf};
 
 use eframe::egui;
+use pncad::geom_core::Tol;
 
 use super::{StartupError, ViewerApp};
 use crate::platform::ChooserBackend;
@@ -324,8 +325,8 @@ pub struct Driver {
 }
 
 impl Driver {
-    /// The startup document, settled, in a [`WINDOW`]-sized window,
-    /// with preferences read from and written to `prefs` (a path that
+    /// The startup document at `tol`, settled, in a [`WINDOW`]-sized
+    /// window, with preferences read from and written to `prefs` (a path that
     /// does not exist yet reads as no preferences).
     ///
     /// # Errors
@@ -333,11 +334,10 @@ impl Driver {
     /// [`DriveError::Startup`] when the app could not start, and
     /// [`DriveError::Unsettled`] when its startup evaluation did not
     /// land.
-    pub fn start(prefs: PathBuf) -> Result<Self, DriveError> {
+    pub fn start(prefs: PathBuf, tol: Tol) -> Result<Self, DriveError> {
         let ctx = egui::Context::default();
-        let mut app =
-            ViewerApp::assemble_with(&ctx, pncad::tolerance::witness(), FileStore::at(prefs))
-                .map_err(|error| DriveError::Startup(Box::new(error)))?;
+        let mut app = ViewerApp::assemble_with(&ctx, tol, FileStore::at(prefs))
+            .map_err(|error| DriveError::Startup(Box::new(error)))?;
         app.chooser = ChooserBackend::Absent;
         let mut driver = Self {
             ctx,

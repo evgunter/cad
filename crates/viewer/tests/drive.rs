@@ -20,7 +20,11 @@ mod driven {
 
     /// The startup document, driven, over a preferences file of its own.
     fn started(label: &str) -> Driver {
-        Driver::start(common::tempdir(label).join("prefs.toml")).expect("the app starts")
+        Driver::start(
+            common::tempdir(label).join("prefs.toml"),
+            pncad::tolerance::witness(),
+        )
+        .expect("the app starts")
     }
 
     #[test]

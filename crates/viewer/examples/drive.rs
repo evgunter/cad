@@ -268,7 +268,7 @@ fn main() -> ExitCode {
     let prefs: PathBuf = std::env::temp_dir()
         .join(format!("viewer-drive-{}", std::process::id()))
         .join("prefs.toml");
-    let mut driver = match Driver::start(prefs) {
+    let mut driver = match Driver::start(prefs, pncad::tolerance::witness()) {
         Ok(driver) => driver,
         Err(error) => {
             eprintln!("{error}");
