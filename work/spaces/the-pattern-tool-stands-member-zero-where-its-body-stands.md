@@ -2,12 +2,13 @@
 id: the-pattern-tool-stands-member-zero-where-its-body-stands
 kind: issue
 title: The viewer's unfused pattern tool stands member 0 where its body stands, so the first copy is drawn over the original
-status: open
+status: closed
 opened: 2026-10-28
 priority: P1
 cost: M
 refs: [6209]
 parent: a-new-body-lands-unplaced
+closed: 2026-11-01
 ---
 
 Found in INTENT stage 3 G (PR 5954), disclosed there for review.
@@ -17,3 +18,7 @@ Found in INTENT stage 3 G (PR 5954), disclosed there for review.
 **What it should do.** Decide which reading the tool means. Either the family includes the original (and the original's own world placement should be re-pointed to the family, as the fused tool does), or the family starts one pitch on, `(scalar(k) + 1)·spacing`, as `fixture::linear_on` does.
 
 **Done when.** The decision is recorded in the viewer's README pattern-tool section, with a row in `crates/viewer/tests/combine_ops.rs` asserting no member of an unfused pattern stands where its source is drawn (or that the source's placement reads the family).
+
+## Closed
+
+By `a-new-body-lands-unplaced` (PR 6269).

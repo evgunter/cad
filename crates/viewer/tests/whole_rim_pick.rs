@@ -14,12 +14,13 @@ use pncad::document::{Dimension, Doc, Formula, NodeResult, ProfileProgram, Recip
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::RoleSeg;
-use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+use viewer::blend::{BlendEvent, BlendTool};
 use viewer::pickcache::NotIndexed;
 use viewer::pickindex::PickIndex;
 use viewer::props::SlotValue;
 use viewer::session::{DocSession, EdgeSelection, Selection, SessionOp};
 use viewer::tools::{ToolKind, ToolNotice, Tools};
+use viewer::tree::DrawnBody;
 
 const SIDE: f64 = 0.01;
 
@@ -101,8 +102,8 @@ fn picks_by_index(tool: &BlendTool, index: &PickIndex) -> usize {
             let mut whole = index
                 .whole_edge(&EdgeSelection {
                     name,
-                    node: target.node,
-                    body: target.body,
+                    node: target.node(),
+                    body: target.body(),
                 })
                 .expect("the index answers the rim");
             whole.sort();
@@ -175,12 +176,11 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let (doc, eval) = session.landed_pair().expect("landed");
-    let loaded = tools.blend_mut().expect("open").load_all_edges(
-        BlendTarget { node, body: 0 },
-        doc,
-        eval,
-        &index,
-    );
+    let loaded =
+        tools
+            .blend_mut()
+            .expect("open")
+            .load_all_edges(DrawnBody::new(node, 0), doc, eval, &index);
     assert_eq!(loaded, None);
     let tool = blend(&tools);
     assert_eq!(tool.selection().len(), edges.len(), "every arc is held");
@@ -223,7 +223,7 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     ] {
         match click(&mut tools, &doc, Err(why), a).as_slice() {
             [notice @ ToolNotice::Blend(BlendEvent::Unindexed { picked, why: said })] => {
-                assert_eq!(*picked, BlendTarget { node, body: 0 });
+                assert_eq!(picked, a, "the refused pick is the click");
                 assert_eq!(*said, why);
                 let line = notice.to_string();
                 assert!(line.contains(says), "{why:?}: {line}");
@@ -374,13 +374,8 @@ fn a_split_revolves_circles_stay_in_their_own_half() {
             normal: scl3([0.0, 1.0, 0.0]),
         },
     );
-    let mut doc = session.committed_doc().clone();
-    let whole = common::copy_of(&doc, feature);
-    common::edit_into(
-        &mut doc,
-        pncad::document::DocEdit::DeleteNode { id: whole },
-        tol,
-    );
+    // The halves placed by hand: the split took the feature over.
+    let doc = session.committed_doc().clone();
     let (doc, _) = common::placed_read(&doc, pncad::document::Operand::output(split, 0), tol);
     let (doc, _) = common::placed_read(&doc, pncad::document::Operand::output(split, 1), tol);
     let mut session = DocSession::inline(doc, tol);

@@ -573,8 +573,8 @@ pub enum SessionOp {
     /// from its start cap, flipped, to the face's plane, its origin
     /// over the face body's own and turned `spin` about the face's
     /// normal — and the face's body and the copy fused, as ONE action
-    /// (`Recording::sketch_on_face`), the face body's world placements
-    /// re-pointed to the union (A10, Ev's residue 1).
+    /// (`Recording::sketch_on_face`), the union taking over what read
+    /// the face's body (A10, Ev's residue 1).
     ///
     /// A pick on a copy is read on the body it places. A face whose
     /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
@@ -663,9 +663,9 @@ pub enum SessionOp {
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node, and its identity
-    /// world placement (A10) — the extrude tool's one committed action,
-    /// so what was made is drawn. A `profile` that is not a
+    /// Insert one extrude of an existing profile node — the extrude
+    /// tool's one committed action. It lands unplaced, drawn in its own
+    /// space. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
@@ -755,7 +755,7 @@ pub enum SessionOp {
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
     /// own, read where it was picked: a pick on a copy is read on the
-    /// body the copy places (`crate::world::on_body`), so the plane reads
+    /// body the copy places (`crate::world::body_of`), so the plane reads
     /// the geometry of the body's space, as a mirror's plane must.
     ///
     /// A body the world draws becomes the symmetric part: the image
@@ -807,9 +807,10 @@ pub enum SessionOp {
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
     /// the body in its own space whose values read it (D10
-    /// `[repetition]`), a family of `count` copies. The family is
-    /// placed where the body is; each copy reaches a seat whole or
-    /// through an indexed read (`SessionOp::AddPart`).
+    /// `[repetition]`), a family of `count` copies. The family lands
+    /// where the body was seen and takes over what read it, member 0
+    /// standing where the body stood; a pick on a drawn member seats
+    /// that member.
     ///
     /// The count is an `i64` and lands as the index's exact Count
     /// literal, edited afterwards by redefining the index. A count of
@@ -858,8 +859,7 @@ pub enum SessionOp {
     },
     /// Insert one constant-radius fillet on a SET of an existing
     /// body's edges — the blend tool's one committed action, as a
-    /// fillet, re-pointing the body's world placements to it (A10, Ev's
-    /// residue 1).
+    /// fillet, taking over what read the body (A10, Ev's residue 1).
     ///
     /// **A target that is a world placement is read on the body it
     /// places**: the fillet reads that body, and a copy carries its
@@ -934,13 +934,13 @@ pub enum SessionOp {
     /// **Duplicate one body**: a copy stepped clear of the picked body,
     /// drawn and editable on its own.
     ///
-    /// **A duplicate is one stepped copy**: a placement of the body in
-    /// its own space, slid clear by the measured step, placed beside the
-    /// original as it is drawn (A10). One action, one undo.
-    /// The original's placements are untouched. The copy is a body of its
-    /// own rather than a second placement of the original, because a
-    /// feature gesture re-points every placement of its target body
-    /// (`work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md`).
+    /// **A duplicate of a copy is one more copy** of its body in that
+    /// copy's space, stepped clear of it along the original's own `x`;
+    /// a duplicate of a body nothing copies is two copies in its own
+    /// space, a stand-in by the identity and the stepped one. One
+    /// action, one undo; the original's placements are untouched. The
+    /// copies are of one body, so a feature on one of them re-points
+    /// both (`work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md`).
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
@@ -1033,9 +1033,8 @@ pub enum SessionOp {
         bodies: Vec<Operand>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
-    /// `DocEdit::SetLabel` on the node it made (`world::made`: the last
-    /// node it minted that is not a placement), as ONE action and one
-    /// undo. The insert carries no label, because what an insert
+    /// `DocEdit::SetLabel` on the node it made (`OpOutcome::made`), as
+    /// ONE action and one undo. The insert carries no label, because what an insert
     /// carries is what its node's id is minted from; the label is the
     /// last edit of the creation's own run.
     CreateLabelled {
@@ -1858,6 +1857,11 @@ pub struct OpOutcome {
     /// reading "the last node in document order" would be a guess
     /// about an action nobody promised inserts only one thing.
     pub minted: Vec<RecipeNodeId>,
+    /// **The node a creation made**, the one a label or a form is
+    /// about — the creating door's own answer, so a placement or a
+    /// `new_space()` the same action minted beside it is never taken for
+    /// it. `None` for every operation that is no creation.
+    pub made: Option<RecipeNodeId>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
     /// What this operation's document transition WITHDREW from the

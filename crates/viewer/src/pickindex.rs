@@ -95,6 +95,7 @@ use crate::generation::Generation;
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
 use crate::session::{EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
+use crate::tree::DrawnBody;
 
 /// One drawn face patch, addressed the way selection speaks: the node
 /// whose body carries it, which output body, and the patch's position
@@ -383,10 +384,9 @@ impl Say for IdMapError {
         match self {
             Self::Duplicate { key } => write!(
                 f,
-                "patch {} of body {} on {} was offered twice; an id assignment is a bijection",
+                "patch {} of {} was offered twice; an id assignment is a bijection",
                 key.patch,
-                key.body,
-                by.node(key.node)
+                Said(&DrawnBody::new(key.node, key.body), by)
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
@@ -415,8 +415,8 @@ impl Say for PickIndexError {
             Self::Ids(error) => error.say(f, by),
             Self::DrawnTwice { node, body } => write!(
                 f,
-                "body {body} of {} is drawn by two parts; one drawn body is one part",
-                by.node(*node)
+                "{} is drawn by two parts; one drawn body is one part",
+                Said(&DrawnBody::new(*node, *body), by)
             ),
             Self::Names(error) => error.say(f, by),
         }
@@ -746,6 +746,9 @@ impl<K: DrawnKind> PartWindows<K> {
             self.names.get(range.clone()),
         ) {
             (Some(entities), Some(names)) => (entities, names),
+            // An internal invariant's panic, not a sentence the chrome
+            // says, so it spells the address raw rather than as a drawn
+            // body (`DrawnBody`).
             _ => unreachable!(
                 "the window of body {body} of node {} is {range:?}, past the {} entities or the \
                  {} names laid out with it",
@@ -898,6 +901,8 @@ impl Rims {
     ) -> Result<(), PickIndexError> {
         let rims = part.boundary_rims(eval).map_err(PickIndexError::Names)?;
         let mut found: BTreeMap<StableName, Result<usize, RimNameFault>> = BTreeMap::new();
+        // An internal invariant's panic, its address raw (`DrawnBody`
+        // is the chrome's sentence for a body, not a panic's).
         assert_eq!(
             names.len(),
             rims.len(),
@@ -942,6 +947,7 @@ impl Rims {
             // and an empty whole would fix a blend target holding nothing.
             Ok(rim) => Ok(self.rims.get(*rim).map_or_else(
                 || {
+                    // An internal invariant's panic, its address raw.
                     unreachable!(
                         "rim id {rim} of {:?} body {} is past the {} rims recorded",
                         edge.node,
@@ -2431,6 +2437,67 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
     }
 }
 
+/// **Where an inserted space is drawn, clear of what is drawn**: the
+/// display frame that steps `space`'s drawn bodies past everything else
+/// drawn along [`crate::combine::STEP_DIRECTION`] by
+/// [`crate::combine::clearance`] — the duplicate's rule, its own width's
+/// gap past the far side — each part as `display` draws it. The spaces
+/// in `ignored` are measured neither way: inserts still waiting for
+/// their own frame. `None` where nothing else is drawn, `space` draws
+/// nothing, it is clear already, or the picture does not build.
+///
+/// Measured as [`crate::combine::duplicate_step`] measures
+/// ([`crate::combine::measured_at_scale`]).
+pub fn clear_of_drawn(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    display: &DisplayView,
+    space: VarId,
+    ignored: &BTreeSet<VarId>,
+    tol: Tol,
+) -> Option<Frame> {
+    // The drawn points of `space`, and of everything else, at `delta`.
+    let points = |delta: f64| -> Result<_, ()> {
+        let delta = DisplayTolerance::new(delta).map_err(drop)?;
+        let index = PickIndex::build(doc, eval, PictureKey::of(Generation::FIRST, delta), tol)
+            .map_err(drop)?;
+        let (mut inserted, mut others) = (Vec::new(), Vec::new());
+        for part in index.parts() {
+            let at = index.spaces.get(&part.node()).copied();
+            if display.hides(part.node(), part.body()) || at.is_some_and(|at| ignored.contains(&at))
+            {
+                continue;
+            }
+            let map = drawn(display, part);
+            let into = if at == Some(space) {
+                &mut inserted
+            } else {
+                &mut others
+            };
+            into.extend(
+                part.mesh()
+                    .positions
+                    .iter()
+                    .map(|&p| map.map_or(p, |map| map.transform_point(p))),
+            );
+        }
+        Ok((inserted, others))
+    };
+    let ((inserted, others), chord) =
+        crate::combine::measured_at_scale(points, |(a, b)| a.iter().chain(b).copied().collect())
+            .ok()??;
+    let inserted = bvh::Aabb::from_points(inserted)?;
+    let others = bvh::Aabb::from_points(others)?;
+    let step = crate::combine::clearance(
+        others.max_x - inserted.min_x,
+        inserted.max_x - inserted.min_x,
+        chord,
+        tol,
+    );
+    (step.is_finite() && step > 0.0 && others.max_x > inserted.min_x)
+        .then(|| Frame::translation(crate::combine::STEP_DIRECTION.map(|d| d * step)))
+}
+
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
 /// one composing door), then the free-move probe frame the display view
@@ -2697,8 +2764,8 @@ impl Say for EdgeNameFault {
         match self {
             Self::NotDrawn { node, body } => write!(
                 f,
-                "this picture draws no body {body} of {}, so it draws none of its edges",
-                by.node(*node)
+                "this picture draws no {}, so it draws none of its edges",
+                Said(&DrawnBody::new(*node, *body), by)
             ),
             Self::OutOfRange {
                 node,
@@ -2707,9 +2774,9 @@ impl Say for EdgeNameFault {
                 drawn,
             } => write!(
                 f,
-                "edge {boundary} of body {body} on {}: that body draws {drawn} edges, so this \
-                 address was not one this index handed out",
-                by.node(*node)
+                "edge {boundary} of {}: that body draws {drawn} edges, so this address was not \
+                 one this index handed out",
+                Said(&DrawnBody::new(*node, *body), by)
             ),
             Self::Unnamed(error) => write!(f, "a drawn edge has no name: {}", Said(error, by)),
         }
@@ -2770,10 +2837,9 @@ impl Say for EdgeNamesRefused {
         } = self;
         write!(
             f,
-            "the index names {named} of the {} edges it draws on body {body} of {}; the first \
-             it cannot: {}",
+            "the index names {named} of the {} edges it draws on {}; the first it cannot: {}",
             named.saturating_add(*refused),
-            by.node(*node),
+            Said(&DrawnBody::new(*node, *body), by),
             Said(&EdgeNameFault::Unnamed(*first), by.about(*node))
         )
     }

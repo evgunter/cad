@@ -8,8 +8,8 @@
 //! `MEET` (`a_vertex_read_by_two_sector_passes` builds most of the same
 //! ones), nested to three levels on either side of the plate's top, an
 //! island in a void buried in a block (no face through `MEET`), and
-//! partners whose corner is neither convex nor hollow, read as polygon
-//! cones (`sectors::cone_read`): darts of four and five faces, whose
+//! partners whose corner is neither convex nor hollow (read, as every
+//! partner is, through one gathered cone, `vtxfac::cone_classes`): darts of four and five faces, whose
 //! apex is a reflex edge, on the plate, bare, and beside an arch; the
 //! apex of a pyramid over an L; a saddle, bare and under an arch; a
 //! crown with a thin fin folded at a short edge, bare and buried; a

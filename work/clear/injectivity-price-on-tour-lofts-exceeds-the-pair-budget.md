@@ -2,11 +2,10 @@
 id: injectivity-price-on-tour-lofts-exceeds-the-pair-budget
 kind: issue
 title: The injectivity check needs more than 65536 cell pairs on a wall against itself or against a near-parallel wall of the tour's lily blades and Klein loop, and costs 1 to 10 s where it holds
-status: parked
+status: open
 opened: 2026-10-31
 priority: P0
 cost: H
-blocked_on: [distance-test-separates-boxes-not-directions]
 ---
 
 

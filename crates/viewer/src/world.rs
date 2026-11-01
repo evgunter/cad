@@ -19,7 +19,7 @@
 //! ([`shown_spaces`], IDENTITY DI5). A copy carries its body's names as
 //! they are, so a pick on a copy names the copied body's entity; a
 //! gesture that authors against a body reads the copy's source under
-//! that name ([`on_body`]). A pick on any other drawn body — a
+//! that name ([`body_of`]). A pick on any other drawn body — a
 //! construction, an operator's result — is on that body's own operation.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
@@ -31,7 +31,6 @@ use pncad::document::{
     Doc, Node, Operand, OperandSlot, PortKind, ProfileProgram, RecipeNodeId, VarDef, VarId,
     VarKind, eval_var_count,
 };
-use pncad::prelude::StableName;
 
 /// **Which of a node's bodies a read takes, or a drawing covers**, by
 /// the body index the node's value holds them at (a family's members in
@@ -558,29 +557,20 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
-/// **A pick on a copy, read on its body**: the operation defining the
-/// body `node` places, that body's index within the operation's value —
-/// the member an indexed copy names — and `name`, which a copy carries
-/// as its body does.
-///
-/// A pick on anything else is already on a body — a construction, an
-/// operator's result, a relation inside a space — and comes back as it
-/// was. A placement whose body is gone keeps its own node: there is no
-/// body to read the pick on.
-pub fn on_body(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-    body: u32,
-    name: &StableName,
-) -> (RecipeNodeId, u32, StableName) {
-    let (operation, body) = body_of(doc, node, body);
-    (operation, body, name.clone())
-}
-
 /// **The body a picked body is**: through [`copy_source`] for a copy,
 /// as it is otherwise.
 pub fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> (RecipeNodeId, u32) {
     copy_source(doc, node, body).map_or((node, body), |source| (source.operation, source.body))
+}
+
+/// **The drawn body a read is**: the operation defining `var`, and its
+/// port as the body's index in that operation's value — a split's
+/// second half is its node's body 1. `None` for a variable no operation
+/// defines: a placement's piece ([`Doc::pick`]) is a piece of a copy,
+/// whose index among the bodies the copy draws the read does not say.
+pub fn read_body(doc: &Doc<ProfileProgram>, var: VarId) -> Option<crate::tree::DrawnBody> {
+    let (operation, port) = doc.defined_by(var)?;
+    Some(crate::tree::DrawnBody::new(operation, u32::from(port)))
 }
 
 /// **The node a seat takes for a pick on `node`**: the operation whose
@@ -662,20 +652,6 @@ pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
         Operand::Name(name) => doc.var_named(name.as_str()),
         Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
     }
-}
-
-/// **The node a creation made**, out of the ids its action minted: the
-/// last one that is not a placement — a creation gesture places
-/// what it made after making it, and the placement is the world's, not
-/// the thing a label or a form is about — or, for a gesture whose
-/// creation IS a placement (the transform's), the first it minted.
-pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<RecipeNodeId> {
-    minted
-        .iter()
-        .rev()
-        .copied()
-        .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
-        .or_else(|| minted.first().copied())
 }
 
 /// **The bodies the product reads** (D10 `[operations]`): the

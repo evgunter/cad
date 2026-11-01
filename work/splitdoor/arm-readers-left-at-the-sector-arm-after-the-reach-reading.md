@@ -89,3 +89,5 @@ corner beside the two directions read, each long, `θ` apart with
 definite. Then route the lever through `sectors::reading_lever`. For
 the reverse case, first measure which record carries the surviving On
 code in the candidate pose.
+
+**2026-11-01 (ONEREAD, PR 6247):** `bool_cone_arc` and `bool_cone_within` are retired with `sectors::arc_side` and `sectors::in_sector`. The vertex-vertex rows now read through one gathered `link::Cone` (`boolean::vtxfac::cone_classes`); a witness pose that refused at those readings reaches the cone's `link_*` readings instead.

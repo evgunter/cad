@@ -1328,7 +1328,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
-            let mut outcome = self.session.perform(op);
+            let outcome = self.session.perform(op);
             answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
@@ -1343,7 +1343,7 @@ impl ViewerApp {
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
-            let minted = core::mem::take(&mut outcome.minted);
+            let made = outcome.made;
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -1358,14 +1358,14 @@ impl ViewerApp {
                     self.tools.close();
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
                 // A form whose op committed comes to rest, for the
                 // tool's reason: a refusal leaves it holding its draft.
                 None => {
                     self.drafts.accepted(&accepted_op);
                     self.drafts
-                        .creation_landed(self.session.committed_doc(), &minted);
+                        .creation_landed(self.session.committed_doc(), made);
                 }
             }
             // After the match, so a replaced document's held picks are
@@ -4206,9 +4206,10 @@ mod properties_pane_tests {
         let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
             vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
-        // A pick is on the drawn copy, and says so.
+        // A pick is the face in its words, on the copy clicked.
         let line = format!(
-            "on: face of Place {}; to: —",
+            "on: the end cap of Extrude {}, on Place {}; to: none picked",
+            test_utils::refusal::tag(extrude().0.digest()),
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -6090,7 +6091,12 @@ mod properties_pane_tests {
             let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
-                driven.app.drafts.sketch_face.as_ref(),
+                driven
+                    .app
+                    .drafts
+                    .sketch_face
+                    .as_ref()
+                    .map(crate::tree::HeldPick::face),
                 Some(&top),
                 "the rows latched it"
             );
@@ -6185,7 +6191,12 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(
-            driven.app.drafts.sketch_face.as_ref(),
+            driven
+                .app
+                .drafts
+                .sketch_face
+                .as_ref()
+                .map(crate::tree::HeldPick::face),
             Some(&bottom),
             "kept, not cleared"
         );
@@ -6326,7 +6337,10 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .sketch_face_said()
+                .sketch_face
+                .as_ref()
+                .expect("the form holds the top cap")
+                .said()
                 .spoken(extrude())
                 .to_string(),
             plinth,
@@ -6703,7 +6717,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of Place "),
+            refused_said.contains("edges it draws on Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -6926,14 +6940,15 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the kept label
-    /// while the landed document is behind**: the run that would land
-    /// the rename and the delete is held, so the landed document still
-    /// says the picked copy's placement by its old label and the survival step keeps the
-    /// picks; the commit's refusal says the last label the shown
-    /// document gave it.
+    /// **The mate tool's same-copy refusal says the landed label while
+    /// the landed document is behind**: the run that would land the
+    /// rename and the delete is held, so the landed document still says
+    /// the picked copy's placement by its old label and the survival
+    /// step keeps the picks. The chrome speaks the landed document, so
+    /// the commit's refusal says that label, as the panel line does —
+    /// not the rename the shown document made since.
     #[test]
-    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+    fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
             node: placement(),
@@ -6979,15 +6994,15 @@ mod properties_pane_tests {
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
-        let plinth = format!(
-            "Place \"plinth\" ({})",
+        let base = format!(
+            "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
         // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("both picks are on {plinth},")),
-            "the refusal says the kept label: {said}"
+            said.contains(&format!("both picks are on {base},")),
+            "the refusal says the landed label: {said}"
         );
     }
 
@@ -7368,7 +7383,8 @@ mod properties_pane_tests {
             pane.quiet();
             assert!(*pane.app.session.committed_doc() == before, "Add is held");
 
-            pane.app.drafts.trace_face = Some(wall);
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
             pane.quiet();
             assert!(
                 pane.app

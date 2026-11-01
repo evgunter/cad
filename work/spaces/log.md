@@ -233,3 +233,9 @@ Newest entries at the bottom; the tail is the program's live status.
 - 2026-11-01 — `the-add-to-the-product-door` dispatched as a cloud lane (`session_01EdpJs6mWkVV5oERQd3qTsb`, branch `spaces/product-door`, stacked on 6269's final head); it also retires the hand-placement fixtures the item lists. (SPACES orchestrator)
 - 2026-11-01 — PR 6270 STYLE review: APPROVE-WITH-FIXES, one correctness MINOR (hide/show decided against the default picture, so a shown `⊔`'s piece toggles silently — a new instance of the defect the PR closes) and 23 style findings, most from storing the toggle as two hand-synced sets and a hand-bumped key counter. Fix pass sent to the cloud lane: one override map, the key carrying what is shown, a dropped show reported, tests that read the tree; three gaps to be filed. (SPACES orchestrator)
 - 2026-11-01 — 6265 green at `c5204554` but conflicting at merge: DOORS' PR 6262 (`doors/face-words`, one pick-body rule) landed in `world.rs` / `marks.rs`, the same logic 6265 rewrote. The landing lane (context on both) merges main into 6265 (row kept last) and then 6269, reconciling 6262's pick-body rule with 6265's copy→body door. (SPACES orchestrator)
+- 2026-11-01 — PR 6265 merged (`5b462518`) after the merge lane reconciled
+  DOORS' 6262 (one pick-body rule) with its copy→body door: `copy_source`
+  stays the one copy→body home, 6262's `read_body` answers a plain read.
+  `a-new-body-lands-unplaced` closed with its four carried rows (PR 6269,
+  merged right after). The product door and the View pane toggles are in
+  flight on cloud lanes. (SPACES orchestrator)

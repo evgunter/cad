@@ -2,13 +2,15 @@
 id: in-sector-is-a-second-spelling-of-within
 kind: issue
 title: sectors::in_sector and sectors::within read a direction's membership of a sector twice, at different levers
-status: open
+status: closed
 opened: 2026-10-08
 priority: P3
 cost: M
 refs: [pierce-germ-direction-within-is-levered-at-the-sector-arm]
 parent: the-boolean-reads-the-other-operand-through-one-cone
 rides_with: the-boolean-reads-the-other-operand-through-one-cone
+closed: 2026-11-01
+pr: 6247
 ---
 
 
@@ -56,3 +58,10 @@ reading would change what a thin sector reads for them.
 ## Claimed (2026-11-01, ONEREAD)
 
 Moved from `work/honeone/` by ONEREAD: `the-booleans-cone-reader-is-a-second-link`'s decision deletes `cone_side` and `in_sector` with the boolean's cone reader, so this row closes with `the-boolean-reads-the-other-operand-through-one-cone`. (ONEREAD orchestrator)
+
+## Closed (2026-11-01, PR 6247)
+
+`in_sector` is deleted with `cone_side`, its one reader: the vertex-vertex
+rows read through one gathered `link::Cone`, whose place on a sector's
+plane is `link::Sector::place`. `within` keeps its own readers
+(`pair_search`, `sector_overlap`, `runs_into`, the pierce germ).
