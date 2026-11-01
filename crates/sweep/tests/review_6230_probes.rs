@@ -9,7 +9,12 @@
 //! membership oracle is a grid sampled against a ray-parity read of the
 //! result's tessellation. A typed refusal passes; a wrong body fails.
 
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::type_complexity
+)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::test_support::{finished, revolved_about_y};
