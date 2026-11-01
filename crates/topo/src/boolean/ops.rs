@@ -105,8 +105,8 @@
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
 //!   ([`Exempt::Rest`]), and a settled one-carrier pair between two
-//!   shells that lie on each other by their `On` verdict, or whose
-//!   sides one operand's patches certify ([`OnDeferred`]).
+//!   shells that lie on each other by their `On` verdict, or that read
+//!   sides where the op keeps one operand at most ([`OnDeferred`]).
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -2150,7 +2150,7 @@ struct Evidence<'r> {
     /// their section.
     rest: &'r [(FaceKey, FaceKey)],
     /// The pairs the reduction settled one carrier, whose refusals are
-    /// held for the `On` verdict ([`OnDeferred`]).
+    /// held for the fallback's shell verdicts ([`OnDeferred`]).
     settled: &'r [super::SettledPair],
     /// The pairs the sweep recorded a contact on ([`event_pairs`]):
     /// touches, since no crossing was found. W4 reads them.
@@ -2307,18 +2307,31 @@ impl OnDeferred {
     /// solid's boundary (a torus lens inside the union of its tori), its
     /// midpoint sides the shell and the pair keeps its refusal.
     ///
-    /// A pair is answered by its shells' sides instead ([`Self::sided`])
-    /// where both shells read a side, the op keeps the shells of one
-    /// operand at most (`keeps`, A then B), and one operand's deferred
-    /// faces each lie whole on the other's boundary where they meet it
-    /// (`settled` the pairs the reduction settled one carrier).
+    /// A pair is answered by its shells' sides instead where both shells
+    /// read a side and the op keeps the shells of one operand at most
+    /// (`keeps`, A then B). What certifies the sides is that the fallback
+    /// runs with no null pair ([`fallback`]). Where one operand's boundary
+    /// leaves the shared carrier inside a face of the other, the reduction
+    /// classifies the vertex there against that face, its sectors on the
+    /// carrier lumped by Eq. 15.3, and mints a null pair (or refuses)
+    /// unless every sector reads one class: so the face that leaves lies
+    /// on the side of its operand's lump. Where the other operand's
+    /// boundary leaves instead, the first operand's face runs on across
+    /// the edge, opposite the leaving face for aligned senses and with it
+    /// for opposed ones; Eq. 15.3 lumps the two operands oppositely for
+    /// aligned senses and alike for opposed ones, so that is the side of
+    /// the first operand's lump too. Every way a shell leaves a shared
+    /// patch is to its lump's side, so no shell lies on both sides of the
+    /// other's boundary, and keeping a shell keeps its patch where
+    /// Eq. 15.3 does. Two rods overlapping over part of each one's length
+    /// never reach this: each rim lies in the other's wall, the two lumps
+    /// differ, so one rim reads a transition whatever the op and the join
+    /// cuts both walls.
     fn answered<T: Decide>(
         self,
         working: [(&Body<T>, &[super::shell_witness::Verdict]); 2],
         pristine: [&Body<T>; 2],
-        settled: &[super::SettledPair],
         keeps: [bool; 2],
-        band: Band,
     ) -> Result<(), BooleanError> {
         // `f`'s shell, in `body`'s keys.
         let shell = |body: &Body<T>, f: FaceKey| body.get_face(f).map(|face| face.shell);
@@ -2335,14 +2348,12 @@ impl OnDeferred {
             };
             matches!(verdict(i, f), Some(ShellVerdict::On { partner, .. }) if partner == theirs)
         };
-        let sided = |fa: FaceKey, fb: FaceKey| {
+        let both_sided = |fa: FaceKey, fb: FaceKey| {
             matches!(verdict(0, fa), Some(ShellVerdict::Side(_)))
                 && matches!(verdict(1, fb), Some(ShellVerdict::Side(_)))
         };
-        let by_sides = !(keeps[0] && keeps[1])
-            && self.0.iter().all(|&(fa, fb, _)| sided(fa, fb))
-            && (self.sided(0, (pristine[0], working[1].0), settled, band)
-                || self.sided(1, (pristine[1], working[0].0), settled, band));
+        let by_sides =
+            !(keeps[0] && keeps[1]) && self.0.iter().all(|&(fa, fb, _)| both_sided(fa, fb));
         match self
             .0
             .into_iter()
@@ -2351,66 +2362,6 @@ impl OnDeferred {
             None => Ok(()),
             Some((.., refusal)) => Err(refusal),
         }
-    }
-
-    /// **Operand `i`'s deferred faces each lie whole on the other
-    /// operand's boundary where they meet it**: no edge of `other` (the
-    /// other operand's working body, cut at every contact the reduction
-    /// found) that takes its boundary off the face's carrier (an edge
-    /// with a face not `settled` with it) has its midpoint strictly
-    /// inside one of them (`body` the operand at rest). The boundary of
-    /// such a face's patch then runs along the face's own edges, which
-    /// the reduction classified. Where one operand's patches are bounded
-    /// so, a shell of each meets the other's boundary only along edges
-    /// the reduction read, on one side of it, and the ladder's side
-    /// holds; where both have an edge inside the other's face (two rods
-    /// overlapping over part of each one's length), each shell's
-    /// remainder may lie on both sides and the sides prove nothing. A
-    /// placement that refuses or reads nothing certifies nothing.
-    fn sided<T: Decide>(
-        &self,
-        i: usize,
-        (body, other): (&Body<T>, &Body<T>),
-        settled: &[super::SettledPair],
-        band: Band,
-    ) -> bool {
-        let one_carrier = |f: FaceKey, g: FaceKey| {
-            let (fa, fb) = if i == 0 { (f, g) } else { (g, f) };
-            settled.iter().any(|q| q.a == fa && q.b == fb)
-        };
-        let faces: BTreeSet<FaceKey> = self
-            .0
-            .iter()
-            .map(|&(fa, fb, _)| if i == 0 { fa } else { fb })
-            .collect();
-        faces.iter().all(|&f| {
-            other.edges().all(|(_, e)| {
-                let on_carrier = [e.he_plus, e.he_minus].into_iter().all(|he| {
-                    other
-                        .face_of_half_edge(he)
-                        .is_some_and(|g| one_carrier(f, g))
-                });
-                let Some(curve) = other.get_curve_geom(e.curve).and_then(|c| c.certified()) else {
-                    return on_carrier;
-                };
-                on_carrier
-                    || matches!(
-                        super::face_placement(
-                            body,
-                            f,
-                            curve.mid_point(),
-                            band,
-                            "bool_point_in_solid_plane"
-                        ),
-                        Ok(super::CurvedPlacement::OffCarrier
-                            | super::CurvedPlacement::Trim(Some(
-                                FaceContainment::Out
-                                    | FaceContainment::OnEdge(_)
-                                    | FaceContainment::OnVertex(_)
-                            )))
-                    )
-            })
-        })
     }
 }
 
@@ -7898,6 +7849,8 @@ fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
+/// It runs only where the reduction minted no null pair, which is what
+/// certifies a deferred pair's sides ([`OnDeferred::answered`]).
 #[allow(clippy::too_many_arguments)]
 fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
@@ -7909,6 +7862,11 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
+    if !red.null_pairs.is_empty() {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "the containment fallback reached with null pairs",
+        });
+    }
     let desync = |what| BooleanError::JoinDesync { what };
     debug_assert_contacts_undecisive(
         &red.contacts,
@@ -7928,9 +7886,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     deferred.answered(
         [(&red.a, &a_sides), (&red.b, &b_sides)],
         [a_pristine, b_pristine],
-        &red.coincident,
         [!a_keep.is_empty(), !b_keep.is_empty()],
-        band,
     )?;
 
     let carve_kept = |body: &Body<T>, keep: &[ShellKey]| -> Result<Body<T>, BooleanError> {

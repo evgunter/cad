@@ -21,10 +21,10 @@
 //!   reduction settled one carrier, whose section is no curve: the
 //!   section pass defers it to the shells' verdicts, and it refuses
 //!   unless both faces' shells read `On` each other, or both read a side
-//!   that one operand's patches certify (`ops::OnDeferred`). `setopfinish` classifies a component that
-//!   carries no section face, so its ground is the join's: every
-//!   crossing of the two boundaries was found and cut, and this
-//!   component met none.
+//!   and the op keeps one operand's shells at most (`ops::OnDeferred`).
+//!   `setopfinish` classifies a component that carries no section face,
+//!   so its ground is the join's: every crossing of the two boundaries
+//!   was found and cut, and this component met none.
 //! - **section-loop role resolution** (`join::resolve_roles_geometric`):
 //!   the region faces flanking each loop of a completed section
 //!   polygon, read once every polygon is cut, so no crossing runs

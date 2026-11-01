@@ -152,8 +152,8 @@ fn union_and_lens() -> (Body<f64>, Body<f64>) {
 /// verdicts. The patches differ: the lens's seam meridians run off the
 /// union's boundary, and their midpoints side the shells (the union
 /// `Out` of the lens, the lens `In` the union), so neither reads `On`.
-/// No edge of the union runs inside a face of the lens, so the sides
-/// stand where the op keeps one operand: `B ∖ A` builds, nothing. `∪`
+/// The sides stand where the op keeps one operand: `B ∖ A` builds,
+/// nothing. `∪`
 /// and `∩` pass the deferral and escalate at the coplanar merge: its
 /// torus witness reads only the faces' vertices, which all lie on the
 /// circles both tori share, so it cannot tell the two rings apart
@@ -215,10 +215,9 @@ fn rod(r: f64, h: f64) -> Body<f64> {
 /// short rod's wall lies on the long one's carrier and its top cap
 /// stands inside the long rod, so neither shell reads `On`. `∩` and the
 /// short rod's difference reach the no-crossings fallback with the wall
-/// pairs deferred; no edge of the long rod runs inside the short rod's
-/// wall, so the short shell's `In` stands and every op builds at its
-/// closed form, in both orders, and with the short rod clear of both of
-/// the long rod's caps. Red on a wrong body or a refusal.
+/// pairs deferred, the short shell's `In` stands, and every op builds at
+/// its closed form, in both orders, and with the short rod clear of both
+/// of the long rod's caps. Red on a wrong body or a refusal.
 #[test]
 fn rods_sharing_a_wall_at_different_lengths_are_sided_by_their_extent() {
     let q = core::f64::consts::PI / 4.0;
@@ -257,9 +256,10 @@ fn rods_sharing_a_wall_at_different_lengths_are_sided_by_their_extent() {
 }
 
 /// **Rods overlapping over part of each one's length build.** A runs
-/// from `y = 0.5` to `2.5` and B from `0` to `2`: each wall has an edge
-/// of the other inside it, so the sides certify nothing, and the join
-/// cuts both walls at the other's rim. Red on a wrong body or a refusal.
+/// from `y = 0.5` to `2.5` and B from `0` to `2`: each wall has a rim of
+/// the other inside it, the two rims read sides apart, so whatever the op
+/// one of them is a crossing and the join cuts both walls at the other's
+/// rim. Red on a wrong body or a refusal.
 #[test]
 fn rods_overlapping_over_part_of_their_length_build() {
     let q = core::f64::consts::PI / 4.0;
@@ -332,6 +332,54 @@ fn walls_whose_sides_turn_across_the_shared_band_build() {
             ("B ∖ A", Some(0.5 * q)),
         ],
     );
+}
+
+/// **A rod standing on a step of a wider body builds every op.** Each
+/// wall has an edge of the other inside it: the rod's top rim lies in
+/// the body's narrow wall, and the step's inner rim in the rod's wall.
+/// The rod's cap turns into the body and the step's annulus away from
+/// the rod, the sides Eq. 15.3 lumps each one's wall to for `∩` and the
+/// rod's difference (for `∪` and the body's difference in the swapped
+/// order), so neither rim is a crossing there: those ops reach the
+/// no-crossings fallback with the wall pairs deferred, and the rod's `In`
+/// and the body's `Out` answer them. Red on a wrong body or a refusal,
+/// in particular if the sides are refused wherever both operands have an
+/// edge inside the other's face.
+#[test]
+fn a_rod_standing_on_a_step_builds_every_op() {
+    use core::f64::consts::PI;
+    let q = PI / 4.0;
+    let step = prof(&[
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.5),
+        (0.5, 0.5),
+        (0.5, 2.0),
+        (0.0, 2.0),
+    ]);
+    let body = 1.5 * PI + 1.5 * q;
+    for (label, rod, v) in [
+        ("rod on the step", rod(0.5, 1.0), q),
+        (
+            "rod from inside the step",
+            rod_span(0.5, 0.25, 1.0),
+            0.75 * q,
+        ),
+    ] {
+        let want = [
+            ("A ∪ B", Some(body)),
+            ("A ∩ B", Some(v)),
+            ("A ∖ B", None),
+            ("B ∖ A", Some(body - v)),
+        ];
+        builds(label, &rod, &step, want);
+        builds(
+            &format!("{label}, swapped"),
+            &step,
+            &rod,
+            [want[0], want[1], ("A ∖ B", want[3].1), ("B ∖ A", want[2].1)],
+        );
+    }
 }
 
 /// **Cones sharing a carrier at different extents build**: frusta of the
