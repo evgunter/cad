@@ -2,10 +2,13 @@
 id: a-vertex-piercing-a-spline-face-reads-no-outward-normal
 kind: issue
 title: A vertex piercing a spline face refuses CurvedBooleanUnsupported at the vertex-on-face pass: the pierced face's outward normal at the point has no spline arm
-status: open
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: M
+closed: 2026-10-31
+pr: 6152
+branch: splice/vertex-on-spline-face
 ---
 
 
@@ -44,3 +47,49 @@ reads after the normal. Behind this is the NURBS × torus section
 Related: `spliceface/a-spline-wall-cannot-say-whether-it-holds-a-pierce-point`
 is the same pass's `held_reads` asking a spline wall whether it holds a
 pierce point. Here the spline face is the pierced face itself.
+
+## Closed (2026-10-31)
+
+A spline face gives its outward normal at the chart point the sweep
+placed a point at, through a new door,
+`face_normal::spline_outward_normal_at`. That chart point is either a
+span's meeting with the chart (`reduce::spline_interior`) or the
+placement read's in-trim foot (`contain::curved_face_placement_decided`).
+`reduce::ContactAcc::charts` carries it to the pass, as
+`ContactAcc::branches` carries a branch. No projection foot is read.
+
+The door reads the chart point through `geom_brep::chart_point_normal`,
+the one reading of a chart point, which `geom_brep::dihedral_side` also
+reads at its projection foot. It works in three steps.
+- It reads the jet where the chart is regular (`regular_jet`).
+- It decides `S(uv)` onto the point.
+- It reads the normal where the chart's normal is continuous
+  (`chart_normal_at`), handing the face's bit to it, which folds it
+  through `OutwardNormal::from_chart`.
+
+A vanishing `S_u × S_v` or a crease (`crease_runs`, a closed seam) at
+that point refuses by name, each carrying its reading:
+`NormalAtError::SplineIrregular` or `SplineCrease`. The boolean reports
+both as `NormalAtSplineCrease`, as the sector walk does. A stale key, a
+non-spline carrier and a placeholder chart each have their own name
+(`SplineNormalError`).
+
+The pierce's curvature lever on a spline face is the chart's certified
+arm (`T::spline_chart_arm`) over the sectors' reach. Where no arm is
+read, the pierce refuses `PierceLeverUnread`, naming why
+(`geom_brep::ChartArmRefusal`). An integral chart with a crease
+anywhere is refused whole there; that over-refusal is filed as
+`encl/the-patch-bound-refuses-an-integral-chart-with-a-crease-anywhere`.
+A pierce placed at no chart point refuses `CurvedBooleanUnsupported`,
+as before. An `Approx` face's chart is its fit, but the boolean admits
+no `Approx` operand (`reduce::boolean_arm_exists`), so no pierce reads
+one.
+
+Whether the point has a second foot on another in-trim sheet within the
+band is the placement's claim. It is filed as
+`spliceface/the-spline-placement-read-certifies-no-second-in-trim-foot`
+(the SPLICE orchestrator's ruling, 2026-10-31).
+
+Lily wall 8 now stops one site on, at the pierce's ring on the leaf's
+wall (`a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`), at
+1e-9 and 1e-6.

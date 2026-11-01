@@ -1381,3 +1381,56 @@ pub fn holds<T: Decide>(
     };
     Sides::new(surface, &chart, &points, loops, band).holds(singularity, x, sense)
 }
+
+/// **Whether a side of a spline net's rectangle spans more than a
+/// point** ([`spline_collapsed_row`] answers none).
+#[must_use]
+pub fn spline_side_spans<T: Decide>(
+    net: &geom::NurbsSurface<T>,
+    side: crate::ssi::ChartSide,
+    band: Band,
+) -> bool {
+    spline_collapsed_row(net, side, band).is_none()
+}
+
+/// **A collapsed side of a spline net's rectangle**: the indices of its
+/// row's control points where no point of the row is decided apart from
+/// the row's first (`pcurve_chart_side_spans`), and `None` where some
+/// is. A row decided one point, or undecided, is a collapsed side, a
+/// pole a face may lie across with no edge on it. The one reading of a
+/// collapsed side: the section certificate's W1′ reads it, and the plane
+/// × spline pose's door reads it before its sweep.
+#[must_use]
+pub fn spline_collapsed_row<T: Decide>(
+    net: &geom::NurbsSurface<T>,
+    side: crate::ssi::ChartSide,
+    band: Band,
+) -> Option<Vec<usize>> {
+    use crate::ssi::{ChartAxis, ChartEnd};
+    let (nu, nv) = net.control_counts();
+    let row: Vec<usize> = match (side.fixed, side.end) {
+        (ChartAxis::U, ChartEnd::Low) => (0..nv).collect(),
+        (ChartAxis::U, ChartEnd::High) => {
+            (0..nv).map(|iv| (nu.saturating_sub(1)) * nv + iv).collect()
+        }
+        (ChartAxis::V, ChartEnd::Low) => (0..nu).map(|iu| iu * nv).collect(),
+        (ChartAxis::V, ChartEnd::High) => {
+            (0..nu).map(|iu| iu * nv + nv.saturating_sub(1)).collect()
+        }
+    };
+    let control = net.control();
+    let Some(&first) = row.first().and_then(|&i| control.get(i)) else {
+        return Some(row);
+    };
+    let spans = row.iter().filter_map(|&i| control.get(i)).any(|p| {
+        matches!(
+            decide(
+                "pcurve_chart_side_spans",
+                Margin::of(first.distance(*p)),
+                band
+            ),
+            Ok(Sign::Positive)
+        )
+    });
+    (!spans).then_some(row)
+}

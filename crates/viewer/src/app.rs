@@ -2060,6 +2060,9 @@ impl eframe::App for ViewerApp {
         // already stands on — so the chrome follows [`Polarity`]
         // through the toolkit's visuals, exactly as
         // [`apply_polarity`] intends, instead of one panel escaping it.
+        // The revolve tool's held profile as the viewport will draw its
+        // axis over it, for the repaint request after the picks are fed.
+        let revolve_held = self.tools.revolve().and_then(|tool| tool.profile());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
             .show(ui, |ui| {
@@ -2151,6 +2154,12 @@ impl eframe::App for ViewerApp {
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
+        // A revolve profile picked or cleared after the viewport drew
+        // this frame's axis (`pane::viewport::push_revolve_axis`) asks
+        // for the next.
+        if self.tools.revolve().and_then(|tool| tool.profile()) != revolve_held {
+            ui.ctx().request_repaint();
+        }
         let landed = self.session.landed_pair();
         self.notices.extend(
             declined

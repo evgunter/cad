@@ -279,6 +279,11 @@ mod test_support_meeting;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_samples;
+// The boolean's volume relations, a test oracle the suites run on their
+// own results.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_volume;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -765,24 +770,7 @@ pub mod test_support {
             .map_err(|refusal| format!("{refusal:?}"))
     }
 
-    /// The boolean's volume backstop over `a`, `b` and a `result`, as the
-    /// pipeline gates a finished body
-    /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
-    /// suite plants a wrong result through.
-    ///
-    /// # Errors
-    ///
-    /// The backstop's refusal, or a tolerance that forms no band.
-    pub fn volume_backstop<T: crate::AtRestPolicy>(
-        op: crate::BooleanOp,
-        a: &Body<T>,
-        b: &Body<T>,
-        result: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
-        let band = geom_core::Band::linear(tol)?;
-        T::gate_volume_backstop(op, a, b, result, band, tol)
-    }
+    pub use crate::test_support_volume::{VolumeOracle, assert_volume_relations, volume_relations};
 
     /// The two operand clones as the boolean's join leaves them, and
     /// the interior-loop guard's verdict on them.

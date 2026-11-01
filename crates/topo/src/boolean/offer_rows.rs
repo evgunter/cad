@@ -2240,6 +2240,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::NormalAtSplineCrease
+        | BooleanErrorKind::PierceLeverUnread
         | BooleanErrorKind::EdgeCarrierUnsupported
         | BooleanErrorKind::SplineCrossingUnsettled
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2289,10 +2290,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::SeamOrientation
         | BooleanErrorKind::ZipCorrespondence
         | BooleanErrorKind::ResultInvalid
-        | BooleanErrorKind::ResultVolumeImplausible
-        | BooleanErrorKind::VolumeCorrupt
         | BooleanErrorKind::PoisonedCarrierDatum
-        | BooleanErrorKind::VolumeUndecided
         | BooleanErrorKind::UnrepresentableResult
         | BooleanErrorKind::NonManifoldResult
         // Nest another module's refusal, whose offers are that module's
@@ -2303,7 +2301,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Pcurves
         | BooleanErrorKind::Euler
         | BooleanErrorKind::Join
-        | BooleanErrorKind::VolumeUnmeasured
         | BooleanErrorKind::GraftRecertify
         | BooleanErrorKind::Pieces
         | BooleanErrorKind::Revert
@@ -2727,7 +2724,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("mod.rs", "decision_words", "Coincide::EdgeOnCurvedFace", 1),
-    ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 1),
+    ("mod.rs", "decision_words", "Coincide::EdgeOnPlane", 2),
     (
         "mod.rs",
         "decision_words",
@@ -2759,13 +2756,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
-    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
-    (
-        "ops.rs",
-        "decide_left",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("ops.rs", "apply_cut_ins", "BooleanDecision::Sphere", 2),
     ("ops.rs", "apply_cut_ins", "SphereQuestion::CutIn", 2),
     ("ops.rs", "sphere_pair_cut", "BooleanDecision::Sphere", 1),
@@ -3034,8 +3024,14 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::Crossing",
         1,
     ),
-    ("slit.rs", "lies_in", "Coincide::EdgeOnCurvedFace", 1),
-    ("slit.rs", "lies_in", "Coincide::EdgeOnPlane", 1),
+    (
+        "slit.rs",
+        "carrier_on_surface",
+        "Coincide::EdgeOnCurvedFace",
+        2,
+    ),
+    ("slit.rs", "carrier_on_surface", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",
         "parting_order",

@@ -49,7 +49,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use geom_core::Decide;
 
-use super::BooleanError;
+use super::{BooleanError, Operand};
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MevSite};
@@ -90,12 +90,14 @@ pub(super) struct ZipReport {
     /// Vertex fusions in zip order: `(dead, kept)` per zipped pair.
     pub vertex_merges: Fusions,
     /// The seam edges surviving the zip, one per seam pair in the order
-    /// the zip was given them: the A section half-edge's edge, or the B
-    /// one's where that is a section strut ([`kill_pair`]).
+    /// the zip was given them: the kept side's section half-edge's edge
+    /// ([`super::glue::kept_first`]), or the other's where that is a
+    /// section strut ([`kill_pair`]).
     pub seam_edges: Vec<crate::entity::EdgeKey>,
-    /// Edge fusions, `(dead, kept)`, one per seam pair: the B section
-    /// edge the zip kills and the A edge on its segment, which survives
-    /// in its place; or, where B's is a section strut, A's onto it.
+    /// Edge fusions, `(dead, kept)`, one per seam pair: the other side's
+    /// section edge the zip kills and the kept side's edge on its
+    /// segment, which survives in its place; or, where the other's is a
+    /// section strut, the kept side's onto it.
     pub edge_merges: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
     /// The section struts the zip kept ([`kill_pair`]), each once. A
     /// seam edge whose pair is no section strut can end with one face
@@ -728,7 +730,7 @@ pub(super) fn zip_seam<T: Decide + crate::props::AtRestPolicy>(
     // `ob[j - 1]`'s (`align`), so it lies on `ob[j - 1]`'s segment.
     let n = ob.len();
     let edges: Vec<_> = (0..n).map(|j| (ob[j], rs[(j + 1) % n])).collect();
-    glue(body, &edges, fusion_order(n), tol)
+    glue(body, (&edges, Operand::A), fusion_order(n), tol)
 }
 
 /// Zips a split seam ([`repair`]): its faces become loops of its first A
@@ -748,26 +750,27 @@ pub(super) fn zip_split<T: Decide + crate::props::AtRestPolicy>(
     #[cfg(feature = "sweep-testing")]
     if SWAP_ROLES.with(core::cell::Cell::get) {
         let swapped: Vec<_> = edges.iter().map(|&(ob, r)| (r, ob)).collect();
-        return zip_split_as_given(body, (b_faces, a_faces), &swapped, tol);
+        return zip_split_as_given(body, (b_faces, a_faces), (&swapped, Operand::B), tol);
     }
-    zip_split_as_given(body, (a_faces, b_faces), edges, tol)
+    zip_split_as_given(body, (a_faces, b_faces), (edges, Operand::A), tol)
 }
 
-/// [`zip_split`] with its roles as given.
+/// [`zip_split`] with its roles as given: `lead`'s faces host, and the
+/// first half-edge of each pair of `edges` is `lead`'s.
 fn zip_split_as_given<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    (a_faces, b_faces): (&[FaceKey], &[FaceKey]),
-    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    (lead_faces, other_faces): (&[FaceKey], &[FaceKey]),
+    (edges, lead): (&[(HalfEdgeKey, HalfEdgeKey)], Operand),
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
-    let mut faces = a_faces.iter().chain(b_faces);
+    let mut faces = lead_faces.iter().chain(other_faces);
     let host = *faces.next().ok_or(BooleanError::ZipCorrespondence {
         what: "a split seam holds no face",
     })?;
     for &f in faces {
         body.kfmrh_minting(host, f, tol)?;
     }
-    glue(body, edges, 0..edges.len(), tol)
+    glue(body, (edges, lead), 0..edges.len(), tol)
 }
 
 /// Where a seam pair's two half-edges stand ([`glue`]).
@@ -781,9 +784,11 @@ enum Pair {
     Shared,
 }
 
-/// **The loopglue zip, driven by records**: glues each A section
-/// half-edge `ob` of `edges` to its B partner `r` on the same segment,
-/// all on loops of the section faces the zip consumes.
+/// **The loopglue zip, driven by records**: glues each section
+/// half-edge `ob` of `edges`, operand `lead`'s, to the other operand's
+/// partner `r` on the same segment, all on loops of the section faces
+/// the zip consumes. The vertex each joint keeps and the edge each pair
+/// keeps are the kept side's ([`super::glue::kept_first`]).
 ///
 /// A joint fusing two vertices, collapsed by its `kev`
 /// ([`fuse_by_joint`]), hands the two joined half-edges' predecessors
@@ -801,7 +806,7 @@ enum Pair {
 /// [`BooleanError::Euler`] where an operator refuses.
 fn glue<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    (edges, lead): (&[(HalfEdgeKey, HalfEdgeKey)], Operand),
     order: impl Iterator<Item = usize>,
     tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
@@ -814,10 +819,11 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
     };
     let mut report = ZipReport::default();
     for &(ob, r) in edges {
-        report.seam_edges.push(edge_of(body, ob)?);
+        let (kept, other) = super::glue::kept_first((lead, ob), r);
+        report.seam_edges.push(edge_of(body, kept)?);
         report
             .edge_merges
-            .push((edge_of(body, r)?, edge_of(body, ob)?));
+            .push((edge_of(body, other)?, edge_of(body, kept)?));
     }
     let pair_of: BTreeMap<HalfEdgeKey, usize> = edges
         .iter()
@@ -870,8 +876,8 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
             }));
         }
         let prev_o = he(body, o).prev;
-        // The kept vertex is `ob`'s at its start, its successor's at its
-        // end: A's.
+        // The joint runs from `lead`'s side (`ob` at its start, its
+        // successor at its end) to the other's.
         let (he1, he2) = if start { (o, x) } else { (x, o) };
         let (l1, l2) = (he(body, he1).parent_loop, he(body, he2).parent_loop);
         if l1 != l2 {
@@ -887,7 +893,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
         }
         let joint = Joint::between(body, he1, he2)
             .ok_or_else(|| corr("a seam joint's half-edge has no face"))?;
-        let keep = he(body, he1).start;
+        let keep = he(body, super::glue::kept_first((lead, he1), he2).0).start;
         let p = body
             .get_vertex(keep)
             .and_then(|vd| body.get_point(vd.point).copied())
@@ -901,7 +907,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                 && !killed[k]
                 && pair(body, k)? == Pair::Alone
             {
-                kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
+                kill_pair(body, (edges, lead), &pair_of, k, &mut report, tol)?;
                 killed[k] = true;
             }
         }
@@ -928,16 +934,17 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                     body.mfkrh_minting(l, FaceSurface::Inherit, tol)?;
                 }
             }
-            kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
+            kill_pair(body, (edges, lead), &pair_of, k, &mut report, tol)?;
             killed[k] = true;
         }
     }
     Ok(report)
 }
 
-/// **Kills seam pair `k`'s loop of two** with `kef`, across B's edge,
-/// whose A partner survives in its place; or across A's, where B's edge
-/// is a section strut.
+/// **Kills seam pair `k`'s loop of two** with `kef`, across the other
+/// side's edge, whose kept partner ([`super::glue::kept_first`])
+/// survives in its place; or across the kept side's, where the other's
+/// edge is a section strut.
 ///
 /// A section strut is an operand's edge along a line where the op
 /// drops both its faces, so its section loop runs it both ways and both
@@ -948,7 +955,8 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
 /// the result keeps it on both sides of the line (closed in the output
 /// stage, `slit::close_struts`), or the two walls, a reflex edge, where
 /// the result keeps them. `report` names it among its struts and, where
-/// it is B's, as the pair's seam edge in place of A's.
+/// it is the other side's, as the pair's seam edge in place of the kept
+/// side's.
 ///
 /// # Errors
 ///
@@ -956,7 +964,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
 /// both section struts; [`BooleanError::Euler`] where `kef` refuses.
 fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
-    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    (edges, lead): (&[(HalfEdgeKey, HalfEdgeKey)], Operand),
     pair_of: &BTreeMap<HalfEdgeKey, usize>,
     k: usize,
     report: &mut ZipReport,
@@ -969,13 +977,14 @@ fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
             .is_some_and(|&j| j != k)
     };
     let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
-    let (dying, kept_strut) = match (strut(ob), strut(r)) {
-        (false, false) => (r, None),
-        (true, false) => (r, Some(edge(ob))),
+    let (kept, other) = super::glue::kept_first((lead, ob), r);
+    let (dying, kept_strut) = match (strut(kept), strut(other)) {
+        (false, false) => (other, None),
+        (true, false) => (other, Some(edge(kept))),
         (false, true) => {
-            report.seam_edges[k] = edge(r);
-            report.edge_merges[k] = (edge(ob), edge(r));
-            (ob, Some(edge(r)))
+            report.seam_edges[k] = edge(other);
+            report.edge_merges[k] = (edge(kept), edge(other));
+            (kept, Some(edge(other)))
         }
         (true, true) => {
             return Err(BooleanError::ZipCorrespondence {

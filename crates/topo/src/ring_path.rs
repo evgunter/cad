@@ -50,7 +50,13 @@
 //! the axis), so two paths with the same ends cross any closed curve
 //! alike; and an embedded closed curve on it, winding round the axis
 //! (a drum wall's section loop, which goes all the way round) or not,
-//! separates it. On a cone, the paths run on the punctured nappe, an annulus, and
+//! separates it. Which side of it is the region a curve bounds is the
+//! curve's to say only where it does not wind: there it bounds a disc.
+//! So a parity read as membership of a cylinder face's region (the ring
+//! re-homing's) rests on the face being a disc of the chart, no loop of
+//! it winding round the axis, as on a cone and a torus; a run that
+//! winds (a seamless band's) bounds no disc, and its side would be read
+//! off its orientation, which the parity does not see. On a cone, the paths run on the punctured nappe, an annulus, and
 //! the curve bounds a disc of it: it lies on one face, and no loop of the
 //! face winds round the axis, so no curve on it winds round the apex. On
 //! a torus, the paths run anywhere on it and the curve bounds a disc: it
@@ -1222,12 +1228,17 @@ impl<T: Decide> Quadric<T> {
 ///   plane's other loop, runs so.
 /// - A segment meets a conic's or an oval's plane where its ends'
 ///   offsets from it (**`split_ring_path_segment_side`**) differ in
-///   sign. An end on the plane says nothing unless the segment is
-///   decided apart from a conic arc ([`segment_misses`]), as a torus
-///   path's lead from a point on an arc's plane is, or its length is in
-///   the band (**`split_ring_path_lead_point`**: a lead from a point
-///   already on its tube) and that point is decided off the arc (on the
-///   plane's other loop, or out of the arc's span).
+///   sign. A segment decided apart from a conic arc
+///   ([`segment_misses`]) meets it nowhere, as a torus path's lead from
+///   a point on an arc's plane is. One with an end on the plane and the
+///   other decided off it meets the plane once, at that end: the
+///   crossing is read as any other, its place on the segment in the zero
+///   band, so it is passed over where the arc reads it out of span (a
+///   path from a ring vertex on an arc's plane, off the arc) and says
+///   nothing otherwise. One with both ends on the plane says nothing
+///   unless its length is in the band (**`split_ring_path_lead_point`**:
+///   a lead from a point already on its tube) and that point is decided
+///   off the arc (on the plane's other loop, or out of the arc's span).
 /// - A ruling meets a circle piece's plane once (it is decided across
 ///   it, **`split_ring_path_line_across`**: the cosine between the
 ///   plane's normal and the ruling, levered at the piece's radius), and
@@ -1426,25 +1437,23 @@ pub(crate) fn path_parity<T: Decide>(
                     let side =
                         |d| decide_m("split_ring_path_segment_side", Margin::of(charge(d, slack)));
                     let (s0, s1) = (side(d0)?, side(d1)?);
-                    // An end on the plane says nothing unless the segment
-                    // is decided apart from a conic arc, or its length is
-                    // in the band: the lead from a point already on the
-                    // tube it moves onto, which meets the arc nowhere
-                    // where that point is decided off it (on the plane's
-                    // other loop, or out of the arc's span, read at the
-                    // arc's least speed).
-                    if s0 == Sign::Zero || s1 == Sign::Zero {
-                        if let LoopArc::Conic(conic) = arc
-                            && segment_misses((from, to), conic, slack, band)?
-                        {
-                            continue;
-                        }
-                        let point = s0 == Sign::Zero
-                            && s1 == Sign::Zero
-                            && decide_m(
-                                "split_ring_path_lead_point",
-                                Margin::of((to - from).norm()),
-                            )? == Sign::Zero;
+                    // A segment decided apart from a conic arc meets it
+                    // nowhere. One along the plane says nothing unless its
+                    // length is in the band: the lead from a point already
+                    // on the tube it moves onto, which meets the arc
+                    // nowhere where that point is decided off it (on the
+                    // plane's other loop, or out of the arc's span, read at
+                    // the arc's least speed).
+                    if (s0 == Sign::Zero || s1 == Sign::Zero)
+                        && let LoopArc::Conic(conic) = arc
+                        && segment_misses((from, to), conic, slack, band)?
+                    {
+                        continue;
+                    }
+                    if s0 == Sign::Zero && s1 == Sign::Zero {
+                        let point =
+                            decide_m("split_ring_path_lead_point", Margin::of((to - from).norm()))?
+                                == Sign::Zero;
                         if !point {
                             return Ok(None);
                         }
@@ -1466,7 +1475,18 @@ pub(crate) fn path_parity<T: Decide>(
                     // slope the segment crosses it at, `|n̂·d̂|`.
                     let slope = ((d0 - d1) / (to - from).norm()).abs();
                     let [a0, a1] = in_span(param(arc, x), sec.span, sec.speed * slope);
-                    readings.push([inside, inside, a0, a1, on_own(sec.own, x)]);
+                    // With one end on the plane and the other decided off
+                    // it, the segment meets the plane once, at that end:
+                    // the crossing's place on the segment is in the zero
+                    // band, so it is passed over where the arc reads it
+                    // out of span or on the plane's other loop, and says
+                    // nothing otherwise.
+                    let on_end = if s0 == Sign::Zero || s1 == Sign::Zero {
+                        Ok(Sign::Zero)
+                    } else {
+                        inside
+                    };
+                    readings.push([on_end, inside, a0, a1, on_own(sec.own, x)]);
                 }
                 (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, span, .. }) => {
                     if arrival {
@@ -1943,6 +1963,24 @@ mod spline_fuzz;
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod torus_islands;
 
+/// The ellipse the plane through `(0, 0, h)`, tilted `atan(tilt)` about
+/// `y`, cuts the unit cylinder about `z` in, its parameter the azimuth
+/// (its point at azimuth `u` is at height `h + tilt·cos u`), and that
+/// plane's normal.
+#[cfg(test)]
+pub(crate) fn tilted_section(h: f64, tilt: f64) -> (geom::Curve3<f64>, Vec3<f64>) {
+    let alpha = tilt.atan();
+    let normal = Vec3::new(-alpha.sin(), 0.0, alpha.cos());
+    let ellipse = geom::Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, h),
+        axis: normal,
+        semi_u: 1.0 / alpha.cos(),
+        semi_v: 1.0,
+        u_ref: Vec3::new(alpha.cos(), 0.0, alpha.sin()),
+    };
+    (ellipse, normal)
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -2064,6 +2102,43 @@ mod tests {
                     decided * 100 >= asked * 99 && odd * 20 > decided,
                     "spline {spline}: {decided} of {asked} paths decided, {odd} odd"
                 );
+            }
+        }
+    }
+
+    /// **A segment from a point on an arc's plane, off the arc, meets
+    /// the arc nowhere.** The unit cylinder about `z` cut by a plane
+    /// tilted `atan 2.5` about `y`, in an ellipse whose semi-axes differ
+    /// by more than the arc between azimuths 0.5 and 1 is long, so no
+    /// segment near it is decided apart from it by its distance. From
+    /// the ellipse's points at azimuths 1.2 and 0.3, every path to a
+    /// point off the plane on the same side of the arc's span decides,
+    /// and crosses the arc an even number of times.
+    #[test]
+    fn a_segment_from_an_arcs_plane_off_the_arc_meets_it_nowhere() {
+        let tilt = 2.5;
+        let (ellipse, _) = tilted_section(0.0, tilt);
+        let arc = LoopArc::of(&ellipse, (0.5, 1.0)).unwrap();
+        let cylinder = geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let quadric = Quadric::of(&cylinder).unwrap();
+        let at = |u: f64, z: f64| Point3::new(u.cos(), u.sin(), z);
+        // Each start and its targets lie on one side of the arc's span,
+        // so no path runs past it.
+        for (u, away) in [(1.2, 1.5), (0.3, 0.0)] {
+            let from = at(u, tilt * u.cos());
+            for to in [at(u, -1.0), at(away, -0.5), at(away, 4.0)] {
+                for path in quadric.paths((from, to), band()).unwrap() {
+                    assert_eq!(
+                        path_parity(&path, core::slice::from_ref(&arc), None, band()).unwrap(),
+                        Some(false),
+                        "from azimuth {u} on the plane to {to:?}"
+                    );
+                }
             }
         }
     }
@@ -2626,7 +2701,7 @@ mod tests {
             (lo + step * (f64::from(k) - 1.0)).max(lo),
             (lo + step * (f64::from(k) + 1.0)).min(hi),
         );
-        let g = 0.5 * (5f64.sqrt() - 1.0);
+        let g = geom_core::GOLDEN_SECTION;
         for _ in 0..200 {
             let (c, e) = (b - g * (b - a), a + g * (b - a));
             if to_segment(c) < to_segment(e) {

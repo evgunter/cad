@@ -122,8 +122,9 @@ const BOUNDARY: ConicRows = ConicRows::bounded(
 );
 
 /// The fraction of each arc's span [`SphereFaceRegion::aim`] steps from:
-/// the golden section, off the middle a symmetric pose's planes hold.
-const AIM_FRACTION: f64 = 0.381_966_011_250_105_2;
+/// the golden section ([`geom_core::GOLDEN_SECTION`]), off the middle a
+/// symmetric pose's planes hold.
+const AIM_FRACTION: f64 = 1.0 - geom_core::GOLDEN_SECTION;
 
 /// How many even steps of each arc's span [`SphereFaceRegion::aim`]'s
 /// clearance reads.
@@ -245,46 +246,36 @@ impl<T: Decide> SphereFaceRegion<T> {
     }
 
     /// A point of the face the side-at-infinity reader may aim at, found
-    /// by evaluation alone: a point `m` of each arc ([`AIM_FRACTION`] of
-    /// its span) stepped along its great circle toward the face (`N × τ`, module docs) by an angle `φ` that
-    /// keeps the step's path off every boundary arc, and the step that
-    /// goes deepest. `φ` is at most half the arc's circle's angular radius
-    /// about the nearer pole, so the path does not meet that circle again,
-    /// and `R·φ` at most half a lower bound on `m`'s distance from every
-    /// other arc ([`Self::clearance`]), so it meets no other arc: the
-    /// stepped point lies in the face, as the face lies along `N × τ` at
-    /// `m`. A face narrower than the rounding there steps nowhere and aims
-    /// at `m`; the aim only steers either way. `None` for a
-    /// face with no boundary arc, which offers no aim.
+    /// by evaluation alone: the point `m` of the face's first arc (the
+    /// outer loop's first, in walk order) at [`AIM_FRACTION`] of its span,
+    /// stepped along its great circle toward the face (`N × τ`, module
+    /// docs) by an angle `φ` that keeps the step's path off every boundary
+    /// arc. `φ` is at most half the arc's circle's angular radius about
+    /// the nearer pole, so the path does not meet that circle again, and
+    /// `R·φ` at most half a lower bound on `m`'s distance from every other
+    /// arc ([`Self::clearance`]), so it meets no other arc: the stepped
+    /// point lies in the face, as the face lies along `N × τ` at `m`. One
+    /// arc is stepped from, by its place in the walk: choosing among
+    /// arcs by their steps would be a choice on values, which two arcs a
+    /// symmetric face holds alike tie, and an enclosure of a tie is the
+    /// hull of both steps. A face narrower than the rounding there steps
+    /// nowhere and aims at `m`; the aim only steers either way. `None`
+    /// for a face with no boundary arc, which offers no aim.
     pub(crate) fn aim(&self) -> Option<Point3<T>> {
-        let (zero, half) = (T::zero(), T::from_f64(0.5));
-        let mut best: Option<(T, Point3<T>)> = None;
-        for (k, arc) in self.edges.iter().enumerate() {
-            let geom::Curve3::Circle { radius, .. } = arc.carrier else {
-                unreachable!("sphere_face_region admits circles only")
-            };
-            let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
-            let m = arc.at(t);
-            let own = (radius / self.radius).abs().min(T::one()).asin() * half;
-            let room = self.clearance(k, m) * half / self.radius;
-            let phi = own.min(room).max(zero);
-            let w = m - self.center;
-            let into = self.outward(m).cross(arc.traversal(t));
-            let (sin, cos) = phi.sin_cos();
-            let p = self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius;
-            best = Some(match best {
-                // Evaluation, not a decision: the deeper step only steers.
-                Some((deepest, q)) => {
-                    let pick = |a: T, b: T| (phi - deepest).select_le_zero(a, b);
-                    (
-                        pick(deepest, phi),
-                        Point3::new(pick(q.x, p.x), pick(q.y, p.y), pick(q.z, p.z)),
-                    )
-                }
-                None => (phi, p),
-            });
-        }
-        best.map(|(_, p)| p)
+        let half = T::from_f64(0.5);
+        let arc = self.edges.first()?;
+        let geom::Curve3::Circle { radius, .. } = arc.carrier else {
+            unreachable!("sphere_face_region admits circles only")
+        };
+        let t = arc.t0 + (arc.t1 - arc.t0) * T::from_f64(AIM_FRACTION);
+        let m = arc.at(t);
+        let own = (radius / self.radius).abs().min(T::one()).asin() * half;
+        let room = self.clearance(0, m) * half / self.radius;
+        let phi = own.min(room).max(T::zero());
+        let w = m - self.center;
+        let into = self.outward(m).cross(arc.traversal(t));
+        let (sin, cos) = phi.sin_cos();
+        Some(self.center + (w / w.norm() * cos + into / into.norm() * sin) * self.radius)
     }
 
     /// A lower bound on the distance from `m` to every arc but the `k`th:

@@ -264,10 +264,11 @@ Verification is `Rest`'s carrier rung with the sense bit reversed:
 carrier non-contradiction through the kind ladder, senses aligned as an
 exact bit. Opposed senses contradict it, as aligned senses contradict
 `Rest` at every door. A union merges a continuation its margin decides:
-the merge stage reads the same ladder (D10), keeping the
-description of the group's arena-first face that lies in no other
-member's hole. That is ordinarily operand A's, and B's where A's face
-plugs a hole of B's.
+the merge stage reads the glue's record of the pair and measures
+nothing again (D10), and the merged face keeps the first-written operand's description, which the glue decides
+once per pair (DESIGN.md [coincidence.booleans]): operand A's, where
+A's face plugs a hole of B's as anywhere else, whichever face holds the
+merged region.
 
 **Seam.** A *seam* is a junction of the result whose material wedge is
 π: two faces on distinct carriers joining G1 along a curve. It is read

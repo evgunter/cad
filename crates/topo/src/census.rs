@@ -2784,8 +2784,8 @@ impl<T: Real> Geo<T> {
     }
 }
 
-/// A witness position rendered as COORDINATES (the payload posture of
-/// `ResultVolumeImplausible`: display data, never load-bearing).
+/// A witness position rendered as COORDINATES (display data, never
+/// load-bearing).
 ///
 /// Coordinates rather than the point's own `Debug`, because this string
 /// is pasted verbatim into a user-facing refusal: `Point3`'s derived
@@ -4125,10 +4125,11 @@ fn ef_overlap_lane<T: Decide>(
 /// none, `None` with any other kind). A quadric that holds three points
 /// of a line holds the line, so the two points and their midpoint each
 /// read their residual (`name`) on the carrier: `Ok(true)` where all
-/// three read `Zero`, `Ok(false)` where one reads off. The argument is
-/// exact; the readings are in band, so `Ok(true)` says the line lies on
-/// the carrier at the band, and a residual the band cannot read is
-/// `Err`.
+/// three read `Zero`, `Ok(false)` where one reads off, whatever the
+/// others read (all three are read first: one point definitely off
+/// decides it). The argument is exact; the readings are in band, so
+/// `Ok(true)` says the line lies on the carrier at the band, and a
+/// residual the band cannot read, with none off, is `Err`.
 pub(crate) fn line_on_quadric_carrier<T: Decide>(
     surface: &geom::Surface<T>,
     p0: Point3<T>,
@@ -4142,15 +4143,115 @@ pub(crate) fn line_on_quadric_carrier<T: Decide>(
     ) {
         return None;
     }
-    for q in [p0, p1, p0.lerp(p1, T::from_f64(0.5))] {
+    Some(points_on_surface(
+        surface,
+        &[p0, p1, p0.lerp(p1, T::from_f64(0.5))],
+        name,
+        band,
+    ))
+}
+
+/// **Whether every one of `points` lies on `surface`**, each one's
+/// implicit residual decided on the band under `name`: `Ok(false)` where
+/// one reads definitely off, whatever the others read (every point is
+/// read first, so a point in band ahead of it does not pre-empt it);
+/// `Ok(true)` where all read `Zero`; and the first in-band reading where
+/// none is off.
+pub(crate) fn points_on_surface<T: Decide>(
+    surface: &geom::Surface<T>,
+    points: &[Point3<T>],
+    name: &'static str,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut in_band = None;
+    for &q in points {
         let r = geom_brep::implicit::implicit_residual(surface, q);
         match decide(name, Margin::of(r), band) {
             Ok(Sign::Zero) => {}
-            Ok(Sign::Positive | Sign::Negative) => return Some(Ok(false)),
-            Err(cause) => return Some(Err(cause)),
+            Ok(Sign::Positive | Sign::Negative) => return Ok(false),
+            Err(cause) => {
+                in_band.get_or_insert(cause);
+            }
         }
     }
-    Some(Ok(true))
+    in_band.map_or(Ok(true), Err)
+}
+
+/// **One point definitely off a quadric decides that a line or a conic
+/// is not on it**, whatever an earlier point read
+/// ([`points_on_surface`], [`line_on_quadric_carrier`]).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod points_on_surface_rows {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn cylinder() -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// A residual of half the band's escalation, between its zero and
+    /// its escalation: in band.
+    fn in_band() -> f64 {
+        let b = band();
+        assert!(
+            b.zero() < 0.5 * b.escalate(),
+            "the band has room between its edges"
+        );
+        0.5 * b.escalate()
+    }
+
+    #[test]
+    fn a_line_with_one_end_in_band_and_the_other_off_is_not_on_the_cylinder() {
+        let near = Point3::new(1.0 + in_band(), 0.0, 0.0);
+        let off = Point3::new(1.5, 0.0, 1.0);
+        let read = super::line_on_quadric_carrier(&cylinder(), near, off, "test_row", band());
+        assert_eq!(read, Some(Ok(false)), "the far end decides it");
+        // Alone, the in-band end escalates.
+        assert!(matches!(
+            super::line_on_quadric_carrier(
+                &cylinder(),
+                near,
+                Point3::new(1.0 + in_band(), 0.0, 1.0),
+                "test_row",
+                band()
+            ),
+            Some(Err(_))
+        ));
+    }
+
+    #[test]
+    fn a_conics_samples_in_band_then_off_are_not_on_the_sphere() {
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 1.0,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let r = 1.0 + in_band();
+        // Five samples of a circle's arc, as `carrier_on_surface` reads
+        // a conic: the first two in band of the sphere, the rest off.
+        let samples = [
+            Point3::new(r, 0.0, 0.0),
+            Point3::new(0.0, r, 0.0),
+            Point3::new(-1.2, 0.0, 0.0),
+            Point3::new(0.0, -1.2, 0.0),
+            Point3::new(1.2, 0.0, 0.0),
+        ];
+        assert_eq!(
+            super::points_on_surface(&sphere, &samples, "test_row", band()),
+            Ok(false)
+        );
+        assert!(super::points_on_surface(&sphere, &samples[..2], "test_row", band()).is_err());
+    }
 }
 
 /// **`cuts` put in order along a straight span** by their positions `s`

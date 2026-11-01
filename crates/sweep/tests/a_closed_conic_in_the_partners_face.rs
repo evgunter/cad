@@ -25,6 +25,8 @@
 //!   and the rims swapped, a boss inside a hole touching it along them,
 //!   whose union is two solids;
 //! - a plug in the bore of an annulus standing on a plate;
+//! - rods tangent inside one another along a ruling, a rim lying flush
+//!   in the partner's top or floor, at rest and turned;
 //! - two equal coaxial cylinders stacked end to end;
 //! - a tube whose rim lies inside one face of a ball;
 //! - a puck and the quarter-disc ring revolved round it.
@@ -868,30 +870,38 @@ fn a_boss_over_two_holes_tangent_outside_with_no_vertex_at_either_touch() {
     }
 }
 
-/// **A rim flush in the partner's top, tangent inside its rim at a
-/// vertex**: `A` the one-segment cylinder `r = 0.3`, `z ∈ [0, 1]`, its
-/// vertex at azimuth 0, inside the one-segment cylinder `B`, `r = 0.5`
-/// about `(−0.2, 0)`, `z ∈ [−0.5, 1]`, its vertex at azimuth 0 or 1; the
-/// walls are tangent along the ruling through `(0.3, 0)` and the tops
-/// coplanar, `A`'s rim tangent inside `B`'s at `(0.3, 0, 1)`. `B ∪ A`,
-/// `A ∩ B` and both differences build at their closed forms (read
-/// through `differential::outcome`, unmeshed: the mesher's certificate
-/// on `B`'s wall is its own question). Where the op reads the two tops
-/// facing one way and keeps `A`'s, the cut along `A`'s rim in `B`'s
-/// dropped top has no corner at the tangent vertex, so the join does not
-/// take a rim lying flush in a face (`boolean::join`'s `stands_on`), and
-/// `A ∪ B` and `B ∩ A` refuse typed
-/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
-/// Where `A`'s seam ruling lies on the tangent line, a difference carries
-/// it as one edge lying in `B`'s wall, where the crescent's two cusps owe
-/// two (`crates/topo/README.md` tier 3), and refuses
-/// `EdgeInFaceGap::CurvedFace` rather than ship it. At rest and turned.
+/// **A rim flush in the partner's top, tangent inside its rim**: `A` the
+/// one-segment cylinder `r = 0.3`, `z ∈ [0, 1]`, inside the one-segment
+/// cylinder `B`, `r = 0.5` about `(−0.2, 0)`, `z ∈ [−0.5, 1]`; the walls
+/// are tangent along the ruling through `(0.3, 0)` and the tops
+/// coplanar, `A`'s rim tangent inside `B`'s at `(0.3, 0, 1)`. `A`'s
+/// vertex lies at azimuth 0, 1 or π, `B`'s at 0 or 1; every op in both
+/// orders, at rest and turned. Each cell builds its closed form in one
+/// shell (read through `differential::outcome`, unmeshed: the mesher's
+/// certificate on `B`'s wall is its own question), or meets one of
+/// two pinned limits:
+///
+/// - With `A`'s vertex at the touch, where the op reads the two tops
+///   facing one way and keeps `A`'s, the join does not take a rim lying
+///   flush in a face at its one vertex (`boolean::join`'s `stands_on`),
+///   and `A ∪ B` and `B ∩ A` refuse `SingleSiteSectionLoop`
+///   (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+/// - Where a seam ruling lies on the tangent line, `A`'s with its
+///   vertex at the touch (any other op) or `B`'s with its vertex there
+///   (`B ∖ A`), the op may refuse `EdgeInFaceGap::CurvedFace` rather
+///   than carry the ruling as one edge lying in the partner's wall where
+///   the crescent's two cusps owe two ([`one_shell_or_gap_at`]).
+///
+/// With `A`'s vertex elsewhere the sweep splits its rim at `B`'s
+/// vertex, and the cut along it in `B`'s dropped top ends at that
+/// vertex, a corner of `B`'s closed rim, read at the rim's reach
+/// (`boolean::fate`'s `leaving`).
 #[test]
-fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
+fn a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit() {
     let va = 0.09 * PI;
     let vb = 0.25 * PI * 1.5;
     for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
-        for b_az in [0.0, 1.0] {
+        for (a_az, b_az) in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (PI, 0.0)] {
             let place = |what: &str, body: Body<f64>| match &placed {
                 None => fin(what, body),
                 Some(m) => fin(
@@ -902,15 +912,15 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
             };
             let a = place(
                 "the inner rod",
-                extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], 0.0, 1.0),
+                extruded(vec![circle(0.0, 0.0, 0.3, a_az)], 0.0, 1.0),
             );
             let b = place(
                 "the outer rod",
                 extruded(vec![circle(-0.2, 0.0, 0.5, b_az)], -0.5, 1.5),
             );
             for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, va), tol()) {
-                let row = format!("B's vertex at {b_az}, {turn}: {op}");
-                if matches!(op, "A ∪ B" | "B ∩ A") {
+                let row = format!("A's vertex at {a_az}, B's at {b_az}, {turn}: {op}");
+                if a_az == 0.0 && matches!(op, "A ∪ B" | "B ∩ A") {
                     assert!(
                         matches!(&r, Err(BooleanError::Join(j))
                             if matches!(j.error(), SplitJoinError::SingleSiteSectionLoop { count: 1 })),
@@ -918,13 +928,105 @@ fn a_rim_flush_in_its_partners_top_tangent_inside_refuses_typed_or_builds() {
                         r.map(|_| ())
                     );
                 } else {
-                    let line = outcome(r, want, tol());
-                    assert!(
-                        line.starts_with(if want == 0.0 { "EMPTY ok" } else { "OK SOUND" })
-                            || line.contains("gap: CurvedFace"),
-                        "{row}: {line}"
-                    );
+                    let seam = a_az == 0.0 || (b_az == 0.0 && op == "B ∖ A");
+                    one_shell_or_gap_at(&row, r, want, seam);
                 }
+            }
+        }
+    }
+}
+
+/// `r` holds its closed form `want` (`differential::outcome`) in one
+/// shell (an empty result where it is empty), or with `gap` refuses
+/// `EdgeInFaceGap::CurvedFace`, the parting declining to build a
+/// crescent's two cusps on a curved face until
+/// `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`
+/// builds them.
+fn one_shell_or_gap_at(
+    row: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    gap: bool,
+) {
+    let shells = match &r {
+        Ok(BooleanResult::Body(b)) => b.body.shells().count(),
+        _ => 0,
+    };
+    let line = outcome(r, want, tol());
+    if gap && line.contains("gap: CurvedFace") {
+        return;
+    }
+    if want == 0.0 {
+        assert!(line.starts_with("EMPTY ok"), "{row}: {line}");
+    } else {
+        assert!(line.starts_with("OK SOUND"), "{row}: {line}");
+        assert_eq!(shells, 1, "{row}: shells");
+    }
+}
+
+/// **A fate cut whose kept rim leaves along the dropped face's boundary
+/// and bends into it**: the kept copy's rim, tangent inside the dropped
+/// copy's, leaves their touch along the dropped face's boundary edge at
+/// first order, and the cut places it in the corner it bends into one
+/// order down (`boolean::fate`'s `corner_holds`). `A ∩ B` of the
+/// two-arc rods of
+/// [`a_rim_flush_in_its_partners_top_tangent_inside_builds_or_meets_a_pinned_limit`],
+/// `B` over `z ∈ [0, 0.5]`, keeps `A`'s floor and cuts `B`'s along `A`'s
+/// rim; and the hole's rod `r = 0.1` about `(0.2, 0)` inside the boss's,
+/// both one-segment over `z ∈ [0, 1]`, tangent at `(0.3, 0)` where the
+/// boss's vertex lies. Every op in both orders, at its closed form in
+/// one shell, at rest and turned, but that a difference of the second
+/// pose may refuse `EdgeInFaceGap::CurvedFace`, the boss's seam ruling
+/// lying in the hole's wall on the tangent line, until
+/// `work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`
+/// builds it ([`one_shell_or_gap_at`]).
+///
+/// The first pose's `A ∩ B` is the one that turns on the bend. The
+/// second is the one-segment form of the same contact, the cut's end
+/// the boss's one vertex: it reaches the reading at both of a corner's
+/// bounds, and its cells are read at their closed forms or the
+/// `CurvedFace` limit.
+#[test]
+fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
+    for (turn, placed) in [("at rest", None), ("turned", Some(torax_pose()))] {
+        let place = |what: &str, body: Body<f64>| match &placed {
+            None => fin(what, body),
+            Some(m) => fin(
+                what,
+                topo::transform_rigid(&body, &geom_core::test_support::rigid(m, tol()), tol())
+                    .unwrap(),
+            ),
+        };
+        let poses = [
+            (
+                "the two-arc rods, their floors flush",
+                place(
+                    "the inner rod",
+                    extruded(vec![rim(false, 0.0, 0.3, 0.0)], 0.0, 1.0),
+                ),
+                place(
+                    "the outer rod",
+                    extruded(vec![rim(false, -0.2, 0.5, 0.0)], 0.0, 0.5),
+                ),
+                (0.09 * PI, 0.125 * PI, 0.045 * PI),
+            ),
+            (
+                "the hole's rod inside the boss's",
+                place(
+                    "the boss's rod",
+                    extruded(vec![rim(true, 0.0, 0.3, 0.0)], 0.0, 1.0),
+                ),
+                place(
+                    "the hole's rod",
+                    extruded(vec![rim(true, 0.2, 0.1, PI)], 0.0, 1.0),
+                ),
+                (0.09 * PI, 0.01 * PI, 0.01 * PI),
+            ),
+        ];
+        for (k, (pose, a, b, v)) in poses.into_iter().enumerate() {
+            for (op, r, want) in every_op_both_orders(&a, &b, v, tol()) {
+                let gap = k == 1 && op.contains('∖');
+                one_shell_or_gap_at(&format!("{pose}, {turn}: {op}"), r, want, gap);
             }
         }
     }
@@ -1033,8 +1135,6 @@ enum Tip {
     Sectors,
     /// `CurvedPierceUnsupported`.
     Pierce,
-    /// `ResultVolumeImplausible` on `vol(A ∪ B) ≤ vol(A) + vol(B)`.
-    Backstop,
 }
 
 /// What `r` reads as a [`Tip`] other than [`Tip::Built`].
@@ -1055,11 +1155,6 @@ fn refused_as(r: &Result<BooleanResult<f64>, BooleanError>) -> Option<Tip> {
             ..
         } => Tip::Sectors,
         BooleanError::CurvedPierceUnsupported { .. } => Tip::Pierce,
-        BooleanError::ResultVolumeImplausible { which, .. }
-            if which.starts_with("vol(A ∪ B) ≤") =>
-        {
-            Tip::Backstop
-        }
         _ => return None,
     })
 }
@@ -1142,13 +1237,10 @@ fn united_at_the_run(
 /// the reading as a run here (`coincident_run` admits arcs of at most a
 /// half-turn).
 ///
-/// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`. At
-/// ε 1e-6 `B ∪ A` of the `s = 1e-4` poses meets the volume backstop
-/// within an ulp of `vol(A) + vol(B)`
-/// (`work/measuredoor/a-union-at-its-operands-sum-meets-the-volume-backstop-by-an-ulp.md`).
+/// The unions by ε (default, 1e-6, 1e-12), `A ∪ B` then `B ∪ A`.
 #[test]
 fn short_arcs_at_a_crescents_tip() {
-    use Tip::{Backstop, Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
+    use Tip::{Built, Crescent, Meeting, Pierce, Sectors, Unprofiled};
     let p = PI;
     type Row = (&'static str, [f64; 4], [f64; 4], [[Tip; 2]; 3]);
     let tip = |s: f64| [-s, 0.0, s, PI];
@@ -1170,7 +1262,7 @@ fn short_arcs_at_a_crescents_tip() {
             "both, s = 1e-4",
             tip(1e-4),
             tip(3e-4),
-            [[Unprofiled; 2], [Built, Backstop], [Pierce; 2]],
+            [[Unprofiled; 2], [Built; 2], [Pierce; 2]],
         ),
         (
             "no vertex at the tip",
@@ -1182,7 +1274,7 @@ fn short_arcs_at_a_crescents_tip() {
             "no vertex at the tip, s = 1e-4",
             span(1e-4),
             span(3e-4),
-            [[Unprofiled; 2], [Built, Backstop], [Pierce; 2]],
+            [[Unprofiled; 2], [Built; 2], [Pierce; 2]],
         ),
         (
             "the boss's spans the tip",

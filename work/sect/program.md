@@ -2,7 +2,7 @@
 id: sect
 kind: program
 title: SECT — the section-first join, led by the torus pairs it is built for
-status: active
+status: ready
 opened: 2026-10-10
 group: kernel/boolean/join
 prefix: sect/

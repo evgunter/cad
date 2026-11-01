@@ -650,16 +650,11 @@ fn sound(
 /// (round below `tan t = 1`, pinched at π/4), where a pose leaning away
 /// touches the cylinder at the vertex alone and is left out.
 ///
-/// Two refusals are held as they stand:
-///
-/// - the plane touching the near rim at the vertex with the piece above
-///   round (phase π/2, tilt 0.4) refuses
-///   `Join(SingleSiteSectionLoop { count: 1 })`, where `split` builds
-///   the same pose
-///   (`work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`);
-/// - the result's quadrature reads its convergence in the band on some
-///   poses at some ε (`VolumeUnmeasured`;
-///   `work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`).
+/// One refusal is held as it stands: the plane touching the near rim at
+/// the vertex with the piece above round (phase π/2, tilt 0.4) refuses
+/// `Join(SingleSiteSectionLoop { count: 1 })`, where `split` builds the
+/// same pose
+/// (`work/secttail/a-plane-tangent-to-a-rim-at-its-wrap-edges-vertex-has-no-join-arm.md`).
 #[test]
 fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() {
     let band = 4.0 * tol().eps();
@@ -745,7 +740,6 @@ fn a_boolean_through_a_strut_vertex_keeps_one_face_where_the_piece_goes_round() 
                         {
                             Ok(())
                         }
-                        Err(BooleanError::VolumeUnmeasured { .. }) => Ok(()),
                         Err(e) if near && in_band(&e) => Ok(()),
                         Err(e) => Err(format!("the boolean: {e:?}")),
                     };
