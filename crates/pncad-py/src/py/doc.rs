@@ -1659,7 +1659,8 @@ impl Doc {
         py: Python<'_>,
         primitives: Vec<super::measure::MeasurePrimitive>,
     ) -> PyResult<Measured> {
-        let primitives: Vec<d::MeasurePrimitive> = primitives.into_iter().map(|p| p.0).collect();
+        let primitives: Vec<d::MeasurePrimitive<d::Operand>> =
+            primitives.into_iter().map(|p| p.inner).collect();
         let tol = Tol::witness();
         let mut action = d::Recording::start(&self.inner, tol);
         let measured = action
@@ -3343,7 +3344,7 @@ impl Node {
     #[staticmethod]
     fn measure(primitive: &super::measure::MeasurePrimitive) -> Self {
         Self {
-            inner: d::Node::measure(&primitive.0),
+            inner: d::Node::measure(&primitive.inner),
         }
     }
 

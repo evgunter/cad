@@ -33,7 +33,6 @@ use pncad::geom_core::Tol;
 
 use crate::common::{edited, inserted, len, row_of, scl, tempdir};
 use viewer::evalseam::EvalDone;
-use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
 use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
@@ -202,15 +201,16 @@ fn r1_open_then_save_reproduces_the_file_bytes_exactly() {
     );
 
     let reopened = docio::open(&first, tol).expect("the file opens");
-    docio::save_path(&second, &reopened, tol).expect("the reopened history saves");
+    let before = std::fs::read_to_string(&first).expect("first is readable");
+    // One document has one file in a folder, so the first goes before
+    // the second is written.
+    std::fs::remove_file(&first).expect("first is removable");
+    docio::save(&second, reopened.doc(), tol).expect("the reopened document saves");
     assert_eq!(
-        std::fs::read_to_string(&first).expect("first is readable"),
+        before,
         std::fs::read_to_string(&second).expect("second is readable"),
         "open -> save must be the identity on the file's bytes"
     );
-    // And the mid-path save recorded ONE edit (root snapshot + the
-    // path to the cursor), not the tree's two.
-    assert_eq!(reopened.path_edits().len(), 1);
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
@@ -478,34 +478,4 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
             other => panic!("expected Poisoned for {id:?}, got {other:?}"),
         }
     }
-}
-
-/// `History::replayed` puts the cursor at the log's END: the opened
-/// document is on its latest state, every logged edit is undoable, and
-/// nothing is redoable until an undo happens.
-#[test]
-fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
-    let tol = Tol::witness();
-    let (doc, _profile, extrude) = wedge(tol);
-    let edits = vec![
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: len(0.011).into(),
-            fresh: Vec::new(),
-        },
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: len(0.013).into(),
-            fresh: Vec::new(),
-        },
-    ];
-    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
-    assert!(!history.can_redo(), "the cursor opens at the tip");
-    assert!(history.can_undo());
-    assert!(history.undo().is_some());
-    assert!(history.undo().is_some());
-    assert!(!history.can_undo(), "two edits, two undos, then the root");
-    assert!(history.can_redo(), "and the walk back is available again");
 }

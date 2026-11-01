@@ -88,7 +88,8 @@ failure nor the offer appears until the assembly is opened again.
 (`xdg-desktop-portal` plus a frontend for your desktop) or a `zenity`
 binary. WSL distros ship neither. The app probes at startup: with
 confidently none (no `zenity` on PATH, no D-Bus session bus) the
-Open/Save As buttons are disabled with the reason as their tooltip.
+Open/Save As buttons, and Save for a document with no file yet, are
+disabled with the reason as their tooltip.
 `apt install zenity` (or a portal) fixes it, and the command-line
 document argument needs no dialog at all. The probe's portal arm is only
 a hint: a session bus *without* a working portal frontend still makes an
@@ -96,7 +97,8 @@ attempted dialog return the same silent nothing a cancel does (`rfd`
 cannot tell the two apart), so a plausibly-present backend that never
 shows a dialog reads as quiet cancels — install `zenity`.
 
-**Where the dialogs open.** Open… and Save As… start at the first of
+**Where the dialogs open.** Open…, Save As…, and Save for a document
+with no file yet, start at the first of
 three directories that still exists: the current document's, the one
 the last dialog returned a path in (kept in the preferences file as
 `[files] last_dir`), and the directory the viewer was launched from
@@ -135,6 +137,38 @@ that preference the manual equivalent is:
 WAYLAND_DISPLAY= cargo run -p viewer --features app
 ```
 
+## Driving it by label (scripted)
+
+`viewer::app::drive::Driver` is the whole app in an egui context with
+no window and no graphics device: it clicks, types, drags and presses
+keys the way a person at the window does, finds a control by the
+label painted on it, and reads the screen back as the text each frame
+painted and where. Everything but pixel painting is the real app —
+the viewport pane still folds the pointer into camera operations and
+ray picks — and `Driver::picture` paints too when asked: it renders
+the last frame offscreen, chrome and viewport, on a device the caller
+hands it (`drive::picture_device` opens the one the app would get).
+The `drive` example runs it from a script:
+
+```sh
+cargo run --release -p viewer --features app --example drive -- script.txt
+```
+
+```text
+click "Create"
+click "Box"
+dump
+picture shot.png
+```
+
+The command set is in the example's header. Two doors are not the
+window's: a driven app has no file dialog (Open… and Save As… are
+disabled as on a box with no chooser), so the script's `open` and
+`save` perform what those buttons end in; and it reads and writes a
+preferences file of its own, never the preferences of the person
+running it. It sits behind the crate's `test-support` feature, which
+`tests/` and the examples have and the shipped binary does not.
+
 ## Driving it with no display (headless)
 
 The whole application runs on a virtual X server with a software Vulkan
@@ -160,8 +194,8 @@ loaded`). `mesa-vulkan-drivers` supplies lavapipe, the software ICD wgpu
 lands on — **`WGPU_BACKEND=gl` is a dead end**, refusing with
 `CreateSurfaceError(Hal(FailedToCreateSurfaceForAnyBackend({})))`, while
 Vulkan needs no environment variable once the ICD is installed. Without
-`zenity` the chooser probe reports `Absent` and disables Open…/Save As…,
-so everything but the dialog still works. The `libEGL warning: DRI3
+`zenity` the chooser probe reports `Absent` and disables Open…/Save As…
+(and Save for a document with no file), so everything but the dialog still works. The `libEGL warning: DRI3
 error` lines on stderr are noise.
 
 **Build `--release`.** In a debug build tessellation and BVH index build
@@ -208,14 +242,23 @@ toolchain, `-Zbuild-std`, `wasm-bindgen-rayon`, or cross-origin
 isolation; the pinned stable toolchain builds it as it stands.
 
 **It has been built and linked, and nothing beyond that is verified** —
-no first light on real hardware. It is also not CI-guarded: the wasm32
-step excludes `viewer` (Toolkit and CI posture, below), so a dependency bump
-can break this build with every check green.
+no first light on real hardware. The per-PR gate does not link it:
+ci.yml's viewer row runs wasm32 clippy, which type-checks the entry
+point and stops there, so a dependency bump can break the link with
+every PR check green.
 
-Three things are known-absent by design:
+**A hosted copy** is published to GitHub Pages once a day by
+`.github/workflows/pages.yml`, built from main with the same command as
+`local-scripts/serve-wasm.sh`, at <https://evgunter.github.io/cad/>. That workflow is
+the one place the browser build is linked in CI, so a link break turns
+it red rather than the nightly. Pages serves over https, which is a
+secure context, so a browser with WebGPU gets the WebGPU path there,
+where the script's plain-http LAN server only ever reaches WebGL2.
 
-- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…
-  are disabled with their reason showing — the same posture a Linux box
+Four things are known-absent by design:
+
+- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…,
+  and Save for the startup document, are disabled with their reason showing — the same posture a Linux box
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
@@ -231,6 +274,12 @@ Three things are known-absent by design:
   horizontally at a 1280×800 design size. On a ~390 px viewport the
   four-pane dock is unusable; the panes scroll, which is not the same as
   fitting.
+- **No id-pass cross-check.** The GPU id pass reads its answer back
+  by waiting on the device, and a browser's WebGPU cannot be waited
+  on, so every query came back unanswered and its fault flickered the
+  toolbar's status line on every pointer move. The browser build asks
+  it nothing (`gpu::ID_PASS_ASKED`). Picking is the ray path's either
+  way; only the check that the GPU agrees with it is gone.
 
 **Evaluation runs on the main thread.** The seam takes
 `evalseam::InlineEvaluator` here instead of `ThreadEvaluator`, so a
@@ -356,12 +405,12 @@ gate's own header states the rest of its blind spots.
 
 ### The drivers
 
-**Two drivers, eleven modules — and the table counts MODULES.** The
+**Two drivers, twelve modules — and the table counts MODULES.** The
 rule above ratifies two drivers, `session` and `app`; the app driver is
-split for size across ten of the rows below (*The app driver, split for
-size*), so the roster is eleven rows long and always was. A reader who
+split for size across eleven of the rows below (*The app driver, split for
+size*), so the roster is twelve rows long. A reader who
 takes the two as a count over this table meets a contradiction, and the
-count that answers to it is **eleven**.
+count that answers to it is **twelve**.
 
 **This table is the roster**, not a summary of one:
 `viewer-module-kinds.sh` reads it, requires every module in it to
@@ -371,7 +420,7 @@ side of that pairing — the modules that declare the kind:
 
     rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src | wc -l
 
-which prints **11**, one per row below; drop the `| wc -l` and it names
+which prints **12**, one per row below; drop the `| wc -l` and it names
 them. That pairing is exactly what the gate holds the two sides to. So a new module OF the app driver is a row
 here plus its own header; a third DRIVER is an amendment to the rule
 above as well, and neither is a header edit alone.
@@ -380,6 +429,7 @@ above as well, and neither is a header edit alone.
 |---|---|
 | `session` | the session driver: owns `DocSession`, dispatches `SessionOp` |
 | `app` | the app driver: owns `ViewerApp`, drives the frame |
+| `app::drive` | the scripted driver: the whole app in a context with no window, driven by label (behind `test-support`) |
 | `pane` | the pane bodies' parent |
 | `pane::create` | the create pane |
 | `pane::features` | the feature-tree pane |
@@ -1031,7 +1081,7 @@ handing a policy's verdict to the wrong door does not build.
 provenance rule above is why rather than a reachability accident. It is
 probed once at startup and true for the whole run, so it is held state
 a reader consults — and the read is the disabled Open…/Save As…
-control with `platform::ChooserBackend::unusable`'s words as its
+(and path-less Save) control with `platform::ChooserBackend::unusable`'s words as its
 `on_disabled_hover_text`. A status route beside it once carried the
 same sentence as a `frame::Message` with `Subject::Document`, i.e. on
 the OUTCOME channel; no click could reach it, because one copy of
@@ -1049,9 +1099,10 @@ its own `Message` from `chooser.unusable()`, and a rule ranging over
 readers of the sentence would stay green under it. So the population is
 *every read of `ViewerApp::chooser`, this crate's only value of type
 `platform::ChooserBackend`*: one, in `ViewerApp::toolbar_ui`, consumed
-by the Open… and Save As… controls, each a `match` on `no_chooser` that
-draws the control disabled with the `Some`'s words as its reason or
-live on `None`, and nowhere else. No
+by the Open…, Save and Save As… controls, each a `match` on `no_chooser`
+(Save's beside the session's path, since a Save with a path puts up no
+dialog) that draws the control disabled with the `Some`'s words as its
+reason or live on `None`, and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
 the field — `platform::chooser_backend()` has one caller (the
@@ -1259,7 +1310,9 @@ pane, one module per pane; `widgets` holds the free helpers over
 `egui::Ui` that those panes share, and the one `app.rs` shares with them
 (`widgets::message`, below); and `gpu` holds the wgpu viewport
 renderer, which names `eframe::wgpu` and could not be a vocabulary
-under any reading. The table above is where that roster is kept.
+under any reading; and `app::drive` holds the whole app in a context
+with no window, fed pointer and key events and read back as the text
+it painted, for `tests/` and the `drive` example. The table above is where that roster is kept.
 
 **Splitting a driver across modules does not make the pieces
 vocabularies.** The test is a module's ROLE, not its size or its file:
@@ -1457,7 +1510,7 @@ is where the question of whether it should be broken at all is kept.
 ### Zoom to fit frames what is drawn
 
 Every fit — the toolbar's **Zoom to fit**, and the fits that startup
-and an open book through `pending_fit` — frames the **drawn extent**:
+and a replaced document book through `pending_fit` — frames the **drawn extent**:
 the world box around what the viewport hands the GPU as geometry on
 that frame. That is the scene's drawn corners (`SceneMesh::bounds`),
 every committed profile's loops and every drawn preview's loops
@@ -1717,10 +1770,10 @@ a commit that lands under a probe is pruned and reported (at the edit,
 and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
-free-move table is checked against the property rather than against a
-second copy of 46 rows (`replaces_the_document`, in
-`tests/gesture_table.rs`), and `perform` consults both tables in turn,
-value gesture first.
+free-move table is checked against the property
+(`SessionOp::replaces_the_document`, in `session/op.rs`) rather than
+against a second copy of its rows (`tests/gesture_table.rs`), and `perform` consults both
+tables in turn, value gesture first.
 
 `BeginFreeMove` is permitted by both tables and refused anyway, one
 layer down: `DisplayState::begin_free_move` answers a second begin off
@@ -2524,7 +2577,7 @@ is the same grammar over a different population.
 
 **A PRIVATE target links, but only if it is nameable, and the two are
 not the same test.** A private FIELD and a private METHOD resolve
-(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_prefs` are
+(`DocumentDerived::fit_delta` and `ViewerApp::remember_prefs` are
 both linked and both private), because rustdoc resolves an associated
 item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`

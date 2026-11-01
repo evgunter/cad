@@ -139,20 +139,18 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Ev's #213 layering ruling).** The consistency
-backstops — `volume_backstop` / `volume_backstop_operand` /
-`volume_backstop_violation`, inequalities between integral RESULTS
-(wrong-component detectors, never accuracy gates) — are outside the
-length seam by design: they decide on bare `T` through
-`k_stats::decide_invariant` (no `Margin` minted — not a door, not
-debt), keeping their predicate names and margin values byte-identical
-in the K stream, and a certified violation surfaces as the
-Corrupt-class `ResultVolumeImplausible` (which ends in the shared
-kernel-defect ending), separated in type and voice
-from every validity refusal. The former `per_boundary` door is renamed
-`over_lever` and re-scoped to the genuine geometric decisions
-(mean-width 2A/P, mean-thickness V/A containment, chart-orientation
-areas, the crossing advance).
+**The invariant lane (retired).** A consistency backstop between
+integral results once decided on bare `T` through
+`k_stats::decide_invariant` (Ev's #213 layering ruling). Its one member,
+the boolean's volume backstop, left the operation path when Ev made its
+relations a test oracle (`[ev]` PR 5780, PR 5842;
+`topo::test_support::VolumeOracle`), and `[ev]` PR 6161 retired the
+lane's DESIGN sentence; `decide_invariant` is deleted. Its three
+predicates (`volume_backstop`, `volume_backstop_operand`,
+`volume_backstop_violation`) are no longer decided. The former
+`per_boundary` door is renamed `over_lever` and re-scoped to the
+genuine geometric decisions (mean-width 2A/P, mean-thickness V/A
+containment, chart-orientation areas, the crossing advance).
 
 Factor conventions used throughout (verified against definitions):
 `Curve3::Line.dir` unit ⇒ line parameter is arc length (m);
@@ -175,8 +173,8 @@ and rewrote `split.rs`. Every figure reproduced at all three.)*
 
 **What is in scope.** K-REPORT's restated rule: a name is in scope if
 it reaches the `geom_core::k_stats` funnel *however it is spelled at
-the call site*. In these two crates that is ten spellings — `decide`,
-`decide_flagged`, `decide_invariant`, and the `check_residual` /
+the call site*. In these two crates that is nine spellings — `decide`,
+`decide_flagged`, and the `check_residual` /
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
@@ -216,7 +214,7 @@ roster"*) has a second edge here: **about thirty helpers in these two
 crates fix a name internally and have more than one caller** —
 `require_extent`, `require_rim_incidence`, `du_of_rims`,
 `classify_dihedral`, `enters_material`, `point_in_loop`,
-`volume_backstop`, `tangent_locus_relation` and the rest — so *"where a
+`tangent_locus_relation` and the rest — so *"where a
 decision is posed"* and *"where the funnel is called"* differ by a wide,
 convention-dependent margin. The roster is unharmed (every one of those
 names is a literal at the wrapper's own funnel call, so all are in the
@@ -258,7 +256,7 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 # The `_reported` doors and `check_unlogged` (the F18–F25 door, the
 # one-margin case of `unlogged`, F28's) are the same decisions keeping
 # their verdict or leaving the log.
-grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+grep -rnE '\b(decide|decide_reported|decide_flagged|decide_flagged_reported|decide_positive|decide_negative|decide_nonzero|decide_nonzero_reported|decide_magnitude|decide_magnitude_reported|check_unlogged|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u
@@ -452,6 +450,7 @@ which is what actually moves the number.
 | pcurve_cache.rs (fitted lane, `MapResidualHermite` statement) | pcurve_envelope_hermite | the sphere general-circle image's Hermite sup bound, re-derived by `certify_fitted` (m); refined to `ε/4` by `sphere_circle_image_lane`, so ε-coupled by construction and judged by `tools/k-lint`'s `CONSTRUCTION_COUPLED` | m | OK |
 | pcurve_cache.rs (chart derivation, M6-3) | pcurve_cone/sphere/torus_chart_axial / _centered / chart_radial_moving | axial displacement sums; radial-offset norms; Σ m-norms | m | OK (added by the clause-(i) migration) |
 | pcurve_cache.rs (chart derivation) | pcurve_chart_orientation / sphere/torus_chart_meridian | oriented area a×b·n̂ over its radius lever (m²/m) | m | OK (over_lever door; added by the clause-(i) migration) |
+| pcurve_cache.rs (chart derivation, CAVITYDIAG, `cylinder_rim_axial`) | pcurve_cylinder_chart_axial | a moving carrier's axial `cos t` and `sin t` terms on a cylinder's chart, `√(a² + b²)` (`harmonic_sup_scalar`; the terms are displacement components along the unit axis, metres) | m | OK (new in CAVITYDIAG; the cylinder's twin of the cone arm's `pcurve_cone_chart_axial`). Asked only where both terms are enclosures holding zero and not both exactly zero, so `f64` never reaches it; only a definite `Zero` writes them as zero, the rim's height then a constant; anything else keeps them as computed |
 | pcurve_cache.rs (chart derivation) | pcurve_cone_chart_nappe (h0/h data) | axial heights (m) | m | OK; the hs COSINE fallback is FLAG F13 |
 | pcurve_cache.rs (`spiric_chart_pcurve`, torus arm) | pcurve_spiric_chart_axis | `chart.axis · carrier.axis`, a cosine of unit vectors, levered at the chart's `major_radius` | m | OK (**`levered` door** — a dimensionless cosine is metered by MULTIPLYING an arm; `over_lever` divides a measure by one and is for an oriented area over a radius. Zero refuses — a torus whose axis is perpendicular to the carrier's is not the torus this spiric sections) |
 | pcurve_cache.rs (`spiric_chart_pcurve`, torus arm) | pcurve_spiric_mint_center | `‖chart.center − carrier.center‖`, bare (metres) | m | OK (decides the image's `WallTorus` tag: Zero is the carrier's own torus, either sign the mirror through the cutting plane. Not a certificate — check 1's `pcurve_spiric_chart_center` then gates the chart against the tagged torus, so a chart that is neither refuses there) |
@@ -580,11 +579,7 @@ which is what actually moves the number.
 | boolean/join.rs (`nearer_along`) | bool_join_foot_travel | a DIFFERENCE of two such parameters, metered by that speed: which partner's foot the germ reaches first | m | OK |
 | boolean/join.rs (`parallel_radical_plane`) | bool_join_cc_axis_offset | the axis-to-axis offset of a parallel cylinder pair, `‖Δ − a₁(Δ·a₁)‖` with `Δ` between the axes' feet at the germ sites (`parallel_axes_at`) and `a₁` unit — the radical plane normal's length before it is normalized (`UnitVec3::new`); only a definite offset names a plane | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/sectors.rs (`cone_side`, `arc_side`, `in_sector`, `apart`, `cone_read`) | bool_cone_arc / bool_cone_arc_span / bool_cone_within / bool_cone_facing / bool_cone_apart / bool_cone_pointed | a polygon cone's reading of a direction: `bool_cone_arc` is `det(d̂,p̂,b̂)` over `\|p̂×b̂\|/L_d + \|d̂×p̂\|/L_b + \|d̂×b̂\|/arm₀` — the least joint displacement of the direction's far point, the bound's far point and the reference levered at its arm that flips it (`least_lever`); `bool_cone_arc_span` the sine between `p` and that bound × the shorter of the two sectors' arms, which gates that plane's normal; `bool_cone_within` the sine of a direction past each of a sector's bound planes, and `bool_cone_facing` its cosine to the sector's middle, each levered at the least joint deviation of the points it reads (`least_lever`, `1/Σ(rate/L)`): the read point at its reach (the direction's, or for a crossing point the shorter of it and how well the point is located, `\|x\|·arm₀·L_d/(arm₀ + L_d)`) and each bound compared against at its own reach; `bool_cone_apart` the sine `(a×b)·n` of two of a sector's bounds, the direction and the reference, in that sector's plane, less eight ulp of rounding, levered at the least joint deviation of the two points at their reaches (the reference at its arm); `bool_cone_pointed` the length of the link's mean unit bound × the shortest sector arm, which gates reading `−c` | m | OK (TANG polygon cones) |
-| boolean/ops.rs (`bound_holds`, arm 2) | volume_backstop | ΔV over the summed area of the bodies the inequality compares — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
-| boolean/ops.rs (`Posture::read`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
-| boolean/ops.rs (`Posture::read`, the +V arm) | positive_volume / positive_volume_enclosure | V/A — tier 3's check-7 reading (`validate::plus_v_read`), shared | m | OK (one home with tier 3's check 7) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
@@ -623,7 +618,8 @@ which is what actually moves the number.
 | boolean/reduce.rs (`arc_chain_reaches`, `boundary_meets_circle_only_at`) | bool_arc_chain_on_circle / bool_arc_boundary_off_circle | a point's distance from a circle, `√(h² + (ρ − r)²)` (`arcs::circle_miss`): its height over the circle's plane and its axial distance minus the radius, both m | m | OK |
 | boolean/reduce.rs (`boundary_meets_circle_only_at`) | bool_arc_plane_side | a vertex's signed height over the circle's plane, `(p − c) · â` with `â` unit; a conic's own plane offset from it (`ConicPlaneMeet::Parallel`) | m | OK |
 | boolean/sectors.rs (`on_planar_face`, read by `runs_in` and `closed_reach`) | bool_germ_tie_plane | a point's signed height over a face's plane, `(p − o) · n̂` with `n̂` unit | m | OK |
-| boolean/sectors.rs (`runs_into`) | bool_sector_runs_into_bend | `(κ − κ_b)·û·l²/2`: an edge's and a sector bound's curvature vectors at the vertex, the edge tangent to the bound, across it into the sector, at the shorter reach `l` (`crescent`'s reading) | m | OK |
+| boolean/sectors.rs (`bend_parting`: read by `runs_into`, `crescent`, and fate.rs's `corner_holds`) | bool_sector_runs_into_bend / bool_sector_crescent / bool_fate_corner_bend / bool_fate_corner_bend_straddle | `(κ − κ_b)·û·l²/2`: two curvature vectors at a vertex where their curves leave along one tangent, across it toward the side read, at a length `l` the site sets: `runs_into` an edge against a sector bound, at the shorter of their exact reaches; `crescent` two sectors' bounds, at the shorter bound's reach; `corner_holds` a kept edge against a dropped face's corner bound, at the lever that bound's first-order side is read at, at both its bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_bend_straddle` | m | OK (one reading, one name per site: each is its own decision with its own lever, and a refusal's diagnosis and `k_stats` name the site) |
+| boolean/fate.rs (`corner_holds`, `tip_wraps`, through `sign_at`; `bisector` and `tip_wraps`' half-turn count, through `sign`) | bool_fate_corner / bool_fate_corner_straddle | `n̂ · (a × b)` and `a · b` of two unit directions at a fate cut's corner (the sine and cosine of their angle), levered at the shorter of their reaches (`sectors::reading_lever`), at both bounds where a reach is known only from both sides and their straddle under `bool_fate_corner_straddle`; a sector's bisector sum's length, and a loop's half-turn count against its corners', dimensionless, each levered at 1 m | m | OK |
 | boolean/reduce.rs (`sheets_part`) | bool_touch_sheets_part | `û · v̂` of two unit directions into two tangent faces at a touch of their boundaries (`stands::inward`, each about its face's outward normal), a cosine levered at the longer of the two faces' reaches from their edges (`wedge_reach`, m) | m | OK |
 | boolean/join.rs (`stands_on`) | bool_rim_face_opposed | `n̂ · n̂_f` of a closed rim's coplanar planar face and the face it meets at a boundary vertex, unit outward normals, a cosine levered at the rim face's reach from the rim (`wedge_reach`, m) | m | OK |
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); a pair `bool_faces_parallel` reads Zero is a near-coincidence and goes to the carrier ladder with every code On (its arm-setting bound reads On or in band) | m | OK |
@@ -675,12 +671,15 @@ which is what actually moves the number.
 | pcurves.rs (`joint_has_room`: `axis_distance`) | loop_windings_joint_room | `loop_windings`' room fence, per joint off the singular set: a quarter of the chord two of the joint's chart ends would span half the orbit's step apart, `sin(step/4)/2` (`sin(π/4)/2` on a sphere, `1/2` on a cylinder, cone or torus) × the ends' least distance from the axis, `d − 2ε` at the vertex's own `d` | m | OK (levered door). It is an escape claim on the conservative side: only a definite `Positive` admits, so the chord `2·(d − 2ε)·sin(step/4)` is past four times the band's escalation, `4·K·ε > 4ε`, the joint bound, at every `K > 1`: no two chart ends of the joint lie half a step apart, and the decided integer is the joint's own. A spline chart is exempt: its joints decided their lifted chart-space gap |
 | pcurves.rs (`turn_element`) | pcurve_turn_closes | a killed half's two vertex points' 3-D distance: whether its carrier is closed, so the kill crosses it by a turn | m | OK (`Margin::of` a distance; only a decided `Zero` reads the ends as one point, and the turn is then decided at that point by the walk's own joint decision, which takes the coincidence as given) |
 | pcurves.rs (`decide_joint`: `joint_arm`) | pcurve_loop_branch | (gap − (m+½)·step) × the joint vertex's distance from the chart axis (analytic; `step` the orbit's: half a period on a sphere, whose twin sits half a period over, a whole one elsewhere) or `chart_u_arm` (spline); the second channel where the chart closes in it: (gap − (k+½)·τ) × its polar radius on a sphere or torus, (gap − (k+½)·p_v) × `v_meter` (the net's `sup \|S_v\|`) on a net closed in `v`, `p_v` its knot domain's length | m | OK (`metered_sup` door, both channels: the analytic charts' exact vertex lever and polar radius serve as both members of the pair, a net's stretch as its sup). NOT by the escape argument: a mark decision is not an escape claim, and a larger arm decides marks more readily. It is sound because the arm is positive, so a decided sign is the sign of `gap − mark` itself, and the cell between two decided marks holds exactly one orbit point; the arm's size only sets how near a mark a gap may sit and still decide. Where the margin `step/2 × lever` exceeds the joint bound (the chart ends `≤ 4ε` apart in metres, `decide_joint`'s docs), the decided integer is the joint's true deck element. It does not everywhere the incidence reads `Off`: `Off` only puts the vertex `K·ε` from the singular set, so near a pole at a small `K` the lever is about `K·ε`, and near a narrow cone's apex it is `p·sin α`, small even at `K = 10`. There a mark may decide a different orbit point, but only one equally near the joint; every orbit point lifts the same 3-D point, so the lift stays continuous in metres to the joint bound. Where a mark misses there, the near-pole read (`pcurve_loop_pole_gap`) tries the orbit's offsets about the image and the two branches astride the mark the walk stopped on, and takes one the gap meets within ε at the lever; one in band escalates; only a gap decided off every offset it tries refuses (on a mark): with both branches astride the mark decided off, `π·lever ≥ escalate` and every other orbit point is at least `3π·lever − ε` off, so none is within the band, at any `K > 1`. No decided integer names a different point |
-| pcurves.rs | pcurve_loop_pole_joint | the joint vertex's distance to the chart's singular set (a sphere's nearer pole, a cone's apex), or a spline net's `u` reach (`net_reach`): its `u` knot domain's length × `sup \|S_u\|` (`Margin::metered_sup`), the metres a whole `u` sweep moves a point at most; the stretch alone is a rate (m per parameter unit) and is not compared with the band | m | OK |
+| pcurves.rs | pcurve_loop_pole_joint | a spline net's `u` reach (`net_reach`): its `u` knot domain's length × `sup \|S_u\|` (`Margin::metered_sup`), the metres a whole `u` sweep moves a point at most; the stretch alone is a rate (m per parameter unit) and is not compared with the band. An analytic chart's joint reads `chart_singularity_at_vertex` instead | m | OK |
+| chart_singularity.rs (`vertex_at_singular_point`) | chart_singularity_at_vertex | a vertex's stored point's 3-D distance to one singular point of its chart (a sphere's pole, a cone's apex): the one incidence reading, which `locate`'s at-vertex placement, the joint's reset (`singular_at`) and tier 3's wrap-tip rule read | m | OK (`Margin::of` a distance) |
 | pcurves.rs (`decide_joint`) | pcurve_loop_v_stretch | a spline net closed in `v`: its `v` reach (`net_reach`), the `v` knot domain's length × `sup \|S_v\|` (`v_meter`, `Margin::metered_sup`), the `v` companion of `pcurve_loop_pole_joint`'s net-level read; a reach decided past the band reads the `v` marks, one decided under it is `kv = 0` on an ordinary joint, one in band refuses the joint (`PcurveMintError::NetStretchUndecided`) | m | OK |
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_line_rim | a straight edge's carrier points at both ends and a quarter span in, against the chart's point at a candidate iso image's own parameter there: the largest of the three 3-D distances, for a `Line` carrier described as a chart image or a scaffold | m | OK (`Margin::of` a distance; only a decided `Zero` selects a candidate, and the full iso certification follows the selection; an escalation is deferred and answered only when no candidate holds) |
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_wall_seam | a seam's carrier points at both ends and a quarter span in, against the chart's point at a candidate image's own parameter there: the largest of the three 3-D distances, for a seam stated as an iso line in another chart. The label decides every candidate the wall-seam arm hands the boundary-iso schedule: the stated columns (each chart boundary and the column the start's foot names), the closed-form columns and rows, and the measured maps | m | OK (as `pcurve_iso_line_rim`: `Margin::of` a distance, only a decided `Zero` selects, an escalation is deferred and answered only when no candidate holds, and the full iso certification follows the selection) |
 | pcurves.rs (`iso_schedule`, which names the label) → geom-brep edge_nurbs.rs `probe_pick` | pcurve_iso_seam_column | as `pcurve_iso_line_rim`, for an `Intersection` or `OnPair` seam on a spline chart: the largest of the carrier's 3-D distances from the chart at a candidate column's or row's own parameter, at both ends and a quarter span in, over the closed-form columns and rows and the measured maps | m | OK (as `pcurve_iso_line_rim`) |
 | pcurves.rs (`net_closes`, for `chart_u_period` and `chart_v_period`; the name rides a `(name, pairs)` tuple) | pcurve_chart_u_closed / pcurve_chart_v_closed | `‖P_first − P_last‖`, each control point of the net's first boundary column (row) against the matching one of its last, bare | m | OK (only a decided `Zero` at every pair closes the channel; the weights the test does not compare, and the in-band fold, are `work/pcert/chart-u-period-folds-an-in-band-net-closure-into-no-period.md`'s, neither a dimension question) |
+| chart_singularity.rs (`spline_collapsed_row`, read by `spline_side_spans`; the one reading of a collapsed side: `pcurves::chart_side_bounds`, `section_cert`'s W1′, and the plane × spline door) | pcurve_chart_side_spans | `‖P_first − P_k‖`, the first control point of the net's row along a chart side against each other one, bare | m | OK (`Margin::of` a distance; only a decided `Positive` at some pair reads the side as spanning, and spanning is the side's condition to clear: a decided `Zero` or an escalation keeps it collapsed, the refusing side) |
+| pair_section/plane_spline.rs (`PlaneSplinePose::hull` and `door`) and plane_spline/sweep.rs (the regularity sweep, C5 stage 3) | section_nurbs_plane_coincident / section_nurbs_plane_pole / plane_spline_sweep_excluded / plane_spline_sweep_regular | the net's largest control-point height over the plane (`decide_magnitude`); each point of a collapsed side's row, its height over the plane; the plane's height over a cell on the accounting's first-order box, over the normal's length; the wall's slope off the plane along `u` or `v` over a cell, `n·S_d / (‖n‖·sup‖S_d‖)`, levered by the feature extent | m | OK (heights are lengths; the slope is a sine levered by the extent, as `ssi_transversality` is) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK (metered door; the rate is an `InfSpeed` on every kind — the three closed forms by being exact, the net by `speed_lower_bound`'s derivation — which is what an interiority claim needs) |
 | `geom-core` `linalg/rigid_motion.rs` (`RigidMotion::check_rigid`, the decided door a raw map is admitted at; a motion minted by construction asks none; the translation's finiteness is `Real::is_bounded`, as at the mints, and not a band decision) | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
 | validate.rs:1662/1847 | planar_face/boundary_residual | plane residuals | m | OK |
@@ -690,6 +689,7 @@ which is what actually moves the number.
 | sector_shape.rs (the three rungs) | sector_arm / sector_reflex / sector_straight | arm = shorter bounding chord (m); sin/cos × arm | m | OK — ONE implementation since the S5 sector-predicate unit, and since #652 ONE name set: the former `bool_sector_*` / `split_sector_*` pairs were the same computation on the same quantity, which is why this was already one row |
 | sector_shape.rs (`apex_shape`) | sector_apex_tilt / sector_apex_window | `sin α·‖n_r‖` levered by the arm (m): how far the plane's side varies round a cone's apex rulings; `2 sin α·sin(Δφ/2)` levered by the arm (m): the chord between two rulings' points a lever out, the window's width and an extremal ruling's distance in from each bound | m | OK (SPLITDOOR) |
 | face_normal.rs (`cone_point`) | cone_off_axis / cone_at_apex | a point's distance off a cone's axis, and from its apex (m), through `Margin::norm3` | m | OK (SPLITDOOR; `cone_off_axis` was `bool_cone_off_axis`) |
+| face_normal.rs (`face_outward_normal_at_foot`) | foot_off_locus | a point's distance off a cylinder's axis or from a sphere's centre (`Margin::norm3`), and its height over a cone's apex plane along the axis (`Margin::of`), in m | m | OK (CLEAVE) |
 | splitting/classify.rs:81–286 | split_vertex_side / conic lane | plane residual; rooted amplitude; (rad)×minor semi-axis | m | OK |
 | splitting/classify.rs `reach_clears` | split_gate_box_side | an unarmed entity's reach, read in the plane's own frame, against the plane: its gap from the plane's offset along the unit normal, less the sweep pad (metres) | m | OK |
 | boolean/boxes.rs `sphere_window` | bool_box_sphere_axis | a sphere's polar axis, read as a unit direction (`UnitVec3::new`'s own length decision) | m | OK |
@@ -762,9 +762,7 @@ which is what actually moves the number.
 | ring_path.rs (`path_parity`) | split_ring_path_line_across | `m̂·d̂` (the cosine between a circle piece's plane normal and a loop ruling), levered at the piece's radius | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_rulings_apart | `‖ê × d̂‖` (the sine between a segment's ruling and a loop ruling), levered at the segment's distance from the apex, shrunk toward zero by each direction's rounding: the coordinates' resolution over that distance and over the loop ruling's length (`charge`, `resolution`) | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_in_span | a crossing's distance to a span end (a circle's parameter levered at its radius, a conic's at its minor semi-axis, a line's length) times the slope `\|n̂·τ̂\|` the piece crosses the other's plane at: the carrier displacement that moves the root past the end, shrunk toward zero by the coordinates' resolution (`charge`, `resolution`: `slack / arm` in the parameter); a crossing any of whose readings is decided out of span is passed over, even where another escalates | m | OK (TANG) |
-| chord_join.rs (`chart_ring_side`, `run_window_over`) | split_ring_chart_window | the run's azimuth hull against one turn through the turn rule (`Period::turn`'s row) at `Exact(radius)`; `Over` refuses | m | OK |
-| chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_azimuth | azimuth difference (rad) levered at the radius | m | OK (cylinder only; a sphere or a cone reads `path_ring_side`) |
-| chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_height | axial height difference, bare | m | OK |
+| chord_join.rs (`chart_ring_side`, retired) | split_ring_chart_window, split_ring_chart_ray_azimuth, split_ring_chart_ray_height (retired: a cylinder face re-homes its rings by a path, `path_ring_side`, read by the `split_ring_path_*` rows) | — | — | retired |
 | chord_join.rs (`run_azimuth_images`' ring re-homing) | split_chart_azimuth_frame (retired: the read goes through `geom_brep::Azimuth::principal`, decided as `pcurve_chart_cut_side`) | — | — | retired |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
@@ -797,10 +795,12 @@ which is what actually moves the number.
 | cell_region.rs (CHART) | cell_region_ball_gap | the distance from the station to the ball a spiric or spline edge's arc lies in (`splitting::containment::carrier_ball`), less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | cell_region.rs (CHART) | cell_region_singular_gap | the distance from the station to the carrier's singular set: a cone's apex, a torus's axis, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | injective.rs (SELFX, `by_kind`) | self_intersection_ring_torus | `R − r`, the torus's major radius less its minor radius | m | OK (new in SELFX). Only a definite `Positive` discharges the face by kind; anything else refuses `TorusNotRing` |
-| injective.rs (SELFX, `is_zero`, read by `sign_on`) | self_intersection_on_shared | a presented side's (or corner's) separator value, a signed distance (below), in its centred form over the side; on a curved side (CURVEDEP), a bound of it along the curve: the linear separator's value in `{1, cos t, sin t}` coefficients, a quadric carrier's squared form `Q = ψ·D` over a lower bound of `D` (`r`, or `ν·h·sin α` on a cone), the graph separator's Lipschitz bound times the side's distance from the edge's carrier plus its overhang past the graph's piece | m | OK (new in SELFX). Only a definite `Zero` reads the side as lying on the separator; anything else fails the arm |
-| injective.rs (SELFX, `present_chart`) | self_intersection_sliver | a rectangle clipped to a shared line: its extent across, `Δ × sup \|S_∂\|` (`rect_jet`'s enclosure of the partial, so a metred sup) | m | OK (new in SELFX's fix pass, split off `self_intersection_on_shared`, which decided this and the side value under one name). Only a definite `Zero` reads the strip as holding no point of the face off the line, and only once the rectangle's sides and corners are proven the face's own — one of the presentation's ε concessions, stated at the site and listed in `injective.rs`'s module docs |
+| injective.rs (SELFX, `is_zero`, read by `sign_on`) | self_intersection_on_shared | a presented side's (or corner's) separator value, a signed distance (below), in its centred form over the side; on a curved side (CURVEDEP), a bound of it along the curve: the linear separator's value in `{1, cos t, sin t}` coefficients, a quadric carrier's squared form `Q = ψ·D` over a lower bound of `D` (`r`, or `ν·h·sin α` on a cone), the graph separator's Lipschitz bound times the side's distance from the edge's carrier plus its overhang past the graph's piece; on a spiric's wall image (SPIRIC), the linear separator's value along the torus's image of the chart curve in `{1, f(t), cos t, sin t}` coefficients, the torus's drift from the carrier's radii carried as a closed-form term over `ρ = R + r·cos t` | m | OK (new in SELFX). Only a definite `Zero` reads the side as lying on the separator; anything else fails the arm |
+| injective.rs (SELFX, `present_chart`; SPIRIC, `present_line_corner`) | self_intersection_sliver | a rectangle clipped to a shared line: its extent across, `Δ × sup \|S_∂\|` (`rect_jet`'s enclosure of the partial, so a metred sup) | m | OK (new in SELFX's fix pass, split off `self_intersection_on_shared`, which decided this and the side value under one name). Only a definite `Zero` reads the strip as holding no point of the face off the line, and only once the rectangle's sides and corners are proven the face's own — one of the presentation's ε concessions, stated at the site and listed in `injective.rs`'s module docs |
 | injective.rs (SELFX, `sign_on`) | self_intersection_departure | the separator `ψ`, a signed distance in metres (`n̂·(p − q)` with `n̂` a unit normal; a cylinder's `ρ − r`; a sphere's `\|p − c\| − r`; a cone's `ρ·cos α − h·sin α`; the graph arm's `h − γ̃(s)`), as its centred form over the rectangle, or its derivative across a shared side (m per chart unit) times the rectangle's extent across it (chart units) | m | OK (new in SELFX). Only a definite `Positive`/`Negative` certifies; `Zero`, in-band and poison fail the arm and the pair splits |
 | injective.rs (CURVEDEP, `present_curved`) | self_intersection_column | a curved edge's chart curve read as a graph over a chart axis: its advance along that axis over one piece of its parameters (chart units), times `sup \|S_axis\|` over the cell (`rect_jet`'s enclosure, m per chart unit) | m | OK (new in CURVEDEP). Only a definite sign, the same over every piece of the run, reads the curve as a graph over that axis; anything else leaves the cell unpresented and the pair splits |
+| injective.rs (CORNER, `leaves_graph`, `leaves_line`) | self_intersection_corner_departs | a curved corner's other edge leaving the edge read through the vertex, toward that edge's face side: off a curve read as a graph, the edge's height over the graph's rate along it, `(d_b·τ_a − d_a·τ_b)·sign τ_a` (chart units per parameter, `d` the edge's chart direction scaled to unit length), times the columns' parameter span and `max sup \|S_axis\|` over the rectangle (`rect_jet`'s enclosure, m per chart unit); off a coordinate line, the other curve's rate on the held axis over one of its pieces, times the piece's width and `sup \|S_held\|` | m | OK (new in CORNER). Only a definite `Positive` reads the corner convex; a definite `Negative` at the vertex is a reflex corner, which no presentation reads (`Structural`); anything else leaves the cell unpresented and the pair splits |
+| injective.rs (CORNER, `on_vertex`) | self_intersection_corner_vertex | the chart distance between a corner's other edge's end and the read edge's point at the vertex, `√((Δu·sup \|S_u\|)² + (Δv·sup \|S_v\|)²)` (`rect_jet`'s enclosure over the rectangle, exact on a plane's or a cylinder's constant-speed chart) | m | OK (new in CORNER). Only a definite `Zero` reads the two as one point — the presentation's vertex ε concession, stated at the site and listed in `injective.rs`'s module docs; anything else leaves the cell unpresented and the pair splits |
 | injective.rs (SELFX, `graph_of`) | self_intersection_graph | `t̂·C′` over the edge's piece (m per parameter unit) times the piece's parameter span: how far the edge advances along the projection's first axis | m | OK (new in SELFX). Only a definite `Positive` admits the graph |
 | injective.rs (SELFX, `present_plane`) | self_intersection_span | how far inside a line edge's two ends the cell's extent stays: the fraction's distance from the ends (dimensionless) times the edge's length | m | OK (new in SELFX). Only a definite `Positive` presents the rectangle |
 | injective.rs (SELFX, `present_plane`) | self_intersection_corner | the far end of one edge's offset from the other edge's line, `n·w/\|n\|` in the plane's chart (chart units are metres on a plane) | m | OK (new in SELFX). Only a definite `Positive` reads the corner convex |
@@ -863,8 +863,9 @@ which is what actually moves the number.
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates
-now route through `k_stats::decide` under `volume_backstop_operand`,
-`volume_backstop` and `volume_backstop_violation`). **This audit's
+routed through `k_stats::decide` under `volume_backstop_operand`,
+`volume_backstop` and `volume_backstop_violation`, and have since left
+the operation path with the backstop). **This audit's
 scope — geom-brep and topo — has no funnel bypass left:** every
 shipped decision in the two crates goes through `k_stats::decide`, so
 every margin the recorder sees is attributed to the predicate that
@@ -980,7 +981,12 @@ speculative — each row below states what it measured):
   its predecessors. Pinned end-to-end by
   `ops::tests::volume_backstop_refuses_a_wrong_component_hidden_by_a_large_area`
   (verified red with the sign arm removed) and at band level by the
-  adopted `tests/probe_f34_review.rs`.
+  adopted `tests/probe_f34_review.rs`. The backstop has since left the
+  operation path (`[ev]` PR 5780), and those pins with it. The test
+  oracle that replaced it forgives any wrong volume up to ε·(area A +
+  area B), so it flags the plate's 3 mm cube at 1e-9 and 1e-12 and not
+  at 1e-6 (`test_support_volume`'s module docs; its
+  `the_slack_is_eps_over_the_operands_boundary` pins the slack).
 - **F4** `bool_ring_run_winding` (one predicate, three sites — the
   boolean join's ring lane, the merge's role assigner, tier 3's check
   6 — and one arithmetic home, `crate::loop_winding`, which all three
@@ -1284,7 +1290,9 @@ Flagged, NOT fixed here (dispositions):
 - **F22** (added by PATHS' sketch-plane frame unit)
   `geom-core/src/linalg/rigid_motion.rs` `RigidMotion::turned_between`,
   under the caller's site name (`sweep`'s `sweep_path_turn`, a path
-  sweep's turn from the start tangent onto a station's): `1 + a·b`,
+  sweep's step turn from station `i`'s tangent mirrored in the chord
+  onto station `i + 1`'s, the second reflection of the double
+  reflection, `crates/sweep/README.md` `[sweep.frame]`): `1 + a·b`,
   the scalar part of the quaternion `(1 + a·b, a × b)` whose matrix
   the turn is, for `a`, `b` direction witnesses, evaluated as
   `|a + b|²/2`. Dimensionless — a defect of the pair, zero exactly when
@@ -1293,7 +1301,7 @@ Flagged, NOT fixed here (dispositions):
   own (it acts on the section, whose extent is the caller's). The
   margin is where the turn stops being THE minimal rotation, so the
   decision sits on that rather than on an axis `a × b`, which would
-  escalate on a nearly straight path where any axis serves. It is not
+  escalate on a nearly straight step where any axis serves. It is not
   also a conditioning threshold: the quaternion matrix is orthogonal to
   rounding at every angle, and with both parts evaluated through
   `a + b` it carries `a` onto `b` to a few ulps at every margin the

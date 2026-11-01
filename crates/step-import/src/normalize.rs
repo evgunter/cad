@@ -239,6 +239,7 @@ pub(crate) fn normalize_shell(
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
+    crate::knot_split::split_c0_knots(solid, eps_in, mint, sink)?;
     band_seam(solid, eps_in, chart_band, mint, sink)?;
     // The walls' orientation is read first: an inverted cone wall holds
     // its apex on the side its bit claims, and is refused as inverted,

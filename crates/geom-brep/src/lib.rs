@@ -56,6 +56,8 @@
 mod carrier_net;
 pub mod carrier_resolution;
 pub mod certify;
+pub mod chart_image;
+pub mod chart_singularity;
 pub mod conic_bend;
 pub mod curve_face;
 pub mod curve_pair;
@@ -125,8 +127,8 @@ pub use dihedral::{
     must_carry_over_edge, reask_chart, reask_pair, second_order_walk, tangent_second_order,
 };
 pub use dihedral_side::{
-    CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace, SideRole,
-    chart_normal_at, dihedral_side, regular_jet,
+    ChartPointRefusal, CreaseReading, EdgeHalf, EdgeWalk, FaceSide, SideEscalation, SideFace,
+    SideRole, chart_normal_at, chart_point_normal, dihedral_side, regular_jet,
 };
 pub use edge_nurbs::{
     AnalyticRung3Refusal, ArcRimRefusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault,
@@ -190,11 +192,13 @@ pub use offset_fit::{
     certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use offset_fit_lane::{OFFSET_FIT_DOOR_HOLDERS, OffsetFitLane, ScalarList};
+pub use offset_meters::ChartArmRefusal;
 pub use pair_section::{
-    AxisPose, CarriedComponent, CarriedSection, CarryError, ClassCarrier, Coincident,
-    ComponentShape, Components, CsDecision, CsStance, CtStance, CylinderSpherePose,
-    CylinderTorusPose, FittedCarrier, Gap, PairPose, PairSection, PoseRefusal, Ring, Seated,
-    SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
+    AxisPose, CarriedComponent, CarriedSection, CarryError, CcDecision, CcNode, CcStance,
+    ChartReach, ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, CsDecision,
+    CsStance, CtStance, CylinderCylinderPose, CylinderSpherePose, CylinderTorusPose, FittedCarrier,
+    Gap, PairPose, PairSection, PlaneSplinePose, PoseRefusal, Reached, RegionPlacement, Ring,
+    Seated, SectionComponent, SectionDecision, SectionRead, SiteFoot, SiteRefusal, SphereTorusPose,
     SquareWall, SsiLane, StStance, TT_COINCIDENT, TT_COINCIDENT_FLOOR, TorusCoincidence, TorusData,
     TorusDatum, TorusDisplacement, TorusGap, TorusPoseRefusal, TorusQuestion, TorusTorusPose,
     TtStance, Turn, Winding, WindsRefusal, ZeroKind, ZeroVerdict, axis_pose, line_tilt,

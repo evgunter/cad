@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-10
 priority: P1
 cost: H
-design: true
 refs: [torus-germ-pairs-have-no-section-frame, cone-pairs-in-general-pose-have-no-section-arm]
 ---
 
@@ -41,3 +40,28 @@ reads, but a general-pose cone section is a quartic: it can have several
 loops and unbounded branches, and an apex the frame would have to keep
 off every loop. Past a frame, each pair meets the lane door, as the torus
 pairs do (`torus-germ-pairs-have-no-section-frame`).
+
+## Decided (2026-10-31, Ev on `[ev]` PR 6127; fork row 224)
+
+A cone pair's pose is the ruling sweep `section_cert/ruling.rs` already
+runs, moved into the pose:
+- the discriminant along one carrier's rulings counts the components and
+  flags open branches;
+- its double root is decided as a tangency rather than refused;
+- the apex is a closed-form margin.
+
+The region and the open and node ends are the same as the cylinder pair's
+(`skew-cylinder-germ-pair-has-no-section-frame`, `## Decided`).
+
+The classification does not wait on the cone's metres conversion. The
+march does, on SECTRUNG's `cone-torus-rung-three-arm-waits-on-the-cone`.
+
+Build-time item: a Zero double root needs an upper clearance bound at the
+root, since the sweep's residual is a lower bound.
+
+## Note (2026-10-31, the cylinder unit's phase 0)
+
+`section_cert::Reach`, the face-pair extent 6127 retires, also serves
+`cone_pair`, `torus_pair` and the square and cone searches. The cylinder unit
+removes only the cylinder use. The rest is rebased onto the operation region,
+or retired, by this row's build.

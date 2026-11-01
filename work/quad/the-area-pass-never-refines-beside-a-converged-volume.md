@@ -14,7 +14,7 @@ Found off-question by a designer weighing `quad2-rational-max-rounds-dial-decisi
 
 The reporting target meters the FLUX only. In `crates/geom-brep/src/props/quad/`,
 the area pass of the patch lanes runs at a fixed resolution
-(`AREA_CELLS_PER_AXIS`) and never refines with the rounds. Measured on the
+(`AREA_CELLS_PER_SPAN`) and never refines with the rounds. Measured on the
 quarter torus: the area bracket is 0.47 m² wide (about ±2.4% of π² m²) on every
 round, and it is reported beside a volume the lane calls converged. `area_pad`
 is honest about the width; the "converged" label is not a statement about the
@@ -32,7 +32,7 @@ Still holds. The fork this row waited on,
 `quad2-rational-max-rounds-dial-decision`, is closed, and the measure
 door answered it with a bracket (PR 5741, `MassMeasurement`). The
 area half stands. The patch lanes still take their area once at
-`AREA_CELLS_PER_AXIS` (`crates/geom-brep/src/props/quad/area.rs:17`;
+`AREA_CELLS_PER_SPAN` (`crates/geom-brep/src/props/quad/area.rs`;
 `rational.rs:457`, `patch.rs:266`), before and outside the round loop.
 The label half is now `Stop::Met`, "every face met the resolution"
 (`crates/topo/src/props/settle.rs:99`). The resolution is compared on

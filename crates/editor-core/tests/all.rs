@@ -858,6 +858,10 @@ mod intent_s5_c_quietable;
 mod intent_s6_c_trace;
 #[path = "intent_s6_d_tangency.rs"]
 mod intent_s6_d_tangency;
+#[path = "intent_s6_e_traced_frame.rs"]
+mod intent_s6_e_traced_frame;
+#[path = "intent_unused_check.rs"]
+mod intent_unused_check;
 #[path = "intent_value_chart_orientation.rs"]
 mod intent_value_chart_orientation;
 #[path = "intent_vars_2_table.rs"]
@@ -876,3 +880,5 @@ mod union_flush_fuses;
 mod union_member_orders_decide_alike;
 #[path = "value_chart_sweeps.rs"]
 mod value_chart_sweeps;
+#[path = "vessel_cavity_interval.rs"]
+mod vessel_cavity_interval;

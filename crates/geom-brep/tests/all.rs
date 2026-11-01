@@ -80,6 +80,10 @@ mod cert5_arm_and_cells;
 mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
+#[path = "chart_singularity_locate.rs"]
+mod chart_singularity_locate;
+#[path = "chart_singularity_sweep.rs"]
+mod chart_singularity_sweep;
 #[path = "closed_form_limb2.rs"]
 mod closed_form_limb2;
 
@@ -95,6 +99,8 @@ mod coplanar_ellipses_one_locus;
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
 mod cylinder_green_conditioning;
+#[path = "cylinder_pair_section.rs"]
+mod cylinder_pair_section;
 #[path = "d290_r2_e2e.rs"]
 mod d290_r2_e2e;
 #[path = "decoration_plane_mint.rs"]
@@ -135,6 +141,8 @@ mod m5_pr9_tangent;
 mod m7_8_plane_nurbs_edge;
 #[path = "m8_f67_r1_probes.rs"]
 mod m8_f67_r1_probes;
+#[path = "marched_windings.rs"]
+mod marched_windings;
 #[path = "offa_r1_probes.rs"]
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
@@ -230,6 +238,12 @@ mod r1_pxn_probes;
 mod r2_cert3_e2e;
 #[path = "review_4553_pxn_probes.rs"]
 mod review_4553_pxn_probes;
+#[path = "review_6092_delta_probes.rs"]
+mod review_6092_delta_probes;
+#[path = "review_6092_probes.rs"]
+mod review_6092_probes;
+#[path = "review_6092_r2_probes.rs"]
+mod review_6092_r2_probes;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]

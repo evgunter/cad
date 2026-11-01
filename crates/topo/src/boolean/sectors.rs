@@ -946,6 +946,10 @@ pub(super) enum PierceLever<T: geom_core::Real> {
     Everywhere(T),
     /// A cone's `ρ` at the pierce point.
     ConeAt(T),
+    /// A bound on every bend within this radius of the pierce point (a
+    /// spline chart's certified arm, [`geom_brep::NurbsLane::chart_arm`]),
+    /// which no charge reads past: it reads at most half its lever.
+    Within(T),
 }
 
 impl<T: Decide> PierceLever<T> {
@@ -961,7 +965,7 @@ impl<T: Decide> PierceLever<T> {
     /// The lever for a bound reaching `reach` from the pierce point.
     pub(super) fn within(self, reach: T) -> T {
         match self {
-            Self::Everywhere(lever) => lever,
+            Self::Everywhere(lever) | Self::Within(lever) => lever,
             Self::ConeAt(rho) => (rho - reach).max(rho * T::from_f64(2.0 / 3.0)),
         }
     }
@@ -1956,15 +1960,28 @@ pub(super) fn faces_at<T: Decide>(
     Ok(out)
 }
 
+/// **How far a curve leaving a vertex stands past another it leaves
+/// tangent to, one order down**, at arc length `l` along their shared
+/// tangent: `(κ − κ_b)·û·l²/2`, with `κ` and `κ_b` the two curvature
+/// vectors and `û` the unit in-plane direction square to the tangent
+/// toward the side read. Positive where the curve with `κ` stands past
+/// the one with `κ_b` toward `û`. Its sign does not depend on `l`, which
+/// sets only the size the margin is decided at.
+pub(super) fn bend_parting<T: geom_core::Real>(
+    (k, kb): (Vec3<T>, Vec3<T>),
+    u: Vec3<T>,
+    l: T,
+) -> Margin<T> {
+    Margin::of((k - kb).dot(u) * l.powi(2) / (T::one() + T::one()))
+}
+
 /// **Whether an edge leaving the vertex along `dir`, coplanar with `s`,
 /// runs into its face**: within the sector and along neither of its
 /// bounds that is an edge of the face, or, along one of them, bending
-/// into the face off it one order down. Along a bound `d̂`, with `û`
-/// the unit in-plane direction square to it into `s`, the edge stands
-/// `κ·û·l²/2` off the tangent line at arc length `l` and the bound
-/// `κ_b·û·l²/2`, so the edge enters the face iff `(κ − κ_b)·û > 0`
-/// ([`crescent`]'s reading, decided at the shorter reach). A bound or an
-/// edge with no bend to read (a fitted edge, a bisector) reads no entry.
+/// into the face off it one order down: along a bound, the edge enters
+/// the face where it stands past the bound toward `s`
+/// ([`bend_parting`], decided at the shorter reach). A bound or an edge
+/// with no bend to read (a fitted edge, a bisector) reads no entry.
 pub(super) fn runs_into<T: Decide>(
     s: &BoolSector<T>,
     (dir, reach): (Vec3<T>, Reach<T>),
@@ -1997,10 +2014,9 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let l = l.min(lb);
-        let entered = (k - kb).dot(u) * l.powi(2) / (T::one() + T::one());
+        let entered = bend_parting((k, kb), u, l.min(lb));
         return Ok(
-            decide("bool_sector_runs_into_bend", Margin::of(entered), band).map_err(|diag| {
+            decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
             })? == Sign::Positive,
         );
@@ -2155,15 +2171,14 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
 
 /// **Whether two coplanar sectors that share one bound direction, from
 /// opposite sides of it, overlap past it one order down**: the crescent
-/// between two curves tangent at the vertex. Let `d̂` be the shared
-/// direction and `û` the unit in-plane direction square to it into `a`.
-/// At arc length `s` along `d̂`, `a`'s bound stands `κ_a·û·s²/2 + O(s³)`
-/// off the tangent line toward `û`, with `a` on the `û` side of it, and
-/// `b`'s bound `κ_b·û·s²/2 + O(s³)`, with `b` on the other side; so the
-/// two overlap from the vertex iff `(κ_b − κ_a)·û > 0`. A line edge
-/// bends by zero, so two line edges read none; a fitted edge or a
-/// bisector reads no bend, and a pair holding one reads no crescent.
-/// Equal bends (one circle bounding both) read none.
+/// between two curves tangent at the vertex. With `a` on the side of
+/// its bound toward `û`, the unit in-plane direction square to the
+/// shared direction into `a`, and `b` on the other side of its own, the
+/// two overlap from the vertex where `b`'s bound stands past `a`'s
+/// toward `û` ([`bend_parting`]). A line edge bends by zero, so two line
+/// edges read none; a fitted edge or a bisector reads no bend, and a
+/// pair holding one reads no crescent. Equal bends (one circle bounding
+/// both) read none.
 ///
 /// The shared direction is read at the sector arm, no longer than the
 /// bounds' own reaches [`pair_search`] read the pair touching at. Two
@@ -2241,10 +2256,8 @@ fn crescent<T: Decide>(
             {
                 continue;
             }
-            let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
-            if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
-                == Sign::Positive
-            {
+            let opened = bend_parting((kb, ka), u, l);
+            if decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive {
                 return Ok(true);
             }
         }

@@ -55,6 +55,10 @@ mod common;
 mod a_certified_body_measures_only_itself;
 #[path = "a_conic_quarter_torus_measures_a_bracket_at_the_wall.rs"]
 mod a_conic_quarter_torus_measures_a_bracket_at_the_wall;
+#[path = "a_foreign_carrier_splits_at_each_c0_knot.rs"]
+mod a_foreign_carrier_splits_at_each_c0_knot;
+#[path = "a_line_beside_a_straight_spline_joins.rs"]
+mod a_line_beside_a_straight_spline_joins;
 #[path = "an_off_iso_line_on_a_spline_wall_imports_its_general_row.rs"]
 mod an_off_iso_line_on_a_spline_wall_imports_its_general_row;
 #[path = "cert1_r1_import_probes.rs"]

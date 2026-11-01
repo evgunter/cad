@@ -2,10 +2,13 @@
 id: the-walk-order-is-spelled-twice
 kind: issue
 title: The order along a section conic is spelled twice: the boolean's partner ranking reads the side of an axis plane, the split's conic_pairs a parameter walk
-status: open
+status: closed
 opened: 2026-10-03
 priority: P1
 cost: M
+pr: 6126
+branch: sectarms/walk-order-held
+closed: 2026-10-31
 ---
 
 
@@ -49,3 +52,13 @@ through `sort_along`'s arc-length gap. The two are still not held
 against each other. `turned_past`'s decisions also clear a slack of
 `2ε cot ψ` for sites off the conic (`travel`), which the split's walk
 does not read.
+
+## 2026-10-31 — held by a row (PR 6126)
+
+`crates/topo/src/boolean/join_walk_order_rows.rs` feeds one set of
+sites on a tilted ellipse on a cylinder and a circle on a sphere to the
+split's `conic_pairs` walk and the boolean's `nearer_along` turn
+ranking, each conic walked both ways, and asserts one cyclic order. On
+the circle, also the coaxial cylinder × sphere section the table
+carries, it holds the carried lane's `along_facing` foot order too; no
+pair the table carries is an ellipse.

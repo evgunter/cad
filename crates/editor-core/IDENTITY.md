@@ -132,16 +132,18 @@ save the store can serve. Two acts, both typed:
   when the target directory already holds this id under another filename —
   the store's own scan answers that before anything is written. No
   warning-then-continue.
-- **Save as a new document** forks: a new `Doc` value with a freshly minted
-  id (derived from a name as `NewDocument` does, or random through the
-  workspace door) and the same content, a fresh history rooted at it, and the
-  resolver rebound to the path's directory. Inbound `DocRef`s to the old id
-  do not follow, which is what a fork means.
+- **Save as a new document** forks: the same content under a fresh random
+  id, written at the file name the person chose in the target directory's
+  store, and the resolver rebound to that directory. The session's history
+  is re-identified under the new id as one operation, so an undo after a
+  fork never returns the session to the original's identity. Inbound
+  `DocRef`s to the old id do not follow, which is what a fork means.
 
 *Built at the workspace door, `crates/pncad/src/workspace.rs`:
 `Workspace::save_at`, refusing `WorkspaceError::SaveWouldDuplicateId { id,
-existing, requested }`, and `Workspace::save_as_new_document`, with a random
-id.*
+existing, requested }` (and `SaveWouldReplaceDocument { id, path }` for a
+target holding another document), and `Workspace::save_as_new_document`,
+with a random id at the chosen target.*
 
 ## DI5 — A free-move frame belongs to the space it was drawn for
 

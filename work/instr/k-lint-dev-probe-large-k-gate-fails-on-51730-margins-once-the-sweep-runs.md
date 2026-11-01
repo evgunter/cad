@@ -107,3 +107,21 @@ k-eps-1e-9.csv: 38717 flagged — rule 1 (undecided/invalid): 14820, rule 2 (nea
 These total 52,769, more than the 51,730 in the title, which was
 measured before #6023 added four corpus documents. Rule 1 is unchanged
 at 24,045.
+
+**The reading on 2026-10-30** (nightly
+[41008276467](https://github.com/evgunter/cad/actions/runs/41008276467),
+main `39bbdfc777`): exit 2, as pinned, but the step went red anyway —
+the runner's `bash -e` exited on the pipeline before the `case` read
+the status. The nightly triage of 2026-10-30 added `set +e` to the step.
+
+```
+k-eps-1e-12.csv: 721 flagged — rule 1 (undecided/invalid): 0, rule 2 (near a threshold): 720, rule 3 (below a floor): 721
+k-eps-1e-6.csv: 3780 flagged — rule 1 (undecided/invalid): 1884, rule 2 (near a threshold): 1896, rule 3 (below a floor): 1896
+k-eps-1e-9.csv: 5177 flagged — rule 1 (undecided/invalid): 1512, rule 2 (near a threshold): 2948, rule 3 (below a floor): 3665
+```
+
+9,678 in all, down from 52,769; rule 1 is 3,396, down from 24,045.
+
+## The volume backstop left the operation path (2026-10-31)
+
+PR 5842, under `[ev]` PR 5780, deleted the volume backstop: `demo/table:volume_backstop`'s four flags cannot recur, and their row (`tally/table-union-backstop-margin-sits-under-the-k-lint-floor`) is closed. The floor those margins sat under is `k-lints-definite-floor-is-read-off-a-retired-predicate`.

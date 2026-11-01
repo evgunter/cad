@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-29
 priority: P4
 cost: C
-refs: [d10-exit-walk]
+refs: [5997]
 ---
 
 

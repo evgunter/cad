@@ -1131,11 +1131,10 @@ fn closes_at_its_site<T: Decide>(
 /// reach from `e`; a subtrahend's normals read reversed). A rim
 /// standing on the face (a boss on a plate, or over a hole whose rim it
 /// touches) is joined at the boundary vertex. A rim lying flush in it,
-/// both faces facing one way, is not: the operation keeps one copy of
-/// the shared region, and the cut that divides the dropped copy along
-/// the rim cannot place the rim's chord at its one vertex, where the rim
-/// is tangent to the face's boundary
-/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+/// both faces facing one way, is not: joined there, the piece of the
+/// face the rim walls off is bounded by the copy's half that runs
+/// against the rim's own
+/// (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 fn stands_on<T: Decide>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
@@ -1599,9 +1598,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         );
         sa.joiner.place_pending(&mut red.a, (ea, ra))?;
         sb.joiner.place_pending(&mut red.b, (eb, rb))?;
+        let (a_tie, b_tie) = (
+            tie_winding(red, Operand::A, (ea, ra)),
+            tie_winding(red, Operand::B, (eb, rb)),
+        );
         let a_lane = choose_roles(
             (&red.a, Operand::A),
-            (ea, ra),
+            ((ea, ra), a_tie),
             &a_loose,
             seg_a,
             a_closure,
@@ -1610,7 +1613,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         .map_err(|e| pinch_ray_refusal(e, red, Operand::A, (ea, ra)))?;
         let b_lane = choose_roles(
             (&red.b, Operand::B),
-            (eb, rb),
+            ((eb, rb), b_tie),
             &b_loose,
             seg_b,
             b_closure,
@@ -1819,10 +1822,22 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         };
         // The ring lane's order, wound with the curve.
         let a_roles = a_lane
-            .resolve((&red.a, Operand::A), (ea, ra), &a_loose, &curve_a, band)
+            .resolve(
+                (&red.a, Operand::A),
+                ((ea, ra), a_tie),
+                &a_loose,
+                &curve_a,
+                band,
+            )
             .or_else(|e| glued_slit_roles(e, red, Operand::A, (ea, ra), &a_loose))?;
         let b_roles = b_lane
-            .resolve((&red.b, Operand::B), (eb, rb), &b_loose, &curve_b, band)
+            .resolve(
+                (&red.b, Operand::B),
+                ((eb, rb), b_tie),
+                &b_loose,
+                &curve_b,
+                band,
+            )
             .or_else(|e| glued_slit_roles(e, red, Operand::B, (eb, rb), &b_loose))?;
         sa.join(&mut red.a, a_roles, &plan_a, &curve_a, seg_a, tol)?;
         sb.join(&mut red.b, b_roles, &plan_b, &curve_b, seg_b, tol)?;
@@ -3640,6 +3655,7 @@ pub(super) fn section_unbuilt(
                 hull_sup: *hull_sup,
             })
         }
+        Uncarried::Carry(CarryError::TubeUnread) => unbuilt(SectionUnbuilt::TubeUnread),
         Uncarried::Carry(CarryError::NoLane { scalar }) => {
             unbuilt(SectionUnbuilt::NoLane { scalar })
         }
@@ -4274,7 +4290,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Ok(CylinderAxes::Parallel) => return Ok(None),
         Err(e) => return Err(refused(e)),
     };
-    match geom_brep::cylinder_cylinder_section(sa, sb, &reach, band) {
+    match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses {
             e1,
             e2,
@@ -4314,8 +4330,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::EqualCylinderSection::Empty,
         )
         | Err(
-            geom_brep::SectionError::UnequalRadii
-            | geom_brep::SectionError::RoutesToGeneralRung { .. }
+            geom_brep::SectionError::RoutesToGeneralRung { .. }
             | geom_brep::SectionError::DegenerateOperand { .. }
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::MinorNotPositive),
         ) => Ok(None),
@@ -4333,6 +4348,9 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             | geom_brep::SectionError::DegenerateTorus(_)
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
+            | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => Err(BooleanError::JoinDesync {
             what: "two cylinder walls read apart refused as no cylinder pair can",
@@ -4363,31 +4381,33 @@ pub(super) fn crossing_cylinder_margins<T: Decide>(
     crossing_cylinder_section(a, b, band).map(|s| s.margins)
 }
 
-/// **The intersecting-axes cylinder pair, routed by whether its radii
-/// decide equal** (`cylinder_cylinder_section`'s `cc_radius_equality`):
+/// **The intersecting-axes cylinder pair, routed by the pose's node
+/// question** (`cylinder_cylinder_section`, the section value's
+/// `CylinderCylinderPose`):
 ///
-/// * equal — the table constructs the two bisector-plane ellipses, two
-///   loops each turning about its own plane's normal through the axes'
-///   meeting point, a centre of symmetry of both; the bisector split
-///   tells them apart ([`LoopSplit::Bisector`]), and they cross at two
-///   nodes where it is zero;
-/// * unequal — the locus is a space quartic, the skew pair's unbuilt
-///   class ([`FrameError::NoArm`]).
+/// * the bisector pose (`cc_crossing_nest` Zero, the radii equal and the
+///   axes meeting) — the table constructs the two bisector-plane
+///   ellipses, two loops each turning about its own plane's normal
+///   through the axes' meeting point, a centre of symmetry of both; the
+///   bisector split tells them apart ([`LoopSplit::Bisector`]), and they
+///   cross at two nodes where it is zero;
+/// * every other pose — no conic section, which this frame has no arm
+///   for ([`FrameError::NoArm`]); the section value marches it.
 fn intersecting_cylinder_axes<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> Result<SectionLoops<T>, FrameError> {
-    // The table reads the same `reach` the parallelism gate above
-    // levered from, because it re-decides the two axis margins this
-    // dispatch just decided and must reach the same verdicts from the
-    // same margins.
+    // The table reads the ball of the `reach` the parallelism gate above
+    // levered from. Its lever there is no shorter, so a tilt the gate
+    // read definite reads definite again; the coplanarity row reads at
+    // the same feet.
     //
     // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
     // outcome and every refusal is named, so a variant added to either
     // enum is a compile-time visit here rather than a silent desync.
-    let e = match geom_brep::cylinder_cylinder_section(sa, sb, reach, band) {
+    let e = match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
             let (
                 geom::Curve3::Ellipse {
@@ -4416,7 +4436,6 @@ fn intersecting_cylinder_axes<T: Decide>(
                 },
             });
         }
-        Err(geom_brep::SectionError::UnequalRadii) => FrameError::NoArm,
         // The three parallel-axes answers, from a table whose
         // parallelism verdict this dispatch already took the other
         // way on the same margin.
@@ -4433,10 +4452,10 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(_))),
         ) => section_refusal(e),
         // The table's own routing verdict: NOT a desync, since nothing
-        // is contradicted — the pair marches one rung down. Reachable only
-        // if the table's coplanarity verdict differed from this
-        // dispatch's on the same margin, and the general rung is the
-        // right home for a skew pair either way.
+        // is contradicted — the pose is not the bisector one (unequal
+        // radii on meeting axes, or the table's coplanarity reading the
+        // other way on the same margin), and the section value marches
+        // it.
         Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => FrameError::NoArm,
         // Refusals that cannot come out of a cylinder pair this
         // dispatch admitted: the kinds were matched above, the
@@ -4458,6 +4477,9 @@ fn intersecting_cylinder_axes<T: Decide>(
             )
             | geom_brep::SectionError::Pinched { .. }
             | geom_brep::SectionError::Unordered { .. }
+            | geom_brep::SectionError::NoMarch { .. }
+            | geom_brep::SectionError::Unaccounted { .. }
+            | geom_brep::SectionError::NoRegion { .. }
             | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the equal-radius cylinder section refused at the germ pair with a refusal this \
@@ -4576,7 +4598,7 @@ fn along_facing<T: Decide>(
     let ahead = Margin::metered(forward, geom_core::InfSpeed::new(speed));
     let travel = match decide("bool_join_foot_ahead", ahead, band).map_err(join_escalate)? {
         Sign::Positive => forward,
-        Sign::Negative if component.closed => forward + (hi - lo),
+        Sign::Negative if component.closed() => forward + (hi - lo),
         Sign::Negative => return Ok(Faced::Apart),
         Sign::Zero => return Err(desync("two distinct sites have one foot on their section")),
     };
@@ -4726,7 +4748,7 @@ fn loose_partners<T: Decide>(
 /// the runtime witness.
 fn choose_roles<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
-    (ea, ra): (HalfEdgeKey, HalfEdgeKey),
+    ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
     segment: Option<EdgeKey>,
     closure: RingClosure<T>,
@@ -4850,7 +4872,7 @@ fn choose_roles<T: crate::props::AtRestPolicy>(
             let ccw = ring_run_ccw(
                 (body, operand),
                 face,
-                (ea, ra),
+                ((ea, ra), tie),
                 IslandClosing::Wall(section),
                 band,
             )?;
@@ -4902,7 +4924,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
     fn resolve(
         self,
         (body, operand): (&Body<T>, Operand),
-        (ea, ra): (HalfEdgeKey, HalfEdgeKey),
+        ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
         loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
         curve: &SegmentCurve<T>,
         band: Band,
@@ -4913,7 +4935,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
             RoleLane::CarriedRing { face } => (face, IslandClosing::Carried(curve)),
             RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
         };
-        let ccw = ring_run_ccw((body, operand), face, (ea, ra), closing, band)?;
+        let ccw = ring_run_ccw((body, operand), face, ((ea, ra), tie), closing, band)?;
         ring_order(body, (ea, ra), loose, ccw)
     }
 }
@@ -4957,7 +4979,8 @@ fn ring_order<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges). A spline run edge refuses first
+/// merges), unless an end of the run faces a tied germ, where it winds
+/// as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
 /// and `face`) on every closing but a carried chord's, whose path reads
 /// one where it is certified on the face
@@ -4978,7 +5001,7 @@ fn ring_order<T: Decide>(
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
     face: FaceKey,
-    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+    ((h1, h2), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
     closing: IslandClosing<'_, T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -4998,7 +5021,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
         IslandClosing::Wall(section) => {
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Quadric(curve) => {
             let closing = curve.run_closing(h1, face)?;
@@ -5009,7 +5032,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 closing.as_ref(),
                 band,
             )?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Carried(curve) => {
             let closing = curve.run_closing(h1, face)?;
@@ -5020,7 +5043,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 (closing.as_ref(), curve.carried_arc()),
                 band,
             )?;
-            return ring_winding_order(wound);
+            return ring_winding_order(wound, tie);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
     };
@@ -5042,7 +5065,7 @@ fn ring_run_ccw<T: crate::props::AtRestPolicy>(
                 },
             })
         })?;
-    ring_winding_order(wound.map(|decided| decided.sign))
+    ring_winding_order(wound.map(|decided| decided.sign), tie)
 }
 
 /// The split root of the first spline (NURBS) edge on the run `h1 → h2`
@@ -5088,10 +5111,11 @@ fn run_spline_edge<T: Decide>(
 /// A degenerate ring-run winding ([`DEGENERATE_RING_WINDING`]) at a run
 /// of `side`'s from `h1` through `h2` that passes the point of a ring
 /// whose cones touch along a ray in its face
-/// ([`super::PierceRingRecord::tied`]): the corner of no angle the tie
-/// leaves, the unbuilt shape, refused [`BooleanError::PinchRaysInAFace`]
-/// naming that ring's face; one that passes the tip of a slit or ring
-/// of either operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
+/// ([`super::PierceRingRecord::ties`]): a run [`tie_winding`] read no
+/// order for (one it reads winds, and never refuses degenerate), the
+/// unbuilt shape, refused [`BooleanError::PinchRaysInAFace`] naming that
+/// ring's face; one that passes the tip of a slit or ring of either
+/// operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
 /// the other's, paired with the run's vertex there or piercing at its
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
@@ -5130,7 +5154,7 @@ fn pinch_ray_refusal<T: geom_core::Real>(
     }
     red.pierce_rings
         .iter()
-        .filter(|r| r.tied && r.operand == side)
+        .filter(|r| !r.ties.is_empty() && r.operand == side)
         .find(|r| point(r.ring_vertex).is_some_and(|k| on_run.contains(&k)))
         .map(|r| BooleanError::PinchRaysInAFace {
             operand: side.other(),
@@ -5228,13 +5252,70 @@ fn glued_slit_roles<T: Decide>(
     }
 }
 
+/// **How a ring run whose chord leaves along a tied germ winds**, where
+/// its winding reads no area (`side`'s run `h1 → h2`, closed back to `h1`
+/// by its chord; [`ring_winding_order`] reads this only at a `Zero`).
+/// Where two cones touch along a ray in a face, each cone's section runs
+/// along that ray, and the ring places their two germs apart in an order
+/// ([`super::PierceRingRecord::ties`]), the first clockwise about the
+/// face's outward normal first. What this checks is that an end of the
+/// run, `h1` or `h2`, is the strut half facing a tied germ, so the chord
+/// leaves the ring along one of the two. That suffices: no third germ of
+/// the ring lies on the ray (`vtxfac::germ_order` refuses one), so a
+/// cycle through that chord enclosing no area runs back along the other
+/// germ's copy, the sliver between the two cones' sections. The chord
+/// lies beside that copy on the side the order puts it, so the run winds
+/// counterclockwise where the chord leaves `start(h1)` along the first
+/// germ, or reaches `end(h2)` along the second. `None` where neither end
+/// faces a tied germ, or the two ends read different ties that disagree.
+fn tie_winding<T: geom_core::Real>(
+    red: &BooleanReduction<T>,
+    side: Operand,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
+) -> Option<TieWinding> {
+    let ties = || {
+        red.pierce_rings
+            .iter()
+            .filter(move |r| r.operand == side)
+            .flat_map(|r| &r.ties)
+    };
+    let at = |h: HalfEdgeKey, first: bool| {
+        ties().find_map(|&[a, b]| {
+            if h == a {
+                Some(first)
+            } else if h == b {
+                Some(!first)
+            } else {
+                None
+            }
+        })
+    };
+    let ccw = match (at(h1, true), at(h2, false)) {
+        (Some(a), Some(b)) if a != b => None,
+        (a, b) => a.or(b),
+    }?;
+    Some(TieWinding { ccw })
+}
+
+/// The order a tie reads for a ring run that encloses no area
+/// ([`tie_winding`]): whether the run winds counterclockwise about the
+/// face's outward normal.
+#[derive(Clone, Copy, Debug)]
+struct TieWinding {
+    ccw: bool,
+}
+
 /// The ring lane's refusal of a run that encloses no area.
 const DEGENERATE_RING_WINDING: &str = "ring-run winding is degenerate (zero enclosed area)";
 
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
-/// kernel's too.
-fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<bool, BooleanError> {
+/// kernel's too, unless an end of the run faces a tied germ, whose
+/// order `tie` reads ([`tie_winding`]).
+fn ring_winding_order(
+    wound: Result<Sign, geom_core::Indeterminate>,
+    tie: Option<TieWinding>,
+) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let sign = wound.map_err(|diag| BooleanError::Escalated {
         decision: BooleanDecision::SelfCheck(SelfCheck::RingWinding),
@@ -5243,7 +5324,7 @@ fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<b
     match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => Err(desync(DEGENERATE_RING_WINDING)),
+        Sign::Zero => tie.map(|t| t.ccw).ok_or(desync(DEGENERATE_RING_WINDING)),
     }
 }
 
@@ -6077,7 +6158,7 @@ mod self_check_rows {
         let err = super::ring_run_ccw(
             (body, super::super::Operand::A),
             prism.top_face,
-            (h1, h2),
+            ((h1, h2), None),
             up,
             b,
         )
@@ -6919,7 +7000,7 @@ mod frame_dispatch_tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let sph = sphere();
-        let Err(e) = geom_brep::pair_section(&cyl, &sph, b) else {
+        let Err(e) = geom_brep::pair_section(&cyl, &sph, None, None, b) else {
             panic!("an in-band cylinder radius refuses the section");
         };
         let face = FaceKey::default();
@@ -7112,7 +7193,7 @@ mod frame_dispatch_tests {
                 lever: 1.0,
             };
             let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
-                cylinder_cylinder_section(&sa, &sb, &reach, band())
+                cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
             else {
                 panic!("{deg}°: the table constructs the ellipses");
             };
@@ -7213,8 +7294,9 @@ mod frame_dispatch_tests {
     /// is neither the nodes nor the unequal pair's `NoArm`, each of which
     /// claims a definite class. The partner's radius is `1 + 2·zero` of
     /// the band, past the zero band and short of escalation's edge, so
-    /// the table's `cc_radius_equality` reads it in band; a dispatch that
-    /// mapped that escalation to `NoArm` (or to the nodes) reds here.
+    /// the pose's inner level `e − |r₁ − r₂|` (`cc_crossing_nest`, `e`
+    /// zero at meeting axes) reads it in band; a dispatch that mapped
+    /// that escalation to `NoArm` (or to the nodes) reds here.
     #[test]
     fn an_in_band_radius_at_meeting_axes_escalates() {
         let z = Vec3::new(0.0, 0.0, 1.0);
@@ -7232,7 +7314,7 @@ mod frame_dispatch_tests {
             );
             assert!(
                 matches!(&got, Err(FrameError::Escalated { diag, .. })
-                    if diag.predicate == Some("cc_radius_equality")),
+                    if diag.predicate == Some("cc_crossing_nest")),
                 "partner {partner:?}, r = 1 + 2·zero: the radius margin is in band and must \
                  escalate, got {}",
                 outcome(&got)
@@ -7273,16 +7355,9 @@ mod frame_dispatch_tests {
                 radius: r,
                 u_ref: a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
             };
-            let sec = cylinder_cylinder_section(
-                &c1,
-                &c2,
-                &geom_brep::Reach::Measured {
-                    at: at(),
-                    lever: 1.0,
-                },
-                band(),
-            )
-            .expect("intersecting equal-radius axes have a section");
+            let sec =
+                cylinder_cylinder_section(&c1, &c2, &geom_brep::ExtentBall::new(at(), 1.0), band())
+                    .expect("intersecting equal-radius axes have a section");
             let EqualCylinderSection::TwoEllipses { e1, e2, .. } = sec else {
                 panic!("{deg}°: the intersecting equal-radius section is the ellipse pair");
             };
@@ -8274,3 +8349,7 @@ mod face_surface_tests {
 #[cfg(test)]
 #[path = "join_carrier_site_rows.rs"]
 mod join_carrier_site_rows;
+
+#[cfg(test)]
+#[path = "join_walk_order_rows.rs"]
+mod join_walk_order_rows;

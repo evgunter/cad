@@ -222,6 +222,7 @@ mod cr_r1_probes;
 mod entities;
 mod error;
 mod geometry;
+mod knot_split;
 mod normalize;
 mod parse;
 mod recognize;
@@ -336,8 +337,11 @@ pub enum NormalizationKind {
     /// of the face, in the pole form (`geom::pole_form`): the end of two
     /// meridians half a turn apart, the face reaching it between them.
     /// A file that states the point some other way is re-minted into
-    /// that form, by where the point lies ([`SingularityFound`]): the
-    /// face's boundary and the region its sense bit names say which.
+    /// that form, by where the point lies ([`SingularityFound`]), read
+    /// by the kernel's one reading of it
+    /// (`geom_brep::chart_singularity::locate`, which tier 3 refuses
+    /// the same faces by): the face's boundary and the region its sense
+    /// bit names say which.
     /// The minted meridians are the surface's own (at its `u_ref`
     /// azimuth and the half turn, or the half-turn twin of a seam the
     /// file states), each ending at the first boundary edge it meets,
@@ -401,6 +405,23 @@ pub enum NormalizationKind {
     /// region — two edges and the vertex between them, become one edge
     /// — so the records' deltas still sum to the body's totals.
     JoinedEdges,
+    /// **An edge carrier split at its interior C⁰ knots** (Ev's PR 5913
+    /// ruling; `docs/DESIGN.md` [topology]): a B-spline carrier with an
+    /// interior knot run of multiplicity at least its degree has no
+    /// derivative there by its structure, so the edge is cut into its
+    /// sub-arcs, a vertex at each knot. Exact: each sub-arc is a
+    /// partition of the carrier's own net. One record per split edge,
+    /// keyed by the least `ADVANCED_FACE` it bounds; its census pair is
+    /// the edge, become `n` edges and the `n − 1` vertices between them.
+    EdgeSplitAtC0Knot,
+    /// **A face chart split along its interior C⁰ knots' iso lines**
+    /// (the same ruling): each sub-patch is a partition of the file's
+    /// net, and the iso curve between two of them is minted as the
+    /// edge they share. One record per file face; its census pair is
+    /// the face's boundary as the file states it (after its edges'
+    /// own splits) and the faces it became with every edge and vertex
+    /// they use.
+    FaceSplitAtC0Knot,
 }
 
 /// Where a file put a chart singularity that is not yet a vertex in

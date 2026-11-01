@@ -171,3 +171,64 @@ stays P1, since greening main is this track's central job.
   nightly confirms; check the closure-tier shard balance after #6019;
   check whether `demos` is still the p90 tail. The remaining P0 lever is
   sweep's test runtime in the kernel shard.
+- 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `g-moves-four-main-reds-messages` (P1). INTENT's charter is D10 and these are follow-ups found while building it.
+
+## 2026-10-30 — latency closed; nightly 77
+
+- The latency alarm read a median of 14.7 min on nightly 77. Over the
+  116 PR runs after #6019 and #6039 the run median is 14.3 min. The
+  closure tier is at median 14.6 / p90 19.4 and the all tier at 24.1,
+  inside its 25-min deep-kernel bar. The three open latency rows close
+  with those numbers. The shard row misses its own 1-min balance
+  criterion (1.2 min paired) and closes on the orchestrator's call; its
+  closing section says why.
+- Nightly 77: rustdoc and the gui montage are green. The triage (#6082)
+  fixed the census re-syncs and the large-K step's `bash -e` bug, and
+  filed or annotated every other red. A GREEN lane
+  (`green/nightly-77-*`, cloud) pins what it left.
+- Duplicate effort: GREEN's #6084 (the reader_census line) re-did the
+  triage's same fix half an hour before the triage landed, against this
+  program's own rule. GREEN now waits for the triage table before
+  touching a nightly red.
+
+## 2026-10-30 — handed back
+
+The P0 and P1 rows are closed, so the sitting ends (the sitting rule in
+`memories/orchestration-model.md`) and the track goes back `ready` with
+one P3 row.
+- #6093 pinned what nightly 77's triage left red. Its review caught a
+  re-bless with no basis: R2's rounded pad loses two `symbolic`
+  decisions outside G's bracket-only DECIDE-3 trade. It is pinned as
+  unexplained, and the row moved to INTENT at P1 (#6094).
+- #6094 closed the four main-red rows.
+- #6095 added `scripts/gates/pin-cites-an-open-row.sh`. Every
+  pinned or disabled red must cite an existing, open `work/` row, so a
+  row's close takes its pins with it. It fixed two stale citations, and
+  filed the wider class (1,114 code citations of `work/` rows, 432 of
+  them stale) on META.
+
+What nobody does now. The daily triage files and fixes trivial reds,
+but it pins nothing. While GREEN has no orchestrator, a red that needs a
+pin stays red until someone picks the track up. `plan.md` says how it
+runs.
+
+Review tiers over the sitting: every latency lever got a FULL review,
+and every pin PR got a STYLE review. Docs-only and one-line changes
+went on the orchestrator's read. Every review that ran found something
+worth a fix pass before merge; two of them were blocking (#6027's
+closed-row routing and #6093's re-bless).
+- 2026-10-31 — (SECTARMS orchestrator) **On `main-red-eighteen-sweep-analytic-rows-red-on-main-at-the-default-eps`:** SECTARMS is bisecting its own suspect, PR 6139 (cylinder × cylinder stage 1), against the 18 rows. Each row is run at 6139's first parent and at its merge `f2f34e16`. Any row 6139 caused is SECTARMS's to fix, and is reported here and on that row. Rows red at both commits are left to GREEN, with whatever evidence the run gives.
+
+## 2026-11-01 — the per-PR tour builds at opt-level 1
+
+- Ev asked why PR 6179's `demos` job took 23.9 min. It is GREEN's closing
+  number, not a regression (eight jobs 10-30 to 11-01: 23.3–24.3 min). The
+  viewer PR ran demos because its `Cargo.toml` edit is TIER=all.
+- `the-pr-tour-suite-builds-at-opt-level-1`: the PR row builds the tour in
+  a `ci-tour` profile, release at opt 1 with assertions armed. One 4-core
+  box: 17.5 → 10.0 min, build plus tests. The build's critical path was
+  editor-core, then the `all` binary's opt-3 re-instantiation of generics.
+  `docs/PERF-SCAN-2026-08.md`'s claim that rustc shares generics only at
+  opt 0 is corrected: it does at 0, 1, `s` and `z`.
+- Not done, for a later row: a member-manifest edit that only adds a
+  target (`[[example]]`, `[[bin]]`, `[[test]]`) still bails to TIER=all.

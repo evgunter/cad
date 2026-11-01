@@ -132,7 +132,7 @@ fn side_box(n: [f64; 3]) -> AtRestBody<f64> {
 
 /// Fibonacci directions on the sphere.
 fn normals(k: usize) -> Vec<[f64; 3]> {
-    let g = core::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let g = geom_core::GOLDEN_ANGLE;
     (0..k)
         .map(|i| {
             let z = 1.0 - 2.0 * (i as f64 + 0.5) / k as f64;

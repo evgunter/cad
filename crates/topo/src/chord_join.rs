@@ -30,8 +30,7 @@
 //!   ([`SegmentCurve`]); if the first `mef` split a
 //!   face that still owns rings, the rings are re-homed by trilean
 //!   containment ([`crate::splitting::containment`] on a plane,
-//!   [`chart_ring_side`] on a cylinder wall's chart,
-//!   [`path_ring_side`] on a sphere, a cone or a torus) +
+//!   [`path_ring_side`] on a cylinder, a sphere, a cone or a torus) +
 //!   [`Body::ring_move`](crate::construction::Construct::ring_move) — the `laringmv` step (lkemr/ring-placement
 //!   mirror site);
 //! - two halves of one null edge making up a ring alone (a one-site
@@ -133,7 +132,6 @@
 //! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
-use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -1873,7 +1871,7 @@ fn plane_wall_case<T: Decide>(
 
 /// The frame of a section carrier: an ellipse's own axes, a circle's
 /// radius twice. `None` for any other kind.
-fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
+pub(crate) fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
     let (center, normal, seam, sa, sb) = match carrier {
         geom::Curve3::Ellipse {
             center,
@@ -2871,7 +2869,7 @@ fn carried_chord_spec<T: Decide>(
     let (lo, hi) = component.span;
     let seat = carrier.eval(lo);
     let at_seat = |p: Point3<T>| -> Result<bool, SplitJoinError> {
-        if !component.closed {
+        if !component.closed() {
             return Ok(false);
         }
         Ok(
@@ -4432,7 +4430,7 @@ fn quadric_paths<T: Decide>(
     }
 }
 
-/// [`ring_side`] on a sphere, a cone or a torus face, without a chart:
+/// [`ring_side`] on a cylinder, a sphere, a cone or a torus face, without a chart:
 /// whether `ring` lies inside `newf`'s outer loop (the run a `mef` just
 /// walled off `oldf`), by the parity of a path ([`Quadric::paths`]) from a ring
 /// vertex to a point outside the new face: a vertex of `oldf`'s outer
@@ -4444,8 +4442,12 @@ fn quadric_paths<T: Decide>(
 /// decides. One with a reading in the escalation band says nothing
 /// either; the first escalation escalates only where no pair decides.
 /// The decided pairs agree because the ring does not cross the run
-/// ([`first_decided`]'s premise). A ring no pair decides otherwise is [`RingSide::Undecided`], as on a
-/// wall's chart ([`chart_ring_side`]).
+/// ([`first_decided`]'s premise). A ring no pair decides otherwise is
+/// [`RingSide::Undecided`]. The parity does not depend on the path on any
+/// of these kinds (`crate::ring_path`'s module docs: on a cylinder, an
+/// annulus, two closed curves cross an even number of times), so a run
+/// edge of any carrier the lane reads, a spline chord's included, is read
+/// as a loop arc and never through a chart image.
 fn path_ring_side<T: Decide>(
     body: &Body<T>,
     (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
@@ -4455,7 +4457,7 @@ fn path_ring_side<T: Decide>(
 ) -> Result<RingSide, SplitJoinError> {
     let cycle = outer_cycle(body, newf)?.ok_or(SplitJoinError::SectionInvariant {
         face: newf,
-        what: "ring re-homing on a sphere, a cone or a torus: the run is not a cycle",
+        what: "ring re-homing on a curved face: the run is not a cycle",
     })?;
     let arcs = run_loop_arcs(body, newf, (surface, quadric), &cycle, band)?;
     let run_edges = cycle
@@ -5348,7 +5350,8 @@ impl ChordJoiner {
     /// off a face bounded by one conic. The one of those two whose
     /// region holds the old face's outer loop ([`RimSide`]) bounds the
     /// hole the conic cuts in the old face, and becomes its ring
-    /// (`kfmrh`); the other is the disc inside the conic, which takes the
+    /// (`kfmrh_minting`, which re-mints the old face where the hole's
+    /// rows do not stand on it); the other is the disc inside the conic, which takes the
     /// old face's rings it encloses.
     fn join_lone_ring<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
@@ -5422,7 +5425,7 @@ impl ChordJoiner {
                 ));
             }
         };
-        let cut = body.kfmrh(oldf, hole)?.ring;
+        let cut = body.kfmrh_minting(oldf, hole, tol)?.ring;
         self.slivers.remove(hole);
         self.absorbed
             .push((hole, oldf))
@@ -5456,7 +5459,8 @@ impl ChordJoiner {
     /// point stays on the boundary of the face holding it, so a later
     /// division of that face reads it on the run again or out, and
     /// never moves it. Any other ring on the run, and any ring no vertex
-    /// of which is decided (a chart's degenerate rays), refuses.
+    /// of which is decided (a curved face's ring whose every path ends on
+    /// the run or grazes it), refuses.
     fn rehome_rings<T: Decide>(
         &mut self,
         body: &mut Body<T>,
@@ -5478,16 +5482,14 @@ impl ChordJoiner {
             .and_then(|f| body.get_surface(f.surface))
             .cloned()
             .ok_or_else(|| corrupt_face(oldf))?;
-        // How a ring's side is read: off the plane, on a cylinder's
-        // chart, or by a path on a sphere, a cone or a torus.
+        // How a ring's side is read: off the plane, or by a path on a
+        // cylinder, a sphere, a cone or a torus.
         enum Homing<T: geom_core::Real> {
             Plane(Vec3<T>),
-            Chart,
             Path(Quadric<T>),
         }
         let homing = match &surface {
             geom::Surface::Plane { .. } => Homing::Plane(face_plane_normal(body, oldf)?),
-            geom::Surface::Cylinder { .. } => Homing::Chart,
             other => {
                 Homing::Path(Quadric::of(other).ok_or_else(|| ring_island_unread(newf, other))?)
             }
@@ -5498,7 +5500,6 @@ impl ChordJoiner {
             }
             let side = match &homing {
                 Homing::Plane(normal) => ring_side(body, ring, run, *normal, self.band)?,
-                Homing::Chart => chart_ring_side(body, &surface, newf, ring, self.band)?,
                 Homing::Path(quadric) => {
                     path_ring_side(body, (&surface, quadric), (oldf, newf), ring, self.band)?
                 }
@@ -5677,8 +5678,8 @@ enum RingSide {
     Out,
     /// Every vertex is ON the run ([`ring_side`]'s decided verdict).
     OnRun,
-    /// No vertex was decided: on a chart, a vertex on the run says
-    /// nothing ([`chart_ring_side`]).
+    /// No vertex was decided: on a curved face, a vertex on the run
+    /// says nothing ([`path_ring_side`]).
     Undecided,
 }
 
@@ -5702,183 +5703,6 @@ fn ring_vertices<T: Decide>(
     }
 }
 
-/// Whether a run's azimuth window `[lo, hi]` on a wall of `radius` is
-/// definitely over one period (`split_ring_chart_window`, the turn rule
-/// at the radius): a whole turn is not.
-pub(crate) fn run_window_over<T: Decide>(
-    lo: T,
-    hi: T,
-    radius: T,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    let rows = TurnRows::exact("split_ring_chart_window");
-    Period::new(T::tau())
-        .not_over(rows, Extent::between(lo, hi), Exact::new(radius), band)
-        .map(|not_over| !not_over)
-        .map_err(|undecided| undecided.diag)
-}
-
-/// [`ring_side`] on a cylinder wall's chart: which side of
-/// `newf`'s outer loop (the run a `mef` just walled off) `ring` lies on,
-/// by the parity of a ray from each ring vertex toward `+v` at constant
-/// azimuth.
-///
-/// Exact on the chart: every run edge's azimuth channel is linear in its
-/// carrier parameter ([`chart_v_du`]), so the ray meets an edge at most
-/// once, where its azimuth reaches the ray's, and the edge's own `v`
-/// there is read from its harmonic form; the straight chart rows between
-/// images (the walk's junction gaps) are segments. A ring vertex is placed
-/// on the run's branch, which is one branch because the run's window is
-/// decided under a period; for a window of exactly one period, a vertex
-/// at the seam's azimuth reads alike on either edge. Each comparison is a named trilean metered in
-/// metres. A run vertex at the ray's azimuth reads as just short of it
-/// (the half-open rule), so the ray crosses the run there once or not at
-/// all, and a run row along the ray is met only by a vertex on it. A ring
-/// vertex on the run says nothing and the next vertex is asked, as
-/// [`ring_side`] does; so does one whose reading escalates, and the first
-/// escalation escalates only where no vertex decides ([`first_decided`]);
-/// the decided vertices agree because the ring does not cross the run
-/// (its premise). A ring none of whose vertices is decided is
-/// [`RingSide::Undecided`], never [`RingSide::OnRun`]: a pierce strut at a
-/// pinch, whose point is a run vertex, always reads so here, and refuses
-/// rather than waiting.
-/// A sphere, a cone or a torus face reads without a chart
-/// ([`path_ring_side`]); [`ChordJoiner::rehome_rings`] sends no other
-/// kind here.
-///
-/// It is one of several point-in-region routines, beside [`ring_side`]
-/// (on a plane), [`path_ring_side`] (on a sphere, a cone or a torus),
-/// `solid_contain`'s wall outline (a point against a whole wall face's outline, inside the
-/// containment gate) and `boolean::sphere_region` (a point against a
-/// trimmed sphere face): a known split, each reading the region it is
-/// handed in its own terms
-/// (`work/cleave/closest-crossing-and-graze-abandon-have-three-homes.md`).
-fn chart_ring_side<T: Decide>(
-    body: &Body<T>,
-    surface: &geom::Surface<T>,
-    newf: FaceKey,
-    ring: LoopKey,
-    band: Band,
-) -> Result<RingSide, SplitJoinError> {
-    let WallChart { radius, .. } =
-        wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
-    let tau = T::tau();
-    let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
-    let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
-        "ring re-homing on a chart: the run is not a cycle",
-    ))?;
-    let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
-        "ring re-homing on a chart: the run carries no charted edge",
-    ))?;
-    // A run whose window is a whole period (a band round a full-turn
-    // face, closed along its seam) holds the seam's azimuth at both `lo`
-    // and `hi`. A ring vertex there reads alike at either: the half-open
-    // rule reads it just inside `lo` or just past `hi`, and just inside
-    // `lo` the run lies only beside its rows along `lo`, which the ray
-    // meets only from a vertex on them.
-    if run_window_over(lo, hi, radius, band)
-        .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?
-    {
-        return Err(invariant(
-            "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
-             so a ring vertex has no single branch on it",
-        ));
-    }
-    let mid = (lo + hi) * T::from_f64(0.5);
-    let vertices = ring_vertices(body, ring)?;
-    // The chart segments of the run: each edge (`Some(image)`), then the
-    // straight row to the next image's entry.
-    let n = images.len();
-    let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
-        let decide_r = |name, margin| decide(name, margin, band);
-        // The vertex's chart coordinates (`geom::Surface::chart_point`),
-        // its azimuth lifted onto the run's window below by
-        // `periodic_branch`.
-        let at = surface
-            .chart_point(vertex_point(body, v), band)
-            .map_err(|_| ring_island_unread(newf, surface))?
-            .uv;
-        let raw = at.x;
-        // The vertex on the branch of the window's middle, in
-        // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
-        // own branch. One at the seam of a whole-period window lands on
-        // `hi`, which reads as `lo` would only because such a run carries
-        // its seam rows along both edges: the seam paragraph above. At
-        // `Sym` the crossings read `u_p` numerically, against image ends
-        // of another provenance, never as an identity.
-        let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
-        let v_p = at.y;
-        let mut crossings = 0usize;
-        for (i, image) in images.iter().enumerate() {
-            let next = &images[(i + 1) % n];
-            let rows = [
-                (image.entry, image.exit, (image.v.0, image.v.1), Some(image)),
-                (image.exit, next.entry, (image.v.1, next.v.0), None),
-            ];
-            for (u0, u1, (v0, v1), edge) in rows {
-                let sides = [u0, u1].map(|u| {
-                    decide_r(
-                        "split_ring_chart_ray_azimuth",
-                        Margin::levered(u_p - u, radius),
-                    )
-                });
-                let (s0, s1) = match sides {
-                    [Ok(s0), Ok(s1)] => (s0, s1),
-                    [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
-                };
-                if s0 == Sign::Zero && s1 == Sign::Zero {
-                    // A row along the ray: the ray misses it unless the
-                    // vertex is on it.
-                    let ends = [v0, v1]
-                        .map(|v| decide_r("split_ring_chart_ray_along", Margin::of(v - v_p)));
-                    match ends {
-                        [Ok(e0), Ok(e1)] if e0 == e1 && e0 != Sign::Zero => continue,
-                        [Ok(_), Ok(_)] => return Ok(Ok(None)),
-                        [Err(diag), _] | [_, Err(diag)] => return Ok(Err(diag)),
-                    }
-                }
-                // A row end at the ray's azimuth reads as below it, so
-                // a run vertex the ray passes through is crossed once
-                // or not at all, by the rows on either side of it.
-                let below = |s: Sign| s != Sign::Negative;
-                if below(s0) == below(s1) {
-                    continue;
-                }
-                let f = (u_p - u0) / (u1 - u0);
-                let v_x = match edge {
-                    Some(image) => {
-                        image
-                            .harmonic
-                            .as_ref()
-                            .ok_or(invariant(
-                                "ring re-homing on a chart: a run edge's chart image is fitted",
-                            ))?
-                            .eval(image.t.0 + f * (image.t.1 - image.t.0))
-                            .y
-                    }
-                    None => image.v.1 + f * (next.v.0 - image.v.1),
-                };
-                match decide_r("split_ring_chart_ray_height", Margin::of(v_x - v_p)) {
-                    Ok(Sign::Positive) => crossings += 1,
-                    Ok(Sign::Negative) => {}
-                    Ok(Sign::Zero) => return Ok(Ok(None)),
-                    Err(diag) => return Ok(Err(diag)),
-                }
-            }
-        }
-        Ok(Ok(Some(if crossings % 2 == 1 {
-            RingSide::In
-        } else {
-            RingSide::Out
-        })))
-    };
-    match first_decided(vertices.into_iter().map(read))? {
-        Ok(Some(side)) => Ok(side),
-        Ok(None) => Ok(RingSide::Undecided),
-        Err(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
-    }
-}
-
 /// A representative point of a loop (its anchor vertex).
 pub(crate) fn ring_representative<T: Decide>(
     body: &Body<T>,
@@ -5898,9 +5722,6 @@ pub(crate) fn ring_representative<T: Decide>(
     };
     Ok(vertex_point(body, v))
 }
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod chart_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod cone_ring_rows;
@@ -5928,6 +5749,9 @@ mod torus_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod v_du_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod wall_ring_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
