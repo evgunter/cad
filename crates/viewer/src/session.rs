@@ -393,8 +393,6 @@ pub struct DocSession {
     /// **The staged seam**: an operation staged and not committed runs
     /// here for its verdict ([`DocSession::stage`]).
     stager: Box<dyn StagedService>,
-    /// The latest stage, and its evaluation once it lands.
-    stage: Option<Stage>,
     /// How many stages have been asked for: the next one's key.
     stages: u64,
     generation: Generation,
@@ -532,6 +530,11 @@ struct Derived {
     /// the history steps (an undo, a redo), so an offer is only ever
     /// made about a value as it was typed. An edit elsewhere leaves it.
     offer: Option<SlotOffer>,
+    /// **The latest stage** ([`SessionOp::Stage`]) and what it came to:
+    /// a statement about the document it was staged on, so dropped with
+    /// the range probe at every submit ([`DocSession::request_eval`]),
+    /// and with everything else here when the document is replaced.
+    stage: Option<Stage>,
 }
 
 /// A typed value's offer: the slot it was typed at, the variable it
@@ -566,6 +569,7 @@ impl Derived {
             landed: None,
             bounds: None,
             offer: None,
+            stage: None,
         }
     }
 }
@@ -592,6 +596,7 @@ impl core::fmt::Debug for Derived {
             landed,
             bounds,
             offer,
+            stage,
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
@@ -601,6 +606,7 @@ impl core::fmt::Debug for Derived {
             .field("landed", landed)
             .field("bounds", bounds)
             .field("offer", offer)
+            .field("stage", &stage.as_ref().map(|stage| stage.key))
             .finish()
     }
 }
@@ -828,7 +834,6 @@ impl DocSession {
             eval,
             door: Box::new(InlineProver::new()),
             stager: Box::new(InlineStager::new()),
-            stage: None,
             stages: 0,
             generation: Generation::FIRST,
             derived: Derived::none(),
@@ -870,7 +875,6 @@ impl DocSession {
     fn stage(&mut self, creation: Creation) {
         self.stages += 1;
         let key = StagedKey(self.stages);
-        let base = self.history.current();
         let staged = self
             .creation_door(creation.clone().into_op())
             .and_then(|door| self.stage_run(door));
@@ -896,22 +900,23 @@ impl DocSession {
                 }
             }
         };
-        self.stage = Some(Stage {
+        self.derived.stage = Some(Stage {
             key,
             creation,
-            base,
             answer,
         });
     }
 
     /// **What staging `creation` on the committed document came to**:
     /// `None` until it is staged there ([`SessionOp::Stage`]), so a
-    /// draft that moved, or a document that did, asks again.
+    /// draft that moved asks again, and so does one whose document
+    /// moved: the stage lives in [`Derived`] and goes with it.
     pub fn staged_for(&self, creation: &Creation) -> Option<Staged<'_>> {
         let stage = self
+            .derived
             .stage
             .as_ref()
-            .filter(|stage| stage.creation == *creation && stage.base == self.history.current())?;
+            .filter(|stage| stage.creation == *creation)?;
         Some(match &stage.answer {
             StageAnswer::Refused(refusal) => Staged::Refused(refusal),
             StageAnswer::Made {
@@ -1449,7 +1454,11 @@ impl DocSession {
             if let Some(Stage {
                 answer: StageAnswer::Made { evaluation, .. },
                 ..
-            }) = self.stage.as_mut().filter(|stage| stage.key == done.key)
+            }) = self
+                .derived
+                .stage
+                .as_mut()
+                .filter(|stage| stage.key == done.key)
             {
                 *evaluation = Some(done.evaluation);
             }
@@ -2871,6 +2880,7 @@ impl DocSession {
     /// answer ([`SessionOp::permitted_during_free_move`]).
     fn clear_for_new_document(&mut self) {
         self.derived = Derived::none();
+        self.stager.cancel();
         self.display.clear();
         // A landing's report names the outgoing document's nodes, which
         // the incoming one cannot speak (`DisplayState::clear`).
@@ -3961,6 +3971,9 @@ impl DocSession {
         // recomputed on request costs a button press, a stale one costs
         // a wrong decision.
         self.derived.bounds = None;
+        // The stage answers for the document this request replaces.
+        self.derived.stage = None;
+        self.stager.cancel();
         self.generation = self.generation.next();
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
@@ -3980,12 +3993,11 @@ impl DocSession {
     }
 }
 
-/// **One staged operation** ([`DocSession::stage`]): what was staged,
-/// on which committed document, and what it came to.
+/// **One staged operation** ([`DocSession::stage`]): what was staged and
+/// what it came to, on the document [`Derived`] is about.
 struct Stage {
     key: StagedKey,
     creation: Creation,
-    base: crate::history::HistoryId,
     answer: StageAnswer,
 }
 
@@ -4856,8 +4868,8 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 ///
 /// The `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
 /// no content to print; `eval`, `door` and `stager` are `dyn` services
-/// and implement no `Debug`; `requested_doc` and `stage` hold whole
-/// recipe DAGs; `stages` is a count only `stage` reads; and `display` is
+/// and implement no `Debug`; `requested_doc` is a whole recipe DAG;
+/// `stages` is a count only `stage` reads; and `display` is
 /// not derived from the document, is as large as the document's hidden
 /// and moved sets, and has its own [`DocSession::display`] door to be
 /// dumped through.
@@ -4877,7 +4889,6 @@ impl core::fmt::Debug for DocSession {
             eval: _,
             door: _,
             stager: _,
-            stage: _,
             stages: _,
             generation,
             requested_doc: _,

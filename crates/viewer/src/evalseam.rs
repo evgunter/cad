@@ -817,6 +817,9 @@ pub trait StagedService {
     /// waiting one.
     fn submit(&mut self, request: StagedRequest);
 
+    /// Cancel whatever is in flight: the stage it answers was dropped.
+    fn cancel(&mut self);
+
     /// Take a finished job, if one is ready. Never blocks.
     fn poll(&mut self) -> Option<StagedDone>;
 
@@ -858,6 +861,10 @@ impl InlineStager {
 impl StagedService for InlineStager {
     fn submit(&mut self, request: StagedRequest) {
         self.pending = Some(request);
+    }
+
+    fn cancel(&mut self) {
+        self.pending = None;
     }
 
     fn poll(&mut self) -> Option<StagedDone> {
@@ -1561,26 +1568,93 @@ mod threaded {
         }
     }
 
-    /// A door request plus the token that stops it: [`EvalJob`]'s
-    /// shape, for its reason.
+    /// **A request plus the token that stops it**: [`EvalJob`]'s shape,
+    /// for its reason, for every seam whose job reads a token and keeps
+    /// nothing between jobs ([`Cancelling`]).
     #[derive(Debug)]
-    struct DoorJobOf {
-        request: DoorRequest,
+    struct Tokened<R, D> {
+        request: R,
         cancel: CancelToken,
+        done: core::marker::PhantomData<fn() -> D>,
     }
 
-    impl Job for DoorJobOf {
-        type Done = DoorDone;
+    impl<R: core::fmt::Debug + Send + 'static, D: Send + 'static> Job for Tokened<R, D> {
+        type Done = D;
 
         /// **Always**, for [`EvalJob`]'s reason: a submit that left a
         /// job waiting canceled the one `done` answers.
-        fn supersedes(&self, _done: &DoorDone) -> bool {
+        fn supersedes(&self, _done: &D) -> bool {
             true
         }
     }
 
-    /// A background-thread door seam: [`ThreadEvaluator`]'s machine,
-    /// token and all, over the coincidence door's job.
+    /// **The threaded handle of a seam whose job reads a token**: one
+    /// [`Coalescing`] over [`Tokened`] jobs and the token of the newest,
+    /// which a submit cancels before it replaces it. Every such seam is
+    /// one of these over its own request and answer
+    /// ([`ThreadProver`], [`ThreadStager`]), so its submit, cancel and
+    /// shutdown are written once.
+    #[derive(Debug)]
+    struct Cancelling<R: core::fmt::Debug + Send + 'static, D: Send + 'static> {
+        inner: Coalescing<Tokened<R, D>>,
+        /// The token of the most recently submitted job.
+        cancel: CancelToken,
+    }
+
+    impl<R: core::fmt::Debug + Send + 'static, D: Send + 'static> Cancelling<R, D> {
+        /// Spawn the worker, answering each job with `run`. Nothing
+        /// survives between jobs.
+        fn spawn(
+            worker: Worker,
+            thread_name: &str,
+            run: fn(R, &CancelToken) -> D,
+        ) -> Result<Self, SpawnError> {
+            let inner =
+                Coalescing::spawn(worker, thread_name, (), move |_, job: Tokened<R, D>| {
+                    run(job.request, &job.cancel)
+                })?;
+            Ok(Self {
+                inner,
+                cancel: CancelToken::new(),
+            })
+        }
+
+        /// Cancel the job in flight, and hand `request` on.
+        fn submit(&mut self, request: R) {
+            self.cancel.cancel();
+            let cancel = CancelToken::new();
+            self.cancel = cancel.clone();
+            self.inner.submit(Tokened {
+                request,
+                cancel,
+                done: core::marker::PhantomData,
+            });
+        }
+
+        fn cancel(&mut self) {
+            self.cancel.cancel();
+        }
+
+        fn poll(&mut self) -> Option<D> {
+            self.inner.poll()
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    impl<R: core::fmt::Debug + Send + 'static, D: Send + 'static> Drop for Cancelling<R, D> {
+        /// [`ThreadEvaluator`]'s `Drop`: the job reads its token, so the
+        /// join is bounded by one node or one margin's discharge.
+        fn drop(&mut self) {
+            self.cancel.cancel();
+            self.inner.close_and_join();
+        }
+    }
+
+    /// A background-thread door seam: [`Cancelling`] over the
+    /// coincidence door's job.
     ///
     /// **Its own thread.** On the evaluator's, a door job would sit in
     /// front of the next evaluation until its token was seen; on its
@@ -1588,9 +1662,7 @@ mod threaded {
     /// draw the same landing.
     #[derive(Debug)]
     pub struct ThreadProver {
-        inner: Coalescing<DoorJobOf>,
-        /// The token of the most recently submitted job.
-        cancel: CancelToken,
+        inner: Cancelling<DoorRequest, DoorDone>,
     }
 
     impl ThreadProver {
@@ -1601,29 +1673,26 @@ mod threaded {
         /// [`SpawnError::Thread`] if the OS refuses the thread: every
         /// landing's door would otherwise read pending forever.
         pub fn spawn() -> Result<Self, SpawnError> {
-            let inner = Coalescing::spawn(Worker::Door, "viewer-door", (), |_, job: DoorJobOf| {
-                DoorDone {
-                    generation: job.request.generation,
-                    findings: job.request.job.run(&job.request.doc, &job.cancel),
-                }
-            })?;
             Ok(Self {
-                inner,
-                cancel: CancelToken::new(),
+                inner: Cancelling::spawn(
+                    Worker::Door,
+                    "viewer-door",
+                    |request: DoorRequest, cancel| DoorDone {
+                        generation: request.generation,
+                        findings: request.job.run(&request.doc, cancel),
+                    },
+                )?,
             })
         }
     }
 
     impl DoorService for ThreadProver {
         fn submit(&mut self, request: DoorRequest) {
-            self.cancel.cancel();
-            let cancel = CancelToken::new();
-            self.cancel = cancel.clone();
-            self.inner.submit(DoorJobOf { request, cancel });
+            self.inner.submit(request);
         }
 
         fn cancel(&mut self) {
-            self.cancel.cancel();
+            self.inner.cancel();
         }
 
         fn poll(&mut self) -> Option<DoorDone> {
@@ -1635,42 +1704,12 @@ mod threaded {
         }
     }
 
-    impl Drop for ThreadProver {
-        /// [`ThreadEvaluator`]'s `Drop`: the job reads its token, so the
-        /// join is bounded by one node or one margin's discharge.
-        fn drop(&mut self) {
-            self.cancel.cancel();
-            self.inner.close_and_join();
-        }
-    }
-
-    /// One staged job and the token it reads.
-    #[derive(Debug)]
-    struct StagedJobOf {
-        request: StagedRequest,
-        cancel: CancelToken,
-    }
-
-    impl Job for StagedJobOf {
-        /// `None` for a canceled run, which answers nothing.
-        type Done = Option<StagedDone>;
-
-        /// **Always**, for [`EvalJob`]'s reason: a submit that left a
-        /// job waiting canceled the one `done` answers.
-        fn supersedes(&self, _done: &Option<StagedDone>) -> bool {
-            true
-        }
-    }
-
-    /// A background-thread staged seam: [`ThreadProver`]'s machine,
-    /// token and all, over a staged document's run. Its own thread, so
-    /// a draft's verdict runs beside the picture's evaluation rather
-    /// than in front of it.
+    /// A background-thread staged seam: [`Cancelling`] over a staged
+    /// document's run. Its own thread, so a draft's verdict runs beside
+    /// the picture's evaluation rather than in front of it.
     #[derive(Debug)]
     pub struct ThreadStager {
-        inner: Coalescing<StagedJobOf>,
-        /// The token of the most recently submitted job.
-        cancel: CancelToken,
+        inner: Cancelling<StagedRequest, Option<StagedDone>>,
     }
 
     impl ThreadStager {
@@ -1681,25 +1720,19 @@ mod threaded {
         /// [`SpawnError::Thread`] if the OS refuses the thread: every
         /// staged verdict would otherwise read pending forever.
         pub fn spawn() -> Result<Self, SpawnError> {
-            let inner = Coalescing::spawn(
-                Worker::Staged,
-                "viewer-staged",
-                (),
-                |_, job: StagedJobOf| run_staged(job.request, &job.cancel),
-            )?;
             Ok(Self {
-                inner,
-                cancel: CancelToken::new(),
+                inner: Cancelling::spawn(Worker::Staged, "viewer-staged", run_staged)?,
             })
         }
     }
 
     impl StagedService for ThreadStager {
         fn submit(&mut self, request: StagedRequest) {
-            self.cancel.cancel();
-            let cancel = CancelToken::new();
-            self.cancel = cancel.clone();
-            self.inner.submit(StagedJobOf { request, cancel });
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
         }
 
         fn poll(&mut self) -> Option<StagedDone> {
@@ -1714,15 +1747,6 @@ mod threaded {
 
         fn busy(&self) -> bool {
             self.inner.busy()
-        }
-    }
-
-    impl Drop for ThreadStager {
-        /// [`ThreadProver`]'s `Drop`: the run reads its token, so the
-        /// join is bounded by one node.
-        fn drop(&mut self) {
-            self.cancel.cancel();
-            self.inner.close_and_join();
         }
     }
 
