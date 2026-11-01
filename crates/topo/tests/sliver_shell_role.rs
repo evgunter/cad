@@ -155,21 +155,21 @@ fn a_near_tangent_wedge_whose_volume_is_in_band_reads_its_role_off_a_ray() {
     );
 }
 
-/// **A sliver lump its certified volume sides builds**: at `vee300 nt e0
-/// a1 d6e-9`, ε = 1e-9, no ray aimed at one of the ∩'s lump's faces
-/// reads its side or a pair in band, and the f64 walk reads its `V/A` at
-/// 8.7e-10 (prism first) and 3.3e-10 (cube first), in the zero band;
-/// its certified enclosure is [1.69973e-9, 1.69973e-9], and the volume's
-/// sign is read off that enclosure alone (D10), so the lump is `Outer`
-/// and the ∩ builds, in both orders. It refused as the kernel's while
-/// the volume was held against the band.
+/// **A sliver lump six bands thick refuses at the strut side, in both
+/// orders**: at `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the ∩'s arrival edge
+/// at the wedge's corner ends 6.8e-9 off the plane of the face the germ
+/// runs along, a pair in band (D10: thinness is judged by pairs). The
+/// strut order reads that offset, the germ levered by its lean
+/// (`bool_strut_side`), and refuses typed as the sectors' coincidence in
+/// both orders: the two orders read the one corner. The lump's
+/// certified volume, `[1.69973e-9, 1.69973e-9]`, is never reached here.
 #[test]
-fn a_sliver_lump_its_certified_volume_sides_builds_in_both_orders() {
+fn a_sliver_lump_six_bands_thick_refuses_at_the_strut_side_in_both_orders() {
     let tol = Tol::witness();
     if (tol.eps() - 1e-9).abs() > 1e-21 {
         test_utils::vacuity::stood_down(
             "eps other than 1e-9",
-            "the walk reads this pose's lump in the zero band at ε = 1e-9 only",
+            "the wedge is six bands thick at ε = 1e-9 only",
         );
         return;
     }
@@ -179,8 +179,17 @@ fn a_sliver_lump_its_certified_volume_sides_builds_in_both_orders() {
         ("prism first", intersect(&prism, &cube, tol)),
         ("cube first", intersect(&cube, &prism, tol)),
     ] {
-        let result = result.unwrap_or_else(|e| panic!("{order}: the ∩ builds, got {e:?}"));
-        assert!(result.body().is_some(), "{order}: the ∩ is not empty");
+        match result {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::Coincidence(Coincide::Sectors, _),
+                diag,
+            }) => assert_eq!(
+                diag.predicate,
+                Some("bool_strut_side"),
+                "{order}: refused at the strut side"
+            ),
+            other => panic!("{order}: the ∩ refuses in band at the strut side, got {other:?}"),
+        }
     }
 }
 
