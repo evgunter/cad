@@ -34,3 +34,26 @@ conic against a quadric or torus face, and a bisector against any face
 (its own face's normal section stands in for its bend). The shipped
 parting sites (`runs_into`, `crescent`, `corner_holds`, `walls_inside`,
 `tangent_relative_side`, `tied_germ_turn`) are the same.
+
+## The gap fallback this row retires (TANGRIM ruling, 2026-11-01)
+
+Until the witness lands, a tied bound's parting that falls between the
+zero band and the escalation band at its capped reach reads
+`bound_side::BoundSide::Unresolved`, and every consumer reads it as the
+first order's tie, `On`, as main did before stage 2 (`sectors::bound_read`,
+`splitting::entry_side`). The arm goes when the witness reads these
+bounds at the edge's extent. Its witnesses, each building on main and
+refusing `Escalated { Coincidence(TangentSide), "tangent_sector_order2" }`
+without the arm (band: zero `1e-9`, escalation `1e-8`):
+
+| row | parting at the capped reach |
+|---|---|
+| `germ_plane_torus_frame::a_band_pose_under_the_tubes_top_reaches_the_donuts_door` | −2.0e-9 |
+| `near_circular_sections::a_near_square_rod_minus_a_box_builds` | −5.0e-9 |
+| `near_circular_sections::a_turned_near_square_rod_minus_a_box_builds` | −7.5e-9 |
+| `pi_seam_and_kiss_through_the_boolean::a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` | −1.0000000827e-9 |
+| `spheres_crossing_off_every_edge::a_trimmed_face_cut_beside_its_pole_builds` | 5.0e-9 |
+| `tilted_sphere_pair::a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed` | 9.6e-9 |
+
+`bound_side`'s `a_ties_parting_reads_zero_gap_and_decided_as_first_order_does`
+pins the arm's rung; it changes with the arm.

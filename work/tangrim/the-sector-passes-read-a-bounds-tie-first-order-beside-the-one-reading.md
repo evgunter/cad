@@ -218,3 +218,14 @@ none in Zero, so all six refuse as the ruling says:
 Each builds on main and refuses here; their pins are unchanged. The
 rim-offset row sits `8.3e-17` past the zero band, which is rounding in
 the parting's own arithmetic; it is not a distinct case.
+
+### Second ruling (TANGRIM orchestrator, 2026-11-01) and outcome
+
+Refusing the six gap rows is a regression stage 2 may not ship: the gap
+is the leading term read at the capped reach, too small to decide, which
+is the witness's job (`a-leaves-verdict-carries-no-witness-point`).
+Until the witness lands, a parting in the gap reads
+`BoundSide::Unresolved`, which every consumer reads as the first order's
+`On`, as main did. A decided parting reads `Leaves`, a zero-band one
+`Rides`. All six rows build again; the witness row names them as its
+witnesses and says the arm goes with it.
