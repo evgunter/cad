@@ -74,7 +74,7 @@ nodes for one evaluation. The label says the index WAITS on that row
 and no more: the build stops at the first refusing root, so a later
 root's own refusal can still be behind it. Nothing filed on EDIT.
 
-**Filed**: `work/vgeom/one-failed-root-refuses-the-whole-pick-index.md`
+**Filed**: `work/chrome/one-failed-root-refuses-the-whole-pick-index.md`
 (why the refusal exists at all — one failed root takes picking and the
 redraw of every healthy root with it) and
 `work/vnews/the-at-rest-badge-restates-a-failed-root-louder-than-its-row.md`

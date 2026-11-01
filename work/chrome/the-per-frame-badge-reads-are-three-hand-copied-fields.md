@@ -2,10 +2,12 @@
 id: the-per-frame-badge-reads-are-three-hand-copied-fields
 kind: issue
 title: The per-frame badge reads are three hand-copied fields, each wired five times in app.rs
-status: open
+status: review
 opened: 2026-09-30
 priority: P1
 cost: M
+branch: chrome/per-frame-reads
+pr: 6199
 ---
 
 
