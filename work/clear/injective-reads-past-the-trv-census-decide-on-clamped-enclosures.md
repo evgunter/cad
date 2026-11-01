@@ -4,6 +4,8 @@ kind: issue
 title: injective.rs reads newer than the TRV census decide on wall-image and jet enclosures that may clamp
 status: open
 opened: 2026-11-01
+priority: P2
+cost: M
 ---
 
 

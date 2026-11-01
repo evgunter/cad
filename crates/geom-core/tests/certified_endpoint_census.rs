@@ -563,16 +563,16 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/topo/src/injective.rs",
         70,
-        21,
-        "the 21 that ask are `exactly`, `forward`, `along` (2), `present_chart` (12) and \
-         the two `psi`s (5). `present_chart`'s ask guards its merge; its touch, reach, \
-         rectangle-side and apex reads are sound as the remainder's last class is, and \
-         `Curved::psi`'s shift reads finite parameters. Of the other 49, the seeds and \
-         selections (`mid`, `graph_read`'s `inside` and lever), the reads behind a \
-         funnel (`present_plane`'s, `Pieces::of`'s `wind`; `present_plane`'s one-edge \
-         `y` brackets its quotient wherever its inputs certify, argued at the site), \
-         the parameter reads (`monotone_run`, `narrowed`, `leaves_graph`, \
-         `leaves_line`) and `run_on`'s, behind `along`'s and the merge's asks, are \
+        27,
+        "the 27 that ask are `exactly`, `forward`, `along` (2), `present_chart` (12), \
+         `present_plane` (6) and the two `psi`s (5). `present_chart` asks each clip line \
+         where it is placed, so its touch, reach, merge, rectangle-side and apex reads \
+         see only certified lines; `present_plane` asks its one-edge `y`, and its other \
+         reads are behind the SPAN and CORNER funnels; `Curved::psi`'s shift reads \
+         finite parameters. Of the other 43, the seeds and selections (`mid`, \
+         `graph_read`'s `inside` and lever), the read behind `exactly` (`Pieces::of`'s \
+         `wind`), the parameter reads (`monotone_run`, `narrowed`, `leaves_graph`, \
+         `leaves_line`) and `run_on`'s, behind `along`'s and the placement asks, are \
          sound. The rest read the window's carrier and the face's boundary, which \
          `clearance`'s `window_of` admits only where every lifted value certifies; \
          `present_wall`'s wall-image reads and `speeds`' jet bound also read an \

@@ -1562,6 +1562,11 @@ fn present_chart<'a>(
             let Some(line) = placed(piece.surface, iso, sheet, (lo, hi)) else {
                 return Err(Unpresented::Structural);
             };
+            // Every read below, and the merge's folds, see only a
+            // certified line.
+            if !line.is_certified() {
+                return Err(Unpresented::Local);
+            }
             let side = Side::of(iso.held, sigma > 0.0);
             // A cell past the line on its face side by no more than
             // [`few_ulps`] lies outside it: the touch's ε concession.
@@ -1602,11 +1607,6 @@ fn present_chart<'a>(
         let Some(first) = on.first() else {
             continue;
         };
-        // A line that does not certify places nothing; the folds below
-        // would skip a NaN one.
-        if on.iter().any(|c| !c.at.is_certified()) {
-            return Err(Unpresented::Local);
-        }
         let common_lo = on
             .iter()
             .map(|c| c.at.lo())
@@ -1968,11 +1968,9 @@ fn present_plane<'a>(
             // ball, so the plane's disk inside the ball meets the
             // boundary only in a whole chord of this edge, and the
             // disk's half off the face side is all outside the face. The
-            // cell lies in that half. `y` brackets the quotient wherever
-            // the lifted inputs certify, though `len2` may hold zero: an
-            // edge whose true length is zero has `a` holding zero on both
-            // axes, so the numerator holds zero and `y` is the whole line.
-            if y.hi() <= 0.0 {
+            // cell lies in that half. A `len2` holding zero leaves `y`
+            // uncertified, and a zero-length edge bounds no half.
+            if y.is_certified() && y.hi() <= 0.0 {
                 return Ok(Presentation::Vacuous);
             }
             let len = len2.sqrt();
@@ -4782,6 +4780,7 @@ mod rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
     use super::*;
+    use crate::test_support_fixtures::trv;
     use geom_core::Tol;
 
     const ALPHA: f64 = 0.2;
@@ -7918,17 +7917,6 @@ mod presentation_rows {
         );
     }
 
-    /// `x` crossed with its endpoints intact under `Trv`: the value a
-    /// refused scalar lifts to through [`Interval::from_certified`].
-    fn trv(x: f64) -> Interval {
-        let refused = iv0(x) + Interval::from_bounds(-1.0, 0.0).sqrt();
-        assert!(
-            !refused.is_certified() && refused.lo() == x && refused.hi() == x,
-            "a refused crossing keeps its endpoints: {refused:?}"
-        );
-        refused
-    }
-
     /// **An iso use's ends that do not certify decide neither its
     /// direction nor its range** ([`forward`], [`along`]). The image runs
     /// `v` from `0` to a refused `1`: certified, it runs forward over
@@ -7940,26 +7928,36 @@ mod presentation_rows {
             at: iv0(1.0),
             full: false,
         };
-        let image = |end: Interval| Use {
+        let image = |start: Interval, end: Interval| Use {
             plus: true,
-            image: Some([p2((1.0, 0.0)), Point2::new(iv0(1.0), end)]),
+            image: Some([Point2::new(iv0(1.0), start), Point2::new(iv0(1.0), end)]),
             iso: Some(iso),
             wall: None,
             harmonic: None,
         };
-        let certified = image(iv0(1.0));
+        let certified = image(iv0(0.0), iv0(1.0));
         assert_eq!(forward(&certified, iso), Some(1.0), "the certified control");
         assert!(along(&certified, iso).is_some(), "the certified control");
-        let refused = image(trv(1.0));
-        assert_eq!(forward(&refused, iso), None, "direction off a refused end");
-        assert!(along(&refused, iso).is_none(), "range off a refused end");
+        for (what, refused) in [
+            ("start", image(trv(0.0), iv0(1.0))),
+            ("end", image(iv0(0.0), trv(1.0))),
+        ] {
+            assert_eq!(
+                forward(&refused, iso),
+                None,
+                "direction off a refused {what}"
+            );
+            assert!(along(&refused, iso).is_none(), "range off a refused {what}");
+        }
     }
 
-    /// **A line that does not certify bounds no rectangle** (the merge in
-    /// [`present_chart`]): [`slot`]'s right line at a refused `1.5`, the
-    /// cell beside it on its face side. Certified, the rectangle runs
-    /// from the line; refused, nothing is presented. Red if the merge
-    /// hulls a refused line into a certified side.
+    /// **A line that does not certify places nothing** in
+    /// [`present_chart`]: [`slot`]'s right line at a refused `1.5`. The
+    /// cell beside it on its face side is presented from it when it
+    /// certifies; the cell inside the hole, touching the line from its
+    /// other side, reads vacuous off it when it certifies. Refused,
+    /// neither is decided. Red if any read of a placed line precedes
+    /// its ask.
     #[test]
     fn a_refused_line_bounds_no_rectangle() {
         let s = cylinder();
@@ -7975,6 +7973,13 @@ mod presentation_rows {
         };
         iso.at = trv(1.5);
         assert_eq!(chart(&s, &b, &[0, 1], cell.0, cell.1), Read::Local);
+        let hole = ((1.1, 1.5), (0.3, 0.7));
+        assert_eq!(
+            chart(&s, &slot(), &[0, 1], hole.0, hole.1),
+            Read::Vacuous,
+            "the certified control inside the hole"
+        );
+        assert_eq!(chart(&s, &b, &[0, 1], hole.0, hole.1), Read::Local);
     }
 
     /// **A lever that does not certify measures no sliver** (the sliver in
@@ -8031,5 +8036,84 @@ mod presentation_rows {
         };
         assert!(c.psi(&graph(iv0(1.0))).is_some(), "the certified control");
         assert!(c.psi(&graph(trv(1.0))).is_none(), "a refused gradient");
+        // The distance to the edge's carrier refused alone: the bound
+        // reads only its upper end.
+        let mut off = *c;
+        let Form::Harmonic {
+            edge: Some(edge), ..
+        } = &mut off.form
+        else {
+            panic!("a harmonic side on a conic");
+        };
+        edge.c.x = edge.c.x + trv(0.0);
+        assert!(off.psi(&graph(iv0(1.0))).is_none(), "a refused distance");
+    }
+
+    /// **An edge whose chart line does not certify bounds no half
+    /// plane** ([`present_plane`]'s one-edge arm): a zero-length edge,
+    /// whose `len2` is `[0, 0]`, and an edge whose span ends at a
+    /// refused `4`. Neither `y` certifies, so a cell on either side is
+    /// not read vacuous off it; the certified edge reads the cell below
+    /// it vacuous. Red if the arm reads `y`'s upper end unasked.
+    #[test]
+    fn an_edge_that_does_not_certify_bounds_no_half_plane() {
+        let plane = Surface::Plane {
+            origin: origin(),
+            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let along = |end: Interval| Boundary {
+            sense: true,
+            edges: vec![Rim {
+                key: edge(1),
+                arc: Some((
+                    Curve3::Line {
+                        origin: origin(),
+                        dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    },
+                    (iv0(0.0), end),
+                )),
+                ends: [vertex(1), vertex(2)],
+                uses: vec![Use {
+                    plus: true,
+                    image: None,
+                    iso: None,
+                    wall: None,
+                    harmonic: None,
+                }],
+            }],
+            vertices: BTreeMap::new(),
+            extent: None,
+        };
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let vacuous = |b: &Boundary, v| {
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &plane,
+                whole: false,
+                boundary: b,
+                u: (1.0, 2.0),
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            matches!(
+                present_plane(&piece, &[0], &[], band()),
+                Ok(Presentation::Vacuous)
+            )
+        };
+        let below = (-0.5, -0.1);
+        assert!(vacuous(&along(iv0(4.0)), below), "the certified control");
+        for (what, end) in [("zero-length", iv0(0.0)), ("refused", trv(4.0))] {
+            for v in [below, (0.1, 0.5)] {
+                assert!(
+                    !vacuous(&along(end), v),
+                    "the {what} edge, the cell at v = {v:?}"
+                );
+            }
+        }
     }
 }
