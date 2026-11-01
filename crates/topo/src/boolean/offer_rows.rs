@@ -2877,7 +2877,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::CONTAINMENT_UNNAMED",
         1,
     ),
-    ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "bisector_zero_refusal",
@@ -2889,7 +2888,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
-    ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
         "direction_sense",

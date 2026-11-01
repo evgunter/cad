@@ -2564,11 +2564,11 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     operand: topo::Operand::A,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
-                    neighbourhood: topo::UnreadNeighbourhood::NoBisector,
+                    neighbourhood: topo::UnreadNeighbourhood::ConeUnread,
                 },
             },
             vec![
-                "on an edge whose two faces hold no bisector",
+                "reads within the tolerance of its faces",
                 "classed none of the vertex's edges",
                 "a-lone-unread-partner-has-no-class-rule",
             ],

@@ -259,7 +259,7 @@ pub(super) fn partner_side<T: Decide>(
 /// **One partner of a vertex**: the other operand's vertex at its point,
 /// where that vertex stands, and its sectors.
 #[derive(Debug, Clone)]
-pub(super) struct Partner<T: geom_core::Real> {
+pub(crate) struct Partner<T: geom_core::Real> {
     pub vertex: VertexKey,
     pub at: Point3<T>,
     pub sectors: Vec<BoolSector<T>>,
@@ -278,10 +278,9 @@ pub(super) struct Partner<T: geom_core::Real> {
 /// Each edge of `edges` is read at its bound's point
 /// ([`super::sectors::Reach::point`]): in the material `In`, outside it
 /// `Out`, on one face or along the material's boundary `On`. `None`
-/// where the cone does not close or some edge reads in band: then no
-/// edge is classed. Refuses as an invariant where an edge of `edges`
+/// where some edge reads in band: then no edge is classed. Refuses as an invariant where an edge of `edges`
 /// is no edge of the vertex's own sectors (`own`).
-pub(super) fn cone_classes<T: Decide>(
+pub(crate) fn cone_classes<T: Decide>(
     p: Point3<T>,
     own: &[BoolSector<T>],
     edges: &[HalfEdgeKey],
@@ -3116,6 +3115,136 @@ mod tests {
         assert!(
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
+        );
+    }
+
+    /// A convex corner of three faces with its tip at the origin, its
+    /// material about `axis` (`±z`) within 45° of it, as its orbit's
+    /// sectors (each face's corner swept counterclockwise about its
+    /// outward normal), each edge a unit chord, half-edges keyed from
+    /// `first`.
+    fn corner_about(axis: f64, first: u64) -> Vec<BoolSector<f64>> {
+        use super::super::sectors::Reach;
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let rays: Vec<Vec3<f64>> = [0.0f64, 120.0, 240.0]
+            .iter()
+            .map(|d| {
+                let t = d.to_radians();
+                Vec3::new(t.cos(), axis * t.sin(), axis)
+            })
+            .collect();
+        (0..3)
+            .map(|k| {
+                let (end, start) = (rays[k], rays[(k + 1) % 3]);
+                BoolSector {
+                    he: HalfEdgeKey::from(key(first + k as u64)),
+                    start: start.normalize(),
+                    end: end.normalize(),
+                    start_reach: Reach::Chord {
+                        base: o,
+                        far: o + start,
+                    },
+                    end_reach: Reach::Chord {
+                        base: o,
+                        far: o + end,
+                    },
+                    face: crate::entity::FaceKey::from(key(100 + first + k as u64)),
+                    normal: OutwardNormal::from_chart(start.cross(end).normalize(), true),
+                    arm: 1.0,
+                }
+            })
+            .collect()
+    }
+
+    /// **A vertex's edges are read through one cone of the other solid at
+    /// its point**: a partner's convex corner standing on the face the
+    /// vertex touches (outward `+z`, the solid below it), and, in pairs
+    /// alone, that corner and another hanging below. An edge inside a
+    /// partner's corner is `In`, one outside every corner and the touched
+    /// face's material `Out`; below the face `In`; on it `On`. An edge the
+    /// pierce read off the face by a bend its tangent does not show keeps
+    /// that side: the face's given side stands for its plane. An edge in
+    /// band of a partner's face, inside its sector, reads nothing, and so
+    /// does every edge beside it.
+    #[test]
+    fn a_vertexs_edges_are_read_through_one_cone() {
+        use super::super::sectors::Reach;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let edge = |n: u64, d: Vec3<f64>| BoolSector {
+            he: HalfEdgeKey::from(key(n)),
+            start: Vec3::new(0.0, 0.0, 1.0),
+            end: d.normalize(),
+            start_reach: Reach::Bisector(1.0),
+            end_reach: Reach::Chord {
+                base: o,
+                far: o + d,
+            },
+            face: crate::entity::FaceKey::from(key(900 + n)),
+            normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+            arm: 1.0,
+        };
+        let partner = |n: u64, axis: f64| Partner {
+            vertex: VertexKey::from(key(n)),
+            at: o,
+            sectors: corner_about(axis, 10 * n),
+        };
+        let own = [
+            edge(1, Vec3::new(0.1, 0.0, 1.0)),
+            edge(2, Vec3::new(1.0, 1.0, 0.2)),
+            edge(3, Vec3::new(0.1, 0.2, -1.0)),
+            edge(4, Vec3::new(0.0, 1.0, 0.0)),
+            edge(5, Vec3::new(0.0, -1.0, 0.0)),
+        ];
+        let he: Vec<HalfEdgeKey> = own.iter().map(|s| s.he).collect();
+        let face = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let pierced = [
+            (he[0], Out),
+            (he[1], Out),
+            (he[2], In),
+            (he[3], On),
+            (he[4], Out),
+        ];
+        let read = |edges: &[HalfEdgeKey], partners: &[Partner<f64>], touched| {
+            cone_classes(o, &own, edges, partners, touched, band).unwrap()
+        };
+        let classes = |cs: &[SideCode]| he.iter().copied().zip(cs.iter().copied()).collect();
+        assert_eq!(
+            read(&he, &[partner(1, 1.0)], Some((face, &pierced[..]))),
+            Some(classes(&[In, Out, In, On, Out])),
+            "touching the face beside the standing corner"
+        );
+        let alone = &he[..4];
+        assert_eq!(
+            read(alone, &[partner(1, 1.0)], None),
+            Some(classes(&[In, Out, Out, Out])),
+            "beside the standing corner alone"
+        );
+        assert_eq!(
+            read(alone, &[partner(1, 1.0), partner(2, -1.0)], None),
+            Some(classes(&[In, Out, In, Out])),
+            "beside the standing corner and the hanging one"
+        );
+        // Off the standing corner's first face's middle, in band of its
+        // plane.
+        let s = &partner(1, 1.0).sectors[0];
+        let mid = (band.zero() + band.escalate()) / 2.0;
+        let grazing = edge(6, s.middle() * 0.5 + s.normal.vec() * mid);
+        let graze = [own[0].clone(), grazing];
+        assert_eq!(
+            cone_classes(
+                o,
+                &graze,
+                &[graze[0].he, graze[1].he],
+                &[partner(1, 1.0)],
+                None,
+                band
+            )
+            .unwrap(),
+            None,
+            "an edge in band of a partner's face"
         );
     }
 

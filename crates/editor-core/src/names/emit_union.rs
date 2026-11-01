@@ -3796,7 +3796,7 @@ mod tests {
             operand: topo::Operand::B,
             vertex: corners.next().unwrap(),
             partner: corners.next().unwrap(),
-            neighbourhood: topo::UnreadNeighbourhood::NoBisector,
+            neighbourhood: topo::UnreadNeighbourhood::ConeUnread,
         };
         let links = Links {
             pairs: Vec::new(),

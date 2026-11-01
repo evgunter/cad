@@ -1,15 +1,16 @@
-//! **A shaft mated in a full-turn bore names cleanly while the boolean
-//! lists the partners it read nothing of** (`topo::UnreadPartner`).
+//! **A shaft mated in a full-turn bore names cleanly, the boolean
+//! classing the shaft's edges where it meets a rim**
+//! (`topo::EdgePieceClass`).
 //!
 //! The collar is the rectangle ρ ∈ [0.3, 0.6], y ∈ [0, 1] revolved a full
 //! turn about `y`; the shaft a circle of the bore's radius on a `+y`
 //! frame, its vertex turned `a` from the collar's seam, extruded over
 //! four spans. Where a shaft vertex meets the collar at a rim's vertex,
-//! the bore and the end face hold no subdivision bisector to read their
-//! wedge by, so the boolean classes none of the shaft's edges there and
-//! lists the vertex. Naming never reads a crossing there: a listed
-//! vertex is a member's own, and a finished vertex at a member vertex is
-//! named by that identity, so the union names cleanly in every case.
+//! the boolean reads the shaft's edges through one cone of the bore and
+//! the end face there, and classes each: a shaft ruling split at the rim
+//! runs along the bore into the collar (`On`) and out past the end face
+//! (`Out`); every other edge there runs along the bore or the rim
+//! (`On`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
@@ -135,11 +136,13 @@ const SPANS: [(&str, f64, f64); 4] = [
     ("proud below", -0.5, 1.5),
 ];
 
-/// **Every pose names, and the record lists the shaft's vertices at the
-/// rims**: on the seam at every span, off it wherever a shaft cap meets
-/// a rim (an off-seam shaft through the collar meets no rim vertex and
-/// lists none). Each listed vertex is the shaft's, its partner read
-/// nothing for want of a bisector, and holds no class.
+/// **Every pose names, and the shaft's vertices at the rims are
+/// classed**: on the seam at every span, off it wherever a shaft cap
+/// meets a rim (an off-seam shaft through the collar meets no rim
+/// vertex). No partner is listed unread, and each of the shaft's
+/// vertices paired at a rim reads as the module docs derive by hand: a
+/// vertex with one edge in two pieces and no other (a ruling split at the
+/// rim) one piece `On` and the other `Out`, every other row `On`.
 #[test]
 fn a_mate_on_a_full_turn_bore_names() {
     let tol = Tol::witness();
@@ -158,28 +161,45 @@ fn a_mate_on_a_full_turn_bore_names() {
                     Ok(topo::BooleanResult::Body(bb)) => bb,
                     other => panic!("{tag}: the mate does not union: {:?}", other.err()),
                 };
-                let unread = &bb.naming.unread_partners;
+                let naming = &bb.naming;
+                assert_eq!(naming.unread_partners, [], "{tag}: every partner reads");
                 let shaft_side = if order.starts_with("shaft") {
                     topo::Operand::A
                 } else {
                     topo::Operand::B
                 };
-                for u in unread {
-                    assert_eq!(
-                        (u.operand, u.neighbourhood),
-                        (shaft_side, topo::UnreadNeighbourhood::NoBisector),
-                        "{tag}: {u:?}"
-                    );
+                let rims: std::collections::BTreeSet<_> = naming
+                    .reduction_contacts
+                    .vv
+                    .iter()
+                    .map(|c| match shaft_side {
+                        topo::Operand::A => c.a,
+                        topo::Operand::B => c.b,
+                    })
+                    .collect();
+                for &v in &rims {
+                    let mut edges = std::collections::BTreeMap::new();
+                    for r in naming
+                        .edge_classes
+                        .iter()
+                        .filter(|r| (r.operand, r.vertex) == (shaft_side, v))
+                    {
+                        edges.entry(r.edge).or_insert_with(Vec::new).push(r.class);
+                    }
+                    let mut classes: Vec<_> = edges.values().flatten().copied().collect();
+                    classes.sort();
+                    let mut want = match edges.values().collect::<Vec<_>>().as_slice() {
+                        [one] if one.len() == 2 => vec![topo::SideCode::Out, topo::SideCode::On],
+                        _ => vec![topo::SideCode::On; classes.len()],
+                    };
+                    want.sort();
                     assert!(
-                        !bb.naming
-                            .edge_classes
-                            .iter()
-                            .any(|r| (r.operand, r.vertex) == (u.operand, u.vertex)),
-                        "{tag}: a listed vertex holds a class: {u:?}"
+                        !classes.is_empty() && classes == want,
+                        "{tag}: the shaft's vertex {v:?} at a rim reads {edges:?}"
                     );
                 }
                 let rim = a == 0.0 || span != "through";
-                assert_eq!(!unread.is_empty(), rim, "{tag}: {unread:?}");
+                assert_eq!(!rims.is_empty(), rim, "{tag}: {rims:?}");
                 listed += usize::from(rim);
                 let reads = members.map(|n| doc.output(n, 0).expect("a body port").into());
                 let (doc, union) = insert(

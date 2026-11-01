@@ -632,9 +632,9 @@ pub struct UnreadPartner {
 /// the other solid's cone at the point found it (`vtxfac::cone_classes`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UnreadNeighbourhood {
-    /// The partner's faces, as one cone at the vertex's point, do not
-    /// pair up at their bounds on decided readings, or some edge of the
-    /// vertex reads in band of it (`link::Cone::reads_tied`'s `None`).
+    /// Some edge of the vertex reads in band of the partner's faces, as
+    /// one cone at the vertex's point (`link::Cone::reads_tied`'s
+    /// `None`).
     ConeUnread,
 }
 

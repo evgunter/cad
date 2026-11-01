@@ -5760,7 +5760,7 @@ mod tests {
                 operand: topo::Operand::A,
                 vertex: listed,
                 partner,
-                neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                neighbourhood: topo::UnreadNeighbourhood::ConeUnread,
             }],
             ..topo::BooleanNaming::default()
         };

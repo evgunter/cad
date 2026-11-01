@@ -22,7 +22,10 @@
 //! A link is built off a live body at a vertex ([`Link::at_point`]),
 //! inside a line edge ([`Link::on_edge`]) or inside a planar face
 //! ([`Link::in_face`]); the census builds its own off its snapshot,
-//! gathered across the keys a touch ties to its point.
+//! gathered across the keys a touch ties to its point. The boolean
+//! gathers a cone of the other operand at a vertex the same way, off
+//! its partners' orbits and a face the vertex touches
+//! ([`Cone::gathered`]): a cone of tangent sectors, never a link.
 //!
 //! **Every sign decided here is a point's signed distance from a
 //! plane or from a sphere's or cylinder's carrier**, in metres, and it
@@ -38,8 +41,9 @@
 //! the whole segment stands in for it). `Round::reach_from_axis` reads a
 //! point exactly on the axis as structure, by whether the scalar moves it.
 //! `link::tests::the_link_decides_only_through_its_doors` holds the signs
-//! to the doors by reading this file's source, and the census's touch
-//! analysis beside it, and says what such a reading cannot see.
+//! to the doors by reading this file's source, the census's touch
+//! analysis beside it, and the boolean's gathering of its cone, and says
+//! what such a reading cannot see.
 //!
 //! Each face is read through its PIECE at the point `p`: the part of the
 //! face visible from `p` ([`face_piece`]). The piece is star-shaped from
@@ -1244,12 +1248,18 @@ impl<T: Decide> Cone<T> {
     }
 
     /// **Where the direction to `q` lies against a gathered cone's
-    /// material** ([`Cone::gathered`]): [`Cone::reads_given`] where the
-    /// cone closes ([`Cone::held_closed`]), every reading taken over
-    /// twice the cone's tie, as [`rest::by_round`] takes its own: a
-    /// corner on another key of the point stands up to the tie off `p`.
-    /// `None` where the cone does not close on decided readings or a
-    /// reading the answer needs is in band.
+    /// material** ([`Cone::gathered`]): [`Cone::reads_given`], every
+    /// reading taken over twice the cone's tie, as [`rest::by_round`]
+    /// takes its own: a corner on another key of the point stands up to
+    /// the tie off `p`. `None` where a reading the answer needs is in
+    /// band.
+    ///
+    /// The cone is not read for closing ([`Cone::closes`]): its corners
+    /// are whole orbits of vertices, each edge the bound of the corners
+    /// either side of it at one point, the same point each side, and a
+    /// disc has no bound, so it closes by construction. A reading of it
+    /// in band (two bounds of one orbit a hair apart) would refuse a
+    /// cone the parity reads.
     pub(crate) fn reads_tied(
         &self,
         q: Point3<T>,
@@ -1261,7 +1271,6 @@ impl<T: Decide> Cone<T> {
             slack: Some(self.tie * T::from_f64(2.0)),
             own: false,
         };
-        self.held_closed(rd).ok()?;
         self.reads_given(q, given, rd)
     }
 
@@ -3155,6 +3164,8 @@ pub(crate) mod rest {
 }
 
 #[cfg(test)]
+mod cone_fuzz;
+#[cfg(test)]
 mod cone_oracle;
 #[cfg(test)]
 mod oracle_rows;
@@ -3670,6 +3681,21 @@ mod tests {
                 .find("\n/// **The conservative loudness backstop**")
                 .expect("the backstop's header after it");
         let touch = &census_code[start..end];
+        // The boolean's side of the gathered cone: its corners off the
+        // orbit's sectors, and the reading of each own edge through it.
+        let item = |src: &'static str, anchor: &str| -> String {
+            let src = code_only(src);
+            let at = src
+                .find(anchor)
+                .unwrap_or_else(|| panic!("the boolean holds `{anchor}`"));
+            let open = at + src[at..].find('{').expect("its body");
+            src[at..balanced_end(&src, open).expect("its closing brace")].to_owned()
+        };
+        let fans = item(include_str!("boolean/sectors.rs"), "\npub(crate) fn fans<");
+        let classes = item(
+            include_str!("boolean/vtxfac.rs"),
+            "\npub(crate) fn cone_classes<",
+        );
         let body = |anchor: &str| -> core::ops::Range<usize> {
             let at = module
                 .find(anchor)
@@ -3779,6 +3805,20 @@ mod tests {
         ] {
             stray.extend(outside(module, needle, &sites));
             stray.extend(outside(touch, needle, &[]));
+        }
+        for needle in [
+            "Margin::",
+            "decide(",
+            "sign_within",
+            "signum",
+            "partial_cmp",
+            "total_cmp",
+            "copysign",
+            "is_sign_negative",
+            "is_sign_positive",
+        ] {
+            stray.extend(outside(&fans, needle, &[]));
+            stray.extend(outside(&classes, needle, &[]));
         }
         assert!(
             stray.is_empty(),

@@ -4764,7 +4764,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     operand: topo::Operand::B,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
-                    neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                    neighbourhood: topo::UnreadNeighbourhood::ConeUnread,
                 },
             },
         ),

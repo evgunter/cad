@@ -84,7 +84,7 @@ use geom_brep::recourse::Refused;
 /// What stands behind a sector bound, which decides how its side of a
 /// plane is read ([`side_code`]).
 #[derive(Clone, Copy, Debug)]
-pub(super) enum Reach<T: geom_core::Real> {
+pub(crate) enum Reach<T: geom_core::Real> {
     /// A line edge: its far vertex, read in metres off the base vertex.
     Chord {
         /// The sector's base vertex.
@@ -117,7 +117,7 @@ pub(super) enum Reach<T: geom_core::Real> {
 impl<T: geom_core::Real> Reach<T> {
     /// The length the bound reaches from its base vertex, in metres:
     /// a line edge's chord, a curved edge's extent, a bisector's arm.
-    pub(super) fn length(self) -> T {
+    pub(crate) fn length(self) -> T {
         match self {
             Self::Chord { base, far } => (far - base).norm(),
             Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l) => l,
@@ -128,7 +128,7 @@ impl<T: geom_core::Real> Reach<T> {
     /// edge's far vertex, and any other bound's direction out to its
     /// reach ([`Self::length`]) — a curved edge's departure tangent at
     /// its extent, a probe's or a bisector's direction at its arm.
-    pub(super) fn point(self, base: Point3<T>, dir: Vec3<T>) -> Point3<T> {
+    pub(crate) fn point(self, base: Point3<T>, dir: Vec3<T>) -> Point3<T> {
         match self {
             Self::Chord { far, .. } => far,
             Self::Extent(_) | Self::Conic { .. } | Self::Bisector(_) => {
@@ -163,7 +163,7 @@ fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: T) -> T {
 
 /// One (convex) sector of a vertex neighborhood.
 #[derive(Clone, Debug)]
-pub(super) struct BoolSector<T: geom_core::Real> {
+pub(crate) struct BoolSector<T: geom_core::Real> {
     /// The orbit half-edge the sector follows (CW-after `he`).
     pub he: HalfEdgeKey,
     /// CCW-first bound direction (the next orbit chord, or a bisector).
@@ -2655,7 +2655,7 @@ pub(super) fn pair_search<T: Decide>(
 /// one after another, the end-sharing piece first, so the fan's rays
 /// run from the last piece's start to the first piece's end. Nothing is
 /// decided here: the subdivision is [`build_sectors`]'.
-pub(super) fn fans<T: geom_core::Real>(
+pub(crate) fn fans<T: geom_core::Real>(
     sectors: &[BoolSector<T>],
     apex: Point3<T>,
 ) -> Vec<crate::link::Fan<T>> {

@@ -888,7 +888,7 @@ impl crate::spoken::Say for NamingError {
             } => write!(
                 f,
                 "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
-                 vertex {partner:?}, which lies {} and which the boolean read nothing of, so it \
+                 vertex {partner:?}, which the boolean read nothing of ({}), so it \
                  classed none of the vertex's edges and the crossing has no senses to name it \
                  by (work/tang/a-lone-unread-partner-has-no-class-rule)",
                 match unread.operand {
@@ -896,12 +896,8 @@ impl crate::spoken::Say for NamingError {
                     topo::Operand::B => "B",
                 },
                 match unread.neighbourhood {
-                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::NoBisector => {
-                        "on an edge whose two faces hold no bisector"
-                    }
                     topo::UnreadNeighbourhood::ConeUnread => {
-                        "at a polygon cone, some edge of which no reference decides"
+                        "some edge of the vertex reads within the tolerance of its faces"
                     }
                 }
             ),
@@ -1889,11 +1885,11 @@ mod display_tests {
                         operand: topo::Operand::B,
                         vertex: two_vertices().0,
                         partner: two_vertices().1,
-                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
+                        neighbourhood: topo::UnreadNeighbourhood::ConeUnread,
                     },
                 },
                 vec![
-                    "inside one smooth face",
+                    "reads within the tolerance of its faces",
                     "classed none of the vertex's edges",
                     "work/tang/a-lone-unread-partner-has-no-class-rule",
                 ],
