@@ -342,3 +342,63 @@ mod driven {
         );
     }
 }
+
+/// Review rows for PR 6239: the miss notice's negative and lifetime
+/// halves, which the PR's own row does not pin.
+#[cfg(feature = "app")]
+mod missed_pick_bounds {
+    use crate::common;
+    use viewer::app::drive::Driver;
+
+    fn started(label: &str) -> Driver {
+        Driver::start(
+            common::tempdir(label).join("prefs.toml"),
+            pncad::tolerance::witness(),
+        )
+        .expect("the app starts")
+    }
+
+    fn vclick(driver: &mut Driver, fx: f32, fy: f32) {
+        let at = driver.in_viewport(fx, fy).expect("the viewport");
+        driver
+            .click_at(at, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
+            .expect("clicked");
+        driver.settle().expect("settles");
+    }
+
+    /// **With no tool open a miss stays quiet**: it is a deselect.
+    #[test]
+    fn a_miss_with_no_tool_open_says_nothing() {
+        let mut driver = started("missed-pick-no-tool");
+        vclick(&mut driver, 0.02, 0.02);
+        assert!(
+            !driver.dump().contains("no pick taken"),
+            "{}",
+            driver.dump()
+        );
+    }
+
+    /// **Repeated misses say it once, and a pick retires it**: the line
+    /// carries one telling however many misses, and the click that
+    /// seats something clears it.
+    #[test]
+    fn repeated_misses_say_it_once_and_a_pick_retires_it() {
+        let mut driver = started("missed-pick-repeat");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.02, 0.02);
+        vclick(&mut driver, 0.03, 0.03);
+        vclick(&mut driver, 0.04, 0.02);
+        let dump = driver.dump();
+        assert_eq!(dump.matches("no pick taken").count(), 1, "{dump}");
+        // Beside the plate's central hole, on its material.
+        vclick(&mut driver, 0.35, 0.5);
+        let dump = driver.dump();
+        assert!(dump.contains("member 1: Extrude "), "the premise: {dump}");
+        assert!(!dump.contains("no pick taken"), "{dump}");
+    }
+}
