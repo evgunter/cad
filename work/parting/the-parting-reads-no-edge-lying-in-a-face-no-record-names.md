@@ -2,11 +2,10 @@
 id: the-parting-reads-no-edge-lying-in-a-face-no-record-names
 kind: issue
 title: The Boolean's parting reads an edge lying in a face only where a record or its ends name the pair, so an unrecorded rider keeps one edge
-status: parked
+status: open
 opened: 2026-10-26
 priority: P1
 cost: H
-blocked_on: [edge-in-face-spans-are-re-derived-in-the-carry-because-the-sweep-skips-coplanar-edge-face-pairs]
 ---
 
 
@@ -76,3 +75,7 @@ the final state; it implements D1's record sentence and
   until the curve-touch lane lands
   (`work/contacthold/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`).
   (PARTING orchestrator)
+
+## Opened (2026-11-01)
+
+Its blocker closed with PR 6225: the sweep now records every line piece lying in a plane face. Dispatchable for plane faces: the parting asks a plane face of an edge exactly where an edge-face record names the pair, and `Names`, `crossed_faces` and the geometric reading in `holding` go for that case; curved faces keep their geometric reading until the curve-touch lane lands. (PARTING orchestrator)
