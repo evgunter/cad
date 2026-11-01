@@ -477,7 +477,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     .expect_err("a curved end face is a run-out, not built");
     let text = format!("{err}");
     assert!(
-        text.contains("not supported yet") && text.contains("curved face"),
+        text.contains(sweep::blend::battery::END_FACE_CURVED),
         "the refusal names the run-out gap: {text}"
     );
     fillet_edges(

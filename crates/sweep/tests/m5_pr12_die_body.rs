@@ -183,7 +183,7 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(
-        err.to_string().contains("not supported yet"),
+        err.to_string().contains(sweep::blend::battery::END_FACE_CURVED),
         "the refusal names the missing front door: {err}",
     );
 }
