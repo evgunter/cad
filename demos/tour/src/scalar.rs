@@ -7,9 +7,11 @@
 //! oracles and formats captions in plain f64, which generic kernel
 //! code must never do (the evaluation-code discipline routes every
 //! decision through `Decide`). Demos are narration, not evaluation
-//! code — and for both implementors the extraction is EXACT (`Probe`
+//! code — and for `f64` and `Probe` the extraction is EXACT (`Probe`
 //! is a transparent f64 wrapper; its arithmetic delegates verbatim),
 //! so every oracle asserted at f64 holds bit-identically at Probe.
+//! `Interval` builds scenes only for the rows that ask them for a
+//! certificate, and no oracle reads its `f`.
 
 use pncad::document::ContentBits;
 use pncad::geom_core::Decide;
@@ -138,6 +140,16 @@ pub trait Scalar:
 impl Scalar for f64 {
     fn f(self) -> f64 {
         self
+    }
+}
+
+/// The certifying scalar, for the rows that ask a certificate of a
+/// scene (`tests/wall_jets.rs`): its `f` is the midpoint, which is not
+/// exact, so no narration or oracle reads a scene built at it.
+impl Scalar for pncad::geom_core::Interval {
+    fn f(self) -> f64 {
+        use pncad::geom_core::Bounds;
+        0.5 * self.lo() + 0.5 * self.hi()
     }
 }
 

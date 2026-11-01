@@ -1704,13 +1704,20 @@ fn restricted_net(
     eu: (Interval, Interval),
     ev: (Interval, Interval),
 ) -> Option<Vec<Vec<[Interval; 4]>>> {
-    read_net(win, (eu, Along::Value), (ev, Along::Value))
+    read_net(
+        win,
+        Point3::origin(),
+        (eu, Along::Value),
+        (ev, Along::Value),
+    )
 }
 
-/// The Bernstein net over `eu × ev` of `win`'s homogeneous piece, read
-/// along each axis as `Along` says: the values on both, or a partial.
+/// The Bernstein net over `eu × ev` of `win`'s homogeneous piece about
+/// `origin`, `(w·(P − origin), w)`, read along each axis as `Along`
+/// says: the values on both, or a partial.
 fn read_net(
     win: SurfaceWindow<'_, Interval>,
+    origin: Point3<f64>,
     (eu, read_u): ((Interval, Interval), Along),
     (ev, read_v): ((Interval, Interval), Along),
 ) -> Option<Vec<Vec<[Interval; 4]>>> {
@@ -1718,7 +1725,7 @@ fn read_net(
     let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
     let homogeneous = |idx: usize| {
         let (w, p) = (surface.weights.values()[idx], surface.control[idx]);
-        [w * p.x, w * p.y, w * p.z, w]
+        net::homogeneous_about(w, p, origin)
     };
     let read = |span: Span<'_>, row: &[Interval], ends, along| {
         let row = span.with_window(row)?;
@@ -1756,15 +1763,19 @@ fn read_net(
 }
 
 /// `(S_u, S_v, S_uv)` over `win`'s piece restricted to `eu × ev`
-/// ([`NurbsSurface::rect_jet`]).
+/// ([`NurbsSurface::rect_jet`]), read about a point of the piece
+/// ([`net::rational_slope`]); the mixed partial is the same quotient
+/// rule one order up, over the same hulls.
 #[allow(clippy::type_complexity)]
 fn restricted_jet(
     win: SurfaceWindow<'_, Interval>,
     eu: (Interval, Interval),
     ev: (Interval, Interval),
 ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
+    let mid = |(a, b): (Interval, Interval)| Interval::from_f64(0.5 * a.lo() + 0.5 * b.hi());
+    let c = net::cell_origin(win.eval_in_span(mid(eu), mid(ev)));
     let hull = |u: Along, v: Along| -> Option<[Interval; 4]> {
-        read_net(win, (eu, u), (ev, v))?
+        read_net(win, c, (eu, u), (ev, v))?
             .into_iter()
             .flatten()
             .reduce(|a, b| [0, 1, 2, 3].map(|c| a[c].enclosure_hull(b[c])))
@@ -1782,8 +1793,8 @@ fn restricted_jet(
     let (a, au, av, auv) = (v3(h), v3(hu), v3(hv), v3(huv));
     let (wu, wv, wuv) = (hu[3], hv[3], huv[3]);
     let w2 = w.powi(2);
-    let su = (au * w - a * wu) * (at(1.0) / w2);
-    let sv = (av * w - a * wv) * (at(1.0) / w2);
+    let su = net::rational_slope(h, hu);
+    let sv = net::rational_slope(h, hv);
     let suv = (auv * w + au * wv - av * wu - a * wuv) * (at(1.0) / w2)
         - (au * w - a * wu) * (wv * at(2.0) / (w2 * w));
     Some((su, sv, suv))

@@ -290,3 +290,48 @@ pub(crate) fn removal_pass_bound<T: Real, P: ControlPoint<T>>(
     // An empty net perturbs nothing.
     w_min.map_or_else(T::zero, |w_min| (c_max * bw + bwp) * (T::one() / w_min))
 }
+
+/// **The frame a rational net's derivative over a cell is read in**: a
+/// point of the cell's image, to `f64`, from an enclosure `p` of one
+/// (the evaluation at the cell's middle). A coordinate that does not
+/// round to a finite value reads `0`. Nothing certifies it, and
+/// nothing needs to ([`rational_slope`]).
+pub(crate) fn cell_origin(p: Point3<Interval>) -> Point3<f64> {
+    use geom_core::Bounds as _;
+    p.map(|x| {
+        Some(0.5 * x.lo() + 0.5 * x.hi())
+            .filter(|m| m.is_finite())
+            .unwrap_or(0.0)
+    })
+}
+
+/// A homogeneous control point about `origin`: `[w·(P − origin), w]`.
+pub(crate) fn homogeneous_about(
+    w: Interval,
+    p: Point3<Interval>,
+    origin: Point3<f64>,
+) -> [Interval; 4] {
+    let o = origin.map(Interval::from_f64);
+    [w * (p.x - o.x), w * (p.y - o.y), w * (p.z - o.z), w]
+}
+
+/// **The one home of a rational net's first derivative over a cell**:
+/// `(B′·w − B·w′)/w²` from `h`, the hull of the cell's homogeneous net
+/// read about a point `c` ([`homogeneous_about`], [`cell_origin`]), and
+/// `hd`, the hull of its derivative's, with `h[3]` certified positive.
+///
+/// `B = A − c·w` is the homogeneous form of `C − c`, whose derivative is
+/// `C`'s for ANY constant `c`, so the quotient over hulls that enclose
+/// `B`, `B′`, `w` and `w′` at every point of the cell encloses `C′`
+/// there, whatever `c` is: `c` costs width, never soundness, and is not
+/// certified. About a point of the cell, `B` is the size of the cell's
+/// own extent, so the width shrinks with the cell and does not move
+/// with the net. About a far origin, the hulls of `A′·w` and `A·w′` each
+/// carry that distance times the weight's slope, and subtracting two
+/// hulls cancels nothing.
+pub(crate) fn rational_slope(h: [Interval; 4], hd: [Interval; 4]) -> Vec3<Interval> {
+    let (w, wd) = (h[3], hd[3]);
+    let b = Vec3::new(h[0], h[1], h[2]);
+    let bd = Vec3::new(hd[0], hd[1], hd[2]);
+    (bd * w - b * wd) * (Interval::from_f64(1.0) / w.powi(2))
+}

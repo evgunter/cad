@@ -300,3 +300,35 @@ fn span_deriv_narrows_on_a_few_ulp_meet_past_a_knot() {
         );
     }
 }
+
+/// **`span_deriv` does not move with the curve.** The circle and its
+/// twin moved by `(1e3, −1e3, 1e3)`, over ranges from a quarter to
+/// `2⁻³⁰`: each coordinate's width matches its twin's within 1% plus a
+/// rounding allowance of `1e-9`. Read in the absolute frame, the moved
+/// circle's derivative carries the distance times the weight's slope.
+#[test]
+fn span_deriv_does_not_move_with_the_curve() {
+    let home = nurbs_circle();
+    let by = geom_core::Vec3::new(1e3, -1e3, 1e3);
+    let away = home.map_points(|p| p + by).map_scalar(Interval::from_f64);
+    let home = home.map_scalar(Interval::from_f64);
+    let width = |d: geom_core::Vec3<Interval>| [d.x, d.y, d.z].map(|c| c.hi() - c.lo());
+    for k in [2, 5, 10, 20, 30] {
+        let h = 2f64.powi(-k);
+        for lo in [0.0, 0.1, 0.3, 0.5 - h, 0.6] {
+            let (a, b) = (
+                width(home.span_deriv(lo, lo + h).unwrap()),
+                width(away.span_deriv(lo, lo + h).unwrap()),
+            );
+            for c in 0..3 {
+                assert!(
+                    b[c] <= 1.01 * a[c] + 1e-9 && a[c] <= 1.01 * b[c] + 1e-9,
+                    "C′[{c}] over [{lo}, {}]: {} wide moved against {} at home",
+                    lo + h,
+                    b[c],
+                    a[c]
+                );
+            }
+        }
+    }
+}
