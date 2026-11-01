@@ -19,7 +19,7 @@ use crate::common::plate_index;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use common::asm;
 use pncad::document::NodeStanding;
@@ -746,9 +746,6 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
 /// Unfalsifiable before: a badge had no subject to get wrong.
 #[test]
 fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
-    // The badges here carry no node, so the document they speak in
-    // holds none.
-    let nodeless: Doc<ProfileProgram> = Doc::empty_derived("badges", Tol::witness());
     let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
@@ -781,7 +778,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "a scene the rebuild refused ends when a rebuild lands",
         ),
         (
-            frame::index_badge(Some(&build), &nodeless, None),
+            frame::index_badge(Some(&build), None, None),
             frame::Subject::Display,
             "a held pick-index refusal ends when a build lands",
         ),
@@ -870,7 +867,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     );
     assert_eq!(
         frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
-        frame::index_badge(Some(&build), &nodeless, None)
+        frame::index_badge(Some(&build), None, None)
             .expect("a held refusal badges")
             .subject(),
         "and one seam does not speak with two voices: the click it \
@@ -892,7 +889,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     // rest of the family's.
     assert_eq!(frame::scene_badge(None), None, "a scene that built");
     assert_eq!(
-        frame::index_badge(None, &nodeless, None),
+        frame::index_badge(None, None, None),
         None,
         "a cache holding no refusal"
     );
@@ -903,55 +900,47 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     );
 }
 
-/// **A pick-index refusal that follows from a failed node is drawn
-/// under that node's row, and names it.**
+/// **A copy with no value takes away its own picture and no other's,
+/// and its tree row is the notice.**
 ///
-/// The index is built over every world placement, so a placement with
-/// no value refuses it. The node whose failure caused that is already on screen
-/// as the tree's one loud row; the badge used to outrank it
-/// (`Actionable`, at the top of the window) and to name the placement
-/// it refused on instead of the row carrying the cause. Every expected
-/// value here is a literal: a row comparing the badge against another
-/// rendering of the same refusal would not notice the badge naming the
-/// wrong node.
+/// The index is built over every drawn copy; a copy whose node failed
+/// or was poisoned is held undrawn with its reason, and every other
+/// copy is drawn and picked. No badge is added for it: the tree's one
+/// loud row already says it. Every expected value here is a literal or
+/// a fixture id, so a badge that came back, or an index that refused
+/// again, reds the row.
 #[test]
-fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
+fn a_copy_with_no_value_is_left_to_its_tree_row_and_the_rest_draw() {
     let tol = Tol::witness();
-    let consequence = "until the index builds, no pick is answered and the picture is not redrawn";
 
     // A POISONED copy: the extrude fails, and the placement of it is
-    // what the index refuses on. The badge names
-    // the extrude.
+    // held undrawn, poisoned through the extrude.
     let (doc, extrude, moved) = common::broken_document(tol);
     assert_ne!(extrude, moved, "the body over the failure is another node");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let refusal = common::index_at(&session, common::plate_delta())
-        .expect_err("a poisoned copy refuses the index");
-    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
-        .expect("a refusal the cache holds is still badged");
+    let index = common::index_at(&session, common::plate_delta())
+        .expect("a poisoned copy does not refuse the index");
     assert_eq!(
-        badge.label(),
-        format!(
-            "pick index: waits on Extrude {}, which failed — {consequence}",
-            test_utils::refusal::tag(extrude.0.digest())
-        ),
-        "the row the tree blames, not the placement the build refused on"
+        index
+            .undrawn()
+            .iter()
+            .map(|copy| (copy.node(), copy.error().clone()))
+            .collect::<Vec<_>>(),
+        vec![(
+            moved,
+            NodePickError::Standing(NodeStanding::Poisoned {
+                node: moved,
+                through: extrude
+            })
+        )],
+        "the poisoned copy is held undrawn, with its standing"
     );
-    assert_eq!(badge.tone(), frame::Tone::Advisory);
+    assert!(index.parts().is_empty(), "and nothing else is drawn");
     assert_eq!(
-        badge.detail(),
-        Some(
-            format!(
-                "pick index: {}",
-                pncad::document::Said(
-                    &refusal,
-                    pncad::document::Speaker::of(session.landed_pair().expect("landed").0)
-                )
-            )
-            .as_str()
-        ),
-        "the index's own words are kept, as the tooltip, said from the landed document"
+        frame::index_badge(None, Some(&index), session.landed_pair()),
+        None,
+        "no badge beside the tree's row"
     );
     let rows = session.tree_rows();
     assert_eq!(
@@ -962,7 +951,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
 
     // A FAILED placed body beside a healthy one — the shape of the
     // report, where the Boolean the kernel refused is itself placed.
-    // The healthy copy's picks go with it, which is what the label says.
+    // The healthy copy is drawn and picked.
     let empty: Doc<ProfileProgram> = Doc::empty_derived("vnews-derived-fault", tol);
     let (doc, healthy_profile) = common::square_profile(&empty, 0.04, tol);
     let (doc, healthy) = common::inserted(
@@ -984,92 +973,94 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
         tol,
     );
     assert_ne!(healthy, broken, "two bodies");
-    let (doc, _) = common::placed(&doc, healthy, tol);
+    let (doc, healthy_copy) = common::placed(&doc, healthy, tol);
     let (doc, broken_copy) = common::placed(&doc, broken, tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let refusal = common::index_at(&session, common::plate_delta())
-        .expect_err("one failed copy refuses the whole index");
-    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
-        .expect("a refusal the cache holds is still badged");
+    let index = common::index_at(&session, common::plate_delta())
+        .expect("one failed copy does not refuse the index");
+    assert_eq!(
+        index
+            .undrawn()
+            .iter()
+            .map(|copy| copy.node())
+            .collect::<Vec<_>>(),
+        vec![broken_copy],
+        "the failed copy is held undrawn"
+    );
+    assert!(
+        !index.ids_of_node(healthy_copy).is_empty(),
+        "the healthy copy is drawn and has ids"
+    );
+    assert!(
+        index.ids_of_node(broken_copy).is_empty(),
+        "the failed copy has none"
+    );
+    let scene = index.scene().expect("the healthy copy's scene builds");
+    assert!(scene.stats().triangles > 0, "and it is on screen");
+    assert_eq!(
+        frame::index_badge(None, Some(&index), session.landed_pair()),
+        None,
+        "no badge beside the tree's row"
+    );
+
+    // **A copy the tree names no failed row for is said loudly**: a
+    // copy with no value whose standing ends at no failed row is on
+    // screen nowhere else. Built here as a placement added after the
+    // run the index is read against, which that run never saw.
+    let (landed, evaluation) = session.landed_pair().expect("landed");
+    let (later, unrun) = common::placed(landed, healthy, tol);
+    let index = pickindex::PickIndex::build(
+        &later,
+        evaluation,
+        PictureKey::of(
+            session.landed_generation().expect("landed"),
+            common::plate_delta(),
+        ),
+        tol,
+    )
+    .expect("an unrun copy does not refuse the index");
+    let badge = frame::index_badge(None, Some(&index), Some((&later, evaluation)))
+        .expect("the unrun copy badges");
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
         format!(
-            "pick index: waits on Extrude {}, which failed — {consequence}",
-            test_utils::refusal::tag(broken.0.digest())
-        )
-    );
-    assert_eq!(badge.tone(), frame::Tone::Advisory);
-    assert_eq!(
-        badge.detail(),
-        Some(
-            format!(
-                "pick index: Place {copy} could not be indexed: pick: this node is \
-                 poisoned by the failure at Extrude {failed}, so it has no value — the repair \
-                 is upstream, at Extrude {failed}",
-                copy = test_utils::refusal::tag(broken_copy.0.digest()),
-                failed = test_utils::refusal::tag(broken.0.digest())
-            )
-            .as_str()
+            "picture: Place {} is not drawn: pick: this node is not a node of the document \
+             this evaluation ran over. Recourse: ask about one of that document's nodes, or \
+             evaluate the document the node is in",
+            test_utils::refusal::tag(unrun.0.digest())
         ),
-        "the tooltip says the copy was not indexed and the standing says why"
+        "the copy, by name, and its build's own words; the failed copy is still not badged"
     );
 
-    // The refusals that are the index's own keep their tone and their
-    // words — and so does a standing refusal with no evaluation to
-    // find its cause in, since there is then no row it can defer to.
+    // The refusals that are the index's own are loud, in their own
+    // words, and say that nothing is drawn.
     let own = pickindex::PickIndexError::DrawnTwice {
         node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
-    let badge =
-        frame::index_badge(Some(&own), session.doc(), session.landed_pair()).expect("it badges");
-    assert_eq!(badge.tone(), frame::Tone::Actionable);
-    assert_eq!(badge.label(), format!("pick index: {own}"));
-    let unread = frame::index_badge(Some(&refusal), session.doc(), None).expect("it badges");
-    assert_eq!(unread.tone(), frame::Tone::Actionable);
-    assert_eq!(unread.label(), format!("pick index: {refusal}"));
-
-    // A placement that NEVER RAN, with an evaluation in hand: the tree draws
-    // it `Unevaluated` and `Advisory`, so there is no loud row above it
-    // to defer to, and quieting it would hide the only news there is.
-    let absent = RecipeNodeId::new(0, tagged(99));
-    assert!(
-        session
-            .evaluation()
-            .expect("landed")
-            .result(absent)
-            .is_none(),
-        "the fixture's absent id is absent"
-    );
-    let never_ran = pickindex::PickIndexError::Node {
-        node: absent,
-        error: NodePickError::Standing(NodeStanding::NotEvaluated { node: absent }),
-    };
-    let badge = frame::index_badge(Some(&never_ran), session.doc(), session.landed_pair())
-        .expect("it badges");
+    let badge = frame::index_badge(Some(&own), None, session.landed_pair()).expect("it badges");
     assert_eq!(badge.tone(), frame::Tone::Actionable);
     assert_eq!(
         badge.label(),
-        "pick index: placement 000000000063 could not be indexed: pick: this node has no result in \
-         this evaluation: the run was canceled before it reached the node. Recourse: \
-         re-evaluate the document to completion"
+        format!("pick index: {own} — nothing is drawn or picked until the index builds")
     );
 }
 
-/// **A refusal reached through a mate names the placement the tree
-/// blames**: a placement mated against a bundle that refused reads that
+/// **A mate refusal takes away the copies it reaches and draws the
+/// rest.** A placement mated against a bundle that refused reads that
 /// placement's copy, so the evaluation reports it poisoned through the
-/// refused placement; the index's words and the badge both name that
-/// one, the row a reader can act on.
+/// refused placement; both are held undrawn, every other copy of the
+/// bench is drawn and picked, and the tree's rows are the notice.
 #[test]
-fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
+fn a_mate_refusal_draws_every_copy_it_does_not_reach() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     // post_a seated under the shelf, then the shelf's own bundle a mate
-    // its evaluation refuses, against post_b: post_a, first in the
-    // index's order, is chained to the refused shelf.
+    // its evaluation refuses, against post_b: post_a is chained to the
+    // refused shelf.
     common::asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
@@ -1081,32 +1072,42 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
         common::asm::no_centre_op(&bench, bench.post_b),
     );
     let offender = bench.shelf_i;
-    let refusal = common::index_at(&session, common::asm::delta())
-        .expect_err("a placement the solve refused refuses the index");
-    let pickindex::PickIndexError::Node {
-        node: copy,
-        error: NodePickError::Standing(NodeStanding::Poisoned { node, through }),
-    } = &refusal
+    let index = common::index_at(&session, common::asm::delta())
+        .expect("a placement the solve refused does not refuse the index");
+    let undrawn: Vec<_> = index.undrawn().iter().map(|copy| copy.node()).collect();
+    assert!(
+        undrawn.contains(&bench.post_a) && undrawn.contains(&offender),
+        "the refused shelf and the post chained to it are held undrawn: {undrawn:?}"
+    );
+    let Some(NodePickError::Standing(NodeStanding::Poisoned { node, through })) = index
+        .undrawn()
+        .iter()
+        .find(|copy| copy.node() == bench.post_a)
+        .map(|copy| copy.error())
     else {
-        panic!("the copy is poisoned through the shelf it rests against: {refusal:?}");
+        panic!(
+            "post_a is poisoned through the shelf: {:?}",
+            index.undrawn()
+        );
     };
-    let badge = frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
-        .expect("a refusal the cache holds is still badged");
-    assert_eq!(
-        (*copy, *node, *through),
-        (bench.post_a, bench.post_a, offender),
-        "the index's words name post_a, poisoned through the refused shelf"
+    assert_eq!((*node, *through), (bench.post_a, offender));
+    assert!(
+        !index.ids_of_node(bench.post_b).is_empty(),
+        "post_b, which the refusal does not reach, is drawn and picked"
     );
+    let (doc, _) = session.landed_pair().expect("landed");
+    for copy in viewer::world::drawn_copies(doc) {
+        assert_eq!(
+            index.ids_of_node(copy).is_empty(),
+            undrawn.contains(&copy),
+            "a copy is drawn exactly when it is not held undrawn: {copy:?}"
+        );
+    }
     assert_eq!(
-        badge.label(),
-        format!(
-            "pick index: waits on InstantiatePart {}, which failed — until the index builds, \
-             no pick is answered and the picture is not redrawn",
-            test_utils::refusal::tag(offender.0.digest())
-        ),
-        "the placement the tree blames"
+        frame::index_badge(None, Some(&index), session.landed_pair()),
+        None,
+        "the tree's rows are the notice"
     );
-    assert_eq!(badge.tone(), frame::Tone::Advisory);
 }
 
 /// **What the line could not do with a seam refusal.**
@@ -2468,20 +2469,31 @@ fn the_highlight_narrows_a_copys_name_to_exactly_one_id() {
 /// build behind a seam, a cache that submits on every frame and a
 /// cache that submits once are indistinguishable from the outside —
 /// both end with one index — unless something counts the submits.
+///
+/// Over [`viewer::test_support::RefusingIndexer`], switched off until a
+/// row turns it on.
 struct CountingIndexer {
-    inner: InlineIndexer,
+    inner: viewer::test_support::RefusingIndexer<InlineIndexer>,
     submits: Arc<AtomicUsize>,
 }
 
 impl CountingIndexer {
     fn new() -> (Box<Self>, Arc<AtomicUsize>) {
+        let (seam, submits, _) = Self::refusable();
+        (seam, submits)
+    }
+
+    fn refusable() -> (Box<Self>, Arc<AtomicUsize>, Arc<AtomicBool>) {
         let submits = Arc::new(AtomicUsize::new(0));
+        let (inner, refusing) = viewer::test_support::RefusingIndexer::new(InlineIndexer::new());
+        refusing.store(false, Ordering::Relaxed);
         (
             Box::new(Self {
-                inner: InlineIndexer::new(),
+                inner,
                 submits: Arc::clone(&submits),
             }),
             submits,
+            refusing,
         )
     }
 }
@@ -2559,10 +2571,8 @@ fn an_unsettled_delta_submits_nothing_and_drops_the_index_it_held() {
 
 #[test]
 fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
-    // The defect: a failed or poisoned placement is an ordinary editing
-    // state, and the app's guard stayed false forever afterwards — so
-    // every repainted frame re-tessellated every healthy copy before
-    // reaching the failing one, behind a picture already stale.
+    // The defect: a refused build was retried on every repainted frame,
+    // re-tessellating every copy behind a picture already stale.
     //
     // The policy now has a seam under it, so the row counts SUBMITS:
     // the frames a stalled cache would have spent are frames it must
@@ -2571,7 +2581,7 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
-    let (seam, submits) = CountingIndexer::new();
+    let (seam, submits, refusing) = CountingIndexer::refusable();
     let mut cache = PickCache::new(seam);
     assert_eq!(
         cache.sync(session.index_inputs(), Some(common::plate_delta())),
@@ -2586,7 +2596,9 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     assert!(cache.error().is_none());
     assert_eq!(submits.load(Ordering::Relaxed), 1);
 
-    // Break the document so the placed body refuses to evaluate.
+    // Break the document so the placed body refuses to evaluate. That
+    // is an editing state, not a refusal of the index: the index builds
+    // and holds the copy undrawn.
     let outcome = session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
@@ -2594,20 +2606,33 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-
     assert_eq!(
         cache.sync(session.index_inputs(), Some(common::plate_delta())),
         CacheStep::Submitted
     );
     assert_eq!(
         cache.pump(),
-        vec![IndexLanding::Refused],
-        "a failed placed body refuses the index"
+        vec![IndexLanding::Built],
+        "a failed placed body does not refuse the index"
     );
+    assert_eq!(
+        cache.index().map(|index| index.undrawn().len()),
+        Some(1),
+        "it holds the failed copy undrawn"
+    );
+
+    // A refusal of the index as a whole, for a new picture.
+    refusing.store(true, Ordering::Relaxed);
+    let coarser = common::plate_delta().scaled(2.0).expect("a positive delta");
+    assert_eq!(
+        cache.sync(session.index_inputs(), Some(coarser)),
+        CacheStep::Submitted
+    );
+    assert_eq!(cache.pump(), vec![IndexLanding::Refused]);
     assert!(cache.error().is_some(), "the refusal is readable");
     assert!(
         cache.index().is_none(),
-        "and the index built for the document before the break is gone"
+        "and the index built for the picture before it is gone"
     );
     // **A refusal is an ANSWER.** The attempt keeps the picture it was
     // made for — which is what the two `Held` steps below read — and
@@ -2624,26 +2649,26 @@ fn a_refused_index_is_attempted_once_per_generation_and_not_once_per_frame() {
     // whole row — before the fix, both of these were another full
     // rebuild attempt.
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        cache.sync(session.index_inputs(), Some(coarser)),
         CacheStep::Held,
         "a refused build is not retried on the next frame"
     );
     assert_eq!(
-        cache.sync(session.index_inputs(), Some(common::plate_delta())),
+        cache.sync(session.index_inputs(), Some(coarser)),
         CacheStep::Held
     );
     assert!(cache.pump().is_empty(), "and nothing was sent to answer");
     assert_eq!(
         submits.load(Ordering::Relaxed),
-        2,
-        "two pictures, two attempts — not one per frame"
+        3,
+        "three pictures, three attempts — not one per frame"
     );
 
-    // The same state is what the gather refuses on, and the tree badges
-    // the node — two channels, both saying something true.
+    // The failed body is what the gather refuses on, and the tree
+    // badges the node.
     assert!(
         session.product_fault().is_some(),
-        "a failed placed body is a gather refusal too"
+        "a failed placed body is a gather refusal"
     );
     assert!(
         session
@@ -2995,11 +3020,11 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
 /// **An index in hand for a picture nobody has seen is refused as
 /// itself**, not as an absence — Ev's ruling, 2026-09-15.
 ///
-/// `ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair
-/// current only on a successful rebuild, so a landing over a refused
-/// one leaves a newer index beside an older picture. Answering from it
-/// selects geometry the screen is not showing; the ruling is that the
-/// click says so instead.
+/// `ViewerApp::sync_scene` keys the scene to an index only on a
+/// successful rebuild, so a landing over a refused one leaves an index
+/// beside a picture it did not mint. Answering from it selects geometry
+/// the screen is not showing; the ruling is that the click says so
+/// instead.
 ///
 /// The sentence is asserted against the other two rather than quoted:
 /// what a reader needs from it is that it does not promise an arriving
