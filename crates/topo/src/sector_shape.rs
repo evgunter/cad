@@ -459,8 +459,9 @@ pub(crate) enum CornerBounds {
     /// One orbit half-edge, a strut vertex ([`sector_shape`]'s
     /// `full_circle`).
     OneEdge,
-    /// A slit's two coincident edges at its tip ([`SlitTips`]): the face
-    /// wraps a full turn round them.
+    /// A slit's two coincident edges at its tip, or a wrap edge's tip
+    /// walked out and back ([`SlitTips`]): the face wraps a full turn
+    /// round them.
     SlitTip,
 }
 
@@ -556,9 +557,13 @@ pub(crate) fn corner_shape<T: Decide>(
 /// and `face` carries them as a slit of one of its loops or as a ring:
 /// it wraps round the tip, so its corner there between the two edges is
 /// a full turn (the Boolean's `sectors::build_sectors`, the split's
-/// [`crate::splitting::wide_entries`]). The Boolean's reduction may split
-/// the two edges apart from the tip, each at its own vertex, so each lane
-/// takes the reading before its reduction.
+/// [`crate::splitting::wide_entries`]). A wrap edge's tip
+/// ([`crate::surface_boundary::tips`], DESIGN `[topology]`'s seam clause)
+/// is the one-edge form: its face's loop walks the edge out and straight
+/// back, so the face wraps the same full turn round the one edge, at a
+/// pole or a cone's apex. The Boolean's reduction may split the two
+/// edges apart from the tip, each at its own vertex, so each lane takes
+/// the reading before its reduction.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
 
@@ -590,11 +595,26 @@ impl SlitTips {
                 }
             }
         }
+        for (f, face) in body.faces() {
+            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+                let crate::entity::LoopBoundary::Cycle { first } =
+                    proven(&body.loops, lk, EntityId::Loop).boundary
+                else {
+                    continue;
+                };
+                let cycle = body
+                    .loop_cycle(first)
+                    .unwrap_or_else(|| unreachable!("{lk:?}: an at-rest loop walks"));
+                let wrap = crate::surface_boundary::tips(body, &cycle)
+                    .unwrap_or_else(|| unreachable!("{lk:?}: an at-rest loop's mates resolve"));
+                tips.extend(wrap.into_iter().map(|v| (v, f)));
+            }
+        }
         Self(tips)
     }
 
     /// Whether `face`'s corner at `vertex` lies between a slit's two
-    /// edges.
+    /// edges, or round a wrap edge's tip.
     pub(crate) fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
         self.0.contains(&(vertex, face))
     }
@@ -606,12 +626,13 @@ impl SlitTips {
     }
 
     /// What the structure says about `face`'s corner at `vertex`, whose
-    /// bounds are one orbit half-edge where `one_edge`.
+    /// bounds are one orbit half-edge where `one_edge`: a tip's, a wrap
+    /// tip's one edge among them, before a strut's.
     pub(crate) fn bounds(&self, vertex: VertexKey, face: FaceKey, one_edge: bool) -> CornerBounds {
-        if one_edge {
-            CornerBounds::OneEdge
-        } else if self.holds(vertex, face) {
+        if self.holds(vertex, face) {
             CornerBounds::SlitTip
+        } else if one_edge {
+            CornerBounds::OneEdge
         } else {
             CornerBounds::Distinct
         }

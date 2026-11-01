@@ -2192,6 +2192,13 @@ fn strut_facing(
 /// ([`walk_faces_first`]), each with the flankers `beside` gives it
 /// where it runs along an edge of the other solid.
 ///
+/// At a wrap edge's tip the corner's two edges are the one edge too,
+/// walked out and back, and the corner is the face's full turn from the
+/// arriving half round to the departing one. A germ along the edge lies
+/// on both ends of that turn: as the run's start germ it is met first,
+/// beside the arrival, and as its end germ last, beside the departure,
+/// so `he_plus` faces `first` either way.
+///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
 /// each caller states what it does then.
@@ -2212,6 +2219,14 @@ pub(super) fn strut_faces_first<T: Decide>(
     )? {
         StrutFacing::PlusFirst => Ok(Some(true)),
         StrutFacing::MinusFirst => Ok(Some(false)),
+        StrutFacing::ClosedEdge
+            if {
+                let (a, b) = crate::query::edge_ends(body, arrival);
+                a != b
+            } =>
+        {
+            Ok(Some(true))
+        }
         StrutFacing::ClosedEdge => Ok(None),
         StrutFacing::Unnamed => walk_faces_first(
             body,
