@@ -164,6 +164,9 @@ pub(super) fn apart_in_plane<T: Decide>(
     b: FaceKey,
     band: Band,
 ) -> bool {
+    if mutant("off") {
+        return false;
+    }
     let (Some(la), Some(lb)) = (loops(body, a), loops(body, b)) else {
         return false;
     };
@@ -175,10 +178,17 @@ pub(super) fn apart_in_plane<T: Decide>(
             _
         )))
     );
+    let probe = std::env::var("PROBE5918").is_ok();
+    let one_plane = one_plane || mutant("one_plane");
     if one_plane {
-        return regions_apart(body, (a, &la), (b, &lb), band);
+        let r = regions_apart(body, (a, &la), (b, &lb), band);
+        if probe && r { eprintln!("PROBE5918 reading1 apart {a:?} {b:?}"); }
+        return r;
     }
-    beside(body, (a, &la), &lb, band) || beside(body, (b, &lb), &la, band)
+    let r1 = beside(body, (a, &la), &lb, band);
+    let r2 = beside(body, (b, &lb), &la, band);
+    if probe && (r1 || r2) { eprintln!("PROBE5918 reading2 apart {a:?} {b:?} a_as_P={r1} b_as_P={r2}"); }
+    r1 || r2
 }
 
 /// The first reading (module docs): `a` and `b` on one plane, apart as
@@ -191,11 +201,15 @@ fn regions_apart<T: Decide>(
 ) -> bool {
     la.iter().all(|x| outside(body, b, x.point, band))
         && lb.iter().all(|y| outside(body, a, y.point, band))
-        && la.iter().flat_map(|x| &x.edges).all(|&ea| {
+        && (mutant("r1_noedges") || la.iter().flat_map(|x| &x.edges).all(|&ea| {
             lb.iter()
                 .flat_map(|y| &y.edges)
                 .all(|&eb| edges_apart(body, ea, eb, band))
-        })
+        }))
+}
+
+fn mutant(name: &str) -> bool {
+    std::env::var("MUT5918").is_ok_and(|v| v == name)
 }
 
 /// The second reading (module docs): the face bounded by `lb` on one
@@ -254,11 +268,11 @@ fn beside<T: Decide>(
             Ok(Sign::Positive)
         )
     };
-    arcs.into_iter().all(off)
+    (mutant("no_arc") || arcs.into_iter().all(off))
         && touching.iter().all(|&(e, ends, signs)| {
             ends.iter()
                 .zip(signs)
-                .all(|(&p, s)| s != Sign::Zero || outside(body, a, p, band))
+                .all(|(&p, s)| s != Sign::Zero || mutant("r2_noplace") || outside(body, a, p, band))
                 && la
                     .iter()
                     .flat_map(|x| &x.edges)

@@ -923,3 +923,131 @@ fn a_block_over_a_plates_top_still_refuses() {
         "through the arm, a wall: {errs:?}"
     );
 }
+
+/// PROBE 5918 r1: the rounded square `[0,1]²`, corners at 0.25, over `z ∈ [0,1]`.
+fn probe_rounded_square() -> Body<f64> {
+    use profile::{Open, ProfileLoop, Start};
+    let t = tol();
+    let mut path = Open.at(Point2::new(0.5, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (corner, (dx, dy)) in [
+        (Point2::new(1.0, 0.5), (0.0, 1.0)),
+        (Point2::new(0.5, 1.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 0.5), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(0.25, t)
+            .unwrap()
+            .at(corner, t)
+            .unwrap()
+            .toward(dx, dy, t)
+            .unwrap();
+    }
+    let outline: ProfileLoop<f64> = path.fillet(0.25, t).unwrap().to(Start, t).unwrap().into();
+    sweep::test_support::extruded(sweep::test_support::sketch_at(0.0), vec![outline], 1.0, t)
+}
+
+/// PROBE: a wedge whose low edge lies at `z = 1 + z0`, `x = 1 + d`,
+/// `y ∈ [-0.5, 1.5]`, its lower face rising toward `-x` at slope `s`
+/// over the whole plate.
+fn probe_wedge(d: f64, s: f64, z0: f64) -> Body<f64> {
+    let t = tol();
+    let plane = sweep::test_support::sketch_from_axes(
+        geom_core::Point3::new(0.0, 1.5, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        t,
+    );
+    let x0 = 1.0 + d;
+    let xl = -0.5;
+    let h1 = 1.0 + z0 + s * (x0 - xl);
+    let verts = sweep::test_support::corners(&[(x0, 1.0 + z0), (xl, 1.6), (xl, h1)]);
+    sweep::test_support::prism_on(plane, verts, 2.0, t)
+}
+
+fn probe_pair(d: f64, s: f64, z0: f64) -> AtRestBody<f64> {
+    let mut out = probe_rounded_square();
+    let w = probe_wedge(d, s, z0);
+    topo::graft_disjoint(&mut out, &w).expect("grafts");
+    finished("plate and wedge", out, tol())
+}
+
+#[test]
+fn probe5918_wedge_hovering_over_plate_top() {
+    let cases: Vec<(&str, f64, f64, f64)> = match std::env::var("PROBE_CASE") {
+        Ok(c) => {
+            let v: Vec<f64> = c.split(',').map(|x| x.parse().unwrap()).collect();
+            vec![("env", v[0], v[1], v[2])]
+        }
+        Err(_) => vec![
+            ("legit: hover 1e-3", 1e-2, 0.1, 0.0),
+            ("hover 5e-10 < zero", 5e-8, 0.01, 0.0),
+            ("hover 5e-9 in band", 5e-8, 0.1, 0.0),
+            ("dip: low edge 9e-10 below P", 5e-8, 0.01, -9e-10),
+        ],
+    };
+    for (what, d, s, z0) in cases {
+        eprintln!("PROBE case {what}");
+        let pair = probe_pair(d, s, z0);
+        for (f, data) in pair.faces() {
+            let n = match pair.get_surface(data.surface) {
+                Some(geom::Surface::Plane { normal, origin, .. }) => {
+                    format!("plane n={normal:?} o={origin:?}")
+                }
+                Some(_) => "curved".to_string(),
+                None => "?".into(),
+            };
+            eprintln!("  face {f:?} solid {:?} {n}", pair.solid_of_face(f));
+        }
+        let r = census(&pair);
+        eprintln!("PROBE {what}: census = {r:?}");
+    }
+}
+
+/// PROBE 5918 r1: a rod along `y` lying on the L's arm, its caps' circles
+/// tangent to the top's plane at a point inside the top. The cap × top
+/// pair is a touch and must refuse; red where reading 2 drops the arc
+/// check.
+#[test]
+fn probe5918_a_rod_lying_on_the_plate_refuses_its_caps() {
+    let rod = revolved(0.0, 0.5, 1.0);
+    let normal = |b: &AtRestBody<f64>, f| match b.get_face(f).and_then(|d| b.get_surface(d.surface)) {
+        Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
+        _ => None,
+    };
+    for quarter in [(0i64, 1u64), (1, 10), (1, 4), (1, 2)] {
+        let turned = topo::transform_rigid(
+            &rod,
+            &RigidMotion::turned(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                geom_core::UnitVec3::exact_y(),
+                geom_core::Turns::new(quarter.0, quarter.1).unwrap(),
+            ),
+            tol(),
+        )
+        .unwrap();
+        let placed = topo::transform_rigid(
+            &turned,
+            &RigidMotion::translation(Vec3::new(1.5, 0.5, 1.5)).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        let mut body = rounded_ell();
+        topo::graft_disjoint(&mut body, &placed).expect("grafts");
+        let pair = finished("the plate and the rod", body, tol());
+        let errs = census(&pair).expect_err("the rod lies on the plate");
+        let cap_on_top = errs.iter().any(|e| match e {
+            ValidationError::CensusUndecidable {
+                a: EntityId::Face(a),
+                b: EntityId::Face(b),
+                what,
+                ..
+            } if what.contains(CURVED_WITHIN_REACH) => [(*a, *b), (*b, *a)].into_iter().any(|(p, q)| {
+                normal(&pair, p).is_some_and(level)
+                    && normal(&pair, q).is_some_and(|n| n.x.abs() < 1e-12 && n.z.abs() < 1e-12)
+            }),
+            _ => false,
+        });
+        eprintln!("PROBE rod turn {quarter:?}: cap_on_top={cap_on_top} errs={}", errs.len());
+        assert!(cap_on_top, "turn {quarter:?}: a cap against the top: {errs:?}");
+    }
+}
