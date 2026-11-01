@@ -3073,118 +3073,117 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
-    certified_lift(|lift| walk_boundary(body, face, lift)).flatten()
-}
-
-/// [`boundary_of`]'s walk, every value it reads crossed by `lift`.
-fn walk_boundary<T: Decide + CertifiedBounds>(
-    body: &Body<T>,
-    face: FaceKey,
-    lift: &dyn Fn(T) -> Interval,
-) -> Option<(Aabb, Boundary)> {
-    let f = body.get_face(face)?;
-    let point = |p: &Point3<T>| p.map(lift);
-    let mut pts: Vec<Point3<Interval>> = Vec::new();
-    let mut out = Boundary {
-        sense: f.sense,
-        ..Boundary::default()
-    };
-    let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
-    let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
-    for &lk in core::iter::once(&f.outer).chain(&f.rings) {
-        let l = body.get_loop(lk)?;
-        match l.boundary {
-            LoopBoundary::Empty { vertex } => {
-                let p = point(body.get_point(body.get_vertex(vertex)?.point)?);
-                out.vertices.insert(vertex, p);
-                pts.push(p);
-            }
-            LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
-                    let h = body.get_half_edge(he)?;
-                    let p = point(body.get_point(body.get_vertex(h.start)?.point)?);
-                    out.vertices.insert(h.start, p);
+    certified_lift(|lift: &dyn Fn(T) -> Interval| -> Option<(Aabb, Boundary)> {
+        let f = body.get_face(face)?;
+        let point = |p: &Point3<T>| p.map(lift);
+        let mut pts: Vec<Point3<Interval>> = Vec::new();
+        let mut out = Boundary {
+            sense: f.sense,
+            ..Boundary::default()
+        };
+        let mut halves: BTreeMap<EdgeKey, Vec<HalfEdgeKey>> = BTreeMap::new();
+        let mut images: BTreeMap<HalfEdgeKey, Image> = BTreeMap::new();
+        for &lk in core::iter::once(&f.outer).chain(&f.rings) {
+            let l = body.get_loop(lk)?;
+            match l.boundary {
+                LoopBoundary::Empty { vertex } => {
+                    let p = point(body.get_point(body.get_vertex(vertex)?.point)?);
+                    out.vertices.insert(vertex, p);
                     pts.push(p);
-                    halves.entry(h.edge).or_default().push(he);
                 }
-                if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
-                    if lk == f.outer {
-                        let surface = body.get_surface(f.surface)?;
-                        let periodic =
-                            [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
-                        out.extent = extent_of(
-                            periodic,
-                            rows.iter().map(|row| {
-                                let (t0, t1) = row.row.params();
-                                let end = |t: T| {
-                                    let q = row.pcurve.eval(t);
-                                    [lift(q.x), lift(q.y)]
-                                };
-                                row_of(&row.pcurve, (lift(t0), lift(t1)), [end(t0), end(t1)], lift)
-                            }),
-                        );
+                LoopBoundary::Cycle { first } => {
+                    for he in body.loop_cycle(first)? {
+                        let h = body.get_half_edge(he)?;
+                        let p = point(body.get_point(body.get_vertex(h.start)?.point)?);
+                        out.vertices.insert(h.start, p);
+                        pts.push(p);
+                        halves.entry(h.edge).or_default().push(he);
                     }
-                    for row in rows {
-                        let (t0, t1) = row.row.params();
-                        let end = |t: T| {
-                            let q = row.pcurve.eval(t);
-                            Point2::new(lift(q.x), lift(q.y))
-                        };
-                        images.insert(
-                            row.half_edge,
-                            (
-                                [end(t0), end(t1)],
-                                iso_of(&row.pcurve, lift),
-                                harmonic_of(&row.pcurve, lift),
-                                wall_of(&row.pcurve, lift),
-                            ),
-                        );
+                    if let Ok(rows) = crate::pcurves::loop_lift(body, lk) {
+                        if lk == f.outer {
+                            let surface = body.get_surface(f.surface)?;
+                            let periodic =
+                                [Axis::U, Axis::V].map(|axis| injective::periodic(surface, axis));
+                            out.extent = extent_of(
+                                periodic,
+                                rows.iter().map(|row| {
+                                    let (t0, t1) = row.row.params();
+                                    let end = |t: T| {
+                                        let q = row.pcurve.eval(t);
+                                        [lift(q.x), lift(q.y)]
+                                    };
+                                    row_of(
+                                        &row.pcurve,
+                                        (lift(t0), lift(t1)),
+                                        [end(t0), end(t1)],
+                                        lift,
+                                    )
+                                }),
+                            );
+                        }
+                        for row in rows {
+                            let (t0, t1) = row.row.params();
+                            let end = |t: T| {
+                                let q = row.pcurve.eval(t);
+                                Point2::new(lift(q.x), lift(q.y))
+                            };
+                            images.insert(
+                                row.half_edge,
+                                (
+                                    [end(t0), end(t1)],
+                                    iso_of(&row.pcurve, lift),
+                                    harmonic_of(&row.pcurve, lift),
+                                    wall_of(&row.pcurve, lift),
+                                ),
+                            );
+                        }
                     }
                 }
             }
         }
-    }
-    for (ek, hes) in halves {
-        let e = body.get_edge(ek)?;
-        let curve = body.get_curve_geom(e.curve)?.certified()?;
-        let (t0, t1) = curve.params();
-        let span = (lift(t0), lift(t1));
-        let carrier = curve.carrier().map_scalar(lift);
-        // The whole parameter span as ONE interval: the carrier's
-        // interval evaluation over it encloses the entire arc, which is
-        // what makes a curved boundary bound its own face's window.
-        pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
-        let ends = [
-            body.get_half_edge(e.he_plus)?.start,
-            body.get_half_edge(e.he_minus)?.start,
-        ];
-        let uses = hes
-            .iter()
-            .map(|he| {
-                let found = images.get(he);
-                Use {
-                    plus: e.he_plus == *he,
-                    image: found.map(|(image, ..)| *image),
-                    harmonic: found.and_then(|(_, _, h, _)| *h),
-                    wall: found.and_then(|(.., w)| *w),
-                    iso: found
-                        .and_then(|(_, iso, ..)| *iso)
-                        .map(|(held, at, angle)| Iso {
-                            held,
-                            at,
-                            full: angle && ends[0] == ends[1],
-                        }),
-                }
-            })
-            .collect();
-        out.edges.push(Rim {
-            key: ek,
-            arc: Some((carrier, span)),
-            ends,
-            uses,
-        });
-    }
-    Aabb::from_points(pts).map(|b| (b, out))
+        for (ek, hes) in halves {
+            let e = body.get_edge(ek)?;
+            let curve = body.get_curve_geom(e.curve)?.certified()?;
+            let (t0, t1) = curve.params();
+            let span = (lift(t0), lift(t1));
+            let carrier = curve.carrier().map_scalar(lift);
+            // The whole parameter span as ONE interval: the carrier's
+            // interval evaluation over it encloses the entire arc, which is
+            // what makes a curved boundary bound its own face's window.
+            pts.push(carrier.eval(Interval::from_bounds(span.0.lo(), span.1.hi())));
+            let ends = [
+                body.get_half_edge(e.he_plus)?.start,
+                body.get_half_edge(e.he_minus)?.start,
+            ];
+            let uses = hes
+                .iter()
+                .map(|he| {
+                    let found = images.get(he);
+                    Use {
+                        plus: e.he_plus == *he,
+                        image: found.map(|(image, ..)| *image),
+                        harmonic: found.and_then(|(_, _, h, _)| *h),
+                        wall: found.and_then(|(.., w)| *w),
+                        iso: found
+                            .and_then(|(_, iso, ..)| *iso)
+                            .map(|(held, at, angle)| Iso {
+                                held,
+                                at,
+                                full: angle && ends[0] == ends[1],
+                            }),
+                    }
+                })
+                .collect();
+            out.edges.push(Rim {
+                key: ek,
+                arc: Some((carrier, span)),
+                ends,
+                uses,
+            });
+        }
+        Aabb::from_points(pts).map(|b| (b, out))
+    })
+    .flatten()
 }
 
 /// One row of a loop as [`extent_of`] reads it.
@@ -3202,17 +3201,14 @@ enum Row {
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
 /// harmonic or spiric wall image by its enclosure over its whole span,
 /// its coefficients crossed by `lift`; `None` for any other image.
-fn row_of<T: CertifiedBounds, S: CertifiedBounds>(
+fn row_of<T: CertifiedBounds>(
     pcurve: &Pcurve<T>,
-    (t0, t1): (S, S),
+    (t0, t1): (Interval, Interval),
     ends: [[Interval; 2]; 2],
     lift: &dyn Fn(T) -> Interval,
 ) -> Option<Row> {
     if !monotone_line(pcurve) {
-        let t = Interval::from_bounds(
-            Interval::from_certified(t0).lo(),
-            Interval::from_certified(t1).hi(),
-        );
+        let t = Interval::from_bounds(t0.lo(), t1.hi());
         if let Some(w) = wall_of(pcurve, lift) {
             return Some(Row::Bulging(w.at(t)));
         }
@@ -3959,7 +3955,7 @@ mod extent_rows {
     use super::{Row, extent_of, row_of};
     use core::f64::consts::{PI, TAU};
     use geom_brep::{Channel, Pcurve};
-    use geom_core::{Bounds, Interval};
+    use geom_core::{Bounds, Interval, Real};
 
     /// The harmonic image `u = t`, `v = sin t`, which bulges to `v = 1`
     /// between its ends over `[0, π]`.
@@ -3998,9 +3994,12 @@ mod extent_rows {
     /// a row that is no monotone line is read by its ends.
     #[test]
     fn a_harmonic_rows_extent_holds_its_bulge() {
-        let Some(Row::Bulging([u, v])) =
-            row_of(&arch(), (0.0, PI), flat(PI), &Interval::from_certified)
-        else {
+        let Some(Row::Bulging([u, v])) = row_of(
+            &arch(),
+            (Interval::from_f64(0.0), Interval::from_f64(PI)),
+            flat(PI),
+            &Interval::from_certified,
+        ) else {
             panic!("the arch is read by its enclosure");
         };
         assert!(
@@ -4011,7 +4010,7 @@ mod extent_rows {
             CYLINDER,
             [row_of(
                 &arch(),
-                (0.0, PI),
+                (Interval::from_f64(0.0), Interval::from_f64(PI)),
                 flat(PI),
                 &Interval::from_certified,
             )]
@@ -4033,7 +4032,7 @@ mod extent_rows {
                 CYLINDER,
                 [row_of(
                     &arch(),
-                    (0.0, TAU),
+                    (Interval::from_f64(0.0), Interval::from_f64(TAU)),
                     flat(TAU),
                     &Interval::from_certified
                 )]
@@ -4044,7 +4043,7 @@ mod extent_rows {
         );
         let wide = [row_of(
             &arch(),
-            (0.0, TAU),
+            (Interval::from_f64(0.0), Interval::from_f64(TAU)),
             flat(TAU),
             &Interval::from_certified,
         )];
@@ -4109,7 +4108,7 @@ mod extent_rows {
         };
         let Some(Row::Bulging([u, _])) = row_of(
             &p,
-            (-1.0, 1.0),
+            (Interval::from_f64(-1.0), Interval::from_f64(1.0)),
             [end(-1.0), end(1.0)],
             &Interval::from_certified,
         ) else {
