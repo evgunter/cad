@@ -2,12 +2,14 @@
 id: face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt
 kind: issue
 title: Face-line germs read unit in the strut and walk orders amplify a within-zero tilt by 1/sin φ (insert strut_order, walks_after; vtxfac germ_order)
-status: review
+status: closed
 branch: splitdoor/face-line-germ-lean
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach]
+closed: 2026-11-01
+pr: 6238
 ---
 
 
