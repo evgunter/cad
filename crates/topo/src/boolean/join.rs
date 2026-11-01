@@ -1131,11 +1131,10 @@ fn closes_at_its_site<T: Decide>(
 /// reach from `e`; a subtrahend's normals read reversed). A rim
 /// standing on the face (a boss on a plate, or over a hole whose rim it
 /// touches) is joined at the boundary vertex. A rim lying flush in it,
-/// both faces facing one way, is not: the operation keeps one copy of
-/// the shared region, and the cut that divides the dropped copy along
-/// the rim cannot place the rim's chord at its one vertex, where the rim
-/// is tangent to the face's boundary
-/// (`work/cleave/a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit.md`).
+/// both faces facing one way, is not: joined there, the piece of the
+/// face the rim walls off is bounded by the copy's half that runs
+/// against the rim's own
+/// (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 fn stands_on<T: Decide>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
