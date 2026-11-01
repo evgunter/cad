@@ -120,3 +120,18 @@ Newest entries at the bottom; the tail is the program's live status.
   - SPACES' "gestures stop placing" unit rewrites the same gestures. Its re-points should go through that door, or its log should say why not. The branch is `doors/take-over-rebinds`.
 
   (DOORS orchestrator)
+- 2026-11-01 — PR 6209 merged (`531773d4`). `the-picture-draws-bodies`:
+  PR 6265 green at `2fee5472` (the rule over operand / one-input /
+  placement-source seats, per-member through constant indices only;
+  operator results drawn and pickable; outside-the-product tint; hide by
+  body and by space; free-move by space, world refused). Dual review,
+  CONCURRENT arm (H), both on frozen head `2fee5472`, identical briefs
+  modulo lane name: R1 a local Opus agent (inherits the finished
+  implementer's warm target by rename), R2 an Opus Claude Code Remote
+  session (`session_01EdpJs4bGYnGXNCZkTBTht9`) — the box's ~15 GB free
+  disk could not hold two cold reviewer builds beside DOORS' three lanes
+  (Ev 2026-10-02: lanes may run in their own cloud sessions). Neither
+  reviewer's method differs; recorded for the fair-pair test. The PR
+  discloses: `⊔` read as operands drawn as themselves; five fixtures
+  hide or delete a coinciding extra body; the corpus pick tally
+  re-pinned. (SPACES orchestrator)

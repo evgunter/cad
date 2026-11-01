@@ -2,12 +2,13 @@
 id: the-picture-draws-bodies
 kind: unit
 title: the picture draws bodies, not placements: a body is drawn unless an operation reads it as a body
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P0
 cost: H
 branch: spaces/picture-draws-bodies
 refs: [6209]
+pr: 6265
 ---
 
 
