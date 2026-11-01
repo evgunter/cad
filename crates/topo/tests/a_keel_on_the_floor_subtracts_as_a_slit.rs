@@ -1483,15 +1483,16 @@ fn lumps_united(lumps: &[Lump], pose: &Pose) -> (AtRestBody<f64>, topo::OperandR
     acc
 }
 
-/// `x ∖ y` or `x ∩ y`, `x` the lumps' union with its records carried and
-/// `y` the box `partner`, builds tier 3 and 3′ at the volume the lumps'
-/// overlaps with it give.
+/// `x op y`, or `y op x` where `partner_first`, `x` the lumps' union
+/// with its records carried and `y` the box `partner`, builds tier 3 and
+/// 3′ at the volume the lumps' overlaps with it give, each substituted
+/// fragment held by a face of the result ([`held_by_kept_faces`]).
 fn builds_against(
     what: &str,
     pose: &Pose,
     (lumps, (x, records)): (&[Lump], &(AtRestBody<f64>, topo::OperandRecords)),
     partner: [(f64, f64); 3],
-    op: topo::BooleanOp,
+    (op, partner_first): (topo::BooleanOp, bool),
 ) {
     let tol = t();
     let y = common::meeting::posed_box("the partner", partner, pose, tol);
@@ -1500,16 +1501,24 @@ fn builds_against(
         .map(|&l| lump_in_box(l, [(-9.0, 9.0); 3]))
         .sum();
     let common: f64 = lumps.iter().map(|&l| lump_in_box(l, partner)).sum();
-    let want = match op {
-        topo::BooleanOp::Subtract => total - common,
-        topo::BooleanOp::Intersect => common,
-        topo::BooleanOp::Union => panic!("{what}: no union is read here"),
+    let whole: f64 = partner.iter().map(|(lo, hi)| hi - lo).product();
+    let want = match (op, partner_first) {
+        (topo::BooleanOp::Subtract, false) => total - common,
+        (topo::BooleanOp::Subtract, true) => whole - common,
+        (topo::BooleanOp::Intersect, _) => common,
+        (topo::BooleanOp::Union, _) => total + whole - common,
+    };
+    let (records_a, records_b) = if partner_first {
+        (topo::OperandRecords::default(), records.clone())
+    } else {
+        (records.clone(), topo::OperandRecords::default())
     };
     let inputs = topo::BooleanInputs {
-        records_a: records.clone(),
-        ..topo::BooleanInputs::default()
+        records_a,
+        records_b,
     };
-    let r = topo::boolean_op_with(op, x, &y, &inputs, topo::SweepStrategy::Realized, tol);
+    let (a, b) = if partner_first { (&y, x) } else { (x, &y) };
+    let r = topo::boolean_op_with(op, a, b, &inputs, topo::SweepStrategy::Realized, tol);
     let Ok(BooleanResult::Body(r)) = r else {
         panic!("{what}: builds, got {:?}", r.map(|_| ()));
     };
@@ -1524,6 +1533,45 @@ fn builds_against(
         (v - want).abs() < 1e-9,
         "{what}: volume {v}, closed form {want}"
     );
+    held_by_kept_faces(what, &r);
+}
+
+/// Each fragment of a dropped coincident face the result substitutes is
+/// held by a face the result holds: the kept face its row names, in the
+/// result's keys, or the face the output stage merged it into.
+fn held_by_kept_faces(what: &str, r: &topo::BooleanBody<f64>) {
+    use topo::{Cell, Operand, OperandKeys};
+    let n = &r.naming;
+    for row in &n.substituted {
+        let (keys, grafted) = match row.operand {
+            Operand::B => (&n.a_keys, None),
+            Operand::A => (
+                &n.b_keys,
+                n.graft_faces
+                    .iter()
+                    .find(|&&(b, _)| b == row.by)
+                    .map(|&(_, f)| f),
+            ),
+        };
+        let kept = match keys {
+            OperandKeys::Direct => Some(row.by),
+            OperandKeys::Grafted => grafted,
+            OperandKeys::Absent => None,
+        };
+        let settled = kept.map(|f| {
+            n.substitutions.chase(
+                Cell::Face(f),
+                |c| matches!(c, Cell::Face(f) if r.body.get_face(f).is_some()),
+            )
+        });
+        assert!(
+            matches!(settled, Some(Ok(_))),
+            "{what}: the kept face {:?} holding the dropped fragment {:?} is in the \
+             result, got {settled:?}",
+            row.by,
+            row.face
+        );
+    }
 }
 
 /// **A fate edge touching a corner of its face's division builds.** A
@@ -1556,7 +1604,7 @@ fn a_fate_edge_touching_a_corner_of_its_faces_division_builds_at_rest() {
         ),
     ] {
         let x = lumps_united(lumps, pose);
-        builds_against(what, pose, (lumps, &x), partner, op);
+        builds_against(what, pose, (lumps, &x), partner, (op, false));
     }
 }
 
@@ -1596,7 +1644,121 @@ fn a_fate_edge_touching_a_corner_of_its_faces_division_builds() {
                                 lumps.len(),
                                 pose.label
                             );
-                            builds_against(&what, pose, (lumps, &x), partner, kind);
+                            builds_against(&what, pose, (lumps, &x), partner, (kind, false));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The cube and the box `[1, 2] × [0.5, 1.5] × [1, 2]`, touching along
+/// `x = 1, z = 1, y ∈ [0.5, 1]`: the box's corner `(1, 0.5, 1)` lies
+/// inside the cube's top edge on `x = 1`, and the cube's corner
+/// `(1, 1, 1)` inside the box's bottom edge there.
+const OVERLAPPING_EDGES: [Lump; 2] = [
+    CUBE,
+    (
+        &[(1.0, 0.5), (2.0, 0.5), (2.0, 1.5), (1.0, 1.5)],
+        (1.0, 2.0),
+    ),
+];
+
+/// The cube and the box `[1, 2] × [0.3, 0.7] × [1, 2]`, its bottom edge
+/// on `x = 1` inside the cube's top edge there.
+const AN_EDGE_INSIDE_THE_CUBES: [Lump; 2] = [
+    CUBE,
+    (
+        &[(1.0, 0.3), (2.0, 0.3), (2.0, 0.7), (1.0, 0.7)],
+        (1.0, 2.0),
+    ),
+];
+
+/// The cube and the box `[1, 2] × [0, 2] × [1, 2]`, the cube's top edge
+/// on `x = 1` inside its bottom edge there.
+const THE_CUBES_EDGE_INSIDE: [Lump; 2] = [
+    CUBE,
+    (
+        &[(1.0, 0.0), (2.0, 0.0), (2.0, 2.0), (1.0, 2.0)],
+        (1.0, 2.0),
+    ),
+];
+
+/// **A fate corner inside an edge of its kept face's division builds.**
+/// A partner flush on `z = 1` with the cube's top and the bottom of the
+/// box of [`OVERLAPPING_EDGES`]: the corner of one lump that lies inside
+/// the other's edge pierces the partner's face, which the other lump's
+/// imprint divides, inside an edge of that division and at no vertex of
+/// it. In `y ∖ x` with the partner above and `y ∪ x` with it below, the
+/// partner's face keeps that corner's sector, and the piece holding it
+/// is the one on whose side of that edge its direction lies
+/// (`fate::piece_beside`). One cell of each, at rest.
+#[test]
+fn a_fate_corner_inside_an_edge_of_its_faces_division_builds_at_rest() {
+    let pose = &poses()[0];
+    let x = lumps_united(&OVERLAPPING_EDGES, pose);
+    for (z, op, what) in [
+        (
+            (1.0, 1.5),
+            topo::BooleanOp::Subtract,
+            "the partner above: y ∖ x",
+        ),
+        (
+            (0.5, 1.0),
+            topo::BooleanOp::Union,
+            "the partner below: y ∪ x",
+        ),
+    ] {
+        let partner = [(-0.5, 2.5), (-0.5, 2.5), z];
+        builds_against(what, pose, (&OVERLAPPING_EDGES, &x), partner, (op, true));
+    }
+}
+
+/// **The fate corner inside an edge of its kept face's division builds
+/// in every pose and order.** The lumps of [`OVERLAPPING_EDGES`],
+/// [`AN_EDGE_INSIDE_THE_CUBES`] and [`THE_CUBES_EDGE_INSIDE`], united in
+/// either order, at every pose, against a partner over `[1, 1.5]` or
+/// `[0.5, 1]` in z, over `[−0.5, 2.5]²`, `[−0.5, 2.5] × [−0.5, 1.5]`,
+/// `[−0.5, 2.5] × [0.5, 1.5]` or `[0.5, 1.5]²`: `y ∖ x` and `y ∪ x`
+/// build as the closed form says, tier 3 and 3′. Of the 48 cells of each
+/// pose and order, 28 reach the arm that reads a corner inside an edge of
+/// the division: with [`OVERLAPPING_EDGES`] both ops over the two wide
+/// footprints, else `y ∖ x` above and `y ∪ x` below; with
+/// [`THE_CUBES_EDGE_INSIDE`] `y ∖ x` above and `y ∪ x` below, and with
+/// [`AN_EDGE_INSIDE_THE_CUBES`] `y ∪ x` above and `y ∖ x` below, at every
+/// footprint. The other 20 do not reach it and are pinned beside them.
+#[test]
+fn a_fate_corner_inside_an_edge_of_its_faces_division_builds() {
+    for pose in &poses() {
+        for (name, lumps) in [
+            ("overlapping edges", &OVERLAPPING_EDGES[..]),
+            ("an edge inside the cube's", &AN_EDGE_INSIDE_THE_CUBES[..]),
+            ("the cube's edge inside", &THE_CUBES_EDGE_INSIDE[..]),
+        ] {
+            for order in ["cube first", "cube last"] {
+                let mut ordered = lumps.to_vec();
+                if order == "cube last" {
+                    ordered.reverse();
+                }
+                let x = lumps_united(&ordered, pose);
+                for z in [(1.0, 1.5), (0.5, 1.0)] {
+                    for (x_span, y_span) in [
+                        ((-0.5, 2.5), (-0.5, 2.5)),
+                        ((-0.5, 2.5), (-0.5, 1.5)),
+                        ((-0.5, 2.5), (0.5, 1.5)),
+                        ((0.5, 1.5), (0.5, 1.5)),
+                    ] {
+                        let partner = [x_span, y_span, z];
+                        for (op, cell) in [
+                            ("y ∖ x", (topo::BooleanOp::Subtract, true)),
+                            ("y ∪ x", (topo::BooleanOp::Union, true)),
+                        ] {
+                            let what = format!(
+                                "{name}, {}, {order}, the partner {partner:?}: {op}",
+                                pose.label
+                            );
+                            builds_against(&what, pose, (lumps, &x), partner, cell);
                         }
                     }
                 }

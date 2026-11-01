@@ -73,3 +73,40 @@ face, refused as `ClassificationInvariant`.
 The touching end's on-edge case is a separate unit (it splits the
 division's edge rather than reading a piece):
 `a-fate-cut-touch-end-on-an-edge-of-its-faces-division-is-unplaced`.
+
+## Built (branch `cleave/fate-cut-end-on-a-division-edge`)
+
+`fate::lies` now returns `Lies::OnEdge(sides)`, each piece with the
+edge of its loops the point lies on, where it lay in no piece and at no
+vertex (`Unplaced::OnEdge` is gone). The pierced corner's arm reads it
+with `fate::piece_beside`: the piece whose edge's half-edge, read as a
+straight corner at the point by `corner_holds` (the reading `place`
+uses), holds the dropped sector's direction. Where no one piece holds
+it (the direction along the edge, or an edge other than a line) it
+refuses `fate::Limit::BesideNoPiece`, which `ops::fallback_fates` keeps
+uncut and the section path refuses in `Limit`'s voice (the P2 voice
+row). The touch placement's on-edge refusal is unchanged (its own row).
+
+Measured at the site on main: the corner `(1, 1, 1)` or `(1, 0.5, 1)`
+reads `OnEdge` in two pieces, through two coincident edges (a null
+face between them), so the pieces are read by their own half-edges,
+not one edge's two sides.
+
+Pins (`a_keel_on_the_floor_subtracts_as_a_slit.rs`):
+`a_fate_corner_inside_an_edge_of_its_faces_division_builds_at_rest`
+(gate) and `…_builds` (slow: three lump pairs, both orders, every pose,
+two sides, four footprints, `y ∖ x` and `y ∪ x`; 28 of each pose and
+order's 48 cells reach the arm). Both check tier 3, 3′, the closed-form
+volume and that each substituted fragment's kept face is in the result.
+Red on main (the refusal) and under a mutant that takes the piece the
+direction lies outside (the kept face named is one the result drops).
+
+Outcome over the touch-end probe's grid (pt, base, s2, widened; 7728
+cells per ε), main against head at default, 1e-6 and 1e-12: 104 cells
+per ε refused→built (all this refusal: `pt S edge short` 80, `S partial
+line` 12, `S wider in y` 12), all sound under the probe's checks; 0
+built→refused, 0 →invalid, 0 cells reaching `BesideNoPiece`.
+
+Filed: `a-fate-corner-inside-a-curved-edge-of-its-faces-division-refuses-as-a-placement-limit`
+(P3), `a-sphere-cut-in-circle-across-a-cut-of-its-face-refuses-in-the-voice-of-a-kernel-bug`
+(P3, the `ops.rs` cut-in voice noted above).
