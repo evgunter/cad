@@ -134,14 +134,17 @@ side clears only
   the face or its convex hull (`census::depth_gap`): the nested walls,
   bores and plugs no direction separates, or
 - for two planar faces, where each meets the other's plane, read in
-  that plane (`census::coplanar`): on one carrier the Door 1 reading
-  decides Zero, every edge of one apart from every edge of the other
-  along a direction and a vertex of every loop of each placed definitely
-  `Out` of the other; or, one face on one side of the other's plane,
-  each of its line edges with an end on that plane apart from every
-  edge of the other face and each such end placed `Out` of it: a block
-  in a plate's reflex notch, its base in the plate top's plane and its
-  walls standing on it, which no direction or depth parts, or
+  that plane to the band's Zero (`census::in_plane`): on one carrier
+  the Door 1 reading decides Zero, every edge of one apart from every
+  edge of the other along a direction and a vertex of every loop of
+  each placed definitely `Out` of the other; or, one face standing on
+  the other's plane, none of it decided below, its arcs definitely
+  above and its slope there decided past sin θ = ½, each of its line
+  edges with an end on that plane apart from every edge of the other
+  face and each such end placed `Out` of it, which puts its section
+  within twice the zero threshold of those edges, inside the pads: a
+  block in a plate's reflex notch, its base in the plate top's plane
+  and its walls standing on it, which no direction or depth parts, or
 - where the pair meets, by the touch analysis, which reads planar faces,
   and a sphere or cylinder face holding the touch point strictly inside
   it, with nothing else of its solid there, as its carrier's side

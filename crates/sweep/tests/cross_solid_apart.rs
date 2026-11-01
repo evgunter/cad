@@ -850,7 +850,7 @@ fn upright(n: Vec3<f64>) -> bool {
 /// on it, and the L wraps two sides of it, so no plane parts the top
 /// from the base or from a wall, and the block's corner lies on the
 /// notch fillet's axis, so no depth does. Each is apart where it meets
-/// the top's plane (`census::coplanar`). Moved onto the fillet (its
+/// the top's plane (`census::in_plane`). Moved onto the fillet (its
 /// corner on the arc) or onto the L's straight edge, it touches, and
 /// the base and a wall refuse with the curved-pair finding. Red where
 /// arm 1 has no reading in the plane.

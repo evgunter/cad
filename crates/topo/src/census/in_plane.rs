@@ -9,36 +9,51 @@
 //! axis.
 //!
 //! **The reading.** Let `A` be a planar face on the plane `P`, and `B` a
-//! planar face. `A ∩ B` lies in `B ∩ P`, and that is read in `P`:
+//! planar face. `A ∩ B` lies in `B ∩ P`, which is read in `P`. Every
+//! decision is the band's: a Zero is a margin within `z` (the band's
+//! zero threshold) of nought, not nought, and each argument below
+//! carries that `z`.
 //!
 //! - **`B` on `P`**: the carrier reading decides the two planes one
 //!   carrier, a margin decided Zero, either sense (the planar face-pair
-//!   arm's Door 1, [`crate::boolean::carrier_pair::carrier_pair_reading`]).
-//!   Two faces on one plane are compact regions of it. Where no edge of
-//!   one meets an edge of the other, each boundary loop lies wholly
-//!   inside or wholly outside the other face: it is connected, and misses
-//!   that face's boundary. Where the regions meet, their intersection is
-//!   a nonempty compact set of the plane, so it has a boundary point; that
+//!   arm's Door 1, [`crate::boolean::carrier_pair_decided`]),
+//!   which the census reads as one plane wherever it decides it. On that
+//!   plane the two faces are compact regions. Where no edge of one meets
+//!   an edge of the other, each boundary loop lies wholly inside or
+//!   wholly outside the other face: it is connected, and misses that
+//!   face's boundary. Where the regions meet, their intersection is a
+//!   nonempty compact set of the plane, so it has a boundary point; that
 //!   point lies on one face's boundary and in the other face, off the
 //!   other's boundary, so in its interior, and the loop through it lies
 //!   inside. So every edge pair apart, and one point of every loop of each
-//!   face placed `Out` of the other, prove the faces disjoint.
-//! - **`B` on one side of `P`**: every vertex of `B` is decided on `P` or
-//!   on one side of it, not all on it, and every arc of `B` lies
-//!   definitely on that side (its reach along `P`'s normal). A planar
-//!   face lies in the hull of its boundary, so `B` lies in the closed
-//!   half-space, in a half-plane of its own plane bounded by the line it
-//!   shares with `P`; so `B ∩ P` lies in `B`'s boundary, in its line edges
-//!   with an end on `P`. One with one end on `P` meets it there alone; one
-//!   with both lies in it. So each such edge apart from every edge of
-//!   `A`, and each of its ends on `P` placed `Out` of `A`, prove `A ∩ B`
-//!   empty: each such edge is connected, misses `A`'s boundary, and has an
-//!   end outside `A`.
+//!   face placed `Out` of the other, put the faces apart. This is not the
+//!   planar face-pair arm's interiors reading
+//!   (`census::planar_interiors_meet`): that one asks whether two
+//!   polygons' interiors meet, on aligned faces, and a shared boundary
+//!   point answers it no; this one asks whether the closures meet, on
+//!   either sense, with arcs, and only a gap answers it no.
+//! - **`B` standing on `P`**: no vertex of `B` is decided on the far side
+//!   of `P`, some vertex is decided off it, every arc of `B` lies
+//!   definitely off it (its reach along `P`'s normal), and `B` meets `P`
+//!   at a slope `sin θ = |n_P × n_B|` decided past ½. Then `B` lies in
+//!   the hull of its boundary, above `−z` in height over `P`. From a
+//!   point of `B ∩ P`, the steepest way down `B` falls at `sin θ` and
+//!   leaves `B` at most `z / sin θ ≤ 2z` away, at a boundary point no
+//!   higher, so on a line edge with an end decided on `P` (a line whose
+//!   ends both lie above `P` lies above it throughout, and an arc does).
+//!   So `B ∩ P` lies within `2z` of those edges. Each is apart from every
+//!   edge of `A` by more than both pads, which exceed `2z`, so its
+//!   `2z`-neighbourhood in `P` is connected and misses `A`'s boundary;
+//!   its end on `P`, placed `Out` of `A`, lies within `z` of `P` and in
+//!   that neighbourhood. So the neighbourhood lies outside `A`, and so
+//!   does `B ∩ P`. A face that meets `P` shallower than that (nearly
+//!   flat on it, its foot within the band) has a section the band does
+//!   not place, and refuses.
 //!
 //! Either role is tried for each face. An edge pair is apart along a
-//! direction ([`crate::boolean::separating::apart_by`]): the axis between
-//! their anchors, the world axes, and each arc's chord normal and the
-//! offset from its centre to the other edge's anchor; the gap is less
+//! direction ([`crate::boolean::separating::apart`]): the axis between
+//! their anchors, the world axes, and the directions the pair's faces
+//! propose (`depth_gap::toward`, `depth_gap::across`); the gap is less
 //! both edges' [`sweep_pad`], as a face pair's is. A placement counts only
 //! where it decides the point on the plane and `Out` ([`face_placement`]).
 //! That is the verdict, and the only one.
@@ -46,14 +61,15 @@
 //! A pair that touches has an edge pair with no gap, or a vertex on the
 //! other face, and one that overlaps has a loop inside the other face or
 //! crosses its plane, so neither is cleared; anything not read (a
-//! lone-vertex loop, an edge with no reach, a side or placement in band,
-//! a door's refusal) leaves the pair to arm 1's refusal.
+//! lone-vertex loop, an edge with no reach, a side, a slope or a
+//! placement in band, a door's refusal) leaves the pair to arm 1's
+//! refusal.
 
-use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3, is_finite_length};
+use geom_core::{Band, Decide, Margin, Point3, Sign, UnitVec3, Vec3};
 
 use crate::body::Body;
 use crate::boolean::boxes::{BoxFrame, EdgeBoxRule, edge_box_rule, edge_end_point, sweep_pad};
-use crate::boolean::separating::{Item, anchor, apart_by, planar_axis};
+use crate::boolean::separating::{Item, apart, planar_axis, world_axes};
 use crate::boolean::{CarrierRelation, CurvedPlacement, FaceContainment, face_placement};
 use crate::entity::{EdgeKey, EntityId, FaceKey};
 use crate::live::proven;
@@ -71,9 +87,9 @@ pub(crate) const REGION_SIDE: &str = "census_backstop_region_side";
 /// and that face's plane (metres).
 pub(crate) const REGION_ARC_SIDE: &str = "census_backstop_region_arc_side";
 
-/// K name: an arc's chord normal, or the offset from its centre to the
-/// other edge's anchor (metres), before it is read as a unit direction.
-pub(crate) const REGION_ACROSS: &str = "census_backstop_region_across";
+/// K name: the sine of the angle a face meets the other's plane at, less
+/// ½, levered by the face's reach diagonal (metres).
+pub(crate) const REGION_SLOPE: &str = "census_backstop_region_slope";
 
 /// One loop of a face: its edges, and one of its vertices' points.
 struct Loop<T: geom_core::Real> {
@@ -99,55 +115,6 @@ fn loops<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<Loop<T>>> {
         .collect()
 }
 
-/// The directions an arc edge `e` aims at the edge `other`: its chord
-/// normal in its conic's plane, and the offset from its centre to
-/// `other`'s anchor. None for a line.
-fn arc_directions<T: Decide>(
-    body: &Body<T>,
-    e: EdgeKey,
-    other: EdgeKey,
-    band: Band,
-) -> Vec<UnitVec3<T>> {
-    let edge = proven(&body.edges, e, EntityId::Edge);
-    let EdgeBoxRule::ConicAmplitude(arc) =
-        edge_box_rule(body.edge_curve_linked(e, edge).certified())
-    else {
-        return Vec::new();
-    };
-    let chord = edge_end_point(body, e, edge.he_minus, "he_minus")
-        - edge_end_point(body, e, edge.he_plus, "he_plus");
-    let unit = |v: Vec3<T>| {
-        is_finite_length(v.norm())
-            .then(|| UnitVec3::new(v, REGION_ACROSS, band).ok())
-            .flatten()
-    };
-    let mut out = Vec::new();
-    out.extend(unit((arc.axis / arc.axis.norm()).cross(chord)));
-    if let Some(q) = anchor(body, Item::Edge(other)) {
-        out.extend(unit(q - arc.center));
-    }
-    out
-}
-
-/// Whether the edges `x`, `y` are apart (module docs).
-fn edges_apart<T: Decide>(body: &Body<T>, x: EdgeKey, y: EdgeKey, band: Band) -> bool {
-    let mut axes = vec![
-        UnitVec3::exact_x(),
-        UnitVec3::exact_y(),
-        UnitVec3::exact_z(),
-    ];
-    axes.extend(arc_directions(body, x, y, band));
-    axes.extend(arc_directions(body, y, x, band));
-    apart_by(
-        (body, Item::Edge(x)),
-        (body, Item::Edge(y)),
-        &axes,
-        sweep_pad(band),
-        band,
-        &|body, f, frame| super::face_reach_in(body, f, band, frame),
-    )
-}
-
 /// Whether `p` lies definitely outside `face`, on its plane.
 fn outside<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>, band: Band) -> bool {
     matches!(
@@ -157,62 +124,83 @@ fn outside<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>, band: Band) -
 }
 
 /// **Whether the planar faces `a`, `b` are apart where each meets the
-/// other's plane** (module docs).
+/// other's plane** (module docs), each edge pair read along the world
+/// axes and `proposed`.
 pub(super) fn apart_in_plane<T: Decide>(
     body: &Body<T>,
     a: FaceKey,
     b: FaceKey,
+    proposed: &[UnitVec3<T>],
     band: Band,
 ) -> bool {
     let (Some(la), Some(lb)) = (loops(body, a), loops(body, b)) else {
         return false;
     };
+    let mut axes = world_axes().to_vec();
+    axes.extend_from_slice(proposed);
+    let edges_apart = |x: EdgeKey, y: EdgeKey| {
+        apart(
+            (body, Item::Edge(x)),
+            (body, Item::Edge(y)),
+            &axes,
+            sweep_pad(band),
+            band,
+        )
+    };
     let one_plane = matches!(
-        crate::boolean::carrier_pair::carrier_pair_reading(body, a, body, b, false, band),
+        crate::boolean::carrier_pair_decided(body, a, body, b, band),
         Ok(Ok((
             CarrierRelation::SameOriented | CarrierRelation::SameOpposite,
-            crate::contact::ContactVerdict::Definite,
-            _
+            Some(_)
         )))
     );
     if one_plane {
-        return regions_apart(body, (a, &la), (b, &lb), band);
+        return la.iter().all(|x| outside(body, b, x.point, band))
+            && lb.iter().all(|y| outside(body, a, y.point, band))
+            && la.iter().flat_map(|x| &x.edges).all(|&ea| {
+                lb.iter()
+                    .flat_map(|y| &y.edges)
+                    .all(|&eb| edges_apart(ea, eb))
+            });
     }
-    beside(body, (a, &la), &lb, band) || beside(body, (b, &lb), &la, band)
+    standing(body, (a, &la), (b, &lb), &edges_apart, band)
+        || standing(body, (b, &lb), (a, &la), &edges_apart, band)
 }
 
-/// The first reading (module docs): `a` and `b` on one plane, apart as
-/// regions.
-fn regions_apart<T: Decide>(
+/// A face's levered outward normal ([`planar_axis`]) and its reach
+/// diagonal's length.
+fn normal<T: Decide>(body: &Body<T>, f: FaceKey, band: Band) -> Option<(UnitVec3<T>, T)> {
+    let (lo, hi) = super::face_reach(body, f, band)?;
+    Some((
+        planar_axis(body, f, || Some((lo, hi)), band)?,
+        (hi - lo).norm(),
+    ))
+}
+
+/// The second reading (module docs): `b`, bounded by `lb`, standing on
+/// `a`'s plane, apart from `a` where it meets that plane.
+fn standing<T: Decide>(
     body: &Body<T>,
     (a, la): (FaceKey, &[Loop<T>]),
     (b, lb): (FaceKey, &[Loop<T>]),
-    band: Band,
-) -> bool {
-    la.iter().all(|x| outside(body, b, x.point, band))
-        && lb.iter().all(|y| outside(body, a, y.point, band))
-        && la.iter().flat_map(|x| &x.edges).all(|&ea| {
-            lb.iter()
-                .flat_map(|y| &y.edges)
-                .all(|&eb| edges_apart(body, ea, eb, band))
-        })
-}
-
-/// The second reading (module docs): the face bounded by `lb` on one
-/// side of `a`'s plane, apart from `a` where it meets that plane.
-fn beside<T: Decide>(
-    body: &Body<T>,
-    (a, la): (FaceKey, &[Loop<T>]),
-    lb: &[Loop<T>],
+    edges_apart: &dyn Fn(EdgeKey, EdgeKey) -> bool,
     band: Band,
 ) -> bool {
     let face = proven(&body.faces, a, EntityId::Face);
     let geom::Surface::Plane { origin, .. } = *body.face_surface_linked(a, face) else {
         return false;
     };
-    let Some(n) = planar_axis(body, a, || super::face_reach(body, a, band), band) else {
+    let (Some((n, _)), Some((nb, lever))) = (normal(body, a, band), normal(body, b, band)) else {
         return false;
     };
+    let half = T::from_f64(0.5);
+    let steep = (n.get().cross(nb.get()).norm() - half) * lever;
+    if !matches!(
+        decide(REGION_SLOPE, Margin::of(steep), band),
+        Ok(Sign::Positive)
+    ) {
+        return false;
+    }
     let level = Vec3::new(origin.x, origin.y, origin.z).dot(n.get());
     let side = |p: Point3<T>| decide(REGION_SIDE, Margin::of((p - origin).dot(n.get())), band).ok();
     let mut sense = None;
@@ -262,6 +250,6 @@ fn beside<T: Decide>(
                 && la
                     .iter()
                     .flat_map(|x| &x.edges)
-                    .all(|&ea| edges_apart(body, e, ea, band))
+                    .all(|&ea| edges_apart(e, ea))
         })
 }
