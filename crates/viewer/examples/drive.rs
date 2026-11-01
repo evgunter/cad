@@ -17,7 +17,7 @@
 //!
 //! | command | does |
 //! |---|---|
-//! | `click "label" [n]` | primary click on the `n`th (0-based) visible painting of `label` |
+//! | `click "label" [n]` | primary click on the `n`th (0-based) visible painting of `label`; a label ending in `*` matches any text starting with the rest |
 //! | `dclick "label" [n]` | double click on it |
 //! | `rclick "label" [n]` | secondary click on it |
 //! | `hover "label" [n]` | rest the pointer on it past the tooltip delay |
@@ -172,6 +172,28 @@ fn modifiers(word: Option<&String>) -> Result<egui::Modifiers, String> {
     Ok(held)
 }
 
+/// Where the `nth` visible painting of `label` is: exactly `label`,
+/// or, when it ends in `*`, any text starting with what comes before
+/// it — for a tree row, whose tag is minted afresh in every document
+/// a run creates.
+fn located(driver: &Driver, label: &str, nth: usize) -> Result<egui::Pos2, String> {
+    let Some(prefix) = label.strip_suffix('*') else {
+        return driver.find(label, nth).map_err(|error| error.to_string());
+    };
+    let shown: Vec<egui::Pos2> = driver
+        .screen()
+        .iter()
+        .filter(|landed| landed.text.starts_with(prefix))
+        .filter_map(|landed| landed.visible().map(|rect| rect.center()))
+        .collect();
+    shown.get(nth).copied().ok_or_else(|| {
+        format!(
+            "no visible text starting `{prefix}` #{nth} ({} visible)",
+            shown.len()
+        )
+    })
+}
+
 /// One command, done.
 fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), String> {
     let drive = |result: Result<(), DriveError>| result.map_err(|error| error.to_string());
@@ -187,9 +209,7 @@ fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), S
     let arg = |n: usize| args.get(n);
     match command.as_str() {
         "click" | "dclick" | "rclick" => {
-            let at = driver
-                .find(label(arg(0))?, index(arg(1))?)
-                .map_err(|error| error.to_string())?;
+            let at = located(driver, label(arg(0))?, index(arg(1))?)?;
             let (button, count) = match command.as_str() {
                 "dclick" => (egui::PointerButton::Primary, 2),
                 "rclick" => (egui::PointerButton::Secondary, 1),
@@ -197,7 +217,11 @@ fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), S
             };
             drive(driver.click_at(at, button, egui::Modifiers::default(), count))
         }
-        "hover" => drive(driver.hover(label(arg(0))?, index(arg(1))?)),
+        "hover" => {
+            let at = located(driver, label(arg(0))?, index(arg(1))?)?;
+            driver.rest_at(at);
+            Ok(())
+        }
         "clickat" => {
             let point = at(arg(0), arg(1))?;
             drive(driver.click_at(point, button(arg(2))?, modifiers(arg(3))?, 1))
