@@ -40,6 +40,24 @@ pub fn holds(
     b: &AtRestBody<f64>,
     want: f64,
     region: &dyn Fn(Point3<f64>) -> f64,
+    lattice: (Point3<f64>, Point3<f64>),
+    n: usize,
+) {
+    holds_short_of_tier_3_prime(what, b, want, region, lattice, n);
+    assert_eq!(
+        validate_pseudomanifold(b, &ContactRecords::default(), Tol::witness()),
+        Ok(()),
+        "{what}: tier 3′"
+    );
+}
+
+/// [`holds`] but for tier 3′, which the caller pins itself: a result
+/// whose census the at-rest check cannot yet decide.
+pub fn holds_short_of_tier_3_prime(
+    what: &str,
+    b: &AtRestBody<f64>,
+    want: f64,
+    region: &dyn Fn(Point3<f64>) -> f64,
     (lo, hi): (Point3<f64>, Point3<f64>),
     n: usize,
 ) {
@@ -53,11 +71,6 @@ pub fn holds(
         mp.volume_pad
     );
     assert_eq!(validate_geometric(b, tol), Ok(()), "{what}: tier 3");
-    assert_eq!(
-        validate_pseudomanifold(b, &ContactRecords::default(), tol),
-        Ok(()),
-        "{what}: tier 3′"
-    );
     let band = Band::linear(tol).unwrap();
     let span = hi - lo;
     let off = 1e-3 * span.norm();
