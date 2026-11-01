@@ -2,11 +2,12 @@
 id: a-box-face-along-an-inflection-ruling-refuses-not-same-face-past-both-ends
 kind: issue
 title: A box face along the ruling where two tangent walls of opposite curvature meet refuses Join NotSameFace in every op when the box stands past both of A's ends
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [a-box-along-a-fillets-line-arc-junction-reaches-classification-invariants, 6219]
+branch: tangrim/inflection-ruling
 ---
 
 Found by PR 6219's review (its junction variants), measured on the

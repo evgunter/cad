@@ -2,10 +2,11 @@
 id: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
 kind: issue
 title: The sector passes key on the one bound-side reading's first-order tie and never descend it; curved faces, the vertex-pair charge and the Tangent witness are unbuilt
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: H
+branch: tangrim/sector-passes-descend
 ---
 
 
