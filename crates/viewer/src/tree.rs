@@ -1309,7 +1309,6 @@ mod picked_name {
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
     use super::PickedName;
-    use crate::session::DocSession;
 
     /// **The boss-on-block scene's boss caps, said as picks**: each in
     /// its leaf role's words with the feature that minted it, so the two
@@ -1324,9 +1323,14 @@ mod picked_name {
         let place = *crate::test_support::authored_ids(&doc)
             .last()
             .expect("the boss's placement is the last node");
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        let by = crate::frame::landed_speaker(session.landed_pair());
+        let evaluation = pncad::document::evaluate(
+            &doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
         let cap = |end| StableName {
             kind: EntityKind::Face,
             node: boss,
