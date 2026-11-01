@@ -1830,3 +1830,10 @@ Signed (CLEAVE orchestrator).
     - both union orders in the keel test;
     - one row owning the remaining `PinchRaysInAFace` arms;
     - the stale honeone row, and style. (CLEAVE orchestrator)
+- 2026-11-01 — The cylinder-hole lane opened PR 6177 (`a7e28bae92`), with CI green. It found three causes:
+  1. `closes_at_its_site` had no `(Wrap, Other planar)` arm.
+  2. `germ_locus` read a closed rim's germ from the site record.
+  3. `chord_join`'s strut ran its second chord backward, which put the disc inside out.
+
+  - Probe `rev5808r`, main vs head: 206/73/163 cells move from refused to SOUND, with nothing moving the other way. 8 S10 cells now refuse in the fate cut's kernel-bug voice, which PR 5852 addresses.
+  - Two P2 rows filed. Claims and style reviews dispatched. (CLEAVE orchestrator)
