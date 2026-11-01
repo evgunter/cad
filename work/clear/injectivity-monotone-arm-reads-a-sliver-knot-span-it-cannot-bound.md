@@ -2,10 +2,11 @@
 id: injectivity-monotone-arm-reads-a-sliver-knot-span-it-cannot-bound
 kind: issue
 title: A NURBS wall whose interior knot sits a few ulps off a bisection point never certifies against itself: the cell beside the knot restricts to a sliver span, rect_jet's degree/length scaling blows its Jacobian hull up, and the monotone arm splits that iso line until the pair budget runs out
-status: open
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: M
+closed: 2026-11-01
 ---
 
 
@@ -64,8 +65,5 @@ on the 3.5 rad wall at the cell `v in [0.375, 0.4375]`.
 With the window door reading both halves
 (`clearance-refines-reads-only-the-lower-halves`), the 3.5 and 6 rad
 arc-spine lofts at 17 stations are admitted, and
-`self_intersection_proves_injectivity::an_arc_spine_short_of_a_full_turn_runs_past_the_pair_budget`
-pins their `Budget` refusal at both scalars (at a sixteenth of the
-default budget; at the default, the 6 rad body costs about seven minutes
-a scalar in a debug build). When this row lands, that row goes back to
-the default budget and asserts `Holds`.
+`self_intersection_proves_injectivity::an_arc_spine_short_of_a_full_turn_holds`
+asserts `Holds` at the default budget at both scalars (SLIVER, PR #6229).

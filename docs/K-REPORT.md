@@ -1649,7 +1649,7 @@ cc_axes_coplanar  cc_axes_parallel  cc_coaxial
 cc_declared_radius_equality  cc_parallel_gap  pc_parallel_gap
 pn_apex_on_plane  pn_apex_section  pn_axis_normal
 nurbs_span_meter  fillet3_chain_arm  fillet3_chain_g1
-split_conic_departure  split_conic_inplane_mid
+split_conic_inplane_mid
 split_tangent_chord_forward
 tangent_sector_order2  tangent_sector_order2_arm
 tangent_sector_osculation

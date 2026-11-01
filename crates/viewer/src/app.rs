@@ -475,6 +475,11 @@ pub struct ViewerApp {
     /// the next event about that subject can retire it
     /// ([`crate::frame::Subject`]).
     status: Option<frame::Message>,
+    /// The tool that was open at the last batch — what a change of the
+    /// open tool is measured against, so the line's
+    /// [`frame::Subject::Tool`] messages retire with the tool they are
+    /// about ([`frame::tool_status`]).
+    line_tool: Option<crate::tools::ToolKind>,
     /// **Everything THIS frame has to say**, collected as it happens
     /// and ranked with the batch verdict rather than before it. It was
     /// the open tool's declined picks and survival drops plus the
@@ -934,6 +939,7 @@ impl ViewerApp {
             // Whatever the preferences file had to say, in the one
             // place this crate puts a thing that went wrong.
             status: frame::startup_notices(&notices),
+            line_tool: None,
             notices: Vec::new(),
             chooser: platform::chooser_backend(),
             save_choice: None,
@@ -1274,6 +1280,17 @@ impl ViewerApp {
         // seam just landed — is exactly the frame that needs its
         // notice shown.
         let mut notices = core::mem::take(&mut self.notices);
+        // A tool opened, closed or swapped since the last batch — a
+        // Cancel in its panel, the previous batch's commit — retires
+        // what the line says about the tool that was open. Before the
+        // early return: a Cancel is a frame with nothing else to say.
+        let open = self.tools.open_kind();
+        frame::deliver(
+            &mut Vec::new(),
+            &mut self.status,
+            frame::tool_status(self.line_tool, open),
+        );
+        self.line_tool = open;
         if ops.is_empty() && notices.is_empty() {
             return;
         }
@@ -6573,6 +6590,25 @@ mod properties_pane_tests {
         assert!(
             driven.marks().edges().held.is_empty(),
             "a closed tool holds nothing"
+        );
+    }
+
+    /// **A deselect that is not a viewport click says nothing about the
+    /// open tool**: it is no attempt to seat anything, so the miss notice
+    /// is the viewport's alone.
+    #[test]
+    fn a_deselect_outside_the_viewport_with_a_tool_open_says_nothing() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.app.tools.open(crate::tools::ToolKind::Boolean);
+        driven.select(Selection::Node(extrude()));
+        driven.select(Selection::None);
+        let said = driven.app.status.as_ref().map(|m| m.text().to_owned());
+        assert!(
+            !said
+                .as_deref()
+                .is_some_and(|text| text.contains("no pick taken")),
+            "{said:?}"
         );
     }
 

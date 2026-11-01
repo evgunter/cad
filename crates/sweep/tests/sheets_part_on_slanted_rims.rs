@@ -175,15 +175,36 @@ fn an_ellipse_rim_crossing_a_walls_ellipse_rim_reads_the_walls_parting() {
     builds_at_its_closed_form((0.2, 0.5), &[(BooleanOp::Subtract, "A−B", true)]);
 }
 
-/// **Every op**, a flat rim against a slanted one and two rims in two
-/// planes, `tan t_a < tan t_b` (the other way about refuses, below).
-/// Every body passes tiers 1–3 at its closed form. Tier 3′ passes on
-/// `A ∖ B` and `A ∩ B`; on `A ∪ B` and `B ∖ A` it escalates
-/// `curve_pair_coplanar_sub_side` in band
-/// (`work/splitdoor/a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation.md`).
+/// **The other handedness builds too**: tilts `(0.5, 0.2)`, `tan t_a >
+/// tan t_b`, so the two rims share the half of `A`'s disc at `y > 0`
+/// and `B`'s section arc leaves the pinch along the tangent of the rim
+/// its corner arrives on, A∖B at its closed form, tiers 1–3′.
+#[test]
+fn a_rim_crossing_with_the_inner_plane_steeper_builds() {
+    builds_at_its_closed_form((0.5, 0.2), &[(BooleanOp::Subtract, "A−B", true)]);
+}
+
+/// **Every op, both handednesses**: a flat rim against a slanted one
+/// and two rims in two planes, each with `tan t_a` below `tan t_b` and
+/// above it, up to their near-equality at `(0.45, 0.5)` and
+/// `(0.5, 0.45)`. Every body passes tiers 1–3 at its closed form. Tier
+/// 3′ passes on `A ∖ B` and `A ∩ B`; on `A ∪ B` and `B ∖ A` it
+/// escalates `curve_pair_coplanar_sub_side` on the coplanar touch of
+/// `B`'s rim and the section arc, a touch the curve-pair reader cannot
+/// place (`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`).
 #[test]
 fn rims_crossing_on_tangent_walls_build_every_op() {
-    for tilts in [(0.0, 0.3), (0.0, 1.0), (0.2, 0.5), (-0.3, 0.6), (0.45, 0.5)] {
+    for tilts in [
+        (0.0, 0.3),
+        (0.0, 1.0),
+        (0.2, 0.5),
+        (-0.3, 0.6),
+        (0.45, 0.5),
+        (0.0, -0.5),
+        (0.3, -0.4),
+        (0.5, 0.2),
+        (0.5, 0.45),
+    ] {
         builds_at_its_closed_form(
             tilts,
             &[
@@ -193,33 +214,6 @@ fn rims_crossing_on_tangent_walls_build_every_op() {
                 (BooleanOp::Subtract, "B−A", false),
             ],
         );
-    }
-}
-
-/// **Rims crossing with `tan t_a > tan t_b` refuse as a kernel bug**:
-/// every op refuses `SeamOrientation`, the orientation chain's
-/// invariant, whether a rim is flat or both are slanted, and up to the
-/// tilts' near-equality `(0.5, 0.45)`, where `(0.45, 0.5)` builds
-/// (above). The walls' parting is read first, Negative, as where they
-/// build
-/// (`work/splitdoor/a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation.md`).
-#[test]
-fn rims_crossing_with_the_inner_plane_steeper_refuse_seam_orientation() {
-    for (t_a, t_b) in [(0.0, -0.5), (0.3, -0.4), (0.5, 0.2), (0.5, 0.45)] {
-        let (a, b) = rims(t_a, t_b);
-        for (o, name, x, y) in [
-            (BooleanOp::Subtract, "A−B", &a, &b),
-            (BooleanOp::Union, "A∪B", &a, &b),
-            (BooleanOp::Subtract, "B−A", &b, &a),
-        ] {
-            let what = format!("tilts ({t_a}, {t_b}) {name}");
-            let (got, parted) = op_reading_the_parting(o, x, y);
-            assert_eq!(parted, [Sign::Negative], "{what}: the walls' parting");
-            assert!(
-                matches!(got, Err(BooleanError::SeamOrientation { .. })),
-                "{what}: {got:?}"
-            );
-        }
     }
 }
 
