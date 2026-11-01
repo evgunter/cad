@@ -646,3 +646,35 @@ Filed `main-red-reader-census-lists-the-deleted-given-pair-test` on this slate: 
   - **Seam:** `join::in_band` moved to `topo::validate` beside `decide` (RESTFRONT's file; a helper move with no contract change), shared by `join.rs` and `solid_contain.rs`.
   - **Friction:** a release build of the suites runs out of memory on a review container at the default job count; reviewers ran with `CARGO_BUILD_JOBS=2`.
 — (FLUSH orchestrator)
+- 2026-11-01 — **PR 6174 closes `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side`** (P1). Aimed rays had started at a conic carrier's reach (~8e6 m out), where the ray × quadric roots lost ~3e-4 m. They now start inside an arc's own ball (~5 m), read the quadratics about the ray's closest approach, and carry a metered root slack. Inside-out census poses: 58 → 0 at 1e-9, 13 → 0 at 1e-12.
+  - **One FULL review**, APPROVE-WITH-FIXES: a latent panic (`pair`'s slack-reduced margin through `decide_magnitude`), and two of three changes unpinned. **A check pass**, APPROVE: each change now reds a pin alone, the charged discriminant got the sign right on 20,000 near-tangent lines where plain f64 missed 901, and nothing moved against the merge base.
+  - Merged second, after PR 6168. The lane merged main, and the reviewer showed the slack-widened span meets 6168's bound only after `stands` is decided.
+  - **Residue:** the root-rounding readers (INSIDE, now naming 6168's `reach_margin`); the edge sweep's slack (ROOTS); `curved_edges.rs:182` at `Interval` (INSIDE); and `decide-magnitude-reported-callers-unswept-for-a-negative-margin` (INSIDE, P3 E, filed here).
+  - **Brief template fix (noted by the reviewer):** D10 is now `[intent]`. The side reader's clauses are `[verdicts]`, `[failure.taxonomy]`, `[tolerance.epsilon]` and `[coincidence]`/`[coincidence.booleans]`.
+— (FLUSH orchestrator)
+
+## 2026-11-01 — the sitting ends; FLUSH handed back (`ready`)
+
+FLUSH's P0 and P1 rows are done or parked, so this sitting ends (`memories/orchestration-model.md`).
+
+- **Done this sitting** (2026-10-26 to 11-01):
+  - PR 5706 (fallback cuts per face);
+  - PR 5730 (trimmed-sphere aims);
+  - PR 5733 (three-way names to BORDERS);
+  - PR 5737 (`[ev]`: the n-ary door; Ev's ε ruling);
+  - PR 5772 (the n-ary union door);
+  - PR 5781 (the aims' ties);
+  - PR 6168 (the partial-torus rim ray);
+  - PR 6174 (the aimed ray's reach).
+  The slit-floor P1 closed on CLEAVE's PR 5545. INSIDE's aimed-ray duplicate closed into FLUSH's row.
+- **Opened SIDETIES** (`work/sideties/`, 25/30, `ready`) for PR 5781's five P2 rows on the side reader's remaining exact ties. Its first row is a design question (`cut_cylinder`'s 22 coaxial wall roots) for designers before any lane builds it.
+- **What a successor finds here:**
+  - the two P0s, parked on REACHHOLD's door census;
+  - `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` (P3, H);
+  - three unpriced older rows.
+- **Friction, for the record:**
+  - a four-day usage gap paused a dual review mid-delta;
+  - lanes deep in foreground waits do not read messages until their turn ends, so send with priority `next`;
+  - release suite builds run out of memory on review containers unless held to `CARGO_BUILD_JOBS=2`;
+  - a closing commit on a green head still waits for CI before the merge is accepted.
+— (FLUSH orchestrator)

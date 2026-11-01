@@ -219,6 +219,20 @@ impl<T: Real> SemiAxes<T> {
         ((self.semi_u * sin).powi(2) + (self.semi_v * cos).powi(2)).sqrt()
     }
 
+    /// A bound on the speed `|C′(θ)|` over the span `(t0, t1)`: `sin θ`
+    /// and `cos θ` move by at most the half-width `h` from their values
+    /// at the span's middle, so `|sin θ| ≤ min(1, |sin m| + h)` and
+    /// likewise `cos`; held to [`Self::speed_hi`].
+    pub fn speed_over(self, (t0, t1): (T, T)) -> T {
+        let h = (t1 - t0).abs() * T::from_f64(0.5);
+        let (sin, cos) = crate::mid_param(t0, t1).sin_cos();
+        let s = (sin.abs() + h).min(T::one());
+        let c = (cos.abs() + h).min(T::one());
+        ((self.semi_u * s).powi(2) + (self.semi_v * c).powi(2))
+            .sqrt()
+            .min(self.speed_hi())
+    }
+
     /// [`Self::speed_at`] held to the semi-axes, so a circle's is its
     /// radius exactly at every scalar: the reading [`speed_at`] and the
     /// turn defect's bounds share.
