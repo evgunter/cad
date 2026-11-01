@@ -8,6 +8,6 @@ arc_loft_1e9eps v=3e43a1a4c862669f a=3efad1fd5f7ed1ba vpad=3ce3e93a9ef2aaac apad
 thin_strip v=3f60624dd2eec0a9 a=4011c4d34da63920 vpad=3e22966b10000000 apad=3fa7e1105285a61b | verdicts n=4 h=02d6a212b0c1a17d esc n=0 h=cbf29ce484222325
 # sym-session
 sym_arc_loft mass_properties OK decisions=4 sym=0 rref=0 rcon=0 num=4 disp=0 chk=4/4 frozen=0 shapes=4
-sym_arc_loft validate_geometric OK decisions=650 sym=470 rref=0 rcon=0 num=180 disp=0 chk=99/104 frozen=0 shapes=650
+sym_arc_loft validate_geometric OK decisions=610 sym=430 rref=0 rcon=0 num=180 disp=0 chk=99/104 frozen=4 shapes=610
 sym_thin_strip mass_properties OK decisions=4 sym=0 rref=0 rcon=0 num=4 disp=0 chk=4/4 frozen=0 shapes=4
-sym_thin_strip validate_geometric OK decisions=654 sym=362 rref=0 rcon=0 num=292 disp=0 chk=92/102 frozen=168 shapes=654
+sym_thin_strip validate_geometric OK decisions=614 sym=322 rref=0 rcon=0 num=292 disp=0 chk=92/102 frozen=60 shapes=614
