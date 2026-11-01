@@ -310,6 +310,11 @@ name = "viewer"
 path = "src/bin/viewer.rs"
 required-features = ["app"]
 
+# The scripted driver (`src/app/drive.rs`) as a command-line runner.
+[[example]]
+name = "drive"
+required-features = ["app"]
+
 # ONE test binary for the whole suite (see tests/all.rs).
 [[test]]
 name = "all"
