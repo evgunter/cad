@@ -2,7 +2,7 @@
 id: main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach
 kind: issue
 title: main red: a prism tilted within the zero escalates at bool_sector_within instead of building as upright, since PR 6053 read sectors at the reach (topo three_solids_on_one_line, every ε)
-status: dispatched
+status: review
 branch: splitdoor/prism-tilt-reach
 opened: 2026-10-30
 priority: P1
@@ -26,3 +26,7 @@ A tilt inside the zero band must build exactly as the upright prism does. It now
 ## 2026-10-30 (GREEN, lane `green/nightly-77-pins`)
 
 Pinned: `a_prism_tilted_within_the_zero_builds_as_upright` runs under `test_utils::pinned_red::row` at every ε (`EVERY_ROW`). It must stop on the 0.2ε-towards-25° case with the plate, order `[3, 2, 1, 0]`, step 1, `Escalated { decision: Coincidence(Sectors, Moot)` at `bool_sector_within`. That is what main `2e1c1bff` does: margin 1.3898e-9 at default ε, 1.3906e-12 at 1e-12, and the same stop at 1e-6. Un-pinning owes a re-measure of everything past that stop: the remaining orders of that case, 85° and 265°, and the prisms-alone folds. The nightly has not run them since PR 6053.
+
+## 2026-11-01 (SPLITDOOR, `splitdoor/prism-tilt-reach`)
+
+Root cause: the tilted 290° face meets the 120° prism's upright face 10° away, so `pair_search` read their line as `(n_a × n_b).normalize()`, which divides the tilt by `sin 10°`. At the −z bound's reach of 1.23 m that line read 1.39ε off, though the bound's far end lies within the zero of both planes. The short arm hid the same factor before PR 6053. Fix (orchestrator ruling): two faces' line is read un-normalized (`sectors::face_line_rays`), so each reading is the bound's far end's offset from the other face's plane, which is what its code reads. It applies at `pair_search`, `insert.rs` `germ_dir` and `vtxfac::pierce_germ_dir`'s membership check. The row is un-pinned.
