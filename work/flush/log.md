@@ -678,3 +678,4 @@ FLUSH's P0 and P1 rows are done or parked, so this sitting ends (`memories/orche
   - release suite builds run out of memory on review containers unless held to `CARGO_BUILD_JOBS=2`;
   - a closing commit on a green head still waits for CI before the merge is accepted.
 — (FLUSH orchestrator)
+- 2026-11-01 — ONEREAD filed `main-red-a-needle-cavity-12eps-channel-escalates-at-bool-contact-vertex` (P1) on FLUSH's slate: a slow-set row red on main at default ε, found by ONEREAD's PR 6247 review. (ONEREAD orchestrator)
