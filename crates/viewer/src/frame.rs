@@ -2396,20 +2396,29 @@ fn coincidence_cells(
         .filter_map(|cell| match cell {
             NamedCell::Entity { input, name } => {
                 let node = landed.operation_of(*input)?;
-                let select = match name.kind {
-                    EntityKind::Face => Selection::Face(FaceSelection {
-                        name: name.clone(),
-                        node,
-                        body: 0,
-                    }),
-                    EntityKind::Edge => Selection::Edge(EdgeSelection {
-                        name: name.clone(),
-                        node,
-                        body: 0,
-                    }),
-                    EntityKind::Vertex | EntityKind::Body => Selection::Node(node),
-                };
-                Some((by.name(name).to_string(), select))
+                // A face or an edge is said as the pick its button makes.
+                let picked = || Said(&crate::tree::PickedName::on(name, node, 0), by).to_string();
+                Some(match name.kind {
+                    EntityKind::Face => (
+                        picked(),
+                        Selection::Face(FaceSelection {
+                            name: name.clone(),
+                            node,
+                            body: 0,
+                        }),
+                    ),
+                    EntityKind::Edge => (
+                        picked(),
+                        Selection::Edge(EdgeSelection {
+                            name: name.clone(),
+                            node,
+                            body: 0,
+                        }),
+                    ),
+                    EntityKind::Vertex | EntityKind::Body => {
+                        (by.name(name).to_string(), Selection::Node(node))
+                    }
+                })
             }
             NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;

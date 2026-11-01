@@ -1293,7 +1293,7 @@ reaches no `frame::Message` and nothing counts or introduces its items:
 `seats::picks_line`, which composes the seated panels' and the mate
 panel's held-picks line — every seated panel reaches it through
 `seats::seat_line`, the boolean panel's member list through
-`BooleanTool::line` and the mate panel through `MateToolState::line`;
+`BooleanTool::line` and the mate panel through `MateTool::line`;
 the blend panel's held-picks line is drawn in its own panel and lists
 nothing. Its doc comment carries
 the argument, and why the mark earns no constant of its own either.
