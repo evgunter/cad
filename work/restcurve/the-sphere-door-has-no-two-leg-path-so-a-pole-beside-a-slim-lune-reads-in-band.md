@@ -66,7 +66,17 @@ distance puts near the face.
    must keep passing through it. A body-level row for the in-band
    refusal is on that branch's history too (a zone whose rims are 3ε
    apart, both poles undecided on `bool_sphere_region_order`).
-3. `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` then
+3. **Rows the switch must keep or turn green through the door**:
+   `sweep one_region_rows::a_sliver_beside_a_pole_passes` (PR 6054's
+   10 µm sliver 1 cm from a pole);
+   `props_sphere_cap_door::a_pole_a_hair_either_side_of_a_tilted_rim_is_read_at_both_scalars`
+   (the door at the pole beside tier 3, δ 1e-2/1e-3/1e-4 rad, f64 and
+   Interval); and a near-pole row: PR 6252's review found about 22
+   points 1e-6 and 1e-9 rad off an exact pole, off a partial
+   hemisphere, that the door still escalates at `Interval`
+   (`restcurve/review-quince-6252` @ `0392d9f31`,
+   `crates/sweep/tests/one_region_rows.rs`).
+4. `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` then
    closes for tier 3; import's half waits on FOREIGN's
    `import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave`.
 

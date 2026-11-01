@@ -37,7 +37,7 @@ Each reduces an angle onto a span's middle and then reads the span's ends:
   `first_harmonic_roots_in_band` onto the arc's middle. **Fixed by
   RESTCURVE's pole-door PR (#6252)**: the door reads each root as a
   direction (`circle_roots::first_harmonic_root_directions`) and its span
-  by the unsigned angle from the middle (`region::span_from_middle`), and
+  at the nearer end (`region::span_at_nearer_end`), and
   its own row pins it
   (`sphere_region::a_root_opposite_its_arcs_middle_or_on_its_phase_cut_reads_tight`);
 - `torus_region`'s meridian-leg × circle arm, the same root reduction

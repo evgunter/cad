@@ -71,13 +71,15 @@ angles read on their cut: a crossing at a ray's antipode placed by
 `u_ref` (`harmonic_roots`' `atan2`). Each enclosed a whole turn and read
 in band on its span row. That door now reads roots as directions
 (`circle_roots::first_harmonic_root_directions`) against the span by
-the unsigned angle from its middle (`region::span_from_middle`), and a
+the signed angle to its nearer end (`region::span_at_nearer_end`), and a
 place round a circle by the half-angle form (`region::between`). This
 door still reads its edges' roots through `near_span(atan2(..))`
 (`torus_region.rs` `landings`, the parallel-edge and meridian-edge arms)
 and the shared phase, and the enclosure above, about `[-3.06, 4.22]`, is
-a whole turn plus a span's offset, the shape those cuts give. Not
-verified on the probe here.
+a whole turn plus a span's offset, the shape those cuts give. PR 6252's
+review reproduced the class on plain bodies: a 90° partial donut and a
+single-window donut refuse `bool_torus_region_span` at `Interval` where
+`f64` reads out.
 
 ## Spec (RESTCURVE orchestrator, 2026-11-01)
 

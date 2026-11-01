@@ -23,13 +23,17 @@
 //!    the shared first-harmonic door, each root as a direction from the
 //!    arc's centre ([`super::circle_roots::first_harmonic_root_directions`]);
 //!    a root counts where it lies inside its arc's span, at the ray
-//!    parameter `s` it sits at. Neither reading is an angle with a cut: a
-//!    root is read against its span by its angle from the span's middle,
-//!    and a crossing along the ray by the angle swept from `p`, each the
-//!    unsigned `2·atan2` of two norms ([`region::between`]), so a root a
-//!    half turn from its arc's middle and a crossing at `p`'s antipode —
-//!    every meridian ray from a pole meets the other pole there — read as
-//!    tightly as any. The ray is a leg of the region skeleton
+//!    parameter `s` it sits at. Neither reading is an angle with a cut. A
+//!    root is read against the end of its span nearer it (the side of
+//!    the middle's diameter it lies on): within a quarter turn of that
+//!    end, as its raw angle less the end's parameter, which keeps the
+//!    end's relative precision; past that, as the half-width less its
+//!    angle from the middle. A crossing along the ray is placed by the
+//!    angle swept from `p`. The angles from the middle, from an end and
+//!    from `p` are each the unsigned `2·atan2` of two norms
+//!    ([`region::between`]), so a root a half turn from its arc's middle
+//!    and a crossing at `p`'s antipode — every meridian ray from a pole
+//!    meets the other pole there — read as tightly as any. The ray is a leg of the region skeleton
 //!    ([`region::read_leg`]), so each arc's roots are all read against
 //!    its span before any is placed along the ray.
 //! 3. At the closest crossing, the ray's heading against `N × τ` says
@@ -85,8 +89,8 @@
 //! - `bool_sphere_region_arm`: a ray direction's share of the tangent
 //!   plane at `p`, at the sphere's radius — a schedule member near the
 //!   normal, or a target at `p` or its antipode, casts no ray.
-//! - `bool_sphere_region_span`: a root's parameter against its arc's
-//!   span ends, at the arc's radius.
+//! - `bool_sphere_region_span`: a root against the end of its arc's span
+//!   nearer it, the signed angle to that end at the arc's radius.
 //! - `bool_sphere_region_at`: a crossing's place along the ray, from
 //!   `p`, at the sphere's radius.
 //! - `bool_sphere_region_order`: two crossings' places along the ray.

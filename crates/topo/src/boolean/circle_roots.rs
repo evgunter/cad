@@ -491,8 +491,8 @@ fn harmonic_roots<T: Decide>(
     // by `ring_path::branch`'s window re-centring argument. Its readers
     // read an end of a whole-turn span alike: the wall crossing's
     // `at_end`, the sphere cut-in's vertex lookup at either end, and
-    // `sphere_region`'s and `torus_region`'s readings `sideless` at
-    // either end. None reads
+    // `torus_region`'s readings `sideless` at either end
+    // (`sphere_region` reads [`first_harmonic_root_directions`]). None reads
     // a root as an identity, which is why the floor stays: a structural
     // pick would decide nothing a reader uses.
     let (a, b) = (phi - half_chord, phi + half_chord);

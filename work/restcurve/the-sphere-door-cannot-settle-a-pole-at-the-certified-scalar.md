@@ -90,8 +90,8 @@ the other pole there, and each body's face has an arc ending at it, so
 `bool_sphere_region_at` enclosed `[0, π·R]` on every ray. The door now
 reads a place round a circle by the half-angle form
 (`region::between`), and a root as a direction
-(`circle_roots::first_harmonic_root_directions`) against its span by the
-unsigned angle from the span's middle (`region::span_from_middle`); all
+(`circle_roots::first_harmonic_root_directions`) against its span at the
+nearer end (`region::span_at_nearer_end`); all
 six read the pole `out` with the switch built. The `span` enclosures
 were set-aside paths of the same shape (a root a half turn from its
 arc's middle; the phase on its cut), fixed and pinned beside it.

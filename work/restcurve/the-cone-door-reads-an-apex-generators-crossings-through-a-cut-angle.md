@@ -37,10 +37,19 @@ step-import and step-export suites at the default ε (and the six interval
 rows of the sphere door's item) raised no `ChartSingularityUndecided` at
 an apex. The switch's lane reads this again before it lands.
 
+## Evidence off the apex (PR 6252's review)
+
+The same reads refuse off the apex too: the review's differential of
+`curved_face_containment` on cone bodies found 156 `Interval` readings
+escalating on `bool_ruled_region_span` where `f64` decides.
+
 ## Owed
 
-Read the generator's crossings as the sphere door now reads its rays'
-(`circle_roots::first_harmonic_root_directions`, and the span by the
-unsigned angle from the edge's middle, `region::span_from_middle`), or
-pin a row whose apex every aimed generator reads at a cut and show it
-settles. Filed by RESTCURVE's pole-door lane.
+Read the door's conic crossings as the sphere door now reads its
+rays': each root as a direction with its raw angle
+(`circle_roots::first_harmonic_root_directions`), and against its
+edge's span at the nearer end (`region::span_at_nearer_end`), the raw
+root less the end's parameter within a quarter turn of it and the
+half-width less the unsigned angle from the middle past that. Pin the
+off-apex escalations above as rows, and an apex whose every aimed
+generator reads at a cut. Filed by RESTCURVE's pole-door lane.
