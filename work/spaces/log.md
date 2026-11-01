@@ -77,3 +77,11 @@ Newest entries at the bottom; the tail is the program's live status.
   "the evaluator computes nothing differently" as its first claim. The
   implementer's local viewer run filled the disk; its target was handed to
   the verifier by rename (lane finished). (SPACES orchestrator)
+- 2026-11-01 — 6208 verifier: VERIFIED-WITH-NOTES. Evaluator output
+  byte-identical to the merge base (both lanes; nested, variable counts,
+  count 0 and −1, a refusing member); the MAJOR holds under two
+  mutations. Notes taken in a second short pass: the refusals note is
+  unbounded; the per-member note is built twice in the pane (a copy the
+  fix pass minted); three kernel refusals re-worded in the viewer; an
+  `ADMITS` copy; `members()` materialises every member's env; no test
+  reads the drawn note; a defined row drops its fault. (SPACES orchestrator)
