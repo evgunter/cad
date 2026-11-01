@@ -3664,10 +3664,7 @@ pub(super) enum PieceRead {
     NotIn,
     /// The read failed: the containment door's refusal, or `None` where
     /// a curved face's region gives no verdict.
-    Unread(
-        #[expect(dead_code, reason = "its one reader matches it as `Unread(_)`")]
-        Option<ContainError>,
-    ),
+    Unread(Option<ContainError>),
 }
 
 /// How [`piece_reading`] types an in-band margin of the containment door.
