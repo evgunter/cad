@@ -720,6 +720,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     SectorRead::Pierce(FaceKey::default()),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+                in_band: None,
             },
         ),
         (

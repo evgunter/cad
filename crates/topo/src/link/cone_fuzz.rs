@@ -243,14 +243,7 @@ impl Oracle {
     /// them that a deeper reference could fall in, reading the union's
     /// parity inverted.
     fn with_depth(cone: &[Sector], steps: usize) -> Option<Self> {
-        let wedges: Vec<Wedge> = cone
-            .iter()
-            .map(|s| {
-                let (start, end) = (qv(s.start_far), qv(s.end_far));
-                let orient = dot(&cross(&start, &end), &qv(s.normal)).sign();
-                Wedge { start, end, orient }
-            })
-            .collect();
+        let wedges: Vec<Wedge> = cone.iter().map(wedge_of).collect();
         // Just inside one face, by an exact step that halves until the
         // segment from the face's middle crosses no other face.
         for (k, w) in wedges.iter().enumerate() {
@@ -315,13 +308,19 @@ impl Oracle {
     }
 
     fn class(&self, far: [f64; 3], rng: &mut Rng) -> SideCode {
-        let q = qv(far);
-        if self.on(&q) {
+        self.class_of(&qv(far), rng)
+    }
+
+    /// [`Oracle::class`] of an exact point.
+    fn class_of(&self, q: &V, rng: &mut Rng) -> SideCode {
+        let far = q.clone();
+        let q = &far;
+        if self.on(q) {
             return SideCode::On;
         }
         let mut reference = self.reference.clone();
         for _ in 0..50 {
-            if let Some(parity) = Self::crossings_of(&self.wedges, &q, &reference, None) {
+            if let Some(parity) = Self::crossings_of(&self.wedges, q, &reference, None) {
                 return if parity == 0 {
                     SideCode::In
                 } else {
@@ -338,7 +337,7 @@ impl Oracle {
                 reference = nudged;
             }
         }
-        panic!("no reference reads {far:?}")
+        panic!("no reference reads {q:?}")
     }
 }
 
@@ -672,40 +671,70 @@ struct Read {
 /// edges ([`cone_classes`]) and as its cone reads the edge's far point.
 fn read_probe(partners: &[Vec<BoolSector<f64>>], far: [f64; 3], band: Band) -> Read {
     let o = Point3::new(0.0, 0.0, 0.0);
-    let probe = probe_sector(far);
+    let partners: Vec<_> = partners.iter().map(|s| (s.clone(), o)).collect();
+    read_edge(&partners, probe_sector(far), None, band)
+}
+
+/// The probe edge `probe` (one sector of the vertex at the origin,
+/// whose edge it ends) read against `partners`, each one vertex's
+/// sectors about where it stands, and the face the vertex touches
+/// where it touches one (`touched`: its outward normal and the side the
+/// edge was read on against it), as the boolean reads the edge
+/// ([`cone_classes`]) and as its cone reads the edge's point at its
+/// reach ([`Reach::point`]).
+fn read_edge(
+    partners: &[(Vec<BoolSector<f64>>, Point3<f64>)],
+    probe: BoolSector<f64>,
+    touched: Option<(Vec3<f64>, SideCode)>,
+    band: Band,
+) -> Read {
+    let o = Point3::new(0.0, 0.0, 0.0);
     let corners = partners
         .iter()
-        .flat_map(|s| crate::boolean::sectors::fans(s, o));
-    let cone = Cone::gathered(o, corners, Vec::new())
-        .expect("a cone of faces")
-        .reads_tied(o + Vec3::new(far[0], far[1], far[2]), &[], band);
+        .flat_map(|(s, at)| crate::boolean::sectors::fans(s, *at));
+    let gathered = Cone::gathered(o, corners, touched.map(|(n, _)| n)).expect("a cone of faces");
+    let given: Vec<_> = touched
+        .map(|(_, class)| {
+            let side = match class {
+                SideCode::In => Sign::Negative,
+                SideCode::On => Sign::Zero,
+                SideCode::Out => Sign::Positive,
+            };
+            (gathered.whole_planes()[0], side)
+        })
+        .into_iter()
+        .collect();
+    let cone = gathered.reads_tied(probe.end_reach.point(o, probe.end), &given, band);
     let key = |n: u64| VertexKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
     let partners: Vec<Partner<f64>> = partners
         .iter()
         .zip(7001..)
-        .map(|(sectors, n)| Partner {
+        .map(|((sectors, at), n)| Partner {
             vertex: key(n),
-            at: o,
+            at: *at,
             sectors: sectors.clone(),
         })
         .collect();
     let he = probe.he;
-    let published = match cone_classes(o, &[probe], &[he], &partners, None, band) {
-        Ok(Some(rows)) => match rows.as_slice() {
+    let classes = [(he, touched.map_or(SideCode::On, |(_, class)| class))];
+    let touched = touched.map(|(n, _)| (OutwardNormal::from_chart(n, true), &classes[..]));
+    let published = match cone_classes(o, &[probe], &[he], &partners, touched, band) {
+        Ok(Ok(rows)) => match rows.as_slice() {
             &[(h, class)] if h == he => Ok(Some(class)),
             _ => Err(format!("rows {rows:?}, not the probe edge's one")),
         },
-        Ok(None) => Ok(None),
+        Ok(Err(_)) => Ok(None),
         Err(e) => Err(format!("{e:?}")),
     };
     Read { cone, published }
 }
 
 /// What a decided class is wrong by, against the exact class `truth`,
-/// `in_band` where a band-sized move can flip it.
-fn defect(got: SideCode, truth: SideCode, in_band: bool) -> Option<&'static str> {
+/// `in_band` where a band-sized move can flip it, `on_band` where an
+/// `On` may read (the band, widened by a tie's slack).
+fn defect(got: SideCode, truth: SideCode, in_band: bool, on_band: bool) -> Option<&'static str> {
     match got {
-        SideCode::On => (!in_band).then_some("On out of band"),
+        SideCode::On => (!on_band).then_some("On out of band"),
         _ if got != truth => Some("the oracle contradicts it"),
         _ => in_band.then_some("decided in band"),
     }
@@ -714,21 +743,24 @@ fn defect(got: SideCode, truth: SideCode, in_band: bool) -> Option<&'static str>
 /// `read`'s two readings against the exact class `truth`, each counted
 /// in its own [`Counts`], the wrong ones described: the cone's, `On(k)`
 /// wrong also where face `k` of `faces` (the cone's faces, in its
-/// sectors' order) holds the far point neither exactly nor within the
-/// band.
+/// sectors' order, each its pieces) holds the far point neither exactly
+/// nor within the band. `slack` is how much wider than the band an `On`
+/// may read: a cone whose corners stand off its point by a tie reads
+/// over twice the tie ([`metric::Reading::tied`]).
 #[allow(clippy::too_many_arguments)]
 fn judge_read(
     what: &str,
     read: Read,
-    faces: &[Sector],
-    oracle: &Oracle,
+    faces: &[Vec<Sector>],
     far: [f64; 3],
     truth: SideCode,
     flip: f64,
+    slack: f64,
     band: Band,
     counts: &mut [Counts; 2],
 ) -> Vec<String> {
     let in_band = truth == SideCode::On || flip <= band.zero();
+    let on_band = in_band || flip <= band.zero() + slack;
     let mut wrong = Vec::new();
     let mut say = |reader: &str, got: &dyn std::fmt::Debug, defect: &str| {
         wrong.push(format!(
@@ -745,14 +777,16 @@ fn judge_read(
                 Material::Out => SideCode::Out,
                 Material::On(_) | Material::Boundary => SideCode::On,
             };
-            if let Some(d) = defect(class, truth, in_band) {
+            if let Some(d) = defect(class, truth, in_band, on_band) {
                 say("the cone", &got, d);
             }
             if let Material::On(k) = got {
-                let held = oracle.wedges.get(k).is_some_and(|w| w.holds(&qv(far)))
-                    || faces
-                        .get(k)
-                        .is_some_and(|s| least_flip(std::slice::from_ref(s), far) <= band.zero());
+                let held = faces.get(k).is_some_and(|pieces| {
+                    pieces.iter().any(|s| {
+                        wedge_of(s).holds(&qv(far))
+                            || least_flip(std::slice::from_ref(s), far) <= band.zero() + slack
+                    })
+                });
                 if !held {
                     say("the cone", &got, "On a sector that does not hold it");
                 }
@@ -767,7 +801,7 @@ fn judge_read(
             say("the published row", &why, "no one row");
         }
         Ok(Some(class)) => {
-            if let Some(d) = defect(class, truth, in_band) {
+            if let Some(d) = defect(class, truth, in_band, on_band) {
                 say("the published row", &class, d);
             }
         }
@@ -797,16 +831,28 @@ fn check_cone(
         wrong.extend(judge_read(
             &format!("{what}, probe {k} {far:?}"),
             read,
-            cone,
-            &oracle,
+            &each(cone),
             far,
             truth,
             flip,
+            0.0,
             band,
             counts,
         ));
     }
     wrong
+}
+
+/// A cone's faces, each one sector its own piece.
+fn each(cone: &[Sector]) -> Vec<Vec<Sector>> {
+    cone.iter().map(|s| vec![s.clone()]).collect()
+}
+
+/// A face's corner as the oracle reads it.
+fn wedge_of(s: &Sector) -> Wedge {
+    let (start, end) = (qv(s.start_far), qv(s.end_far));
+    let orient = dot(&cross(&start, &end), &qv(s.normal)).sign();
+    Wedge { start, end, orient }
 }
 
 /// Whether two wedges share a ray off the vertex: the line their
@@ -1059,11 +1105,11 @@ fn check_partners(
         wrong.extend(judge_read(
             &format!("{what}, pair probe {k} {far:?}"),
             read,
-            &both,
-            &union,
+            &each(&both),
             far,
             truth,
             flip,
+            0.0,
             band,
             &mut counts.reads,
         ));
@@ -1331,4 +1377,597 @@ fn islands_touching_every_face_of_their_voids_read_as_one_cone() {
             probes.len(),
         );
     }
+}
+
+// ---- The consumer's own paths: subdivided corners, curved departures,
+// a touched face, and partners off the vertex's point.
+
+/// One face's corner as the boolean draws it: its pieces, in turn
+/// counterclockwise about the face's outward normal, each two
+/// consecutive ones sharing a ray (a subdivision bisector, with no
+/// point behind it), the first piece's start and the last's end the
+/// corner's bounds (each a line edge or a curved edge's departure).
+struct Corner {
+    pieces: Vec<Sector>,
+}
+
+/// How a corner's bounds are drawn: line edges to their far points, or
+/// curved edges leaving along the same directions, each to its extent.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Bounds {
+    Chord,
+    Conic,
+}
+
+/// A curved edge's bend, which the cone does not read: its departure
+/// tangent at its extent is its ray ([`Reach::point`]).
+fn flat_bend() -> geom_brep::ConicBend<f64> {
+    geom_brep::ConicBend {
+        curvature: Vec3::new(0.0, 0.0, 0.0),
+        bounds: geom_brep::BendBounds::Unbounded,
+    }
+}
+
+/// The reach a far point `f` (off the origin) is drawn with, as a
+/// corner's bound (`bound`) or a bisector between two of its pieces.
+fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let v = Vec3::new(f[0], f[1], f[2]);
+    let reach = match bound {
+        Some(Bounds::Chord) => Reach::Chord {
+            base: o,
+            far: o + v,
+        },
+        Some(Bounds::Conic) => Reach::Conic {
+            extent: v.norm(),
+            bend: flat_bend(),
+        },
+        None => Reach::Bisector(v.norm()),
+    };
+    (v.normalize(), reach)
+}
+
+/// The point a reach fixes, as the oracle reads it: a line edge's far
+/// point, and any other bound's direction out to its length, spelled
+/// here apart from the reader's [`Reach::point`] (the same `f64`
+/// operations, so the same numbers where that reading is right).
+fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
+    let x = match reach {
+        Reach::Chord { far, .. } => far,
+        Reach::Conic { extent: l, .. } | Reach::Bisector(l) | Reach::Extent(l) => {
+            Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
+        }
+    };
+    [x.x, x.y, x.z]
+}
+
+/// **`corners` drawn as the boolean draws a vertex's sectors**
+/// (`sectors::build_sectors`): each corner's pieces under one
+/// half-edge, the end-sharing piece first, so the fan runs from the
+/// last piece's start to the first piece's end ([`crate::boolean::sectors::fans`]).
+/// Returns the sectors and the oracle's faces, each its pieces with
+/// every ray at the point the reader fixes it at.
+fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<Sector>>) {
+    let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+    let mut sectors = Vec::new();
+    let mut faces = Vec::new();
+    for (c, corner) in corners.iter().enumerate() {
+        let last = corner.pieces.len() - 1;
+        let mut face = Vec::new();
+        for (k, s) in corner.pieces.iter().enumerate() {
+            let (start, start_reach) = reach_of(s.start_far, (k == 0).then_some(bounds));
+            let (end, end_reach) = reach_of(s.end_far, (k == last).then_some(bounds));
+            let normal = Vec3::new(s.normal[0], s.normal[1], s.normal[2]);
+            sectors.push(BoolSector {
+                he: HalfEdgeKey::from(key(c as u64 + 1)),
+                start,
+                end,
+                start_reach,
+                end_reach,
+                face: FaceKey::from(key(1000 + s.face)),
+                normal: OutwardNormal::from_chart(normal, true),
+                arm: s.arm,
+            });
+            face.push(Sector {
+                start_far: fixed(start, start_reach),
+                end_far: fixed(end, end_reach),
+                ..s.clone()
+            });
+        }
+        // Pushed as `build_sectors` pushes them: the end-sharing piece
+        // first.
+        let n = sectors.len();
+        sectors[n - corner.pieces.len()..].reverse();
+        faces.push(face);
+    }
+    (sectors, faces)
+}
+
+/// A cone's sectors as corners, each split into up to three pieces at
+/// directions inside it, at random reaches.
+fn split(rng: &mut Rng, cone: &[Sector]) -> Vec<Corner> {
+    cone.iter()
+        .map(|s| {
+            let cuts = rng.below(3);
+            let mut ws: Vec<f64> = (0..cuts).map(|_| rng.range(0.15, 0.85)).collect();
+            ws.sort_by(f64::total_cmp);
+            let (a, b) = (norm3(s.start_far), norm3(s.end_far));
+            let mut rays = vec![s.start_far];
+            for w in ws {
+                let l = rng.range(0.3, 2.0);
+                rays.push(norm3([0, 1, 2].map(|i| (1.0 - w) * a[i] + w * b[i])).map(|x| x * l));
+            }
+            rays.push(s.end_far);
+            Corner {
+                pieces: rays
+                    .windows(2)
+                    .map(|r| Sector {
+                        start_far: r[0],
+                        end_far: r[1],
+                        ..s.clone()
+                    })
+                    .collect(),
+            }
+        })
+        .collect()
+}
+
+/// **A solid with a notch at a reflex corner**: its top face, on
+/// `z = 0` with the material below, turns `θ` (over half a turn, under
+/// a whole one) about the vertex, cut into three pieces by bisectors,
+/// and two walls run down from its bounds to a ray `d` below, the
+/// notch's hollow between them. One corner of the top's fan is wider
+/// than half a turn, so only its bisectors read it.
+fn notch(rng: &mut Rng) -> Vec<Corner> {
+    let tau = std::f64::consts::TAU;
+    let a0 = rng.range(0.0, tau);
+    let theta = rng.range(0.56, 0.9) * tau;
+    let dir = |a: f64| [a.cos(), a.sin(), 0.0];
+    let u0 = dir(a0);
+    let u1 = dir(a0 + theta);
+    // The notch's own bisector in the top's plane, the short way round.
+    let mid = dir(a0 + theta + (tau - theta) / 2.0);
+    let r = rng.range(0.2, 2.0);
+    let d = norm3([mid[0] * r, mid[1] * r, -1.0]);
+    let len = |rng: &mut Rng, u: [f64; 3]| u.map(|x| x * rng.range(0.5, 2.0));
+    let (f0, f1, fd) = (len(rng, u0), len(rng, u1), len(rng, d));
+    let rays: Vec<[f64; 3]> = (0..4)
+        .map(|k| {
+            if k == 0 {
+                f0
+            } else if k == 3 {
+                f1
+            } else {
+                len(rng, dir(a0 + theta * f64::from(k as u8) / 3.0))
+            }
+        })
+        .collect();
+    let top = Corner {
+        pieces: rays
+            .windows(2)
+            .map(|w| Sector {
+                start_far: w[0],
+                end_far: w[1],
+                normal: [0.0, 0.0, 1.0],
+                arm: 0.5,
+                face: 1,
+            })
+            .collect(),
+    };
+    // A wall through `x` and `fd`, its outward normal into the notch
+    // (toward `toward`), its bounds counterclockwise about it.
+    let wall = |x: [f64; 3], toward: [f64; 3], face: u64| {
+        let mut n = norm3(cross3(x, fd));
+        let into = n[0] * toward[0] + n[1] * toward[1] + n[2] * toward[2];
+        if into < 0.0 {
+            n = n.map(|c| -c);
+        }
+        let ccw = {
+            let c = cross3(x, fd);
+            c[0] * n[0] + c[1] * n[1] + c[2] * n[2] > 0.0
+        };
+        let (start_far, end_far) = if ccw { (x, fd) } else { (fd, x) };
+        Corner {
+            pieces: vec![Sector {
+                start_far,
+                end_far,
+                normal: n,
+                arm: 0.5,
+                face,
+            }],
+        }
+    };
+    vec![top, wall(f0, u1, 2), wall(f1, u0, 3)]
+}
+
+/// The probe edge to `far` drawn as `bounds` draws a corner's bound,
+/// and the point the reader fixes it at.
+fn drawn_probe(far: [f64; 3], bounds: Bounds) -> (BoolSector<f64>, [f64; 3]) {
+    let mut probe = probe_sector(far);
+    let (end, end_reach) = reach_of(far, Some(bounds));
+    probe.end = end;
+    probe.end_reach = end_reach;
+    (probe, fixed(end, end_reach))
+}
+
+/// What one consumer-path family read.
+#[derive(Default)]
+struct Family {
+    reads: [Counts; 2],
+    probes: usize,
+}
+
+impl Family {
+    /// The probes either reader decided a class of (`In`, `Out` or
+    /// `On`), at most `probes`.
+    fn decided(&self) -> usize {
+        let [cone, published] = &self.reads;
+        (cone.read - cone.unread).min(published.read - published.unread - published.refused)
+    }
+}
+
+/// `corners` (one partner at the vertex) read for each probe, drawn as
+/// `bounds`, against the exact reading of the faces the reader fixes.
+fn check_corners(
+    what: &str,
+    corners: &[Corner],
+    probes: &[[f64; 3]],
+    bounds: Bounds,
+    band: Band,
+    rng: &mut Rng,
+    family: &mut Family,
+) -> Vec<String> {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let (sectors, faces) = drawn(corners, bounds);
+    let pieces: Vec<Sector> = faces.iter().flatten().cloned().collect();
+    let Some(oracle) = cone_oracle(&pieces, band) else {
+        return Vec::new();
+    };
+    let mut wrong = Vec::new();
+    for (k, &far) in probes.iter().enumerate() {
+        let (probe, at) = drawn_probe(far, bounds);
+        let read = read_edge(&[(sectors.clone(), o)], probe, None, band);
+        family.probes += 1;
+        wrong.extend(judge_read(
+            &format!("{what}, probe {k} {at:?}"),
+            read,
+            &faces,
+            at,
+            oracle.class(at, rng),
+            least_flip(&pieces, at),
+            0.0,
+            band,
+            &mut family.reads,
+        ));
+    }
+    wrong
+}
+
+/// **A vertex touching a face beside a partner**: the face's plane
+/// through the vertex (outward `n`, the material behind it) and a
+/// partner of the same solid, a small convex cone in front of it
+/// touching the plane only at the vertex. Each probe edge is given its
+/// side of the face as the pierce reads it ([`cone_classes`]'s
+/// `touched`): the side of its far point, or, for an edge that leaves
+/// a hair off the plane and bends back across it (a curved edge's tie
+/// read one order down), the other side, the exact class then the one
+/// of the far point mirrored across the plane.
+fn check_touched(what: &str, band: Band, rng: &mut Rng, family: &mut Family) -> Vec<String> {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let n = norm3([
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+    ]);
+    let e1 = norm3(cross3(
+        n,
+        if n[0].abs() < 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        },
+    ));
+    let e2 = cross3(n, e1);
+    let neg = |v: [f64; 3]| v.map(|x| -x);
+    let disc: Vec<Sector> = [(e1, e2), (e2, neg(e1)), (neg(e1), neg(e2)), (neg(e2), e1)]
+        .iter()
+        .map(|&(start_far, end_far)| Sector {
+            start_far,
+            end_far,
+            normal: n,
+            arm: 1.0,
+            face: 900,
+        })
+        .collect();
+    // The partner about an axis in front of the plane.
+    let t = rng.range(0.0, std::f64::consts::TAU);
+    let tilt = rng.range(0.0, 0.8);
+    let q = norm3([0, 1, 2].map(|i| n[i] + tilt * (t.cos() * e1[i] + t.sin() * e2[i])));
+    let r = rng.range(0.1, 0.4);
+    let (f1, f2) = {
+        let f1 = norm3(cross3(q, e1));
+        (f1, cross3(q, f1))
+    };
+    let ring: Vec<[f64; 3]> = (0..3)
+        .map(|k| {
+            let a = std::f64::consts::TAU * f64::from(k as u8) / 3.0 + rng.range(-0.3, 0.3);
+            norm3([0, 1, 2].map(|i| q[i] + r * (a.cos() * f1[i] + a.sin() * f2[i])))
+        })
+        .collect();
+    let dot3 = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    if ring.iter().any(|&d| dot3(d, n) < 0.05) {
+        return Vec::new();
+    }
+    let partner = cone_holding(&ring, q, true);
+    let both: Vec<Sector> = partner.iter().chain(&disc).cloned().collect();
+    let (Some(union), Some(_)) = (cone_oracle(&both, band), cone_oracle(&partner, band)) else {
+        return Vec::new();
+    };
+    let sectors = bool_sectors(&partner);
+    let mut faces = each(&partner);
+    faces.push(disc.clone());
+    let side = |h: f64| {
+        if h.abs() <= band.zero() {
+            SideCode::On
+        } else if h > 0.0 {
+            SideCode::Out
+        } else {
+            SideCode::In
+        }
+    };
+    let mut wrong = Vec::new();
+    let mut read =
+        |label: String, far: [f64; 3], given: SideCode, truth, flip, family: &mut Family| {
+            let read = read_edge(
+                &[(sectors.clone(), o)],
+                probe_sector(far),
+                Some((Vec3::new(n[0], n[1], n[2]), given)),
+                band,
+            );
+            family.probes += 1;
+            wrong.extend(judge_read(
+                &label,
+                read,
+                &faces,
+                far,
+                truth,
+                flip,
+                0.0,
+                band,
+                &mut family.reads,
+            ));
+        };
+    // Its far point's own side.
+    let mut free = probes_about(rng, &partner);
+    free.extend(probes_about(rng, &disc));
+    for (k, far) in free.into_iter().enumerate() {
+        let truth = union.class(far, rng);
+        let flip = least_flip(&both, far);
+        read(
+            format!("{what}, touched probe {k} {far:?}"),
+            far,
+            side(dot3(far, n)),
+            truth,
+            flip,
+            family,
+        );
+    }
+    // Off the plane one way, given the other.
+    for k in 0..12 {
+        let a = rng.range(0.0, std::f64::consts::TAU);
+        let l = rng.range(0.5, 2.0);
+        let h = [20.0 * band.zero(), 1e-4][rng.below(2)] * [1.0, -1.0][rng.below(2)];
+        let base = [0, 1, 2].map(|i| l * (a.cos() * e1[i] + a.sin() * e2[i]));
+        let far = [0, 1, 2].map(|i| base[i] + h * n[i]);
+        let mirror = [0, 1, 2].map(|i| base[i] - h * n[i]);
+        let flip = least_flip(&partner, far).min(least_flip(&partner, mirror));
+        if flip <= 4.0 * h.abs() + band.zero() {
+            continue;
+        }
+        let truth = union.class(mirror, rng);
+        read(
+            format!("{what}, bent probe {k} {far:?}, given {:?}", side(-h)),
+            far,
+            side(-h),
+            truth,
+            flip,
+            family,
+        );
+    }
+    wrong
+}
+
+/// **A partner standing off the vertex's point by a fraction of the
+/// band**: `cone`, its corner at `at`, read for each probe edge from the
+/// origin against the exact reading of the cone at `at`, and by probes
+/// at heights of a few bands over its faces' planes there. An `On` may
+/// read twice the tie wider than the band ([`metric::Reading::tied`]).
+fn check_offset(
+    what: &str,
+    cone: &[Sector],
+    at: [f64; 3],
+    band: Band,
+    rng: &mut Rng,
+    family: &mut Family,
+) -> Vec<String> {
+    let Some(oracle) = cone_oracle(cone, band) else {
+        return Vec::new();
+    };
+    let apex = Point3::new(at[0], at[1], at[2]);
+    let sectors: Vec<BoolSector<f64>> = bool_sectors(cone)
+        .into_iter()
+        .map(|mut s| {
+            for r in [&mut s.start_reach, &mut s.end_reach] {
+                if let Reach::Chord { far, .. } = *r {
+                    *r = Reach::Chord {
+                        base: apex,
+                        far: apex + (far - Point3::new(0.0, 0.0, 0.0)),
+                    };
+                }
+            }
+            s
+        })
+        .collect();
+    let tie = (at[0] * at[0] + at[1] * at[1] + at[2] * at[2]).sqrt();
+    let mut probes: Vec<[f64; 3]> = probes_about(rng, cone)
+        .into_iter()
+        .map(|f| [0, 1, 2].map(|i| f[i] + at[i]))
+        .collect();
+    for _ in 0..8 {
+        let s = &cone[rng.below(cone.len())];
+        let (a, b) = (norm3(s.start_far), norm3(s.end_far));
+        let w = rng.range(0.1, 0.9);
+        let inside = norm3([0, 1, 2].map(|i| (1.0 - w) * a[i] + w * b[i]));
+        let h =
+            [0.5, 0.9, 1.2, 1.6, 3.5, 12.0][rng.below(6)] * band.zero() * [1.0, -1.0][rng.below(2)];
+        let l = rng.range(0.5, 2.0);
+        probes.push([0, 1, 2].map(|i| at[i] + inside[i] * l + s.normal[i] * h));
+    }
+    let mut wrong = Vec::new();
+    for (k, far) in probes.into_iter().enumerate() {
+        // The probe from the vertex, read about the corner's own apex.
+        let rel = [0, 1, 2].map(|i| qv(far)[i].sub(&Q::of(at[i])));
+        let truth = oracle.class_of(&rel, rng);
+        let flip = least_flip(cone, [0, 1, 2].map(|i| far[i] - at[i]));
+        let read = read_edge(&[(sectors.clone(), apex)], probe_sector(far), None, band);
+        family.probes += 1;
+        wrong.extend(judge_read(
+            &format!("{what}, offset probe {k} {far:?}"),
+            read,
+            &each(cone),
+            far,
+            truth,
+            flip,
+            2.0 * tie,
+            band,
+            &mut family.reads,
+        ));
+    }
+    wrong
+}
+
+/// **The consumer's own paths never contradict the exact oracle**:
+/// subdivided corners (stars split at bisectors, and a notch's reflex
+/// top face, whose fan only its bisectors read), curved departures
+/// (every bound and probe a conic leaving along the same direction, its
+/// ray fixed at its extent), a face the vertex touches beside a partner
+/// (each edge given its side of it, some the other side than its far
+/// point's), and a partner standing off the vertex's point by a
+/// fraction of the band, at the run's `K` and at `K = 1.5`, where the
+/// band's gap is narrower than twice the tie. Each family decides at
+/// least a third of its probes, so a reader that reads nothing is red
+/// too.
+#[test]
+fn the_consumers_paths_never_contradict_the_exact_oracle() {
+    let mut rng = test_utils::fuzz::start("link_cone_consumer_fuzz");
+    let cones = test_utils::fuzz::scaled(40);
+    let mut wrong = Vec::new();
+    let session = Tol::witness().get().eps;
+    let mut eps_set = vec![1e-9, 1e-6, 1e-12];
+    if !eps_set.contains(&session) {
+        eps_set.push(session);
+    }
+    let names = [
+        "split stars",
+        "notches",
+        "conic stars",
+        "touched faces",
+        "offset partners",
+    ];
+    for eps in eps_set {
+        let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        let narrow = Band::new(eps, 1.5 * eps).unwrap();
+        let mut families: [Family; 5] = Default::default();
+        for c in 0..cones {
+            let what = format!("ε {eps:e}, cone {c}");
+            let hollow = rng.below(2) == 0;
+            let n = 3 + rng.below(7);
+            let thin = rng.unit() < 0.3;
+            let Some(ring) = star(&mut rng, n, -1.0, 3.0, thin, true) else {
+                continue;
+            };
+            let cone = sectors_from_ring(&ring, hollow);
+            let probes = probes_about(&mut rng, &cone);
+            let corners = split(&mut rng, &cone);
+            wrong.extend(check_corners(
+                &format!("{what}, split"),
+                &corners,
+                &probes,
+                Bounds::Chord,
+                band,
+                &mut rng,
+                &mut families[0],
+            ));
+            let corners = notch(&mut rng);
+            let pieces: Vec<Sector> = corners.iter().flat_map(|c| c.pieces.clone()).collect();
+            let probes = probes_about(&mut rng, &pieces);
+            wrong.extend(check_corners(
+                &format!("{what}, notch"),
+                &corners,
+                &probes,
+                Bounds::Chord,
+                band,
+                &mut rng,
+                &mut families[1],
+            ));
+            let corners: Vec<Corner> = cone
+                .iter()
+                .map(|s| Corner {
+                    pieces: vec![s.clone()],
+                })
+                .collect();
+            let probes = probes_about(&mut rng, &cone);
+            wrong.extend(check_corners(
+                &format!("{what}, conic"),
+                &corners,
+                &probes,
+                Bounds::Conic,
+                band,
+                &mut rng,
+                &mut families[2],
+            ));
+            wrong.extend(check_touched(
+                &format!("{what}, touched"),
+                band,
+                &mut rng,
+                &mut families[3],
+            ));
+            let tie = [0.3, 0.6, 0.9][rng.below(3)] * eps;
+            let u = norm3([
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ]);
+            let b = if c % 2 == 0 { band } else { narrow };
+            wrong.extend(check_offset(
+                &format!("{what}, offset {tie:e} (escalate {:e})", b.escalate()),
+                &cone,
+                u.map(|x| x * tie),
+                b,
+                &mut rng,
+                &mut families[4],
+            ));
+        }
+        for (name, family) in names.iter().zip(&families) {
+            let [cone, published] = &family.reads;
+            println!(
+                "[fuzz] link_cone_consumer_fuzz {name} at ε {eps:e}: the cone {cone}; the \
+                 published rows {published}"
+            );
+            if family.decided() * 3 < family.probes {
+                wrong.push(format!(
+                    "ε {eps:e}, {name}: decided {} of {} probes, under a third",
+                    family.decided(),
+                    family.probes
+                ));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} readings contradict the exact oracle, decide in band, or read too little; {}:\n{}",
+        wrong.len(),
+        test_utils::fuzz::replay(),
+        wrong.join("\n")
+    );
 }

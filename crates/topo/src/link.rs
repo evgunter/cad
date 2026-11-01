@@ -86,11 +86,11 @@ const LINK_ARC: &str = "link_arc";
 /// K name, building a face's piece: one edge's crossing of a probe ray
 /// read against another's along the ray, in metres — which edge the ray
 /// meets first.
-const TOUCH_PIECE_REACH: &str = "census_touch_piece_reach";
+const LINK_PIECE_REACH: &str = "link_piece_reach";
 /// K name, building a face's piece: where a ray through a gap's bound
 /// meets the gap's edge, read against that edge's ends along it, in
 /// metres — on the edge, or past an end.
-const TOUCH_PIECE_MEET: &str = "census_touch_piece_meet";
+const LINK_PIECE_MEET: &str = "link_piece_meet";
 /// K name: a read point of a segment against the ball a refused
 /// point's distance from the boundary clears, in metres — its side of
 /// the ball's tangent plane toward it ([`Link::lowest_on`]).
@@ -105,7 +105,7 @@ const LINK_TIE: &str = "link_offset_tie";
 const LINK_ROUND: &str = "link_round_offset";
 /// K name: two coplanar faces' outward normals, one of each link,
 /// aligned or opposed ([`geom_brep::classify_material_pairing_as`]).
-const TOUCH_NORMAL: &str = "census_touch_normal";
+const LINK_NORMAL: &str = "link_normal";
 
 /// **The one door every verdict sign of the touch analysis comes
 /// through.** A [`Distance`] has a private field and two constructors,
@@ -166,6 +166,34 @@ pub(crate) mod metric {
     }
 
     impl<T: Real> Reading<T> {
+        /// **The reading about a point some sectors stand off by up to
+        /// `tie`**: the one spelling of the slack a tie needs, twice the
+        /// tie. A plane through a sector's apex lies within the tie of
+        /// the same plane through the point read about. A ray's line
+        /// through the apex and the same ray's line through the point
+        /// meet at the ray's real point `r`, and a point read against them
+        /// is drawn in within `|r − p|` of the point ([`super::within`]),
+        /// so it lies at most twice that from `r`: the two lines part
+        /// there by at most twice the tie, and an ahead reading, whose
+        /// line turns with the ray, by as much. Readings across two sets
+        /// of sectors, each off by its own tie, are taken over the sum of
+        /// the ties ([`super::rest::judge`]).
+        ///
+        /// The slack decides only where a tie is not small against the
+        /// band's gap: a sign is decided past the escalation threshold
+        /// `K·zero`, so with `K ≥ 3` and a tie within the zero band, a
+        /// decided sign stands more than `zero` off at the apex too. `K`
+        /// is the run's own (any `K > 1`), so the slack is what holds a
+        /// decided sign where the gap is narrower
+        /// (`link::tests::a_corner_off_the_point_by_its_tie_reads_nothing_in_band`).
+        pub(crate) fn tied(band: Band, tie: T) -> Reading<T> {
+            Reading {
+                band,
+                slack: Some(tie * T::from_f64(2.0)),
+                own: false,
+            }
+        }
+
         /// The slack as a distance: zero where there is none.
         pub(crate) fn slack(&self) -> T {
             self.slack.unwrap_or(T::zero())
@@ -322,9 +350,13 @@ pub(crate) struct Sector<T: Real> {
     /// The point the fan is built about: the cone's point, or the
     /// corner of this face on one of its keys.
     pub(crate) apex: Point3<T>,
-    /// None in a closed sector read as its whole plane: a face the
-    /// cone's point lies inside, gathered with no ray of its own
-    /// ([`Cone::gathered`]), every point of the plane but the apex on it.
+    /// The fan's wedges. Empty in a closed sector, which is then its
+    /// whole plane ([`Sector::whole`]): a face the cone's point lies
+    /// inside, gathered with no ray of its own ([`Cone::gathered`]),
+    /// every point of the plane but the apex on it. The readers that
+    /// place a point in the sector read it through [`Sector::whole`]
+    /// ([`Sector::place`], [`Sector::misses`]); to every other reader of
+    /// the wedges it gives nothing: no bound, no ray, no reference.
     pub(crate) wedges: Vec<Segment<T>>,
     /// The fan closes all the way round: `p` is inside the face.
     /// Otherwise its first ray and its last are the sector's bounds.
@@ -386,6 +418,20 @@ pub(crate) struct Cone<T: Real> {
     /// corner on another key of the point was decided one point with it.
     pub(crate) tie: T,
 }
+
+/// **A sector of a gathered cone that is its whole plane**
+/// ([`Cone::gathered`]'s `inside`): the one kind of sector a side may be
+/// given for ([`Cone::reads_given`]). Its index is private, so only
+/// [`Cone::whole_planes`] names one.
+///
+/// A given side stands for `q`'s distance from the sector's plane, and
+/// [`Cone::crossing`] places the arc's crossing of the plane by that
+/// distance and `w`'s. Where the given sign is not the plane distance's
+/// own (a curved face's tie read one order down), that point can leave
+/// the arc; only a whole plane holds every point of it, so only there
+/// does the crossing not depend on where on the plane it falls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct WholePlane(usize);
 
 /// **One face's corner at a point of a cone, as a fan of rays**: rays
 /// from `apex` in the plane through it of outward unit normal `outward`,
@@ -457,7 +503,7 @@ enum Against<T> {
 
 /// Two outward normals against each other, aligned or opposed, through
 /// the one classifier of that question under the K row `name`: two
-/// coplanar faces', one of each link ([`TOUCH_NORMAL`]). It is asked only
+/// coplanar faces', one of each link ([`LINK_NORMAL`]). It is asked only
 /// where a piece of one face lies on the other's plane end to end and a
 /// point of it reads on that face alone ([`rest::judge`]), so the faces
 /// lie on one plane there, the magnitude is about 1, and only its sign is
@@ -758,13 +804,11 @@ pub(crate) fn face_piece<T: Decide>(
             }
             first = match first {
                 None => Some(((x, y), cross)),
-                Some((e, c)) => {
-                    match sign(TOUCH_PIECE_REACH, Distance::of(cross, c, probe), band) {
-                        Some(Sign::Negative) => Some(((x, y), cross)),
-                        Some(_) => Some((e, c)),
-                        None => return Err(TouchUnread::PieceInBand),
-                    }
-                }
+                Some((e, c)) => match sign(LINK_PIECE_REACH, Distance::of(cross, c, probe), band) {
+                    Some(Sign::Negative) => Some(((x, y), cross)),
+                    Some(_) => Some((e, c)),
+                    None => return Err(TouchUnread::PieceInBand),
+                },
             };
         }
         let ((x, y), _) = first.ok_or(TouchUnread::Unanalysed)?;
@@ -773,8 +817,8 @@ pub(crate) fn face_piece<T: Decide>(
         let along = (y - x).normalize();
         let meet = |r: Point3<T>| -> Result<Point3<T>, TouchUnread> {
             let q = ray_meets(p, m, r, (x, y));
-            let past_x = sign(TOUCH_PIECE_MEET, Distance::of(q, x, along), band);
-            let past_y = sign(TOUCH_PIECE_MEET, Distance::of(q, y, -along), band);
+            let past_x = sign(LINK_PIECE_MEET, Distance::of(q, x, along), band);
+            let past_y = sign(LINK_PIECE_MEET, Distance::of(q, y, -along), band);
             match (past_x, past_y) {
                 (Some(Sign::Positive | Sign::Zero), Some(Sign::Positive | Sign::Zero)) => Ok(q),
                 _ => Err(TouchUnread::PieceInBand),
@@ -1093,8 +1137,8 @@ impl<T: Decide> Cone<T> {
     /// about `p`, which no ray of a construction's own choosing bounds
     /// or divides ([`Sector::wedges`]). Nothing is decided here: a corner on
     /// another key of the point keeps its own apex, which the cone's
-    /// [`tie`](Cone::tie) measures, and whether the sectors pair up at
-    /// their bounds is [`Cone::held_closed`]'s to read.
+    /// [`tie`](Cone::tie) measures. Such a cone closes by construction,
+    /// so [`Cone::reads_tied`] does not hold it to close.
     pub(crate) fn gathered(
         p: Point3<T>,
         corners: impl IntoIterator<Item = Fan<T>>,
@@ -1113,6 +1157,17 @@ impl<T: Decide> Cone<T> {
             closed: true,
         });
         Self::of(p, fans.chain(discs).collect())
+    }
+
+    /// The cone's whole-plane sectors, in the order [`Cone::gathered`]
+    /// took them (`inside`).
+    pub(crate) fn whole_planes(&self) -> Vec<WholePlane> {
+        self.sectors
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.whole())
+            .map(|(k, _)| WholePlane(k))
+            .collect()
     }
 
     /// The cone where it closes ([`Cone::closes`]): its sectors bound a
@@ -1260,35 +1315,37 @@ impl<T: Decide> Cone<T> {
 
     /// **Where the direction to `q` lies against a gathered cone's
     /// material** ([`Cone::gathered`]): [`Cone::reads_given`], every
-    /// reading taken over twice the cone's tie, as [`rest::by_round`]
-    /// takes its own: a corner on another key of the point stands up to
-    /// the tie off `p`. `None` where a reading the answer needs is in
-    /// band.
+    /// reading taken over the cone's tie ([`metric::Reading::tied`]): a
+    /// corner on another key of the point stands up to the tie off `p`.
+    /// `None` where a reading the answer needs is in band.
     ///
-    /// The cone is not read for closing ([`Cone::closes`]): its corners
-    /// are whole orbits of vertices, each edge the bound of the corners
-    /// either side of it at one point, the same point each side, and a
-    /// disc has no bound, so it closes by construction. A reading of it
-    /// in band (two bounds of one orbit a hair apart) would refuse a
-    /// cone the parity reads.
+    /// The cone is not held to close ([`Cone::held_closed`]): its
+    /// corners are whole orbits of vertices, each edge the bound of the
+    /// corners either side of it at one point, the same point each side,
+    /// and a whole plane has no bound, so it closes by construction. A
+    /// reading of it in band (two bounds of one orbit a hair apart) would
+    /// refuse a cone the parity reads. A debug build checks it: a cone
+    /// [`Cone::closes`] decides open panics there.
     pub(crate) fn reads_tied(
         &self,
         q: Point3<T>,
-        given: &[(usize, Sign)],
+        given: &[(WholePlane, Sign)],
         band: Band,
     ) -> Option<Material> {
-        let rd = Reading {
-            band,
-            slack: Some(self.tie * T::from_f64(2.0)),
-            own: false,
-        };
+        let rd = Reading::tied(band, self.tie);
+        debug_assert_ne!(
+            self.closes(rd),
+            Some(false),
+            "a gathered cone closes by construction"
+        );
         self.reads_given(q, given, rd)
     }
 
-    /// **[`Cone::reads_over`], `q`'s side of some sectors' faces given**:
-    /// for each `(k, side)` of `given`, `q`'s side of sector `k`'s face as
-    /// that face's own reading decided it (positive in front of the face,
-    /// zero on it) stands for `q`'s distance from the sector's plane.
+    /// **[`Cone::reads_over`], `q`'s side of some whole planes' faces
+    /// given**: for each `(k, side)` of `given`, `q`'s side of whole
+    /// plane `k`'s face as that face's own reading decided it (positive
+    /// in front of the face, zero on it) stands for `q`'s distance from
+    /// the sector's plane. Only a whole plane takes one ([`WholePlane`]).
     /// That reading is a reading of the whole edge `q` stands for, and
     /// its signs are decided at its own door, not here: a pierce's side
     /// code against the face it touches, read to the order its curvature
@@ -1296,7 +1353,7 @@ impl<T: Decide> Cone<T> {
     pub(crate) fn reads_given(
         &self,
         q: Point3<T>,
-        given: &[(usize, Sign)],
+        given: &[(WholePlane, Sign)],
         rd: Reading<T>,
     ) -> Option<Material> {
         let p = self.p;
@@ -1307,7 +1364,7 @@ impl<T: Decide> Cone<T> {
             .iter()
             .enumerate()
             .map(|(k, s)| {
-                let side = match given.iter().find(|&&(j, _)| j == k) {
+                let side = match given.iter().find(|&&(WholePlane(j), _)| j == k) {
                     Some(&(_, side)) => Some(side),
                     None => self.side(s, q, rd),
                 };
@@ -2545,7 +2602,7 @@ pub(crate) mod rest {
         TouchVerdict,
     };
     use super::{Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
-    use super::{TOUCH_NORMAL, ahead, on_plane, pairing, wedge_side, within};
+    use super::{LINK_NORMAL, ahead, on_plane, pairing, wedge_side, within};
 
     /// The certificate of a rest: every piece of both links read, on
     /// decided readings, as no crossing.
@@ -2643,15 +2700,9 @@ pub(crate) mod rest {
     pub(crate) fn judge<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> TouchVerdict {
         // Every reading over the pair is taken about `p`, while each
         // sector stands on its own apex, off `p` by at most its link's
-        // tie. A plane through the apex lies within the tie of the same
-        // plane through `p`. A ray's line through the apex and the same
-        // ray's line through `p` meet at the ray's real point `r`, and a
-        // point read against them is drawn in within `|r − p|` of `p`
-        // ([`within`]), so it lies at most twice that from `r`: the two
-        // lines part there by at most twice the tie, and an ahead
-        // reading, whose line turns with the ray, by as much. One link's
-        // point read against the other's planes and rays is moved by
-        // both, so twice their sum covers every reading.
+        // tie: one link's point read against the other's planes and rays
+        // is moved by both, so twice their sum covers every reading
+        // (`Reading::tied`).
         let rd = reading(a, b, band);
         if let Some(open) = held_closed(&[a, b], rd) {
             return open;
@@ -2749,7 +2800,7 @@ pub(crate) mod rest {
                         Some(Material::On(j)) => {
                             let (s, t) = (&own.faces[*k], &other.faces[j]);
                             match pairing(
-                                TOUCH_NORMAL,
+                                LINK_NORMAL,
                                 (&s.surface, s.sense),
                                 (&t.surface, t.sense),
                                 own.cone.p,
@@ -2837,11 +2888,7 @@ pub(crate) mod rest {
         reach: T,
         band: Band,
     ) -> TouchVerdict {
-        let rd = Reading {
-            band,
-            slack: Some(a.cone.tie * T::from_f64(2.0)),
-            own: false,
-        };
+        let rd = Reading::tied(band, a.cone.tie);
         if let Some(open) = held_closed(&[a], rd) {
             return open;
         }
@@ -3085,11 +3132,7 @@ pub(crate) mod rest {
     /// against the other's planes and rays is moved by both their ties
     /// ([`judge`]'s first paragraph), so twice their sum covers it.
     fn reading<T: Decide>(a: &Link<T>, b: &Link<T>, band: Band) -> Reading<T> {
-        Reading {
-            band,
-            slack: Some((a.cone.tie + b.cone.tie) * T::from_f64(2.0)),
-            own: false,
-        }
+        Reading::tied(band, a.cone.tie + b.cone.tie)
     }
 
     /// The refusal of the first of `links` that does not close
@@ -3656,6 +3699,50 @@ mod tests {
         );
     }
 
+    /// **A corner off the point by its tie reads nothing in band**: an
+    /// octant's corner standing `0.9·zero` below the point read about,
+    /// in a band whose gap is narrow (`K = 1.5`). A probe `0.7·zero`
+    /// under the corner's own floor plane, in band of it, stands
+    /// `1.6·zero` under the same plane through the point, past the
+    /// escalation threshold: read about the point alone it decides
+    /// `Out`, a reading a band-sized move flips. Over twice the tie
+    /// ([`metric::Reading::tied`]) it reads nothing; `4·zero` under the
+    /// point it still decides `Out`.
+    #[test]
+    fn a_corner_off_the_point_by_its_tie_reads_nothing_in_band() {
+        let zero = 1e-9;
+        let band = Band::new(zero, 1.5 * zero).expect("a band");
+        let p = Point3::new(0.0, 0.0, 0.0);
+        let apex = Point3::new(0.0, 0.0, -0.9 * zero);
+        let ray = |x: f64, y: f64, z: f64| apex + Vec3::new(x, y, z);
+        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
+            outward,
+            apex,
+            rays,
+        };
+        let (x, y, z) = (ray(1.0, 0.0, 0.0), ray(0.0, 1.0, 0.0), ray(0.0, 0.0, 1.0));
+        let cone = Cone::gathered(
+            p,
+            [
+                fan(Vec3::new(0.0, 0.0, -1.0), vec![y, x]),
+                fan(Vec3::new(-1.0, 0.0, 0.0), vec![z, y]),
+                fan(Vec3::new(0.0, -1.0, 0.0), vec![x, z]),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        assert_eq!(
+            cone.reads_tied(Point3::new(0.5, 0.5, -1.6 * zero), &[], band),
+            None,
+            "in band of the corner's own floor"
+        );
+        assert_eq!(
+            cone.reads_tied(Point3::new(0.5, 0.5, -4.0 * zero), &[], band),
+            Some(Material::Out),
+            "clear of it"
+        );
+    }
+
     /// **The link decides only through its doors** (S4 of `CONTACT-7`'s
     /// design). A levered reading of directions decides a verdict right
     /// wherever it is definite and wrong where its Zero is taken as one:
@@ -3663,9 +3750,12 @@ mod tests {
     /// sign a link decides comes through [`metric::sign`], whose
     /// [`metric::Distance`] is built only from a point and a plane, or a
     /// segment and a round carrier. This
-    /// reads this module's source (all but its tests) and the census's
+    /// reads this module's source (all but its tests), the census's
     /// touch analysis (`census.rs`, from its banner to the backstop's
-    /// header), and holds:
+    /// header), and the boolean's side of the gathered cone, which
+    /// builds a cone's rays and reads an own edge through it
+    /// (`boolean::sectors::fans`, `bound_side::Reach::point`,
+    /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
     /// - the classifier of unit normals is called only from `pairing`;
@@ -3696,7 +3786,13 @@ mod tests {
     ///   (a point exactly on the axis, and whether the scalar moves it),
     ///   and two in `either` (a hull where the scalar holds one);
     /// - no text is made of a number: no `format!(`, `format_args!`,
-    ///   `write!`, `writeln!`, `write_fmt` or `to_string(`.
+    ///   `write!`, `writeln!`, `write_fmt` or `to_string(`;
+    /// - the boolean's side decides nothing of its own: none of the bare
+    ///   sign readers above, no structure read, no text made, no reading
+    ///   through the link's door (`sign_over`, `metric::`) and none
+    ///   through the boolean's own side readers (`side_code(`,
+    ///   `pierce_side(`, `datum.side(`): the touched face's side reaches
+    ///   it decided, as a given side.
     ///
     /// **What it cannot see.**
     /// - A sign decided through structure at a named site. The sites are
@@ -3753,6 +3849,10 @@ mod tests {
         let classes = item(
             include_str!("boolean/vtxfac.rs"),
             "\npub(crate) fn cone_classes<",
+        );
+        let point = item(
+            include_str!("bound_side.rs"),
+            "\n    pub(crate) fn point(self, base",
         );
         let body = |anchor: &str| -> core::ops::Range<usize> {
             let at = module
@@ -3867,16 +3967,38 @@ mod tests {
         for needle in [
             "Margin::",
             "decide(",
+            "classify_material_pairing",
             "sign_within",
+            "sign_over",
+            "metric::",
+            "definitely_positive(",
+            "enclosure_probe(",
+            "classify_dihedral",
             "signum",
             "partial_cmp",
             "total_cmp",
             "copysign",
+            "select_le_zero",
             "is_sign_negative",
             "is_sign_positive",
+            "side_code(",
+            "pierce_side(",
+            "datum.side(",
+            "is_poison(",
+            "is_bounded(",
+            "point_value(",
+            "plain_constant(",
+            "enclosure_hull(",
+            "format!(",
+            "format_args!",
+            "write!",
+            "writeln!",
+            "write_fmt",
+            "to_string(",
         ] {
-            stray.extend(outside(&fans, needle, &[]));
-            stray.extend(outside(&classes, needle, &[]));
+            for boolean_side in [&fans, &classes, &point] {
+                stray.extend(outside(boolean_side, needle, &[]));
+            }
         }
         assert!(
             stray.is_empty(),

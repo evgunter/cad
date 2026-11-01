@@ -187,23 +187,27 @@ fn a_mate_on_a_full_turn_bore_names() {
                     {
                         edges.entry(r.edge).or_insert_with(Vec::new).push(r.class);
                     }
-                    let mut classes: Vec<_> = edges.values().flatten().copied().collect();
-                    classes.sort();
+                    for pieces in edges.values_mut() {
+                        pieces.sort();
+                    }
                     let shaft: &topo::Body<f64> = if order.starts_with("shaft") { x } else { y };
-                    let mut want: Vec<_> = edges
+                    // Per edge: a ruling (a line edge) split at the rim reads one
+                    // piece `On` and the other `Out`; every other edge `On`.
+                    let want: std::collections::BTreeMap<_, Vec<_>> = edges
                         .iter()
-                        .flat_map(|(&e, pieces)| {
+                        .map(|(&e, pieces)| {
                             let ruling = topo::query::edge_carrier_kind(shaft, e)
                                 == Some(geom::CurveKind::Line);
-                            match pieces.len() {
+                            let mut want = match pieces.len() {
                                 2 if ruling => vec![topo::SideCode::Out, topo::SideCode::On],
                                 n => vec![topo::SideCode::On; n],
-                            }
+                            };
+                            want.sort();
+                            (e, want)
                         })
                         .collect();
-                    want.sort();
                     assert!(
-                        !classes.is_empty() && classes == want,
+                        !edges.is_empty() && edges == want,
                         "{tag}: the shaft's vertex {v:?} at a rim reads {edges:?}"
                     );
                 }

@@ -547,7 +547,7 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 /// curvature at `lever` (a plane's [`NO_CURVATURE`]), a first-order tie
 /// read [`SideCode::On`]. The sector passes that call this key their
 /// coincidence and tangent machinery on the first-order tie
-/// (`pair_codes`, `wedge_classes`, `cone_side`, recl's flank readings);
+/// (`pair_codes`, recl's flank readings);
 /// the vertex-on-face pass reads the tie one order down
 /// ([`pierce_side`]).
 ///
@@ -2403,21 +2403,6 @@ pub(super) fn pair_search<T: Decide>(
         }
     }
     Ok(PairSearch { records, touching })
-}
-
-impl<T: geom_core::Real> Reach<T> {
-    /// The point that fixes a bound leaving `base` along `dir`: a line
-    /// edge's far vertex, and any other bound's direction out to its
-    /// reach ([`Reach::length`]) — a curved edge's departure tangent at
-    /// its extent, a probe's or a bisector's direction at its arm.
-    pub(crate) fn point(self, base: Point3<T>, dir: Vec3<T>) -> Point3<T> {
-        match self {
-            Self::Chord { far, .. } => far,
-            Self::Extent(_) | Self::Conic { .. } | Self::Bisector(_) => {
-                base + dir.normalize() * self.length()
-            }
-        }
-    }
 }
 
 /// **A vertex's sectors as the corners of a cone at its point**

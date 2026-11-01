@@ -128,6 +128,7 @@ pub(super) fn pierced_and_paired(
                     operand,
                     vertex: c.vertex,
                     reads: [SectorRead::Pierce(face), SectorRead::Pierce(c.face)],
+                    in_band: None,
                 });
             }
             pierces.insert(c.vertex, c.face);
@@ -280,10 +281,11 @@ pub(crate) type Touched<'a, T> = (OutwardNormal<T>, &'a [(HalfEdgeKey, SideCode)
 /// ([`crate::link::Cone::reads_given`]).
 ///
 /// Each edge of `edges` is read at its bound's point
-/// ([`super::sectors::Reach::point`]): in the material `In`, outside it
-/// `Out`, on one face or along the material's boundary `On`. `None`
-/// where some edge reads in band: then no edge is classed. Refuses as an invariant where an edge of `edges`
-/// is no edge of the vertex's own sectors (`own`).
+/// ([`crate::bound_side::Reach::point`]): in the material `In`, outside it
+/// `Out`, on one face or along the material's boundary `On`. Where some
+/// edge reads in band, no edge is classed: the inner `Err` names the
+/// first such edge. Refuses as an invariant where an edge of `edges` is
+/// no edge of the vertex's own sectors (`own`).
 pub(crate) fn cone_classes<T: Decide>(
     p: Point3<T>,
     own: &[BoolSector<T>],
@@ -291,7 +293,7 @@ pub(crate) fn cone_classes<T: Decide>(
     partners: &[Partner<T>],
     touched: Option<Touched<'_, T>>,
     band: Band,
-) -> Result<Option<Vec<(HalfEdgeKey, SideCode)>>, BooleanError> {
+) -> Result<Result<Vec<(HalfEdgeKey, SideCode)>, HalfEdgeKey>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
     let bounds = edges
         .iter()
@@ -306,14 +308,14 @@ pub(crate) fn cone_classes<T: Decide>(
         .iter()
         .flat_map(|partner| super::sectors::fans(&partner.sectors, partner.at))
         .collect();
-    let disc = corners.len();
     let cone = crate::link::Cone::gathered(p, corners, touched.map(|(normal, _)| normal.vec()))
         .map_err(|_| invariant("a vertex's partners and touched face hold no face at its point"))?;
+    let disc = cone.whole_planes().first().copied();
     let mut rows = Vec::with_capacity(bounds.len());
     for (he, q) in bounds {
-        let given: Vec<(usize, Sign)> = touched
-            .and_then(|(_, classes)| classes.iter().find(|&&(h, _)| h == he))
-            .map(|&(_, class)| {
+        let given: Vec<_> = disc
+            .zip(touched.and_then(|(_, classes)| classes.iter().find(|&&(h, _)| h == he)))
+            .map(|(disc, &(_, class))| {
                 let side = match class {
                     SideCode::In => Sign::Negative,
                     SideCode::On => Sign::Zero,
@@ -327,11 +329,11 @@ pub(crate) fn cone_classes<T: Decide>(
             Some(crate::link::Material::In) => SideCode::In,
             Some(crate::link::Material::Out) => SideCode::Out,
             Some(crate::link::Material::On(_) | crate::link::Material::Boundary) => SideCode::On,
-            None => return Ok(None),
+            None => return Ok(Err(he)),
         };
         rows.push((he, class));
     }
-    Ok(Some(rows))
+    Ok(Ok(rows))
 }
 
 /// Output of one vertex-on-face classification.
@@ -827,6 +829,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             operand: piercing,
             vertex,
             reads: [SectorRead::Pierce(contact.face), next],
+            in_band: None,
         });
     }
 
@@ -2856,6 +2859,7 @@ mod tests {
                 operand,
                 vertex,
                 reads,
+                ..
             }) => Err((operand, vertex, reads)),
             Ok(rereads) => Ok(rereads.into_iter().collect::<Vec<_>>()),
             Err(e) => panic!("{e:?}"),
@@ -3236,18 +3240,18 @@ mod tests {
         let classes = |cs: &[SideCode]| he.iter().copied().zip(cs.iter().copied()).collect();
         assert_eq!(
             read(&he, &[partner(1, 1.0)], Some((face, &pierced[..]))),
-            Some(classes(&[In, Out, In, On, Out])),
+            Ok(classes(&[In, Out, In, On, Out])),
             "touching the face beside the standing corner"
         );
         let alone = &he[..4];
         assert_eq!(
             read(alone, &[partner(1, 1.0)], None),
-            Some(classes(&[In, Out, Out, Out])),
+            Ok(classes(&[In, Out, Out, Out])),
             "beside the standing corner alone"
         );
         assert_eq!(
             read(alone, &[partner(1, 1.0), partner(2, -1.0)], None),
-            Some(classes(&[In, Out, In, Out])),
+            Ok(classes(&[In, Out, In, Out])),
             "beside the standing corner and the hanging one"
         );
         // Off the standing corner's first face's middle, in band of its
@@ -3266,8 +3270,8 @@ mod tests {
                 band
             )
             .unwrap(),
-            None,
-            "an edge in band of a partner's face"
+            Err(graze[1].he),
+            "an edge in band of a partner's face, named"
         );
     }
 

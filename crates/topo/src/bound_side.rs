@@ -75,6 +75,21 @@ impl<T: geom_core::Real> Reach<T> {
             Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l) => l,
         }
     }
+
+    /// The point that fixes a bound leaving `base` along `dir`: a line
+    /// edge's far vertex, and any other bound's direction out to its
+    /// reach ([`Self::length`]) — a curved edge's departure tangent at
+    /// its extent, a probe's or a bisector's direction at its arm. A
+    /// gathered cone's rays and own edges are read at it
+    /// ([`crate::link::Cone::gathered`]).
+    pub(crate) fn point(self, base: Point3<T>, dir: Vec3<T>) -> Point3<T> {
+        match self {
+            Self::Chord { far, .. } => far,
+            Self::Extent(_) | Self::Conic { .. } | Self::Bisector(_) => {
+                base + dir.normalize() * self.length()
+            }
+        }
+    }
 }
 
 impl<T: Decide> Reach<T> {

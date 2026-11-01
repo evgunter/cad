@@ -2564,13 +2564,12 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     operand: topo::Operand::A,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
-                    neighbourhood: topo::UnreadNeighbourhood::ConeUnread,
                 },
             },
             vec![
-                "reads within the tolerance of its faces",
-                "classed none of the vertex's edges",
-                "a-lone-unread-partner-has-no-class-rule",
+                "reads within the tolerance of the partner's faces",
+                "no edge there is classed",
+                "clearly on or off the other operand's faces",
             ],
         ),
         (
