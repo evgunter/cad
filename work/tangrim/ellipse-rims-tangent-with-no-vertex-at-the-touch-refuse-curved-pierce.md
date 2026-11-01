@@ -47,3 +47,12 @@ touch unread (the curve × face route's tangency for an ellipse against a
 cylinder, or the crossing layer's coplanar ellipse touch,
 `work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`) is not yet
 measured. The circle against the same wall places its touch.
+
+The likely cause is the one
+`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`'s
+2026-10-30 evidence (`splitdoor/sheets-part-conic`) traces on two
+coplanar ellipse rims tangent inside: `carrier_cross::boundary_crossing`
+answers `Touch`, `reduce.rs`'s `interior` reads the edge `Unseen`, the
+curved arm defers it, and every op refuses `CurvedPierceUnsupported`.
+That fixture also builds when cut flat. Here the chain is not yet
+instrumented step by step.
