@@ -802,6 +802,16 @@ fn refuses_on(
     on_plate: fn(Vec3<f64>) -> bool,
     on_block: fn(Vec3<f64>) -> bool,
 ) -> bool {
+    refusals_on(body, errs, on_plate, on_block) > 0
+}
+
+/// How many of [`refuses_on`]'s refusals `errs` holds.
+fn refusals_on(
+    body: &AtRestBody<f64>,
+    errs: &[ValidationError],
+    on_plate: fn(Vec3<f64>) -> bool,
+    on_block: fn(Vec3<f64>) -> bool,
+) -> usize {
     let normal = |f| match body.get_face(f).and_then(|d| body.get_surface(d.surface)) {
         Some(geom::Surface::Plane { normal, .. }) => Some(*normal),
         _ => None,
@@ -816,22 +826,24 @@ fn refuses_on(
         })
         .and_then(|(f, _)| body.solid_of_face(f))
         .expect("the plate has a rounded wall");
-    errs.iter().any(|e| match e {
-        ValidationError::CensusUndecidable {
-            a: EntityId::Face(a),
-            b: EntityId::Face(b),
-            what,
-            ..
-        } if what.contains(CURVED_WITHIN_REACH) => {
-            [(*a, *b), (*b, *a)].into_iter().any(|(p, q)| {
-                body.solid_of_face(p) == Some(plate)
-                    && body.solid_of_face(q).is_some_and(|s| s != plate)
-                    && normal(p).is_some_and(on_plate)
-                    && normal(q).is_some_and(on_block)
-            })
-        }
-        _ => false,
-    })
+    errs.iter()
+        .filter(|e| match e {
+            ValidationError::CensusUndecidable {
+                a: EntityId::Face(a),
+                b: EntityId::Face(b),
+                what,
+                ..
+            } if what.contains(CURVED_WITHIN_REACH) => {
+                [(*a, *b), (*b, *a)].into_iter().any(|(p, q)| {
+                    body.solid_of_face(p) == Some(plate)
+                        && body.solid_of_face(q).is_some_and(|s| s != plate)
+                        && normal(p).is_some_and(on_plate)
+                        && normal(q).is_some_and(on_block)
+                })
+            }
+            _ => false,
+        })
+        .count()
 }
 
 /// A normal along `z`: the plate's top, the block's base or top.
@@ -922,4 +934,210 @@ fn a_block_over_a_plates_top_still_refuses() {
         refuses_on(&sunk, &errs, level, upright),
         "through the arm, a wall: {errs:?}"
     );
+}
+
+/// A normal within 1e-6 of `+z`: a top.
+fn up(n: Vec3<f64>) -> bool {
+    n.z > 0.999_999
+}
+
+/// A normal within 1e-6 of `−z`: a base, level or nearly.
+fn down(n: Vec3<f64>) -> bool {
+    n.z < -0.999_999
+}
+
+/// The plate on the bulge loop `pts` over `z ∈ [0, 1]`, and `other`:
+/// two solids of one body.
+fn plate_and(pts: Vec<(Point2<f64>, f64)>, other: &Body<f64>) -> AtRestBody<f64> {
+    let mut out = sweep::test_support::prism_at(pts, 0.0, 1.0, tol());
+    topo::graft_disjoint(&mut out, other).expect("grafts");
+    finished("the plate and the other", out, tol())
+}
+
+/// **A base tilted within the band across a plate's top refuses.** The
+/// plate is the island `[0.02, 0.07] × [0.9, 1.1]`, one side an arc, and
+/// the block's base, turned 2.09e-8 rad about `y`, lies 0.9e-9 below the
+/// top's plane at `x = 0` (decided on it) and 2e-8 above at `x = 1`
+/// (decided off it): it crosses the plane at `x ≈ 0.043`, through the
+/// top, far in plan from its feet. Red where the reading of a face
+/// standing on the plane takes its feet's Zero for nought: so shallow a
+/// face's section lies wherever the band allows, and its slope is not
+/// one the reading admits.
+#[test]
+fn a_base_tilted_within_the_band_across_a_plates_top_refuses() {
+    use sweep::test_support::{corners, prism_on, sketch_from_axes};
+    let t = tol();
+    let mut island = corners::<f64>(&[(0.02, 0.9), (0.07, 0.9), (0.07, 1.1), (0.02, 1.1)]);
+    island[1].1 = 0.2;
+    let (delta, high) = (0.9e-9, 2e-8);
+    let plane = sketch_from_axes(
+        geom_core::Point3::new(0.0, 1.5, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        t,
+    );
+    let block = prism_on(
+        plane,
+        corners::<f64>(&[
+            (0.0, 1.0 - delta),
+            (1.0, 1.0 + high),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ]),
+        1.0,
+        t,
+    );
+    let pair = plate_and(island, &block);
+    let errs = census(&pair).expect_err("the base crosses the top");
+    assert!(
+        refuses_on(&pair, &errs, up, down),
+        "the top and the base: {errs:?}"
+    );
+}
+
+/// **A wedge footed a hair off a plate's edge, its underside over the
+/// top, refuses**: the rounded square `[0, 1]²` (corners 0.25) over
+/// `z ∈ [0, 1]`, and a wedge whose lowest edge runs at `x = 1 + 5e-8`
+/// within the band of the top's plane (5e-10 and 5e-9 above, 9e-10
+/// below), its underside rising over the top at slope 0.01 or 0.1, so
+/// within the band of the plane over the top's edge. Red where the
+/// standing reading takes the foot for exactly on the plane.
+#[test]
+fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
+    use profile::{Open, ProfileLoop, Start};
+    use sweep::test_support::{corners, extruded, prism_on, sketch_at, sketch_from_axes};
+    let t = tol();
+    let mut path = Open.at(Point2::new(0.5, 0.0)).toward(1.0, 0.0, t).unwrap();
+    for (corner, (dx, dy)) in [
+        (Point2::new(1.0, 0.5), (0.0, 1.0)),
+        (Point2::new(0.5, 1.0), (-1.0, 0.0)),
+        (Point2::new(0.0, 0.5), (0.0, -1.0)),
+    ] {
+        path = path
+            .fillet(0.25, t)
+            .unwrap()
+            .at(corner, t)
+            .unwrap()
+            .toward(dx, dy, t)
+            .unwrap();
+    }
+    let outline: ProfileLoop<f64> = path.fillet(0.25, t).unwrap().to(Start, t).unwrap().into();
+    for (slope, lift) in [(0.01, 5e-10), (0.1, 5e-9), (0.01, -9e-10)] {
+        let plane = sketch_from_axes(
+            geom_core::Point3::new(0.0, 1.5, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            t,
+        );
+        let (x0, xl) = (1.0 + 5e-8, -0.5);
+        let wedge = prism_on(
+            plane,
+            corners::<f64>(&[
+                (x0, 1.0 + lift),
+                (xl, 1.6),
+                (xl, 1.0 + lift + slope * (x0 - xl)),
+            ]),
+            2.0,
+            t,
+        );
+        let mut out = extruded(sketch_at(0.0), vec![outline.clone()], 1.0, t);
+        topo::graft_disjoint(&mut out, &wedge).expect("grafts");
+        let pair = finished("the plate and the wedge", out, t);
+        let errs = census(&pair).expect_err("the wedge lies on the top's plane");
+        assert!(
+            refuses_on(&pair, &errs, up, |n| n.z < -0.99),
+            "slope {slope}, lift {lift}: the top and the underside: {errs:?}"
+        );
+    }
+}
+
+/// **A wall across a plate's rounded corner refuses, though every vertex
+/// of the top lies on one side of it.** The plate `[0, 2]²` with its
+/// `(2, 2)` corner rounded at 0.5 has every vertex of its top at
+/// `x + y ≤ 3.5`; a diamond prism over `z ∈ [0.5, 1.5]` has a wall on
+/// `x + y = 3.6`, which the corner's arc crosses (it reaches
+/// `x + y ≈ 3.71`). Red where the standing reading reads an arc by its
+/// ends.
+#[test]
+fn a_wall_across_a_plates_rounded_corner_refuses() {
+    use sweep::test_support::{corners, prism_at};
+    let mut plate = corners::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.5), (1.5, 2.0), (0.0, 2.0)]);
+    plate[2].1 = (core::f64::consts::PI / 8.0).tan();
+    let diamond = prism_at(
+        corners::<f64>(&[(2.1, 1.5), (2.6, 2.0), (2.0, 2.6), (1.5, 2.1)]),
+        0.5,
+        1.0,
+        tol(),
+    );
+    let pair = plate_and(plate, &diamond);
+    let errs = census(&pair).expect_err("the diamond crosses the corner");
+    assert!(
+        refuses_on(&pair, &errs, up, |n| n.z.abs() < 1e-9
+            && (n.x - n.y).abs() < 1e-9),
+        "the top and the wall: {errs:?}"
+    );
+}
+
+/// **A cap on another plane across a plate's top refuses, whichever
+/// loop vertex either face starts at.** The pentagon top (z = 1, one
+/// side a shallow arc) holds `y = 5` over `x ∈ [0, 10]` with a vertex at
+/// `(10, 5)`; the chevron prism's caps lie on planes through the line
+/// `y = 5, z = 1` at 45°, one with a vertex at `(−1, 5, 1)`, and cross
+/// the top along `x ∈ [0, 5]`. Their boundaries miss each other and
+/// each face's starting vertex lies outside the other, so the region
+/// reading would clear them were it let onto two planes. Every rotation
+/// of either loop's start, both caps.
+#[test]
+fn a_cap_on_another_plane_across_a_plates_top_refuses() {
+    use sweep::test_support::{prism_at, prism_on, sketch_from_axes};
+    let t = tol();
+    for ra in 0..5 {
+        for rb in 0..5 {
+            let mut ring = vec![
+                (0.0, 2.0, 0.0),
+                (6.0, 0.0, 0.0),
+                (10.0, 5.0, 0.0),
+                (6.0, 10.0, 0.05),
+                (0.0, 8.0, 0.0),
+            ];
+            ring.rotate_left(ra);
+            let pts = ring
+                .iter()
+                .map(|&(x, y, b)| (Point2::new(x, y), b))
+                .collect();
+            let mut chevron = vec![
+                (0.0, 0.0),
+                (-2.0, -3.0),
+                (5.5, -0.2),
+                (5.5, 0.2),
+                (-2.0, 3.0),
+            ];
+            chevron.rotate_left(rb);
+            let plane = sketch_from_axes(
+                geom_core::Point3::new(-1.0, 5.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 1.0, 1.0),
+                t,
+            );
+            let block = prism_on(
+                plane,
+                chevron
+                    .iter()
+                    .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                    .collect(),
+                0.5,
+                t,
+            );
+            let mut out = prism_at(pts, 0.0, 1.0, t);
+            topo::graft_disjoint(&mut out, &block).expect("grafts");
+            let pair = finished("the pentagon and the chevron", out, t);
+            let errs = census(&pair).expect_err("the caps cross the top");
+            assert_eq!(
+                refusals_on(&pair, &errs, up, |n| n.x.abs() < 1e-9
+                    && (n.y + n.z).abs() < 1e-9),
+                2,
+                "starts {ra}, {rb}: both caps against the top: {errs:?}"
+            );
+        }
+    }
 }

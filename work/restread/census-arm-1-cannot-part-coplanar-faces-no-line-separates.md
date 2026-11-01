@@ -2,11 +2,12 @@
 id: census-arm-1-cannot-part-coplanar-faces-no-line-separates
 kind: issue
 title: The census's arm 1 clears only on a separating direction, so a plate's top and a block's base in one plane, the block in the plate's reflex notch, refuse CurvedWithinReach though their regions are apart
-status: open
+status: review
 opened: 2026-10-26
 priority: P1
 cost: H
 refs: [census-cross-solid-curved-pairs-undecidable-on-shell-results]
+pr: 5918
 branch: restread/arm1-coplanar-regions
 ---
 
@@ -55,6 +56,6 @@ alone: each notch pose refuses the base against the L's top and also
 two of the block's walls against it, each standing on the top's plane
 along its foot, which no line in that plane parts from the L either.
 So the reading covers both: a planar face against the plane of
-another, read where it meets that plane (`census::coplanar`). The grid
+another, read where it meets that plane (`census::in_plane`). The grid
 goes from 794 `BAD` to 750, the 44 apart lines `SOUND`, and no other
 line changes.
