@@ -183,7 +183,7 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(
-        err.to_string().contains("not built"),
+        err.to_string().contains("not supported yet"),
         "the refusal names the missing front door: {err}",
     );
 }
