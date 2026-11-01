@@ -2,11 +2,11 @@
 id: a-union-across-a-tangent-crescent-refuses-unbuilt
 kind: issue
 title: A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle
-status: open
+status: parked
 opened: 2026-10-25
 priority: P1
 cost: H
-design: true
+blocked_on: [the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways]
 ---
 
 
@@ -141,3 +141,10 @@ designer pass first.
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TANGRIM holds the tangent curved rims and crescents; id and body unchanged. (CLEAVE orchestrator)
+
+## Step 2 decided (2026-11-01, TANGRIM)
+
+The designers' weighing of step 2 is decided: one bound-side reading for every pass, and one parting primitive, spelled out on the carrying unit `the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways` (`## Design`). This row is parked on it. Two consequences for the steps above:
+
+- Step 1 is not a union-of-opposed-planes special case: the crescent is `sector_overlap` read one order down by the same primitive, in every op; `crescent` stops being a refusal detector.
+- Steps 3–4 (two one-site loops at the join, the pinch) were measured with the ties read `On` and `crescent_refusal` bypassed; re-measure them once the reading lands, before designing them. Unmeasured too: whether ∩ and both differences stay `SOUND` once the crescent reads as an overlap in every op.

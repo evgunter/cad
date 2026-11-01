@@ -2,7 +2,7 @@
 id: tangrim
 kind: program
 title: TANGRIM — tangent curved rims and crescents: unions and differences of curved faces that touch tangent at a point or along a line
-status: ready
+status: active
 opened: 2026-11-01
 group: kernel/boolean/curved
 prefix: tangrim/
