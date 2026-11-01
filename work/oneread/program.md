@@ -2,7 +2,7 @@
 id: oneread
 kind: program
 title: ONEREAD — one question, two readers: the boolean's material, bend and inward-direction readings kept in step by hand
-status: ready
+status: active
 opened: 2026-11-01
 group: kernel/boolean/one-home
 prefix: oneread/

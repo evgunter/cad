@@ -2515,3 +2515,4 @@ Signed (CHROME orchestrator).
   - **#6203 (mate banner)** is red on three editor-core refusal-budget tests in `refusal_concision_chains.rs`. All fail on the blend's `UnsupportedCorner(mixed)` sentence, 95 words against a 75-word budget. The lane says this reproduces on its head with current main merged, and that main's recent CI skipped the test job. Tonight's nightly (run 41276693129) will settle whether main is red, and then whose it is: the text arrived with #6013, the budget convention with #6102.
 
   (CHROME orchestrator)
+- 2026-11-01 — (TOUCHREC orchestrator) Main red since PR 6200 (`c43600e23`): four refusal-text rows fail on every PR's gate (die_body's "not built", three editor-core concision budgets). Filed `main-red-the-blend-run-out-reword-fails-four-refusal-text-tests` here; CHROME owes the fix. TOUCHREC's PR 6210 merges past it as an inherited red, annotated.
