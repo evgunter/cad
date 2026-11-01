@@ -1246,9 +1246,15 @@ impl Drafts {
         &self.sketch_face_said
     }
 
-    /// **The held face after `taken`** ([`FaceSelection::reseated`]).
+    /// **The latched faces after `taken`** ([`FaceSelection::reseated`]).
     pub(crate) fn reseat(&mut self, taken: &pncad::document::TakenOver) {
-        self.sketch_face = self.sketch_face.as_ref().map(|face| face.reseated(taken));
+        for latch in [
+            &mut self.sketch_face,
+            &mut self.trace_plane,
+            &mut self.trace_face,
+        ] {
+            *latch = latch.as_ref().map(|face| face.reseated(taken));
+        }
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the session's
