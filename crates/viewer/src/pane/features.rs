@@ -12,43 +12,36 @@ use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
 use crate::theme::Theme;
 use crate::tree::{self, Readout, RowStatus, TreeRow};
 
-/// Points of indent per level of the feature tree.
+/// Points of indent per level a line nests under its row.
+///
+/// Every node row stands in the pane's one column (`tree`'s module
+/// doc, Order and columns); what indents is drawn under a row — its
+/// constraints, and what its result says — one step in, and a failure's
+/// carried refusals one step further per level.
 pub(crate) const INDENT_STEP: f32 = 12.0;
 
-/// **The level every node row draws at**: one column, since a node's
-/// row claims no parent (`tree`'s module doc, Order and columns). What
-/// is drawn under a row — its constraints, its result's lines — sits
-/// one level past it.
-const NODE_LEVEL: usize = 0;
-
-/// The deepest level the tree indents for.
+/// The deepest a line under a row nests.
 ///
 /// A backstop, not the working limit: only a failure's carried
 /// refusals nest past one level, one per document a part's refusal
 /// crosses. A traceback deeper than this stops moving right here; its
 /// lines stay in order, so it still reads as a sequence.
-pub(crate) const INDENT_MAX_DEPTH: usize = 8;
+pub(crate) const MAX_NESTING: usize = 8;
 
-/// The indent a line at `level` draws at.
-pub(crate) fn indent(level: usize) -> f32 {
-    level.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP
-}
-
-/// **The indent a line UNDER something at `level` draws at** — a
-/// failure's own words, the pointer at the row that has them, why a
-/// measure has no value, what a mate did in the solve, a standing note.
+/// **The indent a line nested `level` steps under its row draws at**
+/// — a failure's own words and its traceback, the pointer at the row
+/// that has them, why a measure has no value, a standing note.
 ///
-/// One step past `level`'s own [`indent`], so the line reads as that
-/// row's — for as long as that leaves the line the width
+/// `level` steps, for as long as that leaves the line the width
 /// [`crate::widgets::message_floor`] names. Past that the indent gives
-/// way first: a deep line in a narrow pane draws further left rather
-/// than wrapping into a ribbon or pushing past the pane's edge, since
-/// the sentence's width is not on screen anywhere else.
+/// way first: a deeply nested line in a narrow pane draws further left
+/// rather than wrapping into a ribbon or pushing past the pane's edge,
+/// since the sentence's width is not on screen anywhere else.
 ///
 /// `ui` is the line's own row, before anything is placed in it.
-pub(crate) fn message_indent(ui: &egui::Ui, level: usize) -> f32 {
+pub(crate) fn nested_indent(ui: &egui::Ui, level: usize) -> f32 {
     let spare = (ui.available_width() - crate::widgets::message_floor(ui)).max(0.0);
-    (indent(level) + INDENT_STEP).min(spare)
+    (level.min(MAX_NESTING) as f32 * INDENT_STEP).min(spare)
 }
 
 /// **What one feature-tree row reads as, drawn**: its headline
@@ -87,8 +80,10 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
     ui.selectable_label(selected, job)
 }
 
-/// **One feature-tree row, drawn**: its line — the indent, the label,
-/// the instance toggle, what the run said — and every line under it.
+/// **One feature-tree row, drawn**: its line — the label, the instance
+/// toggle, what the run said — and every line under it: its
+/// constraints first, since they are what the node is, then what the
+/// run said of it.
 /// Answers what a click asked for.
 ///
 /// A free function over the `Ui` because that is the only shape a
@@ -137,6 +132,9 @@ pub(crate) fn feature_row_ui(
         }
         row_result(ui, row, theme, notation);
     });
+    if let Some(mate) = constraint_lines(ui, row) {
+        clicks.remove = Some(mate);
+    }
     if let Some(to) = lines_under(ui, row, theme) {
         clicks.select = Some(to);
     }
@@ -144,9 +142,6 @@ pub(crate) fn feature_row_ui(
         && version_offer_lines(ui, offer, theme)
     {
         clicks.accept = Some(offer.accept());
-    }
-    if let Some(mate) = constraint_lines(ui, row) {
-        clicks.remove = Some(mate);
     }
     clicks
 }
@@ -158,7 +153,7 @@ fn constraint_lines(ui: &mut egui::Ui, row: &TreeRow) -> Option<MateRef> {
     let mut clicked = None;
     for child in &row.constraints {
         ui.horizontal(|ui| {
-            ui.add_space(indent(NODE_LEVEL + 1));
+            ui.add_space(INDENT_STEP);
             ui.label(&child.said);
             if ui.small_button(REMOVE_CONSTRAINT).clicked() {
                 clicked = Some(child.mate);
@@ -175,9 +170,9 @@ pub(crate) const REMOVE_CONSTRAINT: &str = "remove";
 /// its failure: the question, and the button that is the edit the
 /// failure's recourse names. Whether the button was clicked.
 fn version_offer_lines(ui: &mut egui::Ui, offer: &VersionOffer, theme: &Theme) -> bool {
-    advisory_line(ui, NODE_LEVEL, &Refusal::version_question(offer), theme);
+    advisory_line(ui, &Refusal::version_question(offer), theme);
     ui.horizontal(|ui| {
-        ui.add_space(message_indent(ui, NODE_LEVEL));
+        ui.add_space(nested_indent(ui, 1));
         ui.button(VersionOffer::LABEL).clicked()
     })
     .inner
@@ -219,7 +214,7 @@ pub(crate) fn failure_lines(
     let mut clicked = None;
     match row.status.jump() {
         Some(to) => {
-            if link_line(ui, NODE_LEVEL, message) {
+            if link_line(ui, message) {
                 clicked = Some(to);
             }
         }
@@ -227,7 +222,7 @@ pub(crate) fn failure_lines(
         // badge's, read off `RowStatus::tone` on the row above.
         // The line under it is that verdict's words, and a failed
         // row drawn loud twice would be the one loud row twice.
-        None => advisory_line(ui, NODE_LEVEL, message, theme),
+        None => advisory_line(ui, message, theme),
     }
     // The refusals the row's words point at, each one step further in:
     // the traceback reads down the way the failure reaches in. Each is
@@ -235,16 +230,16 @@ pub(crate) fn failure_lines(
     // the refusal is drawn as its own tree draws it.
     if let RowStatus::Failed { carried, .. } = &row.status {
         for (level, carried) in carried.iter().enumerate() {
-            let under = NODE_LEVEL + 1 + level;
+            let nesting = 2 + level;
             ui.horizontal(|ui| {
-                ui.add_space(message_indent(ui, under));
+                ui.add_space(nested_indent(ui, nesting));
                 ui.weak(&carried.document);
             });
-            advisory_line(ui, under, &carried.line, theme);
+            advisory_line_at(ui, nesting, &carried.line, theme);
         }
     }
     if let Some(to) = &row.repair_at {
-        clicked = link_to(ui, NODE_LEVEL, to).or(clicked);
+        clicked = link_to(ui, to).or(clicked);
     }
     clicked
 }
@@ -293,19 +288,19 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
     let mut clicked = failure_lines(ui, row, theme);
     match &row.readout {
         Some(Readout::Unavailable(reason)) => {
-            advisory_line(ui, NODE_LEVEL, &reason.to_string(), theme);
+            advisory_line(ui, &reason.to_string(), theme);
         }
         Some(Readout::Asserted(asserted)) => match &asserted.verdict {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::MeasureUnavailable(_),
             } => {
                 if let Some(measure) = &asserted.measure {
-                    clicked = link_to(ui, NODE_LEVEL, measure).or(clicked);
+                    clicked = link_to(ui, measure).or(clicked);
                 }
             }
             AssertionVerdict::Unevaluated {
                 reason: reason @ UnevaluatedReason::Indeterminate { .. },
-            } => advisory_line(ui, NODE_LEVEL, &reason.to_string(), theme),
+            } => advisory_line(ui, &reason.to_string(), theme),
             AssertionVerdict::Holds { .. } | AssertionVerdict::Violated { .. } => {}
         },
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
@@ -313,29 +308,33 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
     clicked
 }
 
-/// A line under something at `level` that reports and links nowhere. A
-/// payload's own words are a sentence, so `widgets::message`, not
-/// `ui.weak`.
-fn advisory_line(ui: &mut egui::Ui, level: usize, text: &str, theme: &Theme) {
+/// A line under a row that reports and links nowhere. A payload's own
+/// words are a sentence, so `widgets::message`, not `ui.weak`.
+fn advisory_line(ui: &mut egui::Ui, text: &str, theme: &Theme) {
+    advisory_line_at(ui, 1, text, theme);
+}
+
+/// [`advisory_line`] nested `level` steps under its row: a carried
+/// refusal's.
+fn advisory_line_at(ui: &mut egui::Ui, level: usize, text: &str, theme: &Theme) {
     ui.horizontal(|ui| {
-        ui.add_space(message_indent(ui, level));
+        ui.add_space(nested_indent(ui, level));
         crate::widgets::message_toned(ui, text, theme, frame::Tone::Advisory);
     });
 }
 
-/// **A line under something at `level` that links to the node `to`**, in
+/// **A line under a row that links to the node `to`**, in
 /// [`tree::link_wording`]'s words: `to`'s id when it was clicked. The
 /// wording and the target are one argument, so they cannot name two
 /// different nodes.
-fn link_to(ui: &mut egui::Ui, level: usize, to: &SpokenNode) -> Option<RecipeNodeId> {
-    link_line(ui, level, &tree::link_wording(to)).then_some(to.id())
+fn link_to(ui: &mut egui::Ui, to: &SpokenNode) -> Option<RecipeNodeId> {
+    link_line(ui, &tree::link_wording(to)).then_some(to.id())
 }
 
-/// A line under something at `level` that is a click; whether it was
-/// clicked.
-fn link_line(ui: &mut egui::Ui, level: usize, text: &str) -> bool {
+/// A line under a row that is a click; whether it was clicked.
+fn link_line(ui: &mut egui::Ui, text: &str) -> bool {
     ui.horizontal(|ui| {
-        ui.add_space(message_indent(ui, level));
+        ui.add_space(nested_indent(ui, 1));
         crate::widgets::message_link(ui, text).clicked()
     })
     .inner
@@ -406,8 +405,7 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, feature_row_ui, indent, message_indent,
-        row_label,
+        INDENT_STEP, MAX_NESTING, failure_lines, feature_row_ui, nested_indent, row_label,
     };
     use crate::app::GLYPH_WORLD;
     use crate::pane::headless::SLACK;
@@ -425,11 +423,11 @@ mod tests {
     /// number.
     const FAILURE: &str = "the offset is 0.30000000000000004 mm, which the solver refused";
 
-    /// One headless frame of a line under something at `level`, drawn the
-    /// way `feature_row` draws one, in a region `spare` points wider
-    /// than [`message_floor`]. Answers with the region, the floor, and
-    /// the rows [`FAILURE`] landed in.
-    fn line_under_a_row(level: usize, spare: f32) -> (egui::Rect, f32, Vec<egui::Rect>) {
+    /// One headless frame of a line nested `level` steps under its
+    /// row, drawn the way `feature_row` draws one, in a region `spare`
+    /// points wider than [`message_floor`]. Answers with the region, the
+    /// floor, and the rows [`FAILURE`] landed in.
+    fn nested_line(level: usize, spare: f32) -> (egui::Rect, f32, Vec<egui::Rect>) {
         let region = core::cell::Cell::new(egui::Rect::NOTHING);
         let floor = core::cell::Cell::new(f32::NAN);
         let painted = landed(|ui| {
@@ -437,7 +435,7 @@ mod tests {
             ui.allocate_ui(egui::vec2(floor.get() + spare, 400.0), |ui| {
                 region.set(ui.max_rect());
                 ui.horizontal(|ui| {
-                    ui.add_space(message_indent(ui, level));
+                    ui.add_space(nested_indent(ui, level));
                     message(ui, FAILURE);
                 });
             });
@@ -450,19 +448,20 @@ mod tests {
         (region.get(), floor.get(), rows)
     }
 
-    /// **A deep row's line gives up its indent before its width**, in
-    /// a pane with room for the floor and not for the indent too.
+    /// **The deepest-nested carried refusal gives up its indent before
+    /// its width**, in a pane with room for the floor and not for the
+    /// indent too.
     ///
-    /// The measured site of the ribbon: at [`INDENT_MAX_DEPTH`] the
-    /// line's indent is `8 * 12 + 12` points, and a pane that leaves a
-    /// sentence less than the floor after it would, with the indent
-    /// taken whole, lay the line out at the floor from there and run
-    /// it past the pane's right edge by the difference.
+    /// The measured site of the ribbon: at [`MAX_NESTING`] the line's
+    /// indent is `8 * 12` points, and a pane that leaves a sentence less
+    /// than the floor after it would, with the indent taken whole, lay
+    /// the line out at the floor from there and run it past the pane's
+    /// right edge by the difference.
     #[test]
-    fn a_deep_rows_line_gives_up_its_indent_before_its_width() {
-        let wanted = indent(INDENT_MAX_DEPTH) + INDENT_STEP;
+    fn a_deeply_nested_line_gives_up_its_indent_before_its_width() {
+        let wanted = MAX_NESTING as f32 * INDENT_STEP;
         let spare = wanted / 2.0;
-        let (region, floor, rows) = line_under_a_row(INDENT_MAX_DEPTH, spare);
+        let (region, floor, rows) = nested_line(MAX_NESTING, spare);
         let past = rows
             .iter()
             .map(|row| row.right() - region.right())
@@ -480,18 +479,17 @@ mod tests {
         );
     }
 
-    /// **And where there is room, the line keeps the row's indent
-    /// whole** — the nesting a person reads the tree by does not move
-    /// for a pane that has space for it.
+    /// **And where there is room, a nested line keeps its whole
+    /// indent** — the nesting a person reads a traceback by does not
+    /// move for a pane that has space for it.
     #[test]
-    fn a_line_under_a_row_in_a_wide_pane_keeps_its_whole_indent() {
-        let wanted = indent(INDENT_MAX_DEPTH) + INDENT_STEP;
-        let (region, _, rows) = line_under_a_row(INDENT_MAX_DEPTH, wanted * 4.0);
+    fn a_nested_line_in_a_wide_pane_keeps_its_whole_indent() {
+        let wanted = MAX_NESTING as f32 * INDENT_STEP;
+        let (region, _, rows) = nested_line(MAX_NESTING, wanted * 4.0);
         let at = rows[0].left() - region.left();
         assert!(
             (at - wanted).abs() <= SLACK,
-            "the line begins {at} points in, where the row's indent and \
-             one step put it at {wanted}"
+            "the line begins {at} points in, where {MAX_NESTING} steps put it at {wanted}"
         );
     }
 
@@ -1669,6 +1667,94 @@ mod tests {
                 && !drawn.contains(&Refusal::version_question(&offer)),
             "{drawn}"
         );
+    }
+
+    /// **Every line a row draws sits under its own row and past the
+    /// node column**: a failed placement's constraints, its failure's
+    /// words, the traceback its words carry and the link to the node to
+    /// repair, all between its label and the next row's, every one
+    /// indented past the column both labels share — and the constraints
+    /// first, so a line back at one step after the traceback is the
+    /// failure's own link rather than a constraint read as part of it.
+    #[test]
+    fn every_line_a_row_draws_sits_under_it_past_the_node_column() {
+        use pncad::document::{ConstraintId, MateRef, MintId};
+
+        let placement = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
+        let constraint = |n: u64, said: &str| tree::ConstraintRow {
+            mate: MateRef::new(
+                placement,
+                ConstraintId(MintId::new(0, test_utils::refusal::tagged(n))),
+            ),
+            said: said.to_owned(),
+        };
+        let repair = spoken(
+            RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
+            Some("Place"),
+        );
+        let carried = [
+            ("bracket.pncad", "node 000000000007 failed: the first level"),
+            ("boss.pncad", "node 000000000003 failed: the second level"),
+        ];
+        let failed = TreeRow {
+            status: RowStatus::Failed {
+                message: FAILURE.to_owned(),
+                carried: carried
+                    .map(|(document, line)| CarriedLine {
+                        document: document.to_owned(),
+                        line: line.to_owned(),
+                    })
+                    .to_vec(),
+            },
+            constraints: vec![
+                constraint(8, "constraint 1: mate"),
+                constraint(9, "constraint 2: slide along x value"),
+            ],
+            ..placer_refused_row(Some(repair.clone()))
+        };
+        let next = instance_row_of(4, "hinge.pncad");
+        let painted = landed(|ui| {
+            feature_row_drawn(ui, &failed, &Theme::DEFAULT);
+            feature_row_drawn(ui, &next, &Theme::DEFAULT);
+        });
+        let first = |text: &str| {
+            painted
+                .iter()
+                .find(|landed| landed.text.starts_with(text))
+                .and_then(|landed| landed.rows.first().copied())
+                .unwrap_or_else(|| panic!("{text:?} was not painted"))
+        };
+        let label = first("Mate 000000000007");
+        let next_label = first("InstantiatePart 000000000004");
+        assert!(
+            (label.left() - next_label.left()).abs() <= SLACK,
+            "both node rows stand in one column: {label:?} {next_label:?}"
+        );
+        let link = tree::link_wording(&repair);
+        let under = [
+            "constraint 1: mate",
+            "constraint 2: slide along x value",
+            FAILURE,
+            carried[0].0,
+            carried[0].1,
+            carried[1].0,
+            carried[1].1,
+            link.as_str(),
+        ];
+        let mut above = label.bottom();
+        for text in under {
+            let line = first(text);
+            assert!(
+                line.left() > label.left() + SLACK,
+                "`{text}` is indented past the node column ({line:?} against {label:?})"
+            );
+            assert!(
+                line.top() >= above - SLACK && line.bottom() <= next_label.top() + SLACK,
+                "`{text}` sits under its own row, in order, above the next row \
+                 ({line:?}, previous line's bottom {above}, next row {next_label:?})"
+            );
+            above = line.bottom();
+        }
     }
 
     /// **No node row is drawn under another**: every node row's label

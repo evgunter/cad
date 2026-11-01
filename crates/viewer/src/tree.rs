@@ -34,8 +34,8 @@
 //! pickers have to name a node the same way.
 //!
 //! Because that is the other thing this module owns: the *shape* —
-//! which rows exist, in which order, at what indentation, which of
-//! them the selection is on, and which row a failure sends the eye to.
+//! which rows exist, in which order, which of them the selection is
+//! on, and which row a failure sends the eye to.
 //!
 //! One thing a run said that is no failure rides the row as well: what
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
