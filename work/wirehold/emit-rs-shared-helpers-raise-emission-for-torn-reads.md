@@ -1,7 +1,7 @@
 ---
 id: emit-rs-shared-helpers-raise-emission-for-torn-reads
 kind: issue
-title: names/emit.rs's shared helpers (to_u32, output_body, Incidence::of, the rim consts, vertex_point, face_half_edges, edge_ends) still raise NamingError::Emission for torn-body reads and u32 narrowings no body reaches
+title: name_family and name_assemble raise Emission for reads the tier-1 shape may make unreachable (three sites in names/emit.rs)
 status: open
 opened: 2026-10-20
 priority: P2
@@ -55,3 +55,15 @@ What is left is D10-held, so the row parks with WIRE's other D10 rows. Signed (W
 ## D10 exit walk (2026-10-29)
 
 The four D10-held raises this row lists are gone with their functions (`flat_body_index`, `name_placed_union`, `name_in_part`; stage 3 G, #5954). Their successors raise the same class, `NamingError::Emission`, for a torn member read: `name_family` (`crates/editor-core/src/names/emit.rs:1157`, "a family's member names a body the member does not have") and `name_assemble` (`emit.rs:1255`, `:1264`). The scene still stands under new names. Open, re-pointed at those three.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Still real, at new sites.** The four held raises went with G. Their successors raise `NamingError::Emission`:
+- `name_family`: `names/emit.rs:1157`
+- `name_assemble`: `names/emit.rs:1255` and `:1264`
+
+`output_body` (`emit.rs:1115`) stays fallible, tracked by `wire/loop-coordinates-narrowing-has-no-bound`.
+
+Each site needs the D9 argument: a type change, a typed refusal, or `unreachable!` with its why. Check first whether a member's own value can be multi-body, since the `e.body != 0` check may be reachable.

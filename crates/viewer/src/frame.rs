@@ -2395,21 +2395,24 @@ fn coincidence_cells(
         .into_iter()
         .filter_map(|cell| match cell {
             NamedCell::Entity { input, name } => {
-                let node = landed.operation_of(*input)?;
-                let select = match name.kind {
-                    EntityKind::Face => Selection::Face(FaceSelection {
-                        name: name.clone(),
-                        node,
-                        body: 0,
-                    }),
-                    EntityKind::Edge => Selection::Edge(EdgeSelection {
-                        name: name.clone(),
-                        node,
-                        body: 0,
-                    }),
-                    EntityKind::Vertex | EntityKind::Body => Selection::Node(node),
+                // A face or an edge read off a drawn body is said as the
+                // pick its button makes, on that body. A placement's
+                // piece names no body index the read can say, so its
+                // cell selects the node, as a vertex's or a body's does.
+                let on = crate::world::read_body(landed, *input)
+                    .filter(|_| matches!(name.kind, EntityKind::Face | EntityKind::Edge));
+                let Some(on) = on else {
+                    let node = landed.operation_of(*input)?;
+                    return Some((by.name(name).to_string(), Selection::Node(node)));
                 };
-                Some((by.name(name).to_string(), select))
+                let label = Said(&crate::tree::PickedName::new(name, on), by).to_string();
+                let (node, body, name) = (on.node(), on.body(), name.clone());
+                Some(match name.kind {
+                    EntityKind::Face => {
+                        (label, Selection::Face(FaceSelection { name, node, body }))
+                    }
+                    _ => (label, Selection::Edge(EdgeSelection { name, node, body })),
+                })
             }
             NamedCell::Tool { input, .. } => {
                 let node = landed.operation_of(*input)?;
@@ -3126,6 +3129,104 @@ mod tests {
     use crate::camera::{Camera, CameraOp, CameraOpError};
     use crate::display::AdmissionFault;
     use crate::tree::RowStatus;
+
+    /// **One unproven coincidence between `cells`, about `subject`,
+    /// reported over `doc`**: the Checks window's rows are read from
+    /// this. Built by hand, the one fixture here that does: a run of the
+    /// checks leaving a coincidence unproven needs a geometry that does,
+    /// and a row's cells are all `coincidence_cells` reads of it.
+    fn coincidence_report(
+        doc: &Doc<ProfileProgram>,
+        subject: RecipeNodeId,
+        cells: Vec<NamedCell>,
+    ) -> ChecksReport {
+        let row = editor_core::coincide::NamedCoincidence {
+            cells,
+            relation: topo::Relation::SameOpposite,
+            site: topo::DecisionSite::PlaneLadder,
+            margin: geom_core::predicate::MarginDiag::value(0.0),
+            discharge: topo::Discharge::Numeric,
+            origin: editor_core::coincide::RowOrigin::Node,
+        };
+        let residual = editor_core::coincide::Residual {
+            constructions: Vec::new(),
+            replay: editor_core::coincide::Unreplayed::Refused,
+            axes: None,
+        };
+        ChecksReport {
+            document: doc.id(),
+            findings: vec![CheckFinding {
+                check: pncad::document::CheckId::UnprovenCoincidence,
+                subject: FindingSubject::Node(subject),
+                evidence: CheckEvidence::UnprovenCoincidence {
+                    row: Box::new(row),
+                    residual: Box::new(residual),
+                    recourse: editor_core::coincide::Recourse::Assert,
+                    restated: Vec::new(),
+                    quietable: false,
+                },
+                quiet: None,
+            }],
+            skipped: Vec::new(),
+            pending: Vec::new(),
+        }
+    }
+
+    /// **A Checks cell read off a split's half is on that half's
+    /// body**: the second half is the split's body 1, and the cell's
+    /// button both says it (its label) and selects it (its pick), read
+    /// through the window's rows as the window draws them.
+    #[test]
+    fn a_checks_cell_on_a_splits_second_half_is_on_body_one() {
+        let tol = pncad::geom_core::Tol::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("cell-half", tol);
+        let tool = editor_core::test_support::plane_on(
+            &doc,
+            block,
+            [0.0, 0.0, 0.001],
+            [0.0, 0.0, 1.0],
+            tol,
+        );
+        let (doc, split) = crate::test_support::inserted(
+            &doc,
+            pncad::document::Node::Split {
+                target: block.into(),
+                tool,
+            },
+            tol,
+        );
+        let name = pncad::prelude::StableName {
+            kind: EntityKind::Face,
+            node: split,
+            path: Vec::new(),
+        };
+        let halves = doc.outputs(split);
+        let cell = |half: usize| NamedCell::Entity {
+            input: halves[half],
+            name: name.clone(),
+        };
+        let report = coincidence_report(&doc, split, vec![cell(0), cell(1)]);
+        let rows = check_rows(&report, &doc);
+        let s = test_utils::refusal::tag(split.0.digest());
+        let face = |body| {
+            Selection::Face(FaceSelection {
+                name: name.clone(),
+                node: split,
+                body,
+            })
+        };
+        assert_eq!(
+            rows.iter().map(|row| row.cells.clone()).collect::<Vec<_>>(),
+            [vec![
+                (format!("the face of Split {s}"), face(0)),
+                (
+                    format!("the face of Split {s}, on body 1 of Split {s}"),
+                    face(1)
+                ),
+            ]],
+            "each half's button says its half and selects it"
+        );
+    }
 
     /// A camera — any camera. Nothing here reads it: [`fold_status`]
     /// judges what a fold REFUSED, and [`Folded`] has to carry one.

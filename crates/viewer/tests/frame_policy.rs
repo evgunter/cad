@@ -137,24 +137,19 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 /// second necessary rather than decorative.
 #[test]
 fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::tools::ToolNotice;
+    use viewer::tree::DrawnBody;
 
     let declined = [SessionOp::Select(Selection::None)];
     // Both notices through the door the frame loop uses, so each
     // carries the answer its event arm gives rather than a second
     // spelling of it.
-    let target = BlendTarget {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let notice = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
             held: target,
-            picked: BlendTarget {
-                node: RecipeNodeId::new(0, tagged(5)),
-                body: 0,
-            },
+            picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
         }),
         None,
     );
@@ -194,7 +189,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let second = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::TargetLost {
             target,
-            node: pncad::document::SpokenNode::absent(target.node),
+            node: pncad::document::SpokenNode::absent(target.node()),
             edges: 6,
         }),
         None,
@@ -1398,11 +1393,11 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
 
 /// A refusal of one of `target`'s drawn edges' names, as
 /// `PickIndex::edge_names_in` answers it.
-fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+fn unnamed_on(target: viewer::tree::DrawnBody) -> pickindex::EdgeNamesRefused {
     pickindex::EdgeNamesRefused {
-        node: target.node,
-        body: target.body,
-        first: common::unnamed_edge(target.node, target.body),
+        node: target.node(),
+        body: target.body(),
+        first: common::unnamed_edge(target.node(), target.body()),
         named: 11,
         refused: 1,
     }
@@ -1415,13 +1410,11 @@ fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused
 /// accepts, not another index build over the same table.
 #[test]
 fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::tools::ToolNotice;
+    use viewer::tree::DrawnBody;
 
-    let target = BlendTarget {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let refused = unnamed_on(target);
     let spelled = frame::Spelled {
         doc: None,
@@ -1445,10 +1438,7 @@ fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
     let (landed, _) = session.landed_pair().expect("landed");
-    let refused = unnamed_on(viewer::blend::BlendTarget {
-        node: extrude,
-        body: 0,
-    });
+    let refused = unnamed_on(viewer::tree::DrawnBody::new(extrude, 0));
     let label = |spelled: &frame::Spelled<pickindex::EdgeNamesRefused>| {
         frame::held_edges_badge(Some(spelled), Some(landed))
             .expect("a refusal badges")
@@ -3628,20 +3618,15 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 /// else.
 #[test]
 fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::seats::{Seat, SeatEvent};
     use viewer::tools::{ToolKind, ToolNotice};
+    use viewer::tree::DrawnBody;
 
     let declined = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
-            held: BlendTarget {
-                node: RecipeNodeId::new(0, tagged(3)),
-                body: 0,
-            },
-            picked: BlendTarget {
-                node: RecipeNodeId::new(0, tagged(5)),
-                body: 0,
-            },
+            held: DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0),
+            picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
         }),
         None,
     );
@@ -3666,7 +3651,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     };
     assert_eq!(
         all.text(),
-        "blend tool: the held edges are on node 000000000003 body 0, so the edge on node 000000000005 body 0 \
+        "blend tool: the held edges are on node 000000000003, so the edge of node 000000000005 \
          was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
          pick (node 000000000004) is no longer in the document; the tool dropped it \u{2022} mate tool: \
          no landed evaluation to derive frames from"
@@ -3838,16 +3823,14 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
 fn every_tool_event_says_whether_anything_will_say_it_again() {
     use editor_core::{Resolution, ResolveIndeterminate};
     use pncad::document::MateSide;
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::matetool::MateToolEvent;
     use viewer::seats::{Seat, SeatEvent};
     use viewer::session::FaceSelection;
     use viewer::tools::{ToolKind, ToolNotice};
+    use viewer::tree::DrawnBody;
 
-    let target = BlendTarget {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let face = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(3)),
@@ -3858,12 +3841,14 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::To,
-                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
-                pick: FaceSelection {
-                    name: face.clone(),
-                    node: RecipeNodeId::new(0, tagged(3)),
-                    body: 0,
-                },
+                pick: viewer::tree::HeldPick::new(
+                    &pncad::document::Doc::empty_derived("cases", Tol::witness()),
+                    FaceSelection {
+                        name: face.clone(),
+                        node: RecipeNodeId::new(0, tagged(3)),
+                        body: 0,
+                    },
+                ),
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
                         node: RecipeNodeId::new(0, tagged(3)),
@@ -3887,7 +3872,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the target lost",
             ToolNotice::Blend(BlendEvent::TargetLost {
                 target,
-                node: pncad::document::SpokenNode::absent(target.node),
+                node: pncad::document::SpokenNode::absent(target.node()),
                 edges: 4,
             }),
             frame::Retold::Never,
@@ -3906,10 +3891,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: a pick on another body declined",
             ToolNotice::Blend(BlendEvent::OtherTarget {
                 held: target,
-                picked: BlendTarget {
-                    node: RecipeNodeId::new(0, tagged(5)),
-                    body: 0,
-                },
+                picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
             }),
             frame::Retold::Again,
         ),
@@ -3928,7 +3910,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: an edge pick with no index declined",
             ToolNotice::Blend(BlendEvent::Unindexed {
-                picked: target,
+                picked: an_edge_of(target.node()),
                 why: viewer::pickcache::NotIndexed::Absent,
             }),
             frame::Retold::Again,
@@ -3937,7 +3919,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: an edge pick whose rim the index could not answer declined",
             ToolNotice::Blend(BlendEvent::RimUnanswered {
                 fault: editor_core::resolve::RimNameFault::Stale {
-                    node: target.node,
+                    node: target.node(),
                     body: 0,
                 },
             }),
@@ -3947,7 +3929,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the all-edges door's target has no value",
             ToolNotice::Blend(BlendEvent::TargetHasNoValue {
                 target,
-                standing: NodeStanding::Failed { node: target.node },
+                standing: NodeStanding::Failed {
+                    node: target.node(),
+                },
             }),
             frame::Retold::Again,
         ),
@@ -4088,4 +4072,18 @@ fn the_delta_badge_reads_in_the_working_length_unit() {
         "{:?}",
         in_m.detail()
     );
+}
+
+/// An edge pick on `node` whose name says nothing past its kind: `the
+/// edge of <node>`.
+fn an_edge_of(node: RecipeNodeId) -> viewer::session::EdgeSelection {
+    viewer::session::EdgeSelection {
+        name: StableName {
+            kind: EntityKind::Edge,
+            node,
+            path: vec![],
+        },
+        node,
+        body: 0,
+    }
 }

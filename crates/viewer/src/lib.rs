@@ -140,7 +140,7 @@ fn app_lane_skipped_no_app_feature_coverage_here() {
     );
 }
 
-pub use blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
+pub use blend::{BlendEvent, BlendKindChoice, BlendTool, FREEZE_NOTE};
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection};
 pub use docio::DocIoError;
 pub use evalseam::{
