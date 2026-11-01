@@ -76,3 +76,13 @@ the final state; it implements D1's record sentence and
   until the curve-touch lane lands
   (`work/contacthold/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`).
   (PARTING orchestrator)
+
+## 2026-11-01 — the blocker's residue in `ops` (PARTING, `parting/sweep-records-edge-in-face`)
+
+With `record_spans` gone, `ops::piece_reading`'s only caller is
+`slit::holding`, so `ops::DoorInBand` has one variant left
+(`Containment`) and `PieceRead::Unread`'s refusal is read by no one
+(an `expect(dead_code)` marks it). Both go with the geometric reading
+in `holding` that this row's parting half retires; that unit drops the
+parameter and the payload in `slit.rs`, which the blocker could not
+touch while `parting/closed-and-torus-riders` held it.

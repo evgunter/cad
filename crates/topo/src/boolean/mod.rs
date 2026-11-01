@@ -691,8 +691,10 @@ pub struct EeContact {
     pub b: crate::entity::EdgeKey,
 }
 
-/// An edge whose interior meets a face's, within one operand carried
-/// back into an op ([`OperandRecords`]).
+/// An edge whose interior meets a face's: within one operand carried
+/// back into an op ([`OperandRecords`]); in the reduction's working
+/// set, the edge one operand's and the face the other's
+/// ([`ReductionContacts::a_in_b`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EfContact {
     /// The edge.
@@ -918,6 +920,12 @@ pub struct ReductionContacts {
     /// ([`verify_tangency`]). Written at the door, whatever the op: the
     /// carry keeps a row where both faces survive.
     pub ff: Vec<Cited<FfContact>>,
+    /// Pieces of line edges of A lying in planar faces of B, each citing
+    /// the decisions that put the edge's ends on the face's plane
+    /// (`reduce::settle_in_plane`).
+    pub a_in_b: Vec<Cited<EfContact>>,
+    /// Pieces of line edges of B lying in planar faces of A, likewise.
+    pub b_in_a: Vec<Cited<EfContact>>,
 }
 
 impl ReductionContacts {
@@ -925,7 +933,8 @@ impl ReductionContacts {
     /// one fixed order: the vertex pairs (A's vertex, B's), then A's
     /// vertices on B's faces, then B's on A's, each vertex first, then
     /// the edge pairs (A's edge, B's), then the face pairs (A's face,
-    /// B's).
+    /// B's), then A's edges in B's faces and B's in A's, each edge
+    /// first.
     pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
         let vv = self.vv.iter().map(|c| {
             (
@@ -960,10 +969,24 @@ impl ReductionContacts {
                 &c.cites,
             )
         });
+        fn ef(
+            side: Operand,
+            other: Operand,
+            list: &[Cited<EfContact>],
+        ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
+            list.iter().map(move |c| {
+                (
+                    [(side, Cell::Edge(c.edge)), (other, Cell::Face(c.face))],
+                    &c.cites,
+                )
+            })
+        }
         vv.chain(vf(Operand::A, Operand::B, &self.a_on_b))
             .chain(vf(Operand::B, Operand::A, &self.b_on_a))
             .chain(ee)
             .chain(ff)
+            .chain(ef(Operand::A, Operand::B, &self.a_in_b))
+            .chain(ef(Operand::B, Operand::A, &self.b_in_a))
     }
 }
 
@@ -3838,17 +3861,6 @@ pub enum BooleanError {
         /// wants a parameter inverse).
         closed: bool,
     },
-    /// **A rest the op carries could not be placed on the pieces of the
-    /// face it divided.** A record's span along a line edge is placed in
-    /// a face by its midpoint (`ops::span_held`), and this piece's read
-    /// failed, so the span may be on it.
-    RestPieceUnread {
-        /// The piece, in result keys.
-        face: FaceKey,
-        /// The containment door's refusal; `None` where a curved face's
-        /// region gives no verdict for this face.
-        refusal: Option<ContainError>,
-    },
     /// **A record the op carries, or found, could not be placed on the
     /// result** (D1): the one carry refused it
     /// (`ops::carried`, `records::landings`): a pair of its cells'
@@ -4297,8 +4309,6 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
-    /// [`BooleanError::RestPieceUnread`].
-    RestPieceUnread,
     /// [`BooleanError::CarryRefused`].
     CarryRefused,
     /// [`BooleanError::JoinDesync`].
@@ -4534,7 +4544,6 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
-            Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
@@ -5209,19 +5218,6 @@ impl core::fmt::Display for BooleanError {
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
             Self::Join(e) => write!(f, "the operands' sections could not be joined: {e}"),
             Self::JoinUndecided(e) => write!(f, "{e}"),
-            Self::RestPieceUnread { face, refusal } => {
-                let preamble = format_args!(
-                    "the Boolean cannot tell which piece of a face it divided holds a vertex \
-                     resting on that face: it cannot read whether piece {face:?} holds it"
-                );
-                match refusal {
-                    Some(e) => write!(f, "{preamble} ({e})"),
-                    None => write!(
-                        f,
-                        "{preamble} (the containment door does not read this curved face's trim)"
-                    ),
-                }
-            }
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -9301,7 +9297,6 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
-                BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",

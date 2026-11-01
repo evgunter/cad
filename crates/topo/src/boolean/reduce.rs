@@ -66,7 +66,7 @@ use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp_deci
 use super::plane_eq::PlaneDesc;
 use super::separating::Item;
 use super::{BooleanDecision, Coincide, CrossingDecision, DeclarationRead};
-use super::{BooleanError, Operand, ReductionContacts, VfContact, VvContact};
+use super::{BooleanError, EfContact, Operand, ReductionContacts, VfContact, VvContact};
 use crate::body::Body;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
@@ -156,6 +156,11 @@ pub(super) struct ContactAcc {
     seen_vv: std::collections::BTreeMap<(VertexKey, VertexKey), usize>,
     seen_ab: std::collections::BTreeMap<(VertexKey, FaceKey), usize>,
     seen_ba: std::collections::BTreeMap<(VertexKey, FaceKey), usize>,
+    seen_ef: std::collections::BTreeMap<(Operand, EdgeKey, FaceKey), usize>,
+    /// Every line edge the sweep read lying in a planar face's plane,
+    /// whose pieces the face holds are recorded once both directions
+    /// have split it ([`settle_in_plane`]).
+    in_plane: Vec<InPlane>,
     /// The bisector plane each vertex the sweep placed on an equal
     /// cylinder pair's partner wall lies on ([`factored_crossing`]), by
     /// its operand: the pierce reads that wall through it.
@@ -250,6 +255,24 @@ impl ContactAcc {
             }
             None => {
                 seen.insert((c.vertex, c.face), list.len());
+                list.push(Cited::new(c, cites));
+            }
+        }
+    }
+    /// Records `c`, a piece of an edge of `x_is` lying in a face of the
+    /// other operand, citing `cites`.
+    fn ef(&mut self, x_is: Operand, c: EfContact, cites: Cites) {
+        let list = match x_is {
+            Operand::A => &mut self.records.a_in_b,
+            Operand::B => &mut self.records.b_in_a,
+        };
+        match self.seen_ef.get(&(x_is, c.edge, c.face)) {
+            Some(&i) => {
+                let at = &mut list[i].cites;
+                *at = at.union(&cites);
+            }
+            None => {
+                self.seen_ef.insert((x_is, c.edge, c.face), list.len());
                 list.push(Cited::new(c, cites));
             }
         }
@@ -1623,6 +1646,12 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 (za, zb) => {
                     if (za, zb) == (Sign::Zero, Sign::Zero) {
                         lying_in.push(LyingIn::Plane(face));
+                        contacts.in_plane.push(InPlane {
+                            x_is,
+                            edge: edge_key,
+                            face,
+                            ends: [(u, d1.margin), (v, d2.margin)],
+                        });
                     }
                     let mut hit = false;
                     if za == Sign::Zero {
@@ -1667,7 +1696,8 @@ fn edge_ends<T: Decide>(
 
 /// **The reduction sweep, both directions** (D9: A's edges first),
 /// then the deferred touches settled on what both directions split
-/// ([`settle_deferred`]). Every boolean driver sweeps through here,
+/// ([`settle_deferred`]) and the pieces of every edge lying in a planar
+/// face recorded ([`settle_in_plane`]). Every boolean driver sweeps through here,
 /// with each operand's slit tips read at rest
 /// ([`crate::sector_shape::SlitTips`]).
 ///
@@ -1727,7 +1757,80 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
         band,
         [ab_trace, ba_trace],
         tol,
-    )
+    )?;
+    settle_in_plane([a, b], contacts, band)
+}
+
+/// A line edge the line lane read lying in a planar face's plane, both
+/// its ends decided on the plane ([`LyingIn::Plane`]), with the margin
+/// each end was decided by.
+#[derive(Debug, Clone, Copy)]
+struct InPlane {
+    x_is: Operand,
+    edge: EdgeKey,
+    face: FaceKey,
+    ends: [(VertexKey, MarginDiag); 2],
+}
+
+/// **Records each piece of a line edge lying in a planar face that the
+/// face holds** (D1: every pair whose interiors meet is recorded, an
+/// edge lying in a face included), once both directions have split the
+/// edge, so that every crossing of the face's boundary is a piece's end.
+/// A piece lies in the plane as the edge's ends do, and the face holds
+/// it where its midpoint is inside the face ([`contfp_decided`]); a
+/// piece along the face's boundary is a touch of two edges, which the
+/// classification records. Each record cites the decisions that put the
+/// edge's two ends on the plane.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the containment door cannot place a
+/// midpoint ([`esc`]).
+fn settle_in_plane<T: Decide>(
+    [a, b]: [&Body<T>; 2],
+    contacts: &mut ContactAcc,
+    band: Band,
+) -> Result<(), BooleanError> {
+    for lie in core::mem::take(&mut contacts.in_plane) {
+        let (x, y) = match lie.x_is {
+            Operand::A => (a, b),
+            Operand::B => (b, a),
+        };
+        let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
+            what: "a face an edge lies in lost its plane",
+        })?;
+        for piece in contacts.splits.pieces(lie.x_is, lie.edge).0 {
+            let edge = x
+                .get_edge(piece)
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "a piece of an edge lying in a face vanished",
+                })?;
+            let ((_, p0), (_, p1)) = edge_ends(x, edge)?;
+            let mid = p0 + (p1 - p0) * T::from_f64(0.5);
+            let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
+                .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
+            if !matches!(at, FaceContainment::In) {
+                continue;
+            }
+            let cites = lie.ends.map(|(w, on)| {
+                contacts.decide(PendingRow::on(
+                    (lie.x_is, super::Cell::Vertex(w)),
+                    (lie.x_is.other(), super::Cell::Face(lie.face)),
+                    Some(on),
+                ))
+            });
+            let [c0, c1] = cites;
+            contacts.ef(
+                lie.x_is,
+                EfContact {
+                    edge: piece,
+                    face: lie.face,
+                },
+                c0.union(&c1),
+            );
+        }
+    }
+    Ok(())
 }
 
 /// A covered edge × curved-face pair whose touch lies inside the edge
