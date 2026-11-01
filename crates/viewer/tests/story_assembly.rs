@@ -172,12 +172,12 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     let history_len = session.history().len();
     let before = session.doc().node(instance).cloned();
     for op in [
-        SessionOp::BeginFreeMove { instance },
+        SessionOp::BeginFreeMove { node: instance },
         SessionOp::PreviewFreeMove {
-            instance,
+            node: instance,
             frame: Frame::translation(at),
         },
-        SessionOp::CommitFreeMove { instance },
+        SessionOp::CommitFreeMove { node: instance },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -351,13 +351,13 @@ fn the_windmill_story() {
         .stats()
         .triangles;
     let history_len = session.history().len();
-    let hidden = session.perform(SessionOp::SetInstanceHidden {
-        instance: hub_i,
+    let hidden = session.perform(SessionOp::SetBodyHidden {
+        node: hub_i,
         hidden: true,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     assert!(hidden.committed.is_empty(), "hide commits no edit");
-    assert!(session.display().hidden().contains(&hub_i));
+    assert!(session.display().hidden_bodies().contains(&hub_i));
     assert!(
         index
             .scene_for(&session.display_view())
@@ -373,12 +373,12 @@ fn the_windmill_story() {
         session.tree_rows().iter().any(|row| row.id == hub_i),
         "so does the tree"
     );
-    let shown = session.perform(SessionOp::SetInstanceHidden {
-        instance: hub_i,
+    let shown = session.perform(SessionOp::SetBodyHidden {
+        node: hub_i,
         hidden: false,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
-    assert!(session.display().hidden().is_empty());
+    assert!(session.display().hidden_bodies().is_empty());
 
     // ── 6. THE CAMERA AND A REAL PICK. Frame the scene off its own
     // drawn bounds, orbit, re-frame (a fit is not a reset), then aim
@@ -484,9 +484,9 @@ fn the_windmill_story() {
     // the tower (a committed display value, never a document edit).
     let hub_space = asm::unpin(&mut session, hub_i);
     for op in [
-        SessionOp::BeginFreeMove { instance: hub_i },
+        SessionOp::BeginFreeMove { node: hub_i },
         SessionOp::PreviewFreeMove {
-            instance: hub_i,
+            node: hub_i,
             frame: Frame::translation([0.0, 0.0, 0.2]),
         },
         SessionOp::CancelFreeMove,
@@ -553,7 +553,8 @@ fn the_windmill_story() {
         )
     };
     assert_eq!(
-        superseded.instance, hub_i,
+        superseded.held,
+        viewer::display::Held::Node(hub_i),
         "the mate's edit discards the park"
     );
     session.pump();
@@ -616,10 +617,10 @@ fn the_windmill_story() {
 
     // The seated hub lives in the world's space, so it refuses the
     // probe, typed.
-    let refused = session.perform(SessionOp::BeginFreeMove { instance: hub_i });
+    let refused = session.perform(SessionOp::BeginFreeMove { node: hub_i });
     match refused.refusal {
         Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
-            instance,
+            node: instance,
         }))) => assert_eq!(instance.id(), hub_i),
         other => panic!("expected the in-the-world refusal, got {other:?}"),
     }
@@ -727,7 +728,8 @@ fn the_windmill_story() {
     };
     session.pump();
     assert_eq!(
-        superseded.instance, sail_a,
+        superseded.held,
+        viewer::display::Held::Node(sail_a),
         "the first sail's park goes with its mate"
     );
     assert!(
@@ -774,7 +776,11 @@ fn the_windmill_story() {
         panic!("exactly one frame is superseded at the edit")
     };
     session.pump();
-    assert_eq!(superseded.instance, sail_b, "and so does the second's");
+    assert_eq!(
+        superseded.held,
+        viewer::display::Held::Node(sail_b),
+        "and so does the second's"
+    );
     assert!(
         matches!(
             &superseded.cause,
@@ -875,7 +881,7 @@ fn the_windmill_story() {
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-    assert!(reopened.display().hidden().is_empty());
+    assert!(reopened.display().hidden_bodies().is_empty());
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),

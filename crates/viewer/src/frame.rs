@@ -238,12 +238,12 @@ use pncad::quantity::LengthUnit;
 use crate::blend::BlendEvent;
 use crate::camera::CameraError;
 use crate::camera::Folded;
-use crate::display::{AdmissionFault, PruneReport, Withdrawn};
+use crate::display::{PruneReport, Withdrawn};
 use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
 use crate::parts::PartFiles;
 use crate::pickcache::{IndexSeam, NotIndexed};
-use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnCopy};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnBody};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -792,7 +792,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
         | SessionOp::CommitFreeMove { .. }
@@ -1115,7 +1116,7 @@ pub const LIST_SEPARATOR: &str = "; ";
 ///
 /// A supersession, a dropped hide and a killed gesture are the same
 /// class of fact — display state an accepted edit took away, each
-/// carrying the [`AdmissionFault`] the prune withdrew it on — and the
+/// carrying the [`crate::display::AdmissionFault`] the prune withdrew it on — and the
 /// first two were free functions composing prose that differed in four
 /// format literals.
 /// They are a typed value with a `Display` here, which is the shape
@@ -1199,18 +1200,16 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// # The cause is the fault's own sentence
 ///
 /// **Nothing here composes prose about why a placement or a hide
-/// went.** Each entry carries the [`AdmissionFault`] the prune
+/// went.** Each entry carries the [`crate::display::AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
 /// rest of the crate follows. So the commonest arm names the space and
-/// why it is no longer shown (`NotShown`: *no copy is placed into it, or
-/// its bodies are copied into another space*), a fuse names the product and the instances
-/// fused into it, and a deleted instance says the document does not
-/// hold the node — which is the delete arm's whole point, since the id
-/// alone names something the tree no longer draws without saying that
-/// is why.
+/// why it is no longer shown (`NotShown`: *every body in it is read by
+/// an operation*), and a deleted node says the document does not hold
+/// it — which is the delete arm's whole point, since the id alone names
+/// something the tree no longer draws without saying that is why.
 ///
 /// The frame around the faults counts where there is anything to count,
-/// and never names: every [`AdmissionFault`] names its own SUBJECT, so
+/// and never names: every [`crate::display::AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
 /// promise a vocabulary for that subject: each arm says it as the
 /// spoken node or the spoken space does, its kind included
@@ -1220,7 +1219,7 @@ pub const LIST_SEPARATOR: &str = "; ";
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
-/// carry one: the admission tests answer [`AdmissionFault`] and
+/// carry one: the admission tests answer [`crate::display::AdmissionFault`] and
 /// `Withdrawn::cause` is typed as what they answer. That used to be a
 /// property of two functions' error sets with nothing in a type
 /// saying so.
@@ -1245,7 +1244,7 @@ vocabulary! {
         /// picture keeps the part.
         ///
         /// [`crate::display::PruneReport::superseded`] names, by the
-        /// instance that committed each, the spaces whose COMMITTED
+        /// node whose gesture committed each, the spaces whose COMMITTED
         /// free-move frame a prune discarded — the G3 supersession,
         /// reported by the session rather than inferred. A frame is asked
         /// of the document alone, so it arrives on
@@ -1258,38 +1257,27 @@ vocabulary! {
         /// it is not this channel's to report; the next gesture op refuses
         /// typed instead.
         ///
-        /// What it leaves behind is the instance drawn at its landed
-        /// placement, which the picture already says; a badge would keep
+        /// What it leaves behind is the space's bodies drawn where the
+        /// document puts them, which the picture already says; a badge would keep
         /// saying it about a document the user has moved on from, and
         /// nobody consults a toolbar to learn where a part ended up.
         Superseded,
-        /// **Not superseded by anything.** The user asked for an instance
-        /// not to be DRAWN, and the document did not answer that question
-        /// differently — it made the question unaskable. Nothing takes the
-        /// hide's place.
-        ///
-        /// **What happened to the PICTURE is in the sentence.** The two
-        /// arms leave the drawing in opposite states, and that is the part
-        /// a user needs: on a **fuse** the instance is drawn AGAIN —
-        /// material they took out of the picture is back in it, which is
-        /// exactly the state reported as a bug against hiding — and on a
-        /// **delete** the instance went, and nothing reappears. A preamble
-        /// naming neither is true and useless; a preamble naming one is
-        /// false half the time. So the consequence is said when the
-        /// frame's withdrawals AGREE on it, and dropped when they do not,
-        /// leaving the faults to say the rest. That is not this module
-        /// writing prose about someone else's failure: the fault renders
-        /// itself, unaltered, and what the chrome adds is the chrome's own
-        /// subject — what the drawn scene now shows.
+        /// **Not superseded by anything.** The user asked for a body or a
+        /// space not to be DRAWN, and the document did not answer that
+        /// question differently — it made the question unaskable: what was
+        /// hidden is gone, and nothing reappears. Nothing takes the hide's
+        /// place. The fault renders itself, unaltered, and what the chrome
+        /// adds is the chrome's own subject — that the hide went with what
+        /// it was on.
         DroppedHide,
         /// **Neither of the above, and the only one the user's hand was
         /// on.** A drag was in flight and the document stopped admitting
-        /// the instance under it, so the gesture ended where it stood.
+        /// the body under it, so the gesture ended where it stood.
         ///
         /// Nothing substituted for it: the placement it would have landed
         /// was never asked of the document, so this is not a
         /// supersession — and no hide was involved, so it is not that
-        /// either. What it leaves behind is the instance drawn where the
+        /// either. What it leaves behind is the body drawn where the
         /// document puts it, and a hand that was steering something a
         /// moment ago.
         ///
@@ -1526,49 +1514,28 @@ impl core::fmt::Display for Withdrawal<'_> {
             kind: which,
             withdrawn,
         } = self;
-        let fused = |w: &Withdrawn| match w.cause {
-            AdmissionFault::FusedGeometry { .. } => true,
-            AdmissionFault::NoSuchNode { .. }
-            | AdmissionFault::NotAnInstance { .. }
-            | AdmissionFault::InTheWorld { .. }
-            | AdmissionFault::NotEvaluated { .. }
-            | AdmissionFault::NoSpace { .. }
-            | AdmissionFault::MovedSpace { .. }
-            | AdmissionFault::NoSuchSpace { .. }
-            | AdmissionFault::NotShown { .. } => false,
-        };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
         // in flight, so it has no plural and is NOT given one: a
         // `many` string its own constructor cannot reach is prose
         // nothing can ever print.
-        let (kind, one, many, consequence) = match which {
+        let (kind, one, many) = match which {
             WithdrawalKind::Superseded => (
                 "free move",
                 "a committed placement was discarded",
                 Some("committed placements were discarded"),
-                "",
             ),
             WithdrawalKind::DroppedHide => (
                 "hide",
-                "a hide was dropped",
-                Some("hides were dropped"),
-                if withdrawn.iter().all(fused) {
-                    " and the hidden geometry is drawn again"
-                } else if withdrawn.iter().any(fused) {
-                    ""
-                } else {
-                    " with the instance it was on"
-                },
+                "a hide was dropped with what it was on",
+                Some("hides were dropped with what they were on"),
             ),
-            WithdrawalKind::KilledGesture => {
-                ("free move", "the drag in flight was ended", None, "")
-            }
+            WithdrawalKind::KilledGesture => ("free move", "the drag in flight was ended", None),
         };
         let count = withdrawn.len();
         match many.filter(|_| count > 1) {
-            Some(many) => write!(f, "{kind}: {count} {many}{consequence} — ")?,
-            None => write!(f, "{kind}: {one}{consequence} — ")?,
+            Some(many) => write!(f, "{kind}: {count} {many} — ")?,
+            None => write!(f, "{kind}: {one} — ")?,
         }
         // Each cause rendered by its own `Display`, in the order the
         // prune found them, joined with [`LIST_SEPARATOR`] rather than
@@ -1585,7 +1552,7 @@ impl core::fmt::Display for Withdrawal<'_> {
         // [`LIST_SEPARATOR`] would nest inside it and a reader could
         // not see where one cause ends. What keeps that from being a
         // hope about wording is the element type: this joins
-        // [`AdmissionFault`]s, whose sentences are the whole
+        // [`crate::display::AdmissionFault`]s, whose sentences are the whole
         // population the claim ranges over and which cannot gain one
         // without an arm in its `Display`. `DisplayFault::NonRigidFrame`
         // writes the mark inside one sentence and is outside that
@@ -1907,7 +1874,7 @@ impl SeamSubject for PickIndexError {
 
 /// The pick index seam, on the badge channel: a copy a built index
 /// holds undrawn.
-impl SeamSubject for UndrawnCopy {
+impl SeamSubject for UndrawnBody {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
 }
 
@@ -2732,7 +2699,7 @@ pub fn index_badge(
         1 => format!("picture: {first}"),
         n => format!("picture: {first} (and {} more copies not drawn)", n - 1),
     };
-    Some(Badge::read(UndrawnCopy::SUBJECT, label, Tone::Actionable).detailed(unreported.join("\n")))
+    Some(Badge::read(UndrawnBody::SUBJECT, label, Tone::Actionable).detailed(unreported.join("\n")))
 }
 
 /// **The speaker for a value built from the landed run**: each node as
@@ -3127,7 +3094,7 @@ mod tests {
     }
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
-    use crate::display::AdmissionFault;
+    use crate::display::{AdmissionFault, Held};
     use crate::tree::RowStatus;
 
     /// **One unproven coincidence between `cells`, about `subject`,
@@ -3672,9 +3639,9 @@ mod tests {
     /// the same whichever fault a withdrawal carries.
     fn pinned(instance: u64) -> Withdrawn {
         Withdrawn {
-            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
+            held: Held::Node(RecipeNodeId::new(0, test_utils::refusal::tagged(instance))),
             cause: AdmissionFault::InTheWorld {
-                instance: crate::test_support::spoken(
+                node: crate::test_support::spoken(
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
@@ -3730,7 +3697,7 @@ mod tests {
         // and neither string is written here — both come from
         // `AdmissionFault`'s `Display`.
         let cause = AdmissionFault::InTheWorld {
-            instance: crate::test_support::spoken(
+            node: crate::test_support::spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 Some("InstantiatePart"),
             ),
@@ -3749,7 +3716,7 @@ mod tests {
         // not say: an instance that is GONE says so, rather than being
         // named as if the tree still drew it.
         let gone = superseded_text(&[Withdrawn {
-            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+            held: Held::Node(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
             cause: AdmissionFault::NoSuchNode {
                 node: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
             },
@@ -3761,45 +3728,28 @@ mod tests {
         );
     }
 
+    /// A dropped hide of a body the document no longer holds.
+    fn gone_body(tag: u64) -> Withdrawn {
+        Withdrawn {
+            held: Held::Node(RecipeNodeId::new(0, test_utils::refusal::tagged(tag))),
+            cause: AdmissionFault::NoSuchNode {
+                node: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(tag))),
+            },
+        }
+    }
+
     #[test]
     fn a_dropped_hide_is_its_own_sentence_not_a_supersession() {
-        // The decision this row pins: re-showing a fused instance is
-        // NOT a supersession. Nothing replaced the user's choice — it
-        // stopped being expressible — so the word "superseded" and the
-        // free-move preamble are both absent, and the fault says which
-        // of the two things happened to the picture.
-        let fused = Withdrawn {
-            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
-            cause: AdmissionFault::FusedGeometry {
-                instance: crate::test_support::spoken(
-                    RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
-                    Some("InstantiatePart"),
-                ),
-                body: crate::test_support::spoken(
-                    RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
-                    Some("Union"),
-                ),
-                others: vec![crate::test_support::spoken(
-                    RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
-                    Some("InstantiatePart"),
-                )],
-            },
-        };
-        let notice = dropped_hide_text(core::slice::from_ref(&fused)).expect("news");
-        assert!(
-            notice
-                .starts_with("hide: a hide was dropped and the hidden geometry is drawn again — "),
-            "its own preamble, not the free-move one — and the part being \
-             back on screen, which is the whole reason this is not a \
-             supersession, reaches the words the user reads: {notice}"
-        );
-        assert!(
-            !notice.contains("free move") && !notice.contains("superseded"),
-            "and it does not borrow the supersession's word: {notice}"
-        );
-        assert!(
-            notice.ends_with(&fused.cause.to_string()),
-            "the fault renders itself: {notice}"
+        // Re-showing nothing is NOT a supersession. Nothing replaced the
+        // user's choice — it stopped being expressible — so the word
+        // "superseded" and the free-move preamble are both absent.
+        let gone = gone_body(4);
+        let notice = dropped_hide_text(core::slice::from_ref(&gone)).expect("news");
+        assert_eq!(
+            notice,
+            "hide: a hide was dropped with what it was on — node 000000000004 is not in the \
+             document",
+            "its own preamble, not the free-move one, and the fault rendering itself"
         );
 
         // Both facts can arrive on one frame, and they are ranked
@@ -3823,59 +3773,27 @@ mod tests {
 
     #[test]
     fn a_frame_that_drops_two_hides_says_so_in_the_plural() {
-        // Reachable in production: one boolean fusing two hidden
-        // instances withdraws both hides in one prune.
-        let fused = |instance: u64, other: u64| Withdrawn {
-            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
-            cause: AdmissionFault::FusedGeometry {
-                instance: crate::test_support::spoken(
-                    RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
-                    Some("InstantiatePart"),
-                ),
-                body: crate::test_support::spoken(
-                    RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
-                    Some("Union"),
-                ),
-                others: vec![crate::test_support::spoken(
-                    RecipeNodeId::new(0, test_utils::refusal::tagged(other)),
-                    Some("InstantiatePart"),
-                )],
+        // Reachable in production: one delete taking a hidden body and
+        // the hidden space it was minted with.
+        let id = pncad::document::VarId::new(0, test_utils::refusal::tagged(6));
+        let doc = pncad::document::ProfileDoc::empty(
+            pncad::document::DocumentId::derive("dropped-hides"),
+            pncad::geom_core::Tol::witness(),
+        );
+        let space = Withdrawn {
+            held: Held::Space(id),
+            cause: AdmissionFault::NotASpace {
+                space: Box::new(doc.spoken_space(id)),
             },
         };
-        let gone = Withdrawn {
-            instance: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
-            cause: AdmissionFault::NoSuchNode {
-                node: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
-            },
-        };
-
-        let two = [fused(3, 5), fused(5, 3)];
+        let two = [gone_body(3), space];
         assert_eq!(
             dropped_hide_text(&two).expect("two dropped hides are news"),
             format!(
-                "hide: 2 hides were dropped and the hidden geometry is drawn \
-                 again — {}{LIST_SEPARATOR}{}",
+                "hide: 2 hides were dropped with what they were on — {}{LIST_SEPARATOR}{}",
                 two[0].cause, two[1].cause
             ),
-            "the plural agrees, and the consequence is said because both \
-             withdrawals agree on it"
-        );
-
-        // A frame whose withdrawals DISAGREE about what the picture
-        // now shows says only the part that is true of both.
-        let mixed = [fused(3, 5), gone.clone()];
-        let notice = dropped_hide_text(&mixed).expect("news");
-        assert!(
-            notice.starts_with("hide: 2 hides were dropped — "),
-            "no consequence claimed over a frame that has two: {notice}"
-        );
-
-        // And the delete arm alone says the honest opposite: nothing
-        // was re-shown, the instance went.
-        assert_eq!(
-            dropped_hide_text(core::slice::from_ref(&gone)).expect("news"),
-            "hide: a hide was dropped with the instance it was on — \
-             node 000000000004 is not in the document"
+            "the plural agrees, and the two faults are joined by the one separator"
         );
     }
 
@@ -3889,9 +3807,8 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 is placed into the world, the product's space, so \
-             the free-move probe refuses. Free-move moves another shown space: place the copy \
-             into a space of its own to probe it"
+             InstantiatePart 000000000003 is in the world, the product's space, so the \
+             free-move probe refuses. Free-move moves another shown space"
         );
 
         let two = [pinned(3), pinned(11)];

@@ -105,14 +105,14 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
 
     // The three shipped GUI-4 tools this door exists to feed, on an
     // instance it authored: hide, the free-move probe, and the mate.
-    let hidden = session.perform(SessionOp::SetInstanceHidden {
-        instance: post_i,
+    let hidden = session.perform(SessionOp::SetBodyHidden {
+        node: post_i,
         hidden: true,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
-    assert!(session.display().hidden().contains(&post_i));
-    let shown = session.perform(SessionOp::SetInstanceHidden {
-        instance: post_i,
+    assert!(session.display().hidden_bodies().contains(&post_i));
+    let shown = session.perform(SessionOp::SetBodyHidden {
+        node: post_i,
         hidden: false,
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
@@ -121,12 +121,12 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     // identity, and the probe, which moves another shown space (DI5),
     // refuses it typed.
     let probe = |session: &mut DocSession| {
-        let outcome = session.perform(SessionOp::BeginFreeMove { instance: shelf_i });
+        let outcome = session.perform(SessionOp::BeginFreeMove { node: shelf_i });
         assert!(
             matches!(
                 &outcome.refusal,
                 Some(Refusal::Display(DisplayFault::Admission(
-                    AdmissionFault::InTheWorld { instance }
+                    AdmissionFault::InTheWorld { node: instance }
                 ))) if instance.id() == shelf_i
             ),
             "an authored instance stands in the world: {:?}",
@@ -1093,9 +1093,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         session.doc().node_space(bench.shelf_i),
         "the post is placed into the shelf's space"
     );
-    let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let outcome = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 
     // The accept undone: the root refuses again, under the gesture.
@@ -1123,7 +1121,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
+            AdmissionFault::NoSpace { node: instance } if instance.id() == bench.post_b
         ),
         "{}",
         killed.cause

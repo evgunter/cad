@@ -218,6 +218,16 @@ impl From<Unsettled> for RootRefusal {
     }
 }
 
+/// **How far `value` lies past zero at the least its rounding allows**:
+/// `value − noise`, and zero where that is not positive. The one
+/// spelling of the rule that reads an in-band extreme less its noise,
+/// so roots only the noise parts read as one touch
+/// (`curve_pair::pose`'s root gap, and the touch of
+/// [`crate::half_angle::certified_subdivision_touching`]).
+pub fn past_noise<T: Decide>(value: T, noise: T) -> T {
+    (value - noise).max(T::zero())
+}
+
 /// **The refusal of a walk that cut nowhere definite**: a touch on the
 /// first reading it met in the band's gap (`gap`), told as the caller's
 /// `touch`, or [`Unsettled::Tangency`] where every reading it tried
