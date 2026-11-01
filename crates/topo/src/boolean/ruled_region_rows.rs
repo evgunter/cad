@@ -29,6 +29,7 @@ fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -
     RegionEdge {
         edge: key(k),
         r#loop: LoopKey::default(),
+        cycle: 0,
         carrier: curve,
         t0,
         t1,

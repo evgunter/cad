@@ -29,7 +29,8 @@ use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
 use crate::widgets::{
-    angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
+    CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, point_fields,
+    unit_field, unit_vec3_row, vec3_row,
 };
 
 /// **The smallest instance index the part form offers.**
@@ -285,6 +286,13 @@ pub(crate) const EXTRUDE: &str = "Extrude";
 /// What the add-profile form's commit button says.
 pub(crate) const ADD_PROFILE: &str = "Add profile";
 
+/// Why the add-profile form's commit waits while its preview refuses
+/// the loops: the refusal itself is said above it.
+const PREVIEW_REFUSES: &str = "the preview above refuses these loops";
+
+/// What the door that opens the add-profile form says.
+pub(crate) const ADD_PROFILE_DOOR: &str = "Add profile…";
+
 /// What the add-profile form asks for while it draws on a face and
 /// holds none.
 pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
@@ -333,6 +341,10 @@ pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
 
 /// The heading of the section whose tools reshape a body's edges.
 pub(crate) const BLEND_EDGES: &str = "Blend edges";
+
+/// The heading of the section whose tools bring in another document
+/// and place it.
+pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
 
 /// **The chooser's answer, drawn**: the directory it read, then the
 /// parts on offer or what it has to say instead — and the entry that
@@ -449,7 +461,11 @@ fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
 }
 
 impl ViewerBehavior<'_> {
-    /// The creation sections. Each form is minimal — its few required
+    /// The creation sections, each behind its own header and each tool
+    /// or form in it behind its own button, so the pane at rest is the
+    /// headers. A form whose op takes the selection is not here: it is
+    /// drawn beside the selection while its op admits it
+    /// ([`Self::extrude_ui`]). Each form is minimal — its few required
     /// fields with sensible defaults — and emits exactly one creation
     /// op; the property panel is the editor for everything after the
     /// insert — for a profile, through this section's own path editor
@@ -457,9 +473,6 @@ impl ViewerBehavior<'_> {
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.add_profile_ui(ui);
-            // Draws its own separator, and nothing at all unless a
-            // profile is selected.
-            self.extrude_ui(ui);
             ui.separator();
             self.revolve_tool_ui(ui);
         });
@@ -491,6 +504,12 @@ impl ViewerBehavior<'_> {
         ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
         });
+        // The tools whose subject is another document: an instance of
+        // a part, and the mate that places one.
+        ui.collapsing(ASSEMBLE_PARTS, |ui| {
+            self.add_part_ui(ui);
+            self.mate_tool_ui(ui);
+        });
         ui.separator();
     }
 
@@ -503,13 +522,7 @@ impl ViewerBehavior<'_> {
         // copy stays in the application and is only ever REPLACED
         // whole (activation, deactivation), never edited here.
         let Some(tool) = self.tools.mate().cloned() else {
-            if ui.button(ToolKind::Mate.button()).clicked() {
-                // ONE modal tool at a time — `Tools::open` closes
-                // whatever was open, the rule and its argument living
-                // in that value rather than at each activation.
-                self.tools.open(ToolKind::Mate);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Mate);
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
         mate_picks_row(ui, tool.state(), self.session.doc(), &self.theme);
@@ -545,66 +558,62 @@ impl ViewerBehavior<'_> {
                 unit_field(ui, unit, speed, value);
             });
         }
-        let mut close = false;
-        ui.horizontal(|ui| {
-            if ui.button(ToolKind::Mate.commit()).clicked() {
-                let values: Result<Vec<_>, _> = MateFreedom::ALL
-                    .iter()
-                    .zip(self.drafts.mate_values)
-                    .filter(|(_, (set, _))| *set && MateFreedom::offered_beside(kind))
-                    .map(|(freedom, (_, value))| {
-                        let coord = freedom.coord();
-                        match coord {
-                            Coord::Slide(_) => self.notation.length_literal(value),
-                            Coord::Spin(_) => self.notation.angle_literal(value),
-                        }
-                        .map(|by| (coord, by))
-                    })
-                    .collect();
-                match (values, self.session.landed_pair()) {
-                    (Err(error), _) => {
-                        self.notices
-                            .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
+        let closing = commit_row(ui, ToolKind::Mate.commit(), None, |_| {});
+        let mut close = closing.cancel;
+        if closing.commit {
+            let values: Result<Vec<_>, _> = MateFreedom::ALL
+                .iter()
+                .zip(self.drafts.mate_values)
+                .filter(|(_, (set, _))| *set && MateFreedom::offered_beside(kind))
+                .map(|(freedom, (_, value))| {
+                    let coord = freedom.coord();
+                    match coord {
+                        Coord::Slide(_) => self.notation.length_literal(value),
+                        Coord::Spin(_) => self.notation.angle_literal(value),
                     }
-                    (Ok(values), Some((doc, _))) => {
-                        let choice = MateChoice {
-                            kind,
-                            flip: self.drafts.mate_flip,
-                            values,
-                        };
-                        match tool.proposal(doc, choice) {
-                            Ok(proposal) => {
-                                // One committed action; the tool
-                                // closes with it.
-                                let op = if self.drafts.mate_into_target_space {
-                                    proposal.op_into_target_space()
-                                } else {
-                                    proposal.op()
-                                };
-                                self.push_tool_op(self.tool_noun(ToolKind::Mate), op);
-                                close = true;
-                            }
-                            // Said from the document the panel's
-                            // line speaks, so a rename that has
-                            // not landed reads the same in both.
-                            Err(error) => {
-                                self.notices.push(frame::tool_news(
-                                    &ToolKind::Mate.refuses(&error.respoken(self.session.doc())),
-                                ));
-                            }
+                    .map(|by| (coord, by))
+                })
+                .collect();
+            match (values, self.session.landed_pair()) {
+                (Err(error), _) => {
+                    self.notices
+                        .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
+                }
+                (Ok(values), Some((doc, _))) => {
+                    let choice = MateChoice {
+                        kind,
+                        flip: self.drafts.mate_flip,
+                        values,
+                    };
+                    match tool.proposal(doc, choice) {
+                        Ok(proposal) => {
+                            // One committed action; the tool
+                            // closes with it.
+                            let op = if self.drafts.mate_into_target_space {
+                                proposal.op_into_target_space()
+                            } else {
+                                proposal.op()
+                            };
+                            self.push_tool_op(self.tool_noun(ToolKind::Mate), op);
+                            close = true;
                         }
-                    }
-                    _ => {
-                        self.notices.push(frame::tool_news(
-                            &ToolKind::Mate.refuses(&"no landed document to read the picks on"),
-                        ));
+                        // Said from the document the panel's
+                        // line speaks, so a rename that has
+                        // not landed reads the same in both.
+                        Err(error) => {
+                            self.notices.push(frame::tool_news(
+                                &ToolKind::Mate.refuses(&error.respoken(self.session.doc())),
+                            ));
+                        }
                     }
                 }
+                _ => {
+                    self.notices.push(frame::tool_news(
+                        &ToolKind::Mate.refuses(&"no landed document to read the picks on"),
+                    ));
+                }
             }
-            if ui.button("Cancel").clicked() {
-                close = true;
-            }
-        });
+        }
         if close {
             self.tools.close();
         }
@@ -628,8 +637,7 @@ impl ViewerBehavior<'_> {
     /// rather than on a tree badge: no node exists yet to badge.
     pub(crate) fn add_part_ui(&mut self, ui: &mut egui::Ui) {
         if self.part_chooser.is_none() {
-            if ui
-                .button(ADD_PART)
+            if door(ui, ADD_PART)
                 .on_hover_text("insert an instance of another document in this one's directory")
                 .clicked()
             {
@@ -663,7 +671,7 @@ impl ViewerBehavior<'_> {
                     {
                         rescan = true;
                     }
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(CANCEL).clicked() {
                         close = true;
                     }
                 });
@@ -690,7 +698,10 @@ impl ViewerBehavior<'_> {
     /// [`SessionOp::AddProfile`] on commit — the profile on its own
     /// plane — or, drawing on a face, one [`SessionOp::SketchOnFace`]:
     /// the profile extruded away from the face picked in the viewport
-    /// and fused with its body, in one submit and one undo.
+    /// and fused with its body, in one submit and one undo. Behind its
+    /// `Add profile…` door, as every tool is behind its button: at rest
+    /// the form is one control, and it closes with its commit
+    /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
     ///
     /// The circle's optional bore is what lets this template author
     /// the hollow ring's annulus (one profile node, two loops).
@@ -699,11 +710,14 @@ impl ViewerBehavior<'_> {
     /// the profile layer's containment forest, not from list order,
     /// so a bore at or beyond the outer radius would not refuse — it
     /// would silently swap which circle is the hole. The form says
-    /// "bore", so it disables Create until the bore is smaller, with
+    /// "bore", so it disables its commit until the bore is smaller, with
     /// the reason shown. This is a chrome affordance guarding the
     /// template's stated intent; the op stays unjudged and the
     /// kernel's containment rule stays the one home.
     pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
+        if !form_door(ui, ADD_PROFILE_DOOR, &mut self.drafts.profile_open) {
+            return;
+        }
         self.profile_drawn.create = true;
         ui.horizontal(|ui| {
             ui.label("profile");
@@ -841,13 +855,15 @@ impl ViewerBehavior<'_> {
             self.profile_previews.create.as_ref().filter(|_| !at_rest),
         );
         self.creation_label_row(ui, PROFILE_NOUN);
-        if ui
-            .add_enabled(
-                blocked.is_none() && !refused,
-                egui::Button::new(ADD_PROFILE),
-            )
-            .clicked()
-        {
+        let withheld = match blocked {
+            Some(withheld) => Some(withheld.words()),
+            None => refused.then_some(PREVIEW_REFUSES),
+        };
+        let closing = commit_row(ui, ADD_PROFILE, withheld, |_| {});
+        if closing.cancel {
+            self.drafts.profile_open = false;
+        }
+        if closing.commit {
             // Lowered HERE rather than in the session: the notation is
             // the form's, and a literal that forgot it between the two
             // is exactly the gap this carries across.
@@ -1045,7 +1061,9 @@ impl ViewerBehavior<'_> {
     /// [`NodeKindWanted::Profile`], over the committed document as
     /// `DocSession::require_kind` reads it): the form is offered
     /// exactly where the op would accept it, as the instance section
-    /// is (`ViewerBehavior::instance_ui`).
+    /// is (`ViewerBehavior::instance_ui`) — and beside the selection,
+    /// outside the collapsed creation sections ([`Self::create_ui`]),
+    /// so no header has to be opened to find it.
     pub(crate) fn extrude_ui(&mut self, ui: &mut egui::Ui) {
         let Some(node) =
             self.session.selection().node().filter(|node| {
@@ -1102,13 +1120,7 @@ impl ViewerBehavior<'_> {
         // closing the tool; the authoritative copy is only ever
         // replaced whole.
         let Some(tool) = self.tools.revolve() else {
-            if ui.button(ToolKind::Revolve.button()).clicked() {
-                // ONE modal tool at a time — `Tools::open` closes
-                // whatever was open, the rule and its argument living
-                // in that value rather than at each activation.
-                self.tools.open(ToolKind::Revolve);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Revolve);
         };
         crate::widgets::message(
             ui,
@@ -1178,10 +1190,7 @@ impl ViewerBehavior<'_> {
     /// commits whatever members are held, one or more.
     pub(crate) fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.boolean() else {
-            if ui.button(ToolKind::Boolean.button()).clicked() {
-                self.tools.open(ToolKind::Boolean);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Boolean);
         };
         let mut op = tool.operation();
         ui.horizontal(|ui| {
@@ -1216,9 +1225,7 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.boolean() else {
             return;
         };
-        if ui
-            .add_enabled(!tool.is_empty(), egui::Button::new("Clear picks"))
-            .clicked()
+        if clear_picks_button(ui, tool.picks().len(), Picked::Bodies)
             && let Some(open) = self.tools.boolean_mut()
         {
             open.clear();
@@ -1231,10 +1238,7 @@ impl ViewerBehavior<'_> {
     /// edit.
     pub(crate) fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.split() else {
-            if ui.button(ToolKind::Split.button()).clicked() {
-                self.tools.open(ToolKind::Split);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Split);
         };
         crate::widgets::message(
             ui,
@@ -1267,10 +1271,7 @@ impl ViewerBehavior<'_> {
     /// one committed edit.
     pub(crate) fn mirror_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.mirror().cloned() else {
-            if ui.button(ToolKind::Mirror.button()).clicked() {
-                self.tools.open(ToolKind::Mirror);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Mirror);
         };
         crate::widgets::message(
             ui,
@@ -1298,10 +1299,7 @@ impl ViewerBehavior<'_> {
     /// fields, and the one committed edit.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.transform() else {
-            if ui.button(ToolKind::Transform.button()).clicked() {
-                self.tools.open(ToolKind::Transform);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Transform);
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
         if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
@@ -1351,10 +1349,7 @@ impl ViewerBehavior<'_> {
     /// `instances` commits the family of several bodies.
     pub(crate) fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
-            if ui.button(ToolKind::Pattern.button()).clicked() {
-                self.tools.open(ToolKind::Pattern);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Pattern);
         };
         crate::widgets::message(
             ui,
@@ -1463,10 +1458,7 @@ impl ViewerBehavior<'_> {
     /// other.
     pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.part() else {
-            if ui.button(ToolKind::Part.button()).clicked() {
-                self.tools.open(ToolKind::Part);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Part);
         };
         crate::widgets::message(
             ui,
@@ -1491,10 +1483,7 @@ impl ViewerBehavior<'_> {
     /// which [`duplicate_note`] states.
     pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.duplicate() else {
-            if ui.button(ToolKind::Duplicate.button()).clicked() {
-                self.tools.open(ToolKind::Duplicate);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Duplicate);
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
         if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
@@ -1521,10 +1510,7 @@ impl ViewerBehavior<'_> {
         // door is re-borrowed at the click.
         let Some((target, count)) = self.tools.blend().map(|tool| (tool.target(), tool.count()))
         else {
-            if ui.button(ToolKind::Blend.button()).clicked() {
-                self.tools.open(ToolKind::Blend);
-            }
-            return;
+            return self.tool_door(ui, ToolKind::Blend);
         };
         crate::widgets::message(ui, ToolKind::Blend.says(&"pick the edges to blend"));
         crate::widgets::message_toned(ui, FREEZE_NOTE, &self.theme, Tone::Advisory);
@@ -1630,42 +1616,48 @@ impl ViewerBehavior<'_> {
         if let Some(noun) = noun {
             self.creation_label_row(ui, noun);
         }
-        let mut close = false;
-        ui.horizontal(|ui| {
-            let commit = ui
-                .add_enabled(count > 0, egui::Button::new(ToolKind::Blend.commit()))
-                .on_disabled_hover_text("pick an edge first");
-            if commit.clicked() {
-                match self.notation.length_literal(self.drafts.blend_size) {
-                    Ok(size) => {
-                        let op: Option<SessionOp> = self.tools.blend().and_then(|tool| match self
-                            .drafts
-                            .blend_kind
-                        {
-                            BlendKindChoice::Fillet => tool.fillet_op(size.clone()),
-                            BlendKindChoice::Chamfer => tool.chamfer_op(size),
-                        });
-                        if let Some(op) = op {
-                            self.push_tool_op(noun, op);
-                        }
-                    }
-                    Err(error) => {
-                        self.notices
-                            .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
+        let mut clear = false;
+        let closing = commit_row(
+            ui,
+            ToolKind::Blend.commit(),
+            (count == 0).then_some("pick an edge first"),
+            |ui| clear = clear_picks_button(ui, count, Picked::Edges),
+        );
+        if clear && let Some(tool) = self.tools.blend_mut() {
+            tool.clear();
+        }
+        if closing.commit {
+            match self.notation.length_literal(self.drafts.blend_size) {
+                Ok(size) => {
+                    let op: Option<SessionOp> =
+                        self.tools
+                            .blend()
+                            .and_then(|tool| match self.drafts.blend_kind {
+                                BlendKindChoice::Fillet => tool.fillet_op(size.clone()),
+                                BlendKindChoice::Chamfer => tool.chamfer_op(size),
+                            });
+                    if let Some(op) = op {
+                        self.push_tool_op(noun, op);
                     }
                 }
+                Err(error) => {
+                    self.notices
+                        .push(frame::tool_news(&ToolKind::Blend.refuses(&error)));
+                }
             }
-            if clear_picks_button(ui, count)
-                && let Some(tool) = self.tools.blend_mut()
-            {
-                tool.clear();
-            }
-            if ui.button("Cancel").clicked() {
-                close = true;
-            }
-        });
-        if close {
+        }
+        if closing.cancel {
             self.tools.close();
+        }
+    }
+
+    /// **A closed tool's door** ([`door`]): one modal tool at a time,
+    /// so the click goes to `Tools::open`, which closes whatever was
+    /// open — the rule and its argument live in that value rather than
+    /// at each door.
+    fn tool_door(&mut self, ui: &mut egui::Ui, kind: ToolKind) {
+        if door(ui, kind.button()).clicked() {
+            self.tools.open(kind);
         }
     }
 
@@ -1807,43 +1799,61 @@ impl ViewerBehavior<'_> {
         if let Some(noun) = noun {
             self.creation_label_row(ui, noun);
         }
-        let mut close = false;
-        ui.horizontal(|ui| {
-            if ui.button(kind.commit()).clicked() {
-                match op(self.drafts, *self.notation) {
-                    Ok(op) => self.push_tool_op(noun, op),
-                    Err(error) => {
-                        self.notices.push(frame::tool_news(&kind.refuses(&error)));
-                    }
+        let closing = commit_row(ui, kind.commit(), None, |_| {});
+        if closing.commit {
+            match op(self.drafts, *self.notation) {
+                Ok(op) => self.push_tool_op(noun, op),
+                Err(error) => {
+                    self.notices.push(frame::tool_news(&kind.refuses(&error)));
                 }
             }
-            if ui.button("Cancel").clicked() {
-                close = true;
-            }
-        });
-        if close {
+        }
+        if closing.cancel {
             self.tools.close();
         }
     }
 }
 
-/// **The blend tool's `Clear picks`**, live while `count` edges are
-/// held. No operation stands behind it — clearing is tool state — so
-/// with nothing held there is no refusal to read, and the literal here
-/// is the sentence: each state carries its own on the hook egui shows
-/// in that state.
+/// **What a tool's picks are, for its `Clear picks`**: the words its
+/// two states say on the hover egui shows in each.
+#[derive(Clone, Copy)]
+enum Picked {
+    /// The blend tool's edges.
+    Edges,
+    /// The boolean tool's bodies.
+    Bodies,
+}
+
+impl Picked {
+    /// What a click does, live.
+    fn drops(self) -> &'static str {
+        match self {
+            Self::Edges => "drop every picked edge and start on any body",
+            Self::Bodies => "drop every picked body",
+        }
+    }
+
+    /// Why the button is disabled with nothing held.
+    fn nothing(self) -> &'static str {
+        match self {
+            Self::Edges => "no edge is picked, so there is nothing to clear",
+            Self::Bodies => "no body is picked, so there is nothing to clear",
+        }
+    }
+}
+
+/// **A tool's `Clear picks`**, live while `count` picks are held. No
+/// operation stands behind it — clearing is tool state — so with
+/// nothing held there is no refusal to read, and [`Picked`] carries the
+/// sentence: each state its own, on the hook egui shows in that state.
 ///
 /// Answers whether it was clicked, which a disabled button never is.
-fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
+fn clear_picks_button(ui: &mut egui::Ui, count: usize, picked: Picked) -> bool {
     let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
     if count > 0 {
-        button
-            .on_hover_text("drop every picked edge and start on any body")
-            .clicked()
+        button.on_hover_text(picked.drops()).clicked()
     } else {
-        button
-            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
-            .clicked()
+        button.on_disabled_hover_text(picked.nothing()).clicked()
     }
 }
 
@@ -1861,7 +1871,7 @@ mod tests {
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
     use super::{
-        clear_picks_button, duplicate_note, mate_picks_row, part_selector_rows, seats_row,
+        Picked, clear_picks_button, duplicate_note, mate_picks_row, part_selector_rows, seats_row,
     };
     use crate::combine::BooleanTool;
     use crate::frame::Tone;
@@ -2046,7 +2056,7 @@ mod tests {
     #[test]
     fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
         let hovered = painted_while_hovering("Clear picks", 0, |ui| {
-            clear_picks_button(ui, 0);
+            clear_picks_button(ui, 0, Picked::Edges);
         });
         assert!(
             hovered.contains("no edge is picked, so there is nothing to clear"),
@@ -2059,7 +2069,7 @@ mod tests {
     #[test]
     fn clear_picks_with_picks_held_says_what_it_drops() {
         let hovered = painted_while_hovering("Clear picks", 0, |ui| {
-            clear_picks_button(ui, 3);
+            clear_picks_button(ui, 3, Picked::Edges);
         });
         assert!(
             hovered.contains("drop every picked edge and start on any body"),

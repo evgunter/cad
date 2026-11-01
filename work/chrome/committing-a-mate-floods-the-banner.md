@@ -26,12 +26,13 @@ save <dir>/plate.pncad
 click "New…"
 click "document name"
 type "assembly"
-click "Create" 0
+click "Create document"
 save <dir>/assembly.pncad
+click "Assemble parts"
 click "Add part…"
-click "add" 2
+click "add" 1
 click "Add part…"
-click "add" 2
+click "add" 1
 click "InstantiatePart 2 *"
 click "0.0000" 2
 type "0.03"
@@ -45,6 +46,8 @@ picture shot.png
 ```
 
 `<dir>` must be an empty directory.
+
+As of 2026-11-01 the two `vclick`s land no face pick on main as well as with the forms-at-rest doors (the panel says `mate tool: needs two face picks` at the commit), so the viewport fractions want re-reading before this replays the flood.
 
 ## Closed (2026-11-01, PR 6203)
 
