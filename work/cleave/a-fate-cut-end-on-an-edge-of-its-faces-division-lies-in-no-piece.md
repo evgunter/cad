@@ -2,11 +2,13 @@
 id: a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece
 kind: issue
 title: A fate cut's pierced corner on an edge of its kept face's division, at no vertex of it, refuses ClassificationInvariant
-status: open
+status: review
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [a-fate-cut-touch-end-at-a-division-vertex-lies-in-no-piece, a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece, a-fate-cut-touch-end-on-an-edge-of-its-faces-division-is-unplaced, a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug]
+branch: cleave/fate-cut-end-on-a-division-edge
+pr: 6237
 ---
 
 

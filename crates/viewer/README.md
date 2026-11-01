@@ -2263,7 +2263,7 @@ rather than an exception:
   match to borrow, and its doc already argues it is the single list.
 - **A deliberately partial list** claims no completeness, so forcing it
   would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
-  two of five `Subject`s, each tool's seat list names its own seats,
+  three of six `Subject`s, each tool's seat list names its own seats,
   and `MATE_KINDS` offers the two pose kinds one face pick reads. Each
   says why in its own doc.
 
