@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-19
 priority: P3
 cost: M
+parent: the-boolean-reads-the-other-operand-through-one-cone
+rides_with: the-boolean-reads-the-other-operand-through-one-cone
 ---
 
 Filed by RESTREAD's link-reading lane (branch `restread/link-touch-reading`),
@@ -51,3 +53,7 @@ reader (its sectors carry their far points: `Reach::Chord`), or the
 census's reader moves to a home both call. Related:
 `work/twice/great-arc-parity-is-read-twice-with-two-degeneracy-rules.md`
 (the same parity read a third time, by `ring_path::path_parity`).
+
+## Claimed (2026-11-01, ONEREAD)
+
+Moved from `work/honeone/` by ONEREAD: `the-booleans-cone-reader-is-a-second-link`'s decision deletes `cone_side` and `in_sector` with the boolean's cone reader, so this row closes with `the-boolean-reads-the-other-operand-through-one-cone`. (ONEREAD orchestrator)
