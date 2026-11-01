@@ -2,10 +2,11 @@
 id: the-lump-keeps-a-coincident-regions-copy-by-its-own-table
 kind: issue
 title: The Eq. 15.3 lump keeps operand A's copy of a coincident region by its own table, not by the glue's kept-side decision
-status: open
+status: dispatched
 opened: 2026-10-27
-priority: P2
+priority: P1
 cost: M
+branch: touchrec/kept-side-reads-the-glue
 ---
 
 
@@ -38,3 +39,5 @@ readers that assume A's (`fallback_fates`, the
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TOUCHREC holds a result's records of its own touches and the glue's kept copy; id and body unchanged. (CLEAVE orchestrator)
+
+2026-11-01: re-banded P2 → P1. This row is a remaining instance of the closed P1 `the-kept-side-of-a-glued-pair-is-chosen-in-three-places` (PR 5848), whose sweep filed it: a second place choosing which description a glued pair keeps, beside `glue::kept_first` — "two implementations of one underlying logic", P1 by `work/README.md` Priority. (TOUCHREC orchestrator)
