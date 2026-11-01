@@ -58,7 +58,7 @@ use topo::clearance::{
 };
 use topo::{Body, FaceKey, LoopBoundary, VertexKey};
 
-use crate::common::{normal_start_place, plane_of, quad};
+use crate::common::{arc_spine_places, normal_start_place, quad};
 use crate::revolve_common::donut_profile;
 
 /// The default whole-query budget the document door runs at
@@ -442,40 +442,44 @@ fn a_370_degree_flat_ribbon_reads_violated() {
     );
 }
 
-/// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** Two
-/// pentagons lofted at `v_degree = 1`; joint 1 turns +170° in one
-/// section and −170° in the other, so the seam between walls 0 and 1
+/// **The carvetail loft**: two pentagons at `z = 0` and `z = 1`,
+/// lofted at `v_degree = 1`; joint 1 turns +170° in one section and
+/// −170° in the other.
+fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
+    let pent = |pts: [(f64, f64); 5]| {
+        lifted(&[ProfileLoop::polygon(
+            pts.iter().map(|&(x, y)| Point2::new(x, y)),
+        )])
+    };
+    let sections = [
+        pent([
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (0.03, 0.347),
+            (-2.0, 1.0),
+            (-2.0, -1.0),
+        ]),
+        pent([
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (0.03, -0.347),
+            (3.0, -3.0),
+            (3.0, 3.0),
+        ]),
+    ];
+    let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
+    loft_body::<T>(&sections, &places, 1, tol()).expect("the carvetail lofts")
+}
+
+/// **The carvetail fold reads `Violated`, its witness at `v ≈ ½`.** In
+/// the [`carvetail`] loft the seam between walls 0 and 1
 /// passes through wedge 0 at `v = ½`, where wall 1 lies along wall 0
 /// and crosses it. The two walls share that seam, so the pair is the
 /// one the global drop never examined.
 #[test]
 fn the_carvetail_fold_reads_violated_at_its_middle_station() {
     fn fold<T: Scalar>() -> (sweep::Lofted<T>, Vec<FaceKey>) {
-        let pent = |pts: [(f64, f64); 5]| {
-            vec![ProfileLoop::polygon(
-                pts.iter().map(|&(x, y)| Point2::new(x, y)),
-            )]
-        };
-        let sections = [
-            pent([
-                (0.0, 0.0),
-                (2.0, 0.0),
-                (0.03, 0.347),
-                (-2.0, 1.0),
-                (-2.0, -1.0),
-            ]),
-            pent([
-                (0.0, 0.0),
-                (2.0, 0.0),
-                (0.03, -0.347),
-                (3.0, -3.0),
-                (3.0, 3.0),
-            ]),
-        ];
-        let places = [0.0, 1.0].map(|z| SketchPlane::xy_at(Point3::new(0.0, 0.0, z)));
-        let sections = sections.map(|s| lifted(&s));
-        let places = places.map(|p| plane_at(&p));
-        let lofted = loft_body::<T>(&sections, &places, 1, tol()).expect("the fold lofts");
+        let lofted = carvetail::<T>();
         // Walls 0 and 1: the two whose boundary holds the seam over (2, 0).
         let on_seam = |f: FaceKey| {
             let s = surface(&lofted.body, f);
@@ -796,28 +800,6 @@ fn decided_at_both(
     report
 }
 
-/// The planar arc spine of `bool6_per_slab_stacking`: stations on a unit
-/// circle in the `xz` plane, `curl` radians in all, each plane normal
-/// along the arc.
-fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
-    let last = f64::from(u32::try_from(stations - 1).unwrap());
-    (0..stations)
-        .map(|i| {
-            let theta = curl * f64::from(u32::try_from(i).unwrap()) / last;
-            let (s, c) = theta.sin_cos();
-            let linear = geom_core::Mat3::from_cols(
-                geom_core::Vec3::new(0.0, 1.0, 0.0),
-                geom_core::Vec3::new(-s, 0.0, c),
-                geom_core::Vec3::new(c, 0.0, s),
-            );
-            plane_of(&geom_core::Affine3::from_parts(
-                linear,
-                geom_core::Vec3::new(s, 0.0, 1.0 - c),
-            ))
-        })
-        .collect()
-}
-
 /// A 0.1 square lofted along [`arc_spine_places`] at 17 stations,
 /// `v`-degree 3.
 fn arc_spine<T: Scalar>(curl: f64) -> sweep::Lofted<T> {
@@ -931,31 +913,6 @@ fn a_closed_spine_reads_violated_top_against_bottom() {
 /// face asked. Wall 0 crosses wall 3.
 #[test]
 fn the_carvetail_loft_reads_violated_over_every_face() {
-    fn carvetail<T: Scalar>() -> sweep::Lofted<T> {
-        let pent = |pts: [(f64, f64); 5]| {
-            lifted(&[ProfileLoop::polygon(
-                pts.iter().map(|&(x, y)| Point2::new(x, y)),
-            )])
-        };
-        let sections = [
-            pent([
-                (0.0, 0.0),
-                (2.0, 0.0),
-                (0.03, 0.347),
-                (-2.0, 1.0),
-                (-2.0, -1.0),
-            ]),
-            pent([
-                (0.0, 0.0),
-                (2.0, 0.0),
-                (0.03, -0.347),
-                (3.0, -3.0),
-                (3.0, 3.0),
-            ]),
-        ];
-        let places = [0.0, 1.0].map(|z| plane_at(&SketchPlane::xy_at(Point3::new(0.0, 0.0, z))));
-        loft_body::<T>(&sections, &places, 1, tol()).expect("the carvetail lofts")
-    }
     let lofted = carvetail::<f64>();
     let report = decided_at_both(
         "the carvetail loft",

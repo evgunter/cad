@@ -83,14 +83,17 @@
 //! in `docs/predicate-dimension-audit.md`. No DECISION here compares a
 //! float raw, mints a tolerance, or reads a width as evidence.
 //!
-//! One raw compare survives, and it is not a decision: the proximity
-//! tree's admission test, which decides which pairs are EXAMINED
+//! Two raw compares survive, and neither is a decision. The first is
+//! the proximity tree's admission test, which decides which pairs are EXAMINED
 //! rather than what any of them means. It is padded by the funnel's
 //! own escalate threshold (`c + band.escalate()`), so a pair it drops
 //! is one the funnel would have discharged definitely — the two agree
 //! in the only direction that matters, and everything inside the band
-//! reaches the funnel. Stated because a reviewer should meet it here
-//! rather than find it.
+//! reaches the funnel. The second is the window door's [`refines`],
+//! whose bound compares decide which charts are ADMITTED to the sweep,
+//! never what a pair means: a chart admitted wrongly costs depth or
+//! budget, which the sweep refuses typed. Stated because a reviewer
+//! should meet them here rather than find them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
@@ -2800,8 +2803,8 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
     }
     if !refines(&charted, u, v) {
         return unsupported(
-            "a face whose interval chart does not refine — halving its window leaves the \
-             enclosure where it was, so no subdivision can decide anything about it",
+            "a face whose interval chart does not refine — on one axis of its window, \
+             neither half narrows the enclosure at one halving",
         );
     }
     Ok(Window {
@@ -2978,14 +2981,14 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
 /// BOTH axes must refine: a chart that refines on `u` alone gives a
 /// subdivision that can only ever narrow one direction, which for a
 /// two-dimensional window is not convergence. An axis refines when
-/// EITHER of its halves moves a bound of the whole window's box. One
-/// half alone says nothing: every extreme of a wall can be attained in
-/// its lower half, which then spans the whole box while the upper half
+/// EITHER of its halves [`narrows`] the whole window's box. One half
+/// alone says nothing: every extreme of a wall can be attained in its
+/// lower half, which then spans the whole box while the upper half
 /// narrows. Inclusion isotony (an analytic carrier's interval
 /// evaluation shrinks under sub-boxes; a spline chart's
 /// [`Surface::rect_enclosure`] hulls a restricted net lying in its
 /// parent's hull, up to the restriction's rounding) holds each half
-/// inside the whole, so an axis neither of whose halves moves is one
+/// inside the whole, so an axis neither of whose halves narrows is one
 /// the subdivision gives no evidence of narrowing.
 ///
 /// This is an admission rule, not a certificate: a chart admitted that
@@ -2994,17 +2997,29 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
 fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
     let boxed = |u, v| cell_box(&enclosure(surface, u, v));
     let whole = boxed(u, v);
-    let narrower = |b: Aabb| {
-        b.max_x < whole.max_x
-            || b.max_y < whole.max_y
-            || b.max_z < whole.max_z
-            || b.min_x > whole.min_x
-            || b.min_y > whole.min_y
-            || b.min_z > whole.min_z
-    };
     let (mu, mv) = (geom::mid_param(u.0, u.1), geom::mid_param(v.0, v.1));
-    let on_u = narrower(boxed((u.0, mu), v)) || narrower(boxed((mu, u.1), v));
-    on_u && (narrower(boxed(u, (v.0, mv))) || narrower(boxed(u, (mv, v.1))))
+    let axis = |lower: Aabb, upper: Aabb| narrows(&whole, &lower) || narrows(&whole, &upper);
+    axis(boxed((u.0, mu), v), boxed((mu, u.1), v)) && axis(boxed(u, (v.0, mv)), boxed(u, (mv, v.1)))
+}
+
+/// Whether `half` moves a bound of `whole` inward. A box with a bound
+/// that is not finite (poison, where the enclosure did not evaluate)
+/// certifies nothing, so it gives no evidence of narrowing, on either
+/// side of the comparison.
+fn narrows(whole: &Aabb, half: &Aabb) -> bool {
+    let finite = |b: &Aabb| {
+        [b.min_x, b.min_y, b.min_z, b.max_x, b.max_y, b.max_z]
+            .iter()
+            .all(|x| x.is_finite())
+    };
+    finite(whole)
+        && finite(half)
+        && (half.max_x < whole.max_x
+            || half.max_y < whole.max_y
+            || half.max_z < whole.max_z
+            || half.min_x > whole.min_x
+            || half.min_y > whole.min_y
+            || half.min_z > whole.min_z)
 }
 
 /// The face's boundary enclosure, and the boundary itself lifted.
@@ -4268,7 +4283,7 @@ mod refines_rows {
     use geom_core::spline::{KnotVector, Knots};
     use geom_core::{Interval, Point3, Real};
 
-    use super::refines;
+    use super::{Aabb, narrows, refines};
 
     /// A patch over `[0, 1]²` linear in `v`, lifted to `Interval`: the
     /// polyline `along` in `u` (degree 1, knots at the even splits),
@@ -4293,32 +4308,33 @@ mod refines_rows {
 
     const WHOLE: (f64, f64) = (0.0, 1.0);
 
-    /// **A wall whose extremes all lie in its lower `u` half refines.**
-    /// The lower half spans the whole box; the upper half narrows it.
-    /// Red if the door reads only the lower halves, or asks both halves
-    /// to move.
+    /// **A wall whose extremes all lie in one `u` half refines**, by the
+    /// other half moving a bound: a `min` bound for the first pair, a
+    /// `max` bound only for the second. Red if the door reads only the
+    /// lower halves, only the upper ones, asks both halves to move, or
+    /// counts only one side's bounds.
     #[test]
-    fn a_wall_reaching_its_extremes_in_its_lower_half_refines() {
-        let wall = ribbon(&[(0.0, 0.0, 0.0), (2.0, 2.0, 0.0), (1.0, 1.0, 0.0)], 1.0);
-        assert!(refines(&wall, WHOLE, WHOLE));
+    fn a_wall_reaching_its_extremes_in_one_half_refines() {
+        let o = (0.0, 0.0, 0.0);
+        let (i, ii) = ((1.0, 1.0, 0.0), (2.0, 2.0, 0.0));
+        for (what, along) in [
+            ("lower half, the upper moving a min", [o, ii, i]),
+            ("upper half, the lower moving a min", [i, ii, o]),
+            ("lower half, the upper moving a max", [ii, o, i]),
+            ("upper half, the lower moving a max", [i, o, ii]),
+        ] {
+            assert!(refines(&ribbon(&along, 1.0), WHOLE, WHOLE), "{what}");
+        }
     }
 
-    /// **A wall whose extremes all lie in its upper `u` half refines.**
-    /// Red if the door reads only the upper halves, or asks both halves
-    /// to move.
-    #[test]
-    fn a_wall_reaching_its_extremes_in_its_upper_half_refines() {
-        let wall = ribbon(&[(1.0, 1.0, 0.0), (2.0, 2.0, 0.0), (0.0, 0.0, 0.0)], 1.0);
-        assert!(refines(&wall, WHOLE, WHOLE));
-    }
-
-    /// **A bow-tie wall does not refine.** The degree-1 loft wall
-    /// between `(-1, -1, 0) → (1, -1, 0)` and the edge above it run
-    /// backwards, `(1, 1, 1) → (-1, 1, 1)`: the wall of the two-section
-    /// loft whose top faces down. Its `u` iso collapses to a point at
-    /// `v = ½`, so each `u` half spans the whole `x` range and neither
-    /// narrows the box, and the door refuses it whichever halves it
-    /// reads.
+    /// **The x = 1 wall of a loft whose top faces down does not refine.**
+    /// `PRISM_SQUARE`'s edge `(1, -1) → (1, 1)` at `z = 0`, and the same
+    /// edge of a copy turned half a turn about `x` at `z = 1`, where it
+    /// runs `(1, 1, 1) → (1, -1, 1)`: the degree-1 wall between them,
+    /// its net written out (the loft door refuses the body at its fold,
+    /// before this door). It is a bow-tie whose `u` iso collapses to
+    /// `(1, 0, ½)` at `v = ½`, so each `u` half spans the whole box and
+    /// neither narrows it, whichever halves the door reads.
     #[test]
     fn a_bow_tie_wall_does_not_refine() {
         let at = |x, y, z| Point3::new(x, y, z).map(Interval::from_f64);
@@ -4328,15 +4344,44 @@ mod refines_rows {
                 kv().lift(Interval::from_f64),
                 kv().lift(Interval::from_f64),
                 vec![
-                    at(-1.0, -1.0, 0.0),
-                    at(1.0, 1.0, 1.0),
                     at(1.0, -1.0, 0.0),
-                    at(-1.0, 1.0, 1.0),
+                    at(1.0, 1.0, 1.0),
+                    at(1.0, 1.0, 0.0),
+                    at(1.0, -1.0, 1.0),
                 ],
                 vec![Interval::one(); 4],
             )
             .unwrap(),
         ));
         assert!(!refines(&wall, WHOLE, WHOLE));
+    }
+
+    /// **A box that does not certify narrows nothing.** A half with a
+    /// poison bound beside one that moves inward, a poison half, and a
+    /// half inside an unbounded whole each give no evidence. Red if a
+    /// half's or the whole's finiteness goes unread.
+    #[test]
+    fn a_box_that_does_not_certify_narrows_nothing() {
+        let unit = Aabb {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 1.0,
+        };
+        let inward = Aabb { max_x: 0.5, ..unit };
+        assert!(narrows(&unit, &inward), "the finite control narrows");
+        let partly_poison = Aabb {
+            min_y: f64::NAN,
+            ..inward
+        };
+        assert!(!narrows(&unit, &partly_poison), "a half with a NaN bound");
+        assert!(!narrows(&unit, &Aabb::poison()), "a poison half");
+        let unbounded = Aabb {
+            max_x: f64::INFINITY,
+            ..unit
+        };
+        assert!(!narrows(&unbounded, &inward), "an unbounded whole");
     }
 }
