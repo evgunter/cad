@@ -6758,8 +6758,8 @@ mod tests {
             );
             assert_eq!(
                 side_code(dir, reach, n, NO_CURVATURE(), b).unwrap(),
-                SideCode::On,
-                "the sector passes read the first order: {bend:?}"
+                want,
+                "the sector passes read the side it bends to: {bend:?}"
             );
             assert_eq!(
                 pierce_side(dir, reach, n, FaceBend::Plane, NO_CURVATURE(), b).unwrap(),

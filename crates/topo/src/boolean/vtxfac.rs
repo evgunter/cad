@@ -3884,8 +3884,13 @@ mod tests {
         let standing = [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [-1.0, -1.0, 1.0]];
         let lying = [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         let across = [[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]];
+        // A cylinder holding the ray along `x` that lies on it.
         let curved = PierceDatum {
-            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
+            bend: crate::bound_side::FaceBend::cylinder(
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                1.0,
+            ),
             ..plane
         };
         for (what, rays, datum, flush, want) in [

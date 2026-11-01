@@ -3014,7 +3014,7 @@ mod tests {
             assert_eq!(along(err), super::super::AlongFace::Flush, "{op:?}");
             let curved = HeldFace {
                 datum: PierceDatum {
-                    bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
+                    bend: crate::bound_side::FaceBend::cylinder(Vec3::new(0.0, 1.0, 0.0), z, 1.0),
                     ..flat.datum
                 },
                 ..flat

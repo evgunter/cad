@@ -222,6 +222,22 @@ impl FaceBend<f64> {
             ),
         }
     }
+
+    /// A cylinder of `radius` about the unit `axis` whose implicit
+    /// gradient at the vertex is the unit `gradient`, read as
+    /// [`Self::ball`] is: it holds a line along `axis`.
+    pub(crate) fn cylinder(gradient: Vec3<f64>, axis: Vec3<f64>, radius: f64) -> Self {
+        let k = 1.0 / radius;
+        let col = |e: Vec3<f64>| (e - axis * axis.dot(e)) * k;
+        Self::Implicit {
+            gradient,
+            hessian: Mat3::from_cols(
+                col(Vec3::new(1.0, 0.0, 0.0)),
+                col(Vec3::new(0.0, 1.0, 0.0)),
+                col(Vec3::new(0.0, 0.0, 1.0)),
+            ),
+        }
+    }
 }
 
 /// **A face at the vertex, as a bound's side is read against it**: the
@@ -372,6 +388,10 @@ pub(crate) enum BoundSideFault<T: geom_core::Real> {
     ChargeEscalated(Indeterminate),
 }
 
+/// [`first_order`]'s reading: a side with the bound's displacement off
+/// the face's tangent plane, in metres, or a tie.
+type Settled<T> = Result<(Side, T), Tie<T>>;
+
 /// The first order of [`read`] before its charge: a side with the
 /// bound's displacement off the face's tangent plane in metres, or a tie.
 fn first_order<T: Decide>(
@@ -379,7 +399,7 @@ fn first_order<T: Decide>(
     reach: Reach<T>,
     face: FaceDatum<T>,
     band: Band,
-) -> Result<Result<(Side, T), Tie<T>>, ReadFault<T>> {
+) -> Result<Settled<T>, ReadFault<T>> {
     let n = face.reference.vec();
     let length = reach.length();
     let tie = |predicate, decided| {
