@@ -75,6 +75,10 @@ Building the touch alone does not settle that row. There the glue door decides t
 - **Cut flat.** The rims are circles, the crossing reads `At`, and both ops build at their closed forms, tiers 3 and 3′ included.
 - **What it blocks.** The two rims are coplanar here, so the touch is read before the walls' parting is asked. Two elliptical rims in two planes (the inner rod cut below `z = y·tan t_a`, the outer above `z = y·tan t_b`, `t_a ≠ t_b`) cross transversally at the same point instead. There `boundary_crossing` reads `At`, `sheets_part` reads an ellipse on both sides, and the ops build or refuse on other grounds (`sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`). Only the coplanar, tangent pose stops at this unit's touch. Once the touch places, the pin moves.
 
+## Evidence: tier 3′ on a body that builds (2026-11-01, `splitdoor/rims-seam-orientation`)
+
+`crates/sweep/tests/sheets_part_on_slanted_rims.rs` `rims_crossing_on_tangent_walls_build_every_op` asserts the escalation. In `A ∪ B` and `B ∖ A` of two rods tangent inside one another and cut by two planes, B's cut cap keeps two coplanar ellipses internally tangent at a vertex they share, `(2, 0, 0)`: B's rim, and the section arc of A's wall. Every edge-edge pair of them that the census reads answers `MeetFault::Touch` on `curve_pair_coplanar_sub_side` at about 2ε, including the pairs whose two edges meet only at that shared end. The census types it `CensusEscalated`. The bodies build at their closed forms, tiers 1–3, at ε = 1e-6, 1e-9 and 1e-12. Placing the touch at the pair's shared end would clear those pairs.
+
 ## Evidence: tier 3′ escalates on built unions at the touch (2026-11-01, `tangrim/one-segment-ellipse-rims`)
 
 `crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
