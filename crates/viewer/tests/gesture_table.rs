@@ -1720,6 +1720,7 @@ fn committed_distance(
         .find(|row| row.slot == SlotId::Distance)
         .expect("the extrude's distance row")
         .value
+        .map(|reading| reading.one().expect("one value"))
 }
 
 /// **A drag that could not open cannot steer the one that did**, at

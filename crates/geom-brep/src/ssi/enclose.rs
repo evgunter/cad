@@ -98,6 +98,24 @@ pub(crate) struct Box3 {
 }
 
 impl Box3 {
+    /// **The box's centre, and how far every point of it may stand from
+    /// that centre**, in metres: its half-widths summed, each rounded up,
+    /// which bounds the half-diagonal. A spline witness's point and pad
+    /// (`pair_section`'s plane × spline bracket, the pair lane's branch
+    /// witness). `None` where a side is not certified (a refused
+    /// enclosure can carry point ends, which would read a near-zero
+    /// reach) or the reach is not finite.
+    pub(crate) fn centre_and_reach(self) -> Option<(Point3<f64>, f64)> {
+        if !(self.x.is_certified() && self.y.is_certified() && self.z.is_certified()) {
+            return None;
+        }
+        let centre = |x: Interval| 0.5 * (x.lo() + x.hi());
+        let q = Point3::new(centre(self.x), centre(self.y), centre(self.z));
+        let half = |x: Interval| (x.hi() - centre(x)).max(centre(x) - x.lo()).next_up();
+        let reach = (half(self.x) + half(self.y) + half(self.z)).next_up();
+        reach.is_finite().then_some((q, reach))
+    }
+
     /// The box `[cx−r, cx+r] × …` around `c` — the caller's scalar
     /// crosses into certification arithmetic here (module docs' seam).
     pub(crate) fn around<T: CertifiedBounds>(c: Point3<T>, r: T) -> Self {
