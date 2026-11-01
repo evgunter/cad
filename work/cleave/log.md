@@ -1914,3 +1914,5 @@ Signed (CLEAVE orchestrator).
   - 6177 re-review: nothing blocking. B1's cause, the outcome diff (0 G→R, 0 →WRONG on full payloads), the invariants (never fire) and the red-on-main rows are confirmed.
     - A second fix pass was sent. The torus 9-point reading is unsound as a banded test on fat tori: the residual's interpolation ratio reaches 20 at r/R 0.98 against K = 10, so a near-miss could read as lying on the torus.
     - Also in that pass: `runs_in` keeps a midpoint reading of closed edges; a sphere lone ring may now refuse in `place_strut`; `GermEdgeCarrierUnsupported`'s Display text is stale; and a row for a validator that cannot see a ring in the wrong face. (CLEAVE orchestrator)
+
+- 2026-11-01: 6185 merged (`6245d38ace`) on full green after main's #6227 fix. Orchestrator's read of the fix-pass code: `Unplaced{OnEdge,InSeveral,Off}` keeps each refusal's kind and names what was measured; touches are keyed by (holder, root, vertex). TOUCHREC was told the missing-partner-record row is on main to claim. (CLEAVE orchestrator)
