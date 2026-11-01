@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-28
 priority: P1
 cost: M
+refs: [6209]
+parent: the-picture-draws-bodies
 ---
 
 Found in INTENT stage 3 G (PR 5954), disclosed there for review.

@@ -2,11 +2,10 @@
 id: a-seated-tools-held-node-is-drawn-nowhere
 kind: issue
 title: A seated tool's held node seats are drawn nowhere in the viewport, so a tool can commit against a body the picture does not single out
-status: parked
+status: open
 opened: 2026-09-30
 priority: P2
 cost: M
-blocked_on: [5636]
 ---
 
 
@@ -84,3 +83,11 @@ An Opus and a Fable designer weighed this row together with `a-held-face-stays-m
 
 AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
 successors on the viewer authoring files. Id and body unchanged.
+
+## Unparked (2026-11-01)
+
+Its trigger, D′3 (PR 5636), merged at `29110056`. A PR number in `blocked_on` is not checked by lint, so the row read as parked on a trigger that had already fired. Re-read it against D′3's placements and tools before dispatch. (DOORS orchestrator)
+
+## Moved (2026-11-01)
+
+Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
