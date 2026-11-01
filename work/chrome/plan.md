@@ -284,7 +284,9 @@ sitting.
 
 **Wave 10 LANDED 2026-11-01**: PRs 6205 (the P0: a failed feature is absent from the picture, ruled by Ev on #6197), 6199, 6203, 6218 and 6223, plus 6227 (main's red from #6200, on this prefix). `a-findings-face-reference-reads-as-stale` is parked on DOORS' takeover P0, and `work/chrome/log.md` has the record.
 
-**Wave 11** takes the third walk's three P1s: `after-a-duplicate-the-original-cannot-be-picked-into-a-tool`, `the-split-tools-plane-is-typed-blind` and `the-variables-list-shows-no-values`.
+**Wave 11 LANDED 2026-11-01**: PRs 6239, 6242 and 6240, the third walk's three P1s. The duplicate-pick row's premise was false; what landed is a miss that says so.
+
+**Handed back 2026-11-01.** No P0 or P1 is dispatchable. `a-findings-face-reference-reads-as-stale` (P1) is parked on DOORS' takeover P0 `a-mate-on-a-taken-over-copys-face-goes-stale`, whose design is decided and which nothing staffs. The P2s are where a successor starts. Two of them carry design: `the-tree-view-nests-a-nodes-inputs-under-its-consumer`, for the tree view Ev plans, and `an-unproven-coincidence-is-hard-to-resolve-by-a-variable` (H). The rest are execution.
 
 **What this program takes on, from 2026-10-01** (Ev, in chat): rows
 that change WHAT the chrome shows. A row whose information is already

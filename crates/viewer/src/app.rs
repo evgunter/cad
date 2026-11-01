@@ -711,6 +711,26 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// The staged seam: [`prover`]'s shape over a staged operation's run.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every staged verdict would otherwise read checking
+/// forever.
+fn stager() -> Result<Box<dyn crate::evalseam::StagedService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadStager::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineStager::new()))
+    }
+}
+
 /// **What the viewer owes the document under the session when its
 /// first scene lands, and what the budget said about it.**
 ///
@@ -901,7 +921,9 @@ impl ViewerApp {
         // modifier is held (`configure_input`'s doc says why).
         crate::pane::viewport::configure_input(egui_ctx);
 
-        let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
+        let mut session = DocSession::new(document, tol, evaluator()?)
+            .with_door(prover()?)
+            .with_stager(stager()?);
         session.set_notation(notation);
 
         Ok(Self {
@@ -2149,6 +2171,7 @@ impl eframe::App for ViewerApp {
         // The revolve tool's held profile as the viewport will draw its
         // axis over it, for the repaint request after the picks are fed.
         let revolve_held = self.tools.revolve().and_then(|tool| tool.profile());
+        let split_held = self.tools.split().map(|tool| tool.seats().clone());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
             .show(ui, |ui| {
@@ -2242,6 +2265,11 @@ impl eframe::App for ViewerApp {
         // this frame's axis (`pane::viewport::push_revolve_axis`) asks
         // for the next.
         if self.tools.revolve().and_then(|tool| tool.profile()) != revolve_held {
+            ui.ctx().request_repaint();
+        }
+        // The split plane likewise (`splitplane::push_split_plane`): a
+        // target picked or cleared after it was drawn.
+        if self.tools.split().map(|tool| tool.seats().clone()) != split_held {
             ui.ctx().request_repaint();
         }
         let landed = self.session.landed_pair();
@@ -5554,6 +5582,106 @@ mod properties_pane_tests {
             offers(&open, NEW_VARIABLE_COMMIT) && offers(&open, "pick a dimension first"),
             "the open form paints its commit and why it waits: {open:?}"
         );
+    }
+
+    /// **The variables list paints each variable's value**: a length
+    /// declared in millimetres is listed as `t = 20 mm`, the line
+    /// [`crate::pane::properties::variable_line`] spells.
+    #[test]
+    fn the_variables_list_paints_each_variables_value() {
+        let driven = &mut Driven::with(vec![SessionOp::DeclareVar {
+            name: pncad::document::VarName::from_static("t"),
+            value: crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(0.02),
+                Some(pncad::quantity::MM.def()),
+            ),
+        }]);
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted.iter().any(|(run, _)| run == "t = 20 mm"),
+            "the list says t's value: {painted:?}"
+        );
+    }
+
+    /// **A definition that reads nothing says why under its list
+    /// line** (review of #6242): `w = t / scalar(n - 2)` at `n = 2`
+    /// reads `?` in the list, and the fault is painted, so a list that dropped the note
+    /// or showed a stale value goes red.
+    #[test]
+    fn the_variables_list_says_why_a_definition_reads_nothing() {
+        let length = |value| {
+            crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(value),
+                Some(pncad::quantity::MM.def()),
+            )
+        };
+        let mut driven = Driven::with(vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("t"),
+                value: length(0.02),
+            },
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("n"),
+                value: crate::props::doc_variable(
+                    pncad::document::Dimension::Count,
+                    crate::props::SlotValue::Count(3),
+                    None,
+                ),
+            },
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("w"),
+                value: length(0.04),
+            },
+        ]);
+        let w = crate::props::variable_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.label.to_string() == "w")
+            .expect("w is declared")
+            .var;
+        let n = crate::props::variable_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.label.to_string() == "n")
+            .expect("n is declared")
+            .var;
+        let defined = driven.app.session.perform(SessionOp::SetVariableText {
+            var: w,
+            text: "t / scalar(n - 2)".to_owned(),
+        });
+        assert!(defined.refusal.is_none(), "w is defined: {defined:?}");
+        let moved = driven.app.session.perform(SessionOp::SetVariable {
+            var: n,
+            value: crate::props::SlotValue::Count(2),
+        });
+        assert!(moved.refusal.is_none(), "n moves to 2: {moved:?}");
+        let row = crate::props::defined_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.var == w)
+            .expect("w is defined");
+        let fault = row
+            .value
+            .as_ref()
+            .expect_err("the definition reads nothing");
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted
+                .iter()
+                .any(|(run, _)| run == &format!("w = {} = {}", row.formula, crate::props::NO_VALUE)),
+            "the list says w reads nothing: {painted:?}"
+        );
+        assert!(
+            painted.iter().any(|(run, _)| run == &format!("w: {fault}")),
+            "and why, under its line: {painted:?}"
+        );
+        // Selected, its own row says why, and the pane says it once.
+        driven.select(Selection::Variable(w));
+        let painted = driven.frame(Vec::new());
+        let said = painted
+            .iter()
+            .filter(|(run, _)| run == &format!("w: {fault}"))
+            .count();
+        assert_eq!(said, 1, "the reason is said once: {painted:?}");
     }
 
     /// **The add-variable form's commit is live exactly when a click

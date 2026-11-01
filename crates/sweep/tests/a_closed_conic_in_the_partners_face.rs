@@ -24,6 +24,8 @@
 //!   either side of the tip, whose union is one shell pinched along them,
 //!   and the rims swapped, a boss inside a hole touching it along them,
 //!   whose union is two solids;
+//! - the boss and the hole tilted, their rims ellipses tangent outside,
+//!   in both forms;
 //! - a plug in the bore of an annulus standing on a plate;
 //! - rods tangent inside one another along a ruling, a rim lying flush
 //!   in the partner's top or floor, at rest and turned;
@@ -56,7 +58,9 @@ use topo::{
     ValidationError,
 };
 
-use crate::common::differential::{every_op_both_orders, outcome};
+use crate::common::differential::{
+    VOLUME_CLAIM, VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
+};
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
 
@@ -121,7 +125,18 @@ fn census<T: Real>(body: &Body<T>) -> [usize; 5] {
 /// window in a curved face, which the mesher refuses typed
 /// (`TessellateError::RingOnCurvedFace`). The body's [`census`], if
 /// there is one.
-fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) -> Option<[usize; 5]> {
+///
+/// `pad` is the widest volume enclosure accepted
+/// (`differential::judged_within`). Where `escalates` names a predicate,
+/// the body passes every check but tier 3′, and every error tier 3′
+/// returns is a `CensusEscalated` on that predicate.
+fn holds(
+    row: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    pad: f64,
+    escalates: Option<&str>,
+) -> Option<[usize; 5]> {
     let counted = match &r {
         Ok(BooleanResult::Body(b)) => {
             match mesh::tessellate(&b.body, 5e-3, tol()) {
@@ -131,17 +146,34 @@ fn holds(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64) -> O
                 Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
                 Err(e) => panic!("{row}: {e:?}"),
             }
+            if let Some(predicate) = escalates {
+                let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts, tol());
+                let escalated = |e: &ValidationError| {
+                    matches!(e, ValidationError::CensusEscalated { cause }
+                        if cause.predicate == Some(predicate))
+                };
+                assert!(
+                    t3p.as_ref().is_err_and(|es| es.iter().all(escalated)),
+                    "{row}: tier 3′ {t3p:?}"
+                );
+            }
             Some(census(&b.body))
         }
         _ => None,
     };
-    let line = outcome(r, want, tol());
-    let ok = if want == 0.0 {
-        line.starts_with("EMPTY ok")
-    } else {
-        line.starts_with("OK SOUND")
+    let j = judged_within(r, Some(want), tol(), pad);
+    let ok = match (want == 0.0, escalates) {
+        (true, _) => j.line.starts_with("EMPTY ok"),
+        (false, None) => j.line.starts_with("OK SOUND"),
+        (false, Some(_)) => {
+            j.line
+                .starts_with("OK BAD t2=true t3p=false cert=true operand=true")
+                && j.volume
+                    .zip(j.pad)
+                    .is_some_and(|(v, p)| p <= pad && (v - want).abs() <= p + VOLUME_CLAIM)
+        }
     };
-    assert!(ok, "{row}: {line}");
+    assert!(ok, "{row}: {}", j.line);
     counted
 }
 
@@ -156,7 +188,10 @@ fn every_op(
 ) -> Vec<(&'static str, Option<[usize; 5]>)> {
     every_op_both_orders(a, b, v, tol())
         .into_iter()
-        .map(|(op, r, want)| (op, holds(&format!("{what}: {op}"), r, want)))
+        .map(|(op, r, want)| {
+            let row = format!("{what}: {op}");
+            (op, holds(&row, r, want, VOLUME_PAD_BUDGET, None))
+        })
         .collect()
 }
 
@@ -180,7 +215,7 @@ fn both_unions(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: f64) 
         ("A ∪ B", topo::union(a, b, tol())),
         ("B ∪ A", topo::union(b, a, tol())),
     ] {
-        holds(&format!("{what}: {op}"), r, want);
+        holds(&format!("{what}: {op}"), r, want, VOLUME_PAD_BUDGET, None);
     }
 }
 
@@ -482,10 +517,10 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
     match reads {
         Reads::Empty => {
             assert_eq!(want, 0.0, "{row}: the closed form");
-            holds(row, r, want);
+            holds(row, r, want, VOLUME_PAD_BUDGET, None);
         }
         Reads::Sound(shells) => {
-            let counted = holds(row, r, want);
+            let counted = holds(row, r, want, VOLUME_PAD_BUDGET, None);
             assert_eq!(counted.map(|c| c[0]), Some(shells), "{row}: shells");
         }
         Reads::Unrecorded | Reads::Undecided => {
@@ -1041,18 +1076,45 @@ fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
     }
 }
 
-/// **Ellipse rims tangent outside, one segment**: both cylinders of
+/// The widest certified volume enclosure (`volume_pad`, m³) the ellipse
+/// rims' bodies are judged through (`differential::judged_within`), in
+/// place of `differential::VOLUME_PAD_BUDGET`, which the tilted boss
+/// alone does not meet above ε = 1e-12. Measured 2026-11-01, the widest
+/// result's pad is `3.0e-5` at ε = 1e-6, `5.8e-7` at 1e-9 and `1.0e-9`
+/// at 1e-12; each row's ceiling is under twice that, and at 1e-12 the
+/// budget itself.
+fn ellipse_pad_ceiling() -> f64 {
+    match tol().eps() {
+        eps if eps <= 1e-12 => VOLUME_PAD_BUDGET,
+        eps if eps <= 1e-9 => 1e-6,
+        _ => 5e-5,
+    }
+}
+
+/// **Ellipse rims tangent outside**: both cylinders of
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
-/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. Each
-/// closed rim's germ is read from its own carrier against the other's
-/// faces (`boolean::sectors`'s `closed_reach`), with both vertices at the
-/// touch or the boss's there alone; no join arm copies a closed ellipse,
-/// so the union refuses the one-site loop typed (`SingleSiteSectionLoop`)
-/// (`work/tangrim/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
-/// Both orders, at rest and turned.
+/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. One
+/// segment with both vertices at the touch, the boss's there alone or
+/// the hole's there alone, and two arcs with a vertex of each there. In
+/// the one-segment form a closed rim is copied whole on its own carrier
+/// (`chord_join`'s `closed_edge_spec`) and the loop closes at its site
+/// (`boolean::join`'s `closes_at_its_site`), as for a circle.
+///
+/// Every op in both orders, at rest and turned, is held by [`holds`]
+/// within [`ellipse_pad_ceiling`]: its closed form, tiers 1–3, the
+/// certificate, the operand gate and the mesh. Tier 3′ passes but on the
+/// unions, whose census reads the two rims, coplanar and tangent,
+/// through the curve-pair touch, and escalates on
+/// `curve_pair_coplanar_sub_side` and on nothing else (pinned red:
+/// `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`).
+///
+/// Each body is also read against the operands' analytic membership by
+/// `point_in_solid` on a grid and beside the touch, off the plane: no
+/// point reads wrong or undecided. A union holds one vertex at the
+/// touch, on one point.
 #[test]
-fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
+fn ellipse_rims_tangent_outside_build_every_op() {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
     let tilted = |body: Body<f64>| {
         topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol()), tol()).unwrap()
@@ -1061,13 +1123,53 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
         "the slab",
         brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
     );
-    for (pose, hole_az, refused) in [
-        ("vertices there", PI, "SingleSiteSectionLoop"),
-        ("the boss's there", 0.0, "SingleSiteSectionLoop"),
+    // A section by `z = const` is the rim's ellipse: its circle's area
+    // over the tilt's cosine.
+    let stretch = 1.0 / 0.3f64.cos();
+    let (va, vb) = (PI * 0.09 * stretch, 2.0 - PI * 0.01 * 0.5 * stretch);
+    // The operands' membership at rest, `None` within `m` of a boundary.
+    let m = 2e-3;
+    let untilt = tilt.inverse();
+    let rho = |p: Point3<f64>, cx: f64| {
+        let q = untilt.transform_point(p);
+        (q.x - cx).hypot(q.y)
+    };
+    let near = |v: f64, a: f64| (v - a).abs() < m;
+    let in_boss = |p: Point3<f64>| {
+        let r = rho(p, 0.0);
+        (!(near(r, 0.3) || near(p.z, 0.0) || near(p.z, 1.0)))
+            .then_some(r < 0.3 && p.z > 0.0 && p.z < 1.0)
+    };
+    let in_holed = |p: Point3<f64>| {
+        let r = rho(p, 0.4);
+        let on = near(r, 0.1)
+            || [p.x, p.y].iter().any(|&c| near(c.abs(), 1.0))
+            || near(p.z, -0.5)
+            || near(p.z, 0.0);
+        let inside = p.x.abs() < 1.0 && p.y.abs() < 1.0 && p.z > -0.5 && p.z < 0.0;
+        (!on).then_some(inside && r > 0.1)
+    };
+    let n = 12;
+    let at = |t: usize, lo: f64, hi: f64| lo + (hi - lo) * (t as f64 + 0.37) / (n as f64 + 1.0);
+    let samples: Vec<Point3<f64>> = (0..=n)
+        .flat_map(|i| (0..=n).flat_map(move |j| (0..=n).map(move |k| (i, j, k))))
+        .map(|(i, j, k)| Point3::new(at(i, -0.45, 0.75), at(j, -0.55, 0.55), at(k, -0.6, 1.1)))
+        .chain(
+            [(-0.02, 0.01), (0.02, -0.01), (-0.02, -0.01), (0.02, 0.01)]
+                .map(|(dx, dz)| Point3::new(0.3 + dx, 0.0, dz)),
+        )
+        .collect();
+    let band = geom_core::Band::linear(tol()).expect("the band");
+    let touch = Point3::new(0.3, 0.0, 0.0);
+    for (pose, one, hole_az, boss_az) in [
+        ("vertices there", true, PI, 0.0),
+        ("the boss's there", true, 0.0, 0.0),
+        ("the hole's there", true, PI, PI),
+        ("two arcs", false, PI, 0.0),
     ] {
         let tall = fin(
             "the tall boss",
-            tilted(extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], -3.0, 6.0)),
+            tilted(extruded(vec![rim(one, 0.0, 0.3, boss_az)], -3.0, 6.0)),
         );
         let boss = topo::intersect(&tall, &slab, tol())
             .unwrap()
@@ -1077,7 +1179,7 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
             .clone();
         let bore = fin(
             "the tilted bore",
-            tilted(extruded(vec![circle(0.4, 0.0, 0.1, hole_az)], -3.0, 6.0)),
+            tilted(extruded(vec![rim(one, 0.4, 0.1, hole_az)], -3.0, 6.0)),
         );
         let holed = topo::subtract(&plate(), &bore, tol())
             .unwrap()
@@ -1085,8 +1187,8 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
             .unwrap()
             .body
             .clone();
-        for (turn, m) in [("at rest", None), ("turned", Some(torax_pose()))] {
-            let place = |what: &str, b: &AtRestBody<f64>| match &m {
+        for (turn, pose_m) in [("at rest", None), ("turned", Some(torax_pose()))] {
+            let place = |what: &str, b: &AtRestBody<f64>| match &pose_m {
                 None => b.clone(),
                 Some(m) => fin(
                     what,
@@ -1094,26 +1196,58 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
                         .unwrap(),
                 ),
             };
+            let moved = |p: Point3<f64>| pose_m.as_ref().map_or(p, |m| m.transform_point(p));
             let (a, b) = (place("the boss", &boss), place("the plate", &holed));
-            for (op, r) in [
-                ("A ∪ B", topo::union(&a, &b, tol())),
-                ("B ∪ A", topo::union(&b, &a, tol())),
-            ] {
-                let got = match &r {
-                    Err(BooleanError::GermEdgeCarrierUnsupported { .. }) => {
-                        "GermEdgeCarrierUnsupported"
+            for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, 0.0), tol()) {
+                let row = format!("{pose}, {turn}: {op}");
+                let union = op.contains('∪');
+                if let Ok(BooleanResult::Body(res)) = &r {
+                    let body = &res.body;
+                    let truth = |p: Point3<f64>| {
+                        let (x, y) = (in_boss(p)?, in_holed(p)?);
+                        Some(match op {
+                            _ if union => x || y,
+                            "A ∖ B" => x && !y,
+                            "B ∖ A" => y && !x,
+                            _ => x && y,
+                        })
+                    };
+                    let (mut read, mut wrong, mut undecided) = (0, Vec::new(), 0);
+                    for &p in &samples {
+                        let Some(inside) = truth(p) else { continue };
+                        read += 1;
+                        match topo::point_in_solid(body, moved(p), band, tol()) {
+                            Ok(topo::SolidContainment::In) if inside => {}
+                            Ok(topo::SolidContainment::Out) if !inside => {}
+                            Ok(topo::SolidContainment::In | topo::SolidContainment::Out) => {
+                                wrong.push(p);
+                            }
+                            _ => undecided += 1,
+                        }
                     }
-                    Err(BooleanError::Join(j))
-                        if matches!(
-                            j.error(),
-                            SplitJoinError::SingleSiteSectionLoop { count: 1 }
-                        ) =>
-                    {
-                        "SingleSiteSectionLoop"
+                    assert!(
+                        read > 2000 && wrong.is_empty() && undecided == 0,
+                        "{row}: of {read} points, wrong at {wrong:?}, {undecided} undecided"
+                    );
+                    if union {
+                        let at_touch: Vec<_> = body
+                            .vertices()
+                            .map(|(_, v)| v.point)
+                            .filter(|&k| (*body.get_point(k).unwrap() - moved(touch)).norm() < 1e-4)
+                            .collect();
+                        assert!(
+                            at_touch.len() == 1,
+                            "{row}: vertices at the touch, on points {at_touch:?}"
+                        );
                     }
-                    _ => "other",
-                };
-                assert_eq!(got, refused, "{pose}, {turn}: {op}: {:?}", r.map(|_| ()));
+                }
+                holds(
+                    &row,
+                    r,
+                    want,
+                    ellipse_pad_ceiling(),
+                    union.then_some("curve_pair_coplanar_sub_side"),
+                );
             }
         }
     }

@@ -2,11 +2,12 @@
 id: two-coplanar-ellipses-have-no-meeting-method
 kind: unit
 title: The curve-pair reader refuses two coplanar ellipses that are not one curve, and refuses a near-tangent coplanar circle and ellipse instead of placing the touch
-status: open
+status: dispatched
 opened: 2026-10-14
-priority: P2
+priority: P1
 cost: M
 refs: [5227]
+branch: tangrim/coplanar-conic-touch
 ---
 
 Found while building the curve-pair reader (`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), stage (b)).
@@ -78,3 +79,16 @@ Building the touch alone does not settle that row. There the glue door decides t
 ## Evidence: tier 3′ on a body that builds (2026-11-01, `splitdoor/rims-seam-orientation`)
 
 `crates/sweep/tests/sheets_part_on_slanted_rims.rs` `rims_crossing_on_tangent_walls_build_every_op` asserts the escalation. In `A ∪ B` and `B ∖ A` of two rods tangent inside one another and cut by two planes, B's cut cap keeps two coplanar ellipses internally tangent at a vertex they share, `(2, 0, 0)`: B's rim, and the section arc of A's wall. Every edge-edge pair of them that the census reads answers `MeetFault::Touch` on `curve_pair_coplanar_sub_side` at about 2ε, including the pairs whose two edges meet only at that shared end. The census types it `CensusEscalated`. The bodies build at their closed forms, tiers 1–3, at ε = 1e-6, 1e-9 and 1e-12. Placing the touch at the pair's shared end would clear those pairs.
+
+## Evidence: tier 3′ escalates on built unions at the touch (2026-11-01, `tangrim/one-segment-ellipse-rims`)
+
+`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
+`ellipse_rims_tangent_outside_build_every_op`:
+- **The fixture.** A boss `r = 0.3` standing on a plate over a hole `r = 0.1` about `(0.4, 0)`, both cylinders tilted `0.3` rad about `x` and cut by `z = 0`. The two rims are ellipses in the plate's top plane, tangent outside at `(0.3, 0, 0)`.
+- **The read.** Both unions, in both forms (one segment with either or both vertices at the touch, and two arcs), at rest and turned, build at their closed forms and pass tiers 1–3 and the certificate. `validate_pseudomanifold` returns `CensusEscalated { predicate: "curve_pair_coplanar_sub_side" }`, margins `2.6ε` and `2.3ε` (one per order) at ε = 1e-9, about `2.5ε` and `1.6ε` at 1e-6, and in band at 1e-12. The differences, which keep only one rim each, pass tier 3′. Measured on `main` `7979553590` for the two-arc form and on the branch for both.
+- **Cut flat.** At tilt `0` (circle rims) every op passes tier 3′.
+- **What it blocks.** The tier-3′ half of `work/tangrim/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md` (P1). The pin asserts this escalation; once the touch places, it moves.
+
+## Slate triage
+
+2026-11-01: claimed from CPAIR (no orchestrator) by `git mv` into TANGRIM and re-banded P1. Its open second bullet, the near-tangent touch of two coplanar conics (`curve_pair_coplanar_sub_side` escalating in the census), is what stands between `one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build` (P1) and tier 3′ on every ellipse-rim union PR 6246 now builds; a blocker inherits the band of what waits on it (work/README.md, Priority). (TANGRIM orchestrator)
