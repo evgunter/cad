@@ -808,7 +808,6 @@ fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
         "the plane is the block's wall in its words, said on the block and not on the copy: \
          {line:?}"
     );
-
 }
 
 /// **A face on a split's second half is read on that half**: the

@@ -536,7 +536,6 @@ impl MirrorTool {
     }
 }
 
-
 /// A typed mirror-tool event the chrome renders: the plane's drop. The
 /// body seat's drop is a [`SeatEvent`].
 #[derive(Debug)]

@@ -110,8 +110,8 @@
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
     Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode,
-    ValuePayload, node_kind_noun,
+    NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode, ValuePayload,
+    node_kind_noun,
 };
 use pncad::prelude::StableName;
 use pncad::select::{

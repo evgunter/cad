@@ -74,9 +74,9 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Coord, Doc, Evaluation, Formula, HeldNodes, Mate, MateSide, Node, NotAFaceName,
-    ProfileProgram, RecipeNodeId, Said, Say, SitedFace, Speaker, SpokenNode, TargetAxis, VarKind,
-    held_by, member_of, pose,
+    Coord, Doc, Evaluation, Formula, HeldNodes, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
+    RecipeNodeId, Said, Say, SitedFace, Speaker, SpokenNode, TargetAxis, VarKind, held_by,
+    member_of, pose,
 };
 use pncad::select::Resolution;
 
