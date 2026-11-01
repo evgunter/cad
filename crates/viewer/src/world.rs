@@ -13,7 +13,7 @@
 //! on its own. A copy carries its body's names as they are, so a pick
 //! on the picture names the body's entity; a gesture that authors
 //! against a body reads the placement's body under that name
-//! ([`on_body`]).
+//! ([`body_of`]).
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -21,7 +21,6 @@
 use std::collections::BTreeSet;
 
 use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
-use pncad::prelude::StableName;
 
 /// **The body the drawn copy `placement` places**, or `None` for a node
 /// that is not a live drawn copy ([`is_drawn_copy`]) of one shape. An
@@ -146,30 +145,13 @@ pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
-/// **A pick on a copy, read on its body**: the operation defining the
-/// body `node` places, that body's index within the operation's value,
-/// and `name`, which a copy carries as its body does.
-///
-/// A pick whose node is not a drawn copy is already on a body and
-/// comes back as it was. A placement whose body is gone keeps its own
-/// node: there is no body to read the pick on.
-pub fn on_body(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-    body: u32,
-    name: &StableName,
-) -> (RecipeNodeId, u32, StableName) {
-    let (operation, body) = body_of(doc, node, body);
-    (operation, body, name.clone())
-}
-
 /// **The body a drawn copy is**: for a placement's copy, the
 /// operation defining the body it places and that body's index in the
 /// operation's value; any other drawn body as it is.
 pub fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> (RecipeNodeId, u32) {
     placed_var(doc, node)
         .and_then(|var| read_body(doc, var))
-        .map_or((node, body), |on| (on.node, on.body))
+        .map_or((node, body), |on| (on.node(), on.body()))
 }
 
 /// **The drawn body a read is**: the operation defining `var`, and its

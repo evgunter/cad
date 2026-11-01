@@ -683,8 +683,8 @@ pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
 }
 
 /// **The composition of the seated tools' and the mate tool's
-/// held-picks line**: `no picks yet` while nothing is held, else one
-/// `role: pick` item per seat, `—` for an open one, joined on `"; "`.
+/// held-picks line**: [`NONE_PICKED`] while nothing is held, else one
+/// `role: pick` item per seat, [`NONE_PICKED`] for an open one, joined on `"; "`.
 /// [`seat_line`] reaches it for the seated tools and
 /// [`crate::matetool::MateTool::line`] for the mate tool, whose
 /// picks are faces and whose state is not [`Seats`] (module docs) but
@@ -703,16 +703,22 @@ pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
 /// second level misread"). Nor does the mark earn a constant of its
 /// own: nothing splits a panel line back into its items, so there is
 /// no hold for a name to carry.
+/// **What a panel says of a pick it does not hold**: an open seat in a
+/// held-picks line, a line holding nothing at all, and a form's latch
+/// row with no face latched (`crate::drafts::latch_said`). The one
+/// spelling of an empty pick.
+pub(crate) const NONE_PICKED: &str = "none picked";
+
 pub(crate) fn picks_line<R: core::fmt::Display>(
     picks: impl IntoIterator<Item = (R, Option<String>)>,
 ) -> String {
     let picks: Vec<_> = picks.into_iter().collect();
     if picks.iter().all(|(_, held)| held.is_none()) {
-        return "no picks yet".to_owned();
+        return NONE_PICKED.to_owned();
     }
     picks
         .iter()
-        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or("—")))
+        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or(NONE_PICKED)))
         .collect::<Vec<_>>()
         .join("; ")
 }

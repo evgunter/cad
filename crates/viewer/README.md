@@ -1032,14 +1032,23 @@ spoke it (`DocSession::selection_said`, through `Speaker::or_held`),
 and so is a selected node deleted since, in the pane's heading: the
 selection speaks its nodes when it is made and again from the shown
 document after every operation, so a deleted node keeps the last label
-it had. The add-profile form's held face keeps its own
-(`Drafts::sketch_face_said`), since it outlives the selection, and so
+it had. The add-profile form's face and trace latches keep their own
+(each a `tree::HeldPick`), since they outlive the selection, and so
 does the open tool for each node it holds (`ViewerApp::respeak_held`
 after every operation): a seat's drop, the blend tool's lost target,
 and the mate tool's drop say a node the document no longer holds by the
-last label it had. The mate tool's same-copy refusal says the label
-the tool kept even while the landed document it is judged against
-still holds the node, since what the tool kept is never older. A
+last label it had. A label the tool kept is used only for a node the
+landed document no longer holds: the mate tool's same-copy refusal,
+like its panel line, says a node the landed document still holds by
+that document's label, even while a rename has not landed.
+
+**Which text speaks the landed document.** Text that names a node the
+picture shows — the feature tree, the viewport's readouts, the
+property pane's headings, a tool's panel line and its refusals and
+drops, a form's held picks — speaks the landed document, the one the
+picture is drawn from; text about what is being authored — a form's
+create button, the profile pane's own heading, a batch's refusal —
+speaks the shown or committed document it acts on. A
 document that replaces this one drops what both hold
 (`ViewerApp::document_replaced`): their ids are the old document's.
 So is the Checks window: its report is the landed run's, and

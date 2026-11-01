@@ -438,11 +438,10 @@ impl ViewerBehavior<'_> {
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
                     ui.label(selected_node_heading(
-                        self.session.doc(),
+                        landed.map(|(doc, _)| doc),
                         self.session.part_files(),
                         said,
                         *node,
-                        *present,
                     ));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
@@ -1407,30 +1406,28 @@ enum HeldAct {
     Rest,
 }
 
-/// **A selected node's heading**: as the document holds it while it is
-/// present ([`crate::tree::node_label`]), and once it is deleted as the
-/// last document that held it spoke it (`DocSession::selection_said`),
-/// since the document no longer says it.
+/// **A selected node's heading**: as the landed document holds it
+/// ([`crate::tree::node_label`]) — the document the picture and the
+/// face header beside it speak — and, where that document does not hold
+/// it (deleted, or not landed yet), as the last document that held it
+/// spoke it (`DocSession::selection_said`).
 fn selected_node_heading(
-    doc: &Doc<ProfileProgram>,
+    landed: Option<&Doc<ProfileProgram>>,
     files: &crate::parts::PartFiles,
     said: &HeldNodes,
     node: RecipeNodeId,
-    present: bool,
 ) -> String {
-    if present {
-        crate::tree::node_label(doc, node, files)
-    } else {
-        said.spoken(node).to_string()
+    match landed.filter(|doc| doc.node(node).is_some()) {
+        Some(doc) => crate::tree::node_label(doc, node, files),
+        None => said.spoken(node).to_string(),
     }
 }
 
 /// **A picked entity's header**: the pick as the chrome says one
 /// ([`PickedName`]), and the node its Delete deletes — the feature the
 /// words name ([`PickedName::feature`]), so the button deletes what the
-/// label names. Not [`crate::session::FaceSelection::feature`]: for a
-/// name the attribution walk cannot classify, that answers the drawn
-/// node, which the words do not call the feature.
+/// label names. It is the node [`crate::session::FaceSelection::feature`]
+/// answers too, so the tree highlights what the header deletes.
 pub(crate) fn entity_header(
     picked: &PickedName<'_>,
     by: pncad::document::Speaker<'_>,
@@ -2269,9 +2266,10 @@ mod tests {
             super::entity_header(&PickedName::face(&cap), by),
             (
                 "the end cap of node 000000000003, on node 000000000005".to_owned(),
-                cap.feature()
+                named
             ),
         );
+        assert_eq!(cap.feature(), named, "the tree's feature is the header's");
     }
 
     fn thickness() -> SpokenVar {
@@ -2955,17 +2953,16 @@ mod verdict_tests {
                 ) => {
                     let files = crate::parts::PartFiles::default();
                     assert_eq!(
-                        super::selected_node_heading(session.doc(), &files, said, node, false),
+                        super::selected_node_heading(Some(landed), &files, said, node),
                         labelled,
                         "a deleted node heads the pane by the label it had"
                     );
                     assert_eq!(
                         super::selected_node_heading(
-                            session.doc(),
+                            Some(landed),
                             &files,
                             &HeldNodes::default(),
                             node,
-                            false
                         ),
                         by_tag,
                         "kept nothing, it is said by its tag"
@@ -3051,11 +3048,10 @@ mod verdict_tests {
         let files = crate::parts::PartFiles::default();
         assert_eq!(
             super::selected_node_heading(
-                session.doc(),
+                session.landed_pair().map(|(doc, _)| doc),
                 &files,
                 session.selection_said(),
                 profile,
-                false
             ),
             labelled,
             "the deleted profile heads the pane as the shown document said it"
@@ -3093,16 +3089,44 @@ mod verdict_tests {
             session.pump();
             assert_eq!(
                 super::selected_node_heading(
-                    session.doc(),
+                    session.landed_pair().map(|(doc, _)| doc),
                     &crate::parts::PartFiles::default(),
                     session.selection_said(),
                     block,
-                    false
                 ),
                 format!("Extrude \"{after}\" ({t})"),
                 "{what}: the deleted node is said by its last label"
             );
         }
+    }
+
+    /// **A present node heads the pane as the landed document holds
+    /// it**, as the face header beside it does: a rename that has not
+    /// landed is not the heading yet.
+    #[test]
+    fn a_selected_nodes_heading_says_the_landed_label_while_a_rename_has_not_landed() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("heading-landed", tol);
+        let t = test_utils::refusal::tag(block.0.digest());
+        let mut session = DocSession::inline(doc, tol);
+        let label = |name: &str| SessionOp::SetLabel {
+            node: block,
+            label: Some(Label::new(name).expect("a label")),
+        };
+        assert!(session.perform(label("landed")).refusal.is_none());
+        session.pump();
+        session.perform(SessionOp::Select(Selection::Node(block)));
+        assert!(session.perform(label("shown")).refusal.is_none());
+        assert_eq!(
+            super::selected_node_heading(
+                session.landed_pair().map(|(doc, _)| doc),
+                &crate::parts::PartFiles::default(),
+                session.selection_said(),
+                block,
+            ),
+            format!("Extrude \"landed\" ({t})"),
+            "the heading waits for the rename to land"
+        );
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so

@@ -145,10 +145,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // Both notices through the door the frame loop uses, so each
     // carries the answer its event arm gives rather than a second
     // spelling of it.
-    let target = DrawnBody {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let notice = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
             held: target,
@@ -192,7 +189,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let second = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::TargetLost {
             target,
-            node: pncad::document::SpokenNode::absent(target.node),
+            node: pncad::document::SpokenNode::absent(target.node()),
             edges: 6,
         }),
         None,
@@ -1398,9 +1395,9 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
 /// `PickIndex::edge_names_in` answers it.
 fn unnamed_on(target: viewer::tree::DrawnBody) -> pickindex::EdgeNamesRefused {
     pickindex::EdgeNamesRefused {
-        node: target.node,
-        body: target.body,
-        first: common::unnamed_edge(target.node, target.body),
+        node: target.node(),
+        body: target.body(),
+        first: common::unnamed_edge(target.node(), target.body()),
         named: 11,
         refused: 1,
     }
@@ -1417,10 +1414,7 @@ fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
     use viewer::tools::ToolNotice;
     use viewer::tree::DrawnBody;
 
-    let target = DrawnBody {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let refused = unnamed_on(target);
     let spelled = frame::Spelled {
         doc: None,
@@ -1444,10 +1438,7 @@ fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
     let (landed, _) = session.landed_pair().expect("landed");
-    let refused = unnamed_on(viewer::tree::DrawnBody {
-        node: extrude,
-        body: 0,
-    });
+    let refused = unnamed_on(viewer::tree::DrawnBody::new(extrude, 0));
     let label = |spelled: &frame::Spelled<pickindex::EdgeNamesRefused>| {
         frame::held_edges_badge(Some(spelled), Some(landed))
             .expect("a refusal badges")
@@ -3634,10 +3625,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
 
     let declined = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
-            held: DrawnBody {
-                node: RecipeNodeId::new(0, tagged(3)),
-                body: 0,
-            },
+            held: DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0),
             picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
         }),
         None,
@@ -3842,10 +3830,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
     use viewer::tools::{ToolKind, ToolNotice};
     use viewer::tree::DrawnBody;
 
-    let target = DrawnBody {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let face = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(3)),
@@ -3863,7 +3848,6 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                         node: RecipeNodeId::new(0, tagged(3)),
                         body: 0,
                     },
-                    DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0),
                 ),
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
@@ -3888,7 +3872,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the target lost",
             ToolNotice::Blend(BlendEvent::TargetLost {
                 target,
-                node: pncad::document::SpokenNode::absent(target.node),
+                node: pncad::document::SpokenNode::absent(target.node()),
                 edges: 4,
             }),
             frame::Retold::Never,
@@ -3926,7 +3910,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: an edge pick with no index declined",
             ToolNotice::Blend(BlendEvent::Unindexed {
-                picked: an_edge_of(target.node),
+                picked: an_edge_of(target.node()),
                 why: viewer::pickcache::NotIndexed::Absent,
             }),
             frame::Retold::Again,
@@ -3935,7 +3919,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: an edge pick whose rim the index could not answer declined",
             ToolNotice::Blend(BlendEvent::RimUnanswered {
                 fault: editor_core::resolve::RimNameFault::Stale {
-                    node: target.node,
+                    node: target.node(),
                     body: 0,
                 },
             }),
@@ -3945,7 +3929,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the all-edges door's target has no value",
             ToolNotice::Blend(BlendEvent::TargetHasNoValue {
                 target,
-                standing: NodeStanding::Failed { node: target.node },
+                standing: NodeStanding::Failed {
+                    node: target.node(),
+                },
             }),
             frame::Retold::Again,
         ),

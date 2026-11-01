@@ -533,16 +533,24 @@ pub fn headline(spoken: &SpokenNode, which: Option<&str>) -> Headline {
 /// sentence that every site can say is the spoken node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DrawnBody {
-    /// The node whose value holds the body.
-    pub node: RecipeNodeId,
-    /// The body's index in that value, from zero.
-    pub body: u32,
+    node: RecipeNodeId,
+    body: u32,
 }
 
 impl DrawnBody {
     /// Body `body` of `node`'s value.
     pub const fn new(node: RecipeNodeId, body: u32) -> Self {
         Self { node, body }
+    }
+
+    /// The node whose value holds the body.
+    pub const fn node(self) -> RecipeNodeId {
+        self.node
+    }
+
+    /// The body's index in that value, from zero.
+    pub const fn body(self) -> u32 {
+        self.body
     }
 
     /// **The drawn body a selection is a pick on**, when it is one.
@@ -585,6 +593,16 @@ impl core::fmt::Display for DrawnBody {
     }
 }
 
+/// **The feature an entity is**: the node its name's words say made it
+/// ([`role_leaf`]). The one rule for it — what the tree highlights for a
+/// pick ([`FaceSelection::feature`]), what the viewport focuses
+/// (`crate::marks::focus`) and what the property header's Delete deletes
+/// — so each is the node the pick's sentence names, a name the
+/// attribution walk cannot classify included (said as its own node's).
+pub fn feature_of(name: &StableName) -> RecipeNodeId {
+    role_leaf(name).node
+}
+
 /// **A picked entity in a sentence**: its name in the leaf role's words
 /// ([`Speaker::name`]), which say the feature that minted it and each
 /// node a join carried it in at, then the drawn body it was picked on
@@ -624,12 +642,9 @@ impl<'a> PickedName<'a> {
         Self::new(name, DrawnBody::new(*node, *body))
     }
 
-    /// **The node these words say made the entity** ([`role_leaf`]):
-    /// the feature a pick is of — what the tree highlights for it
-    /// ([`FaceSelection::feature`]) and what the property header's
-    /// Delete deletes, so both are the node the sentence names.
+    /// The feature this pick is of ([`feature_of`]).
     pub fn feature(&self) -> RecipeNodeId {
-        role_leaf(self.name).node
+        feature_of(self.name)
     }
 }
 
@@ -667,8 +682,13 @@ pub struct HeldPick {
 }
 
 impl HeldPick {
-    /// `face`, said on `on`, its nodes as `doc` speaks them now.
-    pub fn new(doc: &Doc<ProfileProgram>, face: FaceSelection, on: DrawnBody) -> Self {
+    /// `face`, its nodes as `doc` speaks them now, said on the body it
+    /// is on: a click on a placement's copy is on the body the copy
+    /// places ([`crate::world::body_of`]), as a body seat reads the same
+    /// click, so one click names one node wherever a held pick is said.
+    pub fn new(doc: &Doc<ProfileProgram>, face: FaceSelection) -> Self {
+        let (node, body) = crate::world::body_of(doc, face.node, face.body);
+        let on = DrawnBody::new(node, body);
         let said = held_by(&PickedName::new(&face.name, on), doc);
         Self { face, on, said }
     }
@@ -1556,6 +1576,49 @@ mod picked_name {
             ],
             [format!("node {p}"), format!("body 2 of node {p}")],
             "a drawn body names its node, and its index past the first"
+        );
+    }
+
+    /// **One click on a copy is said alike wherever it is held**: the
+    /// boss's end cap clicked on the boss's placed copy, held by the
+    /// mirror tool as its plane and by the mate tool as its first pick,
+    /// is said on the body the copy places in both lines (`HeldPick`'s
+    /// one rule), not on the copy in one and the body in the other.
+    #[test]
+    fn a_face_on_a_copy_is_said_alike_by_the_mirror_and_the_mate() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, boss) = crate::test_support::boss_on_block("held-alike", tol);
+        let place = *crate::test_support::authored_ids(&doc)
+            .last()
+            .expect("the boss's placement is the last node");
+        let face = crate::session::FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: boss,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: place,
+            body: 0,
+        };
+        let evaluation = evaluated(&doc);
+        let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
+        let mut mirror = crate::combine::MirrorTool::new();
+        mirror.pick_plane(&doc, face.clone());
+        let mut mate = crate::matetool::MateTool::new();
+        mate.pick(&doc, face);
+        let cap = format!(
+            "the end cap of Extrude {}",
+            test_utils::refusal::tag(boss.0.digest())
+        );
+        let plane = mirror.line(by);
+        let on = mate.line(by);
+        assert!(
+            plane.ends_with(&format!("mirror plane: {cap}")),
+            "the mirror says the cap on the boss: {plane}"
+        );
+        assert!(
+            on.starts_with(&format!("on: {cap};")),
+            "the mate says it alike: {on}"
         );
     }
 }

@@ -97,10 +97,7 @@ fn load_all(tools: &mut Tools, session: &DocSession, target: DrawnBody) -> Optio
 /// The whole body of a node, as the blend tool's target: its drawn
 /// copy.
 fn whole(session: &DocSession, node: RecipeNodeId) -> DrawnBody {
-    DrawnBody {
-        node: common::drawn_node(session.committed_doc(), node),
-        body: 0,
-    }
+    DrawnBody::new(common::drawn_node(session.committed_doc(), node), 0)
 }
 
 /// Feed one edge pick to the open tool the way the application does —
@@ -389,10 +386,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
-            target: DrawnBody {
-                node: profile,
-                body: 0
-            }
+            target: DrawnBody::new(profile, 0)
         })
     );
     assert_eq!(
@@ -423,7 +417,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         panic!("expected a cross-target refusal, got {notices:?}");
     };
     assert_eq!(
-        held.node,
+        held.node(),
         common::drawn_node(session.committed_doc(), first)
     );
     assert_eq!(
@@ -510,7 +504,7 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     else {
         panic!("expected a lost target, got {notices:?}");
     };
-    assert_eq!(lost.node, copy, "the picks were on the box's copy");
+    assert_eq!(lost.node(), copy, "the picks were on the box's copy");
     assert_eq!(
         node.kind(),
         Some("Place"),
@@ -911,7 +905,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             "half {half} draws {drawn} of the split's {node_wide} edge names"
         );
         tools.open(ToolKind::Blend);
-        let loaded = load_all(&mut tools, &session, DrawnBody { node, body: 0 });
+        let loaded = load_all(&mut tools, &session, DrawnBody::new(node, 0));
         assert!(loaded.is_none(), "{loaded:?}");
         assert_eq!(
             blend(&tools).count(),
@@ -1065,7 +1059,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         panic!("expected a strand drop, got {notices:?}");
     };
     assert_eq!(
-        target.node,
+        target.node(),
         common::drawn_node(session.committed_doc(), union)
     );
     assert!(!names.is_empty());

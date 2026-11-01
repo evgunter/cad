@@ -26,7 +26,7 @@
 //! normals, so two faces resting against each other carry the flip.
 //!
 //! A pick on a `Place`'s copy authors `on` as the face of the shape the
-//! placement copies ([`crate::world::on_body`]); a pick on an instance
+//! placement copies ([`crate::world::body_of`]); a pick on an instance
 //! authors it as a selection of the instance's own output; a pick
 //! anywhere else is read through A11's member walk
 //! ([`pncad::document::member_of`]) to the instance it places. The
@@ -81,7 +81,7 @@ use pncad::select::Resolution;
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
-use crate::tree::{DrawnBody, HeldPick};
+use crate::tree::HeldPick;
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **The kinds a mate's face picks are read as**, with their labels: a
@@ -514,10 +514,9 @@ impl MateTool {
     /// into tool state. The first pick fills `on`, the second `to`; a
     /// third REPLACES `to` (the choice step is still open, and
     /// re-picking the second face is how a person corrects it). The pick
-    /// is said on the body its ray met, its nodes as `doc` speaks them.
+    /// is held as every face pick is ([`HeldPick::new`]).
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        let on = DrawnBody::new(face.node, face.body);
-        let held = HeldPick::new(doc, face, on);
+        let held = HeldPick::new(doc, face);
         self.state = match std::mem::take(&mut self.state) {
             MateToolState::Idle => MateToolState::One(held),
             MateToolState::One(on) | MateToolState::Two { on, .. } => {
@@ -688,8 +687,10 @@ impl MateTool {
         // the shape's operation defines several (a split's halves).
         let (on_face, on_read) = match doc.node(on.node) {
             Some(Node::Place { .. }) => {
-                let (at, port, own) = crate::world::on_body(doc, on.node, on.body, &on.name);
-                let own = pncad::document::FaceName::new(own).map_err(|refusal| {
+                // A copy carries its body's names, so the face's name
+                // is the same on the body it places.
+                let (at, port) = crate::world::body_of(doc, on.node, on.body);
+                let own = pncad::document::FaceName::new(on.name.clone()).map_err(|refusal| {
                     MateToolError::PickIsNotAFace {
                         side: MateSide::On,
                         refusal,

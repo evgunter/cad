@@ -2406,7 +2406,7 @@ fn coincidence_cells(
                     return Some((by.name(name).to_string(), Selection::Node(node)));
                 };
                 let label = Said(&crate::tree::PickedName::new(name, on), by).to_string();
-                let (node, body, name) = (on.node, on.body, name.clone());
+                let (node, body, name) = (on.node(), on.body(), name.clone());
                 Some(match name.kind {
                     EntityKind::Face => {
                         (label, Selection::Face(FaceSelection { name, node, body }))

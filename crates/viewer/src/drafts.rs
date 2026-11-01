@@ -1429,24 +1429,22 @@ impl std::fmt::Display for CommitFault {
 }
 
 /// **A form's face latch takes `face`**: held as a pick is
-/// ([`HeldPick`]), on the body its ray met, its nodes as `doc` speaks
-/// them now. The face it already holds is kept as held, so its labels
+/// ([`HeldPick::new`]), its nodes as `doc` speaks them now. The face it already holds is kept as held, so its labels
 /// stay the ones it kept while the selection stays on it (a later edit
 /// may have taken a node `doc` no longer speaks).
 pub(crate) fn latch(slot: &mut Option<HeldPick>, doc: &Doc<ProfileProgram>, face: &FaceSelection) {
     if slot.as_ref().is_some_and(|held| held.face() == face) {
         return;
     }
-    let on = crate::tree::DrawnBody::new(face.node, face.body);
-    *slot = Some(HeldPick::new(doc, face.clone(), on));
+    *slot = Some(HeldPick::new(doc, face.clone()));
 }
 
 /// **A form's latch row, said**: the held pick by `by` ([`HeldPick`]), a
-/// node `by` no longer holds as the latch kept it; `none picked` while
-/// nothing is held.
+/// node `by` no longer holds as the latch kept it; the empty pick's one
+/// spelling ([`crate::seats::NONE_PICKED`]) while nothing is held.
 pub(crate) fn latch_said(held: Option<&HeldPick>, by: Speaker<'_>) -> String {
     held.map_or_else(
-        || "none picked".to_owned(),
+        || crate::seats::NONE_PICKED.to_owned(),
         |held| pncad::document::Said(held, by).to_string(),
     )
 }
@@ -1653,9 +1651,8 @@ mod tests {
             "no face held: the form waits"
         );
         let doc = Doc::<ProfileProgram>::empty_derived("sketch-face", Tol::witness());
-        let on = crate::tree::DrawnBody::new(face.node, face.body);
         let drafts = Drafts {
-            sketch_face: Some(crate::tree::HeldPick::new(&doc, face.clone(), on)),
+            sketch_face: Some(crate::tree::HeldPick::new(&doc, face.clone())),
             sketch_spin: core::f64::consts::FRAC_PI_2,
             ..waiting
         };

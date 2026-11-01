@@ -745,7 +745,7 @@ pub enum SessionOp {
     /// **Mirror an existing body across the plane of a picked face** —
     /// the mirror tool's one committed action. The plane is the face's
     /// own, read where it was picked: a pick on a copy is read on the
-    /// body the copy places (`crate::world::on_body`), so the plane reads
+    /// body the copy places (`crate::world::body_of`), so the plane reads
     /// the geometry of the body's space, as a mirror's plane must.
     ///
     /// A body the world draws becomes the symmetric part: the image

@@ -102,8 +102,8 @@ fn picks_by_index(tool: &BlendTool, index: &PickIndex) -> usize {
             let mut whole = index
                 .whole_edge(&EdgeSelection {
                     name,
-                    node: target.node,
-                    body: target.body,
+                    node: target.node(),
+                    body: target.body(),
                 })
                 .expect("the index answers the rim");
             whole.sort();
@@ -176,12 +176,11 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Blend);
     let (doc, eval) = session.landed_pair().expect("landed");
-    let loaded = tools.blend_mut().expect("open").load_all_edges(
-        DrawnBody { node, body: 0 },
-        doc,
-        eval,
-        &index,
-    );
+    let loaded =
+        tools
+            .blend_mut()
+            .expect("open")
+            .load_all_edges(DrawnBody::new(node, 0), doc, eval, &index);
     assert_eq!(loaded, None);
     let tool = blend(&tools);
     assert_eq!(tool.selection().len(), edges.len(), "every arc is held");

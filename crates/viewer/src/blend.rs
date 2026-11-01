@@ -256,7 +256,7 @@ impl Say for BlendEvent {
                 f,
                 "{} has no edges to select: {}",
                 Said(target, by),
-                Said(standing, by.about(target.node))
+                Said(standing, by.about(target.node()))
             ),
             Self::TargetLost {
                 target,
@@ -412,8 +412,8 @@ impl BlendTool {
             .iter()
             .map(|name| EdgeSelection {
                 name: name.clone(),
-                node: target.node,
-                body: target.body,
+                node: target.node(),
+                body: target.body(),
             })
             .collect()
     }
@@ -422,8 +422,8 @@ impl BlendTool {
     /// names, `None` while nothing is held (the struct's invariant).
     pub fn held_edges(&self) -> Option<crate::marks::HeldEdges<'_>> {
         self.target().map(|target| crate::marks::HeldEdges {
-            node: target.node,
-            body: target.body,
+            node: target.node(),
+            body: target.body(),
             names: &self.edges,
         })
     }
@@ -575,17 +575,17 @@ impl BlendTool {
         eval: &Evaluation<f64>,
         index: &PickIndex,
     ) -> Option<BlendEvent> {
-        if let Err(standing) = eval.usable(target.node) {
+        if let Err(standing) = eval.usable(target.node()) {
             return Some(BlendEvent::TargetHasNoValue {
                 target,
                 standing: crate::tree::standing_as_drawn(standing, eval),
             });
         }
-        let drawn = index.edge_names_in(target.node, target.body);
+        let drawn = index.edge_names_in(target.node(), target.body());
         if let Some(refused) = drawn.refused {
             return Some(BlendEvent::EdgesUnnamed { refused });
         }
-        let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+        let named: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node())
             .into_iter()
             .collect();
         let edges: BTreeSet<StableName> = drawn
@@ -602,8 +602,8 @@ impl BlendTool {
         for name in &edges {
             let edge = EdgeSelection {
                 name: name.clone(),
-                node: target.node,
-                body: target.body,
+                node: target.node(),
+                body: target.body(),
             };
             let rim: BTreeSet<StableName> = match index.whole_edge(&edge) {
                 Ok(whole) => whole.into_iter().collect(),
@@ -623,7 +623,7 @@ impl BlendTool {
     fn fix(&mut self, doc: &Doc<ProfileProgram>, target: DrawnBody) {
         self.target = Some(HeldTarget {
             at: target,
-            node: doc.spoken(target.node),
+            node: doc.spoken(target.node()),
         });
     }
 
@@ -708,7 +708,7 @@ impl BlendTool {
         let Some(HeldTarget { at: target, node }) = self.target.clone() else {
             return Vec::new();
         };
-        if doc.node(target.node).is_none() {
+        if doc.node(target.node()).is_none() {
             let edges = self.count();
             self.clear();
             return vec![BlendEvent::TargetLost {
@@ -725,10 +725,10 @@ impl BlendTool {
         // picks the moment an upstream slot went momentarily bad. Say
         // nothing and wait for a run that has an answer; the node's
         // badge carries its standing.
-        if eval.usable(target.node).is_err() {
+        if eval.usable(target.node()).is_err() {
             return Vec::new();
         }
-        let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+        let live: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node())
             .into_iter()
             .collect();
         let names: Vec<StableName> = self
@@ -802,7 +802,7 @@ impl BlendTool {
             !self.edges.is_empty(),
             "a target is held exactly while an edge is"
         );
-        self.target().map(|target| target.node)
+        self.target().map(|target| target.node())
     }
 }
 
@@ -829,10 +829,7 @@ mod tests {
         let (eval, mut index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
-        let target = DrawnBody {
-            node: copy,
-            body: 0,
-        };
+        let target = DrawnBody::new(copy, 0);
         let drawn = index.edges_in(copy, 0).to_vec();
         let mut tool = BlendTool::new();
         let held = EdgeSelection {
@@ -901,10 +898,7 @@ mod tests {
         let (eval, index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
-        let target = DrawnBody {
-            node: copy,
-            body: 7,
-        };
+        let target = DrawnBody::new(copy, 7);
         assert!(matches!(
             index.edge_name_of(EdgeId {
                 node: copy,

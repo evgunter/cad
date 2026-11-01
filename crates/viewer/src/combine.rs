@@ -36,7 +36,7 @@ use crate::seats::{
 };
 use crate::session::refuse::one_body;
 use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
-use crate::tree::{DrawnBody, HeldPick};
+use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
 
 /// **The boolean tool**: one operation choice and the body picks it
@@ -441,8 +441,7 @@ impl MirrorTool {
         if self.seats.is_empty() {
             self.seats.pick_at(doc, face.node, Some(face.body));
         }
-        let (node, body) = crate::world::body_of(doc, face.node, face.body);
-        self.plane = Some(HeldPick::new(doc, face, DrawnBody::new(node, body)));
+        self.plane = Some(HeldPick::new(doc, face));
     }
 
     /// The half the body seat reads, when it holds a split picked
@@ -494,7 +493,7 @@ impl MirrorTool {
     /// **The panel's held-picks line**: the body seat and the plane,
     /// each said by `by` — the body seat's node, and the plane as the
     /// chrome says a pick ([`PickedName`]) on the body the face is on as
-    /// a body seat says a pick on a copy ([`crate::world::on_body`]), so
+    /// a body seat says a pick on a copy ([`crate::world::body_of`]), so
     /// one click is named by one node in both items. A node `by` does
     /// not hold is said as the tool kept it.
     pub fn line(&self, by: Speaker<'_>) -> String {

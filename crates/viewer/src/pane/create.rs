@@ -2042,7 +2042,7 @@ mod tests {
     }
 
     /// **The mate panel's picks, painted**: the seated tools' line —
-    /// one `role: pick` item per side, `—` for the open one, the
+    /// one `role: pick` item per side, `none picked` for the open one, the
     /// seated line's empty sentence — with each pick said as the chrome
     /// says a pick: the face in its leaf role's words, and the body it
     /// was picked on where that is not the feature the words name.
@@ -2063,11 +2063,11 @@ mod tests {
         let painted =
             |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, by, &Theme::DEFAULT));
         let mut tool = MateTool::new();
-        assert_eq!(painted(&tool), "no picks yet");
+        assert_eq!(painted(&tool), "none picked");
         tool.pick(&doc, cap_on(3, 3));
         assert_eq!(
             painted(&tool),
-            "on: the end cap of node 000000000003; to: —"
+            "on: the end cap of node 000000000003; to: none picked"
         );
         tool.pick(&doc, cap_on(3, 5));
         assert_eq!(
@@ -2095,7 +2095,7 @@ mod tests {
                 );
             })
         };
-        assert_eq!(painted(&tool), "no picks yet");
+        assert_eq!(painted(&tool), "none picked");
         for n in [3, 5, 7] {
             tool.pick(&doc, node(n));
         }
@@ -2109,7 +2109,7 @@ mod tests {
         subtract.pick(&doc, node(3));
         assert_eq!(
             painted(&subtract),
-            "body kept: node 000000000003; body removed: —"
+            "body kept: node 000000000003; body removed: none picked"
         );
         subtract.pick(&doc, node(5));
         assert_eq!(

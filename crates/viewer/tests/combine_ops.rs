@@ -1916,13 +1916,13 @@ fn the_seat_line_names_the_roles() {
     let doc = Doc::empty_derived("seat-line", Tol::witness());
     let mut boolean = BooleanTool::new();
     boolean.set_operation(BooleanOp::Subtract);
-    assert_eq!(boolean.line(Speaker::of(&doc)), "no picks yet");
+    assert_eq!(boolean.line(Speaker::of(&doc)), "none picked");
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     // The empty document holds neither pick, so each is spoken by its
     // tag alone.
     assert_eq!(
         boolean.line(Speaker::of(&doc)),
-        "body kept: node 000000000003; body removed: —"
+        "body kept: node 000000000003; body removed: none picked"
     );
     let mut transform = TransformTool::new();
     transform.pick(&doc, RecipeNodeId::new(0, tagged(7)));
