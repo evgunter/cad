@@ -19,6 +19,9 @@ test_utils::gated_to![
     "crates/geom/src/surfaces.rs",
     "crates/geom-core/src/spline/",
     "crates/geom-core/src/interval.rs",
+    "crates/geom/src/net.rs",
+    "crates/geom/tests/exact_q/",
+    "crates/geom-core/tests/exact_q/",
 ];
 
 use geom::NurbsSurface;
