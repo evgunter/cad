@@ -79,3 +79,12 @@ certifies two R-loops that refused on reach before:
 Cutting either in is this row's work; the arm gives each loop a
 closed-form point and the run of the wall's meridian trace it lies over
 (`section_cert.rs` `torus_square_cylinder`).
+
+## 2026-11-01 — the grazing cylinder's test is renamed (SPLITDOOR, `splitdoor/sided-followups`)
+
+`germ_torus_doors::subtract_and_intersect_refuse_where_union_does` is
+now `subtract_and_intersect_reach_the_doors_union_does`. PR 6070 made
+its dumbbell row build, so the old name no longer described the test.
+The grazing cylinder's row is unchanged: `∩` and both differences
+refuse `FallbackExtentUnsupported` with the R-loop sentence ("a closed
+loop interior to both faces"), at ε 1e-6, 1e-9 and 1e-12.

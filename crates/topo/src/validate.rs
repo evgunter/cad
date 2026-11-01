@@ -1885,6 +1885,48 @@ pub enum ValidationError {
         /// What the containment walk stopped on.
         source: ContainError,
     },
+    /// **Tier 3, one region per face**: one surface cycle of a curved
+    /// face ([`crate::surface_boundary::surface_cycles`]) lies off the
+    /// face's side of another, read at a vertex of the first by the face's
+    /// point-in-face door with its boundary cut to the second cycle alone
+    /// ([`crate::boolean::cycle_side`]). A ring outside its outer loop, a
+    /// ring inside another ring and an outer loop inside a ring are each
+    /// one. A planar face's ring outside its outer loop is
+    /// [`Self::RingOutsideOuter`].
+    CycleOffFaceSide {
+        /// The face.
+        face: FaceKey,
+        /// The vertex of the first cycle the door placed off the face's
+        /// side: the first of its cycle that decided.
+        at: VertexKey,
+        /// An edge of the second cycle, the first in its walk.
+        other: EdgeKey,
+    },
+    /// **Tier 3, one region per face, undecided**: no vertex of a
+    /// surface cycle was placed against another, and the door's reading
+    /// of one of them was in band ([`Self::CycleOffFaceSide`]'s reading).
+    CycleSideUndecided {
+        /// The face.
+        face: FaceKey,
+        /// The first vertex whose reading was in band.
+        at: VertexKey,
+        /// An edge of the cycle it was read against.
+        other: EdgeKey,
+        /// The escalation, carrying its margin.
+        source: Indeterminate,
+    },
+    /// **Tier 3, one region per face, on a torus**: the face's essential
+    /// surface cycles (those whose joint elements compose to a nonzero
+    /// deck element, [`crate::surface_boundary::cycle_winding`]) are not a
+    /// separating pair. A face holds none or two, and two only where
+    /// their windings are opposite, so that they bound one band of the
+    /// torus between them.
+    EssentialCyclesUnpaired {
+        /// The face.
+        face: FaceKey,
+        /// How many of its cycles wind.
+        essential: usize,
+    },
     /// **Tier 3, check 9 — two rings.** Two RINGS of one face meet, in
     /// any of the shapes [`RingPairContact`] names. A pinch is one
     /// vertex per cone, so a figure-eight hole is ONE ring through two
@@ -3079,6 +3121,10 @@ const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
 /// A hole against its face's outline: the lever of check 9's contact
 /// arms, whose refusals do not carry which of their gaps decided.
 const HOLE_INSIDE: &str = "Recourse: move the hole so it lies strictly inside the outline";
+
+/// The recourse for a face's loops that do not nest.
+const CYCLES_NEST: &str = "Recourse: keep each hole strictly inside the outline and outside \
+                           every other hole";
 
 /// The recourse for two holes of one face that meet.
 const HOLES_APART: &str = "Recourse: keep the holes apart, or make them one hole";
@@ -4674,6 +4720,27 @@ impl fmt::Display for ValidationError {
                      decided: {why}. {recourse}"
                 )
             }
+            Self::CycleOffFaceSide { .. } => write!(
+                f,
+                "a loop of a face's boundary lies outside the region another of its loops \
+                 bounds, so the face encloses no single region. {CYCLES_NEST}"
+            ),
+            Self::CycleSideUndecided { source, .. } => write!(
+                f,
+                concat!(
+                    geom_core::undecided!(
+                        "which side of one loop of a face's boundary another lies on"
+                    ),
+                    ". {}"
+                ),
+                own_close(&source.margin, CYCLES_NEST)
+            ),
+            Self::EssentialCyclesUnpaired { .. } => write!(
+                f,
+                "a face on a torus has boundary loops running round the torus that are not \
+                 the two edges of one band of it, so the face encloses no single region. \
+                 {DEFECT}"
+            ),
             // The region the shell bounds is the one out of range: its
             // winding counts the material there twice, or below none.
             Self::ShellWinding { bounded, .. } => write!(
@@ -5752,8 +5819,8 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   owe their own typed refusal for a wedge-0/2π edge: this pass
 ///   decides legality at rest and says nothing about what an operation
 ///   may then do with a legal cusp.
-/// - **Face-boundary containment on curved surfaces** (a face's loops
-///   actually bounding a region of its surface) — tracked at #638.
+/// - **Face-boundary containment** (a face's loops bounding one region
+///   of its surface; #638), what is covered and what is not.
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
@@ -5767,11 +5834,28 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   own carrier ([`crate::splitting::containment::point_in_loop`]).
 ///   The **curved analytic** kinds' orientation half is covered by
 ///   check 6's curved arm (M6-6: boundary material side vs the sense
-///   bit).
+///   bit), and their NESTING half — each surface cycle on the face's side
+///   of every other, a torus's essential cycles one pair — by check 9's
+///   arm off the plane ([`crate::one_region`]).
 ///
 ///   What remains deferred:
-///   - containment against curved surfaces, and the region-bounding
-///     statement for curved faces;
+///   - containment against curved surfaces: check 5's between-vertices
+///     residual off the plane;
+///   - off the plane, the faces and cycles the region arm cannot read,
+///     each its doors' own residue: a face on a spline chart (no door
+///     reads one cycle of its trim); a face with an edge of a kind its
+///     door does not admit (a cylinder's or a cone's other than a line,
+///     a circle or an ellipse; a sphere's other than a circle, or one
+///     with no certified curve; a torus's other than a circle or a
+///     spiric); a torus face one of whose cycles has no stored joint
+///     element to read its winding from; and a cycle no vertex of which
+///     its door places (no path settled, an arc the door reads as wound
+///     past a turn, or an edge whose carrier's reading cannot cross it;
+///     a face check 6 refused for its orientation is reported there and not
+///     read again)
+///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
+///   - a ring inside another ring on a plane
+///     (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`);
 ///   - on a plane, the loops that walk cannot read at a point — a NURBS
 ///     edge on the outer loop, or a `Spiric` edge every ray from the
 ///     point was abandoned on, the nesting arm's own residue,
@@ -8652,6 +8736,18 @@ pub(crate) fn tier3_local_checks_marked<
     }
 
     // ------------------------------------------------------------------
+    // Tier 3, check 9's arm off the plane: one region per face. Each
+    // surface cycle of a curved face lies on the face's side of every
+    // other, read by the face's point-in-face door cut to that cycle
+    // (`crate::one_region`, which states the cuts, the readings and the
+    // exemptions), past the faces check 6 refused for their orientation
+    // (`orientation_refused`). On a plane the nesting arm above is that
+    // statement's reading.
+    // ------------------------------------------------------------------
+    let inverted: Vec<FaceKey> = orientation_refused(&errors).collect();
+    errors.extend(crate::one_region::region_errors(body, band, &inverted));
+
+    // ------------------------------------------------------------------
     // Tier 3, check 10: a solid's shells bound winding 0 or 1
     // everywhere (`shell_winding_errors` carries the invariant, the
     // one-witness argument and the silences). Gated on the whole
@@ -8754,6 +8850,19 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     pairs
 }
 
+/// **The faces check 6 refused for their orientation**
+/// (`LoopRoleInverted`, `CurvedSenseInverted`), in report order: a face
+/// whose loops or sense say its region is the other side, which a reading
+/// of its region would refuse again under another name. Pinch corners and
+/// the region arm read past them.
+fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceKey> + '_ {
+    errors.iter().filter_map(|e| match e {
+        ValidationError::LoopRoleInverted { face, .. }
+        | ValidationError::CurvedSenseInverted { face } => Some(*face),
+        _ => None,
+    })
+}
+
 /// Check 9's corner half on one face: where one of its loops passes a
 /// point key at two or more corners, each corner's wedge
 /// ([`wedge_holds`]) holds none of that loop's other sides at the
@@ -8793,12 +8902,7 @@ fn pinch_corner_errors<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    let inverted = errors.iter().any(|e| {
-        matches!(e,
-            ValidationError::LoopRoleInverted { face, .. }
-            | ValidationError::CurvedSenseInverted { face } if *face == face_key)
-    });
-    if inverted {
+    if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
     for (cycle, group) in loop_point_groups(body, face) {

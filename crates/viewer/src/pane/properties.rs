@@ -22,25 +22,34 @@ use crate::session::{
 };
 use crate::theme::Theme;
 use crate::widgets::{
-    FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker,
-    delete_button, free_move_gesture, length_picker, number_field, pick_unit, unit_field,
-    value_field_ops, value_gesture, vec3_row_ops,
+    CANCEL, FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH,
+    angle_picker, commit_row, delete_button, form_door, free_move_gesture, length_picker,
+    number_field, pick_unit, unit_field, value_field_ops, value_gesture, vec3_row_ops,
 };
+
+/// What the door that opens the add-variable form says.
+pub(crate) const NEW_VARIABLE: &str = "New variable…";
+
+/// What the add-variable form's commit button says: what it makes, so
+/// it reads apart from every other commit on screen.
+pub(crate) const NEW_VARIABLE_COMMIT: &str = "Create variable";
 
 impl ViewerBehavior<'_> {
     /// The property panel.
     pub(crate) fn properties_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Properties");
         ui.separator();
-        self.mate_tool_ui(ui);
         self.create_ui(ui);
-        self.add_part_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
             self.instance_ui(ui, node);
             self.product_ui(ui, node);
         }
+        // The forms whose op takes the selection, under its header and
+        // above its rows, where a reader who picked it looks first:
+        // nothing at all unless the selection is a profile.
+        self.extrude_ui(ui);
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");
@@ -214,7 +223,7 @@ impl ViewerBehavior<'_> {
     /// not here.
     ///
     /// Two deliberate frictions, both refusals-in-advance. The
-    /// dimension starts UNPICKED and Create waits for it — the offer
+    /// dimension starts UNPICKED and the commit waits for it — the offer
     /// path arrives here from an expression whose context does not
     /// determine the new variable's dimension, and a silent default
     /// would be a guess. And a name that is already declared shows the
@@ -222,6 +231,9 @@ impl ViewerBehavior<'_> {
     /// edit door offered, before the click ever reaches the declare's
     /// own refusal of a taken name (`EditError::VarNameTaken`).
     pub(crate) fn add_variable_ui(&mut self, ui: &mut egui::Ui) {
+        if !form_door(ui, NEW_VARIABLE, &mut self.drafts.new_variable_open) {
+            return;
+        }
         // The offer from an unknown-variable parse refusal, shown
         // while the name field still says the offered name.
         if let Some(offered) = self.drafts.new_variable_offer.clone() {
@@ -238,7 +250,6 @@ impl ViewerBehavior<'_> {
             }
         }
         ui.horizontal(|ui| {
-            ui.label("add");
             ui.add(
                 egui::TextEdit::singleline(&mut self.drafts.new_variable_name)
                     .hint_text("name")
@@ -270,7 +281,7 @@ impl ViewerBehavior<'_> {
             // `FieldWriting::of(dimension, Some(unit), ..)` for the
             // picked `unit`, derived rather than stated, and applying
             // the factor here as well would apply it twice. With no dimension picked yet there is no
-            // tick to derive and Create is refused anyway; a length's
+            // tick to derive and the commit is refused anyway; a length's
             // serves as the placeholder.
             let speed = self
                 .drafts
@@ -304,9 +315,10 @@ impl ViewerBehavior<'_> {
         });
         // The draft text is offered to the one door that decides what
         // a variable name is; a refused text leaves the control
-        // disabled, and the sentence the refusal carries is not yet
-        // shown beside it.
-        let name = VarName::new(self.drafts.new_variable_name.trim()).ok();
+        // disabled, and the refusal's own sentence is said under it.
+        let typed = self.drafts.new_variable_name.trim().to_owned();
+        let named = VarName::new(typed.as_str());
+        let name = named.as_ref().ok().cloned();
         // The declare door applies to `committed_doc()`, so the notice
         // ahead of the click asks it too: a notice drawn from the
         // previewed document would be answering about a document the
@@ -319,33 +331,54 @@ impl ViewerBehavior<'_> {
             if exists_notice(ui, &self.theme, name, dimension) {
                 self.ops.push(SessionOp::Select(Selection::Variable(var)));
             }
+            if ui.button(CANCEL).clicked() {
+                self.drafts.close_new_variable();
+            }
             return;
         }
-        let ready = name.is_some() && self.drafts.new_variable_dimension.is_some();
-        let create = ui.add_enabled(ready, egui::Button::new("Create"));
-        let create = if self.drafts.new_variable_dimension.is_none() {
-            create.on_disabled_hover_text("pick a dimension first")
-        } else {
-            create
+        // **The commit's gate, evaluated once**: whether the button is
+        // live, the reason said under the row while it is not, and the
+        // declaration a click pushes are all this one answer, so the
+        // form cannot offer a click that does nothing. The name first,
+        // as the form reads; then the dimension; then whether the
+        // dimension can carry the draft value — a `Count` declared
+        // from a field holding `NaN` would otherwise be created holding
+        // zero, a value nobody authored, and `SlotValue::of` is the one
+        // door that decides it. A refusal is said in its door's words.
+        let gate = match named {
+            Err(_) if typed.is_empty() => Err(("name the variable".to_owned(), Tone::Advisory)),
+            Err(fault) => Err((fault.to_string(), Tone::Actionable)),
+            Ok(name) => self
+                .drafts
+                .new_variable_dimension
+                .ok_or_else(|| ("pick a dimension first".to_owned(), Tone::Advisory))
+                .and_then(|dimension| {
+                    SlotValue::of(dimension, self.drafts.new_variable_value)
+                        .map(|value| (name, dimension, value))
+                        .map_err(|fault| (fault.to_string(), Tone::Actionable))
+                }),
         };
-        // The draft value is asked whether the dimension can carry it
-        // before a declaration is minted from it: a `Count` variable
-        // declared from a field holding `NaN` would otherwise be
-        // created holding zero, which is a value nobody authored.
-        // `SlotValue::of` is the one door that decides this.
-        if create.clicked()
-            && let Some(name) = name
-            && let Some(dimension) = self.drafts.new_variable_dimension
-            && let Ok(value) = SlotValue::of(dimension, self.drafts.new_variable_value)
+        if let Err((words, tone)) = &gate {
+            crate::widgets::message_toned(ui, words, &self.theme, *tone);
+        }
+        let closing = commit_row(
+            ui,
+            NEW_VARIABLE_COMMIT,
+            gate.as_ref().err().map(|(words, _)| words.as_str()),
+            |_| {},
+        );
+        if closing.cancel {
+            self.drafts.close_new_variable();
+        }
+        // The form closes when the document accepts the declaration
+        // (`Drafts::accepted`), so a refused one keeps what was typed.
+        if closing.commit
+            && let Ok((name, dimension, value)) = gate
         {
             self.ops.push(SessionOp::DeclareVar {
                 name,
                 value: crate::props::doc_variable(dimension, value, self.new_variable_unit()),
             });
-            self.drafts.new_variable_name.clear();
-            self.drafts.new_variable_dimension = None;
-            self.drafts.new_variable_value = 0.0;
-            self.drafts.new_variable_offer = None;
         }
     }
 
@@ -355,7 +388,7 @@ impl ViewerBehavior<'_> {
     /// dimension picked yet).
     ///
     /// One answer read by TWO places — the field beside it and the
-    /// declaration the Create button mints — so the number on screen
+    /// declaration the commit button mints — so the number on screen
     /// and the unit the document remembers cannot disagree.
     ///
     /// **The picker is a third place and does not read it**, which is

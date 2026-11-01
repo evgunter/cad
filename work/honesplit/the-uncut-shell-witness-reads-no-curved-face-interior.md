@@ -109,6 +109,35 @@ a one-vertex cap, or `Mixed`), and it now decides
 
 - Moved to HONESPLIT (`work/honesplit/`) by `git mv`, id and body unchanged: whose charter is split and carve bookkeeping, unproven walks and the reads nothing reaches. No fixture reaches it. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
 
+## Evidence (2026-11-01, CLEAVE PR 6177): a wall piece with every edge on the other boundary
+
+Once the join closes a one-segment cylinder's loop at a vertex of a
+planar face's boundary (`boolean/join.rs` `closes_at_its_site`), two
+poses reach `SectionLoopUndecided` that `main` refused earlier as
+`SingleSiteSectionLoop`:
+
+- `a_closed_conic_in_the_partners_face.rs` `a_boss_over_a_hole_by_pose`,
+  the aligned one-segment row: the boss `r = 0.3`, `z ∈ [0, 1]`, beside
+  the plate `[−1, 1]² × [0, 0.5]` holed by `r = 0.1` about `(0.2, 0)`,
+  tangent inside the boss's rim, vertices at azimuth 0. Every op in both
+  orders, at the default ε, `1e-6` and `1e-12`; pinned there as a red
+  citing this row.
+- The PR 5808 review probe's S10 (a cylinder tangent inside a wider one,
+  the wider one's top at `z = 0.5`), one-segment, `B ∖ A`, `aaz = 0`.
+
+In both the null face of the floor rim's section has two loops: one
+whose region is the boss's floor, flush with the plate's floor (reads
+the other boundary), and one whose region is the piece of the boss's
+wall between the two floors. Every edge of that wall piece lies on the
+plate's boundary: its rims in the plate's floor and top, its wrap edge
+along the hole's wall, tangent to it. So the ladder reads it nowhere,
+and `seam_germ_side` reads nothing at a seam on a curve. S10's two-arc
+form builds: its wall has a ruling at azimuth π inside the wider
+cylinder's material, which reads (the aligned row's two-arc form
+refuses `UnpairedLooseEnds` first). A reading at a curved seam (the region's direction off
+the conic chord against the holding face's normal) would decide both
+poses without an interior point.
+
 ## The role read's seam fallback reads curved chords (2026-11-01, SPLITDOOR)
 
 PR 6221 (`splitdoor/wrap-tip-boolean`) extends `boolean/join.rs`
