@@ -326,9 +326,9 @@ pub(super) fn recl_sectors<T: Decide>(
         // the locus honestly stays `On` (the recl edge engine
         // adjudicates it, exactly as a first-order On), other bounds
         // take the side their carrier curves to over the bound's own
-        // reach, the first-order code's lever. No Eq. 15.3 lump and
-        // no neighbor propagation: nothing here is a coincident-
-        // sector identity.
+        // reach, the first-order code's lever. No Eq. 15.3 lump:
+        // nothing here is a coincident-sector identity. Neighbours
+        // take each shared bound's own code below.
         let read = declared.read(
             &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
             Coincide::TangentSide,

@@ -202,8 +202,9 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
 ///
-/// A corner between a slit's or ring's two coincident edges at its tip
-/// ([`SlitTips`], read off the operand at rest) is the carrying face's
+/// A corner between a slit's or ring's two coincident edges at its tip,
+/// or round a wrap edge's tip, its one edge walked out and back
+/// ([`SlitTips`], read off the operand at rest), is the carrying face's
 /// full turn round the tip ([`corner_shape`]), pushed as four quarter
 /// sectors, each convex.
 pub(super) fn build_sectors<T: Decide>(

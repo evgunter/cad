@@ -2,7 +2,7 @@
 id: parting
 kind: program
 title: PARTING — the boolean parting's reading of edges lying in faces, and cuts on spline faces
-status: active
+status: ready
 opened: 2026-11-01
 group: kernel/boolean/split
 prefix: parting/

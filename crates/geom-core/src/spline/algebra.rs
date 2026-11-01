@@ -1628,6 +1628,33 @@ mod tests {
     use crate::real::Bounds;
     use crate::spline::basis::basis_funs;
 
+    /// **A weight is certainly positive when certified and above zero**
+    /// ([`certainly_positive`]): a positive point not certified, zero, a
+    /// negative weight, one enclosure reaching zero and NaI each fail it,
+    /// and any one of them fails the whole slice.
+    #[test]
+    fn certainly_positive_wants_every_weight_certified_and_above_zero() {
+        let at = |x: f64| Interval::from_bounds(x, x);
+        let unproven = Interval::from_bounds(-1.0, 1.0).sqrt() * at(0.0) + at(1.0);
+        assert!(
+            certainly_positive(&[at(1.0), at(1e-300)]),
+            "certified and above zero"
+        );
+        for (what, w) in [
+            ("positive, not certified", unproven),
+            ("zero", at(0.0)),
+            ("negative", at(-0.5)),
+            ("reaching zero", Interval::from_bounds(0.0, 1.0)),
+            ("NaI", Interval::refused()),
+        ] {
+            assert!(!certainly_positive(&[w]), "{what}: {w:?}");
+            assert!(
+                !certainly_positive(&[at(1.0), w]),
+                "{what} beside a good weight"
+            );
+        }
+    }
+
     /// On uniform knots the margin keeps the midpoint: at degree 10
     /// with 40 interior knots, every recomposition pass of the
     /// elevation splits its unknowns `⌈n/2⌉` forward. The estimate

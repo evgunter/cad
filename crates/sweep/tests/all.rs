@@ -164,6 +164,8 @@ mod a_vertex_on_a_grazing_plane;
 mod a_vertex_piercing_a_lens_wall;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
+#[path = "a_wrap_tip_reads_its_full_turn_in_the_boolean.rs"]
+mod a_wrap_tip_reads_its_full_turn_in_the_boolean;
 #[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]
 mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 #[path = "an_annular_tube_through_a_plate.rs"]
@@ -1330,8 +1332,8 @@ mod a_mirrored_body_is_its_image;
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
 mod a_seam_inside_a_face_is_no_boundary_of_it;
-#[path = "an_aimed_ray_from_far_reads_a_split_side_inside_out.rs"]
-mod an_aimed_ray_from_far_reads_a_split_side_inside_out;
+#[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
+mod an_aimed_ray_from_far_reads_a_split_side_right;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
@@ -1346,6 +1348,8 @@ mod fallback_rows_review;
 
 #[path = "a_box_along_a_fillets_line_arc_junction.rs"]
 mod a_box_along_a_fillets_line_arc_junction;
+#[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
+mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]
