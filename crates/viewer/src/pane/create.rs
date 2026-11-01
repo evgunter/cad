@@ -1251,9 +1251,7 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.boolean() else {
             return;
         };
-        if ui
-            .add_enabled(!tool.is_empty(), egui::Button::new("Clear picks"))
-            .clicked()
+        if clear_picks_button(ui, tool.picks().len(), Picked::Bodies)
             && let Some(open) = self.tools.boolean_mut()
         {
             open.clear();
@@ -1688,7 +1686,7 @@ impl ViewerBehavior<'_> {
                     }
                 }
             }
-            if clear_picks_button(ui, count)
+            if clear_picks_button(ui, count, Picked::Edges)
                 && let Some(tool) = self.tools.blend_mut()
             {
                 tool.clear();
@@ -1842,23 +1840,46 @@ impl ViewerBehavior<'_> {
     }
 }
 
-/// **The blend tool's `Clear picks`**, live while `count` edges are
-/// held. No operation stands behind it — clearing is tool state — so
-/// with nothing held there is no refusal to read, and the literal here
-/// is the sentence: each state carries its own on the hook egui shows
-/// in that state.
+/// **What a tool's picks are, for its `Clear picks`**: the words its
+/// two states say on the hover egui shows in each.
+#[derive(Clone, Copy)]
+enum Picked {
+    /// The blend tool's edges.
+    Edges,
+    /// The boolean tool's bodies.
+    Bodies,
+}
+
+impl Picked {
+    /// What a click does, live.
+    fn drops(self) -> &'static str {
+        match self {
+            Self::Edges => "drop every picked edge and start on any body",
+            Self::Bodies => "drop every picked body",
+        }
+    }
+
+    /// Why the button is disabled with nothing held.
+    fn nothing(self) -> &'static str {
+        match self {
+            Self::Edges => "no edge is picked, so there is nothing to clear",
+            Self::Bodies => "no body is picked, so there is nothing to clear",
+        }
+    }
+}
+
+/// **A tool's `Clear picks`**, live while `count` picks are held. No
+/// operation stands behind it — clearing is tool state — so with
+/// nothing held there is no refusal to read, and [`Picked`] carries the
+/// sentence: each state its own, on the hook egui shows in that state.
 ///
 /// Answers whether it was clicked, which a disabled button never is.
-fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
+fn clear_picks_button(ui: &mut egui::Ui, count: usize, picked: Picked) -> bool {
     let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
     if count > 0 {
-        button
-            .on_hover_text("drop every picked edge and start on any body")
-            .clicked()
+        button.on_hover_text(picked.drops()).clicked()
     } else {
-        button
-            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
-            .clicked()
+        button.on_disabled_hover_text(picked.nothing()).clicked()
     }
 }
 
@@ -1876,7 +1897,7 @@ mod tests {
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
     use super::{
-        clear_picks_button, duplicate_note, mate_picks_row, part_selector_rows, seats_row,
+        Picked, clear_picks_button, duplicate_note, mate_picks_row, part_selector_rows, seats_row,
     };
     use crate::combine::BooleanTool;
     use crate::frame::Tone;
@@ -2061,7 +2082,7 @@ mod tests {
     #[test]
     fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
         let hovered = painted_while_hovering("Clear picks", 0, |ui| {
-            clear_picks_button(ui, 0);
+            clear_picks_button(ui, 0, Picked::Edges);
         });
         assert!(
             hovered.contains("no edge is picked, so there is nothing to clear"),
@@ -2074,7 +2095,7 @@ mod tests {
     #[test]
     fn clear_picks_with_picks_held_says_what_it_drops() {
         let hovered = painted_while_hovering("Clear picks", 0, |ui| {
-            clear_picks_button(ui, 3);
+            clear_picks_button(ui, 3, Picked::Edges);
         });
         assert!(
             hovered.contains("drop every picked edge and start on any body"),
