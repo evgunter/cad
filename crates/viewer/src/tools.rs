@@ -427,10 +427,7 @@ impl ToolNotice {
     /// name within its table in that document's evaluation
     /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
     pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
-        let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
-            Speaker::of(doc).within(evaluation)
-        });
-        Said(self, by).to_string()
+        Said(self, crate::frame::landed_speaker(landed)).to_string()
     }
 }
 
