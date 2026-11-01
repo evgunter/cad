@@ -52,3 +52,25 @@ SECTARMS ran the 18 rows at the default ε, with `--run-ignored all --no-fail-fa
 The 18th row, `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`, was still running after 22 minutes at `81707fbe` and was killed. So whatever makes it red already predates 6139.
 
 **6139 leaves the suspect list.** The earliest commit checked is `81707fbe`, so bisection should start before it. `charttail/main-red-ringed-curved-doors-reds-four-sweep-rows` overlaps only in the `bisector_nodes` file, and on a different row (`slanted_bores_…` at 1e-12).
+
+## 2026-10-31 (SECT, lane `sect-onesix`)
+
+Measured on main `b719d39ad1` at opt-level 2. Two of these rows also
+read the same at 1e-6 and 1e-12 as at the default ε:
+
+- `torus_doors_join::a_square_rod_on_the_outer_equator_stops_at_the_join`
+  stops `Projected`, where the row wants `Join { closed: false }`.
+  `a_rod_across_the_inner_bound_…` stops `Projected` and
+  `a_rod_off_the_axis_line_…` stops `ConicTrim`, at every ε.
+- `germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs`:
+  for β 0.5 the five ops stop `ring volume`, `quadrature volume`,
+  `quadrature volume`, `ring volume`, `quadrature volume`. For β 0.6 and
+  0.7 all five stop `quadrature volume`. `OTHER_SPINS_STOPS` wants
+  `spline join` on ∪ and on c ∖ h.
+
+Until SECT's PR on
+`sect/main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`
+lands, both rows are pinned at 1e-6 to an earlier stop, the germ
+section's `Winds(Unseparated)`. That PR removes the two pins. With the
+pins gone, at 1e-6 both rows stop exactly as listed above, so all three
+ε now share this one red.

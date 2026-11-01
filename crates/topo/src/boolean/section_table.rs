@@ -132,8 +132,9 @@ impl<T: geom_core::Decide> SectionReader<T> {
     /// pair's first read, the held one after, at the same band. `None`
     /// where the value does not build the kind pair. The glue door's
     /// filter (`pair_section::serves`) keeps a plane and a spline out:
-    /// read here, with no march door, their section would hold
-    /// `SectionError::NoMarch`, which the guard reads as R-lane
+    /// read here, with no march door, their section would be the hull's
+    /// where it decides the pose (apart, coincident, or in band) and
+    /// otherwise `SectionError::NoMarch`, which the guard reads as R-lane
     /// (`Section::NoLane`).
     pub(crate) fn read(
         &mut self,

@@ -135,27 +135,30 @@ type Census = (usize, usize, usize, usize);
 type Want = Option<(Census, [usize; 6])>;
 
 /// **The prism's edge on the wall builds every op undeclared**, but
-/// `t ∖ b` on a seam ruling. Two
+/// `t ∖ b` inside one face and on a seam ruling. Two
 /// poses off the seam rulings (`0.3` and `0.5` rad) and the two seam
 /// rulings themselves (`0` and `π`), each with the edge inside one wall
 /// face (`z ∈ [0.5, 1.5]`) and across the top rim (`z ∈ [1, 3]`).
 ///
 /// Inside, the union is the tube, the intersection the prism, `b ∖ t`
 /// empty, and `t ∖ b` the tube with a prism-shaped void that touches
-/// the wall along the edge: its two shells are recorded touching at
-/// the edge's ends, v-f against the wall face off a seam ruling and,
-/// on one, v-e against the ruling the join made whole again, with the
-/// edge-edge record of the prism's edge lying along that ruling. Across the rim, the prism's
-/// part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose edge
-/// runs down the wall from the rim, its lower end recorded the same
-/// way. On a seam ruling `t ∖ b` refuses `LineWedges`: its result keeps
-/// the seam edge (180°) and the void's edge along it (270°) on one line,
-/// overlapping, which every tier passed; the material there is two
-/// 45° wedges, each between a void face and the wall. It returns with
-/// the re-pairing
+/// the wall along the edge, the void's two faces leaving it into the
+/// wall's material. Off a seam ruling the edge is two, a ring of no area
+/// in the wall, which refuses `EdgeInFace` (`CurvedFace`); the census
+/// and the v-f rests it pinned are owed back with the ring
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`).
+/// Across the rim, the prism's part above `z = H` is `b ∖ t`, and
+/// `t ∖ b` is a notch whose edge runs down the wall from the rim: off a
+/// seam ruling two edges, a slit of the curved wall, which refuses
+/// `CurvedFace` as well. On a seam ruling `t ∖ b` refuses
+/// `LineWedges`, inside and across: its result keeps the seam edge
+/// (180°) and the void's edge along it (270°) on one line, overlapping,
+/// which every tier passed; the material there is two 45° wedges, each
+/// between a void face and the wall. It returns, with the v-e and
+/// edge-edge records it pinned against the ruling, with the re-pairing
 /// (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`).
 #[test]
-fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
+fn a_prism_edge_on_the_tubes_wall_builds_every_op_but_its_parting() {
     let tol = Tol::witness();
     let t = rod_z(0.0, H);
     let tube = PI * R * R * H;
@@ -163,27 +166,9 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let prism: Want = Some(((6, 12, 8, 1), nothing));
     for turn in [0.3, 0.5, 0.0, PI] {
         let on_seam = turn == 0.0 || turn == PI;
-        // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim.
-        let inside: [Want; 4] = if on_seam {
-            [
-                Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 0, 2, 1, 0, 0])),
-                None,
-                prism,
-            ]
-        } else {
-            [
-                Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 2, 0, 0, 0, 0])),
-                None,
-                prism,
-            ]
-        };
-        let notch = if on_seam {
-            [0, 0, 1, 1, 0, 0]
-        } else {
-            [0, 1, 0, 0, 0, 0]
-        };
+        // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim. A
+        // `t ∖ b` that refuses (below) holds nothing here.
+        let inside: [Want; 4] = [Some(((4, 6, 4, 1), nothing)), None, None, prism];
         // On a seam ruling the prism's edge meets the rim at the tube's
         // own rim vertex, one vertex fewer.
         let rim = if on_seam {
@@ -191,7 +176,8 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
         } else {
             (9, 19, 12, 1)
         };
-        let across: [Want; 4] = [Some((rim, nothing)), Some((rim, notch)), prism, prism];
+        // Off a seam ruling `t ∖ b` refuses (below) and holds nothing here.
+        let across: [Want; 4] = [Some((rim, nothing)), None, prism, prism];
         for (extent, z0, h, census, [union, t_less_b, b_less_t, common]) in [
             ("inside", 0.5, 1.0, inside, [tube, tube - AREA, 0.0, AREA]),
             (
@@ -213,6 +199,19 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
             ];
             for ((op, r), (want, volume)) in six(&t, &b).into_iter().zip(wants) {
                 let label = format!("turn {turn}, {extent}: {op}");
+                if !on_seam && op == "t ∖ b" {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(BooleanError::EdgeInFace {
+                                gap: topo::EdgeInFaceGap::CurvedFace,
+                                ..
+                            })
+                        ),
+                        "{label}: {r:?}, not the curved face's refusal"
+                    );
+                    continue;
+                }
                 if on_seam && op == "t ∖ b" {
                     assert!(
                         matches!(
@@ -361,7 +360,7 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
     }
 }
 
-/// **A ruling across an ellipse builds every op undeclared.** The tube
+/// **A ruling across an ellipse builds every op undeclared but `t ∖ b`.** The tube
 /// from `z = −1` with its bottom cut by the plane `z = 0.5 + 0.2·x`, so
 /// each wall face is bounded below by an ellipse arc, and the prism
 /// from `z = 0` to `1`, its edge on the wall running out through that
@@ -369,11 +368,14 @@ fn a_ruling_in_band_of_the_wall_but_not_on_it_is_not_on() {
 /// plane and is split there. The tube holds `π·R²·1.5`; the prism above
 /// the plane holds `A·(0.5 − 0.2·x̄)`, `x̄ = 0.6·cos turn` its
 /// centroid's `x`. `t ∖ b` is a notch whose edge runs up the wall from
-/// the ellipse, its upper end recorded on the wall face. The wall's
+/// the ellipse, both its faces going into the wall's material, so it is
+/// two edges, a slit of the curved wall, which refuses `EdgeInFace`
+/// (`CurvedFace`) rather than ship one edge
+/// (`work/splitdoor/the-boolean-builds-the-slit-on-a-curved-face-once-it-is-meshed-and-measured.md`). The wall's
 /// ellipse trim is measured by certified quadrature, so each volume is
 /// read to the enclosure's own half-width.
 #[test]
-fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
+fn a_ruling_across_an_ellipse_builds_every_op_but_its_slit() {
     let tol = Tol::witness();
     let t = slanted_tube();
     let tube = PI * R * R * 1.5;
@@ -383,7 +385,7 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
         let wants = [
             (tube + AREA - common, whole, [0; 4]),
             (tube + AREA - common, whole, [0; 4]),
-            (tube - common, whole, [0, 1, 0, 0]),
+            (tube - common, (0, 0, 0, 0), [0; 4]),
             (AREA - common, prism, [0; 4]),
             (common, prism, [0; 4]),
             (common, prism, [0; 4]),
@@ -392,6 +394,19 @@ fn a_ruling_across_an_ellipse_builds_every_op_undeclared() {
             six(&t, &square(turn, 0.0, 1.0)).into_iter().zip(wants)
         {
             let label = format!("turn {turn}: {op}");
+            if op == "t ∖ b" {
+                assert!(
+                    matches!(
+                        r,
+                        Err(BooleanError::EdgeInFace {
+                            gap: topo::EdgeInFaceGap::CurvedFace,
+                            ..
+                        })
+                    ),
+                    "{label}: {r:?}, not the curved slit's refusal"
+                );
+                continue;
+            }
             let Ok(BooleanResult::Body(bb)) = r else {
                 panic!("{label}: builds: {r:?}");
             };

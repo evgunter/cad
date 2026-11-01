@@ -5350,7 +5350,8 @@ impl ChordJoiner {
     /// off a face bounded by one conic. The one of those two whose
     /// region holds the old face's outer loop ([`RimSide`]) bounds the
     /// hole the conic cuts in the old face, and becomes its ring
-    /// (`kfmrh`); the other is the disc inside the conic, which takes the
+    /// (`kfmrh_minting`, which re-mints the old face where the hole's
+    /// rows do not stand on it); the other is the disc inside the conic, which takes the
     /// old face's rings it encloses.
     fn join_lone_ring<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
@@ -5424,7 +5425,7 @@ impl ChordJoiner {
                 ));
             }
         };
-        let cut = body.kfmrh(oldf, hole)?.ring;
+        let cut = body.kfmrh_minting(oldf, hole, tol)?.ring;
         self.slivers.remove(hole);
         self.absorbed
             .push((hole, oldf))
