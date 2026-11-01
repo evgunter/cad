@@ -614,3 +614,41 @@ fn an_uncertified_pair_is_judged_not_refused() {
     assert!(judged > 0, "the touching pairs are judged");
     assert_eq!(solids, 1, "the touching teeth fuse into one run of six");
 }
+
+/// **A family yields to cancelation inside its node**: a ring of
+/// `u32::MAX` copies, canceled from another thread, returns as a
+/// canceled run with the ring holding no result, on the serial walk
+/// and on the level schedule alike. Red (it never returns) if the
+/// token is read only between nodes or levels and the cancel lands
+/// after the ring has begun, which it does unless reaching the ring
+/// takes the whole delay. Nothing here asserts on timing; which member
+/// a family stops at is pinned in `eval::members::tests`.
+#[test]
+fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
+    let (doc, _, ring) = ring(i64::from(u32::MAX));
+    for parallel in [false, true] {
+        let cancel = editor_core::CancelToken::new();
+        let canceler = {
+            let cancel = cancel.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                cancel.cancel();
+            })
+        };
+        let opts = editor_core::EvalOptions {
+            parallel,
+            ..Default::default()
+        };
+        let ev = editor_core::evaluate::<f64>(&doc, None, &cancel, &opts, Tol::witness());
+        canceler.join().unwrap();
+        assert_eq!(
+            ev.outcome,
+            editor_core::EvalOutcome::Canceled,
+            "parallel {parallel}: the run is canceled"
+        );
+        assert!(
+            ev.result(ring).is_none(),
+            "parallel {parallel}: the ring, canceled part-way, holds no result"
+        );
+    }
+}
