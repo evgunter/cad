@@ -547,7 +547,7 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
 /// least lift its bend gives it at its extent, `2·sin²(extent/2)`, is
 /// `margin`.
 fn conic_bend(margin: f64) -> Result<(), BooleanError> {
-    use super::super::sectors::{FaceShape, pierce_side};
+    use super::super::sectors::pierce_side;
     use geom_brep::{BendBounds, ConicBend};
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let extent = 2.0 * (margin / 2.0).sqrt().asin();

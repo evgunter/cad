@@ -48,7 +48,7 @@ use super::carrier_eq::CarrierDesc;
 use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
-    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same, side_code,
+    BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same,
 };
 use super::tables::{
     TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
@@ -892,14 +892,13 @@ pub(super) fn recl_edges<T: Decide>(
             // line's ray, or the line read On it: a definite side of its
             // plane contradicts that reading.
             let split = |ws: Vec<Wedge>,
-                         secs: &[BoolSector<T>],
-                         body: &Body<T>|
+                         secs: &[BoolSector<T>]|
              -> Result<(Vec<Wedge>, Vec<Folded<T>>), BooleanError> {
                 let has_edge = ws.iter().any(|w| w.edge);
                 let (mut met, mut folded) = (Vec::new(), Vec::new());
                 for w in ws {
                     let face = if has_edge && !w.edge {
-                        Folded::of(secs, body, w)?
+                        Folded::of(secs, w)
                     } else {
                         None
                     };
@@ -917,8 +916,8 @@ pub(super) fn recl_edges<T: Decide>(
                 }
                 Ok((met, folded))
             };
-            let (a_ws, a_faces) = split(wedges(&a_ms, &b_ms, true)?, a_sectors, a_body)?;
-            let (b_ws, b_faces) = split(wedges(&b_ms, &a_ms, false)?, b_sectors, b_body)?;
+            let (a_ws, a_faces) = split(wedges(&a_ms, &b_ms, true)?, a_sectors)?;
+            let (b_ws, b_faces) = split(wedges(&b_ms, &a_ms, false)?, b_sectors)?;
             let mut germs = Vec::new();
             for (i, &aw) in a_ws.iter().enumerate() {
                 for (j, &bw) in b_ws.iter().enumerate() {
@@ -1475,18 +1474,17 @@ pub(super) struct Folded<T: geom_core::Real> {
 
 impl<T: Decide> Folded<T> {
     /// The face of the half-turn wedge `w` (no edge's), where it lies on
-    /// a plane; `None` for a curved face. A face with no carrier is an
-    /// invariant, as it is to the touch's partners.
-    fn of(secs: &[BoolSector<T>], body: &Body<T>, w: Wedge) -> Result<Option<Self>, BooleanError> {
+    /// a plane; `None` for a curved face.
+    fn of(secs: &[BoolSector<T>], w: Wedge) -> Option<Self> {
         let sector = &secs[w.flankers[0]];
-        Ok((sector.bend.shape() == super::sectors::FaceShape::Plane).then(|| Self {
+        (sector.bend.shape() == super::sectors::FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {
                 normal: sector.normal,
                 bend: sector.bend,
                 lever: super::sectors::PierceLever::Everywhere(super::sectors::NO_CURVATURE()),
             },
-        }))
+        })
     }
 }
 
@@ -2899,7 +2897,7 @@ mod tests {
     /// alone places it.
     #[test]
     fn a_solid_with_an_edge_and_a_face_on_the_line_holds_the_half_turn_under_the_face() {
-        use super::super::sectors::{FaceShape, PierceLever, Reach};
+        use super::super::sectors::{PierceLever, Reach};
         use super::super::vtxfac::PierceDatum;
         use crate::boolean::{BooleanDecision, Glue, GluedPairs};
         use geom_brep::OutwardNormal;

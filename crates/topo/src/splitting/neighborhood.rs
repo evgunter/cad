@@ -268,11 +268,7 @@ pub(crate) fn entry_side<T: Decide, E>(
         Ok(BoundSide::Off(Side::Below) | BoundSide::Tangent(Side::Below)) => PlaneSide::Below,
         Ok(BoundSide::Off(Side::Above) | BoundSide::Tangent(Side::Above)) => PlaneSide::Above,
         Ok(BoundSide::Rides) => PlaneSide::On,
-        Err(fault) => {
-            return Err(EntryFault::Undecided(fault.diag().unwrap_or_else(|| {
-                unreachable!("a plane's datum carries no curvature charge to refuse")
-            })));
-        }
+        Err(fault) => return Err(EntryFault::Undecided(fault.diag())),
     };
     Ok((dir, side))
 }

@@ -3658,7 +3658,7 @@ mod tests {
     /// the log under `enters_material`, the predicate that decided it.
     #[test]
     fn a_bisector_on_between_one_sided_bounds_refuses() {
-        use super::super::sectors::{FaceShape, NO_CURVATURE, Reach, pierce_side_reported};
+        use super::super::sectors::{NO_CURVATURE, Reach, pierce_side_reported};
         use geom_brep::OutwardNormal;
         use geom_core::{ErrorTextReading, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();
@@ -3871,7 +3871,7 @@ mod tests {
     /// whose side the face's bend leaves undecided, escalates.
     #[test]
     fn a_partners_side_of_a_face_is_read_off_its_bounds() {
-        use super::super::sectors::{BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach};
+        use super::super::sectors::{BoolSector, NO_CURVATURE, PierceLever, Reach};
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
         let band = Band::linear(Tol::witness()).unwrap();

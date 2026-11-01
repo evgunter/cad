@@ -81,7 +81,7 @@ use crate::sector_shape::{
 use crate::validate::decide;
 
 pub(super) use crate::bound_side::BoundSide;
-use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, Side};
+use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, ReadFault, Side};
 pub(super) use crate::bound_side::{FaceBend, FaceShape, Reach, sagitta_charge};
 
 /// One (convex) sector of a vertex neighborhood.
@@ -597,6 +597,7 @@ pub(super) fn datum_code<T: Decide>(
 }
 
 /// [`datum_code`] against a plane face's normal, charged at `lever`.
+#[cfg(test)]
 pub(super) fn side_code<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
@@ -677,20 +678,6 @@ pub(super) struct BoundTie {
     pub descent: BoundSide,
 }
 
-impl BoundRead {
-    /// Whether the bound leaves the face tangent to it: tied at first
-    /// order, decided one order down.
-    pub(super) fn tangent(&self) -> bool {
-        matches!(
-            self.tie,
-            Some(BoundTie {
-                descent: BoundSide::Tangent(_),
-                ..
-            })
-        )
-    }
-}
-
 /// The one reading of a bound's side behind [`datum_code`] and
 /// [`pierce_side`].
 pub(super) fn bound_read<T: Decide>(
@@ -706,7 +693,7 @@ pub(super) fn bound_read<T: Decide>(
             tie: None,
         }),
         FirstOrder::Tied(tie) => {
-            let descent = tie.descend(band).map_err(refused)?;
+            let descent = tie.descend(band).map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
                 BoundSide::Off(side) | BoundSide::Tangent(side) => code_of(side),
                 BoundSide::Rides => SideCode::On,
@@ -737,10 +724,22 @@ fn code_of(side: Side) -> SideCode {
 /// The boolean's refusal of a bound's side the reading did not decide.
 fn bound_refusal<T: Decide>(fault: BoundSideFault<T>, band: Band) -> BooleanError {
     match fault {
-        BoundSideFault::Chord(diag) => {
+        BoundSideFault::Read(fault) => read_refusal(fault, band),
+        BoundSideFault::Charge(verdict) => BooleanError::CurvedSectorSideUnsupported { verdict },
+        BoundSideFault::ChargeEscalated(diag) => BooleanError::Escalated {
+            decision: BooleanDecision::PierceCurvature,
+            diag,
+        },
+    }
+}
+
+/// [`bound_refusal`] before any charge.
+fn read_refusal<T: Decide>(fault: ReadFault<T>, band: Band) -> BooleanError {
+    match fault {
+        ReadFault::Chord(diag) => {
             BooleanError::coincidence(Coincide::SectorSide, DeclarationRead::Moot, diag)
         }
-        BoundSideFault::Departure {
+        ReadFault::Departure {
             escalation,
             arm,
             departure,
@@ -749,27 +748,13 @@ fn bound_refusal<T: Decide>(fault: BoundSideFault<T>, band: Band) -> BooleanErro
             DeclarationRead::Moot,
             at_departure(escalation, arm, departure, band),
         ),
-        BoundSideFault::Charge(verdict) => BooleanError::CurvedSectorSideUnsupported { verdict },
-        BoundSideFault::ChargeEscalated(diag) => BooleanError::Escalated {
-            decision: BooleanDecision::PierceCurvature,
-            diag,
-        },
-        BoundSideFault::Bend(diag) => BooleanError::Escalated {
+        ReadFault::Bend(diag) | ReadFault::Unbent(diag) => BooleanError::Escalated {
             decision: BooleanDecision::ConicBend,
             diag,
         },
-        BoundSideFault::Parting(escalation) => {
+        ReadFault::Parting(escalation) => {
             BooleanError::of_lever(LeverArm::SectorCurving, DeclarationRead::Moot, escalation)
         }
-        BoundSideFault::Unbent(predicate, decided) => BooleanError::Escalated {
-            decision: BooleanDecision::ConicBend,
-            diag: geom_core::k_stats::gate_rejection(
-                predicate,
-                decided,
-                band,
-                geom_core::SizedPass::NonZero,
-            ),
-        },
     }
 }
 
@@ -2153,12 +2138,9 @@ pub(super) fn crescent_refusal<T: Decide>(
     contacts: &super::ReductionContacts,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let what = "a sector's face has no carrier";
     for &(i, j) in touching {
         let (sa, sb) = (&sectors[0][i], &sectors[1][j]);
-        if FaceShape::of_face(bodies[0], sa.face, what)? != FaceShape::Plane
-            || FaceShape::of_face(bodies[1], sb.face, what)? != FaceShape::Plane
-        {
+        if sa.bend.shape() != FaceShape::Plane || sb.bend.shape() != FaceShape::Plane {
             continue;
         }
         let arm = sa.arm.min(sb.arm);
