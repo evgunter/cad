@@ -2,9 +2,11 @@
 id: after-a-duplicate-the-original-cannot-be-picked-into-a-tool
 kind: issue
 title: a viewport click that meets nothing while a tool is open takes no pick, silently
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
+cost: M
+branch: chrome/duplicate-pick
 ---
 
 ## Finding

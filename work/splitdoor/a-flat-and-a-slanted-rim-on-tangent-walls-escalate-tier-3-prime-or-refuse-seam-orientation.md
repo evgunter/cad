@@ -2,10 +2,13 @@
 id: a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation
 kind: issue
 title: Two rims crossing on internally tangent walls refuse SeamOrientation when the inner rod's cut is steeper, and escalate tier 3′ on two ops otherwise
-status: open
+status: closed
 opened: 2026-10-30
 priority: P1
 cost: M
+branch: splitdoor/rims-seam-orientation
+closed: 2026-11-01
+pr: 6226
 ---
 
 
@@ -58,3 +61,21 @@ with the pinch at `(2, 0, 0)`. Which pair of curved edges the census
 reads there is not yet measured. Pinned in
 `sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`
 (slow set).
+
+## Root cause of 1 (2026-10-30, `splitdoor/rims-seam-orientation`)
+
+The cause is not in the zip. The zip catches a section loop on B that is wound backwards. At the pinch `(2, 0, 0)` B's cut cap has a corner of exactly a half-turn, bisected into two entries at `−x`. Two of B's germs leave into that corner:
+- the cut-planes' line, along `−x`, on the bisector;
+- the section arc of B's cap across A's wall, along B's rim's tangent: the walls are tangent, so the arc and the rim are tangent there.
+
+Both germs fall in the corner's first entry, so their null edge is a strut, and its two halves are faced by `insert::walk_faces_first` → `strut_order`. That reading measured each germ against the arrival edge's **chord** (`anchor_dir`, the line to the edge's far vertex), not its tangent. B's rim is curved, so its chord lies inside the corner. The arc germ, which leaves along the tangent, read on the chord's far side: past a half-turn, after the line. So the strut's `he_plus` faced the line, and B's section loop was spliced backwards (B's In region, signed area −2.27 about its outward normal against +2.27 in the mirror pose). In the mirror pose (`tan t_a < tan t_b`) the arc leaves at the corner's departure end, where the chord's error moves no order. That is why only one handedness refused.
+
+**The fix.** `walk_faces_first` reads the arrival bound's tangent, which the corner's first sector already holds (`BoolSector::end`), so inside one entry it agrees with `walks_after`, as `strut_order`'s doc says. Every pose above now builds every op at its closed form, tiers 1–3, at ε = 1e-6, 1e-9 and 1e-12, and tier 3′ passes on `A ∖ B` and `A ∩ B` (`sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`).
+
+## 2, measured after the fix
+
+The tier-3′ escalation on `A ∪ B` and `B ∖ A` is unchanged, in both handednesses. The census's curved edge-edge pass (`census::curved::interior_meeting`) reads `geom_brep::curve_pair::meet` on B's cut cap in the result: the section arcs (A's wall across B's plane, an ellipse about `(1, 0)`) against the pieces of B's rim (an ellipse about the origin). The two carriers are coplanar and internally tangent at `(2, 0, 0)`. Every such pair answers `MeetFault::Touch` on `curve_pair_coplanar_sub_side` at about 2ε, which the census types `CensusEscalated`:
+- **A shared vertex.** Pairs whose edges share `(2, 0, 0)` as an end, e.g. the arc piece `(2, 0, 0)–(1, ±1, z)` against the rim piece from `(2, 0, 0)`, touch at that common end. This is `work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`'s open touch.
+- **Off the span.** Pairs whose arc ends nowhere near the touch, e.g. the arc piece `(1, ±1, z)–(0, 0, 0)`, escalate on the carriers' touch, off that arc's span. This is `work/cpair/the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc.md`'s shape.
+
+Both are cpair's ground, and the escalation is an honest one: a touch the reader cannot place, in band. It stays as is. The evidence is added to both rows, and the pin above asserts it.
