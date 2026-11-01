@@ -2062,26 +2062,28 @@ fn resolve_edge_sector<T: Decide>(
                 what: "a glued tangency's face lost its surface",
             })
     };
-    // A flanker glued tangent to the reference reads its key bound On at
-    // first order, as a coplanar one does; it lies in the reference only
-    // along the tangency locus, so it is keyed by the side its carrier
-    // curves to along that bound. Beside a coplanar flanker that lumps
-    // the other way, the edge is the transition. Where the bound rides
-    // the locus or reads in band, the On stands, and Table III's rule
-    // reads the pair whole (`tangent_lump`).
-    let key = |idx: usize, key_from_start: bool| -> Result<SideCode, BooleanError> {
-        let first = flank_key(own_secs, idx, key_from_start, ref_sector.normal, band)?;
-        let own_sec = &own_secs[idx];
-        if first != SideCode::On
-            || !declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face)
-        {
-            return Ok(first);
-        }
-        let read = declared.read(
-            &[(own_op, own_sec.face, ref_op, ref_sector.face)],
+    let tangent_read = |face| {
+        declared.read(
+            &[(own_op, face, ref_op, ref_sector.face)],
             Coincide::TangentSide,
             &[],
-        );
+        )
+    };
+    // A flanker glued tangent to the reference reads its key bound On at
+    // first order, as a coplanar one does, though it lies in the
+    // reference only along the tangency locus. Where one flanker reads
+    // On, Table III's rule reads it whole (`tangent_lump`) and the germ
+    // goes on the other. Where both do, a tangent one is keyed by the
+    // side its carrier curves to along its key bound: beside a coplanar
+    // flanker that lumps the other way, the edge is the transition, and
+    // the tangent flanker holds it. A key bound riding the locus or read
+    // in band stays On.
+    let curving = |idx: usize, key_from_start: bool| -> Result<SideCode, BooleanError> {
+        let own_sec = &own_secs[idx];
+        if !declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
+            return Ok(SideCode::On);
+        }
+        let read = tangent_read(own_sec.face);
         let p = own_body.half_edge_start_point(own_sec.he).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "edge-sector site lost its point",
@@ -2101,8 +2103,13 @@ fn resolve_edge_sector<T: Decide>(
         )
         .unwrap_or(SideCode::On))
     };
-    let k1 = key(f_s, false)?;
-    let k2 = key(f_e, true)?;
+    let (mut k1, mut k2) = (
+        flank_key(own_secs, f_s, false, ref_sector.normal, band)?,
+        flank_key(own_secs, f_e, true, ref_sector.normal, band)?,
+    );
+    if (k1, k2) == (SideCode::On, SideCode::On) {
+        (k1, k2) = (curving(f_s, false)?, curving(f_e, true)?);
+    }
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued
@@ -2119,11 +2126,7 @@ fn resolve_edge_sector<T: Decide>(
         let own_sec = &own_secs[on_flanker];
         let arm = own_sec.arm.min(ref_sector.arm);
         lumps_out = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
-            let read = declared.read(
-                &[(own_op, own_sec.face, ref_op, ref_sector.face)],
-                Coincide::TangentSide,
-                &[],
-            );
+            let read = tangent_read(own_sec.face);
             let p = own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-sector site lost its point",
