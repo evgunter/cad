@@ -145,7 +145,10 @@ keys the way a person at the window does, finds a control by the
 label painted on it, and reads the screen back as the text each frame
 painted and where. Everything but pixel painting is the real app —
 the viewport pane still folds the pointer into camera operations and
-ray picks. The `drive` example runs it from a script:
+ray picks — and `Driver::picture` paints too when asked: it renders
+the last frame offscreen, chrome and viewport, on a device the caller
+hands it (`drive::picture_device` opens the one the app would get).
+The `drive` example runs it from a script:
 
 ```sh
 cargo run --release -p viewer --features app --example drive -- script.txt
@@ -155,6 +158,7 @@ cargo run --release -p viewer --features app --example drive -- script.txt
 click "Create"
 click "Box"
 dump
+picture shot.png
 ```
 
 The command set is in the example's header. Two doors are not the

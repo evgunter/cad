@@ -105,7 +105,7 @@ pub(crate) const DEPTH_BITS: u8 = 32;
 
 /// The depth format that pairs with [`DEPTH_BITS`]. Stated here so
 /// the pipeline and the startup request cannot drift apart.
-const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// The id buffer's texel format: one unsigned 32-bit id per pixel,
 /// which is what `crate::pickindex::IdMap` assigns. Not a colour format —
@@ -114,7 +114,7 @@ const ID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
 /// `copy_texture_to_buffer`'s row alignment. One `u32` is read back,
 /// but the copy still pads its single row to this.
-const COPY_ROW_ALIGNMENT: u64 = 256;
+pub(crate) const COPY_ROW_ALIGNMENT: u64 = 256;
 
 /// The uniform block both pipelines read.
 ///
