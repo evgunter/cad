@@ -374,10 +374,10 @@ pub struct ViewerApp {
     /// **What the last scene rebuild refused**, held until one
     /// succeeds — the state [`crate::frame::scene_badge`] reads.
     ///
-    /// Held rather than announced: the viewport keeps drawing the mesh
-    /// it already has, so "the picture is older than the document and
-    /// the rebuild will not run" is true on every frame until a
-    /// rebuild lands, and a badge is a read of exactly this.
+    /// Held rather than announced: the viewport draws nothing under it,
+    /// so "the picture is missing and the rebuild will not run" is true
+    /// on every frame until a rebuild lands, and a badge is a read of
+    /// exactly this.
     scene_fault: Option<SceneError>,
     /// **What the last projection refused**, written by the viewport
     /// as it paints and read by [`crate::frame::projection_badge`].
@@ -1049,7 +1049,9 @@ impl ViewerApp {
         // one. A refusal is held by the cache and badged, not
         // announced; a superseded answer is nothing to say
         // (`pickcache::IndexLanding::Stale` is what restart-without-cancel
-        // produces, once per δ changed mid-build).
+        // produces, once per δ changed mid-build). A copy the index
+        // could not draw is not a refusal: the index draws the rest and
+        // holds the copy's reason (`PickIndex::undrawn`).
         let mut rebuilt = false;
         for landing in self.picks.pump() {
             match landing {
@@ -1065,11 +1067,16 @@ impl ViewerApp {
         }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
-        // re-attempted every frame behind a stale picture.
+        // re-attempted every frame.
         //
-        // Every arm but `Current` leaves the viewport drawing the mesh
-        // it already has — an older picture, which the indexing
-        // indicator names and `pickcache::unindexed` refuses picks against.
+        // **A held refusal draws nothing**, never the picture from
+        // before it: that picture is of a run the index no longer
+        // describes, and every pick against it is refused. The arms that
+        // wait for a build (`Submitted`, `Indexing`) and the one with
+        // nothing settled to build (`Nothing`) leave the viewport
+        // drawing the mesh it already has — an older picture, which the
+        // indexing indicator names and `pickcache::unindexed` refuses
+        // picks against (a canceled run is the other, `CANCELED_LINE`).
         // **The index waits for the budget's answer.** A build
         // submitted at the δ in force while the fit is still pricing
         // the document IS the un-budgeted build the budget exists to
@@ -1086,8 +1093,14 @@ impl ViewerApp {
         // second on the frames just after a document opens.
         let settled = (!self.fit.busy()).then_some(self.delta);
         match self.picks.sync(self.session.index_inputs(), settled) {
-            pickcache::CacheStep::Held
-            | pickcache::CacheStep::Nothing
+            pickcache::CacheStep::Held => {
+                // The index's badge says it; a scene fault about the
+                // picture this replaces is no longer true of any.
+                self.draw_nothing();
+                self.scene_fault = None;
+                return;
+            }
+            pickcache::CacheStep::Nothing
             | pickcache::CacheStep::Submitted
             | pickcache::CacheStep::Indexing => return,
             pickcache::CacheStep::Current => {}
@@ -1105,10 +1118,9 @@ impl ViewerApp {
         }
         match index.scene_focused(&self.session.display_view(), &focus) {
             Ok(mesh) => {
-                // Marked current ONLY on success: a refused build must
-                // not consume this (generation, display) pair, or the
-                // stale picture stays on screen marked as the current
-                // one and is never retried.
+                // The key is set ONLY on success: a refused build
+                // leaves the empty picture on screen with no key, so
+                // nothing reads its ids as this index's.
                 // Taken from the INDEX, not from the session: the
                 // pair that matters is the one whose id map is in this
                 // mesh, and reading the session's generation here would
@@ -1134,11 +1146,32 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            // Held, not announced: this pair is deliberately left
-            // unmarked above so the rebuild is retried, and the fault
-            // is true of the picture on screen until one succeeds.
-            Err(error) => self.scene_fault = Some(error),
+            // Held, not announced: the fault is true of the empty
+            // picture on screen until a rebuild succeeds — never of the
+            // picture from before it.
+            Err(error) => {
+                self.draw_nothing();
+                // Tried under these inputs: the next index, display or
+                // focus change retries it, and an unchanged frame does not.
+                self.scene_display = Some(display_revision);
+                self.scene_focus = focus;
+                self.scene_fault = Some(error);
+            }
         }
+    }
+
+    /// Put the empty picture on screen, once: the scene under a pick
+    /// index or a scene rebuild refused as a whole. No index minted its
+    /// ids, so it carries no key.
+    fn draw_nothing(&mut self) {
+        if self.scene_key.is_none() && self.scene.positions().is_empty() {
+            return;
+        }
+        self.scene = Arc::new(SceneMesh::nothing(self.delta));
+        self.scene_key = None;
+        self.scene_display = None;
+        self.scene_focus = BTreeSet::new();
+        self.revision = self.revision.wrapping_add(1);
     }
 
     /// Change δ to `delta`, rebuilding the picture from the evaluation
@@ -1886,17 +1919,17 @@ impl ViewerApp {
             // **The three display seams that hold a refusal.**
             // Each is a read of held state — the scene fault kept
             // until a rebuild lands, the pick cache's own held
-            // refusal, the projection the viewport could not form
-            // — so each stands for as long as the picture is stale
-            // rather than until the next acting batch sweeps a
-            // line. What a pick aimed at the missing index gets is
+            // refusal or the copies its index could not draw, the
+            // projection the viewport could not form — so each stands
+            // for as long as what it reads holds, rather than until the
+            // next acting batch sweeps a line. What a pick aimed at the missing index gets is
             // still the line's, because that is an outcome
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
                 frame::index_badge(
                     self.picks.error(),
-                    self.session.doc(),
+                    self.picks.index(),
                     self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
@@ -6137,6 +6170,46 @@ mod properties_pane_tests {
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         assert!(driven.app.scene_key.is_some(), "the index has landed");
         assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
+    }
+
+    /// **An index refused as a whole draws nothing**, never the picture
+    /// from before the refusal, and says so loudly. Such a refusal is a
+    /// fault of the index itself, which no document produces, so the
+    /// seam here refuses every build it answers.
+    #[test]
+    fn a_whole_index_refusal_clears_the_picture() {
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.scene.stats().triangles > 0 && driven.app.scene_key.is_some(),
+            "the premise: the plate is drawn from an index"
+        );
+        let (refusing, _) =
+            crate::test_support::RefusingIndexer::new(crate::evalseam::InlineIndexer::new());
+        driven.app.picks = crate::pickcache::PickCache::new(Box::new(refusing));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(driven.app.picks.error().is_some(), "the refusal is held");
+        assert!(
+            driven.app.scene.positions().is_empty(),
+            "nothing is drawn under a refused index"
+        );
+        assert_eq!(driven.app.scene_key, None, "and no index minted its ids");
+        let badge = crate::frame::index_badge(
+            driven.app.picks.error(),
+            driven.app.picks.index(),
+            driven.app.session.landed_pair(),
+        )
+        .expect("the refusal badges");
+        assert_eq!(badge.tone(), crate::frame::Tone::Actionable);
+        assert!(
+            badge
+                .label()
+                .ends_with("nothing is drawn or picked until the index builds"),
+            "{}",
+            badge.label()
+        );
     }
 
     /// **The mate tool's two picks are marked once the selection moves
