@@ -1367,7 +1367,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let germ =
                     |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
                 let facing = super::insert::strut_faces_first(
-                    piercing_body,
                     (piercing, &sectors),
                     (arrival, corner_half.edge),
                     germ((run.0 + n - 1) % n, start_germ),

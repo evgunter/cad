@@ -34,7 +34,8 @@ use geom_brep::{ConicBend, EntersMaterial, LeverEscalation, OutwardNormal, Refer
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
 
 /// What stands behind a sector bound, which decides how its side of a
-/// face is read ([`read`]).
+/// face is read ([`read`]). A bound is its edge's departure from the
+/// base vertex: a line's chord, a curved edge's tangent there.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Reach<T: geom_core::Real> {
     /// A line edge: its far vertex, read in metres off the base vertex.
