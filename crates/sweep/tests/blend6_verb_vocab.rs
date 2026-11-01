@@ -105,7 +105,7 @@ fn a_chamfer_caller_reads_the_chamfer_verb_over_a_shared_run_out() {
     assert_speaks_as_the_chamfer(&err, "run-out");
     let text = format!("{err}");
     assert!(
-        text.contains("end the blend at a corner where three flat faces meet"),
+        text.contains("end the blend at a flat-faced corner"),
         "the recourse speaks of the band, not the other verb: {text}"
     );
 }

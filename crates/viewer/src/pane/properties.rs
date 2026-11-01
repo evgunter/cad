@@ -1441,11 +1441,7 @@ pub(crate) fn standing_verdict(
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
         Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
     };
-    let by = landed
-        .map_or(Speaker::TAG, |(doc, evaluation)| {
-            Speaker::of(doc).within(evaluation)
-        })
-        .or_held(said);
+    let by = crate::frame::landed_speaker(landed).or_held(said);
     let said = match resolution {
         None => Some("no evaluation yet to resolve this against".to_owned()),
         Some(Resolution::Resolved(_)) => None,

@@ -168,6 +168,7 @@ pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeNames, EdgeNamesRefused, EdgePick, IdMap,
     IdMapError, PatchId, PatchNameFault, PickError, PickIndex, PickIndexError, PickKinds,
+    UndrawnCopy,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{MemberFault, MemberValues, Reading, SlotDriver, SlotFault, SlotRow, SlotValue};
