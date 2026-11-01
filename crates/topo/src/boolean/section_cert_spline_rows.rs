@@ -442,7 +442,7 @@ fn a_plane_stored_far_off_is_charged_its_pivots_shift() {
 /// A dome of revolution about `z`, its apex `(0, 0, 0)` the collapsed
 /// side `v = 0` of its chart, its `u` row the rational circle (closed),
 /// its rim `v = 1` the circle of radius 1 at `z = −½`.
-fn revolved_dome() -> Surface<f64> {
+pub(super) fn revolved_dome() -> Surface<f64> {
     let ku = KnotVector::clamped(
         vec![
             0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,

@@ -137,7 +137,7 @@ use super::{
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
-use crate::geometry::SurfaceKey;
+use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
@@ -1086,7 +1086,8 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         struts.extend(rep.struts);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
-    super::zip::share_points(&mut body, &points)?;
+    let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
+    super::zip::share_points(&mut body, &points, &PointOwners::of(views))?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
     let shells: Vec<crate::entity::ShellKey> = body
@@ -1099,7 +1100,6 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let mut vertex_merges = desc.vertex_merges();
     let mut cone_splits = cones.splits().clone();
     let glued_pairs = GluedSurfaces::of_result(op, &body, a, b, decls, &fin.graft);
-    let views = [&KeyView::Direct, &KeyView::Graft(&fin.graft)];
     let mut discarded = [BTreeSet::new(), BTreeSet::new()];
     // A substituted fragment leaves the result as a discard does.
     for (operand, face) in fin
@@ -1142,7 +1142,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+    share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
     let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
     if !parted.is_empty() {
         crate::pcurves::mint_pcurves(&mut body, tol)
@@ -1904,12 +1904,24 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     evented: bool,
     charts: &mut ChartCache,
 ) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
-    use super::section_cert::{Side, certify, classify, of_carried, of_pair_section};
+    use super::section_cert::{Side, certify, classify_known, of_carried, of_pair_section};
     use super::section_table::Uncarried;
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
         return Ok(Err(SectionRefusal::LoneVertex));
     }
-    let section = match sections.held((a, fa.face), (b, fb.face)) {
+    let spline = |s: &geom::Surface<T>| s.spline_chart().is_some();
+    let held = sections.held((a, fa.face), (b, fb.face));
+    // A spline pair is read here, with the rows and corners its faces
+    // share handed in; the glue door's table never holds one
+    // (`geom_brep::pair_section::serves`), and one held would be read with
+    // no lane and none of them.
+    if held.is_some() && spline(&fa.surface) && spline(&fb.surface) {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "the section table holds a spline pair, which the guard reads only with its \
+                   shared rows handed in",
+        });
+    }
+    let section = match held {
         Some(held) => of_pair_section(held, band, |_| {
             match sections.carried((a, fa.face), (b, fb.face)) {
                 Some(Ok(carried)) => of_carried(Ok(carried)),
@@ -1919,12 +1931,13 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 }
             }
         }),
-        None => classify(
+        None => classify_known(
             &fa.surface,
             &fb.surface,
             overlap_reach(&fa.bbox, &fb.bbox),
             T::ssi_lane(),
             band,
+            super::spline_known::shared((a, fa.face, &fa.surface), (b, fb.face, &fb.surface), band),
         ),
     };
     let mut torn = None;
@@ -4572,19 +4585,50 @@ fn carried_vertices<T: Real>(
 /// **The output stage's one key rule**: the vertices of every
 /// vertex-vertex record of the result move onto one point key
 /// ([`record_classes`]), on every path a boolean builds by. Run
-/// after [`carry`], on the records the result ships.
+/// after [`carry`], on the records the result ships; `views` say
+/// which operand's point each key holds ([`PointOwners`]).
 ///
 /// # Errors
 ///
 /// As [`record_classes`] and `zip::share_points`.
 fn share_recorded_points<T: Decide>(
     body: &mut Body<T>,
-    contacts: &ContactRecords,
-    coincidences: &[crate::Coincidence],
+    (contacts, coincidences): (&ContactRecords, &[crate::Coincidence]),
+    views: [&KeyView<'_>; 2],
     band: Band,
 ) -> Result<(), BooleanError> {
     let classes = record_classes(body, contacts, coincidences, band)?;
-    super::zip::share_points(body, &classes)
+    super::zip::share_points(body, &classes, &PointOwners::of(views))
+}
+
+/// **Which operand's point each of the result's point keys holds**:
+/// the operand whose graft put a point there, and otherwise the
+/// operand whose keys the result holds directly. `zip::share_points`
+/// reads it to keep the glue's kept side's point
+/// ([`super::glue::KEPT`]).
+pub(super) struct PointOwners {
+    grafted: BTreeMap<PointKey, Operand>,
+    direct: Option<Operand>,
+}
+
+impl PointOwners {
+    pub(super) fn of([a, b]: [&KeyView<'_>; 2]) -> Self {
+        let mut grafted = BTreeMap::new();
+        let mut direct = None;
+        for (operand, view) in [(Operand::A, a), (Operand::B, b)] {
+            match view {
+                KeyView::Graft(g) => grafted.extend(g.points.values().map(|&k| (k, operand))),
+                KeyView::Direct => direct = direct.or(Some(operand)),
+                KeyView::Absent => {}
+            }
+        }
+        Self { grafted, direct }
+    }
+
+    /// Whether `k` holds the glue's kept side's point.
+    pub(super) fn is_kept(&self, k: PointKey) -> bool {
+        self.grafted.get(&k).copied().or(self.direct) == Some(super::glue::KEPT)
+    }
 }
 
 /// **Two vertices a record says touch sit on one point key.** A
@@ -5762,6 +5806,7 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::WrapTipUndecided { .. }
         | V::RingContactEscalated { .. }
         | V::RingNestingUndecided { .. }
+        | V::CycleSideUndecided { .. }
         | V::RingPairContactEscalated { .. }
         | V::PinchCornerEscalated { .. } => None,
         // The census's findings: the door runs no census
@@ -5820,6 +5865,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::SliverInsideOut { .. }
         | V::RingMeetsOuter { .. }
         | V::RingOutsideOuter { .. }
+        | V::CycleOffFaceSide { .. }
+        | V::EssentialCyclesUnpaired { .. }
         | V::RingMeetsRing { .. }
         | V::PinchCornerCrossed { .. }
         | V::ShellWinding { .. }
@@ -7764,7 +7811,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 [&discarded[0], &discarded[1]],
                 band,
             )?;
-            share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+            share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
             let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
             if !parted.is_empty() {
                 crate::pcurves::mint_pcurves(&mut body, tol)
@@ -7881,8 +7928,8 @@ struct FallbackFates {
 /// Every other refusal of the cut, as it is: a key that no longer
 /// resolves, a reading in band, an Euler operator's refusal. A pair
 /// whose kept copy the result drops while it keeps the copy the lump
-/// dropped, or a cut in operand A's clone (the lump keeps A's copy,
-/// `tables::kept_copy`), refuses
+/// dropped, or a cut in operand A's clone (the lump keeps the glue's
+/// kept side's copy, [`super::glue::KEPT`]), refuses
 /// [`BooleanError::ClassificationInvariant`]; a discard row's reading
 /// (`discard::discard_row`) refuses as it does.
 fn fallback_fates<T: Decide + AtRestPolicy>(
@@ -8105,7 +8152,12 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+    share_recorded_points(
+        &mut body,
+        (&contacts, &coincidences),
+        [&a_view, &b_view],
+        band,
+    )?;
     let body = gate(body, band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;
