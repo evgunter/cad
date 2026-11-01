@@ -1,8 +1,0 @@
-# The raw measurement doors (topo::test_support::measure_unvalidated, classify_unvalidated and
-# their _structural / _of twins): references per crate (scripts/gates/raw-measure-door-sites.sh),
-# pinned. A change that adds or removes a raw site sets its crate's count here.
-crates/mesh 18
-crates/step-export 5
-crates/step-import 2
-crates/sweep 68
-crates/topo 33
