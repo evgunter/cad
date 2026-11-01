@@ -93,3 +93,6 @@ Newest entries at the bottom; the tail is the program's live status.
   and in-order is the better answer. Main's concision red was CHROME's
   and is fixed on main (6222, 6227); the duplicate row this PR had filed
   is dropped before merge. (SPACES orchestrator)
+- 2026-11-01 — PR 6208 merged (`387df94f`). Every other P0/P1 row now
+  waits on Ev's answers in `[ev]` PR 6209: each carries `design: true`
+  and refs 6209 until then. Lanes reclaimed. (SPACES orchestrator)

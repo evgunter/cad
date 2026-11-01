@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-31
 priority: P0
 cost: M
+design: true
+refs: [6209]
 ---
 
 ## Finding
