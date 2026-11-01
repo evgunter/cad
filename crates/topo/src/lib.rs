@@ -128,6 +128,7 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub(crate) mod bound_side;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;

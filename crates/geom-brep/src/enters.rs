@@ -296,9 +296,10 @@ impl<T: Real> ReferenceNormal<T> {
         Self(normal.vec())
     }
 
-    /// The reference normal as a plain vector — crate-internal, for
-    /// the predicates' own dot products.
-    pub(crate) fn vec(self) -> Vec3<T> {
+    /// The reference normal as a plain vector, for the predicates' own
+    /// dot products. Extraction cannot mint an [`OutwardNormal`].
+    #[must_use]
+    pub fn vec(self) -> Vec3<T> {
         self.0
     }
 }

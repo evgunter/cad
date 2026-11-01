@@ -231,44 +231,47 @@ pub(crate) enum EntryFault<E> {
 ///
 /// - LINE edges: the far vertex's side (`far`); a straight edge's
 ///   interior is the chord.
-/// - CONIC edges: the OUTGOING TANGENT side through the named trilean
-///   `split_conic_departure` (margin `t̂·n̂` metered at the edge's
-///   extent, the ray being exactly `t̂·extent`). The far vertex
-///   misleads on conics: a belly arc between ON vertices departs into
-///   its own side while both endpoints read On. Post-root-insertion the
-///   interior is sign-constant (every interior crossing was split out),
-///   so the departure IS the interior side. An in-plane departure ties
-///   at first order, and the arc then reads by which side it BENDS to
-///   against `reference`, certified as the boolean's vertex-on-face
-///   pass reads it ([`geom_brep::conic_bend_side`]). A whole edge
-///   within the band of the plane reads On; a bend the band does not
-///   separate from the first-order residue escalates (F6).
+/// - CONIC edges: the bound's side of the plane through the one reading
+///   of a bound's side ([`crate::bound_side::read_side`]): its outgoing
+///   tangent at first order, levered at the edge's extent (the ray being
+///   exactly `t̂·extent`). The far vertex misleads on conics: a belly arc
+///   between ON vertices departs into its own side while both endpoints
+///   read On. Post-root-insertion the interior is sign-constant (every
+///   interior crossing was split out), so the departure IS the interior
+///   side. An in-plane departure ties at first order, and the arc then
+///   reads by which side it BENDS to against `reference`, certified
+///   ([`geom_brep::conic_bend_side`]). A whole edge within the band of
+///   the plane reads On; a bend the band does not separate from the
+///   first-order residue escalates (F6).
 pub(crate) fn entry_side<T: Decide, E>(
     body: &Body<T>,
     vertex: VertexKey,
     he: HalfEdgeKey,
-    (normal, reference): (Vec3<T>, geom_brep::ReferenceNormal<T>),
+    reference: geom_brep::ReferenceNormal<T>,
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
+    use crate::bound_side::{BoundSide, FaceDatum, Reach, Side};
     let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
     let Some(bend) = conic_bend else {
         return far(final_vertex)
             .map(|side| (dir, side))
             .map_err(EntryFault::Far);
     };
-    let side = match decide("split_conic_departure", Margin::of(dir.dot(normal)), band) {
-        Ok(Sign::Negative) => PlaneSide::Below,
-        Ok(Sign::Positive) => PlaneSide::Above,
-        Ok(Sign::Zero) => {
-            match geom_brep::conic_bend_side(dir, dir.norm(), bend, reference, band) {
-                Ok(geom_brep::EntersMaterial::Enters) => PlaneSide::Below,
-                Ok(geom_brep::EntersMaterial::Exits) => PlaneSide::Above,
-                Ok(geom_brep::EntersMaterial::Tangent) => PlaneSide::On,
-                Err(diag) => return Err(EntryFault::Undecided(diag)),
-            }
+    let reach = Reach::Conic {
+        extent: dir.norm(),
+        bend,
+    };
+    let side = match crate::bound_side::read_side(dir, reach, FaceDatum::of_plane(reference), band)
+    {
+        Ok(BoundSide::Off(Side::Below) | BoundSide::Tangent(Side::Below)) => PlaneSide::Below,
+        Ok(BoundSide::Off(Side::Above) | BoundSide::Tangent(Side::Above)) => PlaneSide::Above,
+        Ok(BoundSide::Rides | BoundSide::Unread) => PlaneSide::On,
+        Err(fault) => {
+            return Err(EntryFault::Undecided(fault.diag().unwrap_or_else(|| {
+                unreachable!("a plane's datum carries no curvature charge to refuse")
+            })));
         }
-        Err(diag) => return Err(EntryFault::Undecided(diag)),
     };
     Ok((dir, side))
 }
@@ -400,10 +403,7 @@ pub(super) fn classify_neighborhood_rays<T: Decide>(
             body,
             vertex,
             he,
-            (
-                plane.normal.get(),
-                geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
-            ),
+            geom_brep::ReferenceNormal::of_split_plane(plane.normal.get()),
             |far| {
                 sides
                     .get(far)
