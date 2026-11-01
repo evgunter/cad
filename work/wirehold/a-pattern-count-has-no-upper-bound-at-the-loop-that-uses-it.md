@@ -1,13 +1,13 @@
 ---
 id: a-pattern-count-has-no-upper-bound-at-the-loop-that-uses-it
 kind: issue
-title: wire_pattern guards n < 1 and then loops 1..n, and the cancel token is checked between nodes
-status: open
+title: A member family's count is admitted up to u32::MAX per index and evaluated inside one node, with the cancel token checked only between nodes
+status: closed
 opened: 2026-09-21
 priority: P1
-cost: D
+cost: M
+closed: 2026-11-01
 refs: [need-count-spells-every-failure-as-a-pattern-count]
-
 ---
 
 
@@ -108,6 +108,21 @@ Signed (WIRE orchestrator).
 
 The scene still stands on main, re-sited. `wire_pattern` and `stepped_map` are gone (stage 3 G, #5954), and an index's count is now range-checked before its loop (`IndexCountOutOfRange`, in `crates/editor-core/src/eval/members.rs`). But the range it admits is `0..=u32::MAX`, and `members` (`eval/members.rs`) yields that many members inside one node. The cancel token is still checked only between nodes. So the bound sits ahead of the loop now but is still the name table's width rather than a size an evaluation can afford, and the loop is still not cancellable. Open.
 
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Changed; the defect stands.**
+- `wire_pattern` and its `1..n` loop are gone (G, #5954). The count is now range-checked before the loop: `members.rs:120` against `MemberCountFault::ADMITS = 0..=u32::MAX` (`repetition.rs:88`).
+- But `evaluate_members` still pushes every member into a `Vec` inside one node (`members.rs:240-290`), and the cancel token is still checked only between nodes (`eval/mod.rs:2634`; DESIGN.md:2163, "yielding between nodes/levels").
+- Nested indices multiply, so a family can reach u32::MAX^depth members.
+- In the viewer, a count of 1e30 saturates to i64::MAX (`viewer/src/props.rs:192`) and is refused by ADMITS; about 4e9 is still admitted.
+
+What it needs:
+- (a) The cancel token checked per member.
+- (b) Whether a family has a size budget. That is a policy question.
+
+DESIGN's cancelation sentence says between nodes. Check its provenance (`git log -S`) before treating per-member yielding as a clause change.
 ## Family members yield (2026-11-01, `wire-members`)
 
 **Built.** `eval::members::eval_family` reads the cancel token before each member, and a canceled family returns `Canceled` instead of a step. `eval_any` passes it up, and both walks in `evaluate_at_descent` treat it as the between-node check does: the outcome is `EvalOutcome::Canceled`, the completed prefix is kept, and the canceled node holds no result. On the level schedule, the level's other nodes that finished are kept. DESIGN's Cancelation bullet now says family members yield.
