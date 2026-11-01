@@ -1,0 +1,4 @@
+fork: injectivity-price (work/clear/injectivity-price-on-tour-lofts-exceeds-the-pair-budget.md)
+protocol: 2126b860b6
+byte1 (arm): 42 -> <86 -> three designers
+byte2 (labels): 72 -> 72 mod 3 = 0 -> Fable = A; Opus = B, Opus = C (B dispatched first)
