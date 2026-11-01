@@ -2942,9 +2942,15 @@ pub(super) fn pierce_germ_dir<T: Decide>(
     // out, which is no disagreement.
     #[cfg(debug_assertions)]
     {
+        // The line read un-normalized, at the bounds' offsets from the
+        // pierced plane (`sectors::face_line_rays`).
         let moot = DeclarationRead::Moot;
         let member = |dir| super::sectors::within(s, dir, false, moot, band);
-        if let (Ok(along), Ok(against)) = (member(germ), member(-germ)) {
+        let line = match out {
+            OutBound::Start => int,
+            OutBound::End => -int,
+        };
+        if let (Ok(along), Ok(against)) = (member(line), member(-line)) {
             debug_assert!(
                 along || !against,
                 "the transition's germ {germ:?} ({out:?}) is outside the sector \
