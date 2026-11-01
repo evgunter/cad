@@ -2,11 +2,13 @@
 id: main-red-the-blend-run-out-reword-fails-four-refusal-text-tests
 kind: issue
 title: main red: PR 6200's run-out refusal reword fails die_body's 'not built' assertion and three editor-core refusal-concision budgets
-status: open
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: E
 refs: [6200]
+closed: 2026-11-01
+pr: 6227
 ---
 
 
@@ -27,3 +29,7 @@ PR 6200's lane owes the fix (`memories/agent-lane-operations.md`, inherited reds
 - how to bring the reworded refusal back within the concision budgets.
 
 Until it is fixed, PRs that merge past this red cite this row.
+
+## Closed (2026-11-01, PR 6227)
+
+PR 6227 (`chrome/corner-recourse-budget`) shortens `FILLET3_CORNER_RECOURSE` to 33 words, so the mixed-corner refusal renders 73 of 75 words. It pins `m5_pr12_die_body` and `m6_surgery` to #6200's `END_FACE_CURVED` words, and follows the `blend6_verb_vocab` and `band_planar_mitre` text pins. Two orchestrators filed this red independently (CLEAR and TOUCHREC); both rows close here.
