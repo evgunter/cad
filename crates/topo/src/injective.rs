@@ -67,7 +67,10 @@
 //!   more than [`few_ulps`] past a line onto its face side lies outside
 //!   it;
 //! - **the cover** ([`covered`]): an edge whose range stops within
-//!   [`few_ulps`] of the cell's side covers it;
+//!   [`few_ulps`] of the cell's side covers it. (A side's edge is first
+//!   run on past a corner it makes with a line on the other axis, to
+//!   that line's far bound ([`run_on`]): structure, not a concession,
+//!   as the corner is on both.)
 //! - **the join** ([`present_curved`], [`present_wall`]): a closed
 //!   edge's periodic chart curve is read through its vertex by its
 //!   closed form, past a span
@@ -1312,6 +1315,105 @@ fn edge_ranges(b: &Boundary, edges: &[usize], held: Axis) -> Option<Vec<Interval
     Some(out)
 }
 
+/// **The rectangle's sides are the face's own**, for a face that is not
+/// a whole patch: each clip's side is covered by its edges, and each
+/// corner two clips on different axes make is convex ([`convex`]). An
+/// edge that ends inside the cell leaves the face free to wrap round
+/// its end, and the clipped quadrant is the face only where the corner
+/// is convex.
+///
+/// **A side's edges run on past a corner** ([`run_on`]): an edge that
+/// ends at a vertex it shares with a clip on the other axis covers the
+/// side out to that clip's line's far bound. The run-on is sound only
+/// with the other two checks, which is why all three are read here and
+/// nowhere else: that the other line bounds the face there is that
+/// line's own coverage, and that the corner is the face's is
+/// [`convex`].
+fn sides_are_the_faces(
+    b: &Boundary,
+    merged: &[Clip],
+    rect: ((f64, f64), (f64, f64)),
+    periodic: impl Fn(Axis) -> bool,
+) -> bool {
+    let covers = |c: &Clip| {
+        let axis = c.side.axis().other();
+        let periodic = periodic(axis);
+        run_on(b, c, merged, periodic)
+            .is_some_and(|ranges| covered(axis.of(rect), &ranges, periodic))
+    };
+    let other_axis = |c: &Clip, d: &Clip| {
+        c.side.axis() != d.side.axis() && c.collapsed.is_none() && d.collapsed.is_none()
+    };
+    merged.iter().all(|c| c.collapsed.is_some() || covers(c))
+        && merged.iter().enumerate().all(|(i, c)| {
+            merged
+                .iter()
+                .skip(i + 1)
+                .all(|d| !other_axis(c, d) || convex(b, c, d))
+        })
+}
+
+/// **The vertices two clips' edges share**: the corners they make, one
+/// at each such vertex (two edges that meet twice round a periodic
+/// chart make two).
+fn corners(b: &Boundary, c: &Clip, d: &Clip) -> BTreeSet<VertexKey> {
+    let ends = |c: &Clip| -> BTreeSet<VertexKey> {
+        c.edges
+            .iter()
+            .filter_map(|&i| b.edges.get(i))
+            .flat_map(|e| e.ends)
+            .collect()
+    };
+    ends(c).intersection(&ends(d)).copied().collect()
+}
+
+/// **The ranges a clip's side is its edges' over, run on past its
+/// corners**: its edges' ([`edge_ranges`]), each run on, from an end at
+/// a corner it makes with a clip on the other axis ([`corners`]), to
+/// that clip's line's far bound. The rectangle's side ends at that
+/// bound, while the edge ends at the corner, whose coordinate the
+/// line's enclosure and the edge end's both hold: two enclosures of one
+/// point, which no cell narrows. Past the edge end's own enclosure is
+/// past the corner, on the other line's non-face side, where the face
+/// has no point to wrap round the end into. Read only by
+/// [`sides_are_the_faces`], beside the checks that make that so.
+fn run_on(b: &Boundary, c: &Clip, merged: &[Clip], periodic: bool) -> Option<Vec<Interval>> {
+    let held = c.side.axis();
+    let mut out = edge_ranges(b, &c.edges, held)?;
+    for d in merged
+        .iter()
+        .filter(|d| d.side.axis() != held && d.collapsed.is_none())
+    {
+        let at = corners(b, c, d);
+        for &ei in &c.edges {
+            let e = b.edges.get(ei)?;
+            for (k, _) in e.ends.iter().enumerate().filter(|(_, v)| at.contains(v)) {
+                for u in &e.uses {
+                    let iso = u.iso?;
+                    if iso.held != held || iso.full {
+                        continue;
+                    }
+                    let end = iso.moving(u.image?[k]);
+                    let end = if periodic {
+                        wrap(end, geom::mid_param(d.at.lo(), d.at.hi()))
+                    } else {
+                        end
+                    };
+                    out.push(match d.side {
+                        Side::XHi | Side::YHi => {
+                            Interval::from_bounds(end.lo(), end.hi().max(d.at.hi()))
+                        }
+                        Side::XLo | Side::YLo => {
+                            Interval::from_bounds(end.lo().min(d.at.lo()), end.hi())
+                        }
+                    });
+                }
+            }
+        }
+    }
+    Some(out)
+}
+
 /// **A cone face's nappe**: `true` where its vertices off the apex stand
 /// on the axis's positive side. Every vertex whose signed height is
 /// decided must agree — a face across the apex is on both nappes and has
@@ -1568,36 +1670,10 @@ fn present_chart<'a>(
             }
         }
     }
-    // Every clip's side must be the edges' own: an edge that ends inside
-    // the cell leaves the face free to wrap round its end.
-    for c in &merged {
-        if c.collapsed.is_some() || piece.whole {
-            continue;
-        }
-        let axis = c.side.axis().other();
-        let want = axis.of((x, y));
-        let Some(ranges) = edge_ranges(b, &c.edges, c.side.axis()) else {
-            return Err(Unpresented::Local);
-        };
-        if !covered(want, &ranges, periodic(piece.surface, axis)) {
-            return Err(Unpresented::Local);
-        }
-    }
-    // Two lines on different axes meet at a corner of the face; the
-    // clipped quadrant is the face there only where the corner is
-    // convex. A NURBS face's corners are its domain's.
-    if !piece.whole {
-        for (i, c) in merged.iter().enumerate() {
-            for d in merged.iter().skip(i + 1) {
-                if c.side.axis() == d.side.axis() || c.collapsed.is_some() || d.collapsed.is_some()
-                {
-                    continue;
-                }
-                if !convex(b, c, d) {
-                    return Err(Unpresented::Local);
-                }
-            }
-        }
+    // Every clip's side must be the edges' own, run on past its corners,
+    // and every corner convex.
+    if !piece.whole && !sides_are_the_faces(b, &merged, (x, y), |a| periodic(piece.surface, a)) {
+        return Err(Unpresented::Local);
     }
     // A rectangle clipped to within the band of a shared line is read as
     // holding no point of the face off that line: its extent across, in
@@ -1666,34 +1742,21 @@ fn convex(b: &Boundary, c: &Clip, d: &Clip) -> bool {
             None
         }
     };
-    // EVERY vertex the two clips' edges share is a corner of the face:
-    // two edges that meet twice (round a periodic chart) make two, and
-    // each must be convex.
-    let ends = |c: &Clip| -> BTreeSet<VertexKey> {
-        c.edges
-            .iter()
-            .filter_map(|&i| b.edges.get(i))
-            .flat_map(|e| e.ends)
-            .collect()
-    };
-    let corners: Vec<VertexKey> = ends(c).intersection(&ends(d)).copied().collect();
-    // No corner: the two lines cross where neither edge reaches, which
-    // the span check has already refused.
+    // EVERY corner the two clips make must be convex. No corner: the two
+    // lines cross where neither edge reaches, which the cover has already
+    // refused.
     let ok = |c: &Clip, d: &Clip, v: VertexKey| -> bool {
-        // Every edge of `d` at `v` leaves it along `c`'s held axis, toward
-        // `c`'s face side; one whose direction is not decided fails.
-        let at_v: Vec<usize> = d
-            .edges
+        // Every edge of `d` at `v` (one at least: `v` is a corner) leaves
+        // it along `c`'s held axis, toward `c`'s face side; one whose
+        // direction is not decided fails.
+        d.edges
             .iter()
-            .copied()
-            .filter(|&j| b.edges.get(j).is_some_and(|e| e.ends.contains(&v)))
-            .collect();
-        !at_v.is_empty()
-            && at_v
-                .iter()
-                .all(|&j| away(j, v).is_some_and(|s| s * c.side.into() > 0.0))
+            .filter(|&&j| b.edges.get(j).is_some_and(|e| e.ends.contains(&v)))
+            .all(|&j| away(j, v).is_some_and(|s| s * c.side.into() > 0.0))
     };
-    corners.iter().all(|&v| ok(c, d, v) && ok(d, c, v))
+    corners(b, c, d)
+        .into_iter()
+        .all(|v| ok(c, d, v) && ok(d, c, v))
 }
 
 /// The sides of a presentation the separator vanishes on: the clips
@@ -5123,6 +5186,259 @@ mod presentation_rows {
             None,
             "no direction, no side"
         );
+    }
+
+    /// The lines of `edges` held `w` wide either side of their values.
+    fn widened(mut edges: Vec<Rim>, w: f64) -> Vec<Rim> {
+        for e in &mut edges {
+            for u in &mut e.uses {
+                if let Some(iso) = u.iso.as_mut() {
+                    let at = iso.at.lo();
+                    iso.at = Interval::from_bounds(at - w, at + w);
+                }
+            }
+        }
+        edges
+    }
+
+    /// A face of `edges` over the chart rectangle `u ∈ [1, 2]`,
+    /// `v ∈ [0, 1]`.
+    fn unit_face(edges: Vec<Rim>) -> Boundary {
+        Boundary {
+            sense: true,
+            edges,
+            vertices: BTreeMap::new(),
+            extent: Some([(1.0, 2.0), (0.0, 1.0)]),
+        }
+    }
+
+    /// **A rectangle on the cylinder's chart**, `u ∈ [1, 2]`,
+    /// `v ∈ [0, 1]`, counter-clockwise: its ends' images exact, its
+    /// lines' values held `w` wide either side, as an intersection's
+    /// pcurve holds its line wider than another edge's end at the corner
+    /// they share.
+    fn wide_rectangle(w: f64) -> Boundary {
+        unit_face(widened(
+            vec![
+                rim(1, [1, 2], Axis::V, 0.0, (1.0, 0.0), (2.0, 0.0)),
+                rim(2, [2, 3], Axis::U, 2.0, (2.0, 0.0), (2.0, 1.0)),
+                rim(3, [3, 4], Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0)),
+                rim(4, [4, 1], Axis::U, 1.0, (1.0, 1.0), (1.0, 0.0)),
+            ],
+            w,
+        ))
+    }
+
+    /// **The rectangle's corners, each of its two edges cut short**: the
+    /// eight ways one edge of a corner is `1e-7` long, the other whole,
+    /// both lines `1e-6` wide. Each is `(what, boundary, past, within)`:
+    /// the two edges alone, a cell along the short edge's moving axis
+    /// reaching `5e-7` from the corner (past the short edge's far end),
+    /// and one reaching `5e-8` (within it), each spanning the corner by
+    /// `0.5` on the other axis. `gap` instead keeps the edge whole and
+    /// moves its corner end `1e-7` off the corner, to a vertex the other
+    /// edge does not have.
+    #[allow(clippy::type_complexity)]
+    fn cut_corners(gap: bool) -> Vec<(String, Boundary, [((f64, f64), (f64, f64)); 2])> {
+        let (short, w) = (1e-7, 1e-6);
+        // The loop's edges: held axis, value, start, end, end vertices.
+        let sides = [
+            (Axis::V, 0.0, (1.0, 0.0), (2.0, 0.0), [1, 2]),
+            (Axis::U, 2.0, (2.0, 0.0), (2.0, 1.0), [2, 3]),
+            (Axis::V, 1.0, (2.0, 1.0), (1.0, 1.0), [3, 4]),
+            (Axis::U, 1.0, (1.0, 1.0), (1.0, 0.0), [4, 1]),
+        ];
+        let toward = |from: (f64, f64), to: (f64, f64), by: f64| {
+            let n = ((to.0 - from.0).powi(2) + (to.1 - from.1).powi(2)).sqrt();
+            (
+                from.0 + (to.0 - from.0) / n * by,
+                from.1 + (to.1 - from.1) / n * by,
+            )
+        };
+        let mut out = Vec::new();
+        for i in 0..4 {
+            let (arrive, leave) = (sides[i], sides[(i + 1) % 4]);
+            let corner = arrive.3;
+            for cut_arriving in [true, false] {
+                let (mut a, mut l) = (arrive, leave);
+                let far;
+                if cut_arriving {
+                    far = toward(corner, a.2, short);
+                    if gap {
+                        a.3 = far;
+                        a.4[1] = 9;
+                    } else {
+                        a.2 = far;
+                    }
+                } else {
+                    far = toward(corner, l.3, short);
+                    if gap {
+                        l.2 = far;
+                        l.4[0] = 9;
+                    } else {
+                        l.3 = far;
+                    }
+                }
+                let edges = widened(
+                    vec![
+                        rim(1, a.4, a.0, a.1, a.2, a.3),
+                        rim(2, l.4, l.0, l.1, l.2, l.3),
+                    ],
+                    w,
+                );
+                // The short edge's moving axis is the one its far end
+                // leaves the corner along.
+                let along_u = (far.0 - corner.0).abs() > 0.0;
+                let dir = if along_u {
+                    (far.0 - corner.0).signum()
+                } else {
+                    (far.1 - corner.1).signum()
+                };
+                let cell = |reach: f64| {
+                    let (m, o) = if along_u {
+                        (corner.0, corner.1)
+                    } else {
+                        (corner.1, corner.0)
+                    };
+                    let (p, q) = (m + reach * dir, m - 0.5 * dir);
+                    let moving = (p.min(q), p.max(q));
+                    let other = (o - 0.5, o + 0.5);
+                    if along_u {
+                        (moving, other)
+                    } else {
+                        (other, moving)
+                    }
+                };
+                out.push((
+                    format!(
+                        "corner {corner:?}, the {} edge cut",
+                        if cut_arriving { "arriving" } else { "leaving" }
+                    ),
+                    unit_face(edges),
+                    [cell(5e-7), cell(5e-8)],
+                ));
+            }
+        }
+        out
+    }
+
+    /// The cell `(u, v)` moved `turn` round on the periodic `u` axis.
+    fn turned(((a, b), v): ((f64, f64), (f64, f64)), turn: f64) -> ((f64, f64), (f64, f64)) {
+        ((a + turn, b + turn), v)
+    }
+
+    /// **Each corner of a rectangle presents, its lines held far wider
+    /// than its edges' ends** ([`run_on`]): at every corner the
+    /// rectangle's side runs to the other line's outer bound, past the
+    /// edge's exact end, and the side is still the edge's own because
+    /// the edge ends on that line, on the cell's own sheet a turn round
+    /// too. Red if a side must be covered by its edges alone: the corner
+    /// then reads `Local` at every depth, the lines' widths being no
+    /// cell's; or if a low side is run on the wrong way.
+    #[test]
+    fn a_corner_presents_though_its_lines_are_wider_than_its_edges_ends() {
+        let s = cylinder();
+        let b = wide_rectangle(1e-9);
+        let corners = [
+            ((1.5, 2.5), (0.5, 1.5)),
+            ((1.5, 2.5), (-0.5, 0.5)),
+            ((0.5, 1.5), (0.5, 1.5)),
+            ((0.5, 1.5), (-0.5, 0.5)),
+        ];
+        for turn in [0.0, TURN] {
+            for cell in corners.map(|c| turned(c, turn)) {
+                let (u, v) = cell;
+                assert!(
+                    matches!(chart(&s, &b, &all(4), u, v), Read::Of(..)),
+                    "the corner in {u:?} × {v:?} presents: {:?}",
+                    chart(&s, &b, &all(4), u, v)
+                );
+            }
+        }
+    }
+
+    /// **An edge is run on from its own end at the corner, outward, on
+    /// the line's sheet, and only against a line on the other axis**:
+    /// at each of the rectangle's corners, with either of its edges cut
+    /// `1e-7` short against the other's `1e-6`-wide line, a cell reaching
+    /// past the short edge's far end is not presented and one within it
+    /// is, on the stored sheet and a turn round. Both arms of the
+    /// run-on, high and low, are read on both axes. Red if the line's
+    /// whole enclosure is taken as the edge's (at either arm), if a low
+    /// side is run on the wrong way, if the edge's end is read on its
+    /// stored sheet against a line placed on the cell's (the run-on then
+    /// spans the turn between them), or if a clip is run on against
+    /// itself: each such cell then presents with its side running past
+    /// the edge.
+    #[test]
+    fn a_corner_runs_its_edge_on_from_its_own_end_only() {
+        let s = cylinder();
+        for (what, b, [past, within]) in cut_corners(false) {
+            for turn in [0.0, TURN] {
+                let ((u, v), (wu, wv)) = (turned(past, turn), turned(within, turn));
+                assert_eq!(
+                    chart(&s, &b, &[0, 1], u, v),
+                    Read::Local,
+                    "{what}, {turn} round: a cell past the short edge is not presented"
+                );
+                assert!(
+                    matches!(chart(&s, &b, &[0, 1], wu, wv), Read::Of(..)),
+                    "{what}, {turn} round: a cell within the short edge presents: {:?}",
+                    chart(&s, &b, &[0, 1], wu, wv)
+                );
+            }
+        }
+    }
+
+    /// **An edge that stops short of a line it does not end on runs on
+    /// past nothing**: at each corner, either edge ends `1e-7` short of
+    /// the other's line, inside that line's `1e-6` enclosure, at a
+    /// vertex the line's edge does not have. The face may turn round
+    /// that end, so the corner cell is not presented. Red if an edge is
+    /// run on to a line it shares no vertex with.
+    #[test]
+    fn an_edge_ending_short_of_a_line_it_shares_no_vertex_with_is_not_run_on() {
+        let s = cylinder();
+        for (what, b, [past, _]) in cut_corners(true) {
+            // The cell holds the gap and the edge's end past it.
+            let (u, v) = past;
+            assert_eq!(
+                chart(&s, &b, &[0, 1], u, v),
+                Read::Local,
+                "{what}: the cell beside the gap is not presented"
+            );
+        }
+    }
+
+    /// **`convex` decides a corner `present_chart` reads**: two `T`
+    /// junctions on the rectangle's chart, at the corner `(2, 1)` where
+    /// the `u = 2` line (face on its low side) meets the `v = 1` line
+    /// (face on its high side). In the first the `u = 2` line runs on
+    /// through the corner, so one of its edges leaves the corner away
+    /// from the `v = 1` line's face side; in the second the `v = 1` line
+    /// runs on through it. Every side is covered, and the face is not
+    /// the clipped quadrant. Red if `convex` reads only one of the two
+    /// clips' edges, or is not read.
+    #[test]
+    fn a_corner_one_clips_edges_run_through_is_not_convex() {
+        let s = cylinder();
+        let through_u = unit_face(vec![
+            rim(1, [5, 3], Axis::U, 2.0, (2.0, 0.0), (2.0, 1.0)),
+            rim(2, [3, 6], Axis::U, 2.0, (2.0, 1.0), (2.0, 2.0)),
+            rim(3, [7, 3], Axis::V, 1.0, (1.0, 1.0), (2.0, 1.0)),
+        ]);
+        let through_v = unit_face(vec![
+            rim(1, [5, 3], Axis::U, 2.0, (2.0, 0.0), (2.0, 1.0)),
+            rim(2, [7, 3], Axis::V, 1.0, (1.0, 1.0), (2.0, 1.0)),
+            rim(3, [3, 6], Axis::V, 1.0, (2.0, 1.0), (3.0, 1.0)),
+        ]);
+        for (what, b) in [("through u", through_u), ("through v", through_v)] {
+            assert_eq!(
+                chart(&s, &b, &all(3), (1.5, 2.5), (0.5, 1.5)),
+                Read::Local,
+                "{what}"
+            );
+        }
     }
 
     /// **`convex`**: the strip's corner where its right line meets its
