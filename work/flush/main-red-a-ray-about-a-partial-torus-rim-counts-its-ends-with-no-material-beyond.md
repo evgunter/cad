@@ -2,13 +2,14 @@
 id: main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond
 kind: issue
 title: Main red (fuzz): a ray in band of a 1.5-turn revolved torus's plane|torus rim counts its ends but reads no material beyond, at ε 1e-6
-status: review
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
 branch: flush/partial-torus-rim-ray
 pr: 6168
+closed: 2026-11-01
 ---
 
 
@@ -151,3 +152,41 @@ Pinned in `crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
 
 The fuzz rows ran with 18 fresh seeds plus the nightly's at effort 2,
 at ε 1e-9, 1e-6 and 1e-12: 57 runs, 0 wrong.
+
+## Resolution
+
+Closed by PR 6168 (2026-11-01). A curved face's root found far from where
+the ray passes a met edge now stands only when `reaches_root_in_band`
+decides its reach margin Negative or Zero. The margin is the ray's rise
+off the carrier over the root's distance at its incidence
+(`Margin::levered`), less the passage's own clearance, charged for the
+normal's tilt and for rounding. It decides on its own rows,
+`*_met_edge_reaches`. A margin decided Positive, or one in band of either
+sign, sets the ray aside with graze marks. A straddle at `Interval`, or a
+poisoned normal, is the ray's `Escalated` fault. The carrier's normal has
+one home, `chart_normal`, which `root_outward` also reads (bit-identical
+at f64).
+
+- **One FULL review, then a check pass**, both APPROVE-WITH-FIXES with no
+  MAJOR.
+- **First review.** On the merge base the family read 72/9024 wrong at
+  every ε, and 0 on head. Its two MINORs:
+  - an undecided or poisoned rise folded into "stands";
+  - the comparison went through the wrong door, unmetered, under
+    another decision's row.
+  The fix pass made both safe and gave the bound its own predicate.
+- **Check pass.** It found in-band margins set aside on both sides, and no
+  guard on the fold's direction. Setting an undecided margin aside is kept
+  as D10's answer: splitting the band by the margin's f64 sign would be a
+  represented tie-break. The doc states it, and a unit row now goes red
+  under the old fold.
+- **Cost.** Against main on the reviewer's corpus probe (46,080 rays and
+  31,347 points per ε), 2, 38 and 1 lines move at 1e-9, 1e-6 and 1e-12,
+  all from read to set aside, with 0 wrong on either tree. At 1e-6, 204
+  roots fall in band below zero: 192 on inside chords and 12 reached from
+  outside. The batteries and `reader_ties_at_the_nominal` did not move.
+- **Residue:**
+  - `work/flushtail/a-met-edges-reach-bound-is-necessary-not-shown-sufficient-on-a-torus.md`
+    (P3): on a torus the bound is necessary, not shown sufficient. Two
+    reviewer families were set aside by the Touch band first. The shape
+    off the top and bottom circles on a near-full turn is unexercised.
