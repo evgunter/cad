@@ -394,7 +394,10 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     far: o + v(s.end_far),
                 },
                 face: FaceKey::from(key(1000 + s.face)),
-                normal: OutwardNormal::from_chart(v(s.normal), true),
+                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                    v(s.normal),
+                    true,
+                )),
                 arm: s.arm,
             }
         })
@@ -633,7 +636,10 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             far: o + d,
         },
         face: FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 99_999)),
-        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            Vec3::new(1.0, 0.0, 0.0),
+            true,
+        )),
         arm: 1.0,
     }
 }
@@ -1497,7 +1503,10 @@ fn apart_never_parts_an_arc_and_a_sector_that_meet_within_the_band() {
                     far: o + v3(v) * lv,
                 },
                 face: FaceKey::from(key(11)),
-                normal: OutwardNormal::from_chart(v3(n), true),
+                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                    v3(n),
+                    true,
+                )),
                 arm: lu.min(lv),
             };
             let arc = GreatArc {

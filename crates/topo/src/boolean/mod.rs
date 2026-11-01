@@ -2982,17 +2982,36 @@ pub enum BooleanError {
         /// The band the apex distance was classified against.
         band: Band,
     },
-    /// A vertex the boolean classifies sits within the band of the APEX
-    /// of a cone face of `operand`: the cone's own apex vertex as the
-    /// corner of one of its sectors, or another operand's vertex landing
-    /// on the cone there. The face has no tangent plane at its apex:
-    /// each ruling out of it has a normal of its own, and what the
-    /// Boolean lacks is the sector pair algebra that reads a material
-    /// side over that fan of rulings, so the sector and pierce lanes
-    /// refuse rather than read one normal. The definite half: an in-band
-    /// distance off the axis refuses the same way, with no tolerance
-    /// named.
+    /// A vertex of the other operand pierces a cone face of `operand`
+    /// within the band of the cone's APEX. The face has no tangent plane
+    /// there, so the pierce has no datum to read the vertex's sectors
+    /// against. The definite half: an in-band distance off the axis
+    /// refuses the same way, with no tolerance named.
     NormalAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// The band the distance off the axis was classified against.
+        band: Band,
+    },
+    /// A vertex the boolean classifies is the apex of a cone face of
+    /// `operand` and pairs with a vertex of the other operand. A sector
+    /// there is a fan of the cone's rulings, and the vertex–vertex pair
+    /// algebra over a fan is unbuilt
+    /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`);
+    /// a pierce of the other operand's face at the apex reads.
+    VertexPairAtConeApex {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+    },
+    /// A vertex the boolean classifies, a corner of a cone face of
+    /// `operand`, lies within the band of the cone's axis: definitely
+    /// off its apex, where the tangent plane is read ill-conditioned, or
+    /// neither off it nor at it decided.
+    VertexNearConeAxis {
         /// The operand the cone face belongs to.
         operand: Operand,
         /// The cone face.
@@ -4222,6 +4241,10 @@ pub enum BooleanErrorKind {
     CrossingAtConeApex,
     /// [`BooleanError::NormalAtConeApex`].
     NormalAtConeApex,
+    /// [`BooleanError::VertexPairAtConeApex`].
+    VertexPairAtConeApex,
+    /// [`BooleanError::VertexNearConeAxis`].
+    VertexNearConeAxis,
     /// [`BooleanError::NormalAtSplineCrease`].
     NormalAtSplineCrease,
     /// [`BooleanError::PierceLeverUnread`].
@@ -4501,6 +4524,8 @@ impl BooleanError {
             Self::CurvedPierceEscalated { .. } => BooleanErrorKind::CurvedPierceEscalated,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
+            Self::VertexPairAtConeApex { .. } => BooleanErrorKind::VertexPairAtConeApex,
+            Self::VertexNearConeAxis { .. } => BooleanErrorKind::VertexNearConeAxis,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
             Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
@@ -4733,6 +4758,21 @@ impl core::fmt::Display for BooleanError {
                 "a corner of one part sits at the tip of a cone face of the {} operand, \
                  where the face has no direction to read the other part's side by. \
                  Recourse: move the parts so nothing meets the cone's tip",
+                operand_word(*operand),
+            ),
+            Self::VertexPairAtConeApex { operand, .. } => write!(
+                f,
+                "the tip of a cone face of the {} operand meets a corner of the other \
+                 part, and a corner meeting a cone's tip is not yet supported. Recourse: \
+                 move the parts so the cone's tip clears the corner",
+                operand_word(*operand),
+            ),
+            Self::VertexNearConeAxis { operand, .. } => write!(
+                f,
+                "a corner of a cone face of the {} operand lies so near the cone's tip \
+                 that the face's direction there cannot be read at this tolerance. \
+                 Recourse: move the parts so the corner lies clear of the cone's tip, \
+                 or tighten the tolerance",
                 operand_word(*operand),
             ),
             Self::NormalAtSplineCrease { operand, .. } => write!(
@@ -6194,8 +6234,9 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], band)?;
-        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], band)?;
+        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &[], band)?;
+        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &[], band)?;
+        sectors::apex_pair_refusal([(Operand::A, &a_sectors), (Operand::B, &b_sectors)])?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
         let mut along = None;
@@ -8940,6 +8981,15 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::VertexPairAtConeApex {
+                operand: Operand::B,
+                face,
+            },
+            BooleanError::VertexNearConeAxis {
+                operand: Operand::A,
+                face,
+                band,
+            },
             BooleanError::NormalAtSplineCrease {
                 operand: Operand::B,
                 face,
@@ -9280,6 +9330,8 @@ mod tests {
                 BooleanErrorKind::CurvedPierceEscalated => "CurvedPierceEscalated",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
+                BooleanErrorKind::VertexPairAtConeApex => "VertexPairAtConeApex",
+                BooleanErrorKind::VertexNearConeAxis => "VertexNearConeAxis",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
                 BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",

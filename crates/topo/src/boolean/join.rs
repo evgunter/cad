@@ -2651,7 +2651,15 @@ fn partners<T: Decide>(
         )?,
         None => {
             let loops = germ_section_loops((&red.a, &red.b), &rga, band)?;
-            facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?
+            // A cone face's straight section is rulings through its apex,
+            // which may be two lines.
+            let cone = |body: &Body<T>, face| {
+                face_surface(body, face).is_ok_and(|(_, s)| s.kind() == geom::SurfaceKind::Cone)
+            };
+            let rulings = rga.a_locus.edge().is_none()
+                && rga.b_locus.edge().is_none()
+                && (cone(&red.a, rga.a_face) || cone(&red.b, rga.b_face));
+            facing(loops.as_ref(), rulings, &rga, &ega, p_c, p_e, band)?
         }
     };
     if let Faced::Apart = faced {
@@ -4514,7 +4522,7 @@ pub(super) fn germs_face_each_other<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     Ok(!matches!(
-        facing(loops, g1, g2, p1, p2, band)?,
+        facing(loops, false, g1, g2, p1, p2, band)?,
         Faced::Apart
     ))
 }
@@ -4626,6 +4634,13 @@ fn along_facing<T: Decide>(
 /// Mutual germ facing along the germ LOCUS. Straight germ lines take
 /// the chord test: both dirs definitely point at each other along the
 /// chord (Zero = definite non-facing; in-band escalates in `decide`).
+/// Where the section is a cone face's `rulings` through its apex, which
+/// may be two lines, the partner's site must also lie on the germ's own
+/// line, its distance off it decided Zero (`bool_join_on_line`): a site
+/// on the other ruling faces the germ across the apex, but is no
+/// partner of it. Every other straight section is one line, whose
+/// germs, near a tangency read only to the band, need not place their
+/// partners on it.
 /// On a CONIC germ locus the chord test is structurally degenerate — a
 /// semicircle arc leaves BOTH sites exactly perpendicular to the chord
 /// — so the arc-aware test asks whether the two germs bound ONE
@@ -4635,6 +4650,7 @@ fn along_facing<T: Decide>(
 /// section never face: each loop is its own traversal.
 fn facing<T: Decide>(
     loops: Option<&SectionLoops<T>>,
+    rulings: bool,
     g1: &HalfGerm<T>,
     g2: &HalfGerm<T>,
     p1: geom_core::Point3<T>,
@@ -4648,6 +4664,14 @@ fn facing<T: Decide>(
             // separation (rim-dimensional audit: the former `/ dist`
             // stripped the metres and compared a bare cosine against
             // the length band — class (c)).
+            if rulings {
+                let off = g1.dir.normalize().cross(chord).norm();
+                if decide("bool_join_on_line", Margin::of(off), band).map_err(join_escalate)?
+                    != Sign::Zero
+                {
+                    return Ok(Faced::Apart);
+                }
+            }
             let f1 = g1.dir.dot(chord);
             let f2 = g2.dir.dot(-chord);
             let faces = decide("bool_join_facing", Margin::of(f1), band).map_err(join_escalate)?

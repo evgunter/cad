@@ -2627,6 +2627,91 @@ pub(crate) fn wall_section<T: Decide>(
     Ok(Some(WallSection { wall, case }))
 }
 
+/// **The section ruling inside a sub-sector at a cone's apex**: of the
+/// rulings the plane through `origin` along `normal` cuts `face`, a cone
+/// at its apex `at`, in ([`wall_section`]: a line pair, or one line where
+/// the plane is tangent), each turned onto the face's nappe, the one
+/// strictly inside the sub-sector the face's sweep turns through from the
+/// ruling along `from` to the one along `to`, which the walk read with the
+/// plane's side turning across it. Which one is read as its turn from
+/// each bound into the sweep ([`ConeApex::turn`](crate::sector_face::ConeApex::turn)), levered at the
+/// sub-sector's `arm` (`germ_apex`).
+///
+/// The one trace both lanes read a germ at an apex by: the split's
+/// section germ and the Boolean's pierce germ.
+///
+/// # Errors
+///
+/// [`ApexRulingFault`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn apex_section_ruling<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    (origin, normal): (Point3<T>, UnitVec3<T>),
+    (face, at): (FaceKey, VertexKey),
+    apex: &crate::sector_face::ConeApex<T>,
+    (from, to): (Vec3<T>, Vec3<T>),
+    arm: T,
+) -> Result<Vec3<T>, ApexRulingFault> {
+    let lines = match wall_section(body, band, origin, normal, face, at) {
+        Ok(Some(WallSection {
+            case: SectionCase::Straight([l1, l2]),
+            ..
+        })) => vec![l1, l2],
+        Ok(Some(WallSection {
+            case: SectionCase::Tangent(l),
+            ..
+        })) => vec![l],
+        Err(SplitJoinError::Escalated { diag, .. }) => {
+            return Err(ApexRulingFault::Escalated(diag));
+        }
+        Err(section) => return Err(ApexRulingFault::Refused(Box::new(section))),
+        Ok(Some(WallSection {
+            case: SectionCase::Conic(_),
+            ..
+        })) => return Err(ApexRulingFault::ClosedOffApex),
+        Ok(_) => unreachable!(
+            "{face:?} carries a cone, whose section table reads a conic, a line pair or a \
+             tangent line"
+        ),
+    };
+    let mut inside = None;
+    for line in lines {
+        let geom::Curve3::Line { dir, .. } = line else {
+            unreachable!("{face:?}: a cone's section ruling through its apex is a line")
+        };
+        let z = apex.onto_nappe_of(dir, to);
+        let into = apex.turn(from, z).min(apex.turn(z, to));
+        match decide("germ_apex", Margin::levered(into, arm), band)
+            .map_err(ApexRulingFault::Escalated)?
+        {
+            Sign::Positive if inside.is_none() => inside = Some(z),
+            Sign::Positive => return Err(ApexRulingFault::BothRulingsInside),
+            Sign::Zero | Sign::Negative => {}
+        }
+    }
+    inside.ok_or(ApexRulingFault::NoRulingInside)
+}
+
+/// Why [`apex_section_ruling`] names no ruling.
+#[derive(Debug)]
+pub(crate) enum ApexRulingFault {
+    /// The table or the turn escalated.
+    Escalated(Indeterminate),
+    /// The table refused the pair: for a plane the walk read through the
+    /// apex, most often an open conic standing off it
+    /// ([`SplitJoinError::OpenConicChord`]).
+    Refused(Box<SplitJoinError>),
+    /// The table reads the plane's section of the cone as a closed conic,
+    /// standing off the apex.
+    ClosedOffApex,
+    /// None of the section rulings lies inside the sub-sector.
+    NoRulingInside,
+    /// Both lie inside it, across which the walk read the plane's side
+    /// monotone.
+    BothRulingsInside,
+}
+
 /// [`wall_section`]'s answer.
 pub(crate) struct WallSection<T: Real> {
     /// The face's wall surface.

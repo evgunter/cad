@@ -1679,7 +1679,7 @@ fn beside_order<T: Decide>(
     let Some([bp, bq]) = p.tie_flankers(q) else {
         return Ok(Sign::Zero);
     };
-    let n = s.normal.vec();
+    let n = s.tangent().vec();
     let off = |x: Vec3<T>| {
         crate::validate::decide("bool_beside_flush", Margin::levered(n.dot(x), s.arm), band)
             .map_err(|diag| {
@@ -1730,7 +1730,7 @@ fn walks_after<T: Decide>(
     y: Vec3<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let m = Margin::levered(x.cross(y).dot(s.normal.vec()), s.arm);
+    let m = Margin::levered(x.cross(y).dot(s.tangent().vec()), s.arm);
     crate::validate::decide("bool_shared_cut_order", m, band)
         .map_err(|diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag))
 }
@@ -2318,7 +2318,7 @@ fn walk_faces_first<T: Decide>(
     )?;
     strut_order(
         (arrival.normalize(), reach.length()),
-        s.normal.vec(),
+        s.tangent().vec(),
         (first.dir, second.dir),
         s.arm,
         || Ok(None),
@@ -2466,7 +2466,7 @@ fn germ_dir<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
-    let int = sa.normal.vec().cross(sb.normal.vec());
+    let int = sa.tangent().vec().cross(sb.tangent().vec());
     // The same margin `pair_search` read as definite before it sent this
     // pair down the crossing path: a pair whose parallelism is Zero or in
     // band there is coplanar or refused, never a crossing record.
@@ -2866,7 +2866,7 @@ mod tests {
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     face: FaceKey::default(),
-                    normal,
+                    at_vertex: crate::sector_face::VertexFace::Tangent(normal),
                     arm: 1.0,
                 })
                 .collect();
@@ -2983,7 +2983,9 @@ mod tests {
             start_reach: Reach::Extent(1.0),
             end_reach,
             face: FaceKey::default(),
-            normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            at_vertex: crate::sector_face::VertexFace::Tangent(
+                geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            ),
             arm: 1.0,
         };
         let secs = vec![
@@ -3335,7 +3337,7 @@ mod tests {
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     face: crate::entity::FaceKey::default(),
-                    normal,
+                    at_vertex: crate::sector_face::VertexFace::Tangent(normal),
                     arm: 1.0,
                 })
                 .collect();
@@ -3425,7 +3427,9 @@ mod tests {
                 far: o + y,
             },
             face: FaceKey::default(),
-            normal: OutwardNormal::from_chart(normal, true),
+            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: 1.0,
         };
         let (sa, sb) = (
@@ -3540,7 +3544,9 @@ mod tests {
             start_reach: Reach::Extent(1.0),
             end_reach: Reach::Extent(1.0),
             face: FaceKey::default(),
-            normal: geom_brep::OutwardNormal::from_chart(n, true),
+            at_vertex: crate::sector_face::VertexFace::Tangent(
+                geom_brep::OutwardNormal::from_chart(n, true),
+            ),
             arm: 1.0,
         };
         let mut pairs = 0;
@@ -3597,7 +3603,9 @@ mod tests {
             start_reach,
             end_reach,
             face: FaceKey::default(),
-            normal: geom_brep::OutwardNormal::from_chart(n, true),
+            at_vertex: crate::sector_face::VertexFace::Tangent(
+                geom_brep::OutwardNormal::from_chart(n, true),
+            ),
             arm: 1.0,
         };
         let sectors = [
@@ -3756,7 +3764,9 @@ mod tests {
                 far: o + end,
             },
             face,
-            normal: OutwardNormal::from_chart(normal, true),
+            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                normal, true,
+            )),
             arm: 1.0,
         };
         let a = [

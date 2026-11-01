@@ -4510,6 +4510,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_sector_chord",
             "unjoined_operand",
             "unrepresentable_result",
+            "vertex_near_cone_axis",
+            "vertex_pair_at_cone_apex",
             "vertex_read_twice",
             "zip_correspondence",
         ],
