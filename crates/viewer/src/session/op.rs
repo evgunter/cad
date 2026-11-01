@@ -939,7 +939,9 @@ pub enum SessionOp {
     /// copy's space, stepped clear of it along the original's own `x`;
     /// a duplicate of a body nothing copies is two copies in its own
     /// space, a stand-in by the identity and the stepped one. One
-    /// action, one undo; the original's placements are untouched.
+    /// action, one undo; the original's placements are untouched. The
+    /// copies are of one body, so a feature on one of them re-points
+    /// both (`work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md`).
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along

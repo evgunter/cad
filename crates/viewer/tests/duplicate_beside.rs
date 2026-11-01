@@ -323,7 +323,7 @@ fn a_duplicate_beside_another_bodys_copy_is_refused() {
     let (mut session, block) = block(tol);
     let other = common::xy_box_in(&mut session, SMALL);
     session.pump();
-    let elsewhere = common::copy_of(session.committed_doc(), other);
+    let (mut session, elsewhere) = common::world_copy_in(&session, other, tol);
     let before = session.committed_doc().clone();
     let outcome = session.perform(SessionOp::Duplicate {
         input: block.into(),

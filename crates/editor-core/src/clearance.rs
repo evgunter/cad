@@ -1673,8 +1673,9 @@ fn faces_of<T: geom_core::Decide>(
 
 /// **A contact record between the two scopes**: the first record of the
 /// selection's body whose one cell bounds a face of one scope and whose
-/// other bounds a face of the other. The records are a body 0's, as its
-/// value's carry holds them.
+/// other bounds a face of the other. The records are the selected
+/// body's, as its value's carry holds them: a family member's or a
+/// split side's own ([`crate::Carry::member`]), else the one body's.
 fn recorded_contact<T: geom_core::Decide>(
     ev: &Evaluation<T>,
     sel: &Selection,
@@ -1682,11 +1683,13 @@ fn recorded_contact<T: geom_core::Decide>(
     fa: &[FaceKey],
     fb: &[FaceKey],
 ) -> Option<(topo::Cell, topo::Cell)> {
-    if sel.body != 0 {
-        return None;
-    }
     let value = ev.value(sel.at)?;
-    let records = Arc::clone(&value.carry.contacts);
+    let carry = match &value.carry.members {
+        Some(_) => value.carry.member(usize::try_from(sel.body).ok()?),
+        None if sel.body == 0 => &value.carry,
+        None => return None,
+    };
+    let records = Arc::clone(&carry.contacts);
     let loop_face = |he| {
         body.get_half_edge(he)
             .and_then(|h| body.get_loop(h.parent_loop))

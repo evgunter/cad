@@ -607,7 +607,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
             .feed(
                 session.committed_doc(),
                 Err(viewer::pickcache::NotIndexed::Absent),
-                &[SessionOp::Select(Selection::Node(common::copy_of(
+                &[SessionOp::Select(Selection::Node(common::drawn_node(
                     session.committed_doc(),
                     torus
                 )))]
@@ -839,7 +839,7 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Mirror);
     let picks = [
-        SessionOp::Select(Selection::Node(common::copy_of(
+        SessionOp::Select(Selection::Node(common::drawn_node(
             session.committed_doc(),
             block,
         ))),

@@ -2249,7 +2249,8 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         // of several bodies a body at a seat.
         (
             "part of a pattern",
-            viewer::combine::part_node(&doc, pattern_of_body, PartSelectSpec::Instance(1)),
+            viewer::combine::part_node(&doc, pattern_of_body, PartSelectSpec::Instance(1))
+                .expect("the pattern is in its body's space"),
         ),
         (
             "loft",
@@ -2906,14 +2907,20 @@ fn the_part_seats_track_the_part_door() {
         {
             let wanted = NodeKindWanted::Instances;
             let admitted = viewer::session::admits(&doc, candidate, wanted);
+            // A candidate in no space has no member read to write.
+            let Some(read) =
+                viewer::combine::part_node(&doc, candidate, PartSelectSpec::Instance(0))
+            else {
+                assert!(
+                    !admitted,
+                    "the {wanted:?} seat admits {name}, which is in no space"
+                );
+                continue;
+            };
             let refused = match pncad::document::apply(
                 &doc,
                 &pncad::document::DocEdit::InsertNode {
-                    node: Box::new(viewer::combine::part_node(
-                        &doc,
-                        candidate,
-                        PartSelectSpec::Instance(0),
-                    )),
+                    node: Box::new(read),
                     fresh: Vec::new(),
                 },
                 tol,
@@ -3109,7 +3116,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
     };
     assert_eq!(
         face.node,
-        common::copy_of(session.committed_doc(), moved),
+        common::drawn_node(session.committed_doc(), moved),
         "the ray met the moved copy, drawn by its placement"
     );
     assert_ne!(
