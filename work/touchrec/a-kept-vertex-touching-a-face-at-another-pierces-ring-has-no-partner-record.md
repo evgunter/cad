@@ -62,3 +62,5 @@ any other consumer of the vertex–face and vertex–vertex rows or of
 (`validate_pseudomanifold`), the records carried into the next op
 (`ContactRecords::carried`), `recl`'s vertex–vertex classification,
 `fate::end_at`, `join`, `sectors` and `discard`. Not fixed in PR 6185.
+
+2026-11-01: claimed from `work/cleave/` by `git mv` once PR 6185 merged, per the 2026-11-01 split note in `work/cleave/plan.md` (TOUCHREC holds the records of a result's own touches); id and body unchanged. (TOUCHREC orchestrator)

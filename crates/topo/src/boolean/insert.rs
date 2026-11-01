@@ -2413,16 +2413,8 @@ fn record_germ_dir<T: Decide>(
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
         return germ_dir(sa, sb, read, band);
     }
-    let surface_of = |body: &Body<T>, face| {
-        body.get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .cloned()
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "declared-Tangent face lost its surface",
-            })
-    };
-    let s_a = surface_of(a_body, sa.face)?;
-    let s_b = surface_of(b_body, sb.face)?;
+    let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
+    let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
