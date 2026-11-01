@@ -83,14 +83,15 @@ serde_json = "1.0.151"
 test-utils = { path = "../../crates/test-utils" }
 
 
-# The tour is the ONLY release build of the kernel in CI (the ten
-# nextest legs are opt-2 DEV builds — `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL`
-# in ci.yml, which leaves cargo's dev default of debug-assertions ON, so
-# the fail-loud postconditions keep their teeth there). Cargo's release
-# default turns them OFF, so without this the tour was the one lane
-# exercising the kernel with every `debug_assert` compiled out
-# — D9's operator postconditions, the Euler-vector arena deltas, the N6
-# bitwise-agreement check, all vacuous.
+# The kernel's own nextest legs are optimized DEV builds
+# (`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL` in ci.yml), which leaves cargo's
+# dev default of debug-assertions ON, so the fail-loud postconditions keep
+# their teeth there. Cargo's release default turns them OFF, so without
+# this the tour was the one lane exercising the kernel with every
+# `debug_assert` compiled out — D9's operator postconditions, the
+# Euler-vector arena deltas, the N6 bitwise-agreement check, all vacuous.
+# (The shipped configuration, assertions off, has its own row: ci.yml's
+# `corrupt input (release profile)`.)
 #
 # Re-arming them here rather than dropping `--release` is deliberate:
 # this is a DETACHED workspace ([workspace] above), so the root
@@ -109,3 +110,29 @@ test-utils = { path = "../../crates/test-utils" }
 [profile.release]
 debug-assertions = true
 overflow-checks = true
+
+# ci.yml's per-PR `demos tour suite` builds the tour at opt-level 1, every
+# other knob as release above (assertions and overflow checks armed). The
+# nightly and the render lanes keep the full release profile.
+#
+# Measured on one 4-core box, the kernel built from scratch with
+# CARGO_INCREMENTAL=0 and the `ci` nextest profile run after:
+#
+#   | profile   | build | tests | total    |
+#   | opt 3     | 857 s | 195 s | 17.5 min |
+#   | opt 1     | 379 s | 221 s | 10.0 min |
+#
+# Two things make the build 2.3x cheaper. Less optimization, mostly in
+# editor-core (636 s -> 309 s), which is the build's critical path. And
+# rustc reuses an upstream crate's generic instantiations at opt-level 0,
+# 1 and s, but not at 2 or 3. At opt 3, the `all` test binary recompiles
+# every scene and kernel generic it calls for `f64`: 162 s, which cannot
+# start before editor-core finishes. At opt 1 it takes 5 s.
+#
+# Optimization level changes no floating-point result in Rust (there is no
+# fast-math, and LLVM does not contract into FMA unless asked). The
+# bit-pinned rows, `tolerance::tests::the_plate_verdicts_hold_their_bits`
+# among them, pass at both levels.
+[profile.ci-tour]
+inherits = "release"
+opt-level = 1
