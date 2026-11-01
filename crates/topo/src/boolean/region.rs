@@ -6,10 +6,9 @@
 //! its surface's legs ([`Legs`], and [`Paths`] for a roster of them), its
 //! landings, and its own rows and crossing arithmetic.
 
-use geom_brep::roots::{RootRefusal, Roots};
+use geom_brep::roots::{OnCarrier, RootRefusal, Roots};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
-use super::circle_roots::FirstHarmonicRoots;
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
@@ -128,6 +127,35 @@ pub(crate) fn span<T: Decide>(
         .then_some(start == Sign::Zero || end == Sign::Zero))
 }
 
+/// **A root at the unsigned angle `off` from the middle of its edge's
+/// span**, `half` the span's half-width: [`span`]'s reading, its two
+/// ends' margins `lever·(half ∓ off)` the same two numbers, read with no
+/// angle whose cut a root can sit on.
+///
+/// # Errors
+///
+/// As [`span`]'s.
+pub(crate) fn span_from_middle<T: Decide>(
+    row: &'static str,
+    off: T,
+    half: T,
+    lever: T,
+    band: Band,
+) -> Result<Option<bool>, Fault> {
+    let near = decide(row, Margin::of(lever * (half - off)), band).map_err(in_band)?;
+    let far = decide(row, Margin::of(lever * (half + off)), band).map_err(in_band)?;
+    Ok((near != Sign::Negative && far != Sign::Negative)
+        .then_some(near == Sign::Zero || far == Sign::Zero))
+}
+
+/// **The unsigned angle between the unit vectors `a` and `b`**, in
+/// `[0, π]`: `2·atan2(|a − b|, |a + b|)`, both arguments norms, so no
+/// cut lies anywhere on it and an enclosure of it is as tight at `π` as
+/// at `0`.
+pub(crate) fn between<T: Decide>(a: Vec3<T>, b: Vec3<T>) -> T {
+    (a - b).norm().atan2((a + b).norm()) * T::from_f64(2.0)
+}
+
 /// A crossing as the verdict reads it at the closest: the path's unit
 /// heading there and the face's side of the edge (`N × τ`).
 pub(crate) struct Hit<T: geom_core::Real> {
@@ -167,16 +195,11 @@ pub(crate) fn side_at_closest<T: Decide>(
     }
 }
 
-/// An angle in `(−π, π]` as a turn in `[0, 2π)`.
-fn turn<T: Decide>(s: T) -> T {
-    (T::zero() - s).select_le_zero(s, s + T::tau())
-}
-
 /// A first-harmonic root door's answer on one leg: its roots, none for a miss; an edge
 /// in the leg's plane or a tangency grazes.
-pub(crate) fn found<T: Decide>(
-    roots: Result<FirstHarmonicRoots<T>, RootRefusal>,
-) -> Result<Vec<T>, Fault> {
+pub(crate) fn found<R: Copy>(
+    roots: Result<Roots<R, 2, OnCarrier>, RootRefusal>,
+) -> Result<Vec<R>, Fault> {
     match roots {
         Ok(Roots::Miss) => Ok(Vec::new()),
         Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
@@ -737,17 +760,20 @@ impl<T: Decide> Round<T> {
         self.center + (self.e1 * cs + self.e2 * sn) * self.radius
     }
 
-    /// The angle of `y`, a point of the circle, from the start, in
-    /// `(−π, π]`.
-    fn angle(&self, y: Point3<T>) -> T {
+    /// The angle round the circle between the start and `y`, a point of
+    /// the circle, the shorter way, in `[0, π]` ([`between`]).
+    fn swept(&self, y: Point3<T>) -> T {
         let w = y - self.center;
-        w.dot(self.e2).atan2(w.dot(self.e1))
+        between(w / w.norm(), self.e1)
     }
 
     /// The arc length from the start round to `y`, a point of the
-    /// circle, in `[0, 2π·radius)`.
+    /// circle, in `[0, 2π·radius)`: the shorter way where `y` lies ahead
+    /// of the start's diameter, the longer way where it lies behind.
     pub(crate) fn arc(&self, y: Point3<T>) -> T {
-        self.radius * turn(self.angle(y))
+        let s = self.swept(y);
+        let ahead = (y - self.center).dot(self.e2);
+        self.radius * (T::zero() - ahead).select_le_zero(s, T::tau() - s)
     }
 }
 
@@ -757,7 +783,7 @@ impl<T: Decide> Course<T> for Round<T> {
     /// Read the shorter way round ([`ray_walk::apart`]), then as a turn
     /// ahead.
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = self.angle(y);
+        let s = self.swept(y);
         ray_walk::apart(at, Margin::of((self.radius * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
         Ok(Some(self.arc(y)))
@@ -852,22 +878,28 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
 /// interval, certified, whose interval and extent are what a conic
 /// reading of the fixture reads (its own carrier supplies the rest).
 #[cfg(test)]
-pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<f64>> {
+pub(crate) fn fixture_turn<
+    T: Decide + geom_core::CertifiedBounds + geom_core::spline::SpanLocate,
+>(
+    t0: f64,
+    t1: f64,
+) -> Option<geom_brep::CertifiedTurn<T>> {
     let band = Band::new(1e-9, 1e-8).ok()?;
+    let lift = T::from_f64;
     let circle = geom::Curve3::Circle {
         center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        radius: lift(1.0),
+        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
     };
-    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
-    let (start, end) = (circle.eval(t0), circle.eval(t1));
+    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), lift(t0), lift(t1))?;
+    let (start, end) = (circle.eval(lift(t0)), circle.eval(lift(t1)));
     geom_brep::EdgeCurve::certify(
         spec,
         start,
         end,
         |_| None,
-        1.0,
+        lift(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

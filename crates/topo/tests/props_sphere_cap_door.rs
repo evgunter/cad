@@ -355,12 +355,9 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
 }
 
 /// **A cap whose rim is tilted against its sphere's axis holds a pole
-/// by its region, as `locate` reads it** (DESIGN `[topology.tiers]`, a
-/// chart singularity in a face's closure is a vertex of it, read off the
-/// face's region rather than off a meridian). It pins tier 3's pole
-/// reading, `geom_brep::chart_singularity::locate`'s closed form, which
-/// `work/restcurve/the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar.md`
-/// moves onto the doors; the row then pins the doors. The cut stays at `z = 0.5` and the
+/// by its region** (DESIGN `[topology.tiers]`, a chart singularity in a
+/// face's closure is a vertex of it; tier 3 reads the pole's side through
+/// the face's point-in-face door). The cut stays at `z = 0.5` and the
 /// sphere's axis tilts by `tilt` about `y`, so the rim is no parallel of
 /// the chart: at `0.3` the north pole stands at `z = cos 0.3 > 0.5`, in the
 /// cap, and is refused; at `1.2` it stands at `z = cos 1.2 < 0.5`, the
@@ -382,5 +379,155 @@ fn a_tilted_cap_holds_a_pole_by_its_region() {
             (got - want).abs() <= 1e-12 * want,
             "cap tilted {tilt}: volume {got} vs closed form {want}"
         );
+    }
+}
+
+/// [`cut_ball`]'s cap — the sphere face above the cut `Z = z` and the
+/// disc capping it from below — at any scalar the Euler doors take, its
+/// geometry read off `f64` and lifted.
+fn cap_at<T>(z: f64, sphere: &Surface<f64>) -> Body<T>
+where
+    T: geom_core::Decide + geom_core::spline::SpanLocate + topo::AtRestPolicy,
+{
+    let tol = Tol::witness();
+    let lift = |x: f64| T::from_f64(x);
+    let point = |p: Point3<f64>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
+    let r = (1.0 - z * z).sqrt();
+    let (a, b) = (Point3::new(r, 0.0, z), Point3::new(-r, 0.0, z));
+    let (pi, tau) = (core::f64::consts::PI, core::f64::consts::TAU);
+    let rim = cut_circle(z).map_scalar(lift);
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(point(a), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: sphere.map_scalar(lift),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let e_rim = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            point(b),
+            EdgeCurveSpec::arc_of_circle(rim.clone(), lift(0.0), lift(pi)).unwrap(),
+            tol,
+        )
+        .unwrap();
+    let made = body
+        .mef(
+            MefSite::Chords {
+                he1: e_rim.he_minus,
+                he2: e_rim.he_plus,
+            },
+            EdgeCurveSpec::arc_of_circle(rim, lift(pi), lift(tau)).unwrap(),
+            FaceSurface::New {
+                surface: cut_plane(z, false).map_scalar(lift),
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    let s_seed = body.get_face(seed.face).unwrap().surface;
+    let s_made = body.get_face(made.face).unwrap().surface;
+    for (edge, witness) in [
+        (e_rim.edge, Point3::new(0.0, r, z)),
+        (made.edge, Point3::new(0.0, -r, z)),
+    ] {
+        let curve = body.get_edge(edge).unwrap().curve;
+        let spec = body
+            .get_curve_geom(curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .restated_spec();
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                pair: SurfacePair::new(s_seed, s_made),
+                selector: geom_brep::CurveSelector::Witness(point(witness)),
+            },
+            ..spec
+        };
+        body.set_edge_curve(edge, spec, tol).unwrap();
+    }
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    body
+}
+
+/// Tier 3 on [`cap_at`]'s cap: `Err` of its chart-singularity findings
+/// alone, where it refuses (the rim's two vertices, construction state,
+/// are refused too and set aside here, as [`tier_checked_volume`] names
+/// them).
+fn pole_findings<T>(body: &Body<T>) -> Vec<topo::ValidationError>
+where
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
+{
+    let errors = topo::validate_geometric(body, Tol::witness()).unwrap_err();
+    assert!(
+        errors.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::JoinableVertexAtRest { .. }
+                | topo::ValidationError::ChartSingularityNotAVertex { .. }
+                | topo::ValidationError::ChartSingularityUndecided { .. }
+        )),
+        "only the rim's vertices and the poles: {errors:?}"
+    );
+    errors
+        .into_iter()
+        .filter(|e| !matches!(e, topo::ValidationError::JoinableVertexAtRest { .. }))
+        .collect()
+}
+
+/// **A pole a hair inside or outside a cap's rim is placed by the face's
+/// door, at `f64` and at the certified scalar.** The cap above `z = 0.5`
+/// of a sphere whose axis tilts by `π/3 ∓ δ`, so its north pole stands
+/// `δ` (along the sphere) inside the rim or outside it, for `δ` of
+/// `1e-2`, `1e-3` and `1e-4` rad: inside, tier 3 refuses the pole as
+/// interior to the face; outside, the face holds neither pole and tier 3
+/// says nothing of them. Each pole is off the boundary by far more than
+/// the band, so the reading is the door's side, read along great circles
+/// through the pole, every one of which passes the other pole at its
+/// antipode.
+#[test]
+fn a_pole_a_hair_either_side_of_a_tilted_rim_is_read_by_the_door_at_both_scalars() {
+    use geom_core::Interval;
+    let z = 0.5_f64;
+    let rim = z.acos();
+    for delta in [1e-2_f64, 1e-3, 1e-4] {
+        for (tilt, inside) in [(rim - delta, true), (rim + delta, false)] {
+            let tilted = Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(tilt.sin(), 0.0, tilt.cos()),
+                u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+            };
+            let want = |face| {
+                if inside {
+                    vec![topo::ValidationError::ChartSingularityNotAVertex {
+                        face,
+                        point: Singularity::North,
+                        lies: topo::SingularityLies::Interior,
+                    }]
+                } else {
+                    Vec::new()
+                }
+            };
+            let at_f64 = cap_at::<f64>(z, &tilted);
+            let face = at_f64.faces().next().unwrap().0;
+            assert_eq!(
+                pole_findings(&at_f64),
+                want(face),
+                "δ {delta:e}, pole inside {inside}, at f64"
+            );
+            let at_interval = cap_at::<Interval>(z, &tilted);
+            let face = at_interval.faces().next().unwrap().0;
+            assert_eq!(
+                pole_findings(&at_interval),
+                want(face),
+                "δ {delta:e}, pole inside {inside}, at Interval"
+            );
+        }
     }
 }

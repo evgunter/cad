@@ -4,10 +4,13 @@
 //! closure ([`locate`]).
 //!
 //! Every chart singularity in a face's closure is a vertex of it (DESIGN
-//! `[topology.tiers]`, tier 3). Two doors read that statement through
-//! [`locate`]: `step-import`'s normalization, which makes each such point
-//! a vertex of the face it lies in, and tier 3, which refuses a face
-//! where one is not. The reading is form-neutral: it never asks whether
+//! `[topology.tiers]`, tier 3). Two doors read that statement:
+//! `step-import`'s normalization, through [`locate`], which makes each
+//! such point a vertex of the face it lies in; and tier 3, which refuses
+//! a face where one is not, placing the point on the boundary by
+//! [`place_on_boundary`] (the one incidence reading, [`locate`]'s first)
+//! and its side by the face's point-in-face door, the one reading of a
+//! point's place in a face. The reading is form-neutral: it never asks whether
 //! a loop has a meridian, since a tilted cap holds a pole with none and
 //! a meridian spur that stops short of the pole has one and still holds
 //! it.
@@ -423,7 +426,7 @@ fn locate_one<T: Decide>(
 /// A distance in band ([`Unread::Boundary`]), answered before a sampled
 /// edge that does not settle ([`Unread::Carrier`]), and each only where
 /// no other vertex or edge places `x` on the boundary.
-pub(crate) fn place_on_boundary<T: Decide>(
+pub fn place_on_boundary<T: Decide>(
     loops: &[FaceLoop<'_, T>],
     x: Point3<T>,
     band: Band,

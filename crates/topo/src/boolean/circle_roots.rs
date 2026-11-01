@@ -333,17 +333,58 @@ pub(super) fn first_harmonic_leg_roots<T: Decide>(
     harmonic_roots(h, speed, None, rows, band)
 }
 
-/// The one body of [`first_harmonic_roots_in_band`] and
-/// [`first_harmonic_leg_roots`]: the roots on the branch of `window`'s
-/// middle, or, with none, a leg's over `[0, τ]` unwound where its start
-/// lies on the plane.
-fn harmonic_roots<T: Decide>(
+/// **The roots of a first harmonic as unit directions** `(cos θ, sin θ)`
+/// in its circle's frame: the decisions of [`first_harmonic_roots_in_band`]
+/// with their rows, and each root read without an angle, by turning the
+/// phase's unit vector `(cos_part, sin_part)/A₁` by the half-chord either
+/// way. A phase or a root read as an angle has a cut, where an enclosing
+/// scalar holds it as a whole turn's hull; a direction has none, so it
+/// is as tight wherever the root lies.
+///
+/// # Errors
+///
+/// As [`first_harmonic_roots_in_band`].
+pub(super) fn first_harmonic_root_directions<T: Decide>(
     h: &FirstHarmonic<T>,
     speed: T,
-    window: Option<(T, T)>,
     rows: &FirstHarmonicRows,
     band: Band,
-) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+) -> Result<Roots<(T, T), 2, OnCarrier>, RootRefusal> {
+    Ok(match harmonic_crossing(h, speed, rows, band)? {
+        Harmonic::Miss => Roots::Miss,
+        Harmonic::On => Roots::On(OnCarrier),
+        Harmonic::Crosses { half_chord } => {
+            let amplitude = (h.cos_part.powi(2) + h.sin_part.powi(2)).sqrt();
+            let (pc, ps) = (h.cos_part / amplitude, h.sin_part / amplitude);
+            let (sin, cos) = half_chord.sin_cos();
+            Roots::all([
+                (pc * cos + ps * sin, ps * cos - pc * sin),
+                (pc * cos - ps * sin, ps * cos + pc * sin),
+            ])
+        }
+    })
+}
+
+/// What [`harmonic_crossing`] decides of a first harmonic.
+enum Harmonic<T> {
+    Miss,
+    On,
+    /// Two roots, `φ ± half_chord`.
+    Crosses {
+        half_chord: T,
+    },
+}
+
+/// The one body of [`first_harmonic_roots_in_band`],
+/// [`first_harmonic_leg_roots`] and [`first_harmonic_root_directions`]:
+/// every decision of the module docs, and the half-chord where the
+/// harmonic crosses zero.
+fn harmonic_crossing<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<Harmonic<T>, RootRefusal> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -363,15 +404,21 @@ fn harmonic_roots<T: Decide>(
     }
     let (c0, a1) = ((lo_value + hi_value) / two, (hi_value - lo_value) / two);
     if let Ok(Sign::Zero) = decide(rows.coaxial, Margin::of(a1), band) {
-        return constant_residual_roots(c0, a1 + noise, rows.extreme, band);
+        return Ok(
+            match constant_residual_roots(c0, a1 + noise, rows.extreme, band)? {
+                Roots::Miss => Harmonic::Miss,
+                Roots::On(_) => Harmonic::On,
+                Roots::Certified(_) => unreachable!("a constant residual has no roots"),
+            },
+        );
     }
     let lo = extreme_sign(rows.extreme, lo_value, lo_noise, band)?;
     if lo == Sign::Positive {
-        return Ok(Roots::Miss);
+        return Ok(Harmonic::Miss);
     }
     let hi = extreme_sign(rows.extreme, hi_value, hi_noise, band)?;
     if hi == Sign::Negative {
-        return Ok(Roots::Miss);
+        return Ok(Harmonic::Miss);
     }
     if (lo, hi) != (Sign::Negative, Sign::Positive) {
         return Err(Unsettled::Tangency.into());
@@ -389,11 +436,30 @@ fn harmonic_roots<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => {}
         Ok(Sign::Positive) | Err(_) => return Err(Unsettled::Meter.into()),
     }
-    let phi = sin_part.atan2(cos_part);
     // The half-chord `acos(−c₀/A₁)`, measured from the extreme nearer
     // zero (module docs).
     let past = |near: T| geom_brep::roots::arc_past(near.abs() / swing);
     let half_chord = (lo_value + hi_value).select_le_zero(past(hi_value), T::pi() - past(lo_value));
+    Ok(Harmonic::Crosses { half_chord })
+}
+
+/// [`harmonic_crossing`]'s roots as angles: on the branch of `window`'s
+/// middle, or, with none, a leg's over `[0, τ]` unwound where its start
+/// lies on the plane.
+fn harmonic_roots<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    window: Option<(T, T)>,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    let half_chord = match harmonic_crossing(h, speed, rows, band)? {
+        Harmonic::Miss => return Ok(Roots::Miss),
+        Harmonic::On => return Ok(Roots::On(OnCarrier)),
+        Harmonic::Crosses { half_chord } => half_chord,
+    };
+    let two = T::from_f64(2.0);
+    let phi = h.sin_part.atan2(h.cos_part);
     // The roots on the branch of the span's middle: sound at every scalar
     // by `ring_path::branch`'s window re-centring argument. Its readers
     // read an end of a whole-turn span alike: the wall crossing's
@@ -407,8 +473,7 @@ fn harmonic_roots<T: Decide>(
         Some(span) => [near_span(a, span), near_span(b, span)],
         None => {
             let turn = (T::zero(), T::tau());
-            let at_start =
-                ((lo_value + hi_value) / two + cos_part).abs() - T::from_f64(band.zero());
+            let at_start = ((h.lo + h.hi) / two + h.cos_part).abs() - T::from_f64(band.zero());
             [
                 at_start.select_le_zero(a, near_span(a, turn)),
                 at_start.select_le_zero(b, near_span(b, turn)),
