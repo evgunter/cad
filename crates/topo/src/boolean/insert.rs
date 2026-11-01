@@ -2824,6 +2824,7 @@ mod tests {
                     normal,
                     arm: 1.0,
                     bend: crate::bound_side::FaceBend::Plane,
+                    lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
                 })
                 .collect();
             if twin {
@@ -2942,6 +2943,7 @@ mod tests {
             normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let secs = vec![
             sector(Reach::Extent(1.0)),
@@ -3295,6 +3297,7 @@ mod tests {
                     normal,
                     arm: 1.0,
                     bend: crate::bound_side::FaceBend::Plane,
+                    lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
                 })
                 .collect();
             (vk, secs)
@@ -3386,6 +3389,7 @@ mod tests {
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let (sa, sb) = (
             sector(Vec3::new(0.0, 0.0, 1.0)),
@@ -3502,6 +3506,7 @@ mod tests {
             normal: geom_brep::OutwardNormal::from_chart(n, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let mut pairs = 0;
         for alpha in [60.0, 179.0, 181.0, 270.0, 350.0] {
@@ -3560,6 +3565,7 @@ mod tests {
             normal: geom_brep::OutwardNormal::from_chart(n, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let sectors = [
             sector(0.0, Reach::Extent(1.0), 90.0, Reach::straight_bisector(1.0)),
@@ -3720,6 +3726,7 @@ mod tests {
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let a = [
             sector(x, y, -z, faces[0]),

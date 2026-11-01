@@ -3508,6 +3508,7 @@ mod tests {
             normal: OutwardNormal::from_chart(along.cross(end), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let partner_of = |partner| PairRead {
             partner,
@@ -3776,6 +3777,7 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, -1.0, 0.0), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         }];
         let datum = |bend| PierceDatum {
             normal: OutwardNormal::from_chart(z, true),
@@ -3835,6 +3837,7 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
+            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let err = pierce_germ_dir(
             &s,
@@ -3899,6 +3902,7 @@ mod tests {
                         normal,
                         arm: 1.0,
                         bend: crate::bound_side::FaceBend::Plane,
+                        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
                     }
                 })
                 .collect()
@@ -3928,8 +3932,13 @@ mod tests {
         let standing = [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0], [-1.0, -1.0, 1.0]];
         let lying = [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         let across = [[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]];
+        // A cylinder holding the ray along `x` that lies on it.
         let curved = PierceDatum {
-            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
+            bend: crate::bound_side::FaceBend::cylinder(
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                1.0,
+            ),
             ..plane
         };
         for (what, rays, datum, flush, want) in [
@@ -4071,6 +4080,7 @@ mod tests {
                 normal: OutwardNormal::from_chart(z, true),
                 arm: 1.0,
                 bend: crate::bound_side::FaceBend::Plane,
+                lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
             };
             // `(ψ, the tilt's cosine, a graze)`.
             let lines = [
