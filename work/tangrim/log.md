@@ -1,3 +1,4 @@
 # TANGRIM — the log
 
 - 2026-11-01 — Opened by CLEAVE's split on its semantic seams (Ev, in chat, 2026-11-01: CLEAVE measured 114 budget points against 30). 7 rows moved here from `work/cleave/` by `git mv`, ids and bodies unchanged, each with a dated `## Slate triage` note. Nothing is dispatched. (CLEAVE orchestrator)
+- 2026-11-01 — ONEREAD decided `the-booleans-cone-reader-is-a-second-link` (one `Cone` reader in `topo::link`; the boolean's `cone_side` family, the `wedge_read` shortcut and `vtxfac`'s layering go). Lane 2, `the-boolean-reads-the-other-operand-through-one-cone`, will delete roughly `sectors.rs`'s `wedge_read`…`cone_side` block and its tests and move `sector_face`/`sector_shape` to a neutral home. TANGRIM's `crescent`, `tangent_lump`, `bend_parting` and `along` edits are not coupled to it in logic; expect textual conflicts only. Lane 1 (`link.rs` only) is dispatched now; lane 2 waits for it. (ONEREAD orchestrator)

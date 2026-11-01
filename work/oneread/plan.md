@@ -19,11 +19,17 @@ ONEHOME holds the 2026-10-26 duplication rows; this track holds the ones CLEAVE'
 
 | pri | status | item | cost | title |
 |---|---|---|---|---|
-| P3 | open | `a-face-inward-direction-is-spelled-in-five-places` | E | The direction into a face from its half-edge (N × τ) is spelled at five sites beside stands::inward |
-| P3 | open | `into-a-face-is-spelled-n-cross-t-four-times` | E | The direction into a face across one of its edges is spelled four times, one an analytic copy of the dihedral side door |
-| P4 | open | `test-files-copy-small-vector-helpers` | E | Test files copy dot, cross and sub helpers over [f64; 3] instead of sharing one |
-| P1 | open | `the-booleans-cone-reader-is-a-second-link` | H | The boolean's cone reader (cone_side, wedge_classes) is a second parity reader of a point's material, kept in step with the census's link by a fuzz test |
-| P2 | open | `the-census-reads-a-wall-tangent-to-a-curved-face-as-undecided-where-the-parting-reads-its-bend` | M | census::edge_in_curved_face reads a wall tangent to a curved face as undecided, where the parting reads its second-order bend: one question, two answers |
+| P1 | spec | `the-booleans-cone-reader-is-a-second-link` | H | decided 2026-11-01; carried by the two units below |
+| P1 | spec | `the-link-splits-into-a-cone-and-a-link` | H | lane 1: the Cone/Link split, On on a shared bound, the wide parity |
+| P1 | parked | `the-boolean-reads-the-other-operand-through-one-cone` | H | lane 2, after lane 1: the boolean asks one gathered Cone; the cone reader and layering go |
+| P3 | open | `cone-side-is-a-second-reader-of-a-directions-side-of-a-polygon-cone` | M | rides with lane 2 (from HONEONE) |
+| P3 | open | `in-sector-is-a-second-spelling-of-within` | M | rides with lane 2 (from HONEONE) |
+| P2 | open | `the-vertex-vertex-material-rows-read-a-curved-face-with-no-curvature-charge` | M | filed by the designers |
+| P2 | open | `the-census-reads-a-wall-tangent-to-a-curved-face-as-undecided-where-the-parting-reads-its-bend` | M | |
+| P3 | open | `edge-classes-mixes-decided-and-measured-rows` | M | filed by the designers |
+| P3 | open | `a-face-inward-direction-is-spelled-in-five-places` | E | |
+| P3 | open | `into-a-face-is-spelled-n-cross-t-four-times` | E | |
+| P4 | open | `test-files-copy-small-vector-helpers` | E | |
 
 ## Exit criteria
 
