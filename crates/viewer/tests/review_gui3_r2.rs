@@ -106,6 +106,8 @@ fn distance_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> SlotValue {
         .expect("the extrude carries a distance")
         .value
         .expect("the distance evaluates")
+        .one()
+        .expect("one value")
 }
 
 // --- the undo TREE --------------------------------------------------

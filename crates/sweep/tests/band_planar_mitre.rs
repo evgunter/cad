@@ -267,7 +267,7 @@ fn a_turn_foot_refuses_a_later_blend_of_its_edge_and_names_the_same_call() {
         );
         assert!(
             err.to_string().contains(FILLET3_CORNER_RECOURSE)
-                && FILLET3_CORNER_RECOURSE.ends_with("in the same operation"),
+                && FILLET3_CORNER_RECOURSE.ends_with("in one operation"),
             "{verb:?}: the recourse names the same call: {err}"
         );
         carve(

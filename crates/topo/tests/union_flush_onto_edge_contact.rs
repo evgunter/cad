@@ -957,6 +957,55 @@ fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
     );
 }
 
+/// **A pinch line in the shared corner's face, that face flush with
+/// both bricks.** The wedge from 90° to 200° or 250°, sheared along its
+/// 90° face by half a unit per unit of height, toward −y, so that face
+/// lies in x = 0 with the z-axis inside its corner; and its mirror, the
+/// wedge from 270° to 20° sheared toward +y. Both bricks' faces x = 0
+/// lie flush with the corner's face, one on each side of the axis, so
+/// both pairs' cuts lie along the axis in one entry, each along one of
+/// the pinch's two edges, and the corner's orbit orders them by the
+/// side of the line each edge's flush face lies on wherever it reads a
+/// position: the runs' ends and the cuts each holds
+/// (`insert::cut_order`). Each op, in both operand orders, builds at
+/// the volume a polygon clip of the sheared triangle against each
+/// brick's square gives, and passes 3′ with the pinch's records
+/// carried. What it pins is the direction of that reading: red if
+/// `insert::beside_order` reads the two sides the other way round where
+/// a run's held cuts are read (`pinch ∪ cutter` refuses
+/// `SharedVertexCrossings`). The runs' codes (`insert::tied_held`) read
+/// the same tie alike, so it builds without the reading too.
+#[test]
+fn a_pinch_line_in_a_face_flush_with_both_bricks_builds_in_every_op() {
+    let tol = Tol::witness();
+    let (pinch, carried) = pinch(tol);
+    let squares = [
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        [(-1.0, -1.0), (0.0, -1.0), (0.0, 0.0), (-1.0, 0.0)],
+    ];
+    for (span, shear) in [
+        ((90.0, 200.0), (0.0, -0.5)),
+        ((90.0, 250.0), (0.0, -0.5)),
+        ((270.0, 380.0), (0.0, 0.5)),
+    ] {
+        let tri = triangle(span.0, span.1);
+        let common: f64 = squares.iter().map(|q| swept_common(&tri, shear, q)).sum();
+        let cutter = area(&tri) * 0.5;
+        every_op_builds(
+            &pinch.body,
+            &carried,
+            &sheared(tri, shear, tol),
+            [
+                Some(2.0 + cutter - common),
+                Some(2.0 - common),
+                Some(common),
+            ],
+            Some(cutter - common),
+            tol,
+        );
+    }
+}
+
 /// **Three pieces, two of whose cuts tie.** Wedges 0°–60°, 90°–120°
 /// and 150°–240° about the z-axis, cut by the wedge from 50° to 160°
 /// sheared backwards along its 50° face, so the pinch line runs flat
@@ -1309,13 +1358,82 @@ fn the_cube(tol: Tol) -> AtRestBody<f64> {
 #[test]
 fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
     for notch in [(-40.0, 200.0), (-20.0, 220.0)] {
-        dangling_null_edges_meeting_on_the_pinch_line(notch, Tol::witness());
+        dangling_null_edges_meeting_on_the_pinch_line(notch, Footing::Diagonal, Tol::witness());
     }
 }
 
-/// The pinch against the diagonal prism whose face's notch runs from
-/// `notch.0` to `notch.1` degrees (doc above).
-fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
+/// **Two dangling null edges meeting on the pinch line, in a face flush
+/// with both bricks.** The notched prism of
+/// [`two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op`]
+/// stood in the plane x = 0, extruded along +x or −x: its face there
+/// lies flush with each brick's face x = 0, on either side of the pinch
+/// line. Each pair's strut runs from its brick's edge along the line to
+/// its bottom edge, so the two struts' ends on the line lie along one
+/// direction in one entry, each along one of the pinch's two edges, and
+/// the face's orbit orders them by the side of the line each edge's
+/// flush face lies on wherever it reads a position: the struts' ends,
+/// the cuts each holds and whether one holds the other whole
+/// (`insert::cut_order`). Every op but `prism ∖ pinch`, in both
+/// operand orders and at four notches, builds at the volume a polygon
+/// clip of the prism's rectangle against each brick's square gives, and
+/// passes 3′ with the pinch's records carried. `prism ∖ pinch` refuses
+/// `LineWedges` on the bottom edge `y = 0, z = 0.5` of the brick the
+/// prism holds, which runs along the notch's reflex edge: four sheets
+/// meet there, and the prism's 240° less the brick's 90° is two wedges
+/// of 40° and 110°, which the result's edges do not pair as
+/// (`work/cleave/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
+/// What it pins is the direction of the tie's reading: red if
+/// `insert::beside_order` reads the two sides the other way round where
+/// a run's held cuts and a held strut are read (`pinch ∪ prism`
+/// refuses `SharedVertexCrossings`). The runs' codes
+/// (`insert::tied_held`) read the same tie alike, so it builds without
+/// the reading too.
+#[test]
+fn two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_all_but_one_op() {
+    for footing in [Footing::Flush, Footing::FlushBack] {
+        for notch in [
+            (-40.0, 200.0),
+            (-20.0, 220.0),
+            (-60.0, 240.0),
+            (-10.0, 190.0),
+        ] {
+            dangling_null_edges_meeting_on_the_pinch_line(notch, footing, Tol::witness());
+        }
+    }
+}
+
+/// Where [`dangling_null_edges_meeting_on_the_pinch_line`] stands its
+/// prism.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Footing {
+    /// In the plane x = y, extruded along (1, −1, 0)/√2.
+    Diagonal,
+    /// In the plane x = 0, extruded along +x.
+    Flush,
+    /// In the plane x = 0, extruded along −x.
+    FlushBack,
+}
+
+impl Footing {
+    /// `(x, y)` at the profile's width `w` and the depth `u` it is
+    /// extruded through, a map of determinant −1.
+    fn at(self, w: f64, u: f64) -> (f64, f64) {
+        match self {
+            Self::Diagonal => {
+                let r = std::f64::consts::FRAC_1_SQRT_2;
+                ((w + u) * r, (w - u) * r)
+            }
+            Self::Flush => (u, w),
+            Self::FlushBack => (-u, -w),
+        }
+    }
+}
+
+/// The pinch against the prism stood at `footing` whose face's notch
+/// runs from `notch.0` to `notch.1` degrees (docs above). Only the
+/// prism in x = 0 holds a brick's bottom edge along its notch's reflex
+/// edge, and its `prism ∖ pinch` refuses as its test says.
+fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), footing: Footing, tol: Tol) {
     let (pinch, carried) = pinch(tol);
     let at = |deg: f64| {
         let (c, s) = (f64::to_radians(deg).cos(), f64::to_radians(deg).sin());
@@ -1331,22 +1449,24 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
         (-0.8, left.1),
         left,
     ];
-    // Profile (w, z) in the plane x = y, extruded along (1, −1, 0)/√2.
-    let r = std::f64::consts::FRAC_1_SQRT_2;
+    // Profile (w, z), extruded through u ∈ (0, 1).
     let mut prism = Body::<f64>::new();
     common::prism_ops(
         &mut prism,
         &profile,
         (0.0, 1.0),
-        |w, z, u| geom_core::Point3::new((w + u) * r, (w - u) * r, z),
+        |w, z, u| {
+            let (x, y) = footing.at(w, u);
+            geom_core::Point3::new(x, y, z)
+        },
         common::FaceGeometry::Certified,
         tol,
     );
     common::describe_as_intersections(&mut prism, tol);
-    let prism = finished("the diagonal prism", prism, tol);
+    let prism = finished("the notched prism", prism, tol);
     let rect: Vec<(f64, f64)> = [(-0.8, 1.0), (0.8, 1.0), (0.8, 0.0), (-0.8, 0.0)]
         .iter()
-        .map(|&(w, u)| ((w + u) * r, (w - u) * r))
+        .map(|&(w, u)| footing.at(w, u))
         .collect();
     let squares = [
         [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
@@ -1367,36 +1487,50 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), tol: Tol) {
             (
                 "pinch ∪ prism",
                 union_in(&pinch.body, &prism, &ab, tol),
-                2.0 + prism_volume - common,
+                Some(2.0 + prism_volume - common),
             ),
             (
                 "pinch ∖ prism",
                 subtract_in(&pinch.body, &prism, &ab, tol),
-                2.0 - common,
+                Some(2.0 - common),
             ),
             (
                 "pinch ∩ prism",
                 intersect_in(&pinch.body, &prism, &ab, tol),
-                common,
+                Some(common),
             ),
             (
                 "prism ∪ pinch",
                 union_in(&prism, &pinch.body, &ba, tol),
-                2.0 + prism_volume - common,
+                Some(2.0 + prism_volume - common),
             ),
             (
                 "prism ∖ pinch",
                 subtract_in(&prism, &pinch.body, &ba, tol),
-                prism_volume - common,
+                (footing == Footing::Diagonal).then_some(prism_volume - common),
             ),
             (
                 "prism ∩ pinch",
                 intersect_in(&prism, &pinch.body, &ba, tol),
-                common,
+                Some(common),
             ),
         ]
     }) {
-        let op = format!("{op} (notch {notch:?})");
+        let op = format!("{op} (notch {notch:?}, {footing:?})");
+        let Some(want) = want else {
+            assert!(
+                matches!(
+                    got,
+                    Err(BooleanError::LineWedges {
+                        fault: topo::LineWedgeFault::Overlap { .. },
+                        ..
+                    })
+                ),
+                "{op}: {:?}, not the overlap's refusal",
+                got.map(|_| ())
+            );
+            continue;
+        };
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -2109,10 +2243,18 @@ fn a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op() {
 /// refuses `JoinDesync`.
 #[test]
 fn every_tied_strut_witness_holds_with_its_vertex_pairs_reversed() {
-    let witnesses: [(&str, fn()); 8] = [
+    let witnesses: [(&str, fn()); 10] = [
         (
             "a pinch line flat in the shared corner's face",
             a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op,
+        ),
+        (
+            "a pinch line in a face flush with both bricks",
+            a_pinch_line_in_a_face_flush_with_both_bricks_builds_in_every_op,
+        ),
+        (
+            "two dangling null edges meeting beside the pinch line",
+            two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_all_but_one_op,
         ),
         (
             "three pieces, two of whose cuts tie",

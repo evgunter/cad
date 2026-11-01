@@ -2,11 +2,13 @@
 id: the-nurbs-pair-boundary-pass-reports-no-side-or-corner-region
 kind: issue
 title: The NURBS x NURBS boundary pass reports no Side or Corner region: a section along or through a side or corner of either rectangle refuses PairBoundaryUnresolved
-status: open
+status: closed
 opened: 2026-10-10
+closed: 2026-11-01
 priority: P3
 cost: H
 refs: [a-wall-seam-between-two-fits-has-no-section]
+parent: no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces
 ---
 
 Found building the NURBS × NURBS arm (`crates/geom-brep/src/ssi/pair.rs`,
@@ -30,3 +32,19 @@ Owed: the side and corner regions on this lane, as the plane pass
 reads them (a side of one chart within the band of the other surface,
 its cover, and the corner classification), so the accounting banks them
 and a section along a shared row is answered rather than refused.
+
+2026-11-01: Claimed by SPLICE (SSIEDGE has no orchestrator) as the SSI
+half of `no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`,
+on `splice/nurbs-nurbs-guard-arm`.
+
+## Closed (2026-11-01)
+
+The lane reports `Side` and `Corner` regions built from a row or corner
+the caller hands in as known (`ssi::pair::PairRow`, `PairCorner`,
+`Section::with_known`, `Section::read_all`), as the ratified C3 text
+(`[ev]` PR 5990) has it, rather than from the band reading of any side.
+The interior-loop guard hands in the rims and corners two spline faces
+share (`topo` `boolean::spline_known`). By that same text, a section
+along a side no caller hands in, such as this row's moved-fit instance,
+refuses `PairBoundaryUnresolved`: that is the design, not a residue.
+

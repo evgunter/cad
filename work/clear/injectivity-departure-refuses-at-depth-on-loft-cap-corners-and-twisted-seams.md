@@ -2,10 +2,11 @@
 id: injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams
 kind: issue
 title: The injectivity check's departure arm refuses Uncertified at depth 40 on every cap-wall pair of the tour's lily blades, Klein loop and m8_14's half-turn helix, and along each seam of the tour's twisted loft
-status: review
+status: parked
 opened: 2026-10-31
 priority: P0
 cost: H
+blocked_on: [departure-graph-separator-weighs-each-heading-by-its-cells-offset-along-the-edge, departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget]
 ---
 
 
