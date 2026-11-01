@@ -45,3 +45,12 @@ gives it some"). G3 and DI5 key free-move on the shown space, so the
 probe has to be offered for any copy whose space is shown, not only an
 instance's. Without that, a body that lands unplaced still cannot be
 free-moved.
+
+## Also found
+
+A new body's automatic world placement is not added to the product,
+so every creation immediately raises `check unused: Place <tag>: used
+by nothing: not the product, not an assertion, and nothing reads it`
+(reproduced with `examples/drive.rs`: Add profile → Extrude, and the
+toolbar reads `checks: 1 finding(s)`). Whatever an unplaced landing
+does about the product, a fresh body should not open with a finding.
