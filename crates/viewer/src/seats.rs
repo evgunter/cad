@@ -298,6 +298,13 @@ pub struct Seats {
     held: [Option<SpokenNode>; 2],
     /// Which output of its node each seat reads.
     ports: [Port; 2],
+    /// **The drawn part each viewport pick hit**: the node whose drawn
+    /// part was under the pointer — a placement's copy, which the seat
+    /// reads past to the body it places ([`crate::world::seat_read`]),
+    /// or a body drawn as itself. `None` for a tree pick, which hit no
+    /// part. Where the person aimed, for a preview drawn where they
+    /// aimed.
+    through: [Option<RecipeNodeId>; 2],
 }
 
 /// **Which output of its node a pick reads** — a seat's, or a boolean
@@ -373,6 +380,7 @@ impl Seats {
             roles,
             held: [None, None],
             ports: [Port::Alone, Port::Alone],
+            through: [None, None],
         }
     }
 
@@ -394,6 +402,8 @@ impl Seats {
             roles,
             held: [a.map(|p| p.0), b.map(|p| p.0)],
             ports,
+            // Re-seated, not picked: no copy was aimed at.
+            through: [None, None],
         }
     }
 
@@ -485,6 +495,8 @@ impl Seats {
 
     /// [`Seats::pick`] of the output `body` a viewport pick hit.
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        // A viewport pick names the body it hit; a tree pick names none.
+        let through = body.map(|_| node);
         let (node, port) = crate::world::seat_read(doc, node, body);
         let state = |seat: Seat| Port::of_pick(doc, node, port, seat.wants());
         // **A one-seat tool has one seat, and its role names itself
@@ -500,6 +512,7 @@ impl Seats {
         if self.arity() == 1 {
             self.held[0] = said;
             self.ports[0] = state(self.roles[0]);
+            self.through[0] = through;
             return;
         }
         let plain = usize::from(self.held[0].is_some());
@@ -512,6 +525,7 @@ impl Seats {
         };
         self.held[seat] = said;
         self.ports[seat] = state(self.roles[seat]);
+        self.through[seat] = through;
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
@@ -527,6 +541,7 @@ impl Seats {
     pub fn clear(&mut self) {
         self.held = [None, None];
         self.ports = [Port::Alone, Port::Alone];
+        self.through = [None, None];
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the shown
@@ -535,6 +550,23 @@ impl Seats {
     /// keeps the last it had, which is what a drop names it by.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         respeak_each(&mut self.held, doc);
+        self.drop_stale_through(doc);
+    }
+
+    /// **A drawn part that no longer draws its seat's pick is forgotten**:
+    /// gone from the document, or now drawing another body (a takeover
+    /// re-pointed the copy). The pick stands; where it was aimed is no
+    /// longer drawn.
+    fn drop_stale_through(&mut self, doc: &Doc<ProfileProgram>) {
+        for i in 0..2 {
+            let held = self.held(i);
+            if let Some(part) = self.through[i]
+                && (doc.node(part).is_none()
+                    || Some(crate::world::seat_read(doc, part, None).0) != held)
+            {
+                self.through[i] = None;
+            }
+        }
     }
 
     /// Re-read the held picks against the document, dropping any whose
@@ -549,13 +581,21 @@ impl Seats {
                 && let Some(node) = self.held[i].take()
             {
                 self.ports[i] = Port::Alone;
+                self.through[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
                 });
             }
         }
+        self.drop_stale_through(doc);
         events
+    }
+
+    /// **The drawn part seat `i`'s viewport pick hit** (the field's
+    /// rule), `None` for a tree pick or an empty seat.
+    pub fn through(&self, i: usize) -> Option<RecipeNodeId> {
+        self.through.get(i).copied().flatten()
     }
 
     /// Seat `i`'s pick, or the typed "still empty" refusal naming it.

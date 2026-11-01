@@ -2,11 +2,13 @@
 id: the-variables-list-shows-no-values
 kind: issue
 title: the variables list shows each variable's name and not its value
-status: dispatched
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: E
 branch: chrome/variable-values
+closed: 2026-11-01
+pr: 6242
 ---
 
 ## Finding
@@ -25,3 +27,7 @@ click "Create variable"
 settle
 dump
 ```
+
+## Closed (2026-11-01, PR 6242)
+
+The variables list now shows each variable's value. A free variable reads `t = 20 mm` in its declared unit, the unit it was written in and that its own field shows. A defined variable reads `w = 2 * t = 40 mm`, its computed value in the working notation (#3639). A definition that fails reads `?`, with its refusal under the line, said once: while that variable is selected, its own row carries the refusal instead. "What a reading shows" has one home, `props::reading_text`, shared with the driven-slot field. Filed: `work/issues/a-count-promotion-refusal-names-a-function-the-parser-does-not-have.md`.
