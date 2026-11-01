@@ -821,3 +821,135 @@ fn r1_small_box_off_the_apex() {
         }
     }
 }
+
+/// Planes through a point `k·ε` off the apex along their normal: the apex
+/// in band of the plane, or just out of it. Expected volumes are the
+/// through-apex closed form (the offset moves them by `O(kε)`).
+#[test]
+fn r1_apex_in_band_of_the_plane() {
+    let eps = tol().eps();
+    for alpha in [20.0, 45.0, 70.0] {
+        for kind in ['T', 'P'] {
+            let c = cone(alpha, kind);
+            for (theta, psi) in [(40.0, 0.37), (89.0, 2.2), (118.0, 4.1), (150.0, 0.0)] {
+                let n = n_of(theta, psi).normalize();
+                for k in [-30.0, -3.0, -0.9, -0.3, 0.3, 0.9, 3.0, 30.0] {
+                    let pl0 = placed_box(n, (0.31, -0.17), 0.23, 9.0);
+                    let m = Affine3::translation(n * (k * eps)) * pl0.inv.inverse();
+                    let pl = placed_by(m, pl0.lo, pl0.hi);
+                    six(
+                        &format!("INBAND α={alpha} {kind} θ={theta} ψ={psi} k={k}"),
+                        alpha,
+                        &c,
+                        &pl,
+                        Some(beyond(alpha, n)),
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// The sweep's poses with both operands turned by one rigid motion off
+/// every coordinate axis: volumes only (the turn preserves them).
+#[test]
+fn r1_turned_frame() {
+    let turn = Affine3::translation(Vec3::new(0.3, -0.7, 1.1))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.37, 0.81, -0.45), 1.234);
+    let rig = geom_core::test_support::rigid(&turn, tol());
+    let eps = tol().eps();
+    for alpha in [25.0, 60.0] {
+        for kind in ['T', 'P'] {
+            let c0 = cone(alpha, kind);
+            let c = finished("turned cone", topo::transform_rigid(&c0, &rig, tol()).unwrap(), tol());
+            let r = alpha.to_radians().tan();
+            let vc = PI * r * r / 3.0;
+            for (theta, psi) in [(20.0, 0.37), (50.0, 2.2), (89.0, 4.1), (90.0, 0.0), (118.0, 3.142), (150.0, 5.0)] {
+                let n = n_of(theta, psi).normalize();
+                let pl = placed_box(n, (0.31, -0.17), 0.23, 9.0);
+                let b = finished("turned box", topo::transform_rigid(&pl.body, &rig, tol()).unwrap(), tol());
+                let i = beyond(alpha, n);
+                let vb = 729.0;
+                for (name, got, want) in [
+                    ("c∩b", intersect(&c, &b, tol()), i),
+                    ("b∩c", intersect(&b, &c, tol()), i),
+                    ("c∪b", union(&c, &b, tol()), vc + vb - i),
+                    ("b∪c", union(&b, &c, tol()), vc + vb - i),
+                    ("c∖b", subtract(&c, &b, tol()), vc - i),
+                    ("b∖c", subtract(&b, &c, tol()), vb - i),
+                ] {
+                    let v = match got {
+                        Err(e) => format!("REFUSE {e:?}"),
+                        Ok(BooleanResult::Empty) => {
+                            if want < 1e-9 { "OK empty".into() } else { format!("WRONG empty want {want}") }
+                        }
+                        Ok(BooleanResult::Body(bb)) => {
+                            let kv = topo::test_support::pinned_volume("r1", &bb.body, tol()).volume;
+                            let mv = mesh_of(&bb.body, 2e-4).map(|t| volume(&t));
+                            let ok = (kv - want).abs() < 1e-6 * want.max(1.0)
+                                && mv.as_ref().map_or(true, |m| (m - want).abs() < 3e-2);
+                            format!(
+                                "{} kvol {kv:.9} mvol {mv:?} want {want:.9}",
+                                if ok { "OK" } else { "WRONG" }
+                            )
+                        }
+                    };
+                    row(&format!("ROW eps={eps:e} TURNED α={alpha} {kind} θ={theta} ψ={psi} {name} {v}"));
+                }
+            }
+        }
+    }
+}
+
+/// A box above the apex touching it at a corner or along an edge (the
+/// cone meets the box at the apex alone), and the apex on a cylinder's
+/// and on another cone's lateral face.
+#[test]
+fn r1_apex_touches() {
+    for kind in ['T', 'P'] {
+        let c = cone(45.0, kind);
+        let up = Vec3::new(0.0, 1.0, 0.0);
+        for spin in [0.0, 0.6] {
+            let pl = placed_box(up, (4.5, 4.5), spin, 9.0);
+            verdicts(&format!("TOUCHCORNER {kind} spin={spin}"), &c, &pl.body);
+            let pl = placed_box(up, (4.5, 0.3), spin, 9.0);
+            verdicts(&format!("TOUCHEDGE {kind} spin={spin}"), &c, &pl.body);
+        }
+        // A cylinder of radius 0.3 along z, its wall through the apex, above it.
+        let cyl = revolved_about_y(
+            vec![
+                (Point2::new(0.0, -2.0), 0.0),
+                (Point2::new(0.3, -2.0), 0.0),
+                (Point2::new(0.3, 2.0), 0.0),
+                (Point2::new(0.0, 2.0), 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        );
+        for (axis_turn, side) in [(PI / 2.0, 1.0), (PI / 2.0, -1.0), (1.1, 1.0)] {
+            let m = Affine3::translation(APEX - Point3::origin() + Vec3::new(0.0, 0.3 * side, 0.0))
+                * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), axis_turn);
+            let moved = finished(
+                "cyl",
+                topo::transform_rigid(&cyl, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap(),
+                tol(),
+            );
+            verdicts(&format!("CYLWALL {kind} turn={axis_turn:.2} side={side}"), &c, &moved);
+        }
+        // Another cone lying on its side, its lateral face through the apex.
+        let other = cone_body(30.0, Revolution::Full);
+        for (ang, lift) in [(PI / 2.0, 0.0), (2.0, 0.0)] {
+            // Turn it about z and move it so its lateral face holds the apex:
+            // its own apex at (−0.5, 1 + lift, 0) side-on.
+            let m = Affine3::translation(Vec3::new(0.0, 1.0 + lift, 0.0))
+                * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.0, 0.0, 1.0), ang)
+                * Affine3::translation(Vec3::new(-(30f64.to_radians().tan()) * 0.5, -0.5, 0.0));
+            let moved = finished(
+                "other cone",
+                topo::transform_rigid(&other, &geom_core::test_support::rigid(&m, tol()), tol()).unwrap(),
+                tol(),
+            );
+            verdicts(&format!("CONEWALL {kind} ang={ang:.2}"), &c, &moved);
+        }
+    }
+}
