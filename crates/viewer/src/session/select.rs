@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{RecipeNodeId, SpokenVar, VarId};
+use pncad::document::{RecipeNodeId, SpokenVar, TakenOver, VarId};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
@@ -44,6 +44,19 @@ pub struct FaceSelection {
 }
 
 impl FaceSelection {
+    /// **This pick after `taken`**: the name a takeover moved its copy's
+    /// face to, on the same drawn copy; itself where the takeover did
+    /// not move it.
+    #[must_use]
+    pub fn reseated(&self, taken: &TakenOver) -> Self {
+        Self {
+            name: taken
+                .reseat(self.node, &self.name)
+                .map_or_else(|| self.name.clone(), Clone::clone),
+            ..self.clone()
+        }
+    }
+
     /// **The feature this face is**: the node whose operation minted
     /// the entity the name denotes, read off the name's own
     /// carry-through segments (`pncad::select::attribute`).
@@ -86,6 +99,17 @@ pub struct EdgeSelection {
 }
 
 impl EdgeSelection {
+    /// [`FaceSelection::reseated`], for an edge.
+    #[must_use]
+    pub fn reseated(&self, taken: &TakenOver) -> Self {
+        Self {
+            name: taken
+                .reseat(self.node, &self.name)
+                .map_or_else(|| self.name.clone(), Clone::clone),
+            ..self.clone()
+        }
+    }
+
     /// **The feature this edge is**: the node whose operation minted
     /// the entity the name denotes — [`FaceSelection::feature`]'s
     /// argument, unchanged. An edge carried through a later boolean is
@@ -193,6 +217,17 @@ pub enum Selection {
 }
 
 impl Selection {
+    /// **This selection after `taken`**: a picked face or edge re-seated
+    /// ([`FaceSelection::reseated`]); anything else as it is.
+    #[must_use]
+    pub fn reseated(&self, taken: &TakenOver) -> Self {
+        match self {
+            Self::Face(face) => Self::Face(face.reseated(taken)),
+            Self::Edge(edge) => Self::Edge(edge.reseated(taken)),
+            Self::None | Self::Node(_) | Self::Variable(_) => self.clone(),
+        }
+    }
+
     /// The recipe node this selection is about, when it is about one:
     /// the node itself, or the feature a picked face belongs to
     /// ([`FaceSelection::feature`] — the node that MADE the face, not

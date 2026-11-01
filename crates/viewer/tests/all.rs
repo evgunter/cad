@@ -190,6 +190,8 @@ mod story_assembly;
 mod story_authoring;
 #[path = "story_parametric.rs"]
 mod story_parametric;
+#[path = "takeover_reseats.rs"]
+mod takeover_reseats;
 #[path = "theme.rs"]
 mod theme;
 #[path = "tree_badges.rs"]

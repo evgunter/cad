@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
-    MateRef, Operand, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
+    MateRef, Operand, ProfileProgram, RecipeNodeId, SlotId, StepId, TakenOver, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -1889,6 +1889,11 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
+    /// **The names a takeover moved**, per copy it re-pointed: a held
+    /// pick of a face of one of those copies reads its new name here
+    /// (`pncad::document::TakenOver::reseat`). Empty on every
+    /// operation that took nothing over.
+    pub reseated: TakenOver,
 }
 
 impl OpOutcome {

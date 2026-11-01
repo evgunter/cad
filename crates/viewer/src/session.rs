@@ -61,7 +61,7 @@ use pncad::document::{
     DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
     HeldNodes, Label, LoopProgram, Maintenance, Node, Operand, OperandSlot, PartResolver,
     ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
-    VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
+    TakenOver, VarId, VarName, apply, cascade_delete_order, parse_formula, product_recorded,
     run_checks_at_rest_on,
 };
 use pncad::geom_core::Tol;
@@ -880,7 +880,7 @@ impl DocSession {
             .and_then(|door| self.stage_run(door));
         let answer = match staged {
             Err(refusal) => StageAnswer::Refused(refusal),
-            Ok((recorded, ())) => {
+            Ok((recorded, _)) => {
                 let minted: Vec<RecipeNodeId> = recorded.minted.iter().flatten().copied().collect();
                 let Some(node) = crate::world::made(&recorded.doc, &minted) else {
                     unreachable!("a creation's accepted run mints the node it creates")
@@ -2929,7 +2929,8 @@ impl DocSession {
         let opts = self.eval_options();
         let taken = crate::world::read_var(doc, &body);
         stranded_pick(doc, &over, taken)?;
-        Ok(creating(move |run| {
+        let reads = self.takeover_reads();
+        Ok(taking_over(move |run| {
             let sketched = run.sketch_on_face(
                 body,
                 name,
@@ -2943,7 +2944,7 @@ impl DocSession {
                 None,
                 &opts,
             )?;
-            repoint(run, over, taken, sketched.union)
+            repoint(run, over, taken, sketched.union, &reads)
         }))
     }
 
@@ -3158,10 +3159,11 @@ impl DocSession {
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
-        Ok(creating(move |run| {
+        let reads = self.takeover_reads();
+        Ok(taking_over(move |run| {
             let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
-            combine_in_world(run, &spec.operands(), node).map(drop)
+            combine_in_world(run, &spec.operands(), node, &reads)
         }))
     }
 
@@ -3200,13 +3202,14 @@ impl DocSession {
         let taken = crate::world::read_var(doc, &body);
         stranded_pick(doc, &over, taken)?;
         let node = combine::mirror_node(body.clone(), on, face);
-        Ok(creating(move |run| {
+        let reads = self.takeover_reads();
+        Ok(taking_over(move |run| {
             let image = run.insert(node)?;
             if over.is_empty() {
-                return Ok(());
+                return Ok(TakenOver::default());
             }
             let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
-            repoint(run, over, taken, part).map(drop)
+            repoint(run, over, taken, part, &reads)
         }))
     }
 
@@ -3278,7 +3281,8 @@ impl DocSession {
         let moves = gesture_moves(doc, translation, rotation_axis, rotation_angle, &at)?;
         let over = self.placements_of(&input);
         let taken = crate::world::read_var(doc, &input);
-        Ok(creating(move |run| {
+        let reads = self.takeover_reads();
+        Ok(taking_over(move |run| {
             // Into the space the body is in, on that space's axes.
             let target = run.doc().operand_space(&input).unwrap_or(VarId::WORLD);
             let placement = run.insert(Node::place(
@@ -3286,7 +3290,7 @@ impl DocSession {
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            repoint(run, over, taken, placement)
+            repoint(run, over, taken, placement, &reads)
         }))
     }
 
@@ -3368,13 +3372,14 @@ impl DocSession {
                 let over = self.placements_of(&input);
                 let taken = crate::world::read_var(self.committed_doc(), &input);
                 stranded_pick(self.committed_doc(), &over, taken)?;
-                Ok(creating(move |run| {
+                let reads = self.takeover_reads();
+                Ok(taking_over(move |run| {
                     declare(run)?;
                     let row = run.insert(placement)?;
                     let fused = run.insert(Node::Union {
                         members: pncad::document::Bodies::Family(row.into()),
                     })?;
-                    repoint(run, over, taken, fused)
+                    repoint(run, over, taken, fused, &reads)
                 }))
             }
         }
@@ -3514,9 +3519,10 @@ impl DocSession {
         node: AuthoredNode,
     ) -> Result<Creating, Refusal> {
         stranded_pick(self.committed_doc(), &over, taken)?;
-        Ok(creating(move |run| {
+        let reads = self.takeover_reads();
+        Ok(taking_over(move |run| {
             let result = run.insert(node)?;
-            repoint(run, over, taken, result)
+            repoint(run, over, taken, result, &reads)
         }))
     }
 
@@ -3524,6 +3530,16 @@ impl DocSession {
     /// ([`crate::world::placements_of_read`]), in the committed document.
     fn placements_of(&self, target: &Operand) -> Vec<RecipeNodeId> {
         crate::world::placements_of_read(self.committed_doc(), target)
+    }
+
+    /// What a takeover this session authors reads the result's table
+    /// under: the runs' options, and the landed run as the memo.
+    fn takeover_reads(&self) -> TakeoverReads {
+        let resolver = self.run_resolver();
+        TakeoverReads {
+            opts: crate::evalseam::options(&resolver),
+            prior: self.memo_under(&resolver),
+        }
     }
 
     /// [`Self::require_kind`] of a seat's read: a node named alone, or
@@ -3870,10 +3886,10 @@ impl DocSession {
             Ok(action) => action,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
-        self.commit_run(|run| {
-            action(run)?;
+        let staged = self.stage_run(|run| {
+            let reseated = action(run)?;
             let Some(label) = labelled else {
-                return Ok(());
+                return Ok(reseated);
             };
             let minted: Vec<RecipeNodeId> = run.minted().iter().flatten().copied().collect();
             // Every creating door's run inserts its node through `?`
@@ -3884,9 +3900,20 @@ impl DocSession {
             run.apply(DocEdit::SetLabel {
                 node,
                 label: Some(label),
-            })
-            .map(drop)
-        })
+            })?;
+            Ok(reseated)
+        });
+        match staged {
+            Ok((staged, reseated)) => {
+                let recorded = self.record_run(staged);
+                self.derived.selection = self.derived.selection.reseated(&reseated);
+                OpOutcome {
+                    reseated,
+                    ..recorded
+                }
+            }
+            Err(refusal) => OpOutcome::refused(refusal),
+        }
     }
 
     /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
@@ -4040,11 +4067,19 @@ pub enum Staged<'a> {
 /// door answers once its checks pass. The door reads the session and
 /// writes nothing; [`DocSession::create`] stages the run, labels it
 /// where asked, and records it.
-type Creating = Box<dyn FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError>>;
+type Creating =
+    Box<dyn FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<TakenOver, EditError>>;
 
-/// `action` as a [`Creating`] run.
+/// `action` as a [`Creating`] run that takes nothing over.
 fn creating(
     action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<(), EditError> + 'static,
+) -> Creating {
+    Box::new(move |run| action(run).map(|()| TakenOver::default()))
+}
+
+/// `action` as a [`Creating`] run that takes copies over ([`repoint`]).
+fn taking_over(
+    action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<TakenOver, EditError> + 'static,
 ) -> Creating {
     Box::new(action)
 }
@@ -4102,34 +4137,35 @@ fn stranded_pick(
 }
 
 /// **Re-point each of `placements` to `result`** (A10, Ev's residue
-/// 1): the slot door on the source of each placement that copies
-/// `taken`, the body `result` takes over, in the action that authored
-/// `result` — so a placement of the target copies the result in its
-/// place, and a placement copying another body, even another output of
-/// the same operation, keeps it.
+/// 1): the kernel's takeover (`Recording::take_over`) of each placement
+/// that copies `taken`, the body `result` takes over, in the action
+/// that authored `result` — so a placement of the target copies the
+/// result in its place, what read the copy is re-seated where the
+/// result carries it, and a placement copying another body, even
+/// another output of the same operation, keeps it.
 fn repoint(
     run: &mut Recording<'_, ProfileProgram>,
     placements: Vec<RecipeNodeId>,
     taken: Option<VarId>,
     result: RecipeNodeId,
-) -> Result<(), EditError> {
+    reads: &TakeoverReads,
+) -> Result<TakenOver, EditError> {
     let doc = run.doc();
     let copies_read = |var: VarId| Some(var) == taken;
-    let edits: Vec<RecipeNodeId> = placements
+    let copies: Vec<RecipeNodeId> = placements
         .into_iter()
         .filter(|&placement| {
             matches!(doc.node(placement), Some(Node::Place { source, .. }) if copies_read(source.read))
         })
         .collect();
-    for placement in edits {
-        run.apply(DocEdit::SetParam {
-            node: placement,
-            slot: SlotId::Operand(OperandSlot::Source),
-            value: pncad::document::SlotValue::Read(result.into()),
-            fresh: Vec::new(),
-        })?;
-    }
-    Ok(())
+    run.take_over(&copies, &result.into(), &reads.opts, reads.prior.as_deref())
+}
+
+/// **What a takeover reads the result's table under**: the session's
+/// evaluation options, and its landed run as the memo.
+struct TakeoverReads {
+    opts: EvalOptions,
+    prior: Option<Arc<Evaluation<f64>>>,
 }
 
 /// **The body `node` defines, as a read**: its first `Body` output (a
@@ -4226,7 +4262,8 @@ fn combine_in_world(
     run: &mut Recording<'_, ProfileProgram>,
     operands: &[Operand],
     result: RecipeNodeId,
-) -> Result<(), EditError> {
+    reads: &TakeoverReads,
+) -> Result<TakenOver, EditError> {
     let mut distinct: Vec<&Operand> = Vec::new();
     for operand in operands {
         if !distinct.contains(&operand) {
@@ -4246,13 +4283,13 @@ fn combine_in_world(
         .collect::<Vec<_>>()
         .into_iter();
     let Some((taken, first)) = placed.next() else {
-        return Ok(());
+        return Ok(TakenOver::default());
     };
-    repoint(run, first, taken, result)?;
+    let reseated = repoint(run, first, taken, result, reads)?;
     for placement in placed.flat_map(|(_, placements)| placements) {
         run.apply(DocEdit::DeleteNode { id: placement })?;
     }
-    Ok(())
+    Ok(reseated)
 }
 
 /// **`held` with the mate panel's `values` written over it**: each

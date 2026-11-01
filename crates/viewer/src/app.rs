@@ -1344,6 +1344,9 @@ impl ViewerApp {
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
             let minted = core::mem::take(&mut outcome.minted);
+            // A takeover moved the names of its copies' faces; the form's
+            // held face follows, as the session's selection did.
+            self.drafts.reseat(&outcome.reseated);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -6277,6 +6280,52 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(driven.held(), [bottom_id, NONE, NONE], "held again");
+    }
+
+    /// **A sketch committed on the held face re-seats both picks of
+    /// it**: the startup plate's top cap selected and held by the
+    /// add-profile form, then the form's commit, which takes the plate's
+    /// copy over with the union. The union carries the cap as one face,
+    /// so the selection and the form's held face both name it there and
+    /// both resolve on the copy. Goes red if the takeover stops
+    /// re-seating the session's selection or the drafts' held face, or
+    /// if the carrier query stops finding the cap at the union.
+    #[test]
+    fn a_sketch_on_the_held_face_re_seats_the_selection_and_the_held_face() {
+        use crate::session::Standing;
+        use pncad::select::Resolution;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        driven.select(Selection::Face(top.clone()));
+        driven.click(crate::pane::create::ADD_PROFILE);
+        driven.quiet();
+        let session = &driven.app.session;
+        assert!(
+            session
+                .doc()
+                .ids()
+                .iter()
+                .any(|&id| matches!(session.doc().node(id), Some(Node::Union { .. }))),
+            "the button committed a sketch on the face"
+        );
+        let Standing::Face { face, resolution } = session.standing() else {
+            panic!("a face is selected: {:?}", session.standing())
+        };
+        assert_eq!(face.node, placement(), "on the same drawn copy");
+        assert_ne!(face.name, top.name, "named as the union carries the cap");
+        assert!(
+            matches!(resolution.as_deref(), Some(Resolution::Resolved(_))),
+            "the selection resolves: {resolution:?}"
+        );
+        let held = driven.app.drafts.sketch_face.clone();
+        assert_eq!(held.as_ref(), Some(&face), "the held face followed");
+        let held = held.expect("held");
+        let eval = session.evaluation().expect("landed");
+        let verdict =
+            crate::tree::pick_resolution(session.doc(), eval, held.node, held.body, &held.name);
+        assert!(
+            matches!(verdict, Resolution::Resolved(_)),
+            "the held face resolves: {verdict:?}"
+        );
     }
 
     /// **A held face on a copy a feature re-points stays held, drawn

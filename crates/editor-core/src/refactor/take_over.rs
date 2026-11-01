@@ -66,6 +66,9 @@ impl Recording<'_, ProfileProgram> {
         opts: &EvalOptions,
         prior: Option<&Evaluation<f64>>,
     ) -> Result<TakenOver, EditError> {
+        if copies.is_empty() {
+            return Ok(TakenOver::default());
+        }
         let copied: Vec<(RecipeNodeId, VarId)> = copies
             .iter()
             .filter_map(|&copy| match self.doc().node(copy) {
