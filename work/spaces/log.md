@@ -26,3 +26,11 @@ Newest entries at the bottom; the tail is the program's live status.
   the whole slate rather than row by row: a fork row, three-designer
   arm drawn (51, 196; record on `analysis/design-fork/spaces-landing`).
   Units are cut from the designers' answer. (SPACES orchestrator)
+- 2026-11-01 — Split the `= ?` value-row refusal out of
+  `an-instances-pattern-draws-nothing` as
+  `a-patterns-value-rows-read-the-member-index-outside-a-member` (P1 M):
+  it is how the Properties pane reads a member-indexed slot, and shares
+  nothing with the landing, so it runs while the designers weigh.
+  Dispatched (`spaces/pattern-value-rows`). Tier: single review, style
+  plus a correctness arm on the sweep (a refusal hidden rather than a
+  meaning shown is the failure to falsify). (SPACES orchestrator)
