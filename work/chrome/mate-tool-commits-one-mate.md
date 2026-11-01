@@ -23,12 +23,9 @@ bodies, found three things in the mate tool:
    left, and the second mate then takes freedoms values already hold.
    The kernel half of this (whether consistent mates compose, and the
    missing edge-aligning kind) is
-   `work/msolve/mate-kinds-cannot-align-an-edge.md`.
-3. **The tool offers two of the five kinds and picks faces only.**
-   `matetool::MATE_KINDS` is `plane` and `axis`; A11 also has `Frame`,
-   `Point` and `Direction`, and the kernel reads an axis off a straight
-   edge and a frame at a corner (`corner_frame`). A corner-on-corner
-   mate is expressible in the kernel and not in the GUI.
+   `work/msolve/a-consistent-second-mate-after-a-rest-is-refused.md`.
+3. **The tool offers two of the five kinds and picks faces only**:
+   `work/chrome/the-mate-tool-offers-two-of-the-five-mate-kinds.md`.
 
 ## Ev's direction
 

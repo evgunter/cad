@@ -1,10 +1,10 @@
 ---
-id: mate-kinds-cannot-align-an-edge
+id: a-consistent-second-mate-after-a-rest-is-refused
 kind: issue
-title: the decided mate kinds cannot align two edges or two corners
+title: a consistent second mate after a rest is refused, so a corner cannot be aligned incrementally
 status: open
 opened: 2026-10-31
-priority: P0
+priority: P1
 design: true
 ---
 
@@ -13,32 +13,18 @@ design: true
 
 Ev (in chat, 2026-10-31), trying to align the corners of two stacked
 bodies in the viewer: a plane mate stacked them, and a second mate to
-make one side flush was refused. Ev wants a mate that aligns edges, and
-notes that the set of mate kinds was decided precisely so that every
-mate that could be needed exists. **Why that set was not sufficient is
-the question this row asks, before any kind is added.**
+make one side flush was refused.
 
-The decided set is A11's five primitives
-(`crates/editor-core/ASSEMBLY.md`, "A `Mate { on, to }` equates two poses
-of one kind"): `Frame`–`Frame` coincides, `Axis`–`Axis` is coaxial,
-`Plane`–`Plane` rests, `Point`–`Point` is a ball, `Direction`–`Direction`
-is parallel. `PoseDef::Axis` already reads a straight edge's line
-(`crates/editor-core/src/pose.rs`, `PoseDef`), and `corner_frame`
-(`crates/editor-core/src/mate/corner.rs`) reads a frame at a body's
-corner.
+**The kinds are sufficient for single mates.** A11's five primitives
+(`crates/editor-core/ASSEMBLY.md`) already say corner-on-corner
+(`Frame`–`Frame` over `corner_frame`, `crates/editor-core/src/mate/corner.rs`)
+and edge-collinear-with-edge (`Axis`–`Axis` on edge lines; `PoseDef::Axis`
+reads a straight edge, `crates/editor-core/src/pose.rs`). That the GUI
+cannot author them is
+`work/chrome/the-mate-tool-offers-two-of-the-five-mate-kinds.md` (P0),
+and it is what blocked Ev.
 
-What the kernel can already say:
-
-- **Two corners made coincident** is one `Frame`–`Frame` mate between two
-  `corner_frame` reads: it pins all six freedoms, so it stacks and aligns
-  at once. The GUI cannot author it: `matetool::MATE_KINDS`
-  (`crates/viewer/src/matetool.rs`) offers `plane` and `axis` only, and
-  picks faces only. That half is a GUI gap, filed as
-  `work/chrome/mate-tool-commits-one-mate.md`.
-- **Two edges made collinear** is one `Axis`–`Axis` mate on the edges'
-  lines.
-
-What it cannot say, and is the kernel half:
+What remains for the kernel is composition:
 
 - **A rest plus a flush side.** The natural way to align a corner is
   incremental: rest the top face on the bottom face, then make one side
