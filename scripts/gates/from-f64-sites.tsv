@@ -127,6 +127,7 @@ crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted in
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	1	constant	k as f64	a sample index
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/circle_roots.rs	1	constant	band.zero()	the band's zero width, a tolerance (a leg's start on the plane, which picks its roots' representative)
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count

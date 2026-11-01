@@ -119,7 +119,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
-use geom_core::{Band, Decide, Margin, Point3, Sign, Tol};
+use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
 use super::ops::{DoorInBand, PieceRead, piece_reading};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
@@ -1023,8 +1023,7 @@ fn holding<T: Decide>(
         BooleanError::Escalated { .. } if crossed_only => Ok(None),
         read => Err(read),
     };
-    let closed = body.edge_vertices(e).is_some_and(|(u, v)| u == v);
-    let on = match carrier_on_surface(body, &carrier, (t0, t1), closed, f, band) {
+    let on = match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
         Ok(Some(on)) => Ok(on),
         // A spline face, read by its ends and midpoint; any other pair
         // read here lies on nothing.
@@ -1147,48 +1146,88 @@ pub(super) const RIDER_ON_PLANE: &str = "bool_rider_on_plane";
 /// under.
 pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 
-/// The points of an edge [`carrier_on_surface`] reads on a face's surface.
+/// How many points of an edge's carrier [`carrier_on_surface`] reads on a
+/// face's surface: more than the carrier and the surface can share
+/// without the one lying on the other.
 #[derive(Clone, Copy)]
 enum Samples {
-    /// Its ends.
+    /// A line and a plane: its ends.
     Ends,
-    /// This many points evenly spaced along it, its ends among them; along
-    /// a closed edge, whose ends are one point, this many distinct points.
+    /// This many points equispaced over a conic carrier's whole turn
+    /// ([`even_points`]): five on a quadric, which meets the conic's
+    /// plane in a conic, and two conics of one plane meet at four points
+    /// unless they are one; nine on a torus, which meets it in a
+    /// quartic, and a quartic meets a conic at eight unless it holds it.
     Even(u32),
 }
 
-/// **Whether edge carrier `carrier`, over `(t0, t1)` (`closed` where its
-/// two ends are one point), lies on face `f`'s surface**: a line on
-/// a plane at both its ends, and on a cylinder or cone by
-/// [`crate::census::line_on_quadric_carrier`]
+/// The Lebesgue constant of trigonometric interpolation at nine
+/// equispaced points over a turn (degree 4), rounded up from
+/// `2.36186`: no degree-4 trigonometric polynomial exceeds this times
+/// its largest value at the nine points anywhere on the turn.
+const LEBESGUE_NINE: f64 = 2.37;
+
+/// **Whether edge carrier `carrier`, over `(t0, t1)`, lies on face `f`'s
+/// surface**: a line on a plane at both its ends, and on a cylinder or
+/// cone by [`crate::census::line_on_quadric_carrier`]
 /// (`bool_line_face_carrier_offset`); a conic in a plane by its own
 /// plane's offset from it (`bool_conic_face_plane_offset`), and on a
-/// sphere, cylinder or cone at five distinct points along it (two conics
-/// of one plane meet at four unless they are one), and on a torus at
-/// nine (a conic meets a quartic at eight unless it lies on it). Each
-/// point's offset
-/// from the surface is decided on the band ([`RIDER_ON_PLANE`],
-/// [`RIDER_ON_CURVED`]), every point before the answer: one point
-/// definitely off decides that the carrier is not on the surface,
-/// whatever the others read.
-/// `None` for any other pair, which nothing here reads: a spline on
-/// either side, a line on a sphere or a torus.
+/// sphere, cylinder, cone or torus at points equispaced over its
+/// carrier's whole turn from `t0`, five and nine ([`Samples`],
+/// [`even_points`]). A conic
+/// arc lies on such a surface exactly where its whole carrier does (the
+/// surface's equation along it is a trigonometric polynomial, zero on an
+/// interval only where zero everywhere), so the edge's own span does not
+/// matter. Each point's offset from the surface is decided on the band
+/// ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]), every point before the
+/// answer: one point definitely off decides that the carrier is not on
+/// the surface, whatever the others read. `None` for any other pair,
+/// which nothing here reads: a spline on either side, a line on a sphere
+/// or a torus.
+///
+/// **Between the samples.** On a sphere or a cylinder the offset along a
+/// conic is itself a trigonometric polynomial of degree 2, which at five
+/// equispaced points is at most twice its largest sample anywhere on the
+/// turn: within the band's `escalate / zero` ratio, so a conic whose
+/// samples read zero is nowhere definitely off. On a torus `R, r` the
+/// offset `((ρ − R)² + h² − r²) / 2r` is not a polynomial: the torus's
+/// equation, `2r · offset · G` with `G = (ρ + R)² + h² − r²`, is one of
+/// degree 4, and `G ≥ R² − r²` everywhere, so the offset
+/// anywhere on the turn is at most `Λ · max(|offset| · G) / (R² − r²)`
+/// over the nine samples ([`LEBESGUE_NINE`]). That bound is decided after
+/// the samples read zero: zero reads the conic on the torus, beyond the
+/// band reads nothing (`None`, the samples cannot certify a fat torus's
+/// conic), in band escalates; D3's torus is a ring, `R > r`. On a cone
+/// the offset is not a polynomial along a conic and the samples are not
+/// bounded between
+/// (`work/cleave/a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between.md`).
+/// The rider reading and the germ's closed-edge reading
+/// (`sectors::closed_reach`) both ask here.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where no point is definitely off and an
-/// offset is in band.
-fn carrier_on_surface<T: Decide>(
+/// offset, or the torus's bound between them, is in band.
+pub(super) fn carrier_on_surface<T: Decide>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
-    closed: bool,
     f: FaceKey,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
         return Ok(Some(false));
     };
+    conic_or_line_on(carrier, (t0, t1), surface, band)
+}
+
+/// [`carrier_on_surface`] on `surface` itself.
+fn conic_or_line_on<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    surface: &geom::Surface<T>,
+    band: Band,
+) -> Result<Option<bool>, BooleanError> {
     let (samples, site, coincide) = match (carrier, surface) {
         (geom::Curve3::Line { .. }, geom::Surface::Plane { .. }) => {
             (Samples::Ends, RIDER_ON_PLANE, Coincide::EdgeOnPlane)
@@ -1247,9 +1286,6 @@ fn carrier_on_surface<T: Decide>(
             | geom::Surface::Cone { .. }
             | geom::Surface::Torus { .. },
         ) => (
-            // A conic meets a torus at no more than eight points unless
-            // it lies on it, as a meridian, a parallel or a Villarceau
-            // circle does.
             Samples::Even(if matches!(surface, geom::Surface::Torus { .. }) {
                 9
             } else {
@@ -1262,32 +1298,59 @@ fn carrier_on_surface<T: Decide>(
     };
     let points = match samples {
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
-        Samples::Even(n) => even_points(carrier, ((t0, t1), closed), n),
+        Samples::Even(n) => even_points(carrier, t0, n),
     };
-    crate::census::points_on_surface(surface, &points, site, band)
-        .map(Some)
-        .map_err(|diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag))
+    let refused = |diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag);
+    if !crate::census::points_on_surface(surface, &points, site, band).map_err(refused)? {
+        return Ok(Some(false));
+    }
+    match *surface {
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => torus_between(&points, (center, axis), (major_radius, minor_radius), band)
+            .map_err(refused),
+        _ => Ok(Some(true)),
+    }
 }
 
-/// `n` points of `carrier` evenly spaced over `(t0, t1)`, its ends among
-/// them; `n` distinct points where the span is `closed`, its ends one
-/// point. The `k`th of `s` steps is at `(t0·(s − k) + t1·k) / s`, each
-/// end entering once as in [`geom::mid_param`].
-fn even_points<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    ((t0, t1), closed): ((T, T), bool),
-    n: u32,
-) -> Vec<Point3<T>> {
+/// `n` points of conic `carrier` equispaced over its whole turn from
+/// parameter `t0`, distinct: the `k`th at `t0 + k · 2π / n`.
+fn even_points<T: Decide>(carrier: &geom::Curve3<T>, t0: T, n: u32) -> Vec<Point3<T>> {
     let count = |m: u32| (0..m).fold(T::zero(), |c, _| c + T::one());
-    let steps = if closed { n } else { n - 1 };
-    (0..n)
-        .map(|k| match k {
-            0 => t0,
-            k if k == steps => t1,
-            k => (t0 * count(steps - k) + t1 * count(k)) / count(steps),
-        })
-        .map(|t| carrier.eval(t))
-        .collect()
+    let step = T::from_f64(core::f64::consts::TAU) / count(n);
+    (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
+}
+
+/// [`carrier_on_surface`]'s bound between a conic's nine samples on the
+/// torus about `center` along unit `axis`, radii `(R, r)`, decided
+/// where every sample read on it.
+fn torus_between<T: Decide>(
+    points: &[Point3<T>],
+    (center, axis): (Point3<T>, Vec3<T>),
+    (big, small): (T, T),
+    band: Band,
+) -> Result<Option<bool>, geom_core::Indeterminate> {
+    let mut worst = T::zero();
+    for &p in points {
+        let w = p - center;
+        let h = w.dot(axis);
+        let rho = (w - axis * h).norm();
+        // The torus's equation over `2r`, the offset times `G`.
+        let product = ((rho - big).powi(2) + h.powi(2) - small.powi(2))
+            * ((rho + big).powi(2) + h.powi(2) - small.powi(2));
+        worst = worst.max(product.abs() / (small + small));
+    }
+    let bound = worst * T::from_f64(LEBESGUE_NINE) / (big.powi(2) - small.powi(2));
+    Ok(
+        match crate::validate::decide(RIDER_ON_CURVED, Margin::of(bound), band)? {
+            Sign::Zero => Some(true),
+            Sign::Positive | Sign::Negative => None,
+        },
+    )
 }
 
 /// **A conic of a torus's own reads on the torus face through
@@ -1398,7 +1461,7 @@ mod torus_rows {
             ),
         ];
         for (what, carrier, on) in rows {
-            let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), true, face, band)
+            let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), face, band)
                 .unwrap_or_else(|e| panic!("{what}: {e:?}"));
             assert_eq!(read, Some(on), "{what}");
         }
@@ -1412,7 +1475,7 @@ mod torus_rows {
             3.0,
             Vec3::unit_x(),
         );
-        let points = super::even_points(&parallel, ((0.0, TAU), true), 9);
+        let points = super::even_points(&parallel, 0.0, 9);
         assert_eq!(points.len(), 9, "nine samples");
         for (i, p) in points.iter().enumerate() {
             for q in &points[..i] {
@@ -1422,6 +1485,92 @@ mod torus_rows {
                 );
             }
         }
+    }
+
+    fn fat_torus() -> geom::Surface<f64> {
+        geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            major_radius: 1.0,
+            minor_radius: 0.98,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn fat_circle(
+        center: [f64; 3],
+        axis: [f64; 3],
+        u_ref: [f64; 3],
+        radius: f64,
+    ) -> geom::Curve3<f64> {
+        let v = |a: [f64; 3]| Vec3::new(a[0], a[1], a[2]);
+        geom::Curve3::Circle {
+            center: Point3::new(center[0], center[1], center[2]),
+            axis: v(axis).normalize(),
+            radius,
+            u_ref: v(u_ref).normalize(),
+        }
+    }
+
+    /// The band at the default ε, whatever row the run is on.
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// A Villarceau circle lies on the torus, and reads so.
+    #[test]
+    fn a_villarceau_circle_on_a_fat_torus_reads_on_it() {
+        let villarceau = fat_circle(
+            [0.98, 0.0, 0.0],
+            [0.0, -0.98, 0.198_997_487_421_324_17],
+            [1.0, 0.0, 0.0],
+            1.0,
+        );
+        assert!(matches!(
+            super::conic_or_line_on(&villarceau, (0.0, TAU), &fat_torus(), band()),
+            Ok(Some(true))
+        ));
+    }
+
+    /// **A near miss**: the Villarceau circle moved by a few
+    /// nanometres along the direction that keeps its offset at the nine
+    /// samples below the band's zero (`9.0e-10`) while it reaches
+    /// `9.3e-9` between them, over nine times as much. Read sample by
+    /// sample it lies on the torus; the bound between the samples does
+    /// not let it.
+    #[test]
+    fn a_near_miss_on_a_fat_torus_does_not_read_on_it() {
+        let near = fat_circle(
+            [0.980_000_005_097_037, -9e-7, 1.610_966_551_115_795e-16],
+            [
+                -9.000_000_000_712_85e-7,
+                -0.980_000_003_704_758_4,
+                0.198_997_469_174_519_02,
+            ],
+            [
+                0.999_999_999_999_595,
+                -8.820_000_000_698_593e-7,
+                1.790_977_386_933_773_2e-7,
+            ],
+            0.999_999_995_802_963,
+        );
+        let offset = |t: f64| geom_brep::implicit_residual(&fat_torus(), near.eval(t)).abs();
+        let at_samples = (0..9)
+            .map(|k| offset(TAU * f64::from(k) / 9.0))
+            .fold(0.0, f64::max);
+        let between = (0..9000)
+            .map(|k| offset(TAU * f64::from(k) / 9000.0))
+            .fold(0.0, f64::max);
+        assert!(
+            at_samples < band().zero(),
+            "the samples read zero: {at_samples:e}"
+        );
+        assert!(
+            between > 5.0 * band().zero(),
+            "it misses between them: {between:e}"
+        );
+        let read = super::conic_or_line_on(&near, (0.0, TAU), &fat_torus(), band());
+        assert!(!matches!(read, Ok(Some(true))), "{read:?}");
     }
 }
 
@@ -1569,9 +1718,8 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart =
-                    (floor_bend - wall_bend).dot(floor) * arm.powi(2) / (T::one() + T::one());
-                let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, Margin::of(apart), band)
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
+                let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
                     Sign::Negative => false,

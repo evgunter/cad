@@ -37,3 +37,11 @@ The Boolean refuses that parting on any curved face
 row and for the mesh's
 (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`). Lifting the
 refusal needs both.
+
+## Pinned by (CLEAVE, PR 6177)
+
+`crates/sweep/tests/a_cylinder_through_a_hole_tangent_to_its_wall.rs`
+`holds`: a cylinder through a plate, its wall tangent to a hole's along a
+ruling, with only one rim's vertex on that ruling. That operand's wrap
+edge lies along the other's wall, and the op keeping both walls refuses
+`EdgeInFace { gap: CurvedFace }`; the pin goes red when the gap retires.

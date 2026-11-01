@@ -2,11 +2,12 @@
 id: departure-graph-separator-weighs-each-heading-by-its-cells-offset-along-the-edge
 kind: issue
 title: The departure arm's graph separator takes its normal across two headings normalised before their along-edge part is dropped, so for two cells offset along a seam the farther face weighs less and, at an acute dihedral, both faces read one side: every seam of the tour's twisted_loft refuses at depth
-status: review
+status: closed
 branch: clear/heading
 opened: 2026-11-01
 priority: P0
 cost: E
+closed: 2026-11-01
 ---
 
 

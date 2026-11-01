@@ -1,10 +1,12 @@
-//! The four seams a landing is built across — where a document
+//! The seams a landing is built across — where a document
 //! becomes a result DAG, where the display budget prices that result
 //! to choose the δ it is drawn at, where the DAG becomes the pick
 //! index the viewport draws and picks against, and where the landing's
 //! checks report gets the coincidence door's answer at rest
-//! ([`DoorService`]). **The one place in this crate that OWNS a
-//! thread**: `app` spawns all four workers because
+//! ([`DoorService`]) — and, beside the landing, where an operation
+//! staged and not committed is evaluated for its verdict
+//! ([`StagedService`]). **The one place in this crate that OWNS a
+//! thread**: `app` spawns every worker because
 //! it decides which implementation this build runs, and every join
 //! handle, channel and hand-off between them is here. The options a
 //! session's evaluation runs under are spelled here too ([`options`]),
@@ -18,8 +20,8 @@
 //! GUI plan carries that as a standing constraint for the web lane:
 //! natively a background thread, on wasm a Worker or an inline slice,
 //! with no source change above this boundary. So the vocabulary here
-//! is submit / poll over a [`Generation`] — plus cancel, for the two
-//! of the four whose work can be stopped — and
+//! is submit / poll over a [`Generation`] — plus cancel, for the seams
+//! whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
 //! Rows in this crate's suite drive both, and the application drives
@@ -768,6 +770,120 @@ impl DoorService for InlineProver {
     }
 }
 
+/// **What the staged seam was asked**: a document an operation was
+/// staged on and not committed, evaluated for what the operation would
+/// make ([`crate::session::DocSession::stage`]).
+///
+/// **Keyed by the stage it answers**, minted by the session: a draft
+/// that moved on stages again under a new key, and an answer under an
+/// old one is dropped.
+#[derive(Clone, Debug)]
+pub struct StagedRequest {
+    /// The stage this answers.
+    pub key: StagedKey,
+    /// The staged document.
+    pub doc: Doc<ProfileProgram>,
+    /// The landed run, as the memo the staged run primes from, so only
+    /// what the staged operation added is computed again; `None` where
+    /// it resolved through another seam ([`same_resolver`]).
+    pub prime: Option<Arc<Evaluation<f64>>>,
+    /// The resolver the landed run resolved through.
+    pub resolver: Option<Arc<dyn PartResolver>>,
+    /// The ε the run decides at.
+    pub tol: Tol,
+}
+
+/// **Which stage a staged answer is for**: the session's count of the
+/// stages it has asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StagedKey(pub u64);
+
+/// A finished staged run.
+#[derive(Clone, Debug)]
+pub struct StagedDone {
+    /// The key the request carried.
+    pub key: StagedKey,
+    /// The staged document's evaluation; a canceled run is never
+    /// answered.
+    pub evaluation: Arc<Evaluation<f64>>,
+}
+
+/// **The staged seam's vocabulary** — [`DoorService`]'s, because a
+/// staged run reads a token between nodes: the next stage cancels it.
+/// Its own seam, so a draft's verdict never cancels the run the
+/// picture is waiting for.
+///
+/// **One stage at a time, by design**: the session keeps one stage
+/// ([`crate::session::DocSession::staged_for`]), and what stages is the
+/// one open tool's draft ([`crate::tools::Tools`] holds at most one
+/// open tool). Any creating operation can be staged, but a second
+/// asker beside an open tool would supersede that tool's stage on
+/// every frame each asked; giving two askers each a verdict would need
+/// a slot per asker.
+pub trait StagedService {
+    /// Ask for `request`. Cancels a job in flight and replaces any
+    /// waiting one.
+    fn submit(&mut self, request: StagedRequest);
+
+    /// Cancel whatever is in flight: the stage it answers was dropped.
+    fn cancel(&mut self);
+
+    /// Take a finished job, if one is ready. Never blocks.
+    fn poll(&mut self) -> Option<StagedDone>;
+
+    /// Whether a job is in flight or waiting.
+    fn busy(&self) -> bool;
+}
+
+/// The staged run: the document under the landed memo, answered only
+/// when it reached every node.
+fn run_staged(request: StagedRequest, cancel: &CancelToken) -> Option<StagedDone> {
+    let StagedRequest {
+        key,
+        doc,
+        prime,
+        resolver,
+        tol,
+    } = request;
+    let evaluation = evaluate(&doc, prime.as_deref(), cancel, &options(&resolver), tol);
+    (evaluation.outcome == EvalOutcome::Completed).then(|| StagedDone {
+        key,
+        evaluation: Arc::new(evaluation),
+    })
+}
+
+/// The staged seam with no thread behind it: `submit` records the
+/// request and `poll` runs it — [`InlineProver`]'s standing.
+#[derive(Debug, Default)]
+pub struct InlineStager {
+    pending: Option<StagedRequest>,
+}
+
+impl InlineStager {
+    /// A seam that has run nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl StagedService for InlineStager {
+    fn submit(&mut self, request: StagedRequest) {
+        self.pending = Some(request);
+    }
+
+    fn cancel(&mut self) {
+        self.pending = None;
+    }
+
+    fn poll(&mut self) -> Option<StagedDone> {
+        run_staged(self.pending.take()?, &CancelToken::new())
+    }
+
+    fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// **The seam's traffic is `Send`, checked here rather than assumed.**
 ///
 /// The threaded implementation would fail to compile without it, but
@@ -785,13 +901,15 @@ const _: fn() = || {
     assert_send::<FitDone>();
     assert_send::<DoorRequest>();
     assert_send::<DoorDone>();
+    assert_send::<StagedRequest>();
+    assert_send::<StagedDone>();
     // The memo moves onto the worker thread with the loop that owns it.
     assert_send::<PickMemo>();
 };
 
 #[cfg(not(target_family = "wasm"))]
 pub use threaded::{
-    SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, Worker,
+    SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, ThreadStager, Worker,
 };
 
 /// The native seam: one worker thread, a request channel, a result
@@ -811,10 +929,10 @@ mod threaded {
     use super::{
         DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, FitDone,
         FitRequest, FitService, IndexDone, IndexRequest, IndexService, PickMemo, PriorRun,
-        build_index, run_fit, run_once,
+        StagedDone, StagedRequest, StagedService, build_index, run_fit, run_once, run_staged,
     };
 
-    /// Which of this module's four workers a refusal is about (D4 ¶3:
+    /// Which of this module's workers a refusal is about (D4 ¶3:
     /// a closed enum, because the set is this file's own and a reader
     /// asking which values occur should be able to see them).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -827,6 +945,8 @@ mod threaded {
         Fit,
         /// The coincidence door's worker ([`ThreadProver`]).
         Door,
+        /// The staged run's worker ([`ThreadStager`]).
+        Staged,
     }
 
     impl core::fmt::Display for Worker {
@@ -836,6 +956,7 @@ mod threaded {
                 Self::Index => "index",
                 Self::Fit => "display fit",
                 Self::Door => "coincidence door",
+                Self::Staged => "staged run",
             })
         }
     }
@@ -873,7 +994,7 @@ mod threaded {
     impl core::error::Error for SpawnError {}
 
     /// What a worker carries, what it answers with, and **the one rule
-    /// that differs between the four seams**.
+    /// that differs between the seams**.
     ///
     /// Everything else about carrying a job is [`Coalescing`]'s and is
     /// written once there; this trait is where a seam says the part
@@ -897,7 +1018,7 @@ mod threaded {
     /// this module is one of these plus whatever else that seam owns.
     ///
     /// The invariant, in one place rather than once per seam, because
-    /// four hand-maintained copies of it are four things that can
+    /// a hand-maintained copy of it per seam is one more thing that can
     /// silently disagree:
     ///
     /// - **at most one outstanding**: the worker holds at most one job,
@@ -971,7 +1092,7 @@ mod threaded {
             let handle = std::thread::Builder::new()
                 .name(thread_name.to_owned())
                 .spawn(move || {
-                    // The worker loop, once for all four seams:
+                    // The worker loop, once for every seam:
                     // answer one job at a time — which is the other
                     // half of at-most-one-outstanding, the half that
                     // lives on this side of the channel — and stop
@@ -1455,26 +1576,93 @@ mod threaded {
         }
     }
 
-    /// A door request plus the token that stops it: [`EvalJob`]'s
-    /// shape, for its reason.
+    /// **A request plus the token that stops it**: [`EvalJob`]'s shape,
+    /// for its reason, for every seam whose job reads a token and keeps
+    /// nothing between jobs ([`Cancelling`]).
     #[derive(Debug)]
-    struct DoorJobOf {
-        request: DoorRequest,
+    struct Tokened<R, D> {
+        request: R,
         cancel: CancelToken,
+        done: core::marker::PhantomData<fn() -> D>,
     }
 
-    impl Job for DoorJobOf {
-        type Done = DoorDone;
+    impl<R: core::fmt::Debug + Send + 'static, D: Send + 'static> Job for Tokened<R, D> {
+        type Done = D;
 
         /// **Always**, for [`EvalJob`]'s reason: a submit that left a
         /// job waiting canceled the one `done` answers.
-        fn supersedes(&self, _done: &DoorDone) -> bool {
+        fn supersedes(&self, _done: &D) -> bool {
             true
         }
     }
 
-    /// A background-thread door seam: [`ThreadEvaluator`]'s machine,
-    /// token and all, over the coincidence door's job.
+    /// **The threaded handle of a seam whose job reads a token**: one
+    /// [`Coalescing`] over [`Tokened`] jobs and the token of the newest,
+    /// which a submit cancels before it replaces it. Every such seam is
+    /// one of these over its own request and answer
+    /// ([`ThreadProver`], [`ThreadStager`]), so its submit, cancel and
+    /// shutdown are written once.
+    #[derive(Debug)]
+    struct Cancelling<R: core::fmt::Debug + Send + 'static, D: Send + 'static> {
+        inner: Coalescing<Tokened<R, D>>,
+        /// The token of the most recently submitted job.
+        cancel: CancelToken,
+    }
+
+    impl<R: core::fmt::Debug + Send + 'static, D: Send + 'static> Cancelling<R, D> {
+        /// Spawn the worker, answering each job with `run`. Nothing
+        /// survives between jobs.
+        fn spawn(
+            worker: Worker,
+            thread_name: &str,
+            run: fn(R, &CancelToken) -> D,
+        ) -> Result<Self, SpawnError> {
+            let inner =
+                Coalescing::spawn(worker, thread_name, (), move |_, job: Tokened<R, D>| {
+                    run(job.request, &job.cancel)
+                })?;
+            Ok(Self {
+                inner,
+                cancel: CancelToken::new(),
+            })
+        }
+
+        /// Cancel the job in flight, and hand `request` on.
+        fn submit(&mut self, request: R) {
+            self.cancel.cancel();
+            let cancel = CancelToken::new();
+            self.cancel = cancel.clone();
+            self.inner.submit(Tokened {
+                request,
+                cancel,
+                done: core::marker::PhantomData,
+            });
+        }
+
+        fn cancel(&mut self) {
+            self.cancel.cancel();
+        }
+
+        fn poll(&mut self) -> Option<D> {
+            self.inner.poll()
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    impl<R: core::fmt::Debug + Send + 'static, D: Send + 'static> Drop for Cancelling<R, D> {
+        /// [`ThreadEvaluator`]'s `Drop`: the job reads its token, so the
+        /// join is bounded by one node or one margin's discharge.
+        fn drop(&mut self) {
+            self.cancel.cancel();
+            self.inner.close_and_join();
+        }
+    }
+
+    /// A background-thread door seam: [`Cancelling`] over the
+    /// coincidence door's job.
     ///
     /// **Its own thread.** On the evaluator's, a door job would sit in
     /// front of the next evaluation until its token was seen; on its
@@ -1482,9 +1670,7 @@ mod threaded {
     /// draw the same landing.
     #[derive(Debug)]
     pub struct ThreadProver {
-        inner: Coalescing<DoorJobOf>,
-        /// The token of the most recently submitted job.
-        cancel: CancelToken,
+        inner: Cancelling<DoorRequest, DoorDone>,
     }
 
     impl ThreadProver {
@@ -1495,29 +1681,26 @@ mod threaded {
         /// [`SpawnError::Thread`] if the OS refuses the thread: every
         /// landing's door would otherwise read pending forever.
         pub fn spawn() -> Result<Self, SpawnError> {
-            let inner = Coalescing::spawn(Worker::Door, "viewer-door", (), |_, job: DoorJobOf| {
-                DoorDone {
-                    generation: job.request.generation,
-                    findings: job.request.job.run(&job.request.doc, &job.cancel),
-                }
-            })?;
             Ok(Self {
-                inner,
-                cancel: CancelToken::new(),
+                inner: Cancelling::spawn(
+                    Worker::Door,
+                    "viewer-door",
+                    |request: DoorRequest, cancel| DoorDone {
+                        generation: request.generation,
+                        findings: request.job.run(&request.doc, cancel),
+                    },
+                )?,
             })
         }
     }
 
     impl DoorService for ThreadProver {
         fn submit(&mut self, request: DoorRequest) {
-            self.cancel.cancel();
-            let cancel = CancelToken::new();
-            self.cancel = cancel.clone();
-            self.inner.submit(DoorJobOf { request, cancel });
+            self.inner.submit(request);
         }
 
         fn cancel(&mut self) {
-            self.cancel.cancel();
+            self.inner.cancel();
         }
 
         fn poll(&mut self) -> Option<DoorDone> {
@@ -1529,12 +1712,49 @@ mod threaded {
         }
     }
 
-    impl Drop for ThreadProver {
-        /// [`ThreadEvaluator`]'s `Drop`: the job reads its token, so the
-        /// join is bounded by one node or one margin's discharge.
-        fn drop(&mut self) {
-            self.cancel.cancel();
-            self.inner.close_and_join();
+    /// A background-thread staged seam: [`Cancelling`] over a staged
+    /// document's run. Its own thread, so a draft's verdict runs beside
+    /// the picture's evaluation rather than in front of it.
+    #[derive(Debug)]
+    pub struct ThreadStager {
+        inner: Cancelling<StagedRequest, Option<StagedDone>>,
+    }
+
+    impl ThreadStager {
+        /// Spawn the worker. Nothing survives between jobs.
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread: every
+        /// staged verdict would otherwise read pending forever.
+        pub fn spawn() -> Result<Self, SpawnError> {
+            Ok(Self {
+                inner: Cancelling::spawn(Worker::Staged, "viewer-staged", run_staged)?,
+            })
+        }
+    }
+
+    impl StagedService for ThreadStager {
+        fn submit(&mut self, request: StagedRequest) {
+            self.inner.submit(request);
+        }
+
+        fn cancel(&mut self) {
+            self.inner.cancel();
+        }
+
+        fn poll(&mut self) -> Option<StagedDone> {
+            // A canceled run's `None` is taken and dropped here.
+            while let Some(done) = self.inner.poll() {
+                if done.is_some() {
+                    return done;
+                }
+            }
+            None
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
         }
     }
 
@@ -1542,20 +1762,20 @@ mod threaded {
     ///
     /// # Why these rows are here and not against a public door
     ///
-    /// The four shipped handles cannot be crashed from outside, by
+    /// The shipped handles cannot be crashed from outside, by
     /// construction: a worker only dies by panicking inside its own
-    /// job, the job is `build_index`, `run_fit`, `run_once` or a door
-    /// job's `run`, and the
+    /// job, the job is `build_index`, `run_fit`, `run_once`, a door
+    /// job's `run` or `run_staged`, and the
     /// closure that calls it is private to this module with no door to
     /// inject a failure through. So a row driven through
     /// [`ThreadIndexer`] would have to make the KERNEL panic on an
     /// input, which is the thing D9 says cannot happen.
     ///
     /// What these drive instead is [`Coalescing`] itself — not a
-    /// hand-written mirror of it, but the very type all four handles
+    /// hand-written mirror of it, but the very type every handle
     /// delegate every `submit`, `poll` and `busy` to, carrying both of
     /// the arms under test. **What that does not prove** is the last
-    /// inch: that a panic inside one of those four private closures is
+    /// inch: that a panic inside one of those private closures is
     /// the only way to arrive, which is argued from the worker loop's
     /// three exits rather than executed.
     ///

@@ -202,6 +202,9 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) edge: EdgeKey,
     /// The loop the edge bounds.
     pub(crate) r#loop: LoopKey,
+    /// The surface cycle the edge is on, its index in
+    /// [`crate::surface_boundary::surface_cycles`]'s order.
+    pub(crate) cycle: usize,
     pub(crate) carrier: geom::Curve3<T>,
     pub(crate) t0: T,
     pub(crate) t1: T,
@@ -236,22 +239,21 @@ pub(crate) enum Scaffolding {
     Refused,
 }
 
-/// **`face`'s boundary**: every edge of its outer loop and its rings, in
-/// loop order, each on its certified carrier. `None` where a carrier's
-/// kind is not one of `admits`, or where an edge has no certified curve: an uncertified edge between two points is a gap in
-/// the boundary no reading may step over, and null scaffolding is as
-/// `scaffolding` says. Past those, an edge the face lies on both sides of
-/// ([`Body::both_sides_face`]: a seam, a wrap edge, a spur) is no
-/// boundary of it and is left out. The edges kept are the set the
-/// surface boundary's walk reaches
-/// ([`crate::surface_boundary::surface_cycles`]), by construction: both
-/// drop exactly the edges the predicate names. They are listed in loop
-/// order, not walk order; none for a face that covers its surface.
+/// **`face`'s boundary**: its surface boundary
+/// ([`crate::surface_boundary::surface_cycles`]), each edge on its
+/// certified carrier, cycle by cycle in walk order, each edge naming its
+/// cycle ([`RegionEdge::cycle`]). An edge the face lies on both sides of
+/// (a seam, a wrap edge, a spur) is no boundary of it and the walk turns
+/// through it; none for a face that covers its surface. `None` where a
+/// carrier's kind of any edge of its loops is not one of `admits`, or
+/// where such an edge has no certified curve: an uncertified edge
+/// between two points is a gap in the boundary no reading may step
+/// over, and null scaffolding is as `scaffolding` says.
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] for a key that does not resolve or
-/// an outer loop with no cycle.
+/// [`PointInSolidError::CorruptFace`] for a key that does not resolve,
+/// an outer loop with no cycle, or a surface boundary that does not walk.
 ///
 /// # Panics
 ///
@@ -266,7 +268,7 @@ pub(crate) fn boundary<T: Decide>(
 ) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
-    let mut edges = Vec::new();
+    let mut null = Vec::new();
     for (i, &lk) in core::iter::once(&f.outer).chain(&f.rings).enumerate() {
         let first = match body.get_loop(lk).ok_or_else(corrupt)?.boundary {
             LoopBoundary::Cycle { first } => first,
@@ -287,6 +289,7 @@ pub(crate) fn boundary<T: Decide>(
                     if point(edge.he_plus).ok_or_else(corrupt)?
                         == point(edge.he_minus).ok_or_else(corrupt)?
                     {
+                        null.push(edge_key);
                         continue;
                     }
                 }
@@ -295,17 +298,25 @@ pub(crate) fn boundary<T: Decide>(
             if !admits.contains(&curve.carrier().kind()) {
                 return Ok(None);
             }
-            if body
-                .both_sides_face(edge_key)
-                .ok_or_else(corrupt)?
-                .is_some()
-            {
+        }
+    }
+    let cycles = crate::surface_boundary::surface_cycles(body, face).map_err(|_| corrupt())?;
+    let mut edges = Vec::new();
+    for (cycle, members) in cycles.iter().enumerate() {
+        for &he in members {
+            let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+            if null.contains(&h.edge) {
                 continue;
             }
+            let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+            let Some(curve) = body.edge_curve_linked(h.edge, edge).certified() else {
+                unreachable!("every edge of the face's loops was read certified above")
+            };
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
-                edge: edge_key,
-                r#loop: lk,
+                edge: h.edge,
+                r#loop: h.parent_loop,
+                cycle,
                 carrier: curve.carrier().clone(),
                 t0,
                 t1,
@@ -317,7 +328,7 @@ pub(crate) fn boundary<T: Decide>(
     Ok(Some(edges))
 }
 
-/// Three points of every edge, in loop order, at [`TARGET_SHARES`] of
+/// Three points of every edge, in walk order, at [`TARGET_SHARES`] of
 /// its span: the aimed paths' targets.
 pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item = Point3<T>> + '_ {
     edges.iter().flat_map(|edge| {
@@ -333,6 +344,22 @@ pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item 
 pub(crate) trait Region<T: Decide> {
     /// The face's boundary ([`boundary`]).
     fn edges(&self) -> &[RegionEdge<T>];
+
+    /// The face's boundary, to cut ([`Region::keep_cycles`]).
+    fn edges_mut(&mut self) -> &mut Vec<RegionEdge<T>>;
+
+    /// **The region the surface cycles `keep` bound alone**: the boundary
+    /// less every edge of another cycle ([`RegionEdge::cycle`]), the one
+    /// cut a reading of a face against some of its cycles takes
+    /// ([`super::contain::cycle_side`]).
+    #[must_use]
+    fn keep_cycles(mut self, keep: &[usize]) -> Self
+    where
+        Self: Sized,
+    {
+        self.edges_mut().retain(|e| keep.contains(&e.cycle));
+        self
+    }
 
     /// The face's outer loop, named by an exhaustion.
     fn outer(&self) -> LoopKey;
@@ -351,7 +378,7 @@ pub(crate) trait Region<T: Decide> {
     ) -> Result<bool, RegionRefusal>;
 
     /// **The boundary pre-pass**: whether `p` is on an edge, read edge by
-    /// edge in loop order before any path. A crossing's place along a
+    /// edge in walk order before any path. A crossing's place along a
     /// path is no measure of `p`'s distance from the edge it crosses, so
     /// the paths never answer it.
     ///
@@ -877,6 +904,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(1)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier,
             t0,
             t1,

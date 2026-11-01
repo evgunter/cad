@@ -679,6 +679,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
    at-vertex placement, the reset and the tip rule all read),
+   **one region per face** off the plane (each surface cycle on the
+   face's side of every other, read by the point-in-face doors cut to
+   one cycle, a torus's essential cycles as one pair:
+   `CycleOffFaceSide`, `CycleSideUndecided`, `EssentialCyclesUnpaired`;
+   `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
