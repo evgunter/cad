@@ -1093,7 +1093,7 @@ fn a_cap_on_another_plane_across_a_plates_top_refuses() {
     let t = tol();
     for ra in 0..5 {
         for rb in 0..5 {
-            let mut ring = vec![
+            let mut ring = [
                 (0.0, 2.0, 0.0),
                 (6.0, 0.0, 0.0),
                 (10.0, 5.0, 0.0),
@@ -1105,7 +1105,7 @@ fn a_cap_on_another_plane_across_a_plates_top_refuses() {
                 .iter()
                 .map(|&(x, y, b)| (Point2::new(x, y), b))
                 .collect();
-            let mut chevron = vec![
+            let mut chevron = [
                 (0.0, 0.0),
                 (-2.0, -3.0),
                 (5.5, -0.2),
