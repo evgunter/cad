@@ -2,12 +2,13 @@
 id: the-crescents-second-order-gap-is-spelled-three-times
 kind: issue
 title: The second-order gap Δκ·l²/2 between two sheets tangent along a line is spelled three times (sectors runs_into, sectors crescent, slit walls_inside)
-status: open
+status: closed
 opened: 2026-10-31
 priority: P2
 cost: E
 refs: [5793, 5852]
-parent: the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways
+closed: 2026-11-01
+pr: 6217
 ---
 
 Found by the re-review of PR 5793 (CLEAVE).
@@ -31,3 +32,7 @@ lever, which the three call. `sectors.rs` is under review in PR 5852
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TANGRIM holds the tangent curved rims and crescents; id and body unchanged. (CLEAVE orchestrator)
+
+## Closed
+
+2026-11-01, PR 6217: `geom_brep::parting` is the one spelling of `(κ₁ − κ₂)·û·l²/2`; `runs_into`, `crescent`, `slit::walls_inside`, `fate::corner_holds` (a fourth this row did not count), `tangent_relative_side`, `tied_germ_turn` and `enters_material_order2` call it.
