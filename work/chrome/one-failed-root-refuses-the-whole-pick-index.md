@@ -2,7 +2,7 @@
 id: one-failed-root-refuses-the-whole-pick-index
 kind: issue
 title: one failed root refuses the whole pick index, so every healthy body loses picking and the picture stops following the document
-status: review
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: M
@@ -11,6 +11,7 @@ parent: a-failed-feature-hides-every-later-edit
 branch: chrome/partial-picture
 rides_with: a-failed-feature-hides-every-later-edit
 pr: 6205
+closed: 2026-11-01
 ---
 
 
@@ -86,3 +87,7 @@ size. Id and body unchanged.
 ## Released (INTENT, 2026-10-26)
 
 This row was parked on the stage-3 placement pivot (`a-placement-pins-by-written-values-without-a-mate`). All three of its PRs are merged: D′1 (PR 5592), D′2 (PR 5613) and D′3 (PR 5636, `29110056e8`). Re-check this row against main, then fix, narrow or close it. That is the owning track's call.
+
+## Closed (2026-11-01, PR 6205)
+
+Closed with its carrier, `a-failed-feature-hides-every-later-edit`: the index no longer refuses as a whole on one failed copy.

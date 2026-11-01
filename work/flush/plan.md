@@ -16,11 +16,9 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 |---|---|---|---|
 | P3 | `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` | H | PR 5706's residue |
 
-In flight, both P1, each with one FULL review:
-- `main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond` (M);
-- `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side` (M; INSIDE's duplicate is closed into it).
+In flight: `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side` (P1 M, one FULL review; INSIDE's duplicate is closed into it). The partial-torus rim ray closed with PR 6168 (2026-11-01).
 
-Once both close, the sitting ends (`memories/orchestration-model.md`): the P0s are parked on REACHHOLD and the rest is tail.
+Once it closes, the sitting ends (`memories/orchestration-model.md`): the P0s are parked on REACHHOLD and the rest is tail.
 
 Parked, and not counted:
 
