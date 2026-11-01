@@ -243,3 +243,58 @@ fn two_slanted_rims_tangent_on_the_ruling_build_at_their_touch() {
         }
     }
 }
+
+/// **The bodies built at the slanted rims' touch are right point by
+/// point.** [`two_slanted_rims_tangent_on_the_ruling_build_at_their_touch`]'s
+/// union and `A ∖ B`, at tilts `0` and `0.3`, read by `point_in_solid`
+/// against the operands' analytic membership: beside the touch at
+/// `(2, 0, 0)` down to `10⁻⁵`, and across the rods. No point reads
+/// wrong.
+#[test]
+fn the_bodies_at_the_slanted_rims_touch_read_right_point_by_point() {
+    for tilt in [0.0f64, 0.3] {
+        let a = cut(&rod(1.0, 1.0), tilt, true);
+        let b = cut(&rod(2.0, 0.0), tilt, false);
+        let k = tilt.tan();
+        let in_a = |p: Point3<f64>| {
+            ((p.x - 1.0).powi(2) + p.y.powi(2) < 1.0) && p.z < p.y * k && p.z.abs() < H
+        };
+        let in_b =
+            |p: Point3<f64>| (p.x.powi(2) + p.y.powi(2) < 4.0) && p.z > p.y * k && p.z.abs() < H;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        for (o, name) in [(BooleanOp::Union, "A∪B"), (BooleanOp::Subtract, "A−B")] {
+            let Ok(BooleanResult::Body(res)) = op(o, &a, &b) else {
+                panic!("tilt {tilt} {name}: refused")
+            };
+            let mut samples = Vec::new();
+            for &dx in &[-1e-2, -1e-3, -1e-5, 1e-5, 1e-3, 1e-2] {
+                for &dy in &[-0.3, -1e-3, 0.0, 1e-3, 0.3] {
+                    for &dz in &[-0.7, -1e-3, 1e-3, 0.7] {
+                        samples.push(Point3::new(2.0 + dx, dy, dy * k + dz));
+                    }
+                }
+            }
+            for &x in &[-1.5, -0.5, 0.5, 1.0, 1.5, 1.9] {
+                for &y in &[-1.2, -0.5, 0.0, 0.5, 1.2] {
+                    for &dz in &[-1.0, -0.2, 0.2, 1.0] {
+                        samples.push(Point3::new(x, y, y * k + dz));
+                    }
+                }
+            }
+            let mut wrong = Vec::new();
+            for p in samples {
+                let want = match name {
+                    "A∪B" => in_a(p) || in_b(p),
+                    _ => in_a(p) && !in_b(p),
+                };
+                match topo::point_in_solid(&res.body, p, band, tol()) {
+                    Ok(topo::SolidContainment::In) if want => {}
+                    Ok(topo::SolidContainment::Out) if !want => {}
+                    Ok(topo::SolidContainment::In | topo::SolidContainment::Out) => wrong.push(p),
+                    _ => {}
+                }
+            }
+            assert!(wrong.is_empty(), "tilt {tilt} {name}: wrong at {wrong:?}");
+        }
+    }
+}

@@ -14,6 +14,8 @@
 //! band's own metres (its docs: Taylor bounds on pieces, each piece
 //! clear or monotone, each root bisected and read ON the surface, a
 //! tangency refused typed, [`crate::roots::RootRefusal`]).
+//! [`certified_subdivision_touching`] is the same walk, placing a touch
+//! on a convex piece where the plain walk refuses one.
 //!
 //! The subdivision is not bound to degree two: a residual of degree `N`
 //! (at most [`MAX_DEGREE`]) has at most `2N` roots, and its Taylor and
@@ -261,12 +263,13 @@ pub struct SubdivisionRows {
 /// toward its ends' common side, the walk reads its extremum as a
 /// touch ([`certified_subdivision_touching`]).
 pub struct TouchRows {
-    /// `F″` is one-signed on the piece, read exactly (a sign, not a
-    /// length).
+    /// The least of `F″` toward the ends' side over the piece is
+    /// positive, read exactly (a sign, not a length), and so are the
+    /// slopes toward the extremum at the piece's ends.
     pub convex: &'static str,
-    /// The arc that holds every root of `F` on the piece, as metres:
-    /// zero is one touch.
-    pub gap: &'static str,
+    /// The reach about the extremum that holds the roots of `F` on the
+    /// piece, as an arc in metres: zero is one touch.
+    pub root_reach: &'static str,
 }
 
 /// The roots and touches [`certified_subdivision_touching`] certifies:
@@ -502,6 +505,22 @@ pub(crate) const SPLITS: [f64; 9] = [
 /// to reach the scalar's resolution from a sixteenth of a turn.
 const BISECTIONS: u32 = 64;
 
+/// **The bracket about `g`'s one sign change on `(l, r)`**, halved
+/// [`BISECTIONS`] times: to two adjacent scalars from a sixteenth of a
+/// turn.
+fn sign_change<T: Decide>(g: &impl Fn(T) -> T, l: T, r: T) -> (T, T) {
+    let two = T::from_f64(2.0);
+    let (mut lo, mut hi) = (l, r);
+    let at_lo = g(l);
+    for _ in 0..BISECTIONS {
+        let c = (lo + hi) / two;
+        let product = g(c) * at_lo;
+        lo = product.select_le_zero(lo, c);
+        hi = product.select_le_zero(c, hi);
+    }
+    (lo, hi)
+}
+
 /// **The certified real roots of a trigonometric polynomial `F(θ)` of
 /// degree `N ≤ MAX_DEGREE` over the whole turn about the arc's midpoint,
 /// by subdivision decided in the RESIDUAL's metres.** It is
@@ -600,38 +619,50 @@ pub fn certified_subdivision<T: Decide>(
 }
 
 /// **[`certified_subdivision`] that places a touch** where the walk
-/// would refuse one. A piece neither clear nor monotone, whose ends
-/// read one side and on which `F″` is definitely one-signed toward it
-/// (`convex`: the least `|F″|` on the piece, `c`, from the same Taylor
-/// terms and charges as the monotone reading), holds no root or two
-/// (a double root counted twice), both about `F`'s one extremum there.
-/// That extremum `θ*` is bisected on `F′`, which is monotone on the
-/// piece, and the residual there is read (`side`):
+/// would refuse one. Take a piece that is neither clear nor monotone and
+/// whose ends read one side. Let `G = ±F` be positive at those ends, and
+/// `c` the least `G″` on the piece, from the same Taylor terms and
+/// charges as the monotone reading. Where `c` and the slopes `G′` toward
+/// the extremum at the ends read positive (`convex`), the piece holds
+/// `G`'s one extremum `θ*` and no root or two (a double root counted
+/// twice). `θ*` is bisected on `F′`, and the residual there is read
+/// (`side`).
 ///
-/// - **ON** (the zero band): `G = ±F`, positive at the ends, is at
-///   least `G(θ*) − G′(θ*)²/(2c)` on the piece, and a root lies where
-///   `G` has fallen to zero from its least, within
-///   `|G′(θ*)|/c + √(2·depth/c)` of `θ*`, `depth` that least's depth
-///   below zero. Read at the least depth `F`'s rounding allows (the
-///   value less its noise), as the circle pair reads its root gap, the
-///   arc between the farthest two such roots at the carrier's top speed
-///   (`gap`) decides: zero is one touch at `θ*`, standing for every
-///   root on the piece, and the piece settles; in the gap it refuses
-///   [`RootRefusal::Touch`]. Roots the band can part are the walk's.
-/// - otherwise the walk goes on as [`certified_subdivision`]'s.
+/// - **ON** (the zero band). `G(x) ≥ G(θ*) + G′(θ*)(x − θ*) + c(x − θ*)²/2`
+///   on the piece, so every root lies within
+///   `(|G′(θ*)| + e₁)/c + √(2·depth/c)` of `θ*`. Here `e₁` is the bound
+///   on `F′`'s rounding, and `depth` is `G(θ*)`'s fall below zero less
+///   its noise ([`crate::roots::past_noise`]), plus `(|G′(θ*)| + e₁)²/(2c)`.
+///   Twice that reach, at the carrier's top speed, is read (`root_reach`):
+///   - zero is one touch at `θ*`, and the piece settles;
+///   - in the gap it refuses [`RootRefusal::Touch`];
+///   - definite, the walk goes on as [`certified_subdivision`]'s. It
+///     cuts the piece only where a share reads a definite sign, so
+///     roots within one in-band arc end in its refusal.
+/// - **Otherwise** the walk goes on as [`certified_subdivision`]'s.
 ///
-/// A touch counts two roots toward the degree's bound. With no touch
-/// placed the answer is [`certified_subdivision`]'s on every input.
+/// **What a touch certifies.** The reach is read at the least depth the
+/// noise allows, as the circle pair reads its extreme less its noise.
+/// So the touch is placed within the reach of every root the noise
+/// cannot part from it, and roots that only the noise parts are one
+/// meeting. True roots may lie up to about `√(2·noise/c)` past that
+/// reach.
+///
+/// A touch counts two roots toward the degree's bound. Without
+/// `touch` the walk is [`certified_subdivision`]'s. With it, a piece
+/// that reads convex can also settle on a touch, or refuse where the
+/// plain walk would cut on.
 ///
 /// # Errors
 ///
-/// As [`certified_subdivision`], and [`RootRefusal::Touch`] on a touch
-/// whose roots' arc reads in the band's gap.
+/// As [`certified_subdivision`], and [`RootRefusal::Touch`] where the
+/// reach reads in the band's gap.
 pub fn certified_subdivision_touching<T: Decide>(
     f: &TrigPoly<T>,
     residual: &impl Fn(T) -> T,
     frame: &SubdivisionFrame<'_, T>,
-    (rows, touch): (&SubdivisionRows, &TouchRows),
+    rows: &SubdivisionRows,
+    touch: &TouchRows,
     band: Band,
 ) -> Result<Touching<T>, RootRefusal> {
     subdivision(f, residual, frame, rows, None, Some(touch), band)
@@ -722,20 +753,20 @@ fn subdivision<T: Decide>(
     let definitely = |row, m: T| matches!(decide(row, Margin::of(m), band), Ok(Sign::Positive));
     // The first reading in the band's gap at a cut the walk tried: what a
     // walk that can cut nowhere definite refuses on.
-    let gap = core::cell::Cell::new(None);
+    let first_in_gap = core::cell::Cell::new(None);
     let side = |t: T| match decide(rows.side, Margin::of(residual(t)), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
         Ok(Sign::Zero) => None,
         Err(diag) => {
-            if gap.get().is_none() {
-                gap.set(Some(diag));
+            if first_in_gap.get().is_none() {
+                first_in_gap.set(Some(diag));
             }
             None
         }
     };
     // Every cut tried reads in band: a touch on the gap's reading where
     // one read there, and a touch decided in the zero band where none did.
-    let uncut = || touch_or_tangency(gap.get(), RootRefusal::Touch);
+    let uncut = || touch_or_tangency(first_in_gap.get(), RootRefusal::Touch);
     // The first cut: one end in each sixteenth of the turn, each moved
     // along its sixteenth until its sign is definite; a sixteenth with no
     // such share is re-cut by leaving it inside its neighbours' piece, so
@@ -764,6 +795,18 @@ fn subdivision<T: Decide>(
     // unordered). A walk past the core's piece budget answers
     // [`Unsettled::Exhausted`].
     let pieces: Vec<((T, Sign), (T, Sign))> = ends.windows(2).map(|w| (w[0], w[1])).collect();
+    // A root or a touch is reported within `π` of the arc's midpoint, so
+    // a caller compares it with `[t0, t1]` directly: the first cut's ends
+    // are moved along their pieces, so the last piece runs past the
+    // half-turn. Of the two adjacent scalars a bracket closes on, a steep
+    // residual can read ON at one only, and their midpoint rounds onto
+    // either. Sound at every scalar by `ring_path::branch`'s window
+    // re-centring argument. `rows.side` reads the residual, which is
+    // periodic. The readers read an end of a whole-turn span alike: the
+    // wall crossing's `at_end`, and the ruling's fixed `(−π, π)` window,
+    // which re-sorts its roots. None reads the root as an identity.
+    let mid = (t0 + t1) / two;
+    let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
     let mut roots: Vec<T> = Vec::new();
     let mut touches: Vec<T> = Vec::new();
     let walk = bisect(pieces, |((l, sl), (r, sr)): ((T, Sign), (T, Sign))| {
@@ -794,31 +837,7 @@ fn subdivision<T: Decide>(
             // from its harmonics: the two share their zero set, and near a
             // graze `|F′|` is small enough that the harmonics' rounding
             // moves `F`'s sign change along the arc by more than the band.
-            let close = |l: T, r: T| {
-                let (mut lo, mut hi) = (l, r);
-                let at_lo = residual(l);
-                for _ in 0..BISECTIONS {
-                    let c = (lo + hi) / two;
-                    let product = residual(c) * at_lo;
-                    lo = product.select_le_zero(lo, c);
-                    hi = product.select_le_zero(c, hi);
-                }
-                (lo, hi)
-            };
-            // Reported within `π` of the arc's midpoint, so a caller
-            // compares it with `[t0, t1]` directly: the first cut's ends
-            // are moved along their pieces, so the last piece runs past
-            // the half-turn. Of the two adjacent scalars the bracket
-            // closes on, a steep residual can read ON at one only, and
-            // their midpoint rounds onto either. Sound at every scalar by
-            // `ring_path::branch`'s window re-centring argument.
-            // `rows.side` reads the residual, which is periodic. The
-            // readers read an end of a whole-turn span alike: the wall
-            // crossing's `at_end`, and the ruling's fixed `(−π, π)`
-            // window, which re-sorts its roots. None reads the root as an
-            // identity.
-            let mid = (t0 + t1) / two;
-            let reported = |t: T| mid + (t - mid).reduce_periodic_centred(T::tau());
+            let close = |l: T, r: T| sign_change(residual, l, r);
             let nearer = |(lo, hi): (T, T)| {
                 let (at_lo, at_hi) = (reported(lo), reported(hi));
                 (residual(at_lo).abs() - residual(at_hi).abs()).select_le_zero(at_lo, at_hi)
@@ -889,26 +908,20 @@ fn subdivision<T: Decide>(
                 && exactly(slope(l)) == Some(Sign::Negative)
                 && exactly(slope(r)) == Some(Sign::Positive)
             {
-                let (mut lo, mut hi) = (l, r);
-                for _ in 0..BISECTIONS {
-                    let c = (lo + hi) / two;
-                    let rising = slope(c);
-                    lo = rising.select_le_zero(c, lo);
-                    hi = rising.select_le_zero(hi, c);
-                }
+                let (lo, hi) = sign_change(&slope, l, r);
                 let at = (lo + hi) / two;
                 if matches!(
                     decide(rows.side, Margin::of(residual(at)), band),
                     Ok(Sign::Zero)
                 ) {
-                    let [(g0, n0), (g1, _), _, _] = taylor(at);
-                    let depth =
-                        (T::zero() - toward * g0 - n0).max(T::zero()) + g1.powi(2) / (two * curve);
-                    let reach = g1.abs() / curve + (two * depth / curve).sqrt();
-                    match decide(touch.gap, Margin::of(two * speed_hi * reach), band) {
+                    let [(g0, n0), (g1, e1), _, _] = taylor(at);
+                    let slope_hi = g1.abs() + e1;
+                    let depth = crate::roots::past_noise(T::zero() - toward * g0, n0)
+                        + slope_hi.powi(2) / (two * curve);
+                    let reach = slope_hi / curve + (two * depth / curve).sqrt();
+                    match decide(touch.root_reach, Margin::of(two * speed_hi * reach), band) {
                         Ok(Sign::Zero) => {
-                            let mid = (t0 + t1) / two;
-                            touches.push(mid + (at - mid).reduce_periodic_centred(T::tau()));
+                            touches.push(reported(at));
                             return Step::Settled;
                         }
                         Err(diag) => return Step::Stop(RootRefusal::Touch(diag)),
@@ -923,7 +936,7 @@ fn subdivision<T: Decide>(
         if !definitely(rows.width, speed_hi * (r - l)) {
             return Step::Stop(Unsettled::Tangency.into());
         }
-        gap.set(None);
+        first_in_gap.set(None);
         let Some((c, sc)) = SPLITS.iter().find_map(|&share| {
             let c = l + (r - l) * T::from_f64(share);
             side(c).map(|s| (c, s))

@@ -144,17 +144,24 @@
 //! **The coplanar subdivisions place a touch as the circle pair does**
 //! ([`crate::half_angle::certified_subdivision_touching`]). Two conics
 //! that touch stay within the band of each other over an arc much wider
-//! than the band, so no cut there reads a definite sign. Before that
-//! arc is cut, the piece holding it reads convex toward its ends' common
-//! side (`curve_pair_coplanar_sub_convex`): `F″` one-signed, so `F` has
-//! one extremum there and at most two roots, both about it. The
-//! extremum is the candidate. Read on the carrier in the zero band, the
-//! arc that holds every root of the piece, at the least depth `F`'s
-//! rounding allows, decides (`curve_pair_coplanar_sub_touch`): zero is
-//! one touch standing for them all, as the circle pair's root gap read
-//! zero is; in the gap it escalates; roots the band can part are left to
-//! the walk. The touch is the extremum's own point, on the first
-//! carrier exactly, and is read on both spans like any candidate.
+//! than the band, so no cut there reads a definite sign. Before that arc
+//! is cut, the piece holding it reads convex toward its ends' common
+//! side (`curve_pair_coplanar_sub_convex`): `F` has one extremum there
+//! and at most two roots, both about it. The extremum is the candidate.
+//! Where the carrier there reads in the zero band, the reach about it
+//! that holds the piece's roots is read (`curve_pair_coplanar_sub_touch`).
+//! The reach takes the extremum's depth at the least the noise allows,
+//! as the circle pair reads its root gap
+//! ([`crate::roots::past_noise`]), and its slope charged with its
+//! rounding.
+//! - **Zero** is one touch: roots that only the noise parts are one
+//!   meeting, as for the circle pair.
+//! - **In the gap** it escalates.
+//! - **Definite**, the walk goes on, and roots within one in-band arc
+//!   end in its refusal.
+//!
+//! The touch is the extremum's own point, on the first carrier exactly,
+//! and is read on both spans like any candidate.
 //!
 //! # Across planes: the closest pair
 //!
@@ -350,7 +357,7 @@ const COPLANAR_ROWS: SubdivisionRows = SubdivisionRows {
 /// subdivision").
 const COPLANAR_TOUCH: TouchRows = TouchRows {
     convex: "curve_pair_coplanar_sub_convex",
-    gap: "curve_pair_coplanar_sub_touch",
+    root_reach: "curve_pair_coplanar_sub_touch",
 };
 
 /// **The pose of `a`'s and `b`'s carriers** (module docs), dispatched
@@ -1301,7 +1308,8 @@ fn subdivided<T: Decide>(
         poly,
         residual,
         frame,
-        (&COPLANAR_ROWS, &COPLANAR_TOUCH),
+        &COPLANAR_ROWS,
+        &COPLANAR_TOUCH,
         band,
     )?;
     let roots: &[T] = match &found.roots {
@@ -1504,7 +1512,7 @@ fn harmonic_roots<T: Decide>(
     // two roots the noise alone puts apart read as the touch they are.
     let least = |cross: T, extreme: T| {
         let size = extreme.abs();
-        cross * ((size - r.noise).max(T::zero()) / size.max(r.noise))
+        cross * (crate::roots::past_noise(size, r.noise) / size.max(r.noise))
     };
     let (psi, gap_psi, at_near) = match (lo, hi) {
         (Sign::Positive, _) | (_, Sign::Negative) => return Ok(Harmonic::Apart),

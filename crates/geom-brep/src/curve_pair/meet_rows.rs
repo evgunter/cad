@@ -649,6 +649,179 @@ fn coplanar_conic_rims_tangent_at_a_vertex_meet_once_there() {
     }
 }
 
+/// `at` turned by `phi` about the origin, then moved by `shift`.
+fn turned_by(at: [f64; 2], phi: f64, shift: [f64; 2]) -> [f64; 2] {
+    let (s, c) = phi.sin_cos();
+    [
+        c * at[0] - s * at[1] + shift[0],
+        s * at[0] + c * at[1] + shift[1],
+    ]
+}
+
+/// **Ellipses crossing near a touch read one meeting only where the
+/// noise parts them.** Three families, at ε = 1e-6, 1e-9 and 1e-12,
+/// at three turns of the plane, in both orders:
+/// - two equal `(2, 1)` ellipses, one pushed down so they cross twice
+///   `s` apart, `s` from `0.1ε` to `10⁵ε`;
+/// - `(2, 1)` and `(3, 1.5)` touching outside at `(0, 1)`, pushed
+///   together likewise;
+/// - an osculating pair (`(2, 1)` and `(√8, 2)` about `(0, −1)`, equal
+///   curvature at the touch), pushed together, pulled apart, or touching.
+///
+/// No crossing pair reads no meeting. Crossings more than `10ε` apart
+/// whose depth is past the noise (`2·10⁻¹³`) never read as one meeting,
+/// and every meeting lies within `10ε` of a true crossing. A pair pulled
+/// apart past `10ε` reads none. Red where the touch's reach is not read.
+#[test]
+fn ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_them() {
+    let mut bad = Vec::new();
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for phi in [0.0f64, 0.7, 2.3] {
+            let shift = if phi == 0.0 { [0.0, 0.0] } else { [3.1, -1.7] };
+            let u = [phi.cos(), phi.sin()];
+            // Case 1: equal ellipses (2, 1), the second pushed down by δ:
+            // crossings at (±2√(δ − δ²/4), 1 − δ/2).
+            for k in [0.1, 0.5, 2.0, 5.0, 20.0, 100.0, 1e3, 1e4, 1e5] {
+                let s = k * eps;
+                let cy = 2.0 - s * s / 16.0;
+                let delta = 2.0 - cy;
+                if delta == 0.0 {
+                    continue;
+                }
+                let half = 2.0 * (delta - delta * delta / 4.0).sqrt();
+                let s_true = 2.0 * half;
+                let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
+                let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 2.0, 1.0);
+                let truth = [
+                    turned_by([half, 1.0 - delta / 2.0], phi, shift),
+                    turned_by([-half, 1.0 - delta / 2.0], phi, shift),
+                ];
+                for (order, got) in [
+                    (
+                        "ab",
+                        meet(&Span::new(&a, (-PI, PI)), &Span::new(&b, (-PI, PI)), band),
+                    ),
+                    (
+                        "ba",
+                        meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
+                    ),
+                ] {
+                    let label = format!("eq eps {eps:e} phi {phi} s {s_true:.3e} ({k}eps) {order}");
+                    if let Ok(m) = &got {
+                        if m.points.is_empty() {
+                            bad.push(format!("{label}: no meeting"));
+                        }
+                        if m.points.len() == 1 && s_true > 10.0 * eps && delta > 2e-13 {
+                            bad.push(format!("{label}: one meeting, crossings {s_true:e} apart"));
+                        }
+                        for p in &m.points {
+                            let d = truth
+                                .iter()
+                                .map(|t| (p.point - Point3::new(t[0], t[1], 0.0)).norm())
+                                .fold(f64::INFINITY, f64::min);
+                            if d > 10.0 * eps && delta > 2e-13 {
+                                bad.push(format!("{label}: point {d:e} off a crossing"));
+                            }
+                        }
+                    }
+                }
+            }
+            // Case 2: (2, 1) and (3, 1.5) touching outside at (0, 1),
+            // pushed together δ: crossings at x ≈ ±√(24δ/5).
+            for k in [0.5, 2.0, 5.0, 20.0, 1e3, 1e5] {
+                let s = k * eps;
+                let x = s / 2.0;
+                let cy = 2.5 - x * x * 5.0 / 24.0;
+                let delta = 2.5 - cy;
+                if delta == 0.0 {
+                    continue;
+                }
+                let half = (24.0 * delta / 5.0).sqrt();
+                let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
+                let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 3.0, 1.5);
+                for (order, got) in [
+                    (
+                        "ab",
+                        meet(&Span::new(&a, (-PI, PI)), &Span::new(&b, (-PI, PI)), band),
+                    ),
+                    (
+                        "ba",
+                        meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
+                    ),
+                ] {
+                    let label = format!(
+                        "uneq eps {eps:e} phi {phi} s {:.3e} ({k}eps) {order}",
+                        2.0 * half
+                    );
+                    if let Ok(m) = &got {
+                        if m.points.is_empty() {
+                            bad.push(format!("{label}: no meeting"));
+                        }
+                        if m.points.len() == 1 && 2.0 * half > 10.0 * eps && delta > 2e-13 {
+                            bad.push(format!("{label}: one meeting, crossings apart"));
+                        }
+                    }
+                }
+            }
+            // Case 3: osculating. (2, 1) about the origin and (√8, 2)
+            // about (0, −1): equal curvature 1/4 at (0, 1), the second
+            // above by x⁴/256. Pushed down δ they cross at
+            // x = ±(256δ)^¼; pulled up δ they are δ apart.
+            for dy in [
+                0.0,
+                -1e-14,
+                -1e-12,
+                -1e-10,
+                -1e-8,
+                1e-14,
+                1e-10,
+                -0.1 * eps,
+                -eps,
+                -100.0 * eps,
+                0.5 * eps,
+                5.0 * eps,
+                100.0 * eps,
+            ] {
+                let cy = -1.0 + dy;
+                let delta = -(cy + 1.0);
+                let a = flat_ellipse(turned_by([0.0, 0.0], phi, shift), u, 2.0, 1.0);
+                let b = flat_ellipse(turned_by([0.0, cy], phi, shift), u, 8.0f64.sqrt(), 2.0);
+                let s_true = if delta > 0.0 {
+                    2.0 * (256.0 * delta).powf(0.25)
+                } else {
+                    0.0
+                };
+                for (order, got) in [
+                    (
+                        "ab",
+                        meet(&Span::new(&a, (-PI, PI)), &Span::new(&b, (-PI, PI)), band),
+                    ),
+                    (
+                        "ba",
+                        meet(&Span::new(&b, (-PI, PI)), &Span::new(&a, (-PI, PI)), band),
+                    ),
+                ] {
+                    let label =
+                        format!("osc eps {eps:e} phi {phi} dy {dy:e} s {s_true:.3e} {order}");
+                    if let Ok(m) = &got {
+                        if delta > 0.0 && m.points.is_empty() {
+                            bad.push(format!("{label}: crossing, no meeting"));
+                        }
+                        if delta < -10.0 * eps && !m.points.is_empty() {
+                            bad.push(format!("{label}: apart, met"));
+                        }
+                        if m.points.len() == 1 && s_true > 10.0 * eps && delta > 1e-13 {
+                            bad.push(format!("{label}: one meeting, crossings {s_true:e} apart"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(bad.is_empty(), "{}", bad.join("\n"));
+}
+
 /// What a pair whose least distance is in the zero band may answer: a
 /// meeting on both interiors, or a refusal. A decided answer with no
 /// meeting prunes an in-band decision (D4).
