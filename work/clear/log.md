@@ -311,6 +311,17 @@ Signed: (CARVE orchestrator)
     - `restrict-derivative-widens-on-a-few-ulp-knot-span` (P3);
     - CLEARTAIL's `derivative-bernstein-row-over-a-sub-interval-has-three-homes` (P3);
     - **`rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot` (P2).** It was found by the widened fuzzer and is pre-existing. At a knot of multiplicity ≥ the degree, a cell ending on the knot drops the one-point meet, so its jet misses the derivative `ders` reads from the next span. It awaits a ruling on `a <= b`, which would widen jets at every p-fold knot.
+- 2026-11-01 — **The price row weighed; JETFRAME dispatched.** The fork drew three designers (byte 42): one Fable and two Opus, labelled A, B and C. The bytes and the mapping are on `analysis/design-fork/injectivity-price`.
+  - **All three, independently, rejected the premise.** Tour lofts are expensive mostly because `rect_jet` builds a rational net's derivative in world coordinates, so its width carries the body's distance from the origin and never shrinks with the cell. It is not the geometry, and not the pricing.
+  - **They converged on:** fix the enclosure, add an oriented distance test, and keep one fixed pair budget per question (Ev's PR 6102 shape for measurement). They rejected a per-body budget and a coarser arm.
+  - **Not an `[ev]` PR,** since there is no split. The one open question is whether loft and sweep doors run the check on every rebuild. That is CARVE's door; the designers advise putting it to Ev with numbers after the fixes land.
+  - **Filed:**
+    - `rect-jet-forms-the-rational-derivative-in-the-absolute-frame` (P0, dispatched as JETFRAME, `clear/jetframe`, single FULL review with an oracle);
+    - `distance-test-separates-boxes-not-directions` (P0, since it blocks the P0 price row);
+    - `budget-refusal-names-no-pair` (P2);
+    - `monotone-halves-retest-the-hull-that-just-failed` (P3).
+  - The price row is parked on the first two.
+  - **Class, recorded:** CLEAR has four filed rows whose enclosure width grows with translation. One home for a rational derivative over a cell is the fix; JETFRAME sweeps for it.
 - 2026-11-01 — **TRV merges (#6233)** with this commit last. The clearance engine refuses what does not certify.
   - **R1, at the lift.** The lift is now a type, `lift::Lift`, minted only by `certified_lift`, and every reader takes it.
   - **`poisoned(sep)`** gates the root, pair, witness and overflow reads. `overflow` now poisons as `pair` does, instead of flooring at 0.
@@ -327,3 +338,20 @@ Signed: (CARVE orchestrator)
 - 2026-11-01 — **ZEROSIDE merges (#6234)** with this commit last, closing the parent `injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams`. For a linear ψ, `on_side` reads a spline side's zero off the hull of ψ at the side's restricted control points (`rect_net`), with every restricted weight `certainly_positive`, and otherwise falls back to the centred form. The cap corners of the lens loft, the lily and the Klein loop hold at depth 40, and `lily_leaf_b`/`c` hold as whole bodies.
   - **The review.** A single FULL review at `336f70ff7a` returned APPROVE-WITH-FIXES. It found 0 misses over 38.4k sides, with weights down to 1e-300. The certification half of the weight guard was unpinned, and a zero or negative weight could be built through `map_scalar`, contrary to the PR body. The fix pass (`0040c865`) pinned the guard at `certainly_positive`, added a row for zero and negative weights, swept the three weight guards to `certainly_positive`, and updated the `self_intersection_on_shared` audit row. The orchestrator read it and accepted it.
   - **CARVE's spines row** now waits on the price row alone.
+- 2026-11-01 — **JETFRAME merges (#6250)** with this commit last. A rational net's derivative over a cell is now read about the cell's middle: `geom::net` (`cell_origin`, `homogeneous_about`, `rational_slope`, `rational_mixed`), through which `rect_jet` and `span_deriv` read, so its width no longer depends on where the body sits. Measured:
+  - a quarter circle at (3, 3) matches its twin at the origin to 1e-7, and stays within 2.07× of its sampled spread;
+  - each lily and Klein wall holds against itself;
+  - `lily_leaf_a` **holds** as a whole body (9.6k pairs, 34 s) with ZEROSIDE;
+  - the Klein loop still runs out of budget (65.5k pairs, 52 s), which is DIRSUPPORT's case.
+  - **The review.** A single FULL review at `14e38c01d5` returned APPROVE-WITH-FIXES. Its exact oracle ran 3.56M coordinates, at translations up to 1e15, with 0 misses. `S_uv` had no deterministic row, the public doc was stale, and non-finite `c` read as 0. The fix pass (`6485ced3`) added a fixed exact `S_uv` row (F, G, H and I red), refusal on a non-finite middle and an uncertified weight, one home for the slope and the mixed term, and per-piece `c` on curves. It re-baselined ZEROSIDE's lily cap-corner pin to `(0, 0)` per pair, the same verdict, now at the root. The orchestrator read it and accepted it.
+  - **Mutant J** (no outward rounding) is unobservable by any row, and the rounding is sound by reading; this is noted in the PR body.
+  - **The price row** now waits on DIRSUPPORT alone.
+- 2026-11-01 — **DIRSUPPORT merges (#6254)** with this commit last. Where the box margin is indeterminate, the distance arm separates two cells along a direction `n`: either each cell's centre normal or the centre-to-centre line, whichever gives the better bound.
+  - **Supports.** A spline cell uses its restricted, dehomogenised control net (`rect_net`, weights `certainly_positive`). A plane uses its own jet. Anything else uses the box.
+  - **The decision.** `L − c` is decided at `clearance_support_gap` (F29), read through `check_unlogged`. Only `Positive` is logged and discharges.
+  - **Measured.** The Klein loop's gap pairs take about 1.1k pairs each, against 12.6k–14.7k for the box. A slab pair costs 96 pairs both upright and turned 45°, where the box needed 4.45× more turned.
+  - **The review.** A single FULL review at `de4410d8a3` returned APPROVE-WITH-FIXES: no false discharge, with 324.8k fuzz points inside the support. The division by `|n|` was unpinned, and the support was only exercised at the root. The fix pass (`0114d45e82`) added a row for a gap over a metre, a row at depth, and the single-threshold read with its row. It also renamed `separated_by_support`, routed the plane through `jet`, and found the Klein pairs by topology. The orchestrator read it and accepted it.
+  - **Receipts after merging JETFRAME.** The lily cap corner is `(0,0)` (JETFRAME's); the Klein cap corner is `(1,1)×4, (3,3)×4` (the support's).
+  - **Filed:** CLEARTAIL's `support-separation-has-two-vocabularies-for-faces-and-cells` (P2) and `clearance-recomputes-a-cells-net-and-jet-per-pair` (P3).
+  - **Base reds seen in editor-core:** `coincidence_door` is GREEN's open row; `seat7_sweep_lowering` is in FIXTURE's `editor-core-raw-twin-planes-unreconciled`. Neither is CLEAR's.
+  - **The price row is unparked** for re-measurement on main with JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT all in.

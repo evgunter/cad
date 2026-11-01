@@ -79,9 +79,10 @@ sketcher is not implemented.
 
 The v1 GUI is click-to-select for editing (selection feeds the
 existing edit doors), pan/rotate/zoom, free-moving the shown spaces
-of an assembly (DI5: each a `Space` variable, the world's among them) relative to each other
+(DI5: each a `Space` variable, the world's among them, and the world
+the frame the others move against) relative to each other
 (fit-probing before a mate exists: a display transform, no solver),
-hiding instances, and defining a mate between previously unmated
+showing and hiding spaces and bodies, and defining a mate between previously unmated
 parts. Live dragging of partly constrained geometry is not on the
 path; the witness contract stays ratified for whenever it arrives.
 Hiding and free-move are display state, never persisted into the
@@ -282,8 +283,8 @@ anything is taken from it.
 **The index seam's promise is weaker than the evaluation seam's, and
 the asymmetry is deliberate.** It has no cancel — not a cancel that
 does nothing, but no door at all. The shipped `CancelToken` is checked
-BETWEEN NODES and the step behind this seam has no nodes to be checked
-between: neither `mesh::tessellate` nor the BVH build takes a token,
+between nodes and a family's members, and the step behind this seam has
+neither to be checked between: neither `mesh::tessellate` nor the BVH build takes a token,
 and giving them one is other crates' territory. So the policy is
 **restart without cancel**: a δ change mid-build lets that build run to
 completion and discards its answer, which costs a second full build —

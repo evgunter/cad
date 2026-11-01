@@ -21,7 +21,8 @@ not (
     test(=klein::loop_volume_grid::the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place) |
     test(=klein::verbs_gate_r1_probes::the_bottles_two_boolean_walls_name_the_pairs_the_scene_claims) |
     test(=projectbox::tests::the_bored_box_its_halves_and_the_spring_pass_their_tiers_and_the_above_half_is_three_solids) |
-    test(=teapot::wall_probes_run_here::every_teapot_wall_is_attempted_by_the_suite)
+    test(=teapot::wall_probes_run_here::every_teapot_wall_is_attempted_by_the_suite) |
+    test(=wall_jets::the_klein_loops_walls_hold_against_themselves)
   )
 )
 """
