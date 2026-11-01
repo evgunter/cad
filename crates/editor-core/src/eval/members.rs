@@ -86,45 +86,90 @@ impl<T: Decide> Members<T> {
     }
 }
 
-/// **Each member of `chain`**, outermost index first: its index values,
-/// and `base` at it — each index bound to its value by `bind`, outer
-/// before inner, so an inner index's count is evaluated over
-/// `counts(base)` with every outer index bound. The one place a
-/// family's members are listed: the evaluator's lanes and
+/// **Each member of `chain`**, outermost index first and one at a time:
+/// its index values, and `base` at it — each index bound to its value
+/// by `bind`, outer before inner, so an inner index's count is evaluated
+/// over `counts` of the environment with every outer index bound. The
+/// one place a family's members are listed: the evaluator's lanes and
 /// [`Doc::member_envs`] both read them here.
+///
+/// Lazy: it holds one environment per index of `chain`, never one per
+/// member, so a reader that stops at a member binds none past it.
 ///
 /// # Errors
 ///
-/// [`MemberCountFault::Count`] where an index's count does not
-/// evaluate, and [`MemberCountFault::OutOfRange`] where it evaluates
-/// below zero or past `u32::MAX`. A count of zero gives no member.
-pub(crate) fn members<P: crate::ProfilePayload, E: Clone, C: Decide>(
-    doc: &Doc<P>,
+/// An item is [`MemberCountFault::Count`] where an index's count does
+/// not evaluate, and [`MemberCountFault::OutOfRange`] where it
+/// evaluates outside [`MemberCountFault::ADMITS`]; nothing follows it.
+/// A count of zero gives no member.
+pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + 'a>(
+    doc: &'a Doc<P>,
     base: E,
-    chain: &[VarId],
-    counts: &impl Fn(&E) -> &crate::expr::VarEnv<C>,
-    bind: &impl Fn(&mut E, &[(VarId, i64)]),
-) -> Result<Vec<(Vec<i64>, E)>, MemberCountFault> {
-    let Some((&index, inner)) = chain.split_first() else {
-        return Ok(vec![(Vec::new(), base)]);
-    };
-    let Some(def) = doc.var(index).and_then(|v| v.def().index()) else {
-        unreachable!("a reach chain holds indices alone")
-    };
-    let count = crate::expr::eval_count(&def.count, counts(&base))
-        .map_err(|source| MemberCountFault::Count { index, source })?;
-    if !MemberCountFault::ADMITS.contains(&count) {
-        return Err(MemberCountFault::OutOfRange { index, count });
-    }
-    let mut out = Vec::new();
-    for value in 0..count {
-        let mut at = base.clone();
-        bind(&mut at, &[(index, value)]);
-        for (rest, env) in members(doc, at, inner, counts, bind)? {
-            out.push((core::iter::once(value).chain(rest).collect(), env));
+    chain: &'a [VarId],
+    counts: impl Fn(&E) -> &crate::expr::VarEnv<C> + 'a,
+    bind: impl Fn(&mut E, &[(VarId, i64)]) + 'a,
+) -> impl Iterator<Item = Result<(Vec<i64>, E), MemberCountFault>> + 'a {
+    // `levels[d]` is the environment with the indices above `chain[d]`
+    // bound, the next value of `chain[d]` and its count.
+    let count_of = move |index: VarId, env: &E| -> Result<i64, MemberCountFault> {
+        let Some(def) = doc.var(index).and_then(|v| v.def().index()) else {
+            unreachable!("a reach chain holds indices alone")
+        };
+        let count = crate::expr::eval_count(&def.count, counts(env))
+            .map_err(|source| MemberCountFault::Count { index, source })?;
+        if MemberCountFault::ADMITS.contains(&count) {
+            Ok(count)
+        } else {
+            Err(MemberCountFault::OutOfRange { index, count })
         }
-    }
-    Ok(out)
+    };
+    let mut levels: Vec<(E, i64, i64)> = Vec::with_capacity(chain.len());
+    let mut first = Some(base);
+    let mut done = false;
+    core::iter::from_fn(move || {
+        if done {
+            return None;
+        }
+        if let Some(base) = first.take() {
+            let Some(&outer) = chain.first() else {
+                done = true;
+                return Some(Ok((Vec::new(), base)));
+            };
+            match count_of(outer, &base) {
+                Ok(count) => levels.push((base, 0, count)),
+                Err(fault) => {
+                    done = true;
+                    return Some(Err(fault));
+                }
+            }
+        }
+        loop {
+            let depth = levels.len();
+            let Some((env, next, count)) = levels.last_mut() else {
+                done = true;
+                return None;
+            };
+            if *next == *count {
+                levels.pop();
+                continue;
+            }
+            let value = *next;
+            *next += 1;
+            let mut at = env.clone();
+            bind(&mut at, &[(chain[depth - 1], value)]);
+            if depth == chain.len() {
+                let values = levels.iter().map(|(_, next, _)| next - 1).collect();
+                return Some(Ok((values, at)));
+            }
+            match count_of(chain[depth], &at) {
+                Ok(count) => levels.push((at, 0, count)),
+                Err(fault) => {
+                    done = true;
+                    return Some(Err(fault));
+                }
+            }
+        }
+    })
 }
 
 /// **`results` at one member**: each family a member of whose stands
@@ -196,20 +241,20 @@ pub(super) fn eval_family<T: Decide>(
         doc,
         (env.clone(), op_env.lane.nominal.clone()),
         chain,
-        &|(params, _)| params,
-        &|(params, nominal), at| {
+        |(params, _): &(crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>)| params,
+        |(params, nominal): &mut (crate::expr::VarEnv<T>, crate::expr::VarEnv<f64>), at| {
             doc.bind_member(params, at);
             doc.bind_member(nominal, at);
         },
     );
-    let values = match listed {
-        Ok(values) => values,
-        Err(fault) => return fail(fault.node_error()),
-    };
     let prior_members = prior.and_then(|p| p.members.as_ref());
-    let mut members = Vec::with_capacity(values.len());
+    let mut members = Vec::new();
     let mut reused = true;
-    for (value, (member_env, nominal)) in values {
+    for member in listed {
+        let (value, (member_env, nominal)) = match member {
+            Ok(member) => member,
+            Err(fault) => return fail(fault.node_error()),
+        };
         let at: Vec<(VarId, i64)> = chain.iter().copied().zip(value.iter().copied()).collect();
         let narrow: Vec<u32> = value
             .iter()

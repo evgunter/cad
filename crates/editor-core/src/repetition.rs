@@ -95,16 +95,16 @@ impl MemberCountFault {
         }
     }
 
-    /// The evaluation's refusal of a family whose members it could not
-    /// list.
-    pub(crate) fn node_error(self) -> crate::NodeErrorKind {
+    /// **The evaluation's refusal of a family whose members it could
+    /// not list**: what a reader outside the evaluator says, so the
+    /// kernel words it once.
+    #[must_use]
+    pub fn node_error(self) -> crate::NodeErrorKind {
         match self {
             Self::Count { index, source } => crate::NodeErrorKind::IndexCount { index, source },
-            Self::OutOfRange { index, count } => crate::NodeErrorKind::IndexCountOutOfRange {
-                index,
-                count,
-                admits: Self::ADMITS,
-            },
+            Self::OutOfRange { index, count } => {
+                crate::NodeErrorKind::IndexCountOutOfRange { index, count }
+            }
         }
     }
 }
@@ -345,27 +345,25 @@ impl<P: crate::ProfilePayload> Doc<P> {
     /// **Each member of the indices `chain`**, ordered outermost first
     /// as a [`Reached::Chain`] orders them, over the document's own
     /// environment: what an operation reaching `chain` is evaluated
-    /// over, once per member.
+    /// over, once per member. Lazy, as the evaluator's members are
+    /// (`eval::members::members`): one member's environment at a time.
     ///
     /// # Errors
     ///
-    /// [`MemberCountFault`]: an index's count did not evaluate, or is
-    /// not a count an index admits.
-    pub fn member_envs<T: geom_core::Decide>(
-        &self,
-        chain: &[VarId],
-    ) -> Result<Vec<MemberEnv<T>>, MemberCountFault> {
-        let listed = crate::eval::members::members(
+    /// An item is a [`MemberCountFault`] where an index's count did not
+    /// evaluate, or is not a count an index admits; nothing follows it.
+    pub fn member_envs<'a, T: geom_core::Decide + 'a>(
+        &'a self,
+        chain: &'a [VarId],
+    ) -> impl Iterator<Item = Result<MemberEnv<T>, MemberCountFault>> + 'a {
+        crate::eval::members::members(
             self,
             self.var_env::<T>(),
             chain,
-            &|env| env,
-            &|env, at| self.bind_member(env, at),
-        )?;
-        Ok(listed
-            .into_iter()
-            .map(|(at, env)| MemberEnv { at, env })
-            .collect())
+            |env: &crate::VarEnv<T>| env,
+            |env: &mut crate::VarEnv<T>, at| self.bind_member(env, at),
+        )
+        .map(|member| member.map(|(at, env)| MemberEnv { at, env }))
     }
 
     /// **Every operation reading two indices neither of which is within

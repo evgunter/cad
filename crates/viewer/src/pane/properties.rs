@@ -146,25 +146,13 @@ impl ViewerBehavior<'_> {
                         self.ops,
                         self.notices,
                     );
-                    if let Some(props::Reading::PerMember(members)) = &row.value {
-                        let notation = *self.notation;
-                        crate::widgets::message_toned(
-                            ui,
-                            format!(
-                                "at each member: {}",
-                                members.spelled(row.dimension, notation)
-                            ),
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                        if let Some(refusals) = members.refusals() {
-                            crate::widgets::message_toned(
-                                ui,
-                                format!("refused at {refusals}"),
-                                &self.theme,
-                                Tone::Advisory,
-                            );
-                        }
+                    for line in reading_notes(
+                        &row.label.to_string(),
+                        &row.value,
+                        row.dimension,
+                        *self.notation,
+                    ) {
+                        crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
                     }
                 }
                 // No row is an undeclared variable, and nothing is
@@ -1588,6 +1576,7 @@ pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> Fi
             writing.unit,
             row.value
                 .as_ref()
+                .ok()
                 .and_then(props::Reading::one)
                 .map_or(0.0, SlotValue::as_f64),
         ),
@@ -1620,6 +1609,41 @@ pub(crate) fn slot_doors(
     FieldVocabulary {
         number: move |value| SessionOp::SetSlot { node, slot, value },
         text: move |text| SessionOp::SetSlotExpression { node, slot, text },
+    }
+}
+
+/// **What a reading has to say under its row**, one line each, every
+/// line naming `subject` — the slot or defined variable it is of:
+///
+/// * why it reads nothing, where it does not evaluate;
+/// * its value at each member, where it has one per member
+///   ([`props::MemberValues::spelled`]);
+/// * each refusal among its members, with the members it refused at
+///   ([`props::MemberValues::refusals`]).
+///
+/// Nothing for a reading of one value: its field shows it. The one home
+/// of these lines for a slot row ([`slot_notes`]) and a defined
+/// variable's.
+pub(crate) fn reading_notes(
+    subject: &str,
+    value: &Result<props::Reading, props::SlotFault>,
+    dimension: Dimension,
+    notation: Notation,
+) -> Vec<String> {
+    match value {
+        Ok(props::Reading::One(_)) => Vec::new(),
+        Ok(props::Reading::PerMember(members)) => core::iter::once(format!(
+            "{subject} at each member: {}",
+            members.spelled(dimension, notation)
+        ))
+        .chain(
+            members
+                .refusals()
+                .into_iter()
+                .map(|line| format!("{subject} {line}")),
+        )
+        .collect(),
+        Err(error) => vec![format!("{subject}: {error}")],
     }
 }
 
@@ -1656,25 +1680,8 @@ fn slot_notes(
     reading: Option<&str>,
     notation: Notation,
 ) -> Option<VarId> {
-    let note = |ui: &mut egui::Ui, text: String| {
-        crate::widgets::message_toned(ui, text, theme, Tone::Advisory);
-    };
-    match &row.value {
-        Ok(props::Reading::One(_)) => {}
-        Ok(props::Reading::PerMember(members)) => {
-            let label = row.slot.label();
-            note(
-                ui,
-                format!(
-                    "{label} at each member: {}",
-                    members.spelled(row.dimension, notation)
-                ),
-            );
-            if let Some(refusals) = members.refusals() {
-                note(ui, format!("{label} refused at {refusals}"));
-            }
-        }
-        Err(error) => note(ui, format!("{}: {error}", row.slot.label())),
+    for line in reading_notes(&row.slot.label(), &row.value, row.dimension, notation) {
+        crate::widgets::message_toned(ui, line, theme, Tone::Advisory);
     }
     let mut clicked = None;
     if let SlotDriver::Expression { variables } = &row.driver {
@@ -1858,9 +1865,11 @@ mod layout_tests {
 
     use pncad::document::{Dimension, SlotId, SpokenVar, VarId, VarName};
 
-    use super::{bounds_notes, exists_notice, slot_notes, slot_showing};
+    use super::{bounds_notes, exists_notice, reading_notes, slot_notes, slot_showing};
     use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
-    use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::props::{
+        MemberValues, Notation, Reading, SlotDriver, SlotFault, SlotRow, SlotValue,
+    };
     use crate::session::Refusal;
     use crate::theme::Theme;
 
@@ -1888,6 +1897,67 @@ mod layout_tests {
             unit: None,
             source: None,
         }
+    }
+
+    /// **What the pane draws under a row read per member**: its value
+    /// at each member, and each refusal once with the members it
+    /// refused at — read off what is painted, not off the strings the
+    /// row hands it.
+    #[test]
+    fn a_per_member_rows_values_and_refusals_are_drawn_under_it() {
+        let k = variable("k");
+        let refused = pncad::document::EvalError::NonFiniteResult;
+        let members = MemberValues::new(
+            vec![k.clone()],
+            (0..10)
+                .map(|at| {
+                    let value = if at == 3 || at == 7 {
+                        Err(refused.clone())
+                    } else {
+                        Ok(SlotValue::Continuous(0.001 * at as f64))
+                    };
+                    (vec![at], value)
+                })
+                .collect(),
+        );
+        let spelled = members.spelled(Dimension::Length, Notation::DEFAULT);
+        let row = SlotRow {
+            value: Ok(Reading::PerMember(members)),
+            ..distance_row(
+                SlotDriver::Expression {
+                    variables: vec![k.clone()],
+                },
+                Ok(SlotValue::Continuous(0.0)),
+            )
+        };
+        let (region, painted) = drawn_in(REGION, |ui| {
+            slot_notes(ui, &Theme::DEFAULT, &row, None, Notation::DEFAULT);
+        });
+        let label = SlotId::Distance.label();
+        let values = find(&painted, &format!("{label} at each member: {spelled}"));
+        assert_own_lines(region, values);
+        let refusal = find(
+            &painted,
+            &format!("{label} refused at {k} = 3, 7: {refused}"),
+        );
+        assert_own_lines(region, refusal);
+        assert_under(values, refusal);
+    }
+
+    /// **A reading that refuses says why**, a defined variable's as a
+    /// slot's: the one home of the lines under a reading.
+    #[test]
+    fn a_refused_reading_says_its_fault() {
+        let fault = SlotFault::Eval(pncad::document::EvalError::NonFiniteResult);
+        assert_eq!(
+            reading_notes(
+                "step",
+                &Err(fault.clone()),
+                Dimension::Length,
+                Notation::DEFAULT
+            ),
+            [format!("step: {fault}")]
+        );
     }
 
     #[test]

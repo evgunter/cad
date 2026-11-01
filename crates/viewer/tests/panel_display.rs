@@ -1246,7 +1246,10 @@ fn a_patterns_member_indexed_rows_show_each_members_value() {
             ),
             "fused {fused}: the note names each member and its value"
         );
-        assert_eq!(members.refusals(), None, "fused {fused}: no member refused");
+        assert!(
+            members.refusals().is_empty(),
+            "fused {fused}: no member refused"
+        );
     }
 }
 
@@ -1283,10 +1286,48 @@ fn a_refused_member_past_the_spelled_ones_is_still_said() {
         spelled.ends_with("; and 4 more") && !spelled.contains(&format!("{k} = 7")),
         "the note spells six members, then counts the rest: {spelled}"
     );
-    let refusals = members.refusals().expect("one member refused");
+    let refusals = members.refusals();
     assert!(
-        refusals.starts_with(&format!("{k} = 7: ")) && !refusals.contains(';'),
-        "the refusal names member 7 alone, past the spelled six: {refusals}"
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 7: "))),
+        "one refusal, at member 7 alone, past the spelled six: {refusals:?}"
+    );
+}
+
+/// **A refusal is said once, with every member it refused at**, and a
+/// family refusing at each member says its refusal once, its members
+/// named to a bound and counted past it.
+#[test]
+fn a_refusal_is_said_once_with_the_members_it_refused_at() {
+    let (mut session, placement) = pattern(10, false);
+    let row = per_member_row(&session);
+    slide_to(
+        &mut session,
+        placement,
+        &row,
+        "1 mm / ((scalar(k) - 3) * (scalar(k) - 7))",
+    );
+    let row = per_member_row(&session);
+    let alike = members(&row);
+    let k = &alike.over()[0];
+    let refusals = alike.refusals();
+    assert!(
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 3, 7: "))),
+        "members 3 and 7 refuse alike, said once: {refusals:?}"
+    );
+
+    let (mut session, placement) = pattern(20, false);
+    let row = per_member_row(&session);
+    slide_to(&mut session, placement, &row, "1 mm / (scalar(k) * 0)");
+    let row = per_member_row(&session);
+    let every = members(&row);
+    let k = &every.over()[0];
+    let refusals = every.refusals();
+    assert!(
+        matches!(
+            refusals.as_slice(),
+            [line] if line.starts_with(&format!("refused at {k} = 0, 1, 2, 3, 4, 5, and 14 more: "))
+        ),
+        "every member refuses alike: six named, the rest counted: {refusals:?}"
     );
 }
 
@@ -1399,7 +1440,7 @@ fn a_defined_variable_reading_an_index_reads_per_member() {
         .into_iter()
         .find(|row| row.var == step)
         .expect("step is defined now");
-    let Some(Reading::PerMember(members)) = &row.value else {
+    let Ok(Reading::PerMember(members)) = &row.value else {
         panic!("a reading per member, not {:?}", row.value);
     };
     let values: Vec<_> = members.members().iter().map(|(_, v)| v.clone()).collect();

@@ -133,8 +133,9 @@
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, ExprTree, FreeValue, FreeVar,
-    LeafSet, MemberCountFault, Node, ProfileProgram, Reached, RecipeNodeId, SlotId, SpokenNode,
-    SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval, eval_count,
+    LeafSet, MemberCountFault, Node, NodeErrorKind, ProfileProgram, Reached, RecipeNodeId, SlotId,
+    SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval, eval_count,
+    spoken_by,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -547,17 +548,46 @@ pub enum SlotFault {
     /// A broken `Node::slots`/`Node::expr` postcondition, reported
     /// rather than skipped; see [`slot_row`].
     NoExpression,
-    /// The expression reads an index whose members cannot be listed:
-    /// its count did not evaluate, or is no count an index admits.
-    IndexCount {
-        /// The index.
-        index: SpokenVar,
-        /// What is wrong with its count.
-        fault: Box<MemberCountFault>,
+    /// The expression reaches indices whose members cannot be listed,
+    /// carried as the kernel refuses a family over them and said in the
+    /// kernel's own words ([`MemberFault::node_error`]).
+    Members {
+        /// Why the members cannot be listed.
+        fault: Box<MemberFault>,
+        /// The kernel's refusal, as the document speaks it.
+        said: String,
     },
-    /// The expression reads two indices neither of which is within the
-    /// other, which no member binds together.
-    UnrelatedIndices(SpokenVar, SpokenVar),
+}
+
+/// **Why the members of the indices an expression reaches cannot be
+/// listed** ([`SlotFault::Members`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum MemberFault {
+    /// It reads two indices neither of which is within the other, which
+    /// no member binds together.
+    Unrelated(VarId, VarId),
+    /// An index's count did not evaluate, or is no count an index admits.
+    Count(MemberCountFault),
+}
+
+impl MemberFault {
+    /// The evaluation's refusal of a family reaching these indices, the
+    /// one place the kernel words it.
+    #[must_use]
+    pub fn node_error(self) -> NodeErrorKind {
+        match self {
+            Self::Unrelated(a, b) => NodeErrorKind::IndicesUnrelated { a, b },
+            Self::Count(fault) => fault.node_error(),
+        }
+    }
+
+    fn slot_fault(self, doc: &Doc<ProfileProgram>) -> SlotFault {
+        let said = spoken_by(&self.clone().node_error(), doc);
+        SlotFault::Members {
+            fault: Box::new(self),
+            said,
+        }
+    }
 }
 
 impl core::fmt::Display for SlotFault {
@@ -568,21 +598,7 @@ impl core::fmt::Display for SlotFault {
                 f,
                 "the node lists this slot but carries no expression for it"
             ),
-            Self::IndexCount { index, fault } => match &**fault {
-                MemberCountFault::Count { source, .. } => {
-                    write!(f, "the count of index {index} did not evaluate: {source}")
-                }
-                MemberCountFault::OutOfRange { count, .. } => write!(
-                    f,
-                    "index {index} counts {count} members, outside {} to {}",
-                    MemberCountFault::ADMITS.start(),
-                    MemberCountFault::ADMITS.end()
-                ),
-            },
-            Self::UnrelatedIndices(a, b) => write!(
-                f,
-                "it reads indices {a} and {b}, neither within the other, so no member binds both"
-            ),
+            Self::Members { said, .. } => write!(f, "{said}"),
         }
     }
 }
@@ -617,6 +633,17 @@ pub struct MemberValues {
 }
 
 impl MemberValues {
+    /// The values `members` hold over the indices `over`, outermost
+    /// first: each member's index values, one per index of `over`, and
+    /// the value there or why it has none.
+    #[must_use]
+    pub fn new(
+        over: Vec<SpokenVar>,
+        members: Vec<(Vec<i64>, Result<SlotValue, EvalError>)>,
+    ) -> Self {
+        Self { over, members }
+    }
+
     /// How many members [`Self::spelled`] names before it counts the
     /// rest.
     const SPELLED: usize = 6;
@@ -713,15 +740,71 @@ impl MemberValues {
         parts.join("; ")
     }
 
-    /// **Every member that refused, and its refusal**, wherever it falls
-    /// in the family — `None` where none did.
+    /// **Every refusal, once, with the members it refused at** — one
+    /// line each, so a refusal's own punctuation never runs into the
+    /// next: `refused at k = 3, 7, 9: <refusal>`. A refusal names its first
+    /// [`Self::SPELLED`] members, then how many more; past
+    /// [`Self::SPELLED`] distinct refusals, a last line counts the
+    /// refusals and members left. Empty where no member refused.
+    ///
+    /// Bounded by [`Self::SPELLED`]² members' names whatever the
+    /// family's size, and every refused member is in a count when not
+    /// in a name, so no refusal goes unsaid.
     #[must_use]
-    pub fn refusals(&self) -> Option<String> {
-        let parts: Vec<String> = self
-            .refused()
-            .map(|(at, error)| format!("{}: {error}", self.member(at)))
+    pub fn refusals(&self) -> Vec<String> {
+        // Distinct refusals in the order their first member stands,
+        // each with its members.
+        let mut groups: Vec<(String, Vec<&[i64]>)> = Vec::new();
+        for (at, error) in self.refused() {
+            let said = error.to_string();
+            match groups.iter_mut().find(|(held, _)| *held == said) {
+                Some((_, members)) => members.push(at),
+                None => groups.push((said, vec![at])),
+            }
+        }
+        let mut lines: Vec<String> = groups
+            .iter()
+            .take(Self::SPELLED)
+            .map(|(said, members)| format!("refused at {}: {said}", self.members_named(members)))
             .collect();
-        (!parts.is_empty()).then(|| parts.join("; "))
+        let rest = &groups[groups.len().min(Self::SPELLED)..];
+        if !rest.is_empty() {
+            let members: usize = rest.iter().map(|(_, members)| members.len()).sum();
+            lines.push(format!(
+                "and {} more refusals, at {members} more members",
+                rest.len()
+            ));
+        }
+        lines
+    }
+
+    /// Members, as a sentence names them: `k = 3, 7, 9` over one index,
+    /// `(k, j) = (0, 1), (2, 0)` over more; the first [`Self::SPELLED`],
+    /// then how many more.
+    fn members_named(&self, members: &[&[i64]]) -> String {
+        let one = |at: &[i64]| {
+            let values: Vec<String> = at.iter().map(i64::to_string).collect();
+            if self.over.len() == 1 {
+                values.join(", ")
+            } else {
+                format!("({})", values.join(", "))
+            }
+        };
+        let mut named: Vec<String> = members
+            .iter()
+            .take(Self::SPELLED)
+            .map(|at| one(at))
+            .collect();
+        let more = members.len().saturating_sub(Self::SPELLED);
+        if more > 0 {
+            named.push(format!("and {more} more"));
+        }
+        let indices = if self.over.len() == 1 {
+            self.indices()
+        } else {
+            format!("({})", self.indices())
+        };
+        format!("{indices} = {}", named.join(", "))
     }
 }
 
@@ -830,8 +913,13 @@ fn slot_row(
 /// A reading per member evaluates `expr` once per member, and the
 /// panel asks for its rows every frame the node is selected: linear in
 /// the members (≈4 ms for ten in a debug build, ≈140 ms for a thousand).
-/// No cap: a capped reading could not name a refused member past it,
-/// and the cost is paid only while such a node is selected.
+/// **Unguarded, deliberately**: a guard is a member count past which
+/// the panel reads less, and the reading it would skip is the one that
+/// names every refused member ([`MemberValues::refusals`]) and the span
+/// over every member ([`MemberValues::span`]) — both wrong when read
+/// over some members. The cost is the evaluator's own per member, paid
+/// only while such a node is selected; a frame that cannot afford it is
+/// a cache over the evaluation, not a cap here.
 fn reading(
     doc: &Doc<ProfileProgram>,
     expr: &ExprTree<impl LeafSet>,
@@ -851,29 +939,17 @@ fn reading(
                 .map_err(SlotFault::Eval);
         }
         Reached::Chain(chain) => chain,
-        Reached::Unrelated(a, b) => {
-            return Err(SlotFault::UnrelatedIndices(
-                doc.spoken_var(a),
-                doc.spoken_var(b),
-            ));
-        }
+        Reached::Unrelated(a, b) => return Err(MemberFault::Unrelated(a, b).slot_fault(doc)),
     };
     let members = doc
         .member_envs::<f64>(&chain)
-        .map_err(|fault| SlotFault::IndexCount {
-            index: doc.spoken_var(fault.index()),
-            fault: Box::new(fault),
-        })?;
-    Ok(Reading::PerMember(MemberValues {
-        over: chain.iter().map(|&index| doc.spoken_var(index)).collect(),
-        members: members
-            .into_iter()
-            .map(|member| {
-                let value = at(&member.env);
-                (member.at, value)
-            })
-            .collect(),
-    }))
+        .map(|member| member.map(|member| (member.at, at(&member.env))))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|fault| MemberFault::Count(fault).slot_fault(doc))?;
+    Ok(Reading::PerMember(MemberValues::new(
+        chain.iter().map(|&index| doc.spoken_var(index)).collect(),
+        members,
+    )))
 }
 
 /// What a slot's value field shows in its number's place.
@@ -1193,8 +1269,9 @@ pub struct DefinedRow {
     /// Its definition, unparsed (`Doc::unparse`).
     pub formula: String,
     /// What the definition reads — one value, or one per member where
-    /// it reaches an index ([`Reading`]) — or `None` when it refuses.
-    pub value: Option<Reading>,
+    /// it reaches an index ([`Reading`]) — or the typed reason it reads
+    /// nothing.
+    pub value: Result<Reading, SlotFault>,
 }
 
 /// Every NAMED defined variable, declaration order: an anonymous one
@@ -1210,7 +1287,7 @@ pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
                 label: doc.spoken_var(var),
                 dimension: expr.dim(),
                 formula: doc.unparse(expr),
-                value: reading(doc, expr, expr.dim()).ok(),
+                value: reading(doc, expr, expr.dim()),
             })
         })
         .collect()

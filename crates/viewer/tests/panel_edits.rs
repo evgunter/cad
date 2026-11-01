@@ -1444,7 +1444,7 @@ fn a_defined_parameters_field_redefines_or_frees_it() {
     assert_eq!(row.formula, "rim * 2.0");
     assert_eq!(
         row.value,
-        Some(viewer::Reading::One(SlotValue::Continuous(0.04)))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.04)))
     );
 
     let begun = session.perform(SessionOp::BeginVariableGesture { var: base_r });
