@@ -37,10 +37,10 @@ which zooms at the scroll rate — by that mechanism, what a Windows
 precision touchpad's pinch would be.
 
 Left-drag in the viewport is inert **by design** — primary is reserved
-for selection; hold ALT to orbit with it on a trackpad. Moving an
-instance is not a viewport drag either: the free-move probe is the typed
-x/y/z fields in the instance section of the Properties panel
-(display-only, in the working length unit).
+for selection; hold ALT to orbit with it on a trackpad. Moving a body's
+space is not a viewport drag either: the free-move probe is the typed
+x/y/z fields in the selected body's display section of the Properties
+panel (display-only, in the working length unit).
 
 **The working notation.** A value nobody wrote — a driven slot's
 `= value`, a measure's row, both numbers of an assertion's verdict, the
@@ -868,11 +868,7 @@ rendering any would change what the chrome says — and each carries
 the argument for the drop, `MateToolEvent`'s at its impl (the payload
 stays typed and full in the value; the sentence is what a person
 reads) and the camera's two at their arms. That is the property this rule is
-after: an omission that is a decision someone made. The rule matches
-one more site that is not an instance, and the distinction is the
-usual one: `frame.rs`'s
-`matches!(w.cause, AdmissionFault::FusedGeometry { .. })` is a variant
-test on another type rather than a pattern over the subject. The arm
+after: an omission that is a decision someone made. The arm
 that words a withdrawal's count beside it matches an `Option`
 exhaustively — the two kinds that are over a SET carry a plural and the
 kind that is over the one gesture in flight carries `None` — so a
@@ -1006,7 +1002,7 @@ that say a node is not live, and `AdmissionFault::NoSuchNode`.
 **The pick path's refusals hold bare ids and are spoken where they are
 drawn.** The pick index, its edge names, the id pass and the blend
 tool's loads are built from the landed run alone, so `PickIndexError`,
-`UndrawnCopy`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
+`UndrawnBody`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
 `DrawnBody`, `BlendEvent`, `PatchNameFault`, `idpass::IdAnswer` and
 `idpass::Disagreement` carry no document and implement `Say`; their
 `Display` says each node by its tag. The frame that draws one speaks
@@ -1258,7 +1254,7 @@ to, and a door that rewrote one would show a reader words its author
 did not write — so what the crate holds instead is the population the
 claim ranges over. `display::AdmissionFault` is what the two admission
 tests answer and what `Withdrawn::cause` stores, so the sentences that
-must not carry the mark are its four, a fifth cannot arrive without an
+must not carry the mark are its arms', another cannot arrive without an
 arm there, and `DisplayFault::NonRigidFrame` — which writes a
 `LIST_SEPARATOR` inside one sentence — is outside the type the join
 can reach. The claim over that population is
@@ -1577,15 +1573,16 @@ the display revision and the focus set hold still. The startup mesh is the same
 shape from the other end: `scene::scene_of` builds it before any index
 exists and every corner carries `IdMap::NOTHING`.
 
-**An index covers the copies it drew, and a refused one draws
-nothing.** `PickIndex::build` walks every drawn copy; a copy whose
-build refuses (no value, no body, a tessellation or indexing refusal)
-is held in `PickIndex::undrawn` with its reason and gets no part, no
-ids and no window, so the id map stays one-to-one over the drawn
-copies and a failure takes away its own copies' picture and no other.
-`frame::index_badge` says an undrawn copy, `Actionable` and by name,
+**An index covers the bodies it drew, and a refused one draws
+nothing.** `PickIndex::build` walks every drawn body
+(`world::drawn_bodies`); a node whose build refuses (no value, no
+body, a tessellation or indexing refusal) is held in
+`PickIndex::undrawn` with its reason and gets no part, no ids and no
+window, so the id map stays one-to-one over the drawn bodies and a
+failure takes away its own picture and no other.
+`frame::index_badge` says an undrawn body, `Actionable` and by name,
 only where the feature tree draws no `Failed` or `Poisoned` row for it
-(`tree::cause_row`): that row is the notice for a copy with no value.
+(`tree::cause_row`): that row is the notice for a body with no value.
 The index refuses as a whole only for a fault of its own (`Ids`,
 `DrawnTwice`, `Names`), and `sync_scene` then puts
 `SceneMesh::nothing` on screen with no `PictureKey`, under the badge,
@@ -1844,17 +1841,17 @@ commits — into whichever gesture happens to be open, with the new
 field's number. The subject of a driving operation is the field the
 user has hold of, and naming it is what makes the mismatch refusable.
 
-**The probe's target is the instance, and that is the same rule rather
-than a coarser one.** `PreviewFreeMove` names the instance the probe
-was opened on because at most one probe is in flight and it was opened
-on one copy of its space, the way `PreviewGesture` names a slot because
+**The probe's target is the node it was opened on, and that is the same
+rule rather than a coarser one.** `PreviewFreeMove` names the node the
+probe was opened on because at most one probe is in flight and it was
+opened on one body drawn in its space, the way `PreviewGesture` names a slot because
 a slot has exactly one drag. Each names the SUBJECT whose
 gesture it drives, and how fine that subject is follows from what state
 exists, not from how finely a chrome cuts the subject up: the three
 boxes the panel draws are one chrome's decomposition of one
 frame, and the op takes any rigid `Frame`. Mapped a triple per box
 those boxes are three gestures over one probe and the payload cannot
-separate them, both naming the same instance: the second box's begin is
+separate them, both naming the same node: the second box's begin is
 refused `FreeMoveInFlight`, its preview then overwrites the first's
 frame, and its commit lands it and CLOSES the probe the pointer is
 still holding — a refusal describing a state its own batch destroyed.
@@ -1888,14 +1885,14 @@ the first's.
 For the probe it is the SELECTION that takes the field away
 (`the_open_probes_own_instance_driven_again_lands_its_frame`), not an
 evaluation: `SessionOp::Select` is permitted mid-probe and
-`pane::properties`' `instance_ui` draws the probe row for
+`pane::properties`' `display_ui` draws the probe row for
 `selection().node()` alone, so selecting another feature under an open
 probe leaves the drag live with nothing drawing it. The hand that
 reaches it is the one that reaches a sibling box — the feature tree's
 row is a `selectable_label(…).clicked()` (`pane/features.rs:59-60`),
 and egui answers `clicked()` for a focused widget's Space/Enter and
 for an AccessKit `Action::Click` with no pointer anywhere. Select the
-instance again and drag a box, and the batch lands the frame and ends
+node again and drag a box, and the batch lands the frame and ends
 the probe.
 
 **One gesture per subject, driven by whoever names it**, is therefore
@@ -2085,14 +2082,19 @@ where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other (Ev, PR 6209: one way to store where something is
-displayed, not a derived layout beside it).
+each other within a session (Ev, PR 6209: one way to store where
+something is displayed, not a derived layout beside it). Display frames
+are not saved with the document yet, so a reopened document draws them
+at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
-is no longer shown or is gone once the next evaluation has settled
-(`display::space_check`), so an undo and redo of the gesture that made
-the space keeps its frame. The world is
+is no longer shown or is gone (`display::space_check`, IDENTITY DI5).
+The frame the "Add part…" gesture writes belongs to that gesture's
+history step: it is measured once the evaluation answering the insert
+lands (`pickindex::clear_of_drawn`), taken back by the step's undo and
+written again by its redo, and no other action inherits it, whatever
+space it mints. The world is
 the frame the other spaces move against: a frame on it would be the
 camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is
@@ -2190,8 +2192,8 @@ probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off
 geometry and its values are numbers the person supplies; the viewer's
-display state — a hidden instance, a free-move probe, where a copy is
-drawn — never enters a bundle.
+display state — a hidden body or space, a free-move probe, where a space
+is drawn — never enters a bundle.
 
 **The tree shows a placement's constraints as its children**
 (`tree::ConstraintRow`, on `TreeRow::constraints`): one line per
@@ -2463,8 +2465,7 @@ answer, never why the arm is there.
 
 - *Identity* — the question is the variant itself, so a new variant
   correctly answers no: `bounds::Bound::is_edge`, the read doors on
-  `tools::Tools`, `app`'s "was this op an `Open`",
-  `display::instance_check`'s "is this node an `InstantiatePart`".
+  `tools::Tools`, `app`'s "was this op an `Open`".
 - *A downcast* — the pattern extracts the payload only one variant
   carries: `frame::retype_draft`'s search for the expression op,
   `drafts`' profile edit.

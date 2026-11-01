@@ -70,7 +70,8 @@ fn session(tol: Tol) -> DocSession {
 }
 
 /// The two overlapping blocks (module docs), the second placed by a
-/// transform. Answers the session and the two BODY nodes, in the order
+/// transform, each then placed into the world by hand (a new body lands
+/// unplaced). Answers the session and the two BODY nodes, in the order
 /// the module's constants name them.
 fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
@@ -85,6 +86,8 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
             rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
+    let (session, _) = common::world_copy_in(&session, a, tol);
+    let (session, _) = common::world_copy_in(&session, b, tol);
     (session, a, b)
 }
 
@@ -252,8 +255,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = viewer::world::drawn_copies(&before)[..] else {
-        panic!("two copies: {:?}", viewer::world::drawn_copies(&before));
+    let [a_placement, b_placement] = crate::common::drawn_copies(&before)[..] else {
+        panic!("two copies: {:?}", crate::common::drawn_copies(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -288,7 +291,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     );
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::drawn_copies(doc),
+        crate::common::drawn_copies(doc),
         [a_placement],
         "a's placement stands"
     );
@@ -326,7 +329,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
     session.pump();
-    let [a_placement, _] = viewer::world::drawn_copies(session.committed_doc())[..] else {
+    let [a_placement, _] = crate::common::drawn_copies(session.committed_doc())[..] else {
         panic!("two copies");
     };
     let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
@@ -375,7 +378,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
 fn a_combine_takes_the_placement_of_the_operand_the_world_places() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
-    let a_placement = session.committed_doc().placements()[0];
+    let a_placement = common::copy_of(session.committed_doc(), a);
     let unplaced = session.perform(SessionOp::DeleteNode { node: a_placement });
     assert!(unplaced.refusal.is_none(), "{:?}", unplaced.refusal);
     assert_eq!(
@@ -444,7 +447,15 @@ fn a_feature_re_points_each_placement_of_its_target() {
          its placement, inserted with its bundle: {:?}",
         outcome.committed
     );
-    assert_eq!(common::world(session.committed_doc()), world);
+    // Nothing reads the second transform's copy, so it is drawn, in the
+    // body's own space, beside the two copies it did not touch. A copy
+    // into the space of what it copies is no gesture's copy, so a pick on
+    // it is on the transform itself.
+    let second = outcome.minted[0];
+    assert_eq!(
+        common::world(session.committed_doc()),
+        [world, vec![second]].concat()
+    );
 }
 
 /// **Difference is not commutative, and the door's operand order is
@@ -2239,7 +2250,8 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         // of several bodies a body at a seat.
         (
             "part of a pattern",
-            viewer::combine::part_node(&doc, pattern_of_body, PartSelectSpec::Instance(1)),
+            viewer::combine::part_node(&doc, pattern_of_body, PartSelectSpec::Instance(1))
+                .expect("the pattern is in its body's space"),
         ),
         (
             "loft",
@@ -2347,12 +2359,13 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
 
-/// The whole document's drawn volume — the world's copies the
-/// viewport draws, gathered as one `⊔`, as one number.
+/// The world's volume — the copies placed into the world, gathered as
+/// one `⊔`, as one number.
 ///
 /// **The world and not a node**, because every row below this line
-/// is about WHAT IS DRAWN rather than about what one node evaluates
-/// to, and the two differ as soon as a body is authored and not placed.
+/// is about what the world holds rather than about what one node
+/// evaluates to, and the two differ as soon as a body is authored and
+/// not placed.
 /// The gather is of the landed document with its product set to the
 /// world's copies, so the session's own document is not edited.
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
@@ -2514,50 +2527,151 @@ fn the_part_door_refuses_a_split() {
     );
 }
 
-/// **A pattern places nothing, and each member read places its copy**
-/// (A10): the family stands in its body's own space, which no placement
-/// reads into the world, so the world keeps the body it replicates; a
-/// member read is a creation, so each is placed beside what is drawn.
+/// **A pattern takes its body over, member 0 standing where the body
+/// stood** (`the-pattern-tool-stands-member-zero-where-its-body-stands`):
+/// of a body nothing copies, the family is drawn in the body's own
+/// space and the body is not, so no member is drawn over it; of a body
+/// placed into the world, its copy is re-pointed to the family, so the
+/// world draws both members there, apart. A member read is the node
+/// alone, placed nowhere.
 #[test]
-fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
+fn a_pattern_takes_its_body_over_and_a_member_read_places_nothing() {
     let tol = Tol::witness();
     let (mut session, body, pattern) = box_and_pattern(tol);
     let one = A[0] * A[1] * A[2];
-
+    let doc = session.committed_doc();
     assert_eq!(
-        common::world(session.committed_doc()),
-        [body],
-        "the pattern took nothing out of the world and put nothing in",
+        viewer::world::drawn_nodes(doc),
+        [pattern],
+        "the family is drawn and the body it replicates is not"
     );
-    let drawn = drawn_volume(&mut session, tol);
-    assert!(near(drawn, one), "one body drawn {drawn}");
+    let Some(Node::Place { source, .. }) = doc.node(pattern) else {
+        panic!("the pattern is a placement");
+    };
+    assert_eq!(
+        doc.node_space(pattern),
+        doc.node_space(body),
+        "the family stands in the body's own space"
+    );
+    assert_eq!(
+        Some(source.read),
+        doc.output(body, 0),
+        "of the body it replicates"
+    );
 
-    let second = session_insert(
-        &mut session,
-        SessionOp::AddPart {
-            of: pattern,
-            select: PartSelectSpec::Instance(1),
+    let part = session.perform(SessionOp::AddPart {
+        of: pattern,
+        select: PartSelectSpec::Instance(1),
+    });
+    assert!(part.refusal.is_none(), "{:?}", part.refusal);
+    assert_eq!(
+        part.committed.len(),
+        1,
+        "the member read alone, no world placement: {:?}",
+        part.committed
+    );
+
+    // Placed into the world by hand, the body's copy takes the family.
+    let mut session = session_with_box_in_world(tol);
+    let (body, copy) = session.1;
+    let pattern = session_insert(
+        &mut session.0,
+        SessionOp::AddPattern {
+            input: body.into(),
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(A[0] * 2.0),
+            },
         },
     );
+    let session = &mut session.0;
+    let doc = session.committed_doc();
+    let Some(Node::Place { source, .. }) = doc.node(copy) else {
+        panic!("the world copy stays a placement");
+    };
     assert_eq!(
-        common::world(session.committed_doc()),
-        [body, second],
-        "the member read is placed after the body",
+        Some(source.read),
+        doc.output(pattern, 0),
+        "the world copy now copies the family"
     );
-    let both = drawn_volume(&mut session, tol);
-    assert!(near(both, one * 2.0), "both copies drawn {both}");
-    assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
+    let both = drawn_volume(session, tol);
+    assert!(
+        near(both, one * 2.0),
+        "both members drawn in the world: {both}"
+    );
+    assert_eq!(at_rest_findings(session), 0, "and they do not overlap");
 }
 
-/// **Duplicate leaves the original placed and its copy placed beside
-/// it** — the gesture Ev asked for, in the world's terms: the copy is a
-/// placement of the body stepped clear in its own space, placed in the
-/// world in the same action.
+/// Box `A` placed into the world by hand: the session, the box and its
+/// world copy.
+fn session_with_box_in_world(tol: Tol) -> (DocSession, (RecipeNodeId, RecipeNodeId)) {
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    let (session, copy) = common::world_copy_in(&session, body, tol);
+    (session, (body, copy))
+}
+
+/// **A duplicate of a body nothing copies is two copies in its own
+/// space**: a stand-in by the identity and one stepped clear, in one
+/// action, the stepped one the copy made — so the body is read by
+/// both and the picture draws the two copies, apart.
 #[test]
-fn duplicating_a_body_places_its_patterned_copy_beside_it() {
+fn duplicating_an_unplaced_body_writes_a_stand_in_and_a_stepped_copy() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let own = session.committed_doc().node_space(body);
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [stand_in, stepped] = outcome.minted[..] else {
+        panic!("two inserts mint two ids: {:?}", outcome.minted);
+    };
+    assert_eq!(
+        outcome.made,
+        Some(stepped),
+        "the copy made is the stepped one"
+    );
+    let doc = session.committed_doc();
+    for copy in [stand_in, stepped] {
+        let Some(Node::Place { source, .. }) = doc.node(copy) else {
+            panic!("the duplicate is a placement");
+        };
+        assert_eq!(Some(source.read), doc.output(body, 0), "of the body");
+        assert_eq!(doc.node_space(copy), own, "in the body's own space");
+    }
+    assert!(
+        common::solve(&session, doc, tol)
+            .relative(stand_in)
+            .is_some_and(|at| at.is_identity_bits()),
+        "the stand-in stands where the body stood"
+    );
+    assert!(
+        spacing_of(&session, stepped) > A[0],
+        "the stepped one clears it"
+    );
+    assert_eq!(
+        crate::common::drawn_copies(doc),
+        [stand_in, stepped],
+        "the body is read by both, and both copies are drawn"
+    );
+    assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
+}
+
+/// **A duplicate of a copy in the world is one more copy there**: the
+/// body placed into the world by hand, then duplicated — one placement
+/// of the body into the world beside the copy, which the world's volume
+/// doubles to.
+#[test]
+fn duplicating_a_world_copy_places_one_more_copy_beside_it() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    let (mut session, original) = common::world_copy_in(&session, body, tol);
     let one = A[0] * A[1] * A[2];
     assert!(near(drawn_volume(&mut session, tol), one), "one to start");
 
@@ -2566,14 +2680,8 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
         beside: None,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        2,
-        "the stepped copy, and its placement, inserted with its identity bundle"
-    );
-    let minted = outcome.minted.clone();
-    let [copy, placement] = minted[..] else {
-        panic!("two inserts mint two ids: {minted:?}");
+    let [copy] = outcome.minted[..] else {
+        panic!("one insert: {:?}", outcome.minted);
     };
     let doc = session.committed_doc();
     let Some(Node::Place { source, .. }) = doc.node(copy) else {
@@ -2582,15 +2690,16 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert_eq!(
         Some(source.read),
         doc.output(body, 0),
-        "of the body it duplicates"
-    );
-    assert!(
-        matches!(doc.node(placement), Some(Node::Place { .. })),
-        "and the copy is placed"
+        "of the body it duplicates, not of its copy"
     );
     assert_eq!(
-        common::world(doc),
-        [body, copy],
+        doc.node_space(copy),
+        Some(pncad::document::VarId::WORLD),
+        "into the copy's space"
+    );
+    assert_eq!(
+        crate::common::drawn_copies(doc),
+        [original, copy],
         "the original's placement is untouched, the copy's after it",
     );
     let both = drawn_volume(&mut session, tol);
@@ -2611,6 +2720,7 @@ fn a_duplicate_saved_and_reopened_has_nothing_to_undo() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
+    let (mut session, _) = common::world_copy_in(&session, body, tol);
     // A duplicate steps clear of the drawn body, so a run lands first.
     drawn_volume(&mut session, tol);
     let outcome = session.perform(SessionOp::Duplicate {
@@ -2675,9 +2785,10 @@ fn duplicating_is_one_undo() {
     );
 }
 
-/// **The payoff**: the copy moves and the original stays put, both
-/// still drawn — the copy is a body of its own, so a transform of it
-/// re-points the copy's placement alone.
+/// **The payoff**: the copy moves and the stand-in stays put, both
+/// still drawn — a duplicate of a body nothing copies is two copies of
+/// it in its own space, so a transform of the stepped one takes that
+/// copy alone.
 #[test]
 fn a_duplicates_copy_moves_on_its_own() {
     let tol = Tol::witness();
@@ -2689,10 +2800,12 @@ fn a_duplicates_copy_moves_on_its_own() {
         input: body.into(),
         beside: None,
     });
-    let minted = outcome.minted.clone();
-    let [copy, _placement] = minted[..] else {
-        panic!("two inserts mint two ids: {minted:?}");
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let copy = outcome.made.expect("the stepped copy");
+    let [stand_in, stepped] = outcome.minted[..] else {
+        panic!("a stand-in and a stepped copy: {:?}", outcome.minted);
     };
+    assert_eq!(stepped, copy, "the copy made is the stepped one");
 
     let placed = session_insert(
         &mut session,
@@ -2704,15 +2817,11 @@ fn a_duplicates_copy_moves_on_its_own() {
         },
     );
     assert_eq!(
-        common::world(session.committed_doc()),
-        [body, placed],
-        "the transform took the copy's placement; the original is untouched",
+        crate::common::drawn_copies(session.committed_doc()),
+        [stand_in, placed],
+        "the transform took the stepped copy; the stand-in is untouched",
     );
-    let both = drawn_volume(&mut session, tol);
-    assert!(
-        near(both, one * 2.0),
-        "both copies are still drawn after one of them moved: {both}",
-    );
+    session.pump();
     // And the two are apart in SPACE, not merely in the tree: a
     // plane between them cuts each entirely to one side. `split` is
     // the probe because it is a door this suite already drives, and
@@ -2799,14 +2908,20 @@ fn the_part_seats_track_the_part_door() {
         {
             let wanted = NodeKindWanted::Instances;
             let admitted = viewer::session::admits(&doc, candidate, wanted);
+            // A candidate in no space has no member read to write.
+            let Some(read) =
+                viewer::combine::part_node(&doc, candidate, PartSelectSpec::Instance(0))
+            else {
+                assert!(
+                    !admitted,
+                    "the {wanted:?} seat admits {name}, which is in no space"
+                );
+                continue;
+            };
             let refused = match pncad::document::apply(
                 &doc,
                 &pncad::document::DocEdit::InsertNode {
-                    node: Box::new(viewer::combine::part_node(
-                        &doc,
-                        candidate,
-                        PartSelectSpec::Instance(0),
-                    )),
+                    node: Box::new(read),
                     fresh: Vec::new(),
                 },
                 tol,
@@ -2969,10 +3084,7 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
         beside: None,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let minted = outcome.minted.clone();
-    let [copy, _placement] = minted[..] else {
-        panic!("two inserts mint two ids: {minted:?}");
-    };
+    let copy = outcome.made.expect("the stepped copy");
     let step = spacing_of(&session, copy);
     let moved = session_insert(
         &mut session,
@@ -3005,7 +3117,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
     };
     assert_eq!(
         face.node,
-        common::copy_of(session.committed_doc(), moved),
+        common::drawn_node(session.committed_doc(), moved),
         "the ray met the moved copy, drawn by its placement"
     );
     assert_ne!(
@@ -3082,10 +3194,8 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     );
 }
 
-/// **A family is not drawn, so the part tool takes it from the
-/// tree** (A10): the family stands in its body's own space, which no
-/// placement reads into the world, so the viewport has no copy of it
-/// to click — the feature tree's row is the pick.
+/// **The part tool seats a pattern picked in the tree**: a pick on a
+/// family of copies is on the family, not on the body it copies.
 #[test]
 fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     let tol = Tol::witness();
@@ -3130,7 +3240,7 @@ fn a_duplicate_lands_clear_of_its_original() {
         0,
         "the copies do not overlap"
     );
-    let step = spacing_of(&session, outcome.minted[0]);
+    let step = spacing_of(&session, outcome.made.expect("the stepped copy"));
     assert!(
         step > A[0],
         "the step clears the body's own width along the step: {step} vs {}",
@@ -3162,13 +3272,13 @@ fn a_duplicate_keeps_the_notes_promise() {
     let diagonal = (A[0] * A[0] + A[1] * A[1] + A[2] * A[2]).sqrt();
     let chord = diagonal * MEASURE_CHORD;
     let want = (A[0] + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP);
-    let got = spacing_of(&session, outcome.minted[0]);
+    let got = spacing_of(&session, outcome.made.expect("the stepped copy"));
     assert!(near(got, want), "spacing {got} vs the rule's {want}");
     assert!(
         got >= A[0] * (1.0 + DUPLICATE_GAP),
         "at least a quarter-width clear"
     );
-    let step = step_of(&session, outcome.minted[0]);
+    let step = step_of(&session, outcome.made.expect("the stepped copy"));
     assert_eq!(
         step.map(|c| c / got),
         STEP_DIRECTION,
@@ -3185,7 +3295,7 @@ fn a_duplicate_keeps_the_notes_promise() {
         beside: None,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let got = spacing_of(&session, outcome.minted[0]);
+    let got = spacing_of(&session, outcome.made.expect("the stepped copy"));
     assert!(
         got >= plate[0] * (1.0 + DUPLICATE_GAP),
         "the floor holds on a thin body: {got}"
@@ -3325,10 +3435,8 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
             normal: scl3([0.0, 0.0, 1.0]),
         },
     );
-    // The world places the two halves in place of the box.
+    // The world places the two halves: the split took the box over.
     let mut doc = session.committed_doc().clone();
-    let whole_box = common::copy_of(&doc, body);
-    common::edit_into(&mut doc, DocEdit::DeleteNode { id: whole_box }, tol);
     for port in [0, 1] {
         doc = common::placed_read(&doc, pncad::document::Operand::output(split, port), tol).0;
     }
@@ -3405,7 +3513,7 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     assert!(
-        spacing_of(&session, out.minted[0]) > 0.1,
+        spacing_of(&session, out.made.expect("the stepped copy")) > 0.1,
         "the step clears the grown width"
     );
     assert_eq!(
@@ -3640,7 +3748,9 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
     let mut session = session(tol);
     let a = common::xy_box_in(&mut session, A);
     let b = common::xy_box_in(&mut session, B);
-    let doc = session.committed_doc().clone();
+    // Both placed into the world by hand.
+    let (doc, _) = common::world_copy(session.committed_doc(), a, tol);
+    let (doc, _) = common::world_copy(&doc, b, tol);
     let copy = |body| {
         doc.output(common::copy_of(&doc, body), 0)
             .expect("a world copy")
@@ -3812,10 +3922,8 @@ fn the_split_plane_is_drawn_under_the_picked_copy() {
 
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
-    session.pump();
-    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
-        panic!("the block lands with one world copy")
-    };
+    // Placed into the world by hand: a new body lands unplaced.
+    let (mut session, copy) = common::world_copy_in(&session, body, tol);
     let (tool, _, centre, plane) = drawn(&session, pick_on(copy));
     assert_eq!(
         tool.target(),
