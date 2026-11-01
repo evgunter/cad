@@ -2,12 +2,13 @@
 id: committing-a-mate-floods-the-banner
 kind: issue
 title: committing a mate floods the banner: a refused label and raw-id dropped-value lines
-status: review
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
 pr: 6203
 branch: chrome/mate-banner
+closed: 2026-11-01
 ---
 
 ## Finding
@@ -47,3 +48,7 @@ picture shot.png
 `<dir>` must be an empty directory.
 
 As of 2026-11-01 the two `vclick`s land no face pick on main as well as with the forms-at-rest doors (the panel says `mate tool: needs two face picks` at the commit), so the viewport fractions want re-reading before this replays the flood.
+
+## Closed (2026-11-01, PR 6203)
+
+The mate form offers no label: a mate makes no node, and `tool_noun` answers none for it. That answer is read off the tool rather than `SessionOp::creates_a_node`, because the label is offered before the picks make an op; `push_labelled` stays as a backstop. A placement's dropped values are one banner notice per placement, worded by `editor_core::Maintenance::values_dropped`. It names the copy and each freedom once and each named variable once, never a raw id. It states only what the rows establish: the placement was written again without those values. `frame::maintenance_notices` is the one entry point.
