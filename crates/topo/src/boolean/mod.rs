@@ -3086,7 +3086,10 @@ pub enum BooleanError {
     /// edge on carriers the glue door verified one with the other's. Any
     /// other conic or spline can meet such a partner again, so the paired
     /// ends do not make the two edges one, and nothing here reads whether
-    /// they are.
+    /// they are. And a closed edge along the germ, whose far end is the
+    /// site itself, where the reading of its carrier on the partner's
+    /// faces does not take the pair (`sectors::closed_reach`: a spline on
+    /// either side).
     GermEdgeCarrierUnsupported {
         /// The first operand, A before B, whose edge is neither a line nor
         /// a circle, where the two edges are not sections of one plane
