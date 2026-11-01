@@ -2,10 +2,11 @@
 id: document-pot-cavity-refuses-departure-at-its-mouth-rim-at-interval
 kind: issue
 title: the editor-core corpus pot's cavity refuses Departure at its mouth rim at Interval, though the same pot built in sweep shells Ok, so SHELL-4's gate over-refuses a valid document body
-status: review
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
+closed: 2026-11-01
 ---
 
 
