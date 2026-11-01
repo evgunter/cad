@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 59;
+const OP_COUNT: usize = 60;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -227,6 +227,14 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
         SessionOp::SaveAsNewDocument(save_to.with_file_name("forked.pncad")),
+        SessionOp::Stage {
+            creation: viewer::session::Creation::of(SessionOp::AddSplit {
+                target: node.into(),
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            })
+            .expect("a split creates a node"),
+        },
         SessionOp::SetInstanceHidden {
             instance: node,
             hidden: true,
@@ -501,6 +509,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // The fork re-identifies every state of the history the drag
         // previews against.
         SessionOp::SaveAsNewDocument(_) => (58, false),
+        // A draft's question: it stages on the committed document and
+        // records nothing, so a drag has nothing to protect from it.
+        SessionOp::Stage { .. } => (59, true),
     }
 }
 
@@ -990,6 +1001,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
+        | SessionOp::Stage { .. }
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
