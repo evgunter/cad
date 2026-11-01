@@ -634,8 +634,8 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   its own holding the line into that edge's wedge ([`Folded`]), and
 ///   meets a curved one on its own. Two crossings on the ray refuse
 ///   typed ([`BooleanError::CrossingsAlongAContactLine`]), whether two
-///   wedge pairs cross or one composed material's boundary crosses
-///   twice, except on a solid's own slit or ring line
+///   wedge pairs cross or one solid's material's boundary about the
+///   line crosses twice, except on a solid's own slit or ring line
 ///   ([`crate::sector_shape::SlitTips`]). There the slit's two edges are two
 ///   wedges lying apart, so the material sectors decide each germ: one
 ///   per wedge pair that crosses, a wedge crossing two of the other's
@@ -1309,9 +1309,9 @@ type Crossing<T> = (Flanks<T>, [bool; 2]);
 ///
 /// The face is the solid's but no sector of its vertex's, since the
 /// vertex lies on its own face. Where the face holds a common line
-/// through the point, the solid's material about the line is its wedge
-/// composed with the half-turn under the face, as with a face of its
-/// own it folds ([`Folded`], [`resolve_edge_edge`]).
+/// through the point, it is one face of the solid's material about the
+/// line, its whole plane, beside its wedge, as with a face of its own it
+/// folds ([`Folded`], [`resolve_edge_edge`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct HeldFace<T: geom_core::Real> {
     /// The face's datum at the point.
@@ -2847,8 +2847,9 @@ mod tests {
     ///
     /// Where A's link lies under the face instead (a void below the top
     /// whose ray lies on it), A's wedge is the void's complement, and its
-    /// material is the wedge and under the face: B's corner in the void
-    /// lies outside A, as the wedges alone read it.
+    /// material about the line is what the face and the wedge's flanks
+    /// bound together: B's corner in the void lies outside A, as the
+    /// wedges alone read it.
     ///
     /// A flank of B's on the face is a face of the touching vertex's
     /// lying on it, and refuses `PartnerAlongFace { Flush }`: a guard
@@ -3080,7 +3081,7 @@ mod tests {
             );
         }
         // B's corner straddling the face's plane about the line, over
-        // 330°..30°: A's composed material's boundary crosses B's along
+        // 330°..30°: A's material's boundary crosses B's along
         // the face's half-turn, not along A's edge's wedge, and the germ
         // goes on the face's flanker, as the face's half-turn read alone
         // places it.
