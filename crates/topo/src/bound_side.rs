@@ -461,3 +461,104 @@ impl<T: Decide> Tie<T> {
         self.face.shape == FaceShape::Plane && matches!(self.reach, Reach::Conic { .. })
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_brep::ConicBend;
+    use geom_core::Tol;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A quarter of the unit circle leaving the origin along `t` (in
+    /// the `xz` plane, `tilt` off `+x` toward `+z`), bending toward
+    /// `bend` turned by the same `tilt` about `y` (so square to `t`).
+    fn quarter_arc(bend: Vec3<f64>, tilt: f64) -> (Vec3<f64>, Reach<f64>) {
+        let span = core::f64::consts::FRAC_PI_2;
+        let (c, s) = (tilt.cos(), tilt.sin());
+        let t = Vec3::new(c, 0.0, s);
+        let bend = Vec3::new(c * bend.x - s * bend.z, bend.y, s * bend.x + c * bend.z);
+        assert!(t.dot(bend).abs() < 1e-15, "the bend is square to the tangent");
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin() + bend,
+            axis: t.cross(bend),
+            radius: 1.0,
+            u_ref: -bend,
+        };
+        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
+        let tangent = carrier.deriv(0.0);
+        let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+        (tangent.normalize() * extent, Reach::Conic { extent, bend })
+    }
+
+    /// **The split's plane and a face's plane read one bound alike**: the
+    /// reading the split walk takes (a reference side, no charge) and
+    /// the one the boolean's vertex-on-face pass takes (an outward
+    /// normal, a plane's lever) give one verdict for every bound, at
+    /// first order where it decides and one order down where it ties.
+    #[test]
+    fn a_split_plane_and_a_face_plane_read_one_bound_alike() {
+        let b = band();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let split = FaceDatum::of_plane(ReferenceNormal::of_split_plane(z));
+        let face = FaceDatum::of_face(
+            OutwardNormal::from_chart(z, true),
+            FaceShape::Plane,
+            f64::MAX,
+        );
+        let down = Vec3::new(0.0, 0.0, -1.0);
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        let side_y = Vec3::new(0.0, 1.0, 0.0);
+        let cases = [
+            (quarter_arc(down, 0.0), BoundSide::Tangent(Side::Below)),
+            (quarter_arc(up, 0.0), BoundSide::Tangent(Side::Above)),
+            // Bending against its tilt: first order decides.
+            (quarter_arc(down, 0.2), BoundSide::Off(Side::Above)),
+            (quarter_arc(up, -0.2), BoundSide::Off(Side::Below)),
+            // Bending within the plane: the whole edge lies in it.
+            (quarter_arc(side_y, 0.0), BoundSide::Rides),
+        ];
+        for ((dir, reach), want) in cases {
+            let by_split = read_side(dir, reach, split, b).unwrap();
+            let by_face = read_side(dir, reach, face, b).unwrap();
+            assert_eq!(by_split, want, "the split's reading of {dir:?}");
+            assert_eq!(by_face, want, "the face's reading of {dir:?}");
+        }
+    }
+
+    /// **A tie is kept whole at first order and descended on asking**: a
+    /// line in the plane rides it, and a tie against a curved face is
+    /// not read one order down.
+    #[test]
+    fn a_tie_descends_by_the_face_and_the_bound() {
+        let b = band();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let line = Reach::Chord {
+            base: Point3::origin(),
+            far: Point3::new(1.0, 0.0, 0.0),
+        };
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        for (shape, want) in [
+            (FaceShape::Plane, BoundSide::Rides),
+            (FaceShape::Curved, BoundSide::Unread),
+        ] {
+            let face = FaceDatum::of_face(OutwardNormal::from_chart(z, true), shape, 1.0);
+            let FirstOrder::Tied(tie) = read(x, line, face, b).unwrap() else {
+                panic!("a line in the tangent plane ties at first order");
+            };
+            assert_eq!(tie.predicate, "bool_chord_side", "the chord's tie");
+            assert!(!tie.bends(), "a line reads no bend");
+            assert_eq!(tie.descend(b).unwrap(), want, "{shape:?}");
+        }
+        let (dir, arc) = quarter_arc(Vec3::new(0.0, 0.0, -1.0), 0.0);
+        let curved = FaceDatum::of_face(OutwardNormal::from_chart(z, true), FaceShape::Curved, 1.0);
+        assert_eq!(
+            read_side(dir, arc, curved, b).unwrap(),
+            BoundSide::Unread,
+            "a conic tied with a curved face is not descended"
+        );
+    }
+}
