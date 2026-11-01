@@ -1166,10 +1166,10 @@ fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
 /// `frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER` had no reader anywhere,
 /// tests included, so the claim it makes about the vocabulary was
 /// prose in a `const`. It is a claim about MESSAGES — a badge asks no
-/// issuer for anything — and the two policies that issue are the only
-/// two there are.
+/// issuer for anything — and the policies that issue are the only ones
+/// there are.
 #[test]
-fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
+fn the_policies_that_expire_are_the_subjects_the_roster_names() {
     let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let clean = viewer::camera::Folded {
         camera,
@@ -1184,6 +1184,11 @@ fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
         frame::cursor_status(IdStep::Void),
         frame::cursor_status(IdStep::Ask { serial: 7 }),
         frame::cursor_status(IdStep::Hold),
+        frame::tool_status(None, Some(viewer::tools::ToolKind::Boolean)),
+        frame::tool_status(
+            Some(viewer::tools::ToolKind::Boolean),
+            Some(viewer::tools::ToolKind::Boolean),
+        ),
     ]
     .into_iter()
     .filter_map(|update| match update {
