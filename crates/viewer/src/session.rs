@@ -76,6 +76,7 @@ use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{
     DoorDone, DoorRequest, DoorService, EvalRequest, EvalService, InlineEvaluator, InlineProver,
+    InlineStager, StagedKey, StagedRequest, StagedService,
 };
 use crate::g1;
 use crate::generation::Generation;
@@ -389,6 +390,13 @@ pub struct DocSession {
     /// here, at rest, and the next request cancels it
     /// ([`DocSession::request_eval`]).
     door: Box<dyn DoorService>,
+    /// **The staged seam**: an operation staged and not committed runs
+    /// here for its verdict ([`DocSession::stage`]).
+    stager: Box<dyn StagedService>,
+    /// The latest stage, and its evaluation once it lands.
+    stage: Option<Stage>,
+    /// How many stages have been asked for: the next one's key.
+    stages: u64,
     generation: Generation,
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
@@ -819,6 +827,9 @@ impl DocSession {
             gesture: g1::Slot::closed(),
             eval,
             door: Box::new(InlineProver::new()),
+            stager: Box::new(InlineStager::new()),
+            stage: None,
+            stages: 0,
             generation: Generation::FIRST,
             derived: Derived::none(),
             path: None,
@@ -839,6 +850,64 @@ impl DocSession {
     pub fn with_door(mut self, door: Box<dyn DoorService>) -> Self {
         self.door = door;
         self
+    }
+
+    /// This session with its staged runs taken through `stager`, in
+    /// place of the inline seam [`DocSession::new`] gives it, which runs
+    /// a stage inside [`DocSession::pump`].
+    #[must_use]
+    pub fn with_stager(mut self, stager: Box<dyn StagedService>) -> Self {
+        self.stager = stager;
+        self
+    }
+
+    /// **Stage a creating operation without committing it**: the run
+    /// its door would record, staged on the committed document and
+    /// handed to the staged seam to evaluate beside the picture. The
+    /// answer is read back by its key ([`Self::staged`]); a later
+    /// stage supersedes it.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, as committing the operation would answer it.
+    pub fn stage(&mut self, creation: Creation) -> Result<StagedKey, Refusal> {
+        let door = self.creation_door(creation.into_op())?;
+        let (recorded, ()) = self.stage_run(door)?;
+        let minted: Vec<RecipeNodeId> = recorded.minted.iter().flatten().copied().collect();
+        let Some(node) = crate::world::made(&recorded.doc, &minted) else {
+            unreachable!("a creation's accepted run mints the node it creates")
+        };
+        self.stages += 1;
+        let key = StagedKey(self.stages);
+        let resolver = self.run_resolver();
+        self.stager.submit(StagedRequest {
+            key,
+            doc: recorded.doc.clone(),
+            prime: self.memo_under(&resolver),
+            resolver,
+            tol: self.tol,
+        });
+        self.stage = Some(Stage {
+            key,
+            node,
+            doc: recorded.doc,
+            evaluation: None,
+        });
+        Ok(key)
+    }
+
+    /// **What the stage under `key` came to**: `None` once a later stage
+    /// superseded it, [`Staged::Checking`] until its run lands.
+    pub fn staged(&self, key: StagedKey) -> Option<Staged<'_>> {
+        let stage = self.stage.as_ref().filter(|stage| stage.key == key)?;
+        Some(match &stage.evaluation {
+            None => Staged::Checking,
+            Some(evaluation) => Staged::Evaluated {
+                doc: &stage.doc,
+                node: stage.node,
+                evaluation,
+            },
+        })
     }
 
     /// A session running the seam inline — the shape a test and the
@@ -1357,6 +1426,11 @@ impl DocSession {
         while let Some(done) = self.door.poll() {
             self.settle(done);
         }
+        while let Some(done) = self.stager.poll() {
+            if let Some(stage) = self.stage.as_mut().filter(|stage| stage.key == done.key) {
+                stage.evaluation = Some(done.evaluation);
+            }
+        }
         landings
     }
 
@@ -1779,87 +1853,25 @@ impl DocSession {
                 loops,
                 ids,
             } => self.edit_profile(node, &base, loops, ids),
-            SessionOp::AddProfile { loops } => {
-                self.create(labelled.take(), self.add_profile(loops))
+            op @ (SessionOp::AddProfile { .. }
+            | SessionOp::SketchOnFace { .. }
+            | SessionOp::AddDrawnProfile { .. }
+            | SessionOp::AddExtrude { .. }
+            | SessionOp::AddRevolve { .. }
+            | SessionOp::AddBoolean { .. }
+            | SessionOp::AddSplit { .. }
+            | SessionOp::AddMirror { .. }
+            | SessionOp::AddTransform { .. }
+            | SessionOp::AddPattern { .. }
+            | SessionOp::AddFusedPattern { .. }
+            | SessionOp::AddFillet { .. }
+            | SessionOp::AddChamfer { .. }
+            | SessionOp::AddPart { .. }
+            | SessionOp::Duplicate { .. }
+            | SessionOp::AddInstance { .. }) => {
+                let door = self.creation_door(op);
+                self.create(labelled.take(), door)
             }
-            SessionOp::SketchOnFace {
-                face,
-                loops,
-                distance,
-                spin,
-            } => self.create(
-                labelled.take(),
-                self.sketch_on_face(&face, loops, distance, spin),
-            ),
-            SessionOp::AddDrawnProfile {
-                plane,
-                traced,
-                chains,
-            } => self.create(
-                labelled.take(),
-                self.add_drawn_profile(&plane, &traced, chains),
-            ),
-            SessionOp::AddExtrude { profile, distance } => {
-                self.create(labelled.take(), self.add_extrude(profile, distance))
-            }
-            SessionOp::AddRevolve {
-                profile,
-                axis_through,
-                axis_heading,
-                angle,
-            } => self.create(
-                labelled.take(),
-                self.add_revolve(profile, axis_through, axis_heading, angle),
-            ),
-            SessionOp::AddBoolean { spec } => self.create(labelled.take(), self.add_boolean(spec)),
-            SessionOp::AddSplit {
-                target,
-                origin,
-                normal,
-            } => self.create(labelled.take(), self.add_split(target, &origin, &normal)),
-            SessionOp::AddMirror { body, plane } => {
-                self.create(labelled.take(), self.add_mirror(body, &plane))
-            }
-            SessionOp::AddTransform {
-                input,
-                translation,
-                rotation_axis,
-                rotation_angle,
-            } => self.create(
-                labelled.take(),
-                self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
-            ),
-            SessionOp::AddPattern { input, count, rule } => self.create(
-                labelled.take(),
-                self.add_pattern(input, count, rule, PatternOutputChoice::Instances),
-            ),
-            SessionOp::AddFusedPattern { input, count, rule } => self.create(
-                labelled.take(),
-                self.add_pattern(input, count, rule, PatternOutputChoice::Fused),
-            ),
-            SessionOp::AddFillet {
-                target,
-                radius,
-                selection,
-            } => self.create(
-                labelled.take(),
-                self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
-            ),
-            SessionOp::AddChamfer {
-                target,
-                distance,
-                selection,
-            } => self.create(
-                labelled.take(),
-                self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
-            ),
-            SessionOp::AddPart { of, select } => {
-                self.create(labelled.take(), self.add_part(of, select))
-            }
-            SessionOp::Duplicate { input, beside } => {
-                self.create(labelled.take(), self.add_duplicate(input, beside))
-            }
-            SessionOp::AddInstance { id } => self.create(labelled.take(), self.add_instance(id)),
             SessionOp::AcceptPartVersion { id } => self.accept_part_version(id),
             SessionOp::SetLabel { node, label } => {
                 self.commit_written(DocEdit::SetLabel { node, label })
@@ -1874,6 +1886,74 @@ impl DocSession {
             "a labelled op's arm handed its label to no creation's run"
         );
         outcome
+    }
+
+    /// **A creating operation's door**: the run it would stage, or its
+    /// refusal, decided off the session and writing nothing. The one
+    /// dispatch both [`Self::perform_op`] and [`Self::stage`] reach a
+    /// creation's door through, so what a stage evaluates is what the
+    /// commit would write.
+    fn creation_door(&self, op: SessionOp) -> Result<Creating, Refusal> {
+        match op {
+            SessionOp::AddProfile { loops } => {
+                self.add_profile(loops)
+            }
+            SessionOp::SketchOnFace {
+                face,
+                loops,
+                distance,
+                spin,
+            } => self.sketch_on_face(&face, loops, distance, spin),
+            SessionOp::AddDrawnProfile {
+                plane,
+                traced,
+                chains,
+            } => self.add_drawn_profile(&plane, &traced, chains),
+            SessionOp::AddExtrude { profile, distance } => {
+                self.add_extrude(profile, distance)
+            }
+            SessionOp::AddRevolve {
+                profile,
+                axis_through,
+                axis_heading,
+                angle,
+            } => self.add_revolve(profile, axis_through, axis_heading, angle),
+            SessionOp::AddBoolean { spec } => self.add_boolean(spec),
+            SessionOp::AddSplit {
+                target,
+                origin,
+                normal,
+            } => self.add_split(target, &origin, &normal),
+            SessionOp::AddMirror { body, plane } => {
+                self.add_mirror(body, &plane)
+            }
+            SessionOp::AddTransform {
+                input,
+                translation,
+                rotation_axis,
+                rotation_angle,
+            } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
+            SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule, PatternOutputChoice::Instances),
+            SessionOp::AddFusedPattern { input, count, rule } => self.add_pattern(input, count, rule, PatternOutputChoice::Fused),
+            SessionOp::AddFillet {
+                target,
+                radius,
+                selection,
+            } => self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
+            SessionOp::AddChamfer {
+                target,
+                distance,
+                selection,
+            } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
+            SessionOp::AddPart { of, select } => {
+                self.add_part(of, select)
+            }
+            SessionOp::Duplicate { input, beside } => {
+                self.add_duplicate(input, beside)
+            }
+            SessionOp::AddInstance { id } => self.add_instance(id),
+            other => unreachable!("only a creating operation reaches its door: {other:?}"),
+        }
     }
 
     /// The documents the open document's own directory offers as
@@ -3879,6 +3959,33 @@ impl DocSession {
     }
 }
 
+/// **One staged operation** ([`DocSession::stage`]): the document it
+/// was staged on, the node it made there, and that document's
+/// evaluation once the staged seam answers.
+struct Stage {
+    key: StagedKey,
+    node: RecipeNodeId,
+    doc: Doc<ProfileProgram>,
+    evaluation: Option<Arc<Evaluation<f64>>>,
+}
+
+/// **What a staged operation came to**, so far ([`DocSession::staged`]).
+#[derive(Debug)]
+pub enum Staged<'a> {
+    /// Its run has not landed.
+    Checking,
+    /// Its run landed: the staged document, the node the operation made
+    /// in it, and the document's evaluation.
+    Evaluated {
+        /// The staged document.
+        doc: &'a Doc<ProfileProgram>,
+        /// The node the operation made.
+        node: RecipeNodeId,
+        /// The staged document's evaluation.
+        evaluation: &'a Evaluation<f64>,
+    },
+}
+
 /// **A creation's run, decided and not yet staged**: what a creating
 /// door answers once its checks pass. The door reads the session and
 /// writes nothing; [`DocSession::create`] stages the run, labels it
@@ -4714,9 +4821,10 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
 /// its members travel with their declaration rather than being listed
 /// a second time here.
 ///
-/// The five `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
-/// no content to print; `eval` and `door` are `dyn` services and
-/// implement no `Debug`; `requested_doc` is a whole recipe DAG; and `display` is
+/// The `_` arms, one reason each: `tol` is `Tol(())`, a ZST with
+/// no content to print; `eval`, `door` and `stager` are `dyn` services
+/// and implement no `Debug`; `requested_doc` and `stage` hold whole
+/// recipe DAGs; `stages` is a count only `stage` reads; and `display` is
 /// not derived from the document, is as large as the document's hidden
 /// and moved sets, and has its own [`DocSession::display`] door to be
 /// dumped through.
@@ -4735,6 +4843,9 @@ impl core::fmt::Debug for DocSession {
             gesture,
             eval: _,
             door: _,
+            stager: _,
+            stage: _,
+            stages: _,
             generation,
             requested_doc: _,
             requested_resolver: _,

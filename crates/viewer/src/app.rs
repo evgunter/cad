@@ -706,6 +706,26 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// The staged seam: [`prover`]'s shape over a staged operation's run.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every staged verdict would otherwise read checking
+/// forever.
+fn stager() -> Result<Box<dyn crate::evalseam::StagedService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadStager::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineStager::new()))
+    }
+}
+
 /// **What the viewer owes the document under the session when its
 /// first scene lands, and what the budget said about it.**
 ///
@@ -896,7 +916,9 @@ impl ViewerApp {
         // modifier is held (`configure_input`'s doc says why).
         crate::pane::viewport::configure_input(egui_ctx);
 
-        let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
+        let mut session = DocSession::new(document, tol, evaluator()?)
+            .with_door(prover()?)
+            .with_stager(stager()?);
         session.set_notation(notation);
 
         Ok(Self {

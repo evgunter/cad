@@ -298,6 +298,12 @@ pub struct Seats {
     held: [Option<SpokenNode>; 2],
     /// Which output of its node each seat reads.
     ports: [Port; 2],
+    /// **The copy each pick was made through**: the placement whose
+    /// drawn copy a viewport pick hit, which the seat reads past to the
+    /// body it places ([`crate::world::seat_read`]). `None` for a pick
+    /// of the body itself. Where the person aimed, for a preview drawn
+    /// where they aimed.
+    through: [Option<RecipeNodeId>; 2],
 }
 
 /// **Which output of its node a pick reads** — a seat's, or a boolean
@@ -373,6 +379,7 @@ impl Seats {
             roles,
             held: [None, None],
             ports: [Port::Alone, Port::Alone],
+            through: [None, None],
         }
     }
 
@@ -394,6 +401,8 @@ impl Seats {
             roles,
             held: [a.map(|p| p.0), b.map(|p| p.0)],
             ports,
+            // Re-seated, not picked: no copy was aimed at.
+            through: [None, None],
         }
     }
 
@@ -485,7 +494,9 @@ impl Seats {
 
     /// [`Seats::pick`] of the output `body` a viewport pick hit.
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
+        let picked = node;
         let (node, port) = crate::world::seat_read(doc, node, body);
+        let through = (picked != node).then_some(picked);
         let state = |seat: Seat| Port::of_pick(doc, node, port, seat.wants());
         // **A one-seat tool has one seat, and its role names itself
         // twice to say so** (`Seats::one`) — so a pick can only
@@ -500,6 +511,7 @@ impl Seats {
         if self.arity() == 1 {
             self.held[0] = said;
             self.ports[0] = state(self.roles[0]);
+            self.through[0] = through;
             return;
         }
         let plain = usize::from(self.held[0].is_some());
@@ -512,6 +524,7 @@ impl Seats {
         };
         self.held[seat] = said;
         self.ports[seat] = state(self.roles[seat]);
+        self.through[seat] = through;
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
@@ -527,6 +540,7 @@ impl Seats {
     pub fn clear(&mut self) {
         self.held = [None, None];
         self.ports = [Port::Alone, Port::Alone];
+        self.through = [None, None];
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the shown
@@ -549,13 +563,27 @@ impl Seats {
                 && let Some(node) = self.held[i].take()
             {
                 self.ports[i] = Port::Alone;
+                self.through[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
                 });
             }
         }
+        // A copy that went while its body stayed: the pick stands, and
+        // where it was aimed is no longer drawn.
+        for through in &mut self.through {
+            if through.is_some_and(|copy| doc.node(copy).is_none()) {
+                *through = None;
+            }
+        }
         events
+    }
+
+    /// **The copy seat `i`'s pick was made through** ([`Self::through`]'s
+    /// field), `None` for a pick of the body itself or an empty seat.
+    pub fn through(&self, i: usize) -> Option<RecipeNodeId> {
+        self.through.get(i).copied().flatten()
     }
 
     /// Seat `i`'s pick, or the typed "still empty" refusal naming it.

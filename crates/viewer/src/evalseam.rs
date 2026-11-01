@@ -768,6 +768,105 @@ impl DoorService for InlineProver {
     }
 }
 
+/// **What the staged seam was asked**: a document an operation was
+/// staged on and not committed, evaluated for what the operation would
+/// make ([`crate::session::DocSession::stage`]).
+///
+/// **Keyed by the stage it answers**, minted by the session: a draft
+/// that moved on stages again under a new key, and an answer under an
+/// old one is dropped.
+#[derive(Clone, Debug)]
+pub struct StagedRequest {
+    /// The stage this answers.
+    pub key: StagedKey,
+    /// The staged document.
+    pub doc: Doc<ProfileProgram>,
+    /// The landed run, as the memo the staged run primes from, so only
+    /// what the staged operation added is computed again; `None` where
+    /// it resolved through another seam ([`same_resolver`]).
+    pub prime: Option<Arc<Evaluation<f64>>>,
+    /// The resolver the landed run resolved through.
+    pub resolver: Option<Arc<dyn PartResolver>>,
+    /// The ε the run decides at.
+    pub tol: Tol,
+}
+
+/// **Which stage a staged answer is for**: the session's count of the
+/// stages it has asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StagedKey(pub u64);
+
+/// A finished staged run.
+#[derive(Clone, Debug)]
+pub struct StagedDone {
+    /// The key the request carried.
+    pub key: StagedKey,
+    /// The staged document's evaluation; a canceled run is never
+    /// answered.
+    pub evaluation: Arc<Evaluation<f64>>,
+}
+
+/// **The staged seam's vocabulary** — [`DoorService`]'s, because a
+/// staged run reads a token between nodes: the next stage cancels it.
+/// Its own seam, so a draft's verdict never cancels the run the
+/// picture is waiting for.
+pub trait StagedService {
+    /// Ask for `request`. Cancels a job in flight and replaces any
+    /// waiting one.
+    fn submit(&mut self, request: StagedRequest);
+
+    /// Take a finished job, if one is ready. Never blocks.
+    fn poll(&mut self) -> Option<StagedDone>;
+
+    /// Whether a job is in flight or waiting.
+    fn busy(&self) -> bool;
+}
+
+/// The staged run: the document under the landed memo, answered only
+/// when it reached every node.
+fn run_staged(request: StagedRequest, cancel: &CancelToken) -> Option<StagedDone> {
+    let StagedRequest {
+        key,
+        doc,
+        prime,
+        resolver,
+        tol,
+    } = request;
+    let evaluation = evaluate(&doc, prime.as_deref(), cancel, &options(&resolver), tol);
+    (evaluation.outcome == EvalOutcome::Completed).then(|| StagedDone {
+        key,
+        evaluation: Arc::new(evaluation),
+    })
+}
+
+/// The staged seam with no thread behind it: `submit` records the
+/// request and `poll` runs it — [`InlineProver`]'s standing.
+#[derive(Debug, Default)]
+pub struct InlineStager {
+    pending: Option<StagedRequest>,
+}
+
+impl InlineStager {
+    /// A seam that has run nothing.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl StagedService for InlineStager {
+    fn submit(&mut self, request: StagedRequest) {
+        self.pending = Some(request);
+    }
+
+    fn poll(&mut self) -> Option<StagedDone> {
+        run_staged(self.pending.take()?, &CancelToken::new())
+    }
+
+    fn busy(&self) -> bool {
+        self.pending.is_some()
+    }
+}
+
 /// **The seam's traffic is `Send`, checked here rather than assumed.**
 ///
 /// The threaded implementation would fail to compile without it, but
@@ -785,13 +884,15 @@ const _: fn() = || {
     assert_send::<FitDone>();
     assert_send::<DoorRequest>();
     assert_send::<DoorDone>();
+    assert_send::<StagedRequest>();
+    assert_send::<StagedDone>();
     // The memo moves onto the worker thread with the loop that owns it.
     assert_send::<PickMemo>();
 };
 
 #[cfg(not(target_family = "wasm"))]
 pub use threaded::{
-    SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, Worker,
+    SpawnError, ThreadEvaluator, ThreadFitter, ThreadIndexer, ThreadProver, ThreadStager, Worker,
 };
 
 /// The native seam: one worker thread, a request channel, a result
@@ -811,7 +912,7 @@ mod threaded {
     use super::{
         DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, FitDone,
         FitRequest, FitService, IndexDone, IndexRequest, IndexService, PickMemo, PriorRun,
-        build_index, run_fit, run_once,
+        StagedDone, StagedRequest, StagedService, build_index, run_fit, run_once, run_staged,
     };
 
     /// Which of this module's four workers a refusal is about (D4 ¶3:
@@ -827,6 +928,8 @@ mod threaded {
         Fit,
         /// The coincidence door's worker ([`ThreadProver`]).
         Door,
+        /// The staged run's worker ([`ThreadStager`]).
+        Staged,
     }
 
     impl core::fmt::Display for Worker {
@@ -836,6 +939,7 @@ mod threaded {
                 Self::Index => "index",
                 Self::Fit => "display fit",
                 Self::Door => "coincidence door",
+                Self::Staged => "staged run",
             })
         }
     }
@@ -1532,6 +1636,88 @@ mod threaded {
     impl Drop for ThreadProver {
         /// [`ThreadEvaluator`]'s `Drop`: the job reads its token, so the
         /// join is bounded by one node or one margin's discharge.
+        fn drop(&mut self) {
+            self.cancel.cancel();
+            self.inner.close_and_join();
+        }
+    }
+
+    /// One staged job and the token it reads.
+    #[derive(Debug)]
+    struct StagedJobOf {
+        request: StagedRequest,
+        cancel: CancelToken,
+    }
+
+    impl Job for StagedJobOf {
+        /// `None` for a canceled run, which answers nothing.
+        type Done = Option<StagedDone>;
+
+        /// **Always**, for [`EvalJob`]'s reason: a submit that left a
+        /// job waiting canceled the one `done` answers.
+        fn supersedes(&self, _done: &Option<StagedDone>) -> bool {
+            true
+        }
+    }
+
+    /// A background-thread staged seam: [`ThreadProver`]'s machine,
+    /// token and all, over a staged document's run. Its own thread, so
+    /// a draft's verdict runs beside the picture's evaluation rather
+    /// than in front of it.
+    #[derive(Debug)]
+    pub struct ThreadStager {
+        inner: Coalescing<StagedJobOf>,
+        /// The token of the most recently submitted job.
+        cancel: CancelToken,
+    }
+
+    impl ThreadStager {
+        /// Spawn the worker. Nothing survives between jobs.
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread: every
+        /// staged verdict would otherwise read pending forever.
+        pub fn spawn() -> Result<Self, SpawnError> {
+            let inner = Coalescing::spawn(
+                Worker::Staged,
+                "viewer-staged",
+                (),
+                |_, job: StagedJobOf| run_staged(job.request, &job.cancel),
+            )?;
+            Ok(Self {
+                inner,
+                cancel: CancelToken::new(),
+            })
+        }
+    }
+
+    impl StagedService for ThreadStager {
+        fn submit(&mut self, request: StagedRequest) {
+            self.cancel.cancel();
+            let cancel = CancelToken::new();
+            self.cancel = cancel.clone();
+            self.inner.submit(StagedJobOf { request, cancel });
+        }
+
+        fn poll(&mut self) -> Option<StagedDone> {
+            // A canceled run's `None` is taken and dropped here.
+            while let Some(done) = self.inner.poll() {
+                if done.is_some() {
+                    return done;
+                }
+            }
+            None
+        }
+
+        fn busy(&self) -> bool {
+            self.inner.busy()
+        }
+    }
+
+    impl Drop for ThreadStager {
+        /// [`ThreadProver`]'s `Drop`: the run reads its token, so the
+        /// join is bounded by one node.
         fn drop(&mut self) {
             self.cancel.cancel();
             self.inner.close_and_join();

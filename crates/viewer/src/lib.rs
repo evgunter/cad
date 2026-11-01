@@ -144,7 +144,8 @@ pub use camera::{Camera, CameraError, CameraOp, CameraOpError, cursor_projection
 pub use docio::DocIoError;
 pub use evalseam::{
     DoorDone, DoorRequest, DoorService, EvalDone, EvalRequest, EvalService, IndexDone,
-    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver,
+    IndexRequest, IndexService, InlineEvaluator, InlineIndexer, InlineProver, InlineStager,
+    StagedDone, StagedKey, StagedRequest, StagedService,
 };
 // The two seam lanes are meant to be interchangeable, so they are named
 // the same way. `ThreadEvaluator` carries the `cfg` its module does.
@@ -153,7 +154,9 @@ pub use display::{
     free_move_check, space_check,
 };
 #[cfg(not(target_family = "wasm"))]
-pub use evalseam::{SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, Worker};
+pub use evalseam::{
+    SpawnError, ThreadEvaluator, ThreadIndexer, ThreadProver, ThreadStager, Worker,
+};
 pub use generation::Generation;
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
