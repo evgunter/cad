@@ -2,7 +2,7 @@
 id: touchrec
 kind: program
 title: TOUCHREC — a boolean result holds the records of its own touches and keeps the copy the glue decided
-status: ready
+status: active
 opened: 2026-11-01
 group: kernel/boolean/split
 prefix: touchrec/
