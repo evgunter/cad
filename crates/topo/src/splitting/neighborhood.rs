@@ -238,11 +238,13 @@ pub(crate) enum EntryFault<E> {
 ///   between ON vertices departs into its own side while both endpoints
 ///   read On. Post-root-insertion the interior is sign-constant (every
 ///   interior crossing was split out), so the departure IS the interior
-///   side. An in-plane departure ties at first order, and the arc then
-///   reads by which side it BENDS to against `reference`, certified
+///   side ([`crate::bound_side::read_plane_side`]). An in-plane departure
+///   ties at first order, and the arc then reads by which side it BENDS
+///   to against `reference`, certified
 ///   ([`geom_brep::conic_bend_side`]). A whole edge within the band of
-///   the plane reads On; a bend the band does not separate from the
-///   first-order residue escalates (F6).
+///   the plane reads On, an edge whose extent the band does not read as
+///   a length among them; a bend the band does
+///   not separate from the first-order residue escalates (F6).
 pub(crate) fn entry_side<T: Decide, E>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -251,7 +253,7 @@ pub(crate) fn entry_side<T: Decide, E>(
     far: impl FnOnce(VertexKey) -> Result<PlaneSide, E>,
     band: Band,
 ) -> Result<(Vec3<T>, PlaneSide), EntryFault<E>> {
-    use crate::bound_side::{BoundSide, FaceDatum, Reach, Side};
+    use crate::bound_side::{BoundSide, Reach, Side};
     let (final_vertex, dir, conic_bend) = chord(body, vertex, he).map_err(EntryFault::Walk)?;
     let Some(bend) = conic_bend else {
         return far(final_vertex)
@@ -262,8 +264,7 @@ pub(crate) fn entry_side<T: Decide, E>(
         extent: dir.norm(),
         bend,
     };
-    let side = match crate::bound_side::read_side(dir, reach, FaceDatum::of_plane(reference), band)
-    {
+    let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
         Ok(BoundSide::Off(Side::Below) | BoundSide::Tangent(Side::Below)) => PlaneSide::Below,
         Ok(BoundSide::Off(Side::Above) | BoundSide::Tangent(Side::Above)) => PlaneSide::Above,
         Ok(BoundSide::Rides | BoundSide::Unread) => PlaneSide::On,

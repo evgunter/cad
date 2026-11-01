@@ -543,9 +543,10 @@ pub fn enters_material_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
-    parting_side(
-        (deriv2 / speed_sq, Vec3::zero()),
-        reference_normal,
+    // The parting against a plane (`κ_b = 0`), normalized for speed after
+    // the dot product, as an interval reading keeps it narrowest.
+    decide_order2(
+        Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm),
         arm,
         band,
     )
@@ -553,45 +554,60 @@ pub fn enters_material_order2<T: Decide>(
 
 /// **How far one curve stands past another it leaves tangent to, one
 /// order down**: two curves leave a point along one tangent, bending
-/// with curvature vectors `k` and `kb` (per arc length squared, normal
+/// with curvature vectors `κ` and `κ_b` (per arc length squared, normal
 /// to the tangent), and at arc length `l` along it the first stands
-/// `(k − kb)·û·l²/2` past the second toward the unit `u` (square to the
-/// tangent). Positive where the curve with `k` stands past the one with
-/// `kb` toward `u`. Its sign does not depend on `l`, which sets only the
-/// size the margin is decided at: the lever is the caller's, the
-/// shorter of the two curves' reaches where both are edges.
+/// `(κ − κ_b)·û·l²/2` past the second toward the unit `u` (square to the
+/// tangent). `bend` is the difference `κ − κ_b`, formed by the caller
+/// before the dot product: where both bends share a factor (a germ's
+/// `n̂ × t̂`, a reference normal), the caller differences the scalars
+/// first, so an interval reading of that factor does not widen the
+/// margin twice. Positive where the curve with `κ` stands past the one
+/// with `κ_b` toward `u`. Its sign does not depend on `l`, which sets
+/// only the size the margin is decided at: the lever is the caller's,
+/// the shorter of the two curves' reaches where both are edges.
 ///
 /// The one reading of a second-order parting between two sheets or
 /// curves tangent at a point or along a line: a curve against a plane
-/// (`kb` zero, [`enters_material_order2`]), two germs tied along one
+/// (`κ_b` zero, [`enters_material_order2`]), two germs tied along one
 /// tangent ([`tied_germ_turn`]), two carriers' normal sections along a
 /// shared tangent, and the boolean's in-plane bound-against-bound and
 /// wall-against-floor readings, each deciding the margin under its own
 /// predicate.
 #[must_use]
-pub fn parting<T: Real>((k, kb): (Vec3<T>, Vec3<T>), u: Vec3<T>, l: T) -> Margin<T> {
-    Margin::sagitta((k - kb).dot(u), l)
+pub fn parting<T: Real>(bend: Vec3<T>, u: Vec3<T>, l: T) -> Margin<T> {
+    Margin::sagitta(bend.dot(u), l)
 }
 
 /// **[`parting`]'s side against a reference normal**, decided: where
-/// the curve bending with `k` stands past the one bending with `kb`
-/// along the reference normal it `Exits`, against it `Enters`, and an
-/// exactly-zero parting is `Tangent` (the caller's tie: never guess).
-/// The arm is gated first (`"tangent_sector_order2_arm"`), the parting
-/// decided under `"tangent_sector_order2"`.
+/// the bend difference `bend = κ − κ_b` carries the first curve past
+/// the second along the reference normal it `Exits`, against it
+/// `Enters`, and an exactly-zero parting is `Tangent` (the caller's
+/// tie: never guess). The arm is gated first
+/// (`"tangent_sector_order2_arm"`), the parting decided under
+/// `"tangent_sector_order2"`.
 ///
 /// # Errors
 ///
 /// As [`enters_material_order2`].
 pub fn parting_side<T: Decide>(
-    bends: (Vec3<T>, Vec3<T>),
+    bend: Vec3<T>,
     reference_normal: ReferenceNormal<T>,
+    arm: T,
+    band: Band,
+) -> Result<EntersMaterial, LeverEscalation> {
+    decide_order2(parting(bend, reference_normal.vec(), arm), arm, band)
+}
+
+/// The second-order verdict's two gates: the arm
+/// (`"tangent_sector_order2_arm"`), then the margin
+/// (`"tangent_sector_order2"`).
+fn decide_order2<T: Decide>(
+    margin: Margin<T>,
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, LeverEscalation> {
     crate::dihedral::decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)
         .map_err(LeverEscalation::arm)?;
-    let margin = parting(bends, reference_normal.vec(), arm);
     Ok(
         match crate::dihedral::decide("tangent_sector_order2", margin, band)
             .map_err(LeverEscalation::reading)?
@@ -636,12 +652,12 @@ pub fn tied_germ_turn<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<Sign, TiedGermsError> {
-    if !(bends[1] - bends[0]).is_bounded() {
+    let bend = bends[1] - bends[0];
+    if !bend.is_bounded() {
         return Err(TiedGermsError::Singular);
     }
-    let across = normal.cross(t);
     match parting_side(
-        (across * bends[1], across * bends[0]),
+        normal.cross(t) * bend,
         ReferenceNormal::of_germ(normal, t),
         arm,
         band,

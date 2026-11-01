@@ -19,9 +19,10 @@
 //!   [`FirstOrder::Off`] the face on that side.
 //! - **A first-order tie** is a [`Tie`], which [`Tie::descend`] reads
 //!   one order down: a conic against a plane by which side it bends to
-//!   ([`geom_brep::conic_bend_side`]), [`BoundSide::Tangent`]; a bound
-//!   that bends as the face does to the orders read, [`BoundSide::Rides`];
-//!   a bound against a curved face, which the descent does not read,
+//!   ([`geom_brep::conic_bend_side`]), [`BoundSide::Tangent`]; a line
+//!   edge in a plane, which bends as the plane does, [`BoundSide::Rides`];
+//!   a bound against a curved face, or a probe or a bisector (whose bend
+//!   is its sector's face's), which the descent does not read,
 //!   [`BoundSide::Unread`].
 //!
 //! A consumer that keys on the first-order tie reads [`read`] and keeps
@@ -193,12 +194,13 @@ pub(crate) enum BoundSide {
     /// face tangent to it, toward this side.
     Tangent(Side),
     /// Tied at first order and at the order below: the bound rides the
-    /// face to the orders read (a line edge or a direction in a plane, a
-    /// conic whose whole edge lies within the band of a plane).
+    /// face to the orders read (a line edge in a plane, a conic whose
+    /// whole edge lies within the band of a plane).
     Rides,
-    /// Tied at first order against a curved face, which the descent does
-    /// not read: the bound rides the face to first order, and which way
-    /// it leaves is the two carriers' relative curvature.
+    /// Tied at first order where the descent reads no second order: a
+    /// bound against a curved face (which way it leaves is the two
+    /// carriers' relative curvature), or a probe or a bisector, whose
+    /// bend is its sector's face's.
     Unread,
 }
 
@@ -410,6 +412,26 @@ pub(crate) fn read_side<T: Decide>(
     }
 }
 
+/// **A bound's side of a plane with no curvature charge** (a splitting
+/// plane's, [`FaceDatum::of_plane`]): [`read_side`], where a bound whose
+/// reach the band does not read as a length is tied rather than refused
+/// ([`Tie::of_unread_reach`]): such an edge lies within the band of the
+/// plane wherever its bend leaves it, and the descent reads it so.
+pub(crate) fn read_plane_side<T: Decide>(
+    dir: Vec3<T>,
+    reach: Reach<T>,
+    reference: ReferenceNormal<T>,
+    band: Band,
+) -> Result<BoundSide, BoundSideFault<T>> {
+    let face = FaceDatum::of_plane(reference);
+    read_side(dir, reach, face, band).or_else(|fault| {
+        match Tie::of_unread_reach(dir, reach, face, fault) {
+            Some(tie) => tie.descend(band),
+            None => Err(fault),
+        }
+    })
+}
+
 /// **The curvature charge**: the least separation from a face that a
 /// ray leaving it at `slope` (a sine) keeps past a bend of radius
 /// `lever`, `slope·l − l²/lever`, read at `l = min(slope·lever/2,
@@ -422,15 +444,50 @@ pub(crate) fn sagitta_charge<T: Decide>(slope: T, lever: T, reach: T) -> T {
 }
 
 impl<T: Decide> Tie<T> {
+    /// **A bound whose reach the band does not read as a length**, tied:
+    /// `fault` is [`read`]'s, on the arm gate's rung (the reach is within
+    /// the band, or decided zero there). A consumer that reads such a
+    /// bound as lying within the band of the plane (the split walk: a
+    /// conic edge whose whole extent is in the band) ties it here and
+    /// descends it as any tie; the Zero quoted is the arm's. `None` for
+    /// any other fault.
+    pub(crate) fn of_unread_reach(
+        dir: Vec3<T>,
+        reach: Reach<T>,
+        face: FaceDatum<T>,
+        fault: BoundSideFault<T>,
+    ) -> Option<Self> {
+        match fault {
+            BoundSideFault::Departure { escalation, .. }
+                if escalation.rung() == geom_brep::LeverRung::Arm =>
+            {
+                Some(Self {
+                    dir,
+                    reach,
+                    face,
+                    predicate: "enters_material_arm",
+                    decided: Decided {
+                        sign: Sign::Zero,
+                        margin: escalation.diag().margin,
+                    },
+                })
+            }
+            _ => None,
+        }
+    }
+
     /// **The tied bound's side one order down.**
     ///
     /// - A conic against a plane: which side it bends to
     ///   ([`geom_brep::conic_bend_side`], certified at a point of the
     ///   edge), [`BoundSide::Tangent`]; a whole edge within the band of
     ///   the plane [`BoundSide::Rides`].
-    /// - A line edge, a probe or a bisector against a plane: it bends by
-    ///   nothing, as the plane does, so it rides the plane to the second
-    ///   order too, [`BoundSide::Rides`].
+    /// - A line edge against a plane: it bends by nothing, as the plane
+    ///   does, so it rides the plane to the second order too,
+    ///   [`BoundSide::Rides`].
+    /// - A probe or a bisector against a plane: a direction with no
+    ///   point behind it, whose sector's face may bend off the plane at
+    ///   second order, [`BoundSide::Unread`].
     /// - Any bound against a curved face: [`BoundSide::Unread`].
     ///
     /// # Errors
@@ -450,9 +507,8 @@ impl<T: Decide> Tie<T> {
                     Err(diag) => Err(BoundSideFault::Bend(diag)),
                 }
             }
-            (FaceShape::Plane, Reach::Chord { .. } | Reach::Extent(_) | Reach::Bisector(_)) => {
-                Ok(BoundSide::Rides)
-            }
+            (FaceShape::Plane, Reach::Chord { .. }) => Ok(BoundSide::Rides),
+            (FaceShape::Plane, Reach::Extent(_) | Reach::Bisector(_)) => Ok(BoundSide::Unread),
         }
     }
 

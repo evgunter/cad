@@ -1569,7 +1569,7 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart = geom_brep::parting((floor_bend, wall_bend), floor, arm);
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
                 let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {

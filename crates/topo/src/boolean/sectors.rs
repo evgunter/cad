@@ -947,9 +947,9 @@ pub(super) fn tangent_relative_side<T: Decide>(
 ) -> Result<SideCode, BooleanError> {
     let n_ref = other_outward.vec();
     let d_hat = d.normalize();
-    let bend = |s| n_ref * geom_brep::implicit_graph_acceleration(s, p, d_hat, n_ref);
+    let graph_accel = |s| geom_brep::implicit_graph_acceleration(s, p, d_hat, n_ref);
     match geom_brep::parting_side(
-        (bend(sector_surface), bend(other_surface)),
+        n_ref * (graph_accel(sector_surface) - graph_accel(other_surface)),
         geom_brep::ReferenceNormal::of_face_outward(other_outward),
         arm,
         band,
@@ -1812,7 +1812,7 @@ pub(super) fn runs_into<T: Decide>(
             let m = s.middle();
             (m - d * m.dot(d)).normalize()
         };
-        let entered = geom_brep::parting((k, kb), u, l.min(lb));
+        let entered = geom_brep::parting(k - kb, u, l.min(lb));
         return Ok(
             decide("bool_sector_runs_into_bend", entered, band).map_err(|diag| {
                 BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
@@ -2054,7 +2054,7 @@ fn crescent<T: Decide>(
             {
                 continue;
             }
-            let opened = geom_brep::parting((kb, ka), u, l);
+            let opened = geom_brep::parting(kb - ka, u, l);
             if decide("bool_sector_crescent", opened, band).map_err(escalate)? == Sign::Positive {
                 return Ok(true);
             }
