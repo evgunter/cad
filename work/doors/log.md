@@ -49,3 +49,8 @@ AUTHOR's narrative is recoverable from
   - `needs-enclosures-recourse-sends-the-reader-to-a-parameter-box-and-a-type-path` (P4).
 
   CLEARTAIL's `measure-clearance-refused-states-no-recourse-…` (P4) words the refusals the consumer will draw. It is re-banded when the consumer's unit is specified and parks on it.
+- 2026-11-01 — (DOORS orchestrator) Ev on PR 6261: no face set. Ev's other two points:
+  - An assertion `min_clearance ≥ c` should hand `c` to the search and cut short. Today `wire_assertion` compares the measure node's full `min_separation` bracket against `c`. Meanwhile topo's `Sweep`, the predicate search that discharges and stops at the first verified violation, is reached only by the test-only `editor_core::clearance`.
+  - The witness is "a violating pair", shown only on a violation, never "the closest pair found".
+
+  **Class: all three designers framed the bound engine as the toleranced question and missed that the document's own assertion is the predicate it answers.** The question to Ev now is whether a bare clearance measure shows its bracket. The row and the PR are re-cut to that design once Ev confirms.
