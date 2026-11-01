@@ -210,11 +210,9 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     let shift = [0.20, -0.10, 0.0];
     let probe = Frame::rotate_then_translate([0.0, 0.0, 1.0], FRAC_PI_2, shift, common::band())
         .expect("a literal axis has a definite direction");
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     let outcome = session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: asm::where_b_stood(probe),
     });
     assert!(
@@ -222,9 +220,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         "a rotation is a rigid motion: {:?}",
         outcome.refusal
     );
-    session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
     let view = session.display_view();
 
     // Where the probed post's top-cap centre is DRAWN: take the
@@ -305,18 +301,14 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // it — then hide the probed instance.
     let own = asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])),
     });
-    session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
-    session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
+    session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
+    session.perform(SessionOp::SetBodyHidden {
+        node: bench.post_b,
         hidden: true,
     });
     let view = session.display_view();
@@ -344,8 +336,8 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     );
 
     // Unhide: both facts come back together.
-    session.perform(SessionOp::SetInstanceHidden {
-        instance: bench.post_b,
+    session.perform(SessionOp::SetBodyHidden {
+        node: bench.post_b,
         hidden: false,
     });
     assert_eq!(
@@ -376,7 +368,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         panic!("exactly one frame is superseded at the edit")
     };
     session.pump();
-    assert_eq!(superseded.instance, bench.post_b);
+    assert_eq!(superseded.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(
             &superseded.cause,
@@ -414,13 +406,11 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     // space too. There is no other space to move.
     for participant in [bench.post_b, bench.shelf_i] {
         match session
-            .perform(SessionOp::BeginFreeMove {
-                instance: participant,
-            })
+            .perform(SessionOp::BeginFreeMove { node: participant })
             .refusal
         {
             Some(Refusal::Display(DisplayFault::Admission(AdmissionFault::InTheWorld {
-                instance,
+                node: instance,
             }))) => assert_eq!(instance.id(), participant),
             other => panic!("{participant:?} must refuse the probe, got {other:?}"),
         }
@@ -601,12 +591,10 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // Preview / commit / cancel with no gesture: typed, all three.
     for op in [
         SessionOp::PreviewFreeMove {
-            instance: bench.post_a,
+            node: bench.post_a,
             frame: Frame::translation([0.01, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_a,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_a },
         SessionOp::CancelFreeMove,
     ] {
         assert!(
@@ -619,15 +607,11 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     }
 
     // A second begin while one is open.
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(
         matches!(
             session
-                .perform(SessionOp::BeginFreeMove {
-                    instance: bench.post_a,
-                })
+                .perform(SessionOp::BeginFreeMove { node: bench.post_a })
                 .refusal,
             Some(Refusal::Display(DisplayFault::FreeMoveInFlight))
         ),
@@ -637,12 +621,10 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // A bit-exact identity preview commits NOTHING — "probed to exactly
     // where the document draws it" must not leave a marked part.
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_a,
+        node: bench.post_a,
         frame: Frame::IDENTITY,
     });
-    session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_a,
-    });
+    session.perform(SessionOp::CommitFreeMove { node: bench.post_a });
     assert!(
         crate::common::asm::frame_of(&session, bench.post_b).is_none(),
         "an identity commit leaves no entry"
@@ -666,11 +648,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // starting another gesture and reading that refusal. The mate
     // places post_b into the world, emptying the space the gesture
     // moves, which the edit's own prune reads off the recipe.
-    session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     session.perform(SessionOp::PreviewFreeMove {
-        instance: bench.post_b,
+        node: bench.post_b,
         frame: Frame::translation([0.03, 0.0, 0.0]),
     });
     let outcome = session.perform(asm::seat_op(
@@ -691,7 +671,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         .killed_gesture
         .as_ref()
         .expect("the killed gesture is reported, with the fault that killed it");
-    assert_eq!(killed.instance, bench.post_b);
+    assert_eq!(killed.held, viewer::display::Held::Node(bench.post_b));
     assert!(
         matches!(
             &killed.cause,
@@ -708,9 +688,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert!(
         matches!(
             session
-                .perform(SessionOp::CommitFreeMove {
-                    instance: bench.post_b
-                })
+                .perform(SessionOp::CommitFreeMove { node: bench.post_b })
                 .refusal,
             Some(Refusal::Display(DisplayFault::NoFreeMove))
         ),
@@ -769,25 +747,19 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 
 // ── 7. An instance a family copies ───────────────────────────────
 
-/// **Both G3 display operations reach an instance a family copies** (the fix-pass rule; this row pinned the silent no-op as
-/// shipped and went red when propagation landed).
+/// **An instance a family copies is not drawn, and its space is not
+/// shown.** The family reads the instance as a body, and each member
+/// is read alone by a copy placed into the world, so the picture draws
+/// those world copies and nothing in the instance's own space: hiding
+/// the instance takes nothing off the picture, hiding a world copy takes
+/// that copy off, and a free-move on the instance refuses, typed, naming
+/// its space. The family's placement is a body like any other, so its
+/// hide is accepted.
 ///
-/// A hide names the INSTANCE; the drawn scene is keyed by world
-/// placements; `display::drawn_targets` resolves one to the other.
-/// Hiding a patterned instance therefore hides every placed copy of the
-/// pattern — the family replicates the instance, and the display fact
-/// is the instance's. A free-move moves the picture of a shown space
-/// (DI5); the instance's own space is read by the family's members,
-/// which are placed into the world, so it is not shown and the probe
-/// refuses it, typed. The family's placement itself has no display
-/// identity (`NotAnInstance`), which is right: the instance is the
-/// thing with an identity a user hides or probes.
-///
-/// The shape is the tour's flat-pack layout, where the original
-/// silent no-op was measured (`examples/r1_gallery_probe.rs`, which
-/// now asserts the propagated behaviour on the real gallery).
+/// The shape is the tour's flat-pack layout
+/// (`examples/r1_gallery_probe.rs` holds the same on the real gallery).
 #[test]
-fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
+fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_shown() {
     let tol = Tol::witness();
     let bench = asm::bench("r1pattern", tol);
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
@@ -798,9 +770,12 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
     let (next, _, pattern) = crate::fixture::linear(doc, instance, [0.0, 1.0, 0.0], 0.05, 3);
     doc = next;
     // The world (A10): each of the family's members, read and placed.
+    let mut copies = Vec::new();
     for index in 0..3 {
         let (next, member) = common::member_read(&doc, pattern, index, tol);
-        doc = common::placed_read(&next, member.into(), tol).0;
+        let (next, copy) = common::placed_read(&next, member.into(), tol);
+        doc = next;
+        copies.push(copy);
     }
     let path = ws.create(&doc, tol).expect("the pattern assembly stores");
 
@@ -820,12 +795,19 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
         .stats()
         .triangles;
 
-    // HIDE: accepted, and every copy of the pattern leaves the
-    // picture — hiding the instance hides its placed copies.
+    assert_eq!(
+        viewer::world::drawn_nodes(session.doc()),
+        copies,
+        "the world copies are the drawn bodies: the instance, the family \
+         and the member reads are each read as a body"
+    );
+
+    // HIDE: accepted on the instance, which the picture does not draw,
+    // so the picture keeps every copy.
     assert!(
         session
-            .perform(SessionOp::SetInstanceHidden {
-                instance,
+            .perform(SessionOp::SetBodyHidden {
+                node: instance,
                 hidden: true,
             })
             .refusal
@@ -833,33 +815,30 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
         "hide is accepted on the patterned instance"
     );
     assert!(
-        session.display().is_hidden(instance),
+        session.display().is_body_hidden(instance),
         "the state says hidden"
     );
-    let hidden_scene = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(
-        hidden_scene.stats().triangles,
-        0,
-        "the instance and its pattern's copies are the document's ONLY drawn copies, \
-         so hiding the instance draws the honest empty picture — not the stale one"
+        index
+            .scene_for(&session.display_view())
+            .expect("a scene")
+            .stats()
+            .triangles,
+        baseline,
+        "the instance is not drawn, so its hide takes nothing off the picture"
     );
-    // …and the pick index dropped it with the picture.
-    {
-        let (_, eval) = session.landed_pair().expect("landed");
-        assert!(
-            index
-                .pick_for(
-                    eval,
-                    &asm::down_at(asm::POST_SECTION / 2.0, asm::POST_SECTION / 2.0),
-                    &session.display_view()
-                )
-                .expect("the pick answers")
-                .is_none(),
-            "a hidden pattern copy is out of the pick index"
-        );
-    }
-    session.perform(SessionOp::SetInstanceHidden {
-        instance,
+    // A world copy's hide takes that copy off.
+    session.perform(SessionOp::SetBodyHidden {
+        node: copies[0],
+        hidden: true,
+    });
+    let hidden_scene = index.scene_for(&session.display_view()).expect("a scene");
+    assert!(
+        hidden_scene.stats().triangles < baseline,
+        "hiding a drawn copy takes it off the picture"
+    );
+    session.perform(SessionOp::SetBodyHidden {
+        node: copies[0],
         hidden: false,
     });
     assert_eq!(
@@ -869,7 +848,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
             .stats()
             .triangles,
         baseline,
-        "unhiding restores every copy"
+        "unhiding restores the copy"
     );
 
     // FREE-MOVE: the instance's own space is read by the pattern's
@@ -882,7 +861,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
         .expect("the instance is placed");
     assert!(
         matches!(
-            session.perform(SessionOp::BeginFreeMove { instance }).refusal,
+            session.perform(SessionOp::BeginFreeMove { node: instance }).refusal,
             Some(Refusal::Display(DisplayFault::Admission(
                 AdmissionFault::NotShown { space: said, .. }
             ))) if said.id() == space
@@ -890,20 +869,16 @@ fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
         "the patterned instance's space is shown through the pattern's copies"
     );
 
-    // The family's placement itself refuses both: it is no instance.
+    // The family's placement builds bodies, so its hide is accepted.
     assert!(
-        matches!(
-            session
-                .perform(SessionOp::SetInstanceHidden {
-                    instance: pattern,
-                    hidden: true,
-                })
-                .refusal,
-            Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::NotAnInstance { .. }
-            )))
-        ),
-        "so a pattern has no display identity at all"
+        session
+            .perform(SessionOp::SetBodyHidden {
+                node: pattern,
+                hidden: true,
+            })
+            .refusal
+            .is_none(),
+        "a pattern is a body like any other"
     );
 }
 
@@ -949,8 +924,8 @@ fn r1_an_assembly_alone_in_an_empty_directory_opens_and_badges() {
     }
     // The hide op still works on an unresolvable instance — display
     // state is about the DOCUMENT's nodes, not about what evaluated.
-    let hidden = session.perform(SessionOp::SetInstanceHidden {
-        instance: RecipeNodeId(rows[0].id.0),
+    let hidden = session.perform(SessionOp::SetBodyHidden {
+        node: RecipeNodeId(rows[0].id.0),
         hidden: true,
     });
     assert!(

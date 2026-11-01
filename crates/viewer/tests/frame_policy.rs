@@ -230,7 +230,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// prose written for the row: `NonRigidFrame` writes a
 /// `LIST_SEPARATOR` inside one sentence — the hazard
 /// `work/view/joined-notices-nest-their-own-separator.md` records as
-/// mechanical and present — and `FusedGeometry` writes an em-dash.
+/// mechanical and present — and `NotShown` writes an em-dash.
 /// Under the old spelling the first alone makes this split return
 /// three pieces where two went in.
 ///
@@ -246,10 +246,9 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     );
     let dashes = frame::Message::new(
         frame::Subject::Document,
-        AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
-            others: vec![SpokenNode::absent(RecipeNodeId::new(0, tagged(5)))],
+        AdmissionFault::NotShown {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
+            space: Box::new(spoken_space(9)),
         }
         .to_string(),
         frame::Retold::Again,
@@ -349,22 +348,22 @@ fn the_boundary_mark_belongs_to_the_boundary_alone() {
 /// `ordinal` shape ported to a payload-carrying enum.
 ///
 /// **A fault added to `AdmissionFault` takes a number BEFORE
-/// `FusedGeometry`'s, and `FusedGeometry` keeps the last one.** The
-/// row below reads the vocabulary's size off `FusedGeometry` — it has
-/// no other way to know it — so a fault numbered past it would be a
-/// fault the census never renders. Renumbering the arms is free; the
-/// obligation is only that `FusedGeometry` ends them.
+/// `NotShown`'s, and `NotShown` keeps the last one.** The row below
+/// reads the vocabulary's size off `NotShown` — it has no other way to
+/// know it — so a fault numbered past it would be a fault the census
+/// never renders. Renumbering the arms is free; the obligation is only
+/// that `NotShown` ends them.
 fn cause_ordinal(cause: &AdmissionFault) -> usize {
     match cause {
         AdmissionFault::NoSuchNode { .. } => 0,
-        AdmissionFault::NotAnInstance { .. } => 1,
-        AdmissionFault::InTheWorld { .. } => 2,
-        AdmissionFault::NotEvaluated { .. } => 3,
-        AdmissionFault::NoSpace { .. } => 4,
-        AdmissionFault::MovedSpace { .. } => 5,
-        AdmissionFault::NoSuchSpace { .. } => 6,
-        AdmissionFault::NotShown { .. } => 7,
-        AdmissionFault::FusedGeometry { .. } => 8,
+        AdmissionFault::NotABody { .. } => 1,
+        AdmissionFault::NotASpace { .. } => 2,
+        AdmissionFault::InTheWorld { .. } => 3,
+        AdmissionFault::NotEvaluated { .. } => 4,
+        AdmissionFault::NoSpace { .. } => 5,
+        AdmissionFault::MovedSpace { .. } => 6,
+        AdmissionFault::NoSuchSpace { .. } => 7,
+        AdmissionFault::NotShown { .. } => 8,
     }
 }
 
@@ -377,44 +376,38 @@ fn spoken_space(tag: u64) -> pncad::document::SpokenSpace {
     .spoken_space(pncad::document::VarId::new(0, tagged(tag)))
 }
 
-/// One of each admission fault, payloads plural where the arm renders
-/// a list — the shape most likely to reach for a separator.
+/// One of each admission fault.
 fn every_cause() -> Vec<AdmissionFault> {
     vec![
         AdmissionFault::NoSuchNode {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
         },
-        AdmissionFault::NotAnInstance {
+        AdmissionFault::NotABody {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
+        AdmissionFault::NotASpace {
+            space: Box::new(spoken_space(19)),
+        },
         AdmissionFault::InTheWorld {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
         },
         AdmissionFault::NotEvaluated {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
         },
         AdmissionFault::NoSpace {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
         },
         AdmissionFault::MovedSpace {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
             into: Box::new(spoken_space(10)),
         },
         AdmissionFault::NoSuchSpace {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
             space: Box::new(spoken_space(16)),
         },
         AdmissionFault::NotShown {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(17))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(17))),
             space: Box::new(spoken_space(18)),
-        },
-        AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
-            others: vec![
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(13))),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(14))),
-            ],
         },
     ]
 }
@@ -453,10 +446,9 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     );
     assert_eq!(
         covered.len(),
-        cause_ordinal(&AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
-            others: vec![],
+        cause_ordinal(&AdmissionFault::NotShown {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+            space: Box::new(spoken_space(2)),
         }) + 1,
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
     );
@@ -464,11 +456,9 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     for cause in every_cause() {
         let sentence = cause.to_string();
         // The subject's kind is the spoken node's to say (a frame's root
-        // may be a `Place`), so no sentence writes "instance" itself —
-        // but the one whose content is that the node is not one.
+        // may be a `Place`), so no sentence writes "instance" itself.
         assert!(
-            matches!(cause, AdmissionFault::NotAnInstance { .. })
-                || !sentence.to_lowercase().contains("instance"),
+            !sentence.to_lowercase().contains("instance"),
             "a cause names its subject's kind through the spoken node, not \
              its own words: {sentence}"
         );
@@ -489,10 +479,10 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
 fn a_space_not_known_yet_ranks_below_a_space_that_refuses() {
     let admission = |fault| Refusal::Display(DisplayFault::Admission(fault));
     let waiting = admission(AdmissionFault::NotEvaluated {
-        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
     });
     let refused = admission(AdmissionFault::InTheWorld {
-        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
+        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
     });
     assert!(waiting.rank() > refused.rank());
     let kept = Refusal::preferred(Some(waiting), refused);
@@ -529,7 +519,7 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
             .iter()
             .enumerate()
             .map(|(seat, cause)| Withdrawn {
-                instance: RecipeNodeId::new(0, tagged(seat as u64 + 20)),
+                held: viewer::display::Held::Node(RecipeNodeId::new(0, tagged(seat as u64 + 20))),
                 cause: cause.clone(),
             })
             .collect(),
@@ -1096,7 +1086,7 @@ fn a_mate_refusal_draws_every_copy_it_does_not_reach() {
         "post_b, which the refusal does not reach, is drawn and picked"
     );
     let (doc, _) = session.landed_pair().expect("landed");
-    for copy in viewer::world::drawn_copies(doc) {
+    for copy in viewer::world::drawn_nodes(doc) {
         assert_eq!(
             index.ids_of_node(copy).is_empty(),
             undrawn.contains(&copy),
@@ -3464,16 +3454,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The user places the post by hand and COMMITS it — only a
     // committed placement is ever reported superseded.
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { node: bench.post_b },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: Frame::translation([0.04, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_b },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -3497,12 +3483,17 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         )
     };
     assert_eq!(
-        superseded.instance, bench.post_b,
+        superseded.held,
+        viewer::display::Held::Node(bench.post_b),
         "the mate discards the hand placement, named by its instance"
     );
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies.
-    let AdmissionFault::NotShown { instance, space } = &superseded.cause else {
+    let AdmissionFault::NotShown {
+        node: instance,
+        space,
+    } = &superseded.cause
+    else {
         panic!(
             "a mate emptying the space supersedes with its own fault: {}",
             superseded.cause
@@ -3570,9 +3561,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // written out, so a rule that drops the supersession, or reorders
     // the two, cannot pass by comparing the line with another
     // rendering of itself.
-    let drag = SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    };
+    let drag = SessionOp::BeginFreeMove { node: bench.post_b };
     let refused = session.perform(drag.clone());
     let refusal = refused
         .refusal
@@ -4017,7 +4006,7 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
 #[test]
 fn every_withdrawal_kind_rides_beside_a_refusal() {
     let gone = |node: u64| Withdrawn {
-        instance: RecipeNodeId::new(0, tagged(node)),
+        held: viewer::display::Held::Node(RecipeNodeId::new(0, tagged(node))),
         cause: AdmissionFault::NoSuchNode {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(node))),
         },

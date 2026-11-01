@@ -140,13 +140,13 @@ fn face_id(index: &PickIndex, face: &FaceSelection) -> u32 {
 
 /// **The patch a face pick is drawn as, if the picture draws it**:
 /// its id on its own (node, body) ([`highlight`]'s narrowing), on a
-/// copy the display does not hide — the rule
+/// body the display does not hide — the rule
 /// [`PickIndex::edge_polyline_for`] applies to an edge.
 ///
 /// The one answer to "is this pick in the picture": the held mark
 /// lights what this answers.
 pub fn drawn_patch(index: &PickIndex, display: &DisplayView, face: &FaceSelection) -> Option<u32> {
-    if display.hidden_placements.contains(&face.node) {
+    if display.hides(face.node, face.body) {
         return None;
     }
     Some(face_id(index, face)).filter(|&id| id != IdMap::NOTHING)
@@ -273,10 +273,10 @@ pub fn compose(
     (highlight, edges)
 }
 
-/// Whether `node` is a free-moved placement — the one read behind every
-/// probe flag on an [`EdgeOverlay`].
+/// Whether `node` is drawn in a free-moved space — the one read behind
+/// every probe flag on an [`EdgeOverlay`].
 fn moved(display: &DisplayView, node: RecipeNodeId) -> bool {
-    display.moved_placements.contains_key(&node)
+    display.moved_nodes.contains_key(&node)
 }
 
 /// The edge marks a frame draws: the drawn polylines of the marked
@@ -796,9 +796,9 @@ fn marked_for(
     if !through.is_empty() {
         return through;
     }
-    crate::display::placements_deriving_from(doc, node)
+    crate::display::drawn_deriving_from(doc, node)
         .into_iter()
-        .flat_map(|placement| index.ids_of_node(placement))
+        .flat_map(|drawn| index.ids_of_node(drawn))
         .collect()
 }
 
@@ -847,7 +847,7 @@ mod tests {
     /// The view that puts `node`'s drawn geometry `shift` metres out.
     fn moved(node: RecipeNodeId, shift: f64) -> DisplayView {
         DisplayView {
-            moved_placements: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
+            moved_nodes: BTreeMap::from([(node, Frame::translation([shift, 0.0, 0.0]))]),
             ..DisplayView::none()
         }
     }

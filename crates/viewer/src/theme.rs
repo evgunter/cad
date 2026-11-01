@@ -286,6 +286,15 @@ pub struct Theme {
     /// check does not require a hue difference precisely so that
     /// value-only separation stays a legitimate answer.
     pub focus: Mark,
+    /// **A body outside the product**: one the product slot does not
+    /// reach, drawn tinted (`crates/viewer/README.md`, *The picture
+    /// draws bodies*).
+    ///
+    /// Not one of [`Theme::marks`]: those say what STATE a piece of
+    /// material is in, and any of them can land on a body outside the
+    /// product, so this is mixed first, under them, as a second body
+    /// colour. `tests/theme.rs` holds it apart from the body.
+    pub outside: Mark,
     /// **The one chrome colour the palette states**, worn by whatever
     /// a reader may need to act on: [`crate::frame::Tone::Actionable`]
     /// — an unresolved selection, a deleted feature, a FAILED badge.
@@ -393,6 +402,12 @@ const DARK_NEUTRAL: Theme = Theme {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
     },
+    // A cool slate: material the product does not reach reads as
+    // set aside, not as a state of the material.
+    outside: Mark {
+        tint: Rgba8::opaque(70, 110, 140),
+        strength: MixFraction::new(0.45).unwrap(),
+    },
     actionable: Rgba8::opaque(210, 90, 70),
     // A mid green, away from the selection amber, the hover blue and
     // the probe violet the preview is drawn in.
@@ -437,6 +452,10 @@ const LIGHT_NEUTRAL: Theme = Theme {
     focus: Mark {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
+    },
+    outside: Mark {
+        tint: Rgba8::opaque(70, 110, 140),
+        strength: MixFraction::new(0.45).unwrap(),
     },
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
@@ -592,6 +611,13 @@ const COLORBLIND_SAFE: Theme = Theme {
     focus: Mark {
         tint: Rgba8::opaque(18, 20, 30),
         strength: MixFraction::new(0.35).unwrap(),
+    },
+    // A step down on the ladder's lightness, the one channel every
+    // dichromacy keeps: material the product does not reach reads as
+    // set aside.
+    outside: Mark {
+        tint: Rgba8::opaque(60, 70, 90),
+        strength: MixFraction::new(0.45).unwrap(),
     },
     // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
     // chrome is pale, and a light red on a pale panel is the one

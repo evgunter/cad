@@ -2514,7 +2514,7 @@ mod tests {
             .face_of(id)
             .expect("an id of this index names its patch cleanly");
         let hidden = DisplayView {
-            hidden_placements: std::collections::BTreeSet::from([copy]),
+            hidden_drawn: vec![crate::world::Drawn::whole(copy)],
             ..DisplayView::none()
         };
         let camera = framed();

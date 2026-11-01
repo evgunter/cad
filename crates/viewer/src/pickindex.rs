@@ -344,7 +344,7 @@ pub enum IdMapError {
 /// Why a pick index could not be built as a whole (closed enum, D4
 /// ¶3): a fault of the index itself, never an editing state. A drawn
 /// copy that cannot be drawn is not here — the index holds it as an
-/// [`UndrawnCopy`] and draws the rest.
+/// [`UndrawnBody`] and draws the rest.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PickIndexError {
     /// The patch ids did not form a bijection.
@@ -432,20 +432,20 @@ impl core::fmt::Display for PickIndexError {
 
 impl core::error::Error for PickIndexError {}
 
-/// **A drawn copy the index holds without a picture**, and why: the
-/// placement and its own build's refusal, unaltered.
+/// **A drawn body the index holds without a picture**, and why: the
+/// node building it and its own build's refusal, unaltered.
 ///
-/// One copy's refusal takes away that copy's picture and picks and no
+/// One body's refusal takes away that body's picture and picks and no
 /// other's, so it is data on the index rather than a refusal of it
 /// ([`PickIndex::undrawn`]).
 #[derive(Clone, Debug, PartialEq)]
-pub struct UndrawnCopy {
+pub struct UndrawnBody {
     node: RecipeNodeId,
     error: NodePickError,
 }
 
-impl UndrawnCopy {
-    /// The placement that is not drawn.
+impl UndrawnBody {
+    /// The node whose body is not drawn.
     #[must_use]
     pub fn node(&self) -> RecipeNodeId {
         self.node
@@ -458,22 +458,21 @@ impl UndrawnCopy {
     }
 }
 
-impl Say for UndrawnCopy {
-    /// The placement is this layer's contribution — the payload names
-    /// the body, not the placement that owns it; why is the payload's
-    /// to say.
+impl Say for UndrawnBody {
+    /// The node is this layer's contribution; why is the payload's to
+    /// say.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         write!(
             f,
             "{} is not drawn: {}",
-            by.node_as(self.node, "placement"),
+            by.node_as(self.node, "node"),
             Said(&self.error, by.about(self.node))
         )
     }
 }
 
 /// The sentence where no document is at hand: each node by its tag.
-impl core::fmt::Display for UndrawnCopy {
+impl core::fmt::Display for UndrawnBody {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)
     }
@@ -1026,18 +1025,19 @@ impl PictureKey {
 
 /// The pick index for one evaluation generation.
 ///
-/// Built from the document's drawn copies, one [`NodePick`] per body
-/// of each copy that builds, in placement order then payload order —
-/// the order the ids and the drawn parts both follow, so a reader of
-/// either can predict the other. A copy whose build refuses is held in
+/// Built from the document's drawn bodies ([`crate::world::drawn_bodies`]),
+/// one [`NodePick`] per drawn body of each node that builds, in document
+/// order then payload order — the order the ids and the drawn parts both
+/// follow, so a reader of either can predict the other. A node whose
+/// build refuses is held in
 /// [`PickIndex::undrawn`] with its reason, and has no part, no ids and
 /// no windows.
 #[derive(Debug)]
 pub struct PickIndex {
     key: PictureKey,
     parts: Vec<NodePick>,
-    /// The drawn copies with no part, in placement order.
-    undrawn: Vec<UndrawnCopy>,
+    /// The drawn bodies with no part, in document order.
+    undrawn: Vec<UndrawnBody>,
     ids: IdMap,
     /// The drawn face patches, part by part — the ids, their names,
     /// and the windows the narrowing reads.
@@ -1052,20 +1052,23 @@ pub struct PickIndex {
     edges: PartWindows<Edges>,
     /// The drawn edges that are one circle ([`Rims`]).
     rims: Rims,
-    /// Each drawn placement's space, the one its copy is placed into
-    /// ([`Doc::node_space`]): the pick orders faces within one space
-    /// only.
+    /// Each drawn node's space ([`Doc::node_space`]): the pick orders
+    /// faces within one space only.
     spaces: BTreeMap<RecipeNodeId, VarId>,
+    /// The drawn bodies the product slot does not reach
+    /// ([`crate::world::product_pieces`]), by node and body: drawn
+    /// tinted as outside the product.
+    outside: BTreeSet<(RecipeNodeId, u32)>,
 }
 
 impl PickIndex {
     /// Build the index for `generation` from the document's drawn
-    /// placements — those into each shown space — one drawn part per
-    /// body of each copy (A10).
+    /// bodies ([`crate::world::drawn_bodies`]), one drawn part per body
+    /// each covers.
     ///
-    /// **Per copy, not all or nothing**: a copy whose build refuses (no
+    /// **Per node, not all or nothing**: a node whose build refuses (no
     /// value, no body, a tessellation or indexing refusal) is held in
-    /// [`PickIndex::undrawn`] with its reason, and every other copy is
+    /// [`PickIndex::undrawn`] with its reason, and every other body is
     /// drawn and picked. Nothing is swallowed — the reason is on the
     /// index for the chrome to say ([`crate::frame::index_badge`]).
     ///
@@ -1083,16 +1086,16 @@ impl PickIndex {
         })
     }
 
-    /// [`PickIndex::build`] over `memo`: a placement whose node the
-    /// evaluation reused keeps its previous picture's `NodePick`, and a
-    /// placement that was recomputed is tessellated through the per-face
+    /// [`PickIndex::build`] over `memo`: a drawn node the evaluation
+    /// reused keeps its previous picture's `NodePick`, and one that was
+    /// recomputed is tessellated through the per-face
     /// patch memo — the same index, byte for byte, built from what did
     /// not change ([`PickMemo`]).
     ///
     /// The picture is closed on the memo whether or not it was built:
-    /// what this picture did not use — an undrawn copy's bodies, a copy
+    /// what this picture did not use — an undrawn node's bodies, a node
     /// the document no longer holds — is evicted. The walk reaches every
-    /// copy, so fixing one copy rebuilds that copy and reuses the rest,
+    /// drawn node, so fixing one rebuilds that one and reuses the rest,
     /// and the memo stays one picture's size through any sequence of
     /// answers — the node map, the patch memo and the per-patch
     /// pick-table map alike.
@@ -1114,7 +1117,7 @@ impl PickIndex {
         index
     }
 
-    /// The walk both doors share: every drawn copy through `parts`,
+    /// The walk both doors share: every drawn node through `parts`,
     /// then the id windows over the ones that built.
     fn assemble(
         doc: &Doc<ProfileProgram>,
@@ -1125,18 +1128,34 @@ impl PickIndex {
         let mut parts: Vec<NodePick> = Vec::new();
         let mut undrawn = Vec::new();
         let mut spaces = BTreeMap::new();
-        // The drawn copies: the placements into each shown space (DI5),
-        // the world's as the product gathers them and every other one's
-        // where its frame puts it. A placement into a space whose bodies
-        // another placement copies is drawn through that copy
-        // ([`crate::world::shown_spaces`]).
-        for node in crate::world::drawn_copies(doc) {
+        // The drawn bodies ([`crate::world::drawn_bodies`]), each node
+        // built once and kept for the bodies some drawing of it covers:
+        // a family less the members read alone, a `⊔`'s piece alone.
+        let drawn = crate::world::drawn_bodies(doc);
+        let inside = crate::world::product_pieces(doc);
+        let mut outside = BTreeSet::new();
+        let mut built_nodes = BTreeSet::new();
+        for node in drawn.iter().map(|d| d.node) {
+            if !built_nodes.insert(node) {
+                continue;
+            }
             if let Some(space) = doc.node_space(node) {
                 spaces.insert(node, space);
             }
             match build_parts(node) {
-                Ok(built) => parts.extend(built),
-                Err(error) => undrawn.push(UndrawnCopy { node, error }),
+                Ok(built) => {
+                    for part in built {
+                        let body = part.body();
+                        if !drawn.iter().any(|d| d.draws(node, body)) {
+                            continue;
+                        }
+                        if !inside.iter().any(|d| d.draws(node, body)) {
+                            outside.insert((node, body));
+                        }
+                        parts.push(part);
+                    }
+                }
+                Err(error) => undrawn.push(UndrawnBody { node, error }),
             }
         }
         // ONE walk over the parts, appending to both kinds' windows.
@@ -1161,6 +1180,7 @@ impl PickIndex {
             edges,
             rims,
             spaces,
+            outside,
         })
     }
 
@@ -1194,25 +1214,32 @@ impl PickIndex {
         &self.parts
     }
 
-    /// **Where `placement`'s copy is drawn**: the map from its body's
+    /// **Where `node`'s body is drawn**: the map from its body's
     /// coordinates into the picture, as the picture draws it
-    /// ([`drawn`]), `None` where no part of that placement is drawn —
-    /// none indexed, or its copy hidden.
+    /// ([`drawn`]), `None` where no part of that node is drawn — none
+    /// indexed, or every one hidden.
     pub(crate) fn drawn_map(
         &self,
         display: &DisplayView,
-        placement: RecipeNodeId,
+        node: RecipeNodeId,
     ) -> Option<Affine3<f64>> {
-        if display.hidden_placements.contains(&placement) {
-            return None;
-        }
-        let part = self.parts.iter().find(|part| part.node() == placement)?;
+        let part = self
+            .parts
+            .iter()
+            .find(|part| part.node() == node && !display.hides(node, part.body()))?;
         Some(drawn(display, part).unwrap_or_else(Affine3::identity))
     }
 
-    /// The drawn copies this index holds without a picture, each with
-    /// its reason, in placement order.
-    pub fn undrawn(&self) -> &[UndrawnCopy] {
+    /// **Whether the drawn body `body` of `node` is outside the
+    /// product** — one the product slot does not reach, which the
+    /// picture tints.
+    pub fn is_outside(&self, node: RecipeNodeId, body: u32) -> bool {
+        self.outside.contains(&(node, body))
+    }
+
+    /// The drawn bodies this index holds without a picture, each with
+    /// its reason, in document order.
+    pub fn undrawn(&self) -> &[UndrawnBody] {
         &self.undrawn
     }
 
@@ -1323,9 +1350,9 @@ impl PickIndex {
         self.scene_for(&DisplayView::none())
     }
 
-    /// The drawable scene under a display view: hidden instances'
+    /// The drawable scene under a display view: hidden bodies'
     /// parts are omitted (the picture drops them; the ids and the
-    /// document keep them), and a free-moved instance's parts are
+    /// document keep them), and a free-moved space's parts are
     /// drawn under its probe frame, marked distinct.
     ///
     /// The id windows are walked over EVERY part, drawn or not, so an
@@ -1362,14 +1389,15 @@ impl PickIndex {
             // index already holds, is a third chance to disagree with
             // it about where a part's run starts.
             let ids = self.patches.in_target(part.node(), part.body());
-            if display.hidden_placements.contains(&part.node()) {
+            if display.hides(part.node(), part.body()) {
                 continue;
             }
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
-                probe: display.moved_placements.get(&part.node()).copied(),
+                probe: display.moved_nodes.get(&part.node()).copied(),
                 placed: in_space_of(part),
+                outside: self.is_outside(part.node(), part.body()),
             });
         }
         if parts.is_empty() {
@@ -1401,10 +1429,10 @@ impl PickIndex {
     }
 
     /// The nearest face a ray meets **under a display view**: hidden
-    /// instances are not offered at all (a hidden part is out of the
+    /// bodies are not offered at all (a hidden part is out of the
     /// pick index exactly as it is out of the picture), and a
-    /// free-moved instance is picked WHERE IT IS DRAWN — the ray is
-    /// carried into that instance's display-local space through the
+    /// free-moved body is picked WHERE IT IS DRAWN — the ray is
+    /// carried into that space's display-local space through the
     /// probe frame's inverse, so the picture and the pick answer stay
     /// one tessellation even while the display displaces it.
     ///
@@ -1415,14 +1443,14 @@ impl PickIndex {
     /// the same certified tie the kernel refuses inside one call —
     /// so this refuses too, with every tied group's hit
     /// ([`HitTestError::Ambiguous`]). Group order (the unmoved batch
-    /// first, then moved instances in node order) is the order the
+    /// first, then moved bodies in node order) is the order the
     /// refusal LISTS them in and decides nothing.
     ///
     /// **A group's own refusal does not end the call.** A group that
     /// cannot order ITS faces has said nothing about another group's,
     /// and every hit it carries is true — so its tied faces join the
     /// candidate set and the merge runs over the union. Otherwise a
-    /// tie inside the unmoved batch would shadow a moved instance in
+    /// tie inside the unmoved batch would shadow a moved body in
     /// front of it, and the answer would depend on which batch the
     /// caller's display view happened to split the scene into rather
     /// than on the geometry.
@@ -1430,7 +1458,7 @@ impl PickIndex {
     /// The parameters stay comparable because the display layer
     /// admits only rigid probe frames (lengths preserved, so `t` in
     /// units of `|dir|` means the same world distance in every group);
-    /// a moved instance's hit crosses back with its point converted
+    /// a moved body's hit crosses back with its point converted
     /// and its interval carried, which is
     /// `work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`.
     ///
@@ -1446,7 +1474,7 @@ impl PickIndex {
         ray: &Ray,
         display: &DisplayView,
     ) -> Result<Option<PickHit>, HitTestError> {
-        let visible = |part: &&NodePick| !display.hidden_placements.contains(&part.node());
+        let visible = |part: &&NodePick| !display.hides(part.node(), part.body());
         // The unmoved parts, one batch per space: the kernel orders
         // faces within one space only (A9, A11 (2)), and each space is
         // drawn where the display puts it — today a shown space's
@@ -1469,7 +1497,7 @@ impl PickIndex {
             }
         }
         // Every group's whole answer, in group order: the unmoved
-        // batches, the world's first, then the moved instances. A
+        // batches, the world's first, then the moved bodies. A
         // group that refuses contributes its tied faces rather than
         // ending the call.
         let mut candidates: Vec<PickHit> = Vec::new();
@@ -1679,14 +1707,14 @@ impl PickIndex {
 
     /// The world polyline a drawn edge is drawn as, under a display
     /// view: the tessellation's own chord points, carried through the
-    /// owning instance's free-move probe frame when it has one.
+    /// free-move probe frame of its space when it has one.
     ///
     /// Empty for an id this index did not assign and for an edge whose
     /// part is hidden — a hidden part is out of the picture, so there
     /// is nothing to mark, which is the same rule
     /// [`PickIndex::scene_for`] draws by.
     pub fn edge_polyline_for(&self, id: EdgeId, display: &DisplayView) -> Vec<Point3<f64>> {
-        if display.hidden_placements.contains(&id.node) {
+        if display.hides(id.node, id.body) {
             return Vec::new();
         }
         let Some(part) = self.part_of(id.node, id.body) else {
@@ -2373,7 +2401,7 @@ struct Candidate {
 
 /// Where a drawn part's geometry actually lands: its own coordinates,
 /// or those coordinates through the free-move probe frame the display
-/// view puts the owning instance under.
+/// view puts the owning node under.
 ///
 /// One home for the displacement, because a highlight drawn at the
 /// tessellated placement while the picture draws the probed one is a
@@ -2389,12 +2417,12 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
 /// one composing door), then the free-move probe frame the display view
-/// puts the owning instance under. `None` where it is under neither,
+/// puts the owning node under. `None` where it is under neither,
 /// so a part computed in its space's coordinates is drawn as tessellated.
 fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     let placed = in_space_of(part);
     let probe = display
-        .moved_placements
+        .moved_nodes
         .get(&part.node())
         .copied()
         .map(|frame: Frame| frame.affine::<f64>());
@@ -2405,11 +2433,11 @@ fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     }
 }
 
-/// **The free-move probe frame a part's instance is drawn under**, if
+/// **The free-move probe frame a part's node is drawn under**, if
 /// the display view puts it under one: a display map, not the model's.
 fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     display
-        .moved_placements
+        .moved_nodes
         .get(&part.node())
         .copied()
         .map(|frame: Frame| frame.affine::<f64>())
@@ -2796,24 +2824,24 @@ mod tests {
         }
     }
 
-    /// **An undrawn copy says which placement is not drawn, and the
+    /// **An undrawn body says which node is not drawn, and the
     /// build's own refusal says why**, whatever the reason: no value or
     /// no body alike.
     #[test]
-    fn an_undrawn_copy_names_its_placement_and_forwards_why() {
+    fn an_undrawn_body_names_its_node_and_forwards_why() {
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         for error in [
             NodePickError::NotABody { node },
             NodePickError::Standing(pncad::document::NodeStanding::Failed { node }),
         ] {
-            let copy = UndrawnCopy {
+            let copy = UndrawnBody {
                 node,
                 error: error.clone(),
             };
             assert_eq!(
                 copy.to_string(),
                 format!(
-                    "placement 000000000007 is not drawn: {}",
+                    "node 000000000007 is not drawn: {}",
                     Said(&error, Speaker::TAG.about(node))
                 ),
                 "the copy's sentence for {error:?}"
@@ -2861,7 +2889,7 @@ mod tests {
             format!(
                 "picture: {}",
                 Said(
-                    &UndrawnCopy {
+                    &UndrawnBody {
                         node: copy,
                         error: refusal
                     },

@@ -318,7 +318,7 @@ fn die(tol: Tol) -> Die {
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let [copy] = viewer::world::drawn_copies(&doc)[..] else {
+    let [copy] = viewer::world::drawn_nodes(&doc)[..] else {
         panic!("the die is placed once")
     };
     let composed = viewer::world::seat_of(&doc, copy);

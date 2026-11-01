@@ -736,7 +736,7 @@ pub use crate::fixture::{head, head_at};
 /// **What the world places** (A10): for each world placement, in
 /// document order, the node defining the body it places.
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    viewer::world::drawn_copies(doc)
+    viewer::world::drawn_nodes(doc)
         .into_iter()
         .map(|placement| viewer::world::seat_of(doc, placement))
         .collect()

@@ -590,13 +590,13 @@ impl Refusal {
                 DisplayFault::Admission(fault) => match fault {
                     AdmissionFault::NotEvaluated { .. } => 2,
                     AdmissionFault::NoSuchNode { .. }
-                    | AdmissionFault::NotAnInstance { .. }
+                    | AdmissionFault::NotABody { .. }
+                    | AdmissionFault::NotASpace { .. }
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::NoSpace { .. }
                     | AdmissionFault::MovedSpace { .. }
                     | AdmissionFault::NoSuchSpace { .. }
-                    | AdmissionFault::NotShown { .. }
-                    | AdmissionFault::FusedGeometry { .. } => 1,
+                    | AdmissionFault::NotShown { .. } => 1,
                 },
             },
             Self::NoGesture

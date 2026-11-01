@@ -1717,6 +1717,7 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
                 ids,
                 probe: None,
                 placed: None,
+                outside: false,
             }],
             delta(),
         );
@@ -1739,6 +1740,7 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
                 ids: &[],
                 probe: None,
                 placed: None,
+                outside: false,
             }],
             delta()
         )

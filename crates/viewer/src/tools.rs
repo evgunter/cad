@@ -250,7 +250,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
         | SessionOp::CommitFreeMove { .. }

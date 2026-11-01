@@ -251,8 +251,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = viewer::world::drawn_copies(&before)[..] else {
-        panic!("two copies: {:?}", viewer::world::drawn_copies(&before));
+    let [a_placement, b_placement] = viewer::world::drawn_nodes(&before)[..] else {
+        panic!("two copies: {:?}", viewer::world::drawn_nodes(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -287,7 +287,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     );
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::drawn_copies(doc),
+        viewer::world::drawn_nodes(doc),
         [a_placement],
         "a's placement stands"
     );
@@ -325,7 +325,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
     session.pump();
-    let [a_placement, _] = viewer::world::drawn_copies(session.committed_doc())[..] else {
+    let [a_placement, _] = viewer::world::drawn_nodes(session.committed_doc())[..] else {
         panic!("two copies");
     };
     let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);

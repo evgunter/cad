@@ -150,8 +150,8 @@ fn main() {
         let baseline = index_triangles(&session);
         for row in &instances {
             let hide = session
-                .perform(viewer::session::SessionOp::SetInstanceHidden {
-                    instance: row.id,
+                .perform(viewer::session::SessionOp::SetBodyHidden {
+                    node: row.id,
                     hidden: true,
                 })
                 .refusal;
@@ -168,8 +168,8 @@ fn main() {
                             row.id
                         ));
                     }
-                    session.perform(viewer::session::SessionOp::SetInstanceHidden {
-                        instance: row.id,
+                    session.perform(viewer::session::SessionOp::SetBodyHidden {
+                        node: row.id,
                         hidden: false,
                     });
                 }
@@ -178,15 +178,15 @@ fn main() {
                 }
             }
             if session
-                .perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id })
+                .perform(viewer::session::SessionOp::BeginFreeMove { node: row.id })
                 .refusal
                 .is_none()
             {
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
-                    instance: row.id,
+                    node: row.id,
                     frame: pncad::document::Frame::translation([0.5, 0.0, 0.0]),
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
+                session.perform(viewer::session::SessionOp::CommitFreeMove { node: row.id });
                 let marked = probe_parts(&session);
                 println!(
                     "      node {}: free-move committed, scene probe_parts={marked:?}",
@@ -200,12 +200,12 @@ fn main() {
                 }
                 // Discard the probe so the next instance's baseline is
                 // clean.
-                session.perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id });
+                session.perform(viewer::session::SessionOp::BeginFreeMove { node: row.id });
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
-                    instance: row.id,
+                    node: row.id,
                     frame: pncad::document::Frame::IDENTITY,
                 });
-                session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
+                session.perform(viewer::session::SessionOp::CommitFreeMove { node: row.id });
             } else {
                 println!("      node {}: free-move refused typed", row.id);
             }
