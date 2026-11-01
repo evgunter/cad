@@ -13,6 +13,10 @@
 //!   material. Likewise the slab `[−3, 3] × [−1, 0] × [−3, 3]` less the
 //!   full revolve of the triangle `(1, 0), (.5, −.5), (1.5, −.5)`, its
 //!   apex sweeping a circle in the slab's top face.
+//! - **A closed rim in a bore.** The tube of radii 1 and 2 about `y` less
+//!   the full revolve of the triangle `(1, .5), (1.2, .7), (1.2, .3)`:
+//!   its apex sweeps a closed circle in the bore's cylinder, and its two
+//!   cones both leave it into the tube's material.
 //! - **A rim on a torus.** The solid torus of radii 3 and 1 about `y`
 //!   less the revolve of a triangle whose apex `(3, 1)` sweeps the
 //!   torus's top parallel, its two cones going down into the tube: the
@@ -75,6 +79,23 @@ fn a_closed_rim_in_a_plane_face_refuses_its_slit_form() {
         Revolution::Full,
     );
     refuses_curved("the slab less the groove", &slab, &groove);
+}
+
+/// **The closed rim in the tube's bore refuses `Curved`**: a closed edge
+/// in a curved face is read as one in a plane face is.
+#[test]
+fn a_closed_rim_in_a_bore_refuses_its_slit_form() {
+    let tube = revolved(
+        "the tube",
+        &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
+        Revolution::Full,
+    );
+    let keel = revolved(
+        "the keel",
+        &[(1.0, 0.5), (1.2, 0.7), (1.2, 0.3)],
+        Revolution::Full,
+    );
+    refuses_curved("the tube less the keel", &tube, &keel);
 }
 
 /// **A rim on the torus's top parallel refuses `Curved`**, closed and
