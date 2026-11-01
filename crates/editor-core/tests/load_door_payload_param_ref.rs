@@ -1,0 +1,384 @@
+//! **A PAYLOAD expression reads a minted variable, and a live one at
+//! its kind, at EVERY door** (spec D6, `Doc::var_read_faults`).
+//!
+//! The expressions no slot addresses — a `Node::Assertion`'s value and
+//! its bound (`node::payload_exprs`) — ask the same one predicate the slot
+//! expressions ask. The two doors only name its answer: the edit door
+//! as `EditError::PayloadUnknownVarName` (a name it cannot lower) and
+//! `EditError::PayloadVarKind`, the load door as
+//! `SnapshotError::ReaderOfUnmintedVar` and
+//! `SnapshotError::PayloadVarKind`. So a file cannot carry a
+//! payload expression an edit door would have refused.
+//!
+//! **One row per FACT, naming both doors' refusals for it**: a
+//! predicate dropped at either door reds the fact's row and the panic
+//! says which door let the document through.
+//!
+//! What is NOT here, beyond the one row that meets it: the payload
+//! expressions' DIMENSIONS — an assertion reads its value and its bound
+//! at their variables' kinds, and the two are checked against each
+//! other (`Node::assertion_bound_fault`, the load door's
+//! `SnapshotError::AssertionBound`). This suite is the param TABLE's
+//! half of the same address.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+
+use crate::wire::doctored;
+use editor_core::{
+    Dimension, DocEdit, EditError, Formula, FreeVar, Node, PersistError, ProfileDoc, RecipeNodeId,
+    SlotId, SnapshotError, VarName, apply, load, save,
+};
+use fixture::{insert, len, on_frame, square};
+use geom_core::Tol;
+
+/// A frame, a profile, an extrude and a LENGTH document parameter
+/// `depth` — the ground every row below builds its payload node on,
+/// with the EXTRUDE's id, which only the rows that need a SLOT to
+/// break read.
+fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
+    let name = VarName::from_static("depth");
+    let (doc, profile) = on_frame(
+        ProfileDoc::empty(
+            editor_core::DocumentId::derive("payload-param-ref"),
+            Tol::witness(),
+        ),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let doc = apply(
+        &doc,
+        &DocEdit::DeclareVar {
+            name: name.clone(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
+        },
+        Tol::witness(),
+    )
+    .expect("a well-formed length parameter declares")
+    .doc;
+    (doc, name, extrude)
+}
+
+/// The same ground for the rows whose fault is in a PAYLOAD and needs
+/// no slot address — the one place the extrude's id is dropped, so no
+/// row below writes `_` for a value it was handed.
+fn with_depth() -> (ProfileDoc, VarName) {
+    let (doc, name, _) = with_depth_and_extrude();
+    (doc, name)
+}
+
+/// [`with_depth`] plus an assertion whose value reads `depth` — and
+/// whose bound is a LITERAL, `-0.0`.
+///
+/// The literal is what gives the round-trip row something only
+/// `bit_eq` can see: `-0.0 == 0.0` is true in IEEE arithmetic and the
+/// two have different bits, so a payload channel whose comparison had
+/// silently degraded to `==`, or a writer that normalised the sign of
+/// zero on the way out, passes on every other value and fails on this
+/// one.
+fn asserting_depth() -> (ProfileDoc, VarName, RecipeNodeId) {
+    let (doc, name) = with_depth();
+    let (doc, assertion) = insert(
+        doc,
+        Node::Assertion {
+            value: Formula::named(name.clone(), Dimension::Length),
+            bound: len(-0.0),
+            relation: editor_core::AssertionRelation::AtLeast,
+        },
+    );
+    (doc, name, assertion)
+}
+
+/// The variable removed from the wire and from its mint log, out from
+/// under whatever reads it.
+fn unmint(text: &str, name: &VarName) -> String {
+    doctored(text, |wire| {
+        crate::wire::wire_unmint(wire, name.as_str());
+    })
+}
+
+/// The id `name` holds in `doc`.
+fn id_of(doc: &ProfileDoc, name: &VarName) -> editor_core::VarId {
+    doc.var_named(name.as_str()).expect("a declared variable")
+}
+
+/// The declaration RETYPED on the wire, its display unit moved with it
+/// so the document is broken in exactly one way: the pairing between a
+/// declaration and the dimension an expression reads it at.
+fn retype_to_angle(text: &str, name: &VarName) -> String {
+    doctored(text, |wire| {
+        crate::wire::wire_retype(wire, name.as_str(), "Length", "Angle", "rad");
+    })
+}
+
+/// **An assertion's value reading an undeclared parameter — both
+/// doors.** The edit door refuses the node as it is written; the load
+/// door refuses the file whose declaration is gone from under it.
+///
+/// This row is the flip of the measurement that disclosed the gap
+/// (`work/edit/load-door-does-not-check-payload-expression-param-refs`):
+/// the same saved document loaded clean while the edit door refused
+/// the same node, and this is that sentence with the load door's
+/// answer in it.
+#[test]
+fn an_assertion_value_reading_an_undeclared_parameter_refuses_to_load() {
+    let (doc, name, measure) = asserting_depth();
+
+    // The edit door, over the node as written.
+    let missing = VarName::from_static("nowhere");
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Assertion {
+                value: Formula::named(missing.clone(), Dimension::Length),
+                bound: len(0.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
+        other => panic!("the edit door must refuse an undeclared payload param, got {other:?}"),
+    }
+
+    // The load door, over the file whose variable was never minted.
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    match load(&unmint(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (measure, id_of(&doc, &name)));
+        }
+        other => panic!("the load door must refuse an unminted payload reader, got {other:?}"),
+    }
+}
+
+/// **An assertion's value retyped under its bound — both doors.** The
+/// edit door cannot write it at all: a variable's kind is fixed, so the
+/// retyping is what it refuses; the load door reads the value at its
+/// new kind against a bound of the old one off a file whose declaration
+/// was retyped after the fact.
+#[test]
+fn an_assertion_value_retyped_under_its_bound_refuses_to_load() {
+    let (doc, name, measure) = asserting_depth();
+
+    match apply(
+        &doc,
+        &DocEdit::DefineVar {
+            var: name.clone().into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.0)),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::VarKindFixed { var, kind, offered }) => {
+            assert_eq!(var.name(), Some(&name));
+            assert_eq!(
+                (kind, offered),
+                (editor_core::VarKind::Length, editor_core::VarKind::Angle)
+            );
+        }
+        other => panic!("the edit door must refuse the retyping, got {other:?}"),
+    }
+
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    match load(&retype_to_angle(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::AssertionBound {
+            node,
+            measured,
+            bound,
+        })) => {
+            assert_eq!(node.id(), measure);
+            assert_eq!((measured, bound), (Dimension::Angle, Dimension::Length));
+        }
+        other => panic!("the load door must refuse the broken pairing, got {other:?}"),
+    }
+}
+
+/// **An assertion's BOUND is a payload expression too — both doors.**
+/// The second of the two expressions no slot addresses, so the walk
+/// that misses it misses half the vocabulary.
+#[test]
+fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
+    let (doc, name) = with_depth();
+    let bound = |n: &VarName| Node::Assertion {
+        value: len(1.0),
+        bound: Formula::named(n.clone(), Dimension::Length),
+        relation: editor_core::AssertionRelation::AtLeast,
+    };
+    let (doc, assertion) = insert(doc, bound(&name));
+
+    let missing = VarName::from_static("nowhere");
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(bound(&missing)),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::PayloadUnknownVarName { name: n, .. }) => assert_eq!(n, missing),
+        other => panic!("the edit door must refuse an undeclared bound param, got {other:?}"),
+    }
+
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    load(&text, Tol::witness()).expect("the fixture loads");
+    match load(&unmint(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
+            assert_eq!((node.id(), var), (assertion, id_of(&doc, &name)));
+        }
+        other => panic!("the load door must refuse an unminted bound reader, got {other:?}"),
+    }
+}
+
+/// **A well-formed payload reference round-trips.** The walk refuses a
+/// broken pairing and nothing else: an assertion reading a declared
+/// parameter at its declared dimension saves, loads, and comes back
+/// bit for bit.
+///
+/// The payload carries `-0.0` beside the reference ([`asserting_depth`])
+/// so that the BITS are what this row reads. Signed zero is the one
+/// f64 value for which `==` and bit equality disagree, so a `bit_eq`
+/// that had degraded to `==` on the payload channel — or a writer that
+/// normalised the sign away — is green over any other literal and red
+/// here. The row asserts the sign survived on the loaded document too,
+/// so the panic says WHICH half broke.
+#[test]
+fn a_payload_reference_the_table_answers_round_trips() {
+    let (doc, _, measure) = asserting_depth();
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let loaded = load(&text, Tol::witness()).expect("the fixture loads").doc;
+    assert!(
+        signed_zero_leaf(&loaded, measure),
+        "the payload's `-0.0` came back as `+0.0`: the saved text is {text}"
+    );
+    assert!(
+        loaded.bit_eq(&doc),
+        "a payload expression the param table answers round-trips"
+    );
+}
+
+/// Whether the assertion's payload still carries a NEGATIVE zero —
+/// read off the loaded document rather than off the wire, because the
+/// claim is about the value that reaches memory, and by BITS, which is
+/// the only comparison that can tell `-0.0` from `0.0`.
+fn signed_zero_leaf(doc: &editor_core::ProfileDoc, measure: RecipeNodeId) -> bool {
+    let node = doc.node(measure).expect("the assertion survived");
+    editor_core::node::payload_exprs(node)
+        .into_iter()
+        .flatten()
+        .any(|&var| {
+            let mut bits = Vec::new();
+            doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
+                .literal_bits(&mut bits);
+            bits.contains(&(-0.0f64).to_bits())
+        })
+}
+
+/// **The walk ORDER, pinned**: a document broken in a SLOT expression
+/// and in a PAYLOAD expression at once reads the SLOT refusal, because
+/// the slot read walk runs first (`persist::check::Walk::ORDER`).
+///
+/// Moving the payload walk ahead of the slot walk changes the
+/// diagnosis of every file broken both ways, and this row is what says
+/// so out loud.
+#[test]
+fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
+    let (doc, name, extrude) = with_depth_and_extrude();
+    let doc = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: Formula::named(name.clone(), Dimension::Length).into(),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("a length parameter drives a length slot")
+    .doc;
+    let (doc, _) = insert(
+        doc,
+        Node::Assertion {
+            value: Formula::named(name.clone(), Dimension::Length),
+            bound: len(1.0),
+            relation: editor_core::AssertionRelation::AtLeast,
+        },
+    );
+
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    match load(&retype_to_angle(&text, &name), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            node, slot, var, ..
+        })) => assert_eq!(
+            (node.id(), slot, var.id()),
+            (extrude, SlotId::Distance, id_of(&doc, &name))
+        ),
+        other => panic!(
+            "a file broken in a slot AND in a payload must read the slot walk's refusal — the \
+             walk order `validate_document` documents. Got {other:?}"
+        ),
+    }
+}
+
+/// **An assertion's value that is no value at all — both doors**: a
+/// body is read at the bound's dimension, which it does not have, so
+/// the edit door refuses the node and the load door refuses a file
+/// whose value was forged to the extrude's body.
+#[test]
+fn an_assertion_value_that_is_a_body_refuses() {
+    let (doc, name, extrude) = with_depth_and_extrude();
+    let body = doc.output(extrude, 0).expect("a body");
+    let (doc, assertion) = insert(
+        doc,
+        Node::Assertion {
+            value: Formula::named(name.clone(), Dimension::Length),
+            bound: len(1.0),
+            relation: editor_core::AssertionRelation::AtLeast,
+        },
+    );
+
+    // The edit door, over the node the wire surgery below forges.
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Assertion {
+                value: Formula::var(body, Dimension::Length),
+                bound: len(1.0),
+                relation: editor_core::AssertionRelation::AtLeast,
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::PayloadVarKind { .. }) => {}
+        other => panic!("the edit door must refuse a body as a value, got {other:?}"),
+    }
+
+    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
+    let corrupt = doctored(&text, |wire| {
+        let field = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
+        assert_eq!(
+            *field,
+            serde_json::json!(id_of(&doc, &name).0),
+            "the surgery is aimed at the assertion's value"
+        );
+        *field = serde_json::json!(body.0);
+    });
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind { node, var, .. })) => {
+            assert_eq!((node.id(), var.id()), (assertion, body));
+        }
+        other => panic!("the load door must refuse a body as a value, got {other:?}"),
+    }
+}

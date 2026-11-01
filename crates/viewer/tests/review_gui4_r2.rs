@@ -1,0 +1,649 @@
+//! GUI-4 R2 consumer suite — an independent derivation of the PR's
+//! claims, driven through the public doors only (the review charter's
+//! own rows, not re-readings of the unit's).
+//!
+//! What these rows add over the unit's own suites:
+//!
+//! - **The part-coordinate pullback is checked against an independent
+//!   oracle**: the standalone part document's own `face_frame`, which
+//!   never saw a placement. The unit's coincidence assertions are
+//!   solver-vs-authored (the solve enforces exactly what the proposal
+//!   authored, so a wrong pullback would still "coincide"); these rows
+//!   are authored-vs-part-truth.
+//! - **The solved seat is checked geometrically**, by ray, with the
+//!   expected world coordinates derived from the fixture's constants —
+//!   independent of the alignment data and of `solve_document`.
+//! - **A rotating probe pick**, exercising the LINEAR half of the
+//!   inverse-ray transform (the unit's displaced-pick rows are
+//!   translation-only, which a transposed or forward linear map would
+//!   survive).
+//! - Adversarial flows: a second mate beyond the pin on one pair; a
+//!   mate landing while a free-move GESTURE is in flight; hide
+//!   surviving a mate that supersedes the same instance's probe;
+//!   save-as into a partless directory; the threaded seam resolving
+//!   through the same `Arc<dyn PartResolver>`.
+//!
+//! Every row is a static fixture (no RNG anywhere — nothing here is a
+//! fuzzer, per the suite-cost rules).
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+use crate::common;
+
+use common::asm;
+use pncad::document::{CancelToken, EvalOptions, Frame, PartResolver, evaluate};
+use pncad::geom_core::Tol;
+use pncad::workspace::Workspace;
+use viewer::display::AdmissionFault;
+use viewer::matetool::MateTool;
+use viewer::session::{DocSession, Refusal, SessionOp};
+use viewer::tree::RowStatus;
+
+/// **The standalone-part oracle**: the proposal's two sides name the
+/// faces the standalone part documents answer for — a derivation that
+/// never involved a placement or the assembly at all — and, solved,
+/// the placed cap is the standalone pose carried by the post's solved
+/// placement. A side read at the world spot instead of by the part's
+/// own name would carry the instance's placement into the mate.
+#[test]
+fn proposal_sides_agree_with_the_standalone_part_documents() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2oracle", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world mate off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("the seat proposes");
+
+    // The oracle: resolve each pinned part from the store (the same
+    // door the evaluator uses), evaluate it STANDALONE, and read the
+    // named cap's frame in the part's own coordinates. What the
+    // proposal carries is that face's NAME, in the part's own spelling:
+    // the row the standalone evaluation answers, and no number beside
+    // it.
+    let store = Workspace::open(&bench.dir).expect("the store opens");
+    let oracle = |doc_ref, local: &pncad::prelude::StableName| {
+        let part = PartResolver::resolve(&store, doc_ref, tol).expect("the part resolves");
+        let ev = evaluate::<f64>(
+            &part,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let tip = *part.placements().first().expect("the part places its body");
+        pncad::select::face_frame(&ev, tip, local).expect("the cap has a frame")
+    };
+    let post = oracle(&bench.post, &bench.post_top);
+    assert!(post.u_ref.is_some(), "the cap fixes a reference of its own");
+    assert_eq!(
+        asm::side_face(doc, &proposal.on),
+        Some(bench.post_top.clone()),
+        "on names the post's own cap, the row the standalone part answers"
+    );
+    let shelf = oracle(&bench.shelf, &bench.shelf_bottom);
+    assert!(
+        shelf.u_ref.is_some(),
+        "the cap fixes a reference of its own"
+    );
+    assert_eq!(
+        asm::side_face(doc, &proposal.to),
+        Some(bench.shelf_bottom.clone()),
+        "to names the shelf's own underside (the shelf placement's 0.08 m \
+         y-translation is the solve's, applied to the resolved pose, never \
+         baked into the mate)"
+    );
+    // The solved state agrees with the oracle: the placed post's cap,
+    // read off the landed evaluation, is the standalone pose carried
+    // by the post's solved placement.
+    session.perform(proposal.op_into_target_space());
+    session.pump();
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let placed = common::solve(&session, doc, tol)
+        .placement(doc, bench.post_b)
+        .expect("post_b is solved")
+        .affine::<f64>();
+    let world = pncad::select::face_frame(
+        eval,
+        bench.post_b,
+        &asm::in_part(bench.post_b, &bench.post_top),
+    )
+    .expect("the placed cap has a pose");
+    let want = placed.transform_point(post.origin);
+    assert!(
+        (world.origin.x - want.x).abs() < 1e-9
+            && (world.origin.y - want.y).abs() < 1e-9
+            && (world.origin.z - want.z).abs() < 1e-9,
+        "the placed cap is the standalone pose under the solved placement: {:?} vs {want:?}",
+        world.origin
+    );
+}
+
+/// **The solved seat, checked by ray with hand-derived coordinates.**
+/// FrameCoincidence at Opposed sense seats the post's top cap onto the
+/// shelf's underside, so after the commit the post hangs below the
+/// shelf: an upward ray at the shelf's underside centre must now meet
+/// post_b first, 0.05 m further down. Nothing here reads the
+/// alignment, the proposal, or `solve_document` — the expectation is
+/// the fixture's own constants.
+#[test]
+fn the_solved_seat_hangs_the_post_under_the_shelf() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2seatgeom", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world mate off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("the seat proposes");
+    common::commit_mate(&mut session, proposal.op_into_target_space());
+
+    let centre = [
+        asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+        asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+    ];
+    let index = asm::index_of(&session);
+    let (_, eval) = session.landed_pair().expect("landed");
+    let view = session.display_view();
+    // Upward ray from below: post_b's bottom cap, now at z = -height.
+    let up = asm::under_shelf();
+    let under = index
+        .pick_for(eval, &up, &view)
+        .expect("the pick answers")
+        .expect("something hangs under the shelf");
+    assert_eq!(under.node, bench.post_b, "the post seated under the shelf");
+    assert!(
+        (under.point.z - (-asm::POST_HEIGHT)).abs() < 1e-9,
+        "its bottom cap sits one post-height below the shelf's \
+         underside: z = {}",
+        under.point.z
+    );
+    // Downward ray from above: the shelf's top face, where it always
+    // was — the seat moved the post, not the shelf.
+    let over = index
+        .pick_for(eval, &asm::down_at(centre[0], centre[1]), &view)
+        .expect("the pick answers")
+        .expect("the shelf is still there");
+    assert_eq!(over.node, bench.shelf_i);
+    assert!(
+        (over.point.z - asm::SHELF_THICKNESS).abs() < 1e-9,
+        "the shelf's top face is untouched: z = {}",
+        over.point.z
+    );
+    // And the post vacated its authored spot.
+    assert!(
+        index
+            .pick_for(eval, &asm::over_post_b(), &view,)
+            .expect("the pick answers")
+            .is_none(),
+        "nothing remains at post_b's authored position"
+    );
+}
+
+/// **A rotating probe is picked where it is drawn** — the linear half
+/// of the inverse-ray transform. The probe rotates post_b a quarter
+/// turn about z and translates it; the row asserts a hit at the
+/// hand-computed drawn position (with the hit point mapped back to
+/// world), and a miss at the authored one. A forward-instead-of-
+/// inverse map, or a transposed linear inverse, fails the hit.
+#[test]
+fn a_rotating_probe_is_picked_at_its_drawn_position() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2rotpick", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // post_b in a space of its own, which the probe moves, the frame
+    // composed so it moves the post from where its pin stood it.
+    asm::unpin(&mut session, bench.post_b);
+    session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    // p' = R(π/2 about z)·p + (0.12, 0, 0): the authored box
+    // x ∈ [0.06, 0.08], y ∈ [0, 0.02] maps to x' ∈ [0.10, 0.12],
+    // y' ∈ [0.06, 0.08]; z is unchanged.
+    let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
+        frame: asm::where_b_stood(
+            Frame::rotate_then_translate(
+                [0.0, 0.0, 1.0],
+                std::f64::consts::FRAC_PI_2,
+                [0.12, 0.0, 0.0],
+                common::band(),
+            )
+            .expect("a literal axis has a definite direction"),
+        ),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
+
+    let index = asm::index_of(&session);
+    let (_, eval) = session.landed_pair().expect("landed");
+    let view = session.display_view();
+    let hit = index
+        .pick_for(eval, &asm::down_at(0.11, 0.07), &view)
+        .expect("the pick answers")
+        .expect("the rotated probe is under the drawn-position ray");
+    assert_eq!(hit.node, bench.post_b);
+    assert!(
+        (hit.point.x - 0.11).abs() < 1e-9
+            && (hit.point.y - 0.07).abs() < 1e-9
+            && (hit.point.z - asm::POST_HEIGHT).abs() < 1e-9,
+        "the hit point is reported in WORLD (drawn) coordinates: {:?}",
+        hit.point
+    );
+    assert!(
+        index
+            .pick_for(eval, &asm::over_post_b(), &view,)
+            .expect("the pick answers")
+            .is_none(),
+        "the authored position is vacated while the probe stands"
+    );
+}
+
+/// **Two picks on one instance — two DIFFERENT faces — still refuse
+/// `SamePick`** (the unit's row uses the same face twice; a mate
+/// between two faces of one body is just as much a self-mate).
+#[test]
+fn two_different_faces_of_one_instance_refuse_same_pick() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2sameinst", tol);
+    let session = asm::open_bench(&bench, tol);
+    let top = asm::pick_face(&session, &asm::over_post_b());
+    // A side face, picked with a horizontal ray at half height.
+    let side = asm::pick_face(
+        &session,
+        &common::along_x(-1.0, asm::POST_B_AT[1] + asm::POST_SECTION / 2.0, 0.025),
+    );
+    assert_eq!(side.node, bench.post_b, "the side ray hit post_b");
+    assert_ne!(side.name, top.name, "two different faces");
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), top);
+    tool.pick(session.doc(), side);
+    let (doc, _) = session.landed_pair().expect("landed");
+    assert!(
+        matches!(
+            tool.proposal(doc, asm::seat_choice()),
+            Err(viewer::matetool::MateToolError::SamePick { head })
+                if head.id() == bench.post_b
+        ),
+        "a mate needs a PAIR of instances"
+    );
+}
+
+/// **A second mate on the same pair refuses typed and leaves the
+/// assembly working.** The first mate and its values pin post_b, so a
+/// second rest of the same faces a centimetre lower is a mate beyond
+/// the pin: the door refuses it, measuring nothing, naming post_b's
+/// bundle, and the assembly works as before. No crash, no silent
+/// success, no silent drop.
+#[test]
+fn a_second_mate_beyond_the_pin_refuses_typed_at_the_door() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2contra", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world mate off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a.clone());
+    tool.pick(session.doc(), b.clone());
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("the seat proposes");
+    common::commit_mate(&mut session, proposal.op_into_target_space());
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+
+    // The same pair again, the shelf's underside slid a centimetre
+    // along its own normal (a standoff), with no values: the two rests
+    // cannot both hold.
+    let lower = {
+        use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
+        let seat = crate::fixture::flip(crate::fixture::plane(proposal.to.clone()));
+        pncad::document::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(seat.clone()),
+            along: RoleRead::through(seat, PoseRole::Normal),
+            by: common::len(0.01),
+        }))
+    };
+    let mut second = proposal.mate.clone();
+    second.to = lower;
+    let outcome = session.perform(SessionOp::AddMate {
+        placement: bench.post_b,
+        mate: Box::new(second),
+        values: Vec::new(),
+        into_target_space: false,
+    });
+    // post_b's bundle already pins it, so the second mate is a mate
+    // beyond the pin: the door refuses it typed, measuring nothing, and
+    // the assembly is as it was.
+    match outcome.refusal.as_ref() {
+        Some(Refusal::Edit(error)) => assert!(
+            matches!(
+                error.as_ref(),
+                pncad::document::EditError::MateRefused { fault, .. }
+                    if matches!(
+                        fault.as_ref(),
+                        pncad::document::MateFault::Overconstrained { placement, constraints, .. }
+                            if *placement == bench.post_b && constraints.len() > 1
+                    )
+            ),
+            "the second mate is beyond the pin: {error:?}"
+        ),
+        other => panic!("the door refuses the second mate, got {other:?}"),
+    }
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "after undo: {row:?}");
+    }
+}
+
+/// **A mate committed while a free-move GESTURE is in flight kills the
+/// gesture** (the unit's rows supersede a COMMITTED probe; the
+/// in-flight arm is `prune`'s third clause and deserves its own
+/// exercise). The mate places post_b into the world, emptying the space
+/// the gesture moves, so the edit's own prune kills it. Afterwards the
+/// preview op refuses `NoFreeMove` — the gesture died with its
+/// instance's eligibility.
+#[test]
+fn a_mate_kills_an_in_flight_gesture() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2gesture", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b's world mate off, so the mate places post_b.
+    asm::unpin(&mut session, bench.post_b);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("the seat proposes");
+
+    session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
+        frame: Frame::translation([0.02, 0.0, 0.0]),
+    });
+    let outcome = session.perform(proposal.op_into_target_space());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        outcome.withdrawn.killed_gesture.is_some(),
+        "the edit reports the gesture it killed"
+    );
+    session.pump();
+    // The in-flight gesture is dead: a further preview has nothing to
+    // preview into.
+    let outcome = session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
+        frame: Frame::translation([0.03, 0.0, 0.0]),
+    });
+    assert!(
+        matches!(
+            outcome.refusal,
+            Some(Refusal::Display(viewer::display::DisplayFault::NoFreeMove))
+        ),
+        "{:?}",
+        outcome.refusal
+    );
+    // And nothing of the gesture leaked into a committed value.
+    assert!(crate::common::asm::frame_of(&session, bench.post_b).is_none());
+}
+
+/// **Hide survives the mate that supersedes the probe.** Probe post_b,
+/// hide it, then land the mate: the probe is discarded (reported), the
+/// hidden state stands (hide is about visibility, not placement), and
+/// the drawn scene still omits the instance at its new solved
+/// placement.
+#[test]
+fn hide_survives_the_mate_that_discards_the_probe() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2hidemate", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (a, b) = asm::seat_picks(&session, &bench);
+    // post_b in a space of its own, which the probe moves.
+    let own = asm::unpin(&mut session, bench.post_b);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("the seat proposes");
+
+    session.perform(SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    });
+    session.perform(SessionOp::PreviewFreeMove {
+        instance: bench.post_b,
+        frame: asm::where_b_stood(Frame::translation([0.02, 0.0, 0.0])),
+    });
+    session.perform(SessionOp::CommitFreeMove {
+        instance: bench.post_b,
+    });
+    session.perform(SessionOp::SetInstanceHidden {
+        instance: bench.post_b,
+        hidden: true,
+    });
+    // Hidden AND probed: the pick index offers it nowhere.
+    let index = asm::index_of(&session);
+    let (_, eval) = session.landed_pair().expect("landed");
+    let view = session.display_view();
+    for x in [
+        asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
+        asm::POST_B_AT[0] + 0.02 + asm::POST_SECTION / 2.0,
+    ] {
+        assert!(
+            index
+                .pick_for(
+                    eval,
+                    &asm::down_at(x, asm::POST_B_AT[1] + asm::POST_SECTION / 2.0),
+                    &view
+                )
+                .expect("the pick answers")
+                .is_none(),
+            "a hidden instance is offered neither moved nor unmoved"
+        );
+    }
+
+    let outcome = session.perform(proposal.op_into_target_space());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
+        panic!("exactly one frame is superseded at the edit")
+    };
+    session.pump();
+    assert_eq!(
+        superseded.instance, bench.post_b,
+        "the mate's edit discards the probe"
+    );
+    assert!(
+        matches!(
+            &superseded.cause,
+            AdmissionFault::NotShown { space, .. } if space.id() == own
+        ),
+        "and the report carries WHY it went, not only which went — the \
+         fault's own PAYLOAD, which is what would go red if the prune paired \
+         the right fault with the wrong instance: {}",
+        superseded.cause
+    );
+    assert!(session.display().is_hidden(bench.post_b), "hide stands");
+    let index = asm::index_of(&session);
+    let scene = index
+        .scene_for(&session.display_view())
+        .expect("a scene survives");
+    assert_eq!(scene.stats().probe_parts, 0, "no probe survives the mate");
+    // The solved placement is under the shelf; hidden means the
+    // upward ray finds the SHELF's underside, not the seated post.
+    let under = asm::shelf_underside(&session);
+    assert_eq!(
+        under.node, bench.shelf_i,
+        "the seated post stays hidden at its new placement"
+    );
+}
+
+/// **Save-as into a directory without the parts.** The resolver
+/// follows the file (the disclosed judgment call); what the session
+/// then SHOWS is pinned here: the landed picture answers the landed
+/// run, and the memo's pin-verified reuse means an already-resolved
+/// part does not go red merely because the new directory lacks it —
+/// but a FRESH session over the moved file refuses every resolution
+/// typed (the directory rule, enforced where resolution actually
+/// happens).
+#[test]
+fn save_as_rebinds_the_resolver_and_a_fresh_open_enforces_the_rule() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2saveas", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let elsewhere = bench.dir.join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("the sibling directory creates");
+    let moved = elsewhere.join("moved.pncad");
+    let outcome = session.perform(SessionOp::Save(moved.clone()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        session.resolve_dir().expect("still wired"),
+        elsewhere,
+        "the resolver followed the file"
+    );
+    session.pump();
+    // A fresh session over the moved file: every resolution refuses
+    // typed — the parts are not beside THIS file.
+    let mut fresh = DocSession::inline(pncad::document::Doc::empty_derived("r2-boot", tol), tol);
+    let outcome = fresh.perform(SessionOp::Open(moved));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    fresh.pump();
+    for row in asm::instance_rows(&fresh) {
+        assert!(
+            matches!(row.status, RowStatus::Failed { .. }),
+            "the moved document must not resolve against the old \
+             directory: {row:?}"
+        );
+    }
+}
+
+/// **The threaded seam resolves through the same resolver handle** —
+/// the `Arc<dyn PartResolver>` crossing the worker-thread boundary
+/// (compile-time `Send + Sync`, exercised at runtime here: same
+/// assembly, same directory rule, through `ThreadEvaluator`).
+#[test]
+fn the_threaded_seam_resolves_the_assembly_too() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2threaded", tol);
+    let mut session = DocSession::new(
+        pncad::document::Doc::empty_derived("r2-threaded-boot", tol),
+        tol,
+        Box::new(viewer::ThreadEvaluator::spawn().expect("the worker spawns")),
+    );
+    let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    for _ in 0..30_000 {
+        session.pump();
+        if !session.busy() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!session.busy(), "the threaded run lands");
+    let rows = session.tree_rows();
+    assert_eq!(
+        rows.len(),
+        4,
+        "three instances, each its own placement, and the product's ⊔"
+    );
+    for row in &rows {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+}
+
+/// PROBE (evidence row, kept because its outcome is a pinned fact a
+/// future change should trip over): deleting a part FILE mid-session
+/// and re-evaluating does NOT go red — the memo's pin-verified reuse
+/// answers the instantiate nodes without consulting the store again
+/// (same pin, same bytes; the PR's memo-safety argument, running in
+/// the other direction). The rule is enforced where resolution
+/// happens: a FRESH session over the same file refuses typed (the
+/// unit's own missing-part row). If this row starts failing, the memo
+/// key grew a resolver component — a semantic change worth noticing.
+#[test]
+fn a_mid_session_file_deletion_is_absorbed_by_the_memo() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2memodel", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+    std::fs::remove_file(bench.dir.join(format!("{}.pncad", bench.post.id)))
+        .expect("the post file removes");
+    let outcome = session.perform(SessionOp::Reevaluate);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "the landed memo answers; deletion surfaces at the next \
+             fresh resolution: {row:?}"
+        );
+    }
+}
+
+/// The save-as re-evaluation's OTHER direction, which is the one that
+/// makes the rebind-and-re-evaluate rationale real: a document whose
+/// resolutions FAILED (opened beside no parts) recovers to green when
+/// saved into the directory that has them — failed resolutions are
+/// not memoized as if they were answers.
+#[test]
+fn save_as_into_the_store_recovers_a_failed_resolution() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r2saverec", tol);
+    let elsewhere = bench.dir.join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("the sibling directory creates");
+    let moved = elsewhere.join("moved.pncad");
+    std::fs::copy(&bench.asm_path, &moved).expect("the assembly copies");
+    let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r2-boot", tol), tol);
+    session.perform(SessionOp::Open(moved));
+    session.pump();
+    assert!(
+        asm::instance_rows(&session)
+            .iter()
+            .all(|row| matches!(row.status, RowStatus::Failed { .. })),
+        "opened beside no parts: every instance refuses"
+    );
+    // A second store holding the PARTS (and not the assembly — saving
+    // it back beside the original would collide on the assembly's own
+    // id; see the report's note on save-a-copy).
+    let store2 = bench.dir.join("store2");
+    std::fs::create_dir_all(&store2).expect("the second store creates");
+    for id in [&bench.post.id, &bench.shelf.id] {
+        let name = format!("{id}.pncad");
+        std::fs::copy(bench.dir.join(&name), store2.join(&name)).expect("the part copies");
+    }
+    let outcome = session.perform(SessionOp::Save(store2.join("recovered.pncad")));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "the rebind re-resolves what had failed: {row:?}"
+        );
+    }
+}

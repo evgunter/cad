@@ -1,0 +1,137 @@
+//! **A planar slab through a cylinder wall answers its closed form.**
+//!
+//! Two fixtures, each the first move of a common part:
+//!
+//! - the crenellation a user carving a round tower reaches — a
+//!   rectangular slab subtracted through a cylindrical drum;
+//! - a round boss on a plate crossed by a slab, unioned in every member
+//!   order.
+//!
+//! In both, the slab's edges pierce the cylinder wall transversally,
+//! and each pierce vertex's sector bounds have a definite first-order
+//! side; the pierce rings join, and the rows check the volumes, in every
+//! member order of the boss's union.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use core::f64::consts::PI;
+use editor_core::Formula;
+
+use crate::blocks::{block, block_on, failure, run};
+use crate::corpus::body_of;
+use crate::emit_shared_rim_several::permutations;
+use crate::fixture::{insert, len, slid};
+use editor_core::{Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId};
+use geom_core::Tol;
+
+/// A disc drawn by `lp` on its own xy, extruded `dz`.
+fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![lp],
+            ids: Vec::new(),
+            on: None,
+        }),
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(dz),
+        },
+    )
+}
+
+/// The area of the band `|t| ≤ a` across a disc of radius `r`.
+fn strip(a: f64, r: f64) -> f64 {
+    2.0 * (a * (r * r - a * a).sqrt() + r * r * (a / r).asin())
+}
+
+/// The node's volume. A refusal fails the row, naming it.
+fn volume(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> f64 {
+    if let Some(e) = failure(ev, n) {
+        panic!("{what}: refused {e:?}");
+    }
+    topo::test_support::pinned_volume(
+        "the volume integrates",
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&(body_of(ev, n))),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .volume
+}
+
+/// **The round crenellation.** A drum `r = 13 mm`, `z ∈ [28, 36] mm`,
+/// less a slab `40 × 6 mm` from `z = 31 mm` up past its top: the drum
+/// less the band `|y| ≤ 3 mm` across its disc, over the top 5 mm.
+#[test]
+fn a_slab_cut_through_a_drum_answers_its_volume() {
+    let (r, z0, h) = (0.013, 0.028, 0.008);
+    let (half_t, cut_z) = (0.003, 0.031);
+    let doc = ProfileDoc::empty_derived("round_crenellation", Tol::witness());
+    // The drum's own z = 0 is the world's z0.
+    let (doc, drum) = disc(doc, LoopProgram::circle(0.0, 0.0, r).unwrap(), h);
+    let (doc, cutter) = block_on(
+        doc,
+        drum,
+        (-0.020, 0.020),
+        (-half_t, half_t),
+        cut_z - z0,
+        0.008,
+    );
+    let (doc, n) = insert(
+        doc,
+        Node::Subtract {
+            from: drum.into(),
+            tool: cutter.into(),
+        },
+    );
+    let truth = PI * r * r * h - strip(half_t, r) * (z0 + h - cut_z);
+    let v = volume(&run(&doc), n, "drum ∖ slab");
+    assert!(
+        (v - truth).abs() < 1e-9 * truth,
+        "drum ∖ slab: {v} vs {truth}"
+    );
+}
+
+/// **The round boss crossed by a slab builds in every member order.**
+/// The
+/// plate `[0,3] × [0,2] × [0,1]`; the boss `r = 0.6` about `(1.5, 1)`,
+/// `z ∈ [0.44, 2.24]`; the slab `x ∈ [1.4, 1.6]`, `y ∈ [−1, 3]`,
+/// `z ∈ [0.5, 2]`. The union is the plate, the boss above it, the
+/// slab's two ends below the plate's top beyond its `y` sides, and the
+/// slab above the plate less the band it shares with the boss. The two
+/// orders that union the plate last read a boss wall the slab left with
+/// a hole, which the containment probe cannot place a hit on; its rays
+/// that meet that wall are set aside, and one that misses it answers.
+#[test]
+fn a_slab_across_a_round_boss_builds_in_every_order() {
+    let (r, cx, cy) = (0.6, 1.5, 1.0);
+    let doc = ProfileDoc::empty_derived("round_boss_slab", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
+    let (doc, boss) = disc(
+        doc,
+        LoopProgram::circle_split(cx, cy, r, 3, 0.0).unwrap(),
+        1.8,
+    );
+    let (doc, boss) = slid(doc, plate, boss, [0.0, 0.0, 0.44]);
+    let (doc, slab) = block_on(doc, plate, (1.4, 1.6), (-1.0, 3.0), 0.5, 1.5);
+    let truth = 6.0 + PI * r * r * (2.24 - 1.0) + 0.2 * 2.0 * 0.5 + (0.2 * 4.0 - strip(0.1, r));
+    let ids = [plate, boss, slab];
+    for order in permutations(&[0, 1, 2]) {
+        let (doc, n) = insert(
+            doc.clone(),
+            Node::Union {
+                members: editor_core::Bodies::Spelled(
+                    order.iter().map(|&i| ids[i].into()).collect(),
+                ),
+            },
+        );
+        let what = format!("order {order:?}");
+        let v = volume(&run(&doc), n, &what);
+        assert!((v - truth).abs() < 1e-9 * truth, "{what}: {v} vs {truth}");
+    }
+}

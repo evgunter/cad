@@ -1,0 +1,43 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.01s
+────────────
+ Nextest run ID a415ea6c-e3f6-4566-8a7a-efd2688f511a with nextest profile: default
+    Starting 4 tests across 1 binary
+        PASS [   0.013s] (1/4) nextest-shapes extra_test
+        PASS [   0.025s] (2/4) nextest-shapes quick_pass_renamed
+        FAIL [   0.114s] (3/4) nextest-shapes always_fails
+  stdout ───
+
+    running 1 test
+    test always_fails ... FAILED
+
+    failures:
+
+    failures:
+        always_fails
+
+    test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.10s
+
+  stderr ───
+
+    thread 'always_fails' (1567) panicked at src/lib.rs:13:5:
+    planted
+    stack backtrace:
+       0: __rustc::rust_begin_unwind
+                 at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/std/src/panicking.rs:689:5
+       1: core::panicking::panic_fmt
+                 at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/panicking.rs:80:14
+       2: nextest_shapes::always_fails
+                 at ./src/lib.rs:13:5
+       3: nextest_shapes::always_fails::{{closure}}
+                 at ./src/lib.rs:12:18
+       4: core::ops::function::FnOnce::call_once
+                 at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ops/function.rs:250:5
+       5: core::ops::function::FnOnce::call_once
+                 at /rustc/e408947bfd200af42db322daf0fadfe7e26d3bd1/library/core/src/ops/function.rs:250:5
+    note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+        PASS [   1.513s] (4/4) nextest-shapes slow_pass
+────────────
+     Summary [   1.515s] 4 tests run: 3 passed, 1 failed, 0 skipped
+        FAIL [   0.114s] (3/4) nextest-shapes always_fails
+error: test run failed

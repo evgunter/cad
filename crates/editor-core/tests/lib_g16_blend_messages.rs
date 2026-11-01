@@ -1,0 +1,168 @@
+//! **The blend refusal messages, PINNED** — adopted from the LIB-G16
+//! R2 review probe, which printed them for a cross-tree byte
+//! comparison and so expired with that comparison
+//! (implementer-discipline §8: a one-shot comparison artefact has
+//! no consumer once the diff is taken, and a test that asserts nothing
+//! is never a gate).
+//!
+//! What schedules it instead is the standing claim underneath the
+//! comparison: one shared selection evaluation (`eval::wire::select`)
+//! serves both nodes and speaks through the node that reads it, so the
+//! fillet's selection texts must stay EXACTLY what they are (the op
+//! row's kernel tail is prefix-pinned instead) while the chamfer's
+//! say "chamfer". A `write!` that loses the verb, or a well-meant
+//! reword of the shared ladder, moves a user-visible string that
+//! nothing else in the tree reads; here it goes red with the old and
+//! new text side by side.
+//!
+//! The chamfer half is not a copy of the fillet half: it is the same
+//! two refusals under the other verb, which is the assertion that the
+//! shared door discriminates rather than merely runs. (A name of the
+//! wrong kind and an empty selection are the insert door's refusals,
+//! not evaluation's: `wire_selection_kind_doors.rs`,
+//! `edit_blend_canonical.rs`.)
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+use editor_core::AuthoredNode;
+
+use editor_core::{CancelToken, EvalOptions, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate};
+use geom_core::Tol;
+
+fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("g16-r2-msg", Tol::witness());
+    let (doc, profile) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, cube) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: fixture::len(1.0),
+        },
+    );
+    (doc, cube)
+}
+
+fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.nodes.get(&node) {
+        Some(NodeResult::Failed(e)) => e.kind_spoken(doc),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+/// The two refusals, for one blend verb, as `(label, message)`.
+///
+/// Merged into ONE row per verb rather than four tests: nextest is
+/// process-per-test and each of these rebuilds the same cube document,
+/// so the split would pay the fixture four times over
+/// (implementer-discipline §8). Every assertion carries its own
+/// label so a red names the refusal without the test name helping.
+fn messages(
+    blend: fn(RecipeNodeId, editor_core::Formula, Vec<editor_core::StableName>) -> AuthoredNode,
+) -> Vec<(&'static str, String)> {
+    let size = fixture::len(0.1);
+    let mut out = Vec::new();
+
+    // (a) a name the target never minted — Vanished through N5.
+    let (doc, cube) = cube_doc();
+    let ghost = editor_core::StableName {
+        kind: editor_core::EntityKind::Edge,
+        node: cube,
+        path: vec![editor_core::RoleSeg::Lateral(
+            fixture::no_piece_of(&doc).into(),
+        )],
+    };
+    let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
+    out.push(("resolve", msg_of(&d, n)));
+
+    // (b) the op itself refusing: a size far too large for the cube.
+    let (doc, cube) = cube_doc();
+    let named = blend(cube, fixture::len(0.9), fixture::prism_edges(&doc, cube, 4));
+    let (d, n) = fixture::insert(doc, named);
+    out.push(("op", msg_of(&d, n)));
+    out
+}
+
+/// **The fillet's SELECTION refusal text is byte-frozen, and its op
+/// row is prefix-pinned** — deliberately not two byte pins.
+///
+/// The selection row is this layer's own text and freezes whole. The
+/// op row's tail is the kernel's message, which quotes an arena key, so
+/// it is pinned by PREFIXES instead: the wrapper's, and the kernel
+/// payload's opening words — the exact text the verb-vocabulary unit
+/// reworded (the payload no longer opens "fillet: "; the wrapper is the
+/// one verb), so this is where a regression toward a re-verbed inner
+/// Display shows up on the fillet side.
+#[test]
+fn the_fillets_selection_refusal_is_byte_frozen_and_the_op_row_prefix_pinned() {
+    let got = messages(Node::fillet);
+    let want = [(
+        "resolve",
+        "this fillet's edge 0 no longer resolves in this evaluation: the recorded reference \
+             disagrees with the recipe as it stands on the derivation path (Extrude {cube}'s \
+             payload differs). Recourse: rebind it",
+    )];
+    let (_, cube) = cube_doc();
+    let cube = test_utils::refusal::tag(cube.0.digest());
+    for ((label, actual), (wl, expected)) in got.iter().zip(want.iter()) {
+        assert_eq!(label, wl);
+        let expected = expected.replace("{cube}", &cube);
+        assert_eq!(actual, &expected, "the fillet's {label} refusal text moved");
+    }
+    // The op row is pinned by PREFIX, not whole. Its tail is the
+    // kernel's own `BlendError` message, which quotes an arena key
+    // (`FaceKey(3v1)`) — deterministic under D9 replay identity, but a
+    // key is the kernel's business and freezing one here would make
+    // this row fail for an unrelated allocation change. The claim that
+    // belongs to THIS layer is the wrapper: the verb, then the kernel
+    // payload forwarded unaltered.
+    let (label, op) = &got[1];
+    assert_eq!(label, &"op");
+    assert!(
+        op.starts_with("the fillet op refused: "),
+        "the fillet's op wrapper moved: {op}"
+    );
+    // The kernel payload's own opening words, pinned past the wrapper:
+    // verb-neutral (the wrapper above is the one verb on this path).
+    assert!(
+        op.starts_with("the fillet op refused: the clearance screen cannot certify"),
+        "the op row's kernel payload moved, or regained a verb prefix: {op}"
+    );
+}
+
+/// **The chamfer's two say "chamfer"** — the shared ladder
+/// discriminates rather than merely running.
+#[test]
+fn the_chamfers_refusal_messages_name_the_chamfer() {
+    for (label, msg) in messages(Node::chamfer) {
+        assert!(
+            msg.contains("chamfer"),
+            "the chamfer's {label} refusal must name the chamfer: {msg}"
+        );
+        // No row says "fillet" — the `op` row included: it carries the
+        // kernel's message UNALTERED (spec D2 — kernel errors are
+        // never stringified over), and the kernel's shared refusal is
+        // verb-neutral, the verb attached once at the door. The one
+        // "fillet" substring a chamfer message may legitimately carry
+        // is a `fillet3_*` predicate NAME (K-corpus roster carriers
+        // both verbs meter under deliberately), stripped before the
+        // check.
+        assert!(
+            !msg.replace("fillet3_", "").contains("fillet"),
+            "the chamfer's {label} refusal must not say fillet: {msg}"
+        );
+    }
+}

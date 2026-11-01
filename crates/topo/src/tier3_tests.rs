@@ -1,0 +1,4312 @@
+//! In-crate tier-3 tests (M2 PR 3): the corruption directions only the
+//! raw arenas can reach — a certified body whose stored geometry is
+//! then made wrong must be caught by [`crate::validate_geometric`]'s
+//! re-checks at rest (the other half of the attachment/at-rest pair;
+//! the attachment-side rejections live in `tests/geometric_cube.rs`).
+//!
+//! The corruptions here replace whole arena entries (an [`EdgeCurve`]
+//! is only constructible certified, so "a wrong cache" means "a
+//! certified cache for *different* data sitting at this edge's slot" —
+//! exactly what re-certification against the edge's own endpoints
+//! exists to catch).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom::{NetState, NurbsSurface, Surface};
+use geom_brep::EdgeCurveSpec;
+use geom_core::spline::KnotVector;
+use geom_core::{Point3, Vec3};
+
+use crate::Body;
+use crate::construction::{MefSite, MevSite};
+use crate::euler::FaceSurface;
+use crate::fixtures::{refile_shells, test_curve};
+use crate::policy_lane::KernelSite;
+use crate::validate::{
+    MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
+    validate_geometric,
+};
+use geom_brep::MaterialWedge;
+use geom_core::Indeterminate;
+use geom_core::Tol;
+
+/// A geometric digon pillow: two vertices, two chord edges, two
+/// coplanar faces (the z = 0 plane on both sides) — the minimal body
+/// checks 1–6 pass clean, and the coplanar-split smooth-dihedral case.
+pub(crate) fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::construction::MefCreated) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let seg = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(1.0, 0.0, 0.0),
+            tol,
+        )
+        .unwrap();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let split = body
+        .mef(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
+            FaceSurface::New {
+                surface: plane.clone(),
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    // The seed face shares the same geometric plane under its own key
+    // (identical-by-construction would share the KEY in a sweep; here
+    // the point is the smooth-dihedral classification, which compares
+    // the surfaces' tangent planes, not their keys).
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
+    // Both chords were built through the SCAFFOLDING door, because
+    // neither face's surface existed when its `mev`/`mef` ran. The
+    // body is at rest now and both faces have charts, so both edges
+    // are re-described where they rest (D3's transience fence — tier
+    // 3 refuses a scaffold on a body with faces).
+    let chart = body.get_face(split.face).unwrap().surface;
+    for e in [seg.edge, split.edge] {
+        let spec =
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0))
+                .at_rest_in_chart(chart, false);
+        body.set_edge_curve(e, spec, tol).unwrap();
+    }
+    (body, split)
+}
+
+/// **The pillow at rest: check 7 is its one finding.** Its two faces are
+/// digons of zero area on one plane, so no face offers a ray to aim and
+/// its volume is zero: a solid whose orientation no reading decides (D1
+/// tier 3), which every other check of the tier passes.
+fn assert_pillow_rests(body: &Body<f64>, tol: Tol) {
+    let found = validate_geometric(body, tol);
+    assert!(
+        matches!(
+            found.as_ref().map_err(Vec::as_slice),
+            Err([ValidationError::OrientationUndecided {
+                reading: crate::OrientationUnread::Volume { .. },
+                ..
+            }])
+        ),
+        "the pillow's one finding is its unread orientation: {found:?}"
+    );
+}
+
+#[test]
+fn coplanar_split_is_smooth_and_only_its_orientation_unread() {
+    let tol = Tol::witness();
+    let (body, _) = coplanar_pillow(tol);
+    assert_pillow_rests(&body, tol);
+}
+
+/// **The transience fence** (U2's Q2 as corrected, 2026-08-27), red
+/// then green on ONE edge of one body.
+///
+/// RED: the scaffolding door describes a locus for an edge whose
+/// surfaces do not exist yet. Put that description back on an edge of
+/// a body AT REST — two faces, two charts — and tier 3 names it.
+///
+/// GREEN: the same edge, same carrier, same interval, described where
+/// it rests (an image in the chart it lies in) validates clean. Only
+/// the description moves, which is the whole content of the fence.
+#[test]
+fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
+    let tol = Tol::witness();
+    let (mut body, split) = coplanar_pillow(tol);
+    assert_pillow_rests(&body, tol);
+
+    // RED — back through the scaffolding door.
+    let scaffolded =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    body.set_edge_curve(split.edge, scaffolded.clone(), tol)
+        .expect("the door itself is legal: certification is not where the fence lives");
+    let errors = validate_geometric(&body, tol).expect_err("a scaffold at rest is refused");
+    assert!(
+        errors.contains(&ValidationError::ScaffoldAtRest { edge: split.edge }),
+        "tier 3 must name the scaffolded edge, got {errors:?}",
+    );
+
+    // GREEN — the same edge described where it rests.
+    let chart = body.get_face(split.face).unwrap().surface;
+    body.set_edge_curve(split.edge, scaffolded.at_rest_in_chart(chart, false), tol)
+        .unwrap();
+    assert_pillow_rests(&body, tol);
+}
+
+/// The other half of the fence: the door it exists to keep open. An
+/// edge whose surfaces genuinely do not exist yet — a `mev` chord in a
+/// half-built ring — carries a scaffolding description and is NOT
+/// refused, because the fence is TRANSIENCE and this edge is transient.
+#[test]
+fn the_scaffolding_door_still_passes_mid_construction() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    body.mev_line(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        Point3::new(1.0, 0.0, 0.0),
+        tol,
+    )
+    .unwrap();
+    // No surface anywhere yet, so the chord could not name a chart
+    // even in principle — and tier 3 says nothing about it.
+    assert_eq!(validate(&body), Ok(()));
+}
+
+// ----------------------------------------------------------------------
+// Tier 3, check 1: a `Nurbs` face surface's `NetState`. The
+// placeholder's own verdict row is `tests/geometric_cube.rs`'s
+// `without_the_top_cap_tier3_rejects_the_nurbs_seed`; the ladder below
+// covers all three states and where their boundaries lie.
+// ----------------------------------------------------------------------
+
+/// A bilinear net over the given control points, on the pillow's face.
+fn bilinear_net(control: Vec<Point3<f64>>) -> Surface<f64> {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    Surface::Nurbs(std::sync::Arc::new(
+        NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
+    ))
+}
+
+/// A finite control point of the unit-square net.
+fn finite_point(i: i32) -> Point3<f64> {
+    Point3::new(f64::from(i % 2), f64::from(i / 2), 0.0)
+}
+
+/// `NetState::Poisoned`: every control point carries poison in `x` over
+/// finite `y`/`z`.
+fn poisoned_net() -> Surface<f64> {
+    bilinear_net(
+        (0..4)
+            .map(|i| Point3::new(f64::NAN, f64::from(i), 2.0))
+            .collect(),
+    )
+}
+
+/// `NetState::Described`: the same knots and weights over finite
+/// control points.
+fn finite_net() -> Surface<f64> {
+    bilinear_net((0..4).map(finite_point).collect())
+}
+
+/// The refusals a body draws once the check-1 surface verdicts are
+/// taken out of it — what the REST of tier 3 says about the same face.
+fn without_surface_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            !matches!(
+                e,
+                ValidationError::UncertifiableSurface { .. }
+                    | ValidationError::PoisonedSurfaceDescription { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn pillow_on(surface: Surface<f64>, tol: Tol) -> (Vec<ValidationError>, crate::entity::FaceKey) {
+    let (mut body, split) = coplanar_pillow(tol);
+    assert_pillow_rests(&body, tol);
+    // Lifts RechartStrandsDescriptions: tier 3's surface verdicts on the swapped face are the row's, whatever it strands.
+    body.set_face_surface_unvouched_for_tests(
+        split.face,
+        FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .unwrap();
+    assert_eq!(validate(&body), Ok(()), "structurally still coherent");
+    (
+        validate_geometric(&body, tol).expect_err("the swapped chart is refused at rest"),
+        split.face,
+    )
+}
+
+/// A face carrying a described net that is poisoned in one channel is
+/// named by check 1 ITSELF, and named as the state it is in: not the
+/// placeholder's verdict, which is the benign "no description yet".
+#[test]
+fn a_described_net_carrying_poison_is_named_by_the_surface_check() {
+    let tol = Tol::witness();
+    let (errs, face) = pillow_on(poisoned_net(), tol);
+    assert!(
+        errs.contains(&ValidationError::PoisonedSurfaceDescription { face }),
+        "check 1 must name the corrupt described surface: {errs:?}",
+    );
+    assert!(
+        !errs
+            .iter()
+            .any(|e| matches!(e, ValidationError::UncertifiableSurface { .. })),
+        "the placeholder's verdict is a different state's answer: {errs:?}",
+    );
+}
+
+/// The control: the same face, the same knots and weights, FINITE
+/// control points. Real geometry earns no surface verdict of either
+/// kind, whatever else the body reports.
+#[test]
+fn a_finite_described_net_draws_no_surface_verdict() {
+    let tol = Tol::witness();
+    let (finite, _) = pillow_on(finite_net(), tol);
+    assert_eq!(
+        without_surface_verdicts(&finite),
+        finite,
+        "real geometry earns no verdict from the surface check: {finite:?}",
+    );
+}
+
+/// **Where the state boundaries lie**, on one body per rung: the state
+/// `geom` reports for a net decides the verdict check 1 gives it — with
+/// one further read inside `Described` — each face draws at most one
+/// surface verdict, and the face named is the swapped one.
+///
+/// The rungs that carry the argument are the near misses. Poison in
+/// EVERY channel of every point is the placeholder however the net was
+/// built, so a hand-built all-poison net is `Placeholder` and not
+/// `Poisoned`; poison in every channel of ONE point is not, because the
+/// width rule quantifies over points as well as channels; and `±∞` is
+/// not `f64` poison at all, so a net carrying an infinity is
+/// `Described` — and check 1 refuses it anyway, as the poisoned net it
+/// is, because an infinite control point describes no locus exactly as
+/// an infinite radius does not.
+#[test]
+fn the_net_state_ladder_decides_check_1s_verdict() {
+    let tol = Tol::witness();
+    let cases: Vec<(&str, Surface<f64>)> = vec![
+        ("the mvfs placeholder", Surface::nurbs_placeholder()),
+        (
+            "all channels of all points, hand-built",
+            bilinear_net(
+                (0..4)
+                    .map(|_| Point3::new(f64::NAN, f64::NAN, f64::NAN))
+                    .collect(),
+            ),
+        ),
+        ("finite", finite_net()),
+        ("poison x at every point", poisoned_net()),
+        (
+            "poison y at every point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| Point3::new(f64::from(i), f64::NAN, 2.0))
+                    .collect(),
+            ),
+        ),
+        (
+            "poison z at ONE point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| {
+                        let p = finite_point(i);
+                        if i == 2 {
+                            Point3::new(p.x, p.y, f64::NAN)
+                        } else {
+                            p
+                        }
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "all channels of ONE point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| {
+                        if i == 3 {
+                            Point3::new(f64::NAN, f64::NAN, f64::NAN)
+                        } else {
+                            finite_point(i)
+                        }
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "negative infinity at one point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| {
+                        if i == 1 {
+                            Point3::new(0.0, f64::NEG_INFINITY, 0.0)
+                        } else {
+                            finite_point(i)
+                        }
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "infinite x at every point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| Point3::new(f64::INFINITY, f64::from(i), 2.0))
+                    .collect(),
+            ),
+        ),
+    ];
+
+    for (name, surface) in cases {
+        let Surface::Nurbs(payload) = &surface else {
+            unreachable!("every rung is a Nurbs surface")
+        };
+        let state = payload.net_state();
+        let finite = payload
+            .control()
+            .iter()
+            .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
+        let (errs, face) = pillow_on(surface.clone(), tol);
+        let placeholder = errs.contains(&ValidationError::UncertifiableSurface { face });
+        let poisoned = errs.contains(&ValidationError::PoisonedSurfaceDescription { face });
+        assert_eq!(
+            (placeholder, poisoned),
+            match state {
+                NetState::Placeholder => (true, false),
+                NetState::Poisoned => (false, true),
+                NetState::Described => (false, !finite),
+            },
+            "{name}: the state is {state:?} (finite: {finite}) and check 1 answered {errs:?}",
+        );
+        // No other face is named by a surface verdict, ever.
+        for e in &errs {
+            match e {
+                ValidationError::UncertifiableSurface { face: f }
+                | ValidationError::PoisonedSurfaceDescription { face: f } => {
+                    assert_eq!(*f, face, "{name}: a surface verdict names the wrong face");
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// The check-1 datum verdicts a body draws, in report order.
+fn datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::PoisonedSurfaceDatum { .. }
+                    | ValidationError::UnrepresentableSurfaceDatum { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn cylinder(radius: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn sphere(radius: f64) -> Surface<f64> {
+    Surface::Sphere {
+        center: Point3::new(0.0, 0.0, 0.0),
+        radius,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn cone(half_angle: f64) -> Surface<f64> {
+    Surface::Cone {
+        apex: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn torus(major_radius: f64, minor_radius: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        major_radius,
+        minor_radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
+    Surface::Plane {
+        origin,
+        normal,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// **Check 1 names an analytic surface's datum when it describes no
+/// locus**, on the tier-3-clean pillow with one face's surface swapped:
+/// the datum verdict is the FIRST finding the body draws — check 1 runs
+/// before the checks that read the surface for other questions — and it
+/// names the face, the kind and the datum.
+///
+/// Two halves. A datum that is not a number (NaN or `±∞`), or a stored
+/// direction (`normal`, `axis`, `u_ref`) that is the zero vector, is
+/// `PoisonedSurfaceDatum`; a finite datum outside its variant's
+/// convention — a frame off unit or off `u_ref ⊥ axis` by more than ε
+/// of locus movement at the kind's radius included — is
+/// `UnrepresentableSurfaceDatum`. The first six rungs are the
+/// measurement the carried row took before check 1 read any analytic
+/// datum, when every one of them was refused only by checks 3–5's
+/// escalations.
+#[test]
+fn check_1_names_the_analytic_datum_that_describes_no_locus() {
+    use geom::ConventionEnd::{Lower, Upper};
+    use geom::ConventionMeasure::{Length, Tilt, Value};
+    use geom::SurfaceDatum as D;
+    use geom::SurfaceKind as K;
+    enum Verdict {
+        Poisoned,
+        Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
+    }
+    let tol = Tol::witness();
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let cases: Vec<(&str, Surface<f64>, K, D, Verdict)> = vec![
+        (
+            "plane, NaN origin",
+            plane(Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z()),
+            K::Plane,
+            D::Origin,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, zero normal",
+            plane(o, Vec3::new(0.0, 0.0, 0.0)),
+            K::Plane,
+            D::Normal,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, NaN normal",
+            plane(o, Vec3::new(f64::NAN, f64::NAN, f64::NAN)),
+            K::Plane,
+            D::Normal,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, NaN radius",
+            cylinder(f64::NAN),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, zero radius",
+            sphere(0.0),
+            K::Sphere,
+            D::Radius,
+            Verdict::Unrepresentable(Value, Lower),
+        ),
+        (
+            "cone, NaN half-angle",
+            cone(f64::NAN),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, infinite origin",
+            plane(Point3::new(0.0, f64::INFINITY, 0.0), Vec3::unit_z()),
+            K::Plane,
+            D::Origin,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, NaN u_ref",
+            Surface::Plane {
+                origin: o,
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::new(f64::NAN, 0.0, 0.0),
+            },
+            K::Plane,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, negative radius",
+            cylinder(-1.0),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Unrepresentable(Value, Lower),
+        ),
+        (
+            "cylinder, infinite radius",
+            cylinder(f64::INFINITY),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, negative radius",
+            sphere(-2.0),
+            K::Sphere,
+            D::Radius,
+            Verdict::Unrepresentable(Value, Lower),
+        ),
+        (
+            "cone, zero half-angle",
+            cone(0.0),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable(Value, Lower),
+        ),
+        (
+            "cone, half-angle pi/2",
+            cone(core::f64::consts::FRAC_PI_2),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable(Value, Upper),
+        ),
+        (
+            "cone, half-angle past pi/2",
+            cone(2.0),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable(Value, Upper),
+        ),
+        (
+            "torus, zero tube",
+            torus(2.0, 0.0),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Unrepresentable(Value, Lower),
+        ),
+        (
+            "torus, NaN tube",
+            torus(2.0, f64::NAN),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, infinite major radius",
+            torus(f64::INFINITY, 0.5),
+            K::Torus,
+            D::MajorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, NaN major radius",
+            torus(f64::NAN, 0.5),
+            K::Torus,
+            D::MajorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, infinite tube",
+            torus(2.0, f64::INFINITY),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "cone, NaN apex",
+            Surface::Cone {
+                apex: Point3::new(0.0, f64::NAN, 0.0),
+                axis: Vec3::unit_z(),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cone,
+            D::Apex,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, infinite axis",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::new(0.0, 0.0, f64::INFINITY),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cylinder,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, NaN center",
+            Surface::Sphere {
+                center: Point3::new(f64::NAN, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            K::Sphere,
+            D::Center,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, zero axis",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cylinder,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, zero u_ref",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::new(0.0, 0.0, 0.0),
+            },
+            K::Cylinder,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, zero u_ref",
+            Surface::Plane {
+                origin: o,
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::new(0.0, 0.0, 0.0),
+            },
+            K::Plane,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "cone, zero axis",
+            Surface::Cone {
+                apex: o,
+                axis: Vec3::new(0.0, 0.0, 0.0),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cone,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, zero u_ref",
+            Surface::Sphere {
+                center: o,
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::new(0.0, 0.0, 0.0),
+            },
+            K::Sphere,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, u_ref 100 eps long at r = 1",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0 + 100.0 * tol.get().eps, 0.0, 0.0),
+            },
+            K::Cylinder,
+            D::URef,
+            Verdict::Unrepresentable(Length, Upper),
+        ),
+        (
+            "sphere, axis of half length",
+            Surface::Sphere {
+                center: o,
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 0.5),
+                u_ref: Vec3::unit_x(),
+            },
+            K::Sphere,
+            D::Axis,
+            Verdict::Unrepresentable(Length, Lower),
+        ),
+        (
+            "torus, unit u_ref tilted off the axis's normal plane",
+            Surface::Torus {
+                center: o,
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::new(0.6, 0.0, 0.8),
+            },
+            K::Torus,
+            D::URef,
+            Verdict::Unrepresentable(Tilt, Upper),
+        ),
+        (
+            "torus, zero axis",
+            Surface::Torus {
+                center: o,
+                axis: Vec3::new(0.0, 0.0, 0.0),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Torus,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+    ];
+    for (name, surface, kind, datum, verdict) in cases {
+        let (errs, face) = pillow_on(surface, tol);
+        let expected = match verdict {
+            Verdict::Poisoned => ValidationError::PoisonedSurfaceDatum { face, kind, datum },
+            Verdict::Unrepresentable(measure, end) => {
+                ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind,
+                    datum,
+                    measure,
+                    end,
+                }
+            }
+        };
+        assert_eq!(
+            errs.first(),
+            Some(&expected),
+            "{name}: check 1's datum verdict is the first finding: {errs:?}",
+        );
+        assert_eq!(
+            datum_verdicts(&errs),
+            vec![expected],
+            "{name}: one datum verdict, on the swapped face: {errs:?}",
+        );
+    }
+}
+
+/// The control, and the boundary on the inside: surfaces whose every
+/// datum is a number inside its convention draw no datum verdict,
+/// whatever else the swap costs the body — a cone ONE ULP inside either
+/// end of `(0, π/2)` (so a bound carrying any tolerance reds), a plane
+/// whose normal underflows its length without being zero, a plane
+/// whose finite normal's NORM overflows (a direction, not the zero
+/// vector), a cylinder whose frame is off unit by less than ε of locus
+/// movement, and a plane whose frame is not unit at all (it spans the
+/// same plane) included.
+#[test]
+fn datums_inside_their_conventions_draw_no_datum_verdict() {
+    let tol = Tol::witness();
+    let cases: Vec<(&str, Surface<f64>)> = vec![
+        ("unit cylinder", cylinder(1.0)),
+        ("unit sphere", sphere(1.0)),
+        ("cone at pi/4", cone(core::f64::consts::FRAC_PI_4)),
+        ("cone one ulp above 0", cone(f64::from_bits(1))),
+        (
+            "cone one ulp below pi/2",
+            cone(f64::from_bits(core::f64::consts::FRAC_PI_2.to_bits() - 1)),
+        ),
+        ("ring torus", torus(2.0, 0.5)),
+        (
+            "cylinder, u_ref eps/100 long at r = 1",
+            Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0 + 0.01 * tol.get().eps, 0.0, 0.0),
+            },
+        ),
+        (
+            "plane, normal and u_ref of length 3 (the same plane)",
+            Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 3.0),
+                u_ref: Vec3::new(3.0, 0.0, 0.0),
+            },
+        ),
+        (
+            "plane, normal underflowed but not zero",
+            plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
+        ),
+        (
+            "plane, normal whose norm overflows at f64 (1e160)",
+            plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e160)),
+        ),
+        (
+            "plane, normal whose norm overflows at f64 (1e200)",
+            plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e200)),
+        ),
+    ];
+    for (name, surface) in cases {
+        let (mut body, split) = coplanar_pillow(tol);
+        // Lifts RechartStrandsDescriptions: the datum verdicts are the row's, whatever else the swap costs the body.
+        body.set_face_surface_unvouched_for_tests(
+            split.face,
+            FaceSurface::New {
+                surface,
+                sense: true,
+            },
+        )
+        .unwrap();
+        let errs = validate_geometric(&body, tol).err().unwrap_or_default();
+        assert_eq!(
+            datum_verdicts(&errs),
+            vec![],
+            "{name}: a datum inside its convention earns no verdict: {errs:?}",
+        );
+    }
+}
+
+/// The check-1 carrier-datum verdicts a body draws, in report order.
+fn curve_datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::PoisonedCurveDatum { .. }
+                    | ValidationError::UnrepresentableCurveDatum { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+/// The pillow with one chord's carrier re-minted through the public
+/// attach door as `carrier` over `(t0, t1)`, described in the face's
+/// plane chart; `Err` is the mint's refusal.
+fn pillow_with_carrier(
+    carrier: geom::Curve3<f64>,
+    t0: f64,
+    t1: f64,
+    tol: Tol,
+) -> Result<(Body<f64>, crate::entity::EdgeKey), crate::EulerOpError> {
+    let (mut body, split) = coplanar_pillow(tol);
+    let chart = body.get_face(split.face).unwrap().surface;
+    body.set_edge_curve(
+        split.edge,
+        EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(chart),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        },
+        tol,
+    )?;
+    Ok((body, split.edge))
+}
+
+/// **Check 1 names an edge carrier's datum when it describes no curve
+/// of its kind**, on the pillow with one chord re-minted through the
+/// public attach door as a half-arc from `(0,0,0)` to `(1,0,0)`.
+///
+/// These are the carriers the mint CERTIFIES: certification meters the
+/// carrier's residuals against its endpoints and its chart, and a
+/// circle or ellipse whose `axis` is zero traces the diameter between
+/// the two vertices — which lies in the chart — while an ellipse whose
+/// `major` is negative and whose `u_ref` is flipped traces the ellipse
+/// it would with both signs righted; a circle whose `axis` has length 2
+/// traces an ellipse through the same two vertices. Before check 1 read
+/// carrier datums all four minted and nothing at rest named the datum
+/// (the carried row's measurement); each is now refused, first, by
+/// name.
+///
+/// The honest twins — the same arcs with their datums righted — mint
+/// and draw no carrier-datum verdict, so the refusal is the datum's and
+/// not the fixture's. (They are not clean: a bulged chord leaves one of
+/// the pillow's two coplanar faces wound against its bit, which check 6
+/// refuses on either bulge side; that verdict is the fixture's and
+/// rides after the datum's.)
+#[test]
+fn check_1_names_the_carrier_datum_that_describes_no_curve() {
+    use geom::ConventionEnd::{Lower, Upper};
+    use geom::ConventionMeasure::{Length, Value};
+    use geom::Curve3;
+    use geom::CurveDatum as D;
+    use geom::CurveKind as K;
+    let tol = Tol::witness();
+    let pi = core::f64::consts::PI;
+    let c = Point3::new(0.5, 0.0, 0.0);
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let x = Vec3::unit_x();
+    let circle = |axis: Vec3<f64>| Curve3::Circle {
+        center: c,
+        axis,
+        radius: 0.5,
+        u_ref: -x,
+    };
+    let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| Curve3::Ellipse {
+        center: c,
+        axis,
+        semi_u: major,
+        semi_v: 0.3,
+        u_ref,
+    };
+    let axis = Vec3::unit_z();
+    for (name, honest) in [
+        ("circle", circle(axis)),
+        ("ellipse", ellipse(axis, 0.5, -x)),
+    ] {
+        let (body, _) = pillow_with_carrier(honest, 0.0, pi, tol).unwrap();
+        let errs = validate_geometric(&body, tol).err().unwrap_or_default();
+        assert_eq!(
+            curve_datum_verdicts(&errs),
+            vec![],
+            "the honest {name} draws no carrier-datum verdict: {errs:?}"
+        );
+    }
+    enum Verdict {
+        Poisoned,
+        Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
+    }
+    let cases: Vec<(&str, Curve3<f64>, K, D, Verdict)> = vec![
+        (
+            "circle, zero axis",
+            circle(zero),
+            K::Circle,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "ellipse, zero axis",
+            ellipse(zero, 0.5, -x),
+            K::Ellipse,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "ellipse, negative major with u_ref flipped",
+            ellipse(axis, -0.5, x),
+            K::Ellipse,
+            D::SemiU,
+            Verdict::Unrepresentable(Value, Lower),
+        ),
+        (
+            "circle, axis of length 2 (it evaluates an ellipse)",
+            circle(axis * 2.0),
+            K::Circle,
+            D::Axis,
+            Verdict::Unrepresentable(Length, Upper),
+        ),
+    ];
+    for (name, carrier, kind, datum, verdict) in cases {
+        let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
+            .unwrap_or_else(|e| panic!("{name}: the mint certifies this carrier: {e:?}"));
+        let errs = validate_geometric(&body, tol).expect_err("the carrier datum is refused");
+        let expected = match verdict {
+            Verdict::Poisoned => ValidationError::PoisonedCurveDatum { edge, kind, datum },
+            Verdict::Unrepresentable(measure, end) => ValidationError::UnrepresentableCurveDatum {
+                edge,
+                kind,
+                datum,
+                measure,
+                end,
+            },
+        };
+        assert_eq!(
+            errs.first(),
+            Some(&expected),
+            "{name}: the carrier datum verdict is the first finding: {errs:?}",
+        );
+        assert_eq!(
+            curve_datum_verdicts(&errs),
+            vec![expected],
+            "{name}: one carrier datum verdict, on the re-minted edge: {errs:?}",
+        );
+    }
+}
+
+/// **The carrier-datum read over the datums no mint lets through**:
+/// certification refuses a carrier whose datum is not a number, or
+/// whose radius or semi-minor axis is not positive, before it reaches
+/// an arena (the carried row's measurement: `StatedInterval` or an
+/// escalated endpoint or span predicate), so no body can carry one to
+/// check 1. The read is asked of the carrier directly, so that it names
+/// each such datum the day a door stops refusing it — and so that the
+/// kinds the body row cannot mint (a line, a spiric) are covered.
+#[test]
+fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
+    use crate::validate::{DatumVerdict as V, analytic_datum_verdicts, poisoned_curve_datums};
+    use geom::ConventionEnd::Lower;
+    use geom::ConventionMeasure::Value;
+    use geom::Curve3;
+    use geom::CurveDatum as D;
+    let nan = f64::NAN;
+    let inf = f64::INFINITY;
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let z = Vec3::unit_z();
+    let x = Vec3::unit_x();
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let circle = |center, axis, radius, u_ref| Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    };
+    let spiric = |minor_radius: f64, offset: f64| Curve3::Spiric {
+        center: o,
+        axis: z,
+        u_ref: x,
+        major_radius: 2.0,
+        minor_radius,
+        offset,
+    };
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let verdict = |c: &Curve3<f64>| {
+        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(band))
+    };
+    type Row = (&'static str, Curve3<f64>, Option<V<D>>);
+    let cases: Vec<Row> = vec![
+        ("honest line", Curve3::Line { origin: o, dir: x }, None),
+        (
+            "line, zero dir",
+            Curve3::Line {
+                origin: o,
+                dir: zero,
+            },
+            Some(V::Poisoned(vec![D::Dir])),
+        ),
+        (
+            "line, NaN origin and infinite dir",
+            Curve3::Line {
+                origin: Point3::new(nan, 0.0, 0.0),
+                dir: Vec3::new(inf, 0.0, 0.0),
+            },
+            Some(V::Poisoned(vec![D::Origin, D::Dir])),
+        ),
+        ("honest circle", circle(o, z, 1.0, x), None),
+        (
+            "circle, NaN radius",
+            circle(o, z, nan, x),
+            Some(V::Poisoned(vec![D::Radius])),
+        ),
+        (
+            "circle, infinite center",
+            circle(Point3::new(0.0, inf, 0.0), z, 1.0, x),
+            Some(V::Poisoned(vec![D::Center])),
+        ),
+        (
+            "circle, zero u_ref",
+            circle(o, z, 1.0, zero),
+            Some(V::Poisoned(vec![D::URef])),
+        ),
+        (
+            "circle, zero radius",
+            circle(o, z, 0.0, x),
+            Some(V::Unrepresentable(D::Radius, Value, Lower)),
+        ),
+        (
+            "circle, negative radius",
+            circle(o, z, -1.0, x),
+            Some(V::Unrepresentable(D::Radius, Value, Lower)),
+        ),
+        (
+            "ellipse, zero minor",
+            Curve3::Ellipse {
+                center: o,
+                axis: z,
+                semi_u: 1.0,
+                semi_v: 0.0,
+                u_ref: x,
+            },
+            Some(V::Unrepresentable(D::SemiV, Value, Lower)),
+        ),
+        ("honest spiric", spiric(0.5, 0.3), None),
+        (
+            "spiric, NaN offset",
+            spiric(0.5, nan),
+            Some(V::Poisoned(vec![D::Offset])),
+        ),
+        (
+            "spiric, zero tube",
+            spiric(0.0, 0.3),
+            Some(V::Unrepresentable(D::MinorRadius, Value, Lower)),
+        ),
+        (
+            "finite NURBS carrier",
+            line_net(Point3::new(1.0, 0.0, 0.0)),
+            None,
+        ),
+        (
+            "NURBS carrier, infinite control point",
+            line_net(Point3::new(inf, 0.0, 0.0)),
+            Some(V::Poisoned(vec![D::Control])),
+        ),
+        (
+            "NURBS carrier, NaN control point",
+            line_net(Point3::new(0.0, nan, 0.0)),
+            Some(V::Poisoned(vec![D::Control])),
+        ),
+    ];
+    for (name, carrier, expected) in cases {
+        assert_eq!(verdict(&carrier), expected, "{name}, at f64");
+        let lifted: Curve3<geom_core::Interval> =
+            carrier.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64);
+        assert_eq!(
+            analytic_datum_verdicts(
+                poisoned_curve_datums(&lifted),
+                lifted.representability_margins(band)
+            ),
+            expected,
+            "{name}, at Interval"
+        );
+    }
+}
+
+/// A two-point linear NURBS carrier from the origin to `end`.
+fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    geom::Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(kv, vec![Point3::new(0.0, 0.0, 0.0), end], vec![1.0; 2]).unwrap(),
+    ))
+}
+
+/// **The carrier poison read reads every scalar**: each scalar of each
+/// analytic kind ([`geom::test_support::analytic_curves`]), made NaN
+/// alone, is named by [`crate::validate::poisoned_curve_datums`] as the
+/// datum the walk ([`geom::Curve3::data`]) says owns it. The walk's
+/// scalars must be exactly the builder's, so a walk that drops a field
+/// reds on the count, and a fold that skips a datum reds on that
+/// datum's rows.
+#[test]
+fn the_carrier_poison_read_reads_every_scalar() {
+    use crate::validate::poisoned_curve_datums;
+    let base = geom::test_support::scalar_base();
+    for kind in geom::test_support::analytic_curves() {
+        let at_rest = (kind.build)(&base);
+        assert!(
+            poisoned_curve_datums(&at_rest).is_empty(),
+            "{at_rest:?}: a finite carrier has no poisoned datum"
+        );
+        let geom::CurveData::Analytic(data) = at_rest.data() else {
+            panic!("{at_rest:?}: an analytic kind reads as analytic data")
+        };
+        let walked: Vec<(geom::CurveDatum, f64)> = data
+            .into_iter()
+            .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+            .collect();
+        assert_eq!(
+            walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+            base[..kind.scalars],
+            "{at_rest:?}: the walk yields the builder's scalars, in its order"
+        );
+        for (i, &(datum, _)) in walked.iter().enumerate() {
+            let mut poisoned = base.clone();
+            poisoned[i] = f64::NAN;
+            assert_eq!(
+                poisoned_curve_datums(&(kind.build)(&poisoned)),
+                vec![datum],
+                "{at_rest:?}: check 1 missed a NaN in {} (scalar {i})",
+                datum.name()
+            );
+        }
+    }
+}
+
+/// **The frame margins' lever is the kind's radius — not 1, not its
+/// square, and for an ellipse the LARGER semi-axis magnitude,
+/// whichever field stores it.** Every row sits a frame deviation `δ`
+/// on one side of the line at the true lever and on the other side at
+/// a wrong one, so each wrong lever reddens a row:
+///
+/// - at `r = 4`, `δ = ε/2` refuses (`δ·r = 2ε`) and would pass at a
+///   lever of 1 (`ε/2`);
+/// - at `r = 4`, `δ = ε/8` passes (`δ·r = ε/2`) and would refuse at a
+///   lever of `r²` (`2ε`);
+/// - an ellipse stored `major = 1, minor = 4`: `δ = ε/2` refuses at
+///   the lever 4 and would pass at the stored `major`; and stored
+///   `major = −4, minor = 1` (a negative semi-axis) the same, where a
+///   signed `max` would read the lever as 1.
+///
+/// Surfaces (a cylinder's `u_ref` length) and carriers (a circle's and
+/// an ellipse's `axis` length), each at `f64` and at the interval
+/// scalar.
+#[test]
+fn the_frame_lever_is_the_kinds_radius() {
+    use geom::ConventionEnd::Upper;
+    use geom::ConventionMeasure::Length;
+    use geom::Curve3;
+    use geom::CurveDatum as CD;
+    use geom::SurfaceDatum as SD;
+    use geom_core::Interval;
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let eps = band.zero();
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let long = |d: f64| 1.0 + d;
+    let cylinder = |r: f64, d: f64| Surface::Cylinder {
+        origin: o,
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::new(long(d), 0.0, 0.0),
+    };
+    let circle = |r: f64, d: f64| Curve3::Circle {
+        center: o,
+        axis: Vec3::new(0.0, 0.0, long(d)),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let ellipse = |major: f64, minor: f64, d: f64| Curve3::Ellipse {
+        center: o,
+        axis: Vec3::new(0.0, 0.0, long(d)),
+        semi_u: major,
+        semi_v: minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let surface_verdict = |s: &Surface<f64>| {
+        let lifted: Surface<Interval> = s.map_scalar(<Interval as geom_core::Real>::from_f64);
+        let at = |v: Option<crate::validate::DatumVerdict<SD>>| v;
+        (
+            at(crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_datums(s),
+                s.representability_margins(band),
+            )),
+            at(crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_datums(&lifted),
+                lifted.representability_margins(band),
+            )),
+        )
+    };
+    let curve_verdict = |c: &Curve3<f64>| {
+        let lifted: Curve3<Interval> = c.map_scalar(<Interval as geom_core::Real>::from_f64);
+        (
+            crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_curve_datums(c),
+                c.representability_margins(band),
+            ),
+            crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_curve_datums(&lifted),
+                lifted.representability_margins(band),
+            ),
+        )
+    };
+    use crate::validate::DatumVerdict as V;
+    let s_out = Some(V::Unrepresentable(SD::URef, Length, Upper));
+    let c_out = Some(V::Unrepresentable(CD::Axis, Length, Upper));
+    for (name, got, want) in [
+        (
+            "cylinder r = 4, u_ref eps/2 long",
+            surface_verdict(&cylinder(4.0, eps / 2.0)),
+            s_out,
+        ),
+        (
+            "cylinder r = 4, u_ref eps/8 long",
+            surface_verdict(&cylinder(4.0, eps / 8.0)),
+            None,
+        ),
+    ] {
+        assert_eq!(got, (want.clone(), want), "{name}: (f64, Interval)");
+    }
+    for (name, got, want) in [
+        (
+            "circle r = 4, axis eps/2 long",
+            curve_verdict(&circle(4.0, eps / 2.0)),
+            c_out.clone(),
+        ),
+        (
+            "circle r = 4, axis eps/8 long",
+            curve_verdict(&circle(4.0, eps / 8.0)),
+            None,
+        ),
+        (
+            "ellipse major 1 < minor 4, axis eps/2 long",
+            curve_verdict(&ellipse(1.0, 4.0, eps / 2.0)),
+            c_out.clone(),
+        ),
+        (
+            "ellipse major 1 < minor 4, axis eps/8 long",
+            curve_verdict(&ellipse(1.0, 4.0, eps / 8.0)),
+            None,
+        ),
+    ] {
+        assert_eq!(got, (want.clone(), want), "{name}: (f64, Interval)");
+    }
+    // A negative semi-axis is refused on its VALUE first, whatever the
+    // frame; the frame's lever for it is asked directly.
+    let neg = ellipse(-4.0, 1.0, eps / 2.0);
+    let margins = neg.representability_margins(band);
+    assert!(
+        margins.iter().any(|m| m.datum == CD::Axis
+            && m.measure == Length
+            && m.end == Upper
+            && m.margin < 0.0),
+        "the axis at |major| = 4 is off by 2 eps, and a signed max would read the lever as 1: \
+         {margins:?}"
+    );
+}
+
+/// **An elliptic arc's perimeter lever is `|Δ|` times its larger
+/// semi-axis MAGNITUDE** (`loop_winding::conic_segment_term`, read by
+/// the merge's role assigner, check 6 and the boolean join's
+/// `ring_run_ccw`), on the two ellipses the mint certifies with a
+/// stored order the lever must not trust: `minor > major`, and a
+/// negative `major` with its `u_ref` flipped (the D-2 table). A lever
+/// of `|Δ|·major` reads the first too short, a signed `max` the second;
+/// either is a lower bound on the arc length, which overstates the
+/// metered width.
+#[test]
+fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
+    use geom::Curve3;
+    let tol = Tol::witness();
+    let pi = core::f64::consts::PI;
+    let x = Vec3::unit_x();
+    for (name, major, minor, u_ref, reach) in [
+        ("minor > major", 0.5, 0.7, -x, 0.7),
+        ("negative major, u_ref flipped", -0.5, 0.3, x, 0.5),
+    ] {
+        let carrier = Curve3::Ellipse {
+            center: Point3::new(0.5, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            semi_u: major,
+            semi_v: minor,
+            u_ref,
+        };
+        let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
+            .unwrap_or_else(|e| panic!("{name}: the mint certifies it: {e:?}"));
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .unwrap();
+        let (_, lever) =
+            crate::loop_winding::conic_segment_term((curve.carrier(), curve.params()), true)
+                .unwrap();
+        assert_eq!(lever, pi * reach, "{name}: the lever is |Δ| times {reach}");
+    }
+}
+
+#[test]
+fn wrong_cache_at_rest_is_rejected_by_tier3() {
+    let tol = Tol::witness();
+    // Certified body; then swap one edge's stored curve for a certified
+    // curve of DIFFERENT data (the scaffolding circle at a far point).
+    // Attachment can't see it (raw arenas); tier 3's re-certification
+    // must.
+    let (mut body, split) = coplanar_pillow(tol);
+    let curve_key = body.get_edge(split.edge).unwrap().curve;
+    *body.curves.get_mut(curve_key).unwrap() =
+        crate::null::CurveGeom::Certified(test_curve(Point3::new(50.0, 0.0, 0.0), tol));
+    assert_eq!(validate(&body), Ok(()), "structurally still coherent");
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::EdgeCertification { edge, .. } if *edge == split.edge
+        )),
+        "{errs:?}"
+    );
+}
+
+/// **A stored arc past a full turn is typed at rest and a kernel bug
+/// where the kernel re-mints it** (`[failure]`): an arc minted at a band
+/// coarser than the run's, whose headroom to a full turn that band read
+/// as zero, planted in a body's arena (a state no door produces). The
+/// tier-3 validator reports it as a defect at rest; a rigid motion's
+/// re-mint of it, at the run's one band, panics as a kernel bug at its
+/// call site, rather than returning a refusal that names the caller's
+/// input.
+#[test]
+fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
+    let tol = Tol::witness();
+    let (mut body, split) = coplanar_pillow(tol);
+    let past = 10.0 * tol.k() * tol.eps();
+    let circle = geom::Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let t1 = core::f64::consts::TAU + past;
+    let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1).unwrap();
+    let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
+    let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
+    let planted = geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |_| None,
+        1.0,
+        coarse,
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("a headroom the coarse band reads as zero passes");
+    let curve_key = body.get_edge(split.edge).unwrap().curve;
+    *body.curves.get_mut(curve_key).unwrap() = crate::null::CurveGeom::Certified(planted);
+
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::EdgeCertification {
+                edge,
+                error: geom_brep::CertifyError::StatedInterval { .. },
+            } if *edge == split.edge
+        )),
+        "at rest, typed: {errs:?}"
+    );
+
+    panics_as_a_kernel_bug_at(KernelSite::RigidTransform, || {
+        let _ = crate::transform_rigid(&body, &geom_core::RigidMotion::identity(), tol);
+    });
+}
+
+/// The pillow with its split chord's curve swapped for an arc of the
+/// unit circle over `[0, τ + past]`, described in the split face's chart
+/// and minted at a band coarse enough to read its headroom to a full
+/// turn as zero (a state no door produces).
+fn pillow_with_an_arc_past_a_turn(
+    tol: Tol,
+    past: f64,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
+    pillow_with_an_arc_past_a_turn_in(tol, past, ArcChart::Face)
+}
+
+/// The chart a planted arc's description names.
+#[derive(Clone, Copy)]
+enum ArcChart {
+    /// The split face's own.
+    Face,
+    /// The split face's, as a wrap edge: a wrap needs a periodic chart,
+    /// so that chart is planted as the unit cylinder about the z axis,
+    /// on which the arc lies.
+    Wrap,
+    /// A second record of the split face's plane, which no face wears.
+    Unworn,
+}
+
+/// [`pillow_with_an_arc_past_a_turn`], its description in `named`.
+fn pillow_with_an_arc_past_a_turn_in(
+    tol: Tol,
+    past: f64,
+    named: ArcChart,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
+    let (mut body, split) = coplanar_pillow(tol);
+    let face_chart = body.get_face(split.face).unwrap().surface;
+    let (chart, wrap) = match named {
+        ArcChart::Face => (face_chart, false),
+        ArcChart::Wrap => {
+            *body.surfaces.get_mut(face_chart).unwrap() = Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            };
+            (face_chart, true)
+        }
+        ArcChart::Unworn => {
+            let plane = body.get_surface(face_chart).unwrap().clone();
+            (body.surfaces.insert(plane), false)
+        }
+    };
+    let circle = geom::Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let t1 = core::f64::consts::TAU + past;
+    let spec = EdgeCurveSpec::arc_of_circle(circle, 0.0, t1)
+        .unwrap()
+        .at_rest_in_chart(chart, wrap);
+    let (start, end) = (spec.carrier.eval(0.0), spec.carrier.eval(t1));
+    let coarse = geom_core::Band::new(2.0 * past, 20.0 * past).unwrap();
+    let planted = geom_brep::EdgeCurve::certify(
+        spec,
+        start,
+        end,
+        |k| body.get_surface(k).cloned(),
+        1.0,
+        coarse,
+        geom_brep::NurbsLane::certified(),
+    )
+    .expect("a headroom the coarse band reads as zero passes");
+    let curve_key = body.get_edge(split.edge).unwrap().curve;
+    *body.curves.get_mut(curve_key).unwrap() = crate::null::CurveGeom::Certified(planted);
+    (body, split)
+}
+
+/// `re_mint` panics as a kernel bug naming `site`.
+fn panics_as_a_kernel_bug_at(site: KernelSite, re_mint: impl FnOnce()) {
+    let message = test_utils::panic_capture::caught(std::panic::AssertUnwindSafe(re_mint))
+        .unwrap_or_else(|| panic!("{site}: the re-mint returned rather than panicking"));
+    assert!(
+        message.contains(&format!("{site}: ")) && message.contains("a kernel bug"),
+        "{site}: {message}"
+    );
+}
+
+/// **A split child of a stored arc past a full turn is the kernel's own
+/// re-mint** (`[failure]`): split short of the arc's far end, the child
+/// before the split still spans past a turn at the run's band, and its
+/// certification panics at the split's call site.
+#[test]
+fn a_split_child_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let past = 20.0 * tol.k() * tol.eps();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, past);
+    let t = core::f64::consts::TAU + past / 2.0;
+    panics_as_a_kernel_bug_at(KernelSite::SplitChild, || {
+        let _ = body.split_edge(split.edge, t, tol);
+    });
+}
+
+/// **A graft's re-certification of a stored arc past a full turn is the
+/// kernel's own** (`[failure]`): it panics at the graft's call site.
+#[test]
+fn a_grafted_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (src, _) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let mut dst = src.clone();
+    let solid = dst.solids().next().unwrap().0;
+    panics_as_a_kernel_bug_at(KernelSite::Graft, || {
+        let _ = crate::boolean::combine::graft_solid(&mut dst, solid, &src, tol);
+    });
+}
+
+/// **A described move's re-certification of a stored arc past a full
+/// turn is the kernel's own** (`[failure]`): the description is the
+/// caller's, the carrier and interval the body's, and it panics at the
+/// move's call site.
+#[test]
+fn a_redescribed_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let chart = body.get_face(split.face).unwrap().surface;
+    panics_as_a_kernel_bug_at(KernelSite::ReDescription, || {
+        let _ = body.vouch_described_move(
+            crate::euler::RechartDoor::SetFaceSurface,
+            split.face,
+            (chart, chart),
+            &[split.edge],
+            |_, _, _| false,
+            false,
+            &[(split.edge, geom_brep::EdgeDescriptionSpec::chart(chart))],
+            tol,
+        );
+    });
+}
+
+/// **A re-based run's re-certification of a stored arc past a full turn
+/// is the kernel's own** (`[failure]`): it panics at the run's call
+/// site, whether or not the vertex moves.
+#[test]
+fn a_re_based_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let v = body.get_half_edge(split.he_plus).unwrap().start;
+    let here = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::ReBasedRun, || {
+        let _ = body.certify_rebased_run(&[split.he_plus], here, tol);
+    });
+}
+
+/// The pillow's face that is not `split`'s.
+fn other_face(
+    body: &crate::Body<f64>,
+    split: &crate::construction::MefCreated,
+) -> crate::entity::FaceKey {
+    [split.he_plus, split.he_minus]
+        .into_iter()
+        .filter_map(|he| body.face_of_half_edge(he))
+        .find(|&f| f != split.face)
+        .unwrap()
+}
+
+/// The planted pillow with its other face's plane turned about the
+/// x axis, so the arc's midpoint (on that axis) reads a transverse
+/// dihedral.
+fn tilted_pillow_with_an_arc_past_a_turn(
+    tol: Tol,
+) -> (crate::Body<f64>, crate::construction::MefCreated) {
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let other = other_face(&body, &split);
+    let key = body.get_face(other).unwrap().surface;
+    let theta: f64 = 0.5;
+    *body.surfaces.get_mut(key).unwrap() = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::new(0.0, theta.sin(), theta.cos()),
+        u_ref: Vec3::unit_x(),
+    };
+    (body, split)
+}
+
+/// **The seam description pass restates a stored curved carrier**
+/// (`[failure]`): a transverse seam keeps its carrier and interval, so
+/// a stored arc past a full turn panics at the pass's call site.
+#[test]
+fn a_seam_described_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = tilted_pillow_with_an_arc_past_a_turn(tol);
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SeamIntersection, || {
+        let _ = crate::boolean::describe_edges(&mut body, [split.edge], &[], band, tol);
+    });
+}
+
+/// **A split's section boundary description restates a stored curved
+/// carrier** (`[failure]`): it panics at the description's call site.
+#[test]
+fn a_section_boundary_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = tilted_pillow_with_an_arc_past_a_turn(tol);
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SectionIntersection, || {
+        let _ =
+            crate::splitting::finish::describe_section_boundary(&mut body, split.face, band, tol);
+    });
+}
+
+/// **A split's section re-chart restates the edges it strands**
+/// (`[failure]`): a stored arc past a full turn among them panics at the
+/// re-chart's call site.
+#[test]
+fn a_section_rechart_of_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let other = other_face(&body, &split);
+    let onto = body.get_face(other).unwrap().surface;
+    let charts = vec![crate::attach::Rechart::shared(onto, split.face, true)];
+    let stranded = body.stranded_by(&charts).unwrap();
+    let restated =
+        crate::splitting::finish::section_plane_restatements(&body, split.face, &stranded).unwrap();
+    assert!(
+        restated.iter().any(|(e, _)| *e == split.edge),
+        "the re-chart strands the planted arc: {restated:?}"
+    );
+    panics_as_a_kernel_bug_at(KernelSite::SectionRechart, || {
+        let _ = crate::splitting::finish::rechart_section(&mut body, charts, &restated, tol);
+    });
+}
+
+/// **A shell's rim re-chart re-keys stored edges** (`[failure]`): a
+/// stored arc past a full turn on the loop panics at the re-chart's
+/// call site.
+#[test]
+fn a_rim_rechart_of_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let other = other_face(&body, &split);
+    let dead = body.get_face(split.face).unwrap().surface;
+    let live = body.get_face(other).unwrap().surface;
+    let outer = body.get_face(split.face).unwrap().outer;
+    panics_as_a_kernel_bug_at(KernelSite::RimRechart, || {
+        let _ =
+            crate::shell::rechart_rekeyed(&mut body, (split.face, outer), (dead, live), true, tol);
+    });
+}
+
+/// **`describe_at_rest` restates the stored edge** (`[failure]`): a
+/// stored arc past a full turn panics at its call site.
+#[test]
+fn an_arc_past_a_turn_described_at_rest_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    panics_as_a_kernel_bug_at(KernelSite::AtRest, || {
+        let _ = body.describe_at_rest(split.edge, tol);
+    });
+}
+
+/// **A parted wrap edge's restatement is the kernel's** (`[failure]`):
+/// a stored wrap arc past a full turn, its halves on two faces, panics
+/// at the restatement's call site.
+#[test]
+fn a_parted_wrap_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, _) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Wrap);
+    panics_as_a_kernel_bug_at(KernelSite::PartedWrap, || {
+        let _ = body.rest_parted_wrap_edges(tol);
+    });
+}
+
+/// **The public restatement door re-describes the stored edge as the
+/// kernel's** (`[failure]`): a stored arc past a full turn, restated
+/// under a description its caller chose, panics at the door's site.
+#[test]
+fn a_stored_arc_past_a_turn_restated_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let chart = body.get_face(split.face).unwrap().surface;
+    panics_as_a_kernel_bug_at(KernelSite::StoredRestatement, || {
+        let _ = body.restate_stored_edge(
+            split.edge,
+            geom_brep::EdgeDescriptionSpec::chart(chart),
+            tol,
+        );
+    });
+}
+
+/// **A smooth seam its surfaces determine restates its stored carrier**
+/// (`[failure]`): the pillow's faces re-charted as the unit cylinder and
+/// the unit sphere about the arc's centre, tangent along its circle, so
+/// the seam is described as their `TangentIntersection` on the stored
+/// arc, and panics at that arm's call site.
+#[test]
+fn a_seam_tangency_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) = pillow_with_an_arc_past_a_turn(tol, 10.0 * tol.k() * tol.eps());
+    let own = body.get_face(split.face).unwrap().surface;
+    let theirs = body.get_face(other_face(&body, &split)).unwrap().surface;
+    body.surfaces[own] = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    body.surfaces[theirs] = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SeamTangency, || {
+        let _ = crate::boolean::describe_edges(&mut body, [split.edge], &[], band, tol);
+    });
+}
+
+/// **A smooth seam whose description went stale restates its stored
+/// carrier where it rests** (`[failure]`): the pillow's flush faces
+/// under-determine the arc, described in a chart neither wears, so it
+/// panics at that arm's call site.
+#[test]
+fn a_stale_seam_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Unworn);
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SeamAtRest, || {
+        let _ = crate::boolean::describe_edges(&mut body, [split.edge], &[], band, tol);
+    });
+}
+
+/// **A smooth section boundary edge restates its stored carrier**
+/// (`[failure]`): the pillow's flush faces under-determine the arc,
+/// described in a chart neither wears, so the must-carry rule's
+/// conventional description is written on the stored arc, and panics at
+/// that arm's call site.
+#[test]
+fn a_smooth_section_boundary_on_an_arc_past_a_turn_is_a_kernel_bug() {
+    let tol = Tol::witness();
+    let (mut body, split) =
+        pillow_with_an_arc_past_a_turn_in(tol, 10.0 * tol.k() * tol.eps(), ArcChart::Unworn);
+    let band = geom_core::Band::linear(tol).unwrap();
+    panics_as_a_kernel_bug_at(KernelSite::SectionSmooth, || {
+        let _ =
+            crate::splitting::finish::describe_section_boundary(&mut body, split.face, band, tol);
+    });
+}
+
+/// **A transverse edge's chord is the caller's spec** (`[failure]`): a
+/// drafted chord is certified as the caller's, so a span its certification
+/// refuses is a typed stated interval, never a kernel bug. Neither
+/// description pass can hand it one (a chord of no length fails the
+/// dihedral's arm gate first), so the row hands the shared door a chord
+/// stated backwards over the pillow's split edge.
+#[test]
+fn a_drafted_chord_refused_its_span_is_typed() {
+    let tol = Tol::witness();
+    let (mut body, split) = coplanar_pillow(tol);
+    let own = body.get_face(split.face).unwrap().surface;
+    let theirs = body.get_face(other_face(&body, &split)).unwrap().surface;
+    let chord = EdgeCurveSpec {
+        description: geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(own, theirs),
+            selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
+        },
+        carrier: geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::unit_x(),
+        },
+        param_start: 1.0,
+        param_end: 0.0,
+    };
+    let refusal = body
+        .describe_intersection(
+            KernelSite::SeamIntersection,
+            split.edge,
+            geom_brep::DraftedIntersection::Chord(chord),
+            tol,
+        )
+        .expect_err("a chord stated backwards refuses");
+    assert!(
+        matches!(
+            refusal,
+            crate::euler::EulerOpError::Certification {
+                error: geom_brep::CertifyError::StatedInterval { .. }
+            }
+        ),
+        "the chord's span refuses typed: {refusal:?}"
+    );
+}
+
+#[test]
+fn offset_plane_at_rest_fails_planar_residuals() {
+    let tol = Tol::witness();
+    // Move a face's stored plane 100·ε off its vertices: the
+    // Newell-cache re-check (tier 3, check 3) reports every vertex of
+    // that face.
+    let (mut body, split) = coplanar_pillow(tol);
+    let eps = tol.eps();
+    let surface_key = body.get_face(split.face).unwrap().surface;
+    *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 100.0 * eps),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    let off_plane = errs
+        .iter()
+        .filter(|e| matches!(e, ValidationError::PlanarFaceResidual { face, .. } if *face == split.face))
+        .count();
+    assert_eq!(off_plane, 2, "both pillow vertices reported: {errs:?}");
+}
+
+#[test]
+fn sliver_dihedral_at_rest_is_rejected() {
+    let tol = Tol::witness();
+    // Tilt one face's plane by the run-scaled sliver angle 3ε: both
+    // MappedCurve attachments were legal (conventional descriptions
+    // carry no dihedral requirement), but at rest the wedge is
+    // indeterminate — the material wedge-angle predicate escalates.
+    let (mut body, split) = coplanar_pillow(tol);
+    let eps = tol.eps();
+    let theta = 3.0 * eps;
+    let surface_key = body.get_face(split.face).unwrap().surface;
+    *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, theta.sin(), theta.cos()),
+        u_ref: Vec3::unit_x(),
+    };
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::Dihedral,
+                ..
+            }
+        )),
+        "{errs:?}"
+    );
+}
+
+#[test]
+fn dangling_description_is_a_tier1_error() {
+    let tol = Tol::witness();
+    // An Intersection description whose surface key is ripped out of
+    // the arena: the geometry-to-geometry reference check (tier 1,
+    // pass 1) fires — alongside the face's own dangling reference.
+    let (mut body, split) = coplanar_pillow(tol);
+    let s_plus = body.get_face(split.face).unwrap().surface;
+    let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
+    let s_seed = body.get_face(seed_face).unwrap().surface;
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
+    };
+    // NB: coincident planes would fail transversality — so tilt the
+    // split face definitively first (a legal corner), then upgrade.
+    *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    body.set_edge_curve(split.edge, spec, tol).unwrap();
+    // Rip the referenced surface out (raw removal past the hygiene
+    // guard).
+    body.surfaces.remove(s_plus);
+    let errs = validate(&body).unwrap_err();
+    assert!(
+        errs.iter()
+            .any(|e| matches!(e, ValidationError::DanglingDescription { .. })),
+        "{errs:?}"
+    );
+}
+
+#[test]
+fn description_references_keep_a_surface_alive() {
+    let tol = Tol::witness();
+    // A surface referenced ONLY by an edge description is not orphaned:
+    // the hygiene guard refuses to remove it and tier 1 does not report
+    // OrphanGeometry.
+    let (mut body, split) = coplanar_pillow(tol);
+    let s_plus = body.get_face(split.face).unwrap().surface;
+    let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
+    let s_seed = body.get_face(seed_face).unwrap().surface;
+    // Make the corner genuine, then describe the edge intrinsically.
+    *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
+    spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
+        pair: geom_brep::SurfacePair::new(s_seed, s_plus),
+        selector: geom_brep::CurveSelector::Witness(Point3::new(0.5, 0.0, 0.0)),
+    };
+    body.set_edge_curve(split.edge, spec, tol).unwrap();
+    // Repoint the split face to a NEW surface: the old one is now
+    // referenced only by the description — and must survive.
+    // Lifts RechartStrandsDescriptions: the stranded description keeping the old surface alive is the row.
+    body.set_face_surface_unvouched_for_tests(
+        split.face,
+        FaceSurface::New {
+            surface: Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::unit_y(),
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    assert!(body.get_surface(s_plus).is_some(), "kept alive");
+    assert_eq!(validate(&body), Ok(()), "no OrphanGeometry");
+    // (Tier 3 now reports the adjacency incoherence — the description
+    // names a surface that is no longer the face's — which is exactly
+    // the loud trail this state should leave.)
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert!(
+        errs.iter().any(|e| matches!(
+            e,
+            ValidationError::DescriptionNotAdjacent { edge } if *edge == split.edge
+        )),
+        "{errs:?}"
+    );
+}
+
+/// **The ruling's own figure**: two kissing cylinders with one side cut
+/// away, the smallest SOLID that carries a cusp edge.
+///
+/// Cross-section in `z = const`: the crescent between two internally
+/// tangent circles — inner centre `(0, 1)` radius 1, outer centre
+/// `(0, 2)` radius 2, kissing at the origin — cut by the plane `x = 0`
+/// so the material is the `x ≥ 0` lip only and the body stays a
+/// manifold (the two-lipped form is the doubled cusp, which is F2's
+/// coincident-distinct-edges class, not one edge). Extruded along `z`
+/// from 0 to 1, that is a triangular prism's topology exactly: three
+/// walls (inner cylinder, the flat cut, outer cylinder) and two caps.
+///
+/// The cusp edge is the vertical line at the kissing point, `ev[0]`:
+/// its two faces are tangent there, and their material sides oppose —
+/// the inner wall's material is OUTSIDE its cylinder (`sense: false`),
+/// the outer wall's INSIDE its own. Every other edge is a definite
+/// corner.
+pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
+    let mut p = crate::fixtures::raw_prism(3, tol);
+    // Cross-section corners, in the winding the fixture's caps expect
+    // (counterclockwise from +z): the kiss, the outer circle's far
+    // point, the inner circle's far point.
+    let xy = [(0.0, 0.0), (0.0, 4.0), (0.0, 2.0)];
+    for (i, (x, y)) in xy.into_iter().enumerate() {
+        for (v, z) in [(p.t[i], 1.0), (p.u[i], 0.0)] {
+            let point = p.body.get_vertex(v).unwrap().point;
+            *p.body.points.get_mut(point).unwrap() = Point3::new(x, y, z);
+        }
+    }
+    let inner = Surface::Cylinder {
+        origin: Point3::new(0.0, 1.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let outer = Surface::Cylinder {
+        origin: Point3::new(0.0, 2.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius: 2.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let flat = Surface::Plane {
+        origin: Point3::new(0.0, 2.0, 0.0),
+        normal: -Vec3::unit_x(),
+        u_ref: Vec3::unit_y(),
+    };
+    let cap_top = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 1.0),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let cap_bottom = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: -Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (face, surface) in [
+        (p.face_top, cap_top),
+        (p.face_bottom, cap_bottom),
+        (p.face_side[0], outer),
+        (p.face_side[1], flat),
+        (p.face_side[2], inner),
+    ] {
+        p.body
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface,
+                    sense: true,
+                },
+            )
+            .unwrap();
+    }
+    // The inner wall's material is OUTSIDE its cylinder, so its outward
+    // normal is the chart normal reversed — the one sense bit this
+    // body needs, and the reason the kissing edge is a cusp rather
+    // than a seam.
+    p.body.set_face_sense(p.face_side[2], false).unwrap();
+    for (e, kind) in [
+        (p.et[0], Carrier::Arc(2.0)),
+        (p.et[1], Carrier::Segment),
+        (p.et[2], Carrier::Arc(1.0)),
+        (p.eb[0], Carrier::Arc(2.0)),
+        (p.eb[1], Carrier::Segment),
+        (p.eb[2], Carrier::Arc(1.0)),
+        (p.ev[0], Carrier::Segment),
+        (p.ev[1], Carrier::Segment),
+        (p.ev[2], Carrier::Segment),
+    ] {
+        let spec = edge_spec(&p.body, e, kind);
+        p.body.set_edge_curve(e, spec, tol).unwrap();
+    }
+    // The assembly's closing mint: its two cylinder walls store their
+    // rows at rest (C4).
+    crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
+    p
+}
+
+/// Which carrier an edge of [`cusp_prism`] takes: the straight ones
+/// (the three vertical meridians and the cut face's side) or an arc of
+/// one of the two kissing circles, traversed through `x > 0`.
+#[derive(Clone, Copy)]
+enum Carrier {
+    Segment,
+    Arc(f64),
+}
+
+/// The carrier and description for one edge of [`cusp_prism`], read off
+/// the body so the forward contract (increasing parameter runs
+/// `he_plus`) holds whichever way the fixture wound it.
+fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> EdgeCurveSpec<f64> {
+    let he = body.get_edge(edge).unwrap().he_plus;
+    let start_v = body.get_half_edge(he).unwrap().start;
+    let end_v = body.half_edge_end(he).unwrap();
+    let p0 = *body
+        .get_point(body.get_vertex(start_v).unwrap().point)
+        .unwrap();
+    let p1 = *body
+        .get_point(body.get_vertex(end_v).unwrap().point)
+        .unwrap();
+    let (s1, s2) = adjacent_surfaces(body, edge);
+    let (carrier, t0, t1) = match kind {
+        Carrier::Segment => {
+            let len = p0.distance(p1);
+            (
+                geom::Curve3::Line {
+                    origin: p0,
+                    dir: (p1 - p0) / len,
+                },
+                0.0,
+                len,
+            )
+        }
+        // θ = 0 is placed at the start point and the axis is chosen so
+        // that `v_ref = axis × u_ref` points at +x: the half turn from
+        // θ = 0 to θ = π is then the lip's arc, never its mirror.
+        Carrier::Arc(radius) => {
+            let center = Point3::new(0.0, radius, p0.z);
+            let u_ref = (p0 - center) / radius;
+            let axis = if u_ref.y < 0.0 {
+                Vec3::unit_z()
+            } else {
+                -Vec3::unit_z()
+            };
+            (
+                geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                0.0,
+                std::f64::consts::PI,
+            )
+        }
+    };
+    let witness = carrier.eval(0.5 * (t0 + t1));
+    // The kissing edge is the one whose two faces are the two
+    // cylinders; every other edge here is a definite corner.
+    let description = if adjacent_are_the_two_cylinders(body, edge) {
+        geom_brep::EdgeDescriptionSpec::TangentIntersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            witness,
+        }
+    } else {
+        geom_brep::EdgeDescriptionSpec::Intersection {
+            pair: geom_brep::SurfacePair::new(s1, s2),
+            selector: geom_brep::CurveSelector::Witness(witness),
+        }
+    };
+    EdgeCurveSpec {
+        description,
+        carrier,
+        param_start: t0,
+        param_end: t1,
+    }
+}
+
+fn adjacent_surfaces(
+    body: &Body<f64>,
+    edge: crate::entity::EdgeKey,
+) -> (geom_brep::SurfaceKey, geom_brep::SurfaceKey) {
+    let e = body.get_edge(edge).unwrap();
+    let face_of = |he| body.face_of_half_edge(he).unwrap();
+    (
+        body.get_face(face_of(e.he_plus)).unwrap().surface,
+        body.get_face(face_of(e.he_minus)).unwrap().surface,
+    )
+}
+
+fn adjacent_are_the_two_cylinders(body: &Body<f64>, edge: crate::entity::EdgeKey) -> bool {
+    let (s1, s2) = adjacent_surfaces(body, edge);
+    [s1, s2]
+        .iter()
+        .all(|&k| matches!(body.get_surface(k), Some(geom::Surface::Cylinder { .. })))
+}
+
+// ------------------------------------------------------------------
+// D1's material-wedge verdict table (the #131 ruling), one row per
+// arm. Every row that can be red-first is: the arms that refuse are
+// pinned on bodies that validated clean before the arm existed, and
+// the two legal arms are pinned green on the same fixtures.
+// ------------------------------------------------------------------
+
+/// **Row: transverse, legal at the θ = ε/r margin.** The cusp prism's
+/// other eight edges are definite corners — cylinder against plane,
+/// plane against plane, cylinder against cap — and none of them earns
+/// a wedge refusal: the whole body is tier-3 clean.
+#[test]
+fn transverse_wedges_stay_legal_and_earn_no_wedge_verdict() {
+    let tol = Tol::witness();
+    let p = cusp_prism(tol);
+    assert_eq!(p.body.edges().count(), 9);
+    assert_eq!(validate_geometric(&p.body, tol), Ok(()));
+}
+
+/// **Row: wedge π, legal.** Two coplanar faces whose material sides
+/// AGREE continue one another across the seam — the legal smooth case,
+/// unchanged by the material arm.
+///
+/// **Row: the lamina, refused.** The same geometry with one face's
+/// material side flipped is a zero-thickness sheet: the sides oppose
+/// and the jets osculate exactly (one plane against another). It
+/// validated clean before this arm existed — the unsigned dihedral
+/// pass cannot tell it from the seam above, and that is the whole
+/// content of "unsigned" — and now refuses per edge: the jets
+/// osculate, so the tangency is not jet-determinate.
+#[test]
+fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
+    let tol = Tol::witness();
+    let (body, split) = coplanar_pillow(tol);
+    assert_pillow_rests(&body, tol);
+    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    let errs = validate_geometric(&flipped, tol).unwrap_err();
+    assert!(
+        errs.iter()
+            .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+        "{errs:?}"
+    );
+    assert_eq!(errs.len(), 2, "one per edge of the digon: {errs:?}");
+}
+
+/// **Row: wedge 0, legal because jet-determinate.** The ruling's own
+/// figure — two kissing cylinders with one side cut away — meets along
+/// one shared edge whose faces' outward normals oppose and whose
+/// κ_rel is definite (radii 1 and 2): the tangency is determined by
+/// the body, exactly as a π seam's is, and the body is tier-3 clean
+/// with nothing declared. The kiss edge's contact mark is `Tangent`:
+/// check 4 judged a jet-determinate tangency there rather than
+/// exempting the edge. The mark alone does not say which END — a π
+/// seam is marked the same — so the row reads the end off the same
+/// sign chain the arm uses ([`material_end`]).
+#[test]
+fn a_jet_determinate_cusp_is_legal_at_rest_with_nothing_declared() {
+    let tol = Tol::witness();
+    let p = cusp_prism(tol);
+    let kiss = kiss_edge(&p);
+    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(validate_geometric(&p.body, tol), Ok(()));
+    let marks = crate::validate::contact_marks(&p.body, tol).expect("the cusp prism is valid");
+    assert_eq!(
+        marks.get(kiss),
+        Some(&crate::validate::ContactMark::Tangent)
+    );
+}
+
+/// **Row: a transverse corner beside a legal cusp still owes its
+/// intrinsic description.** A definitely-transverse edge of the cusp
+/// prism, stored in a declared conventional form, refuses
+/// `TransverseNotIntrinsic` and nothing else: the legal cusp beside it
+/// contributes no verdict of its own.
+#[test]
+fn a_transverse_corner_beside_a_legal_cusp_still_refuses_its_conventional_form() {
+    let tol = Tol::witness();
+    let mut p = cusp_prism(tol);
+    // ev[1]: the vertical meridian where the outer wall meets the flat
+    // cut — a definite corner — re-stored as a line at rest in the flat
+    // face's chart.
+    let corner = p.ev[1];
+    let he = p.body.get_edge(corner).unwrap().he_plus;
+    let at = |v| {
+        *p.body
+            .get_point(p.body.get_vertex(v).unwrap().point)
+            .unwrap()
+    };
+    let start = at(p.body.get_half_edge(he).unwrap().start);
+    let end = at(p.body.half_edge_end(he).unwrap());
+    let flat_chart = p.body.get_face(p.face_side[1]).unwrap().surface;
+    let spec = EdgeCurveSpec::line_between(start, end).at_rest_in_chart(flat_chart, false);
+    p.body.set_edge_curve(corner, spec, tol).unwrap();
+    assert_eq!(
+        validate_geometric(&p.body, tol).unwrap_err(),
+        vec![ValidationError::TransverseNotIntrinsic { edge: corner }],
+        "the corner's demand refuses; the cusp beside it adds nothing"
+    );
+}
+/// **Rows: wedge 0 ↔ wedge 2π under `revert`.** Reverting negates
+/// every face's outward normal at once, which negates the material
+/// κ_rel — so the same body, same keys, reads as the knife slit, and
+/// the arm's verdict is the mirror row: legal together or not at all.
+///
+/// **Why the reverted body is not asserted wholly green**: `revert`
+/// bounds the COMPLEMENTARY volume, so tier 3's positive-volume
+/// invariant refuses every reverted bounded solid. That is a fact
+/// about `revert`, not about cusps, and the cube control row below is
+/// the evidence. What the wedge arm owes is that it contributes
+/// nothing to the reverted body's verdict — the slit is legal on the
+/// cusp's terms — pinned here on arenas that are key-for-key the
+/// source's, which is what "bit-faithfully" buys. The validator no
+/// longer names the end it saw, so the row reads it off the arm's own
+/// sign chain ([`material_end`]).
+#[test]
+fn revert_maps_the_legal_cusp_to_the_legal_slit() {
+    let tol = Tol::witness();
+    let p = cusp_prism(tol);
+    let kiss = kiss_edge(&p);
+    let reverted = p.body.revert().unwrap();
+    assert_eq!(validate(&reverted), Ok(()));
+    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(
+        material_end(&reverted, kiss),
+        MaterialWedge::Slit,
+        "the cusp's revert image is the slit"
+    );
+    assert_eq!(
+        validate_geometric(&reverted, tol).unwrap_err(),
+        vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }],
+        "the wedge arm contributes nothing to the slit's verdict"
+    );
+    // That residue is `revert`'s own ratified posture — a reverted
+    // body is tier-2 currency and never tier-3, failing exactly
+    // `NegativeVolume` (`crate::revert` module docs, pinned on a real
+    // cube by the M3 PR 1 acceptance row) — so it says nothing about
+    // this body's wedges.
+    // Bit-faithful: revert is an involution, so the pair really is one
+    // body read two ways.
+    let back = reverted.revert().unwrap();
+    assert_eq!(
+        crate::fixtures::deep_snapshot(&back),
+        crate::fixtures::deep_snapshot(&p.body)
+    );
+}
+
+/// **Row: the second-order band, all three outcomes**, on one family
+/// where only κ_rel moves: two cylinders kissing along the y axis with
+/// opposed material sides, the outer radius chosen to put the jet
+/// margin definitely outside the band, exactly at zero, and inside the
+/// band.
+///
+/// - determinate (radii 1 and 2) — the wedge is decided and legal, so
+///   the only verdict left is the prefer-intrinsic demand on the
+///   conventional line both edges carry;
+/// - osculating (radii 1 and 1) — conformal along the locus, the
+///   lamina the material arm does not admit;
+/// - in-band (κ_rel = 24ε levered at the faces' reach, half the
+///   seam, so the sagitta margin is 3ε at every CI ε row) — the
+///   honest escalation, naming
+///   `tangent_second_order`, and NOT a refusal: ε-tightening escalates
+///   an edge, it never flips a valid body to invalid.
+#[test]
+fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
+    let tol = Tol::witness();
+    let eps = tol.get().eps;
+    let (determinate, [seg, split]) = kissing_cylinder_pillow(tol, 2.0);
+    assert_eq!(
+        determinate,
+        vec![
+            ValidationError::TangentNotIntrinsic { edge: seg },
+            ValidationError::TangentNotIntrinsic { edge: split },
+        ]
+    );
+    let (osculating, _) = kissing_cylinder_pillow(tol, 1.0);
+    assert!(
+        osculating
+            .iter()
+            .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+        "{osculating:?}"
+    );
+    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 24.0 * eps));
+    assert!(
+        in_band.iter().all(|e| matches!(
+            e,
+            ValidationError::SliverDihedral {
+                check: crate::validate::WedgeCheck::SecondOrder,
+                cause: Indeterminate {
+                    predicate: Some("tangent_second_order"),
+                    ..
+                },
+                ..
+            }
+        )),
+        "{in_band:?}"
+    );
+}
+
+/// **Check 4 and the shared-rim routing spell no second-order reading
+/// of their own.** Both read the second-order margin through
+/// `geom_brep::second_order_walk` once, with the material reads in
+/// `validate::MaterialStations`; the validator takes its stations from
+/// `geom_brep::interior_stations`. So the rows that pin the walk and
+/// the hook speak for both: a loop, a `"tangent_second_order"` decide
+/// or a material read inlined back into either file's production code
+/// reds here. The `#[cfg(test)]` modules are blanked first: a row there
+/// asserting a predicate name is not a second spelling.
+#[test]
+fn check_4_and_the_rim_route_their_second_order_reading_through_the_one_walk() {
+    // The code-and-literals view with every `#[cfg(test)] mod … { … }`
+    // blanked, carved on the code-only view where every bracket is real.
+    let production = |text: &str| {
+        use test_utils::source::{balanced_end, code_and_literals, code_only, skip_ws, word_at};
+        let code = code_only(text);
+        let mut kept = code_and_literals(text).into_bytes();
+        assert_eq!(code.len(), kept.len(), "the two views align byte for byte");
+        let mut from = 0;
+        while let Some(at) = code[from..].find("#[cfg(test)]").map(|i| i + from) {
+            let mut item = skip_ws(&code, at + "#[cfg(test)]".len());
+            while code[item..].starts_with("#[") {
+                let attr_end = balanced_end(&code, item + 1).expect("an attribute closes");
+                item = skip_ws(&code, attr_end + 1);
+            }
+            from = item;
+            if !word_at(&code, item, "mod") {
+                continue;
+            }
+            let open = item + code[item..].find('{').expect("a test module has a body");
+            let close = balanced_end(&code, open).expect("a test module closes");
+            kept[at..=close].fill(b' ');
+            from = close;
+        }
+        String::from_utf8(kept).expect("only ASCII spans are blanked")
+    };
+    let scan = |file: &str, calls: &[(&str, usize)], spellings: &[&str]| {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(file);
+        let source = production(&std::fs::read_to_string(path).unwrap());
+        for &(call, count) in calls {
+            assert_eq!(
+                source.matches(call).count(),
+                count,
+                "`{file}` calls `{call}` {count} time(s)"
+            );
+        }
+        for spelling in spellings {
+            assert!(
+                !source.contains(spelling),
+                "`{file}` spells `{spelling}` beside the walk"
+            );
+        }
+    };
+    let walk = [
+        "\"tangent_second_order\"",
+        "tangent_second_order(",
+        "tangent_jet(",
+    ];
+    let material = [
+        "\"material_cusp_side\"",
+        "\"material_wedge_side\"",
+        "classify_material_pairing(",
+        "material_kappa_rel(",
+        "folded_lever_arm(",
+    ];
+    scan(
+        "src/validate.rs",
+        &[("second_order_walk(", 1), ("interior_stations(", 1)],
+        &walk,
+    );
+    scan(
+        "src/boolean/rim_wedge.rs",
+        &[("second_order_walk(", 1), ("MaterialStations::new(", 1)],
+        &[walk.as_slice(), material.as_slice()].concat(),
+    );
+}
+
+/// **Row: the must-carry rule and tier 3 read one second-order walk.**
+/// The family above, asked of both callers of
+/// `geom_brep::second_order_walk` at once: the rule a constructor asks
+/// (`geom_brep::must_carry_over_edge`) and tier 3's check 4. Each pair
+/// below is one radius read by both, so a change to the walk's decision
+/// moves both halves of a row together.
+#[test]
+fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
+    use geom_brep::{MustCarryEscalation, MustCarryVerdict, must_carry_over_edge};
+    let tol = Tol::witness();
+    let eps = tol.get().eps;
+    let band = geom_core::Band::linear(tol).expect("the witness band");
+    let cylinder = |radius: f64| Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, radius),
+        axis: Vec3::unit_y(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    };
+    let carrier = geom::Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::unit_y(),
+    };
+    // The pillow's two faces are bounded by its two coincident seams, so
+    // each reaches half a seam from the seam's middle: the wedge's
+    // reach tier 3 reads (`crate::wedge_reach`).
+    let reach = 0.5;
+    let rule = |r2: f64| {
+        must_carry_over_edge(
+            &cylinder(1.0),
+            &cylinder(r2),
+            &carrier,
+            0.0,
+            1.0,
+            reach,
+            band,
+        )
+    };
+
+    let (tier3, [seg, split]) = kissing_cylinder_pillow(tol, 2.0);
+    assert_eq!(
+        (rule(2.0), tier3),
+        (
+            MustCarryVerdict::JetDeterminate,
+            vec![
+                ValidationError::TangentNotIntrinsic { edge: seg },
+                ValidationError::TangentNotIntrinsic { edge: split },
+            ]
+        ),
+        "determinate: the rule demands the intrinsic tangency and tier 3 refuses its absence"
+    );
+
+    let (tier3, _) = kissing_cylinder_pillow(tol, 1.0);
+    assert_eq!(
+        rule(1.0),
+        MustCarryVerdict::UnderDetermined,
+        "osculating: the rule"
+    );
+    assert!(
+        !tier3.is_empty()
+            && tier3
+                .iter()
+                .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
+        "osculating: tier 3 reads the same under-determination as a lamina: {tier3:?}"
+    );
+
+    let r2 = 1.0 / (1.0 - 24.0 * eps);
+    let (tier3, _) = kissing_cylinder_pillow(tol, r2);
+    assert!(
+        matches!(
+            rule(r2),
+            MustCarryVerdict::InBand(MustCarryEscalation::SecondOrder(Indeterminate {
+                predicate: Some("tangent_second_order"),
+                ..
+            }))
+        ),
+        "in band: the rule escalates second-order: {:?}",
+        rule(r2)
+    );
+    assert!(
+        !tier3.is_empty()
+            && tier3.iter().all(|e| matches!(
+                e,
+                ValidationError::SliverDihedral {
+                    check: crate::validate::WedgeCheck::SecondOrder,
+                    cause: Indeterminate {
+                        predicate: Some("tangent_second_order"),
+                        ..
+                    },
+                    ..
+                }
+            )),
+        "in band: tier 3 escalates second-order: {tier3:?}"
+    );
+}
+
+/// The 3′ pass judges a wedge end exactly as tier 3 does: the local
+/// battery reads no contact record, so a jet-determinate cusp passes
+/// 3′ with no records. A face–face record of the cusp's two walls is
+/// the census's to read, never the battery's, and the census reads it
+/// stale: the walls are tangent along their shared edge, which both
+/// bound, so their interiors do not meet along it, whatever their
+/// sides (the cusp's material is the crescent between them).
+#[test]
+fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
+    let tol = Tol::witness();
+    let p = cusp_prism(tol);
+    assert_eq!(
+        crate::validate::validate_pseudomanifold(
+            &p.body,
+            &crate::boolean::ContactRecords::default(),
+            tol
+        ),
+        Ok(())
+    );
+    let records: crate::boolean::ContactRecords = [crate::Cited::new(
+        crate::Contact::new(
+            &p.body,
+            crate::Cell::Face(p.face_side[0]),
+            crate::Cell::Face(p.face_side[2]),
+        )
+        .unwrap(),
+        crate::Cites::decided(0),
+    )]
+    .into_iter()
+    .collect();
+    let errors = crate::validate::validate_pseudomanifold(&p.body, &records, tol)
+        .expect_err("the census reads the record");
+    assert!(
+        matches!(
+            &errors[..],
+            [ValidationError::StaleContactDeclaration {
+                declaration: crate::validate::StaleDeclaration::Patch { .. }
+            }]
+        ),
+        "only the record's own confirm refuses, stale: {errors:?}"
+    );
+}
+
+/// The kissing edge of a [`cusp_prism`]: the vertical meridian at the
+/// tangency, between the two cylinder walls.
+fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
+    p.ev[0]
+}
+
+/// Which END of the wedge range `edge` sits at, read at its mid sample
+/// through the sign chain check 4's material arm uses: the jet's κ_rel
+/// signed into the plus face's outward frame, positive the cusp and
+/// negative the slit. For an edge whose faces' material sides oppose
+/// and whose κ_rel is definite — the caller's fixture guarantees both.
+fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge {
+    let e = body.get_edge(edge).unwrap();
+    let curve = body
+        .get_curve_geom(e.curve)
+        .and_then(crate::CurveGeom::certified)
+        .unwrap();
+    let face = |he| body.get_face(body.face_of_half_edge(he).unwrap()).unwrap();
+    let (plus, minus) = (face(e.he_plus), face(e.he_minus));
+    let t = curve.sample_param(geom_brep::CERT_SAMPLES / 2);
+    let (point, tau) = curve.carrier().ders1(t);
+    let jet = geom_brep::tangent_jet(
+        body.get_surface(plus.surface).unwrap(),
+        body.get_surface(minus.surface).unwrap(),
+        point,
+        tau,
+    );
+    let signed = geom_brep::material_kappa_rel(jet.kappa_rel, plus.sense);
+    assert!(signed != 0.0, "a definite κ_rel is the fixture's premise");
+    if signed > 0.0 {
+        MaterialWedge::Cusp
+    } else {
+        MaterialWedge::Slit
+    }
+}
+
+/// The tier-3 verdict on a digon pillow whose two faces are cylinders
+/// kissing along the shared chord — radius 1 against `r2` — with the
+/// second face's material side flipped so the pair is the wedge-0/2π
+/// arm. The body is deliberately degenerate (zero-area faces): what it
+/// is for is the SECOND-ORDER band, which needs only two tangent
+/// surfaces and an edge between them.
+fn kissing_cylinder_pillow(
+    tol: Tol,
+    r2: f64,
+) -> (Vec<ValidationError>, [crate::entity::EdgeKey; 2]) {
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    let seg = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            Point3::new(0.0, 1.0, 0.0),
+            tol,
+        )
+        .unwrap();
+    let cylinder = |radius: f64| Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, radius),
+        axis: Vec3::unit_y(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    };
+    let split = body
+        .mef(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)),
+            FaceSurface::New {
+                surface: cylinder(r2),
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: cylinder(1.0),
+            sense: true,
+        },
+    )
+    .unwrap();
+    let chart = body.get_face(split.face).unwrap().surface;
+    for e in [seg.edge, split.edge] {
+        let spec =
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0))
+                .at_rest_in_chart(chart, false);
+        body.set_edge_curve(e, spec, tol).unwrap();
+    }
+    crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
+    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
+    (
+        validate_geometric(&flipped, tol).unwrap_err(),
+        [seg.edge, split.edge],
+    )
+}
+
+/// **The material arm's fold, state by state** — including the two
+/// states no certified geometry is known to reach.
+///
+/// `material_arm_outcome` is the whole of check 4's material verdict:
+/// the sample loop accumulates flags, and this fold turns them into the
+/// ONE outcome the edge earns. Two of its states are the reason it is a
+/// separate function at all:
+///
+/// - **the pairing SPLIT** (`aligned == opposed`): different samples
+///   along one edge disagreed about which way the material faces, or
+///   no sample classified;
+/// - **the end SPLIT** (`side_mixed`): the pairing agreed, the jet was
+///   determinate, and different samples still called different ends.
+///
+/// Silence there would validate a wedge end CLEAN on an edge whose own
+/// samples contradicted one another. They escalate, and because no fixture can force them,
+/// calling the fold directly is the only way to pin that. The row also
+/// pins the exclusivity the outcome type exists to guarantee: no input
+/// yields both a lamina and a wedge.
+#[test]
+fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
+    use MaterialArmOutcome as O;
+    let cusp = Some(MaterialWedge::Cusp);
+
+    // Aligned at every sample: the legal seam, whatever the jet says
+    // (a seam's legality is a first-order fact).
+    assert_eq!(
+        material_arm_outcome(true, false, true, None, false),
+        O::Wedge(MaterialWedge::Seam)
+    );
+    assert_eq!(
+        material_arm_outcome(true, false, false, None, false),
+        O::Wedge(MaterialWedge::Seam)
+    );
+    // Opposed at every sample, jet determinate, one end: that end.
+    assert_eq!(
+        material_arm_outcome(false, true, true, cusp, false),
+        O::Wedge(MaterialWedge::Cusp)
+    );
+    assert_eq!(
+        material_arm_outcome(false, true, true, Some(MaterialWedge::Slit), false),
+        O::Wedge(MaterialWedge::Slit)
+    );
+    // Opposed with a collapsed jet: the lamina refusal — and NOT a
+    // wedge, which is why no edge can earn both refusals.
+    assert_eq!(
+        material_arm_outcome(false, true, false, None, false),
+        O::Lamina
+    );
+    assert_eq!(
+        material_arm_outcome(false, true, false, cusp, false),
+        O::Lamina
+    );
+    // The two split states escalate, each naming the predicate whose
+    // per-sample verdicts disagreed.
+    assert_eq!(
+        material_arm_outcome(false, true, true, cusp, true),
+        O::Split {
+            predicate: "material_cusp_side"
+        },
+        "the end split must escalate, never validate as the end it saw first"
+    );
+    assert_eq!(
+        material_arm_outcome(false, true, true, None, false),
+        O::Split {
+            predicate: "material_cusp_side"
+        },
+        "opposed, determinate, and no end at all is the same non-verdict"
+    );
+    assert_eq!(
+        material_arm_outcome(false, false, true, cusp, false),
+        O::Split {
+            predicate: "material_wedge_side"
+        },
+        "a pairing that split across samples must escalate"
+    );
+    assert_eq!(
+        material_arm_outcome(true, true, true, cusp, false),
+        O::Split {
+            predicate: "material_wedge_side"
+        },
+        "no sample classified at all: also a non-verdict, never silence"
+    );
+
+    // Exhaustive: over every flag combination, the fold is total and
+    // never returns a legal-looking wedge on a split input.
+    for aligned in [false, true] {
+        for opposed in [false, true] {
+            for determinate in [false, true] {
+                for mixed in [false, true] {
+                    for side in [None, cusp, Some(MaterialWedge::Slit)] {
+                        let out = material_arm_outcome(aligned, opposed, determinate, side, mixed);
+                        if aligned == opposed {
+                            assert!(matches!(out, O::Split { .. }), "{aligned} {opposed}");
+                        }
+                        if mixed && aligned != opposed && opposed && determinate {
+                            assert!(matches!(out, O::Split { .. }), "a mixed end never resolves");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **What each material outcome EMITS** — the fold's other half.
+///
+/// `material_arm_outcome` decides what the edge is; this table decides
+/// what the validator says about it, and the two are separate functions
+/// because both have states no fixture can reach. Pinning the fold
+/// alone would leave the escalation PUSH unpinned: a mutation dropping
+/// `Split` on the floor would keep every row green while restoring
+/// exactly the silence item 6 removed.
+///
+/// Every settled wedge is legal — the two ends included, because the
+/// fold hands one out only over a jet-determinate tangency — and the
+/// lamina and both splits are what refuse.
+#[test]
+fn material_arm_error_table() {
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let edge = crate::fixtures::raw_prism(3, Tol::witness())
+        .body
+        .edges()
+        .next()
+        .expect("the fixture has edges")
+        .0;
+    let err = |outcome| material_arm_error(outcome, edge, band);
+
+    // No outcome at all: exempt by kind, or already escalated.
+    assert!(err(None).is_none());
+    // Every settled wedge is legal on its own terms.
+    for wedge in [
+        MaterialWedge::Seam,
+        MaterialWedge::Transverse,
+        MaterialWedge::Cusp,
+        MaterialWedge::Slit,
+    ] {
+        assert!(
+            err(Some(MaterialArmOutcome::Wedge(wedge))).is_none(),
+            "{wedge:?} is legal at rest"
+        );
+    }
+    // The lamina refuses.
+    assert!(
+        matches!(
+            err(Some(MaterialArmOutcome::Lamina)),
+            Some(ValidationError::LaminaWedge { .. })
+        ),
+        "a lamina is refused"
+    );
+    // Both splits escalate, carrying the predicate that split.
+    for predicate in ["material_wedge_side", "material_cusp_side"] {
+        match err(Some(MaterialArmOutcome::Split { predicate })) {
+            Some(ValidationError::SliverDihedral { check, cause, .. }) => {
+                assert_eq!(check, crate::validate::WedgeCheck::MaterialSide);
+                assert_eq!(cause.predicate, Some(predicate));
+            }
+            other => panic!("a split must escalate, got {other:?}"),
+        }
+    }
+}
+
+/// The tolerance a refusal's text offers, read off its sentence.
+fn offered_tolerance(text: &str) -> f64 {
+    let after = text
+        .split("tighten the tolerance below ")
+        .nth(1)
+        .unwrap_or_else(|| panic!("no tolerance offered: {text}"));
+    after.trim_end_matches(" m").parse().unwrap()
+}
+
+/// **The material reads stop with the margin their decision decided,
+/// and check 4 ends each stop as its decision.** At `K = 1.2` and an
+/// arm of `1.3·ε` the arm gate passes, and a plane leaning 42° or 30°
+/// off another reads smooth there (the wedge `sin θ · arm` is within
+/// ε): the state check 4 reaches. Their pairing margin `cos θ · arm` is
+/// decided zero at 42° and in band at 30°, and both refuse as the one
+/// pairing decision — the arm's lever with a tolerance that decides it.
+/// At 30° the wedge reads zero at the pairing's own `m/K`, which is
+/// offered; at 42° it would not, so the offer is the wedge's `w/K`,
+/// where the wedge and the pairing both decide. The cusp side reads a
+/// jet whose relative curvature is zero: its gate's decided Zero
+/// carries the margin tagged, not a mint.
+#[test]
+fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
+    use core::ops::ControlFlow;
+    use geom_brep::StationHook;
+    use geom_core::{MarginDiag, Sign};
+    let (eps, k) = (1e-9, 1.2);
+    let band = geom_core::Band::new(eps, k * eps).unwrap();
+    let arm = 1.3 * eps;
+    let edge = crate::fixtures::raw_prism(3, Tol::witness())
+        .body
+        .edges()
+        .next()
+        .expect("the fixture has edges")
+        .0;
+    let origin = Point3::new(0.0, 0.0, 0.0);
+    let floor = Surface::Plane {
+        origin,
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let leaning = |degrees: f64| {
+        let (sin, cos) = degrees.to_radians().sin_cos();
+        Surface::Plane {
+            origin,
+            normal: Vec3::new(sin, 0.0, cos),
+            u_ref: Vec3::unit_y(),
+        }
+    };
+    let station = |arm: f64, kappa_rel: f64| geom_brep::Station {
+        p: origin,
+        jet: geom_brep::TangentJet {
+            sin_theta: 0.0,
+            kappa_rel,
+        },
+        arm,
+    };
+    // Check 4's one push of a stop.
+    let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
+        edge,
+        check: stop.check,
+        cause: stop.cause,
+    };
+    let lead = "which side of an edge the material of its two smoothly meeting faces lies on \
+                is undecided. Recourse: move the geometry so that edge's faces clearly run farther \
+                and none curves tightly there, or, if this length is intended, tighten the \
+                tolerance below ";
+    let sin42 = 42.0_f64.to_radians().sin();
+    let cos30 = 30.0_f64.to_radians().cos();
+    for (label, degrees, offered) in [
+        ("decided zero", 42.0, sin42 * arm / k),
+        ("in band", 30.0, cos30 * arm / k),
+    ] {
+        let wall = leaning(degrees);
+        assert_eq!(
+            geom_brep::classify_dihedral(&floor, &wall, origin, arm, band),
+            Ok(geom_brep::DihedralClass::Smooth),
+            "{label}: check 4 reaches the pairing"
+        );
+        let mut stations = crate::validate::MaterialStations::new(&floor, true, &wall, true, band);
+        let ControlFlow::Break(stop) = stations.before_decision(&station(arm, 1.0)) else {
+            panic!("{label}: the pairing stops the walk");
+        };
+        let text = finding(stop).to_string();
+        assert!(text.starts_with(lead), "{label}: {text}");
+        let quoted = offered_tolerance(&text);
+        assert!(
+            (quoted - offered).abs() <= 1e-9 * offered,
+            "{label}: offers {quoted:e}, wants {offered:e}"
+        );
+    }
+    let mut stations = crate::validate::MaterialStations::new(&floor, true, &floor, true, band);
+    let ControlFlow::Break(stop) = stations.after_positive(&station(1.0, 0.0)) else {
+        panic!("a zero cusp-side margin stops the walk");
+    };
+    assert_eq!(
+        (
+            stop.cause.predicate,
+            stop.cause.margin.rejected_sign(),
+            stop.cause.margin == MarginDiag::INVALID
+        ),
+        (Some("material_cusp_side"), Some(Sign::Zero), false),
+        "the cusp side stops with its gate's decided Zero, not a hand-minted poison"
+    );
+    // Its magnitude decided positive one decision before, so the Zero
+    // contradicts it: the defect ending, as a split's.
+    assert_eq!(
+        finding(stop).to_string(),
+        format!(
+            "which side of an edge the material of its two smoothly meeting faces lies on could \
+             not be read consistently along it. {}",
+            geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+        ),
+        "the cusp side's contradiction ends as a defect"
+    );
+}
+
+// ---------------------------------------------------------------------
+// Check 7's subject — the per-SOLID volume sign, and what tier 3
+// deliberately does NOT read about a solid's shells.
+//
+// The bodies below are hand-assembled from cubes because that is the
+// shape the states have: a second solid beside the first, and several
+// shells filed under one solid. Both are states the public verbs
+// produce (a boolean leaves multi-solid results; graft-onto fuses two
+// disjoint bodies into one solid) and neither is reachable from this
+// crate's own doors, which is what the raw arenas are for here
+// (module docs).
+// ---------------------------------------------------------------------
+
+/// A cube of side `s` at `origin`, into `body` as its own solid —
+/// mirrored in x when `inside_out`, which is the orientation flip
+/// `review_m2_pr7` pins as invisible to tiers 1 and 2.
+fn cube_solid(body: &mut Body<f64>, origin: (f64, f64, f64), s: f64, inside_out: bool, tol: Tol) {
+    let (ox, oy, oz) = origin;
+    crate::test_support_fixtures::cube_into(
+        body,
+        move |x, y, z| {
+            let x = if inside_out { 1.0 - x } else { x };
+            Point3::new(ox + x * s, oy + y * s, oz + z * s)
+        },
+        tol,
+    );
+}
+
+/// The solid keys of `body`, in arena order.
+fn solids_of(body: &Body<f64>) -> Vec<crate::entity::SolidKey> {
+    body.solids().map(|(k, _)| k).collect()
+}
+
+/// The axis-aligned extent of `shell`'s stored vertex positions.
+/// A read of the geometry rather than of the fixture's literals: a
+/// cube placed somewhere else moves this.
+fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64>, Point3<f64>) {
+    let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
+    let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+    for &face in &body.get_shell(shell).expect("a live shell").faces {
+        let f = body.get_face(face).expect("a live face");
+        for &lp in core::iter::once(&f.outer).chain(f.rings.iter()) {
+            let crate::entity::LoopBoundary::Cycle { first } =
+                body.get_loop(lp).expect("a live loop").boundary
+            else {
+                panic!("a cube's loops are cycles")
+            };
+            for he in body.loop_cycle(first).expect("a closed cycle") {
+                let v = body.get_half_edge(he).expect("a live half-edge").start;
+                let p = *body
+                    .get_point(body.get_vertex(v).expect("a live vertex").point)
+                    .expect("a live point");
+                lo = lo.min(p);
+                hi = hi.max(p);
+            }
+        }
+    }
+    (lo, hi)
+}
+
+/// `inner`'s extent lies strictly inside `outer`'s, componentwise.
+fn strictly_within(inner: (Point3<f64>, Point3<f64>), outer: (Point3<f64>, Point3<f64>)) -> bool {
+    let axes = Point3::to_array;
+    let (ilo, ihi) = (axes(inner.0), axes(inner.1));
+    let (olo, ohi) = (axes(outer.0), axes(outer.1));
+    (0..3).all(|i| ilo[i] > olo[i] && ihi[i] < ohi[i])
+}
+
+/// **An inside-out part beside a larger ordinary one certifies when
+/// only the body TOTAL is pinned.**
+///
+/// The body's total signed volume is `1 - 0.125 = +0.875`, so a check
+/// reading the sum sees nothing; the small solid is inside-out and its
+/// own volume is `-0.125`. Red without the per-solid subject: the
+/// runtime value that makes the assertion false is `errs` coming back
+/// empty, which is what a body-total read produces here.
+#[test]
+fn an_inside_out_part_beside_an_ordinary_one_refuses_by_name() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (5.0, 0.0, 0.0), 0.5, true, tol);
+    let [ordinary, reverted] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let total = crate::test_support::measure_unvalidated(
+        &body,
+        tol,
+        crate::test_support::pinned_resolution(tol),
+    )
+    .expect("both cubes measure");
+    assert!(
+        total.enclosure.volume > 0.0,
+        "the fixture's point is a POSITIVE total: {}",
+        total.enclosure.volume
+    );
+    let errs = validate_geometric(&body, tol).unwrap_err();
+    assert_eq!(
+        errs,
+        vec![ValidationError::NegativeVolume { solid: reverted }],
+        "check 7 names the inside-out solid and says nothing about the other \
+         one, which {ordinary:?} is not in"
+    );
+}
+
+/// **The false-refusal direction, on the same shape**: two ordinary
+/// solids in one body certify. A per-solid check that read a
+/// neighbour's faces, or that refused a body for holding two solids at
+/// all, reds here.
+#[test]
+fn two_ordinary_solids_in_one_body_certify() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (5.0, 0.0, 0.0), 0.5, false, tol);
+    assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **The number a multi-solid body's certificate door continues to is
+/// the whole-body measurement, bit for bit.**
+///
+/// Check 7's subject is a SOLID, so the tier-3′ door's certificate is
+/// the per-solid walks assembled into face-arena order, and the number
+/// a caller asks of it is that assembly continued to the reporting
+/// target. The continuation carries exactly one promise — that it is
+/// the number [`crate::mass_properties`] would give — and this row is
+/// what reds if the two ever diverge. (That no further arena-wide read
+/// is taken is a COUNT, and it lives where a quadrature body can be
+/// built: `sweep`'s `tcost_k3_certificate`.)
+#[test]
+fn a_multi_solid_certificate_is_the_whole_body_measurement() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (5.0, 0.0, 0.0), 0.5, false, tol);
+    assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
+    let certified =
+        crate::validate_pseudomanifold_certificate(&body, &crate::ContactRecords::default(), tol)
+            .expect("two ordinary cubes certify")
+            .measure(crate::test_support::pinned_resolution(tol))
+            .expect("two ordinary cubes measure")
+            .met()
+            .expect("the pinned resolution is met");
+    let measured = crate::mass_properties(
+        &crate::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+        crate::test_support::pinned_resolution(tol),
+    )
+    .expect("the cubes measure");
+    assert_eq!(
+        (
+            certified.volume.to_bits(),
+            certified.surface_area.to_bits(),
+            certified.volume_pad.to_bits(),
+            certified.area_pad.to_bits()
+        ),
+        (
+            measured.enclosure.volume.to_bits(),
+            measured.enclosure.surface_area.to_bits(),
+            measured.enclosure.volume_pad.to_bits(),
+            measured.enclosure.area_pad.to_bits()
+        ),
+        "the door's certificate, continued, is the measurement door's"
+    );
+}
+
+/// **A `_structural` certificate is continued at a scalar that may not
+/// certify, to the closed form's own number.**
+///
+/// `SignCertificate`'s continuation is generic over `Decide`, so the
+/// certificate the no-lane tier-3′ door hands back at a
+/// [`geom_core::Dual64`] can be asked for its number: it carries no lane,
+/// every face is closed-form and finished at round 0, and the
+/// continuation is the fold of what it holds. That fold must BE
+/// [`crate::mass_properties_structural`] on the same body — value and
+/// derivative, compared through `Debug` (which renders every `f64`
+/// round-trip exactly) — over two solids, so the assembly re-orders
+/// real parts.
+#[test]
+fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
+    use geom_core::Dual64;
+    use geom_core::Real as _;
+    let tol = Tol::witness();
+    let mut body = Body::<Dual64>::new();
+    for (ox, s) in [(0.0, 1.0), (5.0, 0.5)] {
+        crate::test_support_fixtures::cube_into(
+            &mut body,
+            move |x, y, z| {
+                Point3::new(
+                    Dual64::from_f64(ox + x * s),
+                    Dual64::from_f64(y * s),
+                    Dual64::from_f64(z * s),
+                )
+            },
+            tol,
+        );
+    }
+    assert_eq!(body.solids().count(), 2, "two boxes are two solids");
+    let continued = crate::validate_pseudomanifold_certificate_structural(
+        &body,
+        &crate::ContactRecords::default(),
+        tol,
+    )
+    .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
+    .measure(crate::test_support::pinned_resolution(tol))
+    .expect("a closed-form certificate's continuation cannot refuse")
+    .met()
+    .expect("the pinned resolution is met");
+    let measured = crate::mass_properties_structural(
+        &crate::test_support::finished("the two boxes", body.clone(), tol),
+        tol,
+    )
+    .expect("the closed form measures two boxes");
+    assert_eq!(
+        format!("{continued:?}"),
+        format!("{measured:?}"),
+        "the continued no-lane certificate is the closed form's own measurement"
+    );
+}
+
+/// **A solid holding SEVERAL outer boundaries refuses: a solid is one
+/// piece of material** (`docs/DESIGN.md`, "A solid is one piece of
+/// material"; check 10's count).
+///
+/// One solid, three shells: the outer cube, a cavity wall inside it,
+/// and an island inside that cavity. Two of those shells enclose
+/// definitely-positive volume, so the island is a second piece, and its
+/// own solid. The winding alone would admit the shape (`+1 - 1 + 1 = 1`
+/// inside the island), which is why the count is its own refusal.
+#[test]
+fn a_solid_holding_several_outer_shells_refuses() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    cube_solid(&mut body, (0.3, 0.3, 0.3), 0.2, false, tol);
+    let [keeper, cavity, island] = solids_of(&body)[..] else {
+        panic!("three cubes are three solids");
+    };
+    let shell_of = |body: &Body<f64>, solid| {
+        let shells = body.shells_of_solid(solid).expect("a live solid");
+        assert_eq!(shells.len(), 1, "a cube arrives as one shell");
+        shells[0]
+    };
+    let (wall, void, isle) = (
+        shell_of(&body, keeper),
+        shell_of(&body, cavity),
+        shell_of(&body, island),
+    );
+    refile_shells(&mut body, cavity, keeper);
+    refile_shells(&mut body, island, keeper);
+    assert_eq!(
+        body.shells_of_solid(keeper).expect("the one solid").len(),
+        3,
+        "one solid, three shells"
+    );
+
+    // The premise, read off the body rather than off the fixture's
+    // literals: TWO of the three shells classify `Outer`, and the
+    // island is nested in the cavity that is nested in the wall. Move
+    // the island cube beside the others and both reads move with it,
+    // which is what stops this row from passing while no longer being
+    // about several outer boundaries.
+    // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
+    let roles: std::collections::BTreeMap<_, _> =
+        crate::test_support::classify_unvalidated(&body, tol)
+            .expect("the cubes classify")
+            .into_iter()
+            .map(|c| (c.shell, c.role))
+            .collect();
+    assert_eq!(
+        (roles[&wall], roles[&void], roles[&isle]),
+        (
+            crate::ShellRole::Outer,
+            crate::ShellRole::Void,
+            crate::ShellRole::Outer
+        ),
+        "two outer boundaries and one cavity, filed under one solid: {roles:?}"
+    );
+    let (wall_box, void_box, isle_box) = (
+        shell_extent(&body, wall),
+        shell_extent(&body, void),
+        shell_extent(&body, isle),
+    );
+    assert!(
+        strictly_within(isle_box, void_box) && strictly_within(void_box, wall_box),
+        "the island sits inside the cavity inside the wall: \
+         {isle_box:?} in {void_box:?} in {wall_box:?}"
+    );
+
+    // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
+    assert!(
+        crate::test_support::measure_unvalidated(
+            &body,
+            tol,
+            crate::test_support::pinned_resolution(tol)
+        )
+        .expect("the cubes measure")
+        .met()
+        .expect("the pinned resolution is met")
+        .volume
+            > 0.0,
+        "check 7's subject is this solid, and its volume is positive"
+    );
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::SolidOuterShells {
+            solid: keeper,
+            outer: 2
+        }])
+    );
+}
+
+/// **Check 7 sums a solid's whole boundary, cavity included**: a solid
+/// with one outer shell and one void certifies. A per-solid walk that
+/// read only one of a solid's shells would red here — the outer cube
+/// alone measures `+1`, the cavity wall alone `-0.125`, and only their
+/// sum is the solid's `+0.875`.
+#[test]
+fn a_solid_with_a_genuine_cavity_certifies() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    let [keeper, cavity] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    refile_shells(&mut body, cavity, keeper);
+    assert_eq!(
+        body.shells_of_solid(keeper).expect("the one solid").len(),
+        2,
+        "one solid, two shells"
+    );
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **The carve drops only records no kept record names.** Carving the
+/// cavity off a two-shell solid keeps the outer wall; where a kept
+/// half-edge or lone-vertex loop names a cavity vertex, or a kept edge
+/// a cavity half-edge, the carve refuses rather than leave the link dangling.
+#[test]
+fn the_carve_refuses_to_drop_a_record_a_kept_one_names() {
+    use crate::entity::LoopBoundary;
+    use crate::splitting::SplitFinishError;
+    use crate::splitting::finish::carve;
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    let [keeper, cavity] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    refile_shells(&mut body, cavity, keeper);
+    let shells = body.shells_of_solid(keeper).unwrap().to_vec();
+    let carved = carve(&body, keeper, &shells[..1]).expect("the cavity carves off");
+    assert_eq!(
+        carved.shells_of_solid(keeper).unwrap().len(),
+        1,
+        "one shell kept"
+    );
+    // A member of each shell's first face's outer loop.
+    let member = |shell| {
+        let face = body.get_shell(shell).unwrap().faces[0];
+        let outer = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("a cube face's outer loop is a cycle");
+        };
+        first
+    };
+    let (kept, dropped) = (member(shells[0]), member(shells[1]));
+    let mut shared_vertex = body.clone();
+    shared_vertex.half_edges[kept].start = body.get_half_edge(dropped).unwrap().start;
+    assert!(
+        matches!(
+            carve(&shared_vertex, keeper, &shells[..1]),
+            Err(SplitFinishError::Corrupt)
+        ),
+        "a kept half-edge starting at a dropped vertex"
+    );
+    let mut shared_edge = body.clone();
+    let edge = body.get_half_edge(kept).unwrap().edge;
+    let e = &mut shared_edge.edges[edge];
+    if e.he_plus == kept {
+        e.he_minus = dropped;
+    } else {
+        e.he_plus = dropped;
+    }
+    assert!(
+        matches!(
+            carve(&shared_edge, keeper, &shells[..1]),
+            Err(SplitFinishError::Corrupt)
+        ),
+        "a kept edge naming a dropped half-edge"
+    );
+    let mut shared_lone = body.clone();
+    let lone = body.get_half_edge(kept).unwrap().parent_loop;
+    shared_lone.loops[lone].boundary = LoopBoundary::Empty {
+        vertex: body.get_half_edge(dropped).unwrap().start,
+    };
+    assert!(
+        matches!(
+            carve(&shared_lone, keeper, &shells[..1]),
+            Err(SplitFinishError::Corrupt)
+        ),
+        "a kept lone-vertex loop holding a dropped vertex"
+    );
+}
+
+/// **Check 10's per-shell contribution, both arms.** The point-in-solid
+/// walk over ONE shell's faces answers whether a point is in the
+/// material that shell alone bounds. For the outer wall that is its
+/// inside; for the cavity wall, whose faces point into the cavity, it is
+/// the cavity's COMPLEMENT — so a point in the cavity reads `Out` and a
+/// point anywhere else reads `In`, the far one included (where the walk
+/// may cross nothing and read the selection's negative volume at
+/// infinity). Check 10's `[In] - [Void]` is exactly this: `-1` in the
+/// cavity, `0` outside it. A walk that read a void selection as its
+/// ENCLOSED region would flip both void rows below.
+#[test]
+fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
+    use crate::boolean::SolidContainment::{In, Out};
+    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    let [keeper, cavity] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    let (wall, void) = (
+        body.shells_of_solid(keeper).expect("live")[0],
+        body.shells_of_solid(cavity).expect("live")[0],
+    );
+    refile_shells(&mut body, cavity, keeper);
+    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(
+        &crate::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+    )
+    .expect("the cubes classify")
+    .into_iter()
+    .map(|c| (c.shell, c.role))
+    .collect();
+    assert_eq!(
+        (roles[&wall], roles[&void]),
+        (crate::ShellRole::Outer, crate::ShellRole::Void)
+    );
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let probe = |shell, p: Point3<f64>| {
+        let sel = SolidFaces::of_shell(&body, shell);
+        point_in_solid_faces(&body, &sel, p, band, tol).expect("the walk answers")
+    };
+    let in_cavity = Point3::new(0.43, 0.41, 0.47);
+    let in_wall = Point3::new(0.1, 0.13, 0.11);
+    let beside = Point3::new(2.0, 0.37, 0.41);
+    let far = Point3::new(100.0, 90.0, 80.0);
+    assert_eq!(
+        [
+            probe(wall, in_cavity),
+            probe(wall, in_wall),
+            probe(wall, beside),
+            probe(wall, far)
+        ],
+        [In, In, Out, Out],
+        "the outer wall's material is its inside"
+    );
+    assert_eq!(
+        [
+            probe(void, in_cavity),
+            probe(void, in_wall),
+            probe(void, beside),
+            probe(void, far)
+        ],
+        [Out, In, In, In],
+        "the cavity wall's material is everything outside the cavity"
+    );
+    // The far point's answer is the AT-INFINITY arm's: the schedule's
+    // first ray (+x) from it crosses nothing, so the walk reads the
+    // selection's side at infinity off a ray aimed at one of its faces
+    // from beyond it — its closest crossing exits the cavity wall's
+    // material, hence `In` — and never off its volume. Pinned by the
+    // verdict log, so a far point that a ray happened to reach through a
+    // face could not pass for it.
+    let bracket = geom_core::k_stats::Bracket::open();
+    assert_eq!(probe(void, far), In);
+    let log = bracket.finish();
+    let read: Vec<_> = log.verdicts.iter().map(|v| v.predicate).collect();
+    assert!(
+        read.contains(&"side_at_infinity_order") && !read.contains(&"bool_point_in_solid_infinity"),
+        "the far probe must be answered at infinity by an aimed ray, got {read:?}"
+    );
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **Check 10 skips a witness where two shells TOUCH, and reads the
+/// next one.** A small cavity hangs from the ceiling of a larger one in
+/// a cube, all under one solid, so the space inside the small cavity
+/// winds `-1` — and its top lies ON the larger cavity's ceiling. The
+/// first vertex the check reads is on that face (asserted below, from
+/// the body), where the walk answers `OnBoundary`; a check that stopped
+/// there would be silent. The small cavity's lower vertices touch
+/// nothing, and one of them refuses the body.
+#[test]
+fn check_10_reads_past_a_witness_where_two_shells_touch() {
+    use crate::boolean::SolidContainment;
+    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 3.0, false, tol);
+    cube_solid(&mut body, (0.5, 0.5, 0.5), 2.0, true, tol);
+    cube_solid(&mut body, (1.0, 1.0, 2.0), 0.5, true, tol);
+    let [keeper, big, small] = solids_of(&body)[..] else {
+        panic!("three cubes are three solids");
+    };
+    let big_void = body.shells_of_solid(big).expect("live")[0];
+    let small_void = body.shells_of_solid(small).expect("live")[0];
+    refile_shells(&mut body, big, keeper);
+    refile_shells(&mut body, small, keeper);
+
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let sel = SolidFaces::of_shell(&body, big_void);
+    let first = body
+        .faces()
+        .find(|(_, f)| f.shell == small_void)
+        .and_then(|(_, f)| match body.get_loop(f.outer)?.boundary {
+            crate::entity::LoopBoundary::Cycle { first } => body.half_edge_start_point(first),
+            crate::entity::LoopBoundary::Empty { .. } => None,
+        })
+        .expect("the cube has vertices");
+    assert_eq!(
+        point_in_solid_faces(&body, &sel, first, band, tol).expect("the walk answers"),
+        SolidContainment::OnBoundary,
+        "the premise: the first witness {first:?} touches the larger cavity"
+    );
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::ShellWinding {
+            solid: keeper,
+            shell: small_void,
+            winding: 0,
+            bounded: -1,
+        }])
+    );
+}
+
+/// A `w × w × t` slab at `x0` whose six carrier planes are re-anchored
+/// about `far` metres along themselves (and `0.37·far` across): the
+/// same planes, and so the same body, but each face's closed form sums
+/// its vector area about an origin that far from the face.
+fn far_anchored_slab(x0: f64, w: f64, t: f64, far: f64, tol: Tol) -> Body<f64> {
+    let mut body = crate::test_support::brick::<f64>((x0, x0 + w), (0.0, w), (0.0, t), tol);
+    let surfaces: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
+    for key in surfaces {
+        let surface = body.surfaces.get_mut(key).unwrap();
+        let Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = *surface
+        else {
+            panic!("a brick's faces are planes");
+        };
+        let along = (u_ref + normal.cross(u_ref) * 0.37) * far;
+        *surface = Surface::Plane {
+            origin: origin + along,
+            normal,
+            u_ref,
+        };
+    }
+    body
+}
+
+/// `body`'s one shell's role off the sign of its volume, the role
+/// reader's fallback where no face offers an aim, through the certified
+/// lane.
+fn volume_role_of(body: &Body<f64>, tol: Tol) -> crate::ShellRole {
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let (shell, _) = body.shells.iter().next().expect("one shell");
+    let lane = Some(crate::props::QuadLane::certified());
+    crate::props::shell_volume_role(body, shell, band, tol, lane)
+        .expect("the volume's sign decides a role")
+}
+
+/// **A sign is read off the exact volume, not off its rounding.** The
+/// slab of 1 mm × 1 mm × 100 nm anchored 5 km away: the walk's `f64`
+/// sum reads it NEGATIVE (−1.2e-12 m³) where it is exactly
+/// `1e-3 · 1e-3 · 1e-7 = +1e-13`, and reads its inside-out twin
+/// positive. The volume's role read, where the role reader falls back to
+/// it, reads the interval re-derivation, and gives the exact answer both
+/// ways; check 7 and the shell classification agree. (ε ≤ 1e-9: wider,
+/// the slab is thinner than the band.)
+#[test]
+fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
+    use crate::ShellRole::{Outer, Void};
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    let exact = 1e-3 * 1e-3 * 1e-7;
+    let read = crate::mass_properties(
+        &crate::test_support::finished("the measured body", upright.clone(), tol),
+        tol,
+        crate::test_support::pinned_resolution(tol),
+    )
+    .expect("the slab measures");
+    assert!(
+        read.enclosure.volume < -exact,
+        "the premise: the walk's sum reads the slab negative, past its exact \
+         volume {exact:e}: {read:?}"
+    );
+    assert_eq!(
+        validate_geometric(&upright, tol),
+        Ok(()),
+        "upright: check 7"
+    );
+    assert_eq!(
+        volume_role_of(&upright, tol),
+        Outer,
+        "upright: the volume's role"
+    );
+    let inverted = upright.revert().unwrap();
+    let solid = inverted.solids().next().expect("one solid").0;
+    assert_eq!(
+        validate_geometric(&inverted, tol),
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "inside-out: check 7"
+    );
+    assert_eq!(
+        volume_role_of(&inverted, tol),
+        Void,
+        "inside-out: the volume's role"
+    );
+    // A solid's only shell is outer by arity, however it is wound: its
+    // orientation is check 7's.
+    let classes = [
+        crate::classify_shells(
+            &crate::test_support::finished("the upright slab", upright.clone(), tol),
+            tol,
+        ),
+        // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume), as check 7 above asserts.
+        crate::test_support::classify_unvalidated(&inverted, tol),
+    ];
+    for classified in classes {
+        assert_eq!(
+            classified.expect("the shell classifies")[0].role,
+            Outer,
+            "the classification reads a lone shell by arity"
+        );
+    }
+    // Point containment's side at infinity reads the same sign: inside
+    // and beside the slab, both ways round.
+    use crate::boolean::SolidContainment::{In, Out};
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let (inside, beside) = (Point3::new(5e-4, 5e-4, 5e-8), Point3::new(5e-3, 5e-4, 5e-8));
+    for (body, name, want) in [
+        (&upright, "upright", [In, Out]),
+        (&inverted, "inside out", [Out, In]),
+    ] {
+        let got = [inside, beside].map(|p| {
+            crate::boolean::point_in_solid(body, p, band, tol).expect("containment answers")
+        });
+        assert_eq!(got, want, "{name}: inside and beside the slab");
+    }
+}
+
+/// **The census's void screen reads a shell's role as the rest of the
+/// crate does.** The far-anchored slab of the row above, whose `f64`
+/// sum reads it negative: a lane-free volume read once called the
+/// upright slab a `Void`, and a cross-solid gate holding no lane dropped
+/// it as one. A lane-free read now leaves its sign unresolved within the
+/// sum's rounding (`props::rounding_bound`; asserted), and the gate reads
+/// what the shell classification reads, both ways round: a lone shell is
+/// outer by arity.
+#[test]
+fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
+    use crate::ShellRole::Outer;
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    let shell = upright.shells.iter().next().expect("one shell").0;
+    assert_eq!(
+        crate::props::shell_volume_role(&upright, shell, band, tol, None),
+        Err(crate::ShellClassifyError::SignUnresolved {
+            shell,
+            limit: crate::SignLimit::Scalar,
+        }),
+        "read with no lane, the upright slab's rounded sum decides no role"
+    );
+    let inverted = upright.revert().unwrap();
+    for (body, want, finishes) in [(&upright, Outer, true), (&inverted, Outer, false)] {
+        let classified = if finishes {
+            crate::classify_shells(
+                &crate::test_support::finished("the upright slab", body.clone(), tol),
+                tol,
+            )
+        } else {
+            // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume).
+            crate::test_support::classify_unvalidated(body, tol)
+        }
+        .expect("the shell classifies")[0]
+            .role;
+        let gate = crate::census::gate_role(body, shell, band, tol);
+        assert_eq!(
+            (gate, classified),
+            (Some(want), want),
+            "the gate and the classification"
+        );
+    }
+}
+
+/// **An inside-out body just past the band is refused**, at every ε. A
+/// far-anchored 1 mm² slab whose thickness `t = 4·K·ε` puts its mean
+/// thickness `V/A ≈ t/2` at twice the band's escalation threshold:
+/// check 7 must refuse it, and an enclosure loose enough to straddle
+/// zero there (as one summed about the far carrier origins is, its
+/// width some 25× the walk's own rounding) lets it through.
+#[test]
+fn an_inside_out_slab_just_past_the_band_is_refused() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let t = 4.0 * band.escalate();
+    for far in [0.0, 1e3, 5e3] {
+        let inverted = far_anchored_slab(0.0, 1e-3, t, far, tol).revert().unwrap();
+        let solid = inverted.solids().next().expect("one solid").0;
+        assert_eq!(
+            validate_geometric(&inverted, tol),
+            Err(vec![ValidationError::NegativeVolume { solid }]),
+            "a {t:e} m slab anchored {far} m away, inside out"
+        );
+    }
+}
+
+/// **A half-disc of radius `r` and height `h` with its axis corner at
+/// `(cx, cy, z0)`**: a two-sided prism whose cross-section is the half of
+/// the circle on `+y` and its chord, so one wall is a cylinder and the
+/// walk is not all-planar. Its exact volume is `π r² h / 2`.
+///
+/// `far` stores the same geometry with every carrier anchored at a far
+/// point of itself (the planes at their feet on the world's axes, the
+/// cylinder at `z = 0` on its axis), as a construction that places
+/// its carriers' origins away from the body does.
+fn half_disc(r: f64, h: f64, (cx, cy, z0): (f64, f64, f64), far: bool, tol: Tol) -> Body<f64> {
+    let k = if far { 0.0 } else { 1.0 };
+    let mut p = crate::fixtures::raw_prism(2, tol);
+    let xy = [(cx + r, cy), (cx - r, cy)];
+    for (i, (x, y)) in xy.into_iter().enumerate() {
+        for (v, z) in [(p.t[i], z0 + h), (p.u[i], z0)] {
+            let point = p.body.get_vertex(v).unwrap().point;
+            *p.body.points.get_mut(point).unwrap() = Point3::new(x, y, z);
+        }
+    }
+    let wall = Surface::Cylinder {
+        origin: Point3::new(cx, cy, k * z0),
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let chord = Surface::Plane {
+        origin: Point3::new(k * cx, cy, k * z0),
+        normal: -Vec3::unit_y(),
+        u_ref: Vec3::unit_x(),
+    };
+    let top = Surface::Plane {
+        origin: Point3::new(k * cx, k * cy, z0 + h),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let bottom = Surface::Plane {
+        origin: Point3::new(k * cx, k * cy, z0),
+        normal: -Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (face, surface) in [
+        (p.face_top, top),
+        (p.face_bottom, bottom),
+        (p.face_side[0], wall),
+        (p.face_side[1], chord),
+    ] {
+        p.body
+            .set_face_surface(
+                face,
+                FaceSurface::New {
+                    surface,
+                    sense: true,
+                },
+            )
+            .unwrap();
+    }
+    let arc = |body: &Body<f64>, edge| {
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let p0 = at(body.get_half_edge(he).unwrap().start);
+        let center = Point3::new(cx, cy, p0.z);
+        let u_ref = (p0 - center) / r;
+        geom::Curve3::Circle {
+            center,
+            axis: u_ref.cross(Vec3::unit_y()),
+            radius: r,
+            u_ref,
+        }
+    };
+    let segment = |body: &Body<f64>, edge| {
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let at = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        let (p0, p1) = (
+            at(body.get_half_edge(he).unwrap().start),
+            at(body.half_edge_end(he).unwrap()),
+        );
+        geom::Curve3::Line {
+            origin: p0,
+            dir: (p1 - p0) / p0.distance(p1),
+        }
+    };
+    for e in [p.et[0], p.eb[0], p.et[1], p.eb[1], p.ev[0], p.ev[1]] {
+        let is_arc = e == p.et[0] || e == p.eb[0];
+        let carrier = if is_arc {
+            arc(&p.body, e)
+        } else {
+            segment(&p.body, e)
+        };
+        let he = p.body.get_edge(e).unwrap().he_plus;
+        let p0 = *p
+            .body
+            .get_point(
+                p.body
+                    .get_vertex(p.body.get_half_edge(he).unwrap().start)
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        let p1 = *p
+            .body
+            .get_point(
+                p.body
+                    .get_vertex(p.body.half_edge_end(he).unwrap())
+                    .unwrap()
+                    .point,
+            )
+            .unwrap();
+        let t1 = if is_arc {
+            std::f64::consts::PI
+        } else {
+            p0.distance(p1)
+        };
+        let (s1, s2) = adjacent_surfaces(&p.body, e);
+        let witness = carrier.eval(0.5 * t1);
+        let spec = EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                pair: geom_brep::SurfacePair::new(s1, s2),
+                selector: geom_brep::CurveSelector::Witness(witness),
+            },
+            carrier,
+            param_start: 0.0,
+            param_end: t1,
+        };
+        p.body.set_edge_curve(e, spec, tol).unwrap();
+    }
+    crate::pcurves::mint_pcurves(&mut p.body, tol).unwrap();
+    p.body
+}
+
+/// **Reviewer probes (CONTACTHOLD census review): a line edge crossing
+/// or touching a coplanar conic rim never validates clean.** The
+/// census's edge passes never read a line × conic event
+/// (`census-edge-pass-reads-no-line-conic-crossing`, closed on the
+/// measurement that every verdict on such a configuration refuses).
+/// These rows are that measurement as a guard: each goes red the day
+/// one of these seats validates clean, which is the day the missing
+/// event costs soundness rather than vocabulary. The half-disc post is
+/// `half_disc(0.25, 0.5, (0.3, 0.2, 0.0))`: its cap is the half of the
+/// circle `|(x, y) - (0.3, 0.2)| = 0.25` on `+y`, at `z = 0.5`, so its
+/// rim's apex is `(0.3, 0.45, 0.5)`.
+mod line_conic_review {
+    use super::*;
+    use crate::FaceKey;
+    use crate::boolean::{Cell, Contact, ContactRecords};
+    use crate::test_support_fixtures::{
+        FaceGeometry, describe_as_intersections, prism_ops, prism_z,
+    };
+
+    const APEX: (f64, f64, f64) = (0.3, 0.45, 0.5);
+
+    fn post() -> (Body<f64>, FaceKey) {
+        let body = half_disc(0.25, 0.5, (0.3, 0.2, 0.0), false, Tol::witness());
+        let cap = body
+            .faces
+            .iter()
+            .find(|(_, f)| {
+                matches!(
+                    body.surfaces.get(f.surface),
+                    Some(Surface::Plane { normal, origin, .. })
+                        if normal.z == 1.0 && origin.z == 0.5
+                )
+            })
+            .map(|(k, _)| k)
+            .expect("the cap");
+        (body, cap)
+    }
+
+    /// The post beside a box `[x] × [y] × [z]`, with the cap and the
+    /// box's underside.
+    fn post_and_box(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> (Body<f64>, FaceKey, FaceKey) {
+        let (mut body, cap) = post();
+        let shelf: crate::test_support_fixtures::Prism<f64> = prism_z(
+            &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+            z.0,
+            z.1,
+            Tol::witness(),
+        );
+        let keys = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).expect("a graft");
+        let under = keys.face(shelf.bottom_face).expect("the underside");
+        (body, cap, under)
+    }
+
+    fn patch(a: FaceKey, b: FaceKey) -> ContactRecords {
+        [crate::Cited::new(
+            Contact::of(Cell::Face(a), Cell::Face(b)).unwrap(),
+            crate::Cites::decided(0),
+        )]
+        .into_iter()
+        .collect()
+    }
+
+    fn validate(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+        crate::validate::validate_pseudomanifold(body, records, Tol::witness())
+            .expect_err("a line × conic seat never validates clean")
+    }
+
+    /// The row's own seat: the shelf's `y = 0.30` underside edge crosses
+    /// the cap's rim twice, coplanar. Bare and with the (cap, underside)
+    /// patch, the overlap cell on the cap is a hard finding.
+    #[test]
+    fn a_shelf_edge_crossing_the_rim_in_plane_never_validates_clean() {
+        let (body, cap, under) = post_and_box((0.0, 0.9), (0.0, 0.30), (0.5, 0.54));
+        for records in [ContactRecords::default(), patch(cap, under)] {
+            let errors = validate(&body, &records);
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: crate::CensusContact::EdgeFaceOverlap { face, .. },
+                        ..
+                    } if *face == cap
+                )),
+                "the shelf edge's cell in the cap stays hard: {errors:?}"
+            );
+        }
+    }
+
+    /// The tangent case: the box's `y = 0.45` underside edge touches the
+    /// rim at its apex only, coplanar, so no cell lies in the cap and no
+    /// pass reads the touch. It refuses all the same (measured: the
+    /// backstop's `CurvedWithinReach` on the wall and the cap against the
+    /// box's faces; with the patch, Door 2's `NonPlanarTrim` as well).
+    #[test]
+    fn a_shelf_edge_tangent_to_the_rim_in_plane_never_validates_clean() {
+        let (body, cap, under) = post_and_box((0.0, 0.9), (APEX.1, 0.75), (0.5, 0.54));
+        for records in [ContactRecords::default(), patch(cap, under)] {
+            validate(&body, &records);
+        }
+    }
+
+    /// The tangent case beside the post rather than on it: a block whose
+    /// `y = 0.45` face is tangent to the wall along the ruling through
+    /// the apex and whose top is flush with the cap, so its top edge
+    /// touches the rim at the apex from outside. Measured: the backstop
+    /// refuses the wall and the two arc-bounded planar faces against the
+    /// block's faces.
+    #[test]
+    fn a_flush_block_tangent_to_the_wall_never_validates_clean() {
+        let (body, _, _) = post_and_box((0.0, 0.6), (APEX.1, 0.7), (0.0, 0.5));
+        validate(&body, &ContactRecords::default());
+    }
+
+    /// The transverse case: a wedge whose edge runs along `(0, 1, -1)`
+    /// through the apex touches the post there and nowhere else (above
+    /// the cap on one side of the apex, outside the wall on the other).
+    /// Pass 4 reads the touch as `OnEdge` of the cap and reports nothing,
+    /// pass 5 never sees the arc, and the cross-solid backstop refuses;
+    /// pass 5′ reads the touch itself, the rim's and the wedge edge's
+    /// interiors meeting with no record.
+    #[test]
+    fn a_wedge_edge_touching_the_rim_transversally_never_validates_clean() {
+        let (mut body, cap) = post();
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let (x0, y0, z0) = APEX;
+        let mut wedge = Body::<f64>::new();
+        // local (a, b, c) → apex + a·x̂ + b·(0, s, s) + c·(0, -s, s):
+        // a rotation, so the profile's winding carries over. The wedge's
+        // material is on b ≥ 0, its edge the line a = b = 0.
+        prism_ops(
+            &mut wedge,
+            &[(0.0, 0.0), (0.1, 0.1), (-0.1, 0.1)],
+            (-0.15, 0.15),
+            move |a, b, c| Point3::new(x0 + a, y0 + s * (b - c), z0 + s * (b + c)),
+            FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        describe_as_intersections(&mut wedge, Tol::witness());
+        crate::graft_disjoint_all_keyed(&mut body, &wedge).expect("a graft");
+        let errors = validate(&body, &ContactRecords::default());
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUndecidable { a, b, .. }
+                    if *a == crate::EntityId::Face(cap) || *b == crate::EntityId::Face(cap)
+            )),
+            "the backstop holds the cap against the wedge: {errors:?}"
+        );
+        let rim_touch = errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: crate::CensusContact::EdgeEdgeCross { side: None, .. },
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(rim_touch, 1, "pass 5′ reads the touch itself: {errors:?}");
+    }
+}
+
+/// **A curved walk's sign is read off its exact volume too.** A 1 mm
+/// half-disc 1 µm thick, 5 km from the world origin (exact volume
+/// `π·(1e-3)²·1e-6/2`): upright it passes check 7 and reads `Outer`,
+/// inside out it is refused `NegativeVolume` and reads `Void`, whether
+/// its carriers are anchored at the body or far along themselves. Taken
+/// about the world origin, the far-anchored disc's enclosure straddles
+/// zero, and the inside-out body passed.
+#[test]
+fn a_far_thin_curved_body_is_read_by_its_exact_volume() {
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the half-disc's 1 µm walls are below a band this wide",
+        );
+        return;
+    }
+    for far in [false, true] {
+        if far && tol.eps() < 1e-9 {
+            test_utils::vacuity::stood_down(
+                "a far-anchored half-disc below ε 1e-9",
+                "its edge curves do not certify on carriers anchored kilometres away",
+            );
+            continue;
+        }
+        far_thin_half_disc_reads(far, tol);
+    }
+}
+
+fn far_thin_half_disc_reads(far: bool, tol: Tol) {
+    use crate::ShellRole::{Outer, Void};
+    let d = 5e3;
+    let upright = half_disc(1e-3, 1e-6, (0.6 * d, 0.48 * d, 0.64 * d), far, tol);
+    let exact = std::f64::consts::PI * 1e-6 * 1e-6 / 2.0;
+    // The far-anchored disc's `f64` sum is the filed measurement
+    // (`work/nearpoint/a-planar-face-sums-its-area-about-a-far-carrier-origin`),
+    // not this row's subject; the sign is read off the certified walk.
+    if !far {
+        let read = crate::mass_properties(
+            &crate::test_support::finished("the measured body", upright.clone(), tol),
+            tol,
+            crate::test_support::pinned_resolution(tol),
+        )
+        .expect("the half-disc measures");
+        assert!(
+            (read.enclosure.volume - exact).abs() <= 1e-3 * exact,
+            "the oracle: {read:?} vs {exact:e}"
+        );
+    }
+    // Check 7 on the inside-out body first: an enclosure that lets it
+    // pass is the defect this row exists to see.
+    let inverted = upright.revert().unwrap();
+    let solid = inverted.solids().next().expect("one solid").0;
+    assert_eq!(
+        validate_geometric(&inverted, tol),
+        Err(vec![ValidationError::NegativeVolume { solid }]),
+        "far {far}, inside-out: check 7"
+    );
+    assert_eq!(
+        validate_geometric(&upright, tol),
+        Ok(()),
+        "far {far}, upright: check 7"
+    );
+    assert_eq!(
+        volume_role_of(&upright, tol),
+        Outer,
+        "far {far}, upright: the volume's role"
+    );
+    assert_eq!(
+        volume_role_of(&inverted, tol),
+        Void,
+        "far {far}, inside-out: the volume's role"
+    );
+}
+
+/// **Check 10 reads every shell's role.** A 1 m cube with a 1 mm × 1 mm
+/// slab filed under the same solid beside it, anchored 1 km away. With
+/// 100 nm walls upright the slab is a second piece of material
+/// (`SolidOuterShells`), inside out a void outside every outer
+/// (`ShellWinding`). With walls of `1.5·K·ε`, the thinnest an edge may
+/// be, its mean thickness `V/A` is inside the band, but its two faces
+/// are a definite pair and a ray aimed at one of them reads its role: a
+/// second piece again.
+#[test]
+fn check_10_reads_every_shell_s_role_or_refuses_the_solid() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let solid_with = |t: f64, inside_out: bool| {
+        let mut body = Body::<f64>::new();
+        cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+        let mut slab = far_anchored_slab(3.0, 1e-3, t, 1e3, tol);
+        if inside_out {
+            slab = slab.revert().unwrap();
+        }
+        crate::graft_disjoint_all_keyed(&mut body, &slab).expect("the slab grafts");
+        let [keeper, donor] = solids_of(&body)[..] else {
+            panic!("a cube and a slab are two solids");
+        };
+        refile_shells(&mut body, donor, keeper);
+        (body, keeper)
+    };
+    if tol.eps() <= 1e-9 {
+        let (body, solid) = solid_with(1e-7, false);
+        assert_eq!(
+            validate_geometric(&body, tol),
+            Err(vec![ValidationError::SolidOuterShells { solid, outer: 2 }]),
+            "an upright slab beside the cube is a second piece"
+        );
+        let (body, solid) = solid_with(1e-7, true);
+        let verdict = validate_geometric(&body, tol).unwrap_err();
+        assert!(
+            matches!(
+                verdict.as_slice(),
+                [ValidationError::ShellWinding { solid: s, winding: 0, bounded: -1, .. }]
+                    if *s == solid
+            ),
+            "an inside-out slab beside the cube is a void outside every outer: {verdict:?}"
+        );
+    } else {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the 100 nm slab is below a band this wide; the thin arm below still runs",
+        );
+    }
+    let (body, solid) = solid_with(1.5 * band.escalate(), false);
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::SolidOuterShells { solid, outer: 2 }]),
+        "a slab whose V/A is in band reads its role off its pair: a second piece"
+    );
+}
+
+/// **The census's cross-solid gate keeps an `Outer` its rounded sum
+/// calls a cavity**, end to end. The far-anchored slab, filed under one
+/// solid with a true cavity beside it, stands wholly inside a second
+/// solid's material. Read with no lane both its shells read `Void`, so
+/// the gate holds none of that solid's hulls and clears the pair unprobed
+/// (no finding at all). Read through the scalar's lane the slab is an
+/// `Outer`, its hull is inside the other's reach, and its vertices probe
+/// inside: interference.
+#[test]
+fn the_census_gate_finds_a_far_slab_nested_in_another_solid() {
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let mut body = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    let cavity = crate::test_support::brick::<f64>((5e-3, 6e-3), (0.0, 1e-3), (0.0, 1e-3), tol)
+        .revert()
+        .unwrap();
+    crate::graft_disjoint_all_keyed(&mut body, &cavity).expect("the graft");
+    body.merge_all_solids().expect("one solid");
+    let [slab] = solids_of(&body)[..] else {
+        panic!("the slab and its cavity are one solid");
+    };
+    let around =
+        crate::test_support::brick::<f64>((-1e-3, 2e-3), (-1e-3, 2e-3), (-1e-3, 1e-3), tol);
+    crate::graft_disjoint_all_keyed(&mut body, &around).expect("the graft");
+    let block = solids_of(&body)
+        .into_iter()
+        .find(|&s| s != slab)
+        .expect("the block is a solid of its own");
+    let errors = crate::census::census_and_certify(
+        &body,
+        &crate::boolean::ContactRecords::default(),
+        band,
+        tol,
+        None,
+    );
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::InstanceInterference { outer, inner, .. }
+                if *outer == block && *inner == slab
+        )),
+        "the slab stands inside the block's material: {errors:?}"
+    );
+}
+
+/// The cusp prism and a brick whose top face y = 0 is tangent to the
+/// outer wall along the cusp's line (x = 0, y = 0), the normals opposed.
+mod a_tangent_record_off_the_cusp {
+    use super::*;
+    use crate::boolean::{Cell, ContactRecords};
+
+    /// **A face–face record on two carriers needs the faces to meet.**
+    /// The brick stands 4 m above the prism along the tangent line, so
+    /// the record of the outer wall and the brick's top names two faces
+    /// whose extents along the line are disjoint: stale, and so is the
+    /// inner wall's, before any sense is read. Red when the table runs
+    /// over the union of the two extents.
+    #[test]
+    fn a_tangent_record_of_two_faces_four_metres_apart_is_stale() {
+        let tol = Tol::witness();
+        let mut p = cusp_prism(tol);
+        let block =
+            crate::test_support_fixtures::brick::<f64>((-0.5, 0.5), (-1.0, 0.0), (5.0, 6.0), tol);
+        let keys = crate::graft_disjoint_all_keyed(&mut p.body, &block).unwrap();
+        let top = block
+            .faces()
+            .find(|(_, f)| match block.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => {
+                    normal.y.abs() > 0.5 && origin.y.abs() < 1e-12
+                }
+                _ => false,
+            })
+            .and_then(|(k, _)| keys.face(k))
+            .unwrap();
+        let record = |wall| -> ContactRecords {
+            [crate::Cited::new(
+                crate::Contact::new(&p.body, Cell::Face(wall), Cell::Face(top)).unwrap(),
+                crate::Cites::decided(0),
+            )]
+            .into_iter()
+            .collect()
+        };
+        let gate = |r: &ContactRecords| crate::validate::validate_pseudomanifold(&p.body, r, tol);
+        assert_eq!(
+            gate(&ContactRecords::default()),
+            Ok(()),
+            "apart, unrecorded"
+        );
+        let outer = gate(&record(p.face_side[0])).expect_err("apart along the line");
+        assert!(
+            outer.iter().any(|e| matches!(
+                e,
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            )),
+            "{outer:?}"
+        );
+        let inner = gate(&record(p.face_side[2])).expect_err("apart along the line");
+        assert_eq!(inner.len(), 1, "{inner:?}");
+        assert!(
+            matches!(
+                inner[0],
+                ValidationError::StaleContactDeclaration {
+                    declaration: crate::validate::StaleDeclaration::Patch { .. }
+                }
+            ),
+            "{inner:?}"
+        );
+    }
+}
+
+/// **A lane-free read never takes the rounded sum's sign for the
+/// volume's** (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum.md`):
+/// the far-anchored slab's `f64` sum reads −1.2e-12 m³ for a +1e-13 m³
+/// body, and with no lane its volume is read as `[V − b, V + b]`, `b` the
+/// stated bound on the sum's rounding (`props::rounding_bound`). The slab
+/// lies within it either way out, so its shell's volume role is
+/// unresolved in this scalar, never `Void`; and the structural door,
+/// which reads the same walk, never refuses the upright slab
+/// `NegativeVolume`.
+#[test]
+fn a_lane_free_read_never_takes_the_rounded_sums_sign() {
+    let tol = Tol::witness();
+    if tol.eps() > 1e-9 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-9",
+            "the slab's 100 nm walls are below a band this wide, so it is not a body here",
+        );
+        return;
+    }
+    let band = geom_core::Band::linear(tol).expect("the witness band");
+    let upright = far_anchored_slab(0.0, 1e-3, 1e-7, 5e3, tol);
+    for (what, body) in [
+        ("upright", upright.clone()),
+        ("inside out", upright.revert().unwrap()),
+    ] {
+        let (shell, _) = body.shells.iter().next().expect("one shell");
+        assert_eq!(
+            crate::props::shell_volume_role(&body, shell, band, tol, None),
+            Err(crate::ShellClassifyError::SignUnresolved {
+                shell,
+                limit: crate::SignLimit::Scalar,
+            }),
+            "{what}: the lane-free volume role"
+        );
+    }
+    let solid = upright.solids().next().expect("one solid").0;
+    let read = crate::validate::validate_geometric_structural(&upright, tol);
+    assert!(
+        !matches!(&read, Err(e) if e.contains(&ValidationError::NegativeVolume { solid })),
+        "upright through the structural door: {read:?}"
+    );
+}

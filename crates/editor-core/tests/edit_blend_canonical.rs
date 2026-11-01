@@ -1,0 +1,568 @@
+//! **An edge selection's canonical form is one rule with two doors.**
+//!
+//! An `Edges` selection (`VarDef::Select`) is stored sorted and
+//! deduplicated, so two selections of the same edges are equal.
+//! `Node::fillet`/`Node::chamfer` are the construction doors that put
+//! it in that form; the variants are public, so a hand-built one can be
+//! handed to `DocEdit::InsertNode` and a corrupt file can be handed to
+//! `load`. Both doors ask the one predicate (`Select::fault`) and
+//! refuse alike, never repairing — a repair would move the content key
+//! behind the caller's back.
+//!
+//! Each door gets its own row, so dropping the predicate at either one
+//! is caught by that door's row rather than by its twin.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+use editor_core::AuthoredNode;
+
+use editor_core::{
+    CapEnd, DocEdit, EditError, EntityKind, Node, Operand, PersistError, ProfileDoc, RecipeNodeId,
+    RoleSeg, Select, SelectionFault, SnapshotError, StableName, VarKind, apply, load, save,
+};
+use geom_core::Tol;
+
+/// A square prism: an XY frame (0), a unit-square profile (1) and the
+/// extrude (2) whose edges the blends name.
+fn prism() -> (ProfileDoc, RecipeNodeId) {
+    let mut r = fixture::Recorder::new();
+    let profile = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.5)],
+    );
+    let solid = r.insert(Node::Extrude {
+        profile: profile.into(),
+        distance: fixture::len(1.0),
+    });
+    (r.doc, solid)
+}
+
+/// One END-cap rim edge-shaped name on `doc`'s prism, indexed
+/// `segment`: the piece in role `Piece(segment)` of the least step
+/// `doc` minted, which the square never draws. These rows are about the ORDER
+/// of a selection, which the doors check before anything resolves, so
+/// the names only have to be well formed, spell a minted step, and sort
+/// by `segment` — so `edge(n, 0) < edge(n, 2)`.
+fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
+    let step = doc
+        .mint()
+        .steps()
+        .next()
+        .expect("the prism minted its steps");
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::RimEdge(
+            CapEnd::End,
+            editor_core::ProfileEdgeRef::Piece {
+                step,
+                role: editor_core::PieceRole::Piece(segment),
+            }
+            .into(),
+        )],
+    }
+}
+
+/// A hand-built `Node::Fillet` over the prism's END-cap rims, by
+/// profile segment — the shape `Node::fillet` would have
+/// canonicalized, handed to a door raw.
+fn raw_fillet(doc: &ProfileDoc, solid: RecipeNodeId, segments: &[u32]) -> AuthoredNode {
+    Node::Fillet {
+        radius: fixture::len(0.0625),
+        selection: editor_core::Operand::select(
+            solid,
+            segments.iter().map(|s| edge(doc, solid, *s)).collect(),
+        ),
+    }
+}
+
+/// The saved text of a prism carrying one canonical fillet over the
+/// named segments, which reach the wire in that order.
+fn saved_fillet(segments: &[u32]) -> String {
+    let (doc, solid) = prism();
+    let doc = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::fillet(
+                solid,
+                fixture::len(0.0625),
+                segments.iter().map(|s| edge(&doc, solid, *s)).collect(),
+            )),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("a canonical fillet inserts")
+    .doc;
+    save(&doc, &[], Tol::witness()).expect("the fixture saves")
+}
+
+/// Rewrites the FIRST [`edge`] `from` at or after the `"Select"` key
+/// to [`edge`] `to`, leaving the rest of the document alone: the
+/// selection is the only list this suite corrupts, and the caller reads
+/// the refusal that comes back.
+fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
+    let sel = text
+        .find("\"Select\"")
+        .expect("the selection reaches the wire");
+    let needle = format!("\"Piece\": {from}");
+    let at = sel
+        + text[sel..]
+            .find(&needle)
+            .expect("the selection names the segment");
+    format!(
+        "{}\"Piece\": {to}{}",
+        &text[..at],
+        &text[at + needle.len()..]
+    )
+}
+
+/// **The insert door refuses an UNSORTED selection**, naming the
+/// position at which the order breaks. The variant is public, so this
+/// is a node the construction door would never have produced reaching
+/// the document's one authoring door.
+#[test]
+fn an_unsorted_selection_is_refused_at_the_insert_door() {
+    let (doc, solid) = prism();
+    let raw = raw_fillet(&doc, solid, &[2, 0]);
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at: 0 },
+            ..
+        }) => {}
+        other => panic!("an unsorted selection must refuse typed, got {other:?}"),
+    }
+    // Sorted, the same two names are accepted — so the refusal above is
+    // the order's and not the fixture's.
+    apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(raw_fillet(&doc, solid, &[0, 2])),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("a canonical selection inserts");
+}
+
+/// **The chamfer's twin**: the rule reads the selection, not the blend,
+/// so the other variant refuses at the same door with the same fault.
+#[test]
+fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
+    let (doc, solid) = prism();
+    let raw: AuthoredNode = Node::Chamfer {
+        distance: fixture::len(0.0625),
+        selection: editor_core::Operand::select(
+            solid,
+            vec![edge(&doc, solid, 2), edge(&doc, solid, 0)],
+        ),
+    };
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at: 0 },
+            ..
+        }) => {}
+        other => panic!("an unsorted chamfer selection must refuse typed, got {other:?}"),
+    }
+}
+
+/// **A REPEATED entry is refused at the insert door too**: "canonical"
+/// is one predicate — strictly increasing — and a repeat breaks it at
+/// the position where the two equal entries meet.
+#[test]
+fn a_repeated_selection_entry_is_refused_at_the_insert_door() {
+    let (doc, solid) = prism();
+    let raw = raw_fillet(&doc, solid, &[0, 0, 2]);
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(raw),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at: 0 },
+            ..
+        }) => {}
+        other => panic!("a repeated selection entry must refuse typed, got {other:?}"),
+    }
+}
+
+/// **The load door refuses the same document with the same fault**,
+/// through `SnapshotError::SelectionShape`.
+#[test]
+fn an_unsorted_selection_is_refused_at_the_load_door() {
+    let text = saved_fillet(&[0, 2]);
+    // The uncorrupted text loads, so the refusal below is the surgery's
+    // and not the fixture's.
+    load(&text, Tol::witness()).expect("the canonical fixture loads");
+    // `[seg 0, seg 2]` → `[seg 9, seg 2]`: still two distinct names, no
+    // longer sorted.
+    let corrupt = corrupt_selection(&text, 0, 9);
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at: 0 },
+            ..
+        })) => {}
+        other => panic!("an unsorted selection must refuse typed at load, got {other:?}"),
+    }
+}
+
+/// **A repeat is refused at the load door too** — the second half of
+/// "a duplicate is refused at both doors".
+#[test]
+fn a_repeated_selection_entry_is_refused_at_the_load_door() {
+    let text = saved_fillet(&[0, 2]);
+    // `[seg 0, seg 2]` → `[seg 0, seg 0]`.
+    let corrupt = corrupt_selection(&text, 2, 0);
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at: 0 },
+            ..
+        })) => {}
+        other => panic!("a repeated selection must refuse typed at load, got {other:?}"),
+    }
+}
+
+/// **The construction doors still canonicalize**: the refusals above
+/// are what a caller who bypassed these doors gets, not a new burden on
+/// the caller who uses them.
+#[test]
+fn the_construction_doors_canonicalize() {
+    let (doc, solid) = prism();
+    let unruly = vec![
+        edge(&doc, solid, 2),
+        edge(&doc, solid, 0),
+        edge(&doc, solid, 2),
+    ];
+    let canonical = vec![edge(&doc, solid, 0), edge(&doc, solid, 2)];
+
+    let blends: [AuthoredNode; 2] = [
+        Node::fillet(solid, fixture::len(0.0625), unruly.clone()),
+        Node::chamfer(solid, fixture::len(0.0625), unruly.clone()),
+    ];
+    for node in blends {
+        let (Node::Fillet { selection, .. } | Node::Chamfer { selection, .. }) = &node else {
+            panic!("the door builds a blend")
+        };
+        let Operand::Select { names, .. } = selection else {
+            panic!("the door authors a selection")
+        };
+        assert_eq!(names, &canonical, "sorted and deduplicated");
+        assert!(
+            Select::fault(VarKind::Edges, names).is_none(),
+            "and therefore canonical"
+        );
+    }
+}
+
+/// **An EMPTY selection is refused at the insert door**: a set of
+/// edges holds at least one name, which is read off the names as
+/// written, so it is the doors' fact and never evaluation's.
+#[test]
+fn an_empty_selection_is_refused_at_the_insert_door() {
+    let (doc, solid) = prism();
+    for empty in [
+        Node::Fillet {
+            radius: fixture::len(0.0625),
+            selection: editor_core::Operand::select(solid, Vec::new()),
+        },
+        Node::Chamfer {
+            distance: fixture::len(0.0625),
+            selection: editor_core::Operand::select(solid, Vec::new()),
+        },
+    ] {
+        match apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(empty),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        ) {
+            Err(
+                error @ EditError::SelectionShape {
+                    fault:
+                        SelectionFault::Count {
+                            kind: VarKind::Edges,
+                            count: 0,
+                        },
+                    ..
+                },
+            ) => {
+                // The sentence names the kind, and the recourse says what
+                // to name rather than an order to put the names in.
+                let said = error.to_string();
+                assert!(
+                    said.contains("a set of edges holds at least one name, not 0")
+                        && said.contains("name at least one edge of the body it reads")
+                        && !said.contains("stored order"),
+                    "the count refusal's sentence and recourse: {said}"
+                );
+            }
+            other => panic!("an empty selection must refuse typed, got {other:?}"),
+        }
+    }
+    // A shell's empty set is the sealed hollow: the bound is the kind's.
+    assert!(Select::fault(VarKind::Faces, &[]).is_none());
+}
+
+/// **A selection read by id is held to the same count**: an empty edge
+/// set minted with no door around it (`edit::selection_into`), then
+/// read by a fillet as a variable, refuses at the insert rather than
+/// reaching evaluation.
+#[test]
+fn an_empty_selection_read_by_id_is_refused_at_the_insert_door() {
+    let (mut doc, solid) = prism();
+    let body = doc.output(solid, 0).expect("the prism's body is read");
+    let empty =
+        editor_core::edit::selection_into(&mut doc, editor_core::OperandSlot::Selection, body, &[]);
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Fillet {
+                radius: fixture::len(0.0625),
+                selection: Operand::Var(empty),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionShape {
+            fault:
+                SelectionFault::Count {
+                    kind: VarKind::Edges,
+                    count: 0,
+                },
+            ..
+        }) => {}
+        other => panic!("an empty selection read by id must refuse typed, got {other:?}"),
+    }
+}
+
+/// **The load door refuses an empty selection with the same fault**.
+#[test]
+fn an_empty_selection_is_refused_at_the_load_door() {
+    let text = saved_fillet(&[0]);
+    load(&text, Tol::witness()).expect("the one-edge fixture loads");
+    let names = text
+        .find("\"Select\"")
+        .and_then(|sel| text[sel..].find("\"names\": [").map(|at| sel + at))
+        .expect("the selection's names reach the wire");
+    // The list's own `]`: the first bracket that closes more than it
+    // opened (no name's text holds a bracket).
+    let open = names + "\"names\": [".len();
+    let mut depth = 0i32;
+    let close = open
+        + text[open..]
+            .find(|c| {
+                depth += match c {
+                    '[' => 1,
+                    ']' => -1,
+                    _ => 0,
+                };
+                depth < 0
+            })
+            .expect("the names list closes");
+    let corrupt = format!("{}{}", &text[..open], &text[close..]);
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SelectionShape {
+            fault:
+                SelectionFault::Count {
+                    kind: VarKind::Edges,
+                    count: 0,
+                },
+            ..
+        })) => {}
+        other => panic!("an empty selection must refuse typed at load, got {other:?}"),
+    }
+}
+
+/// The refusal's PROSE **as each door actually renders it**, over a
+/// real node each door actually refuses, at a position that is not
+/// zero. A door that forwarded the wrong `at` — its own loop index, a
+/// hard-coded zero, the successor's position — reds here, which is
+/// what building the fault by hand could not catch.
+#[test]
+fn both_doors_forward_one_sentence() {
+    // `[0, 4, 2]`: the break is between names 1 and 2.
+    let expected = SelectionFault::NotCanonical { at: 1 }.to_string();
+    assert!(
+        expected.contains("names 1 and 2"),
+        "the sentence names the entry and its successor: {expected}"
+    );
+
+    let (doc, solid) = prism();
+    let at_edit = match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(e @ EditError::SelectionShape { .. }) => e.to_string(),
+        other => panic!("expected the edit door's refusal, got {other:?}"),
+    };
+    assert!(
+        at_edit.contains(&expected),
+        "the edit door forwards the fault's own sentence: {at_edit}"
+    );
+
+    // The same break, through the load door: `[0, 2, 4]` → `[0, 9, 4]`.
+    let text = saved_fillet(&[0, 2, 4]);
+    let at_load = match load(&corrupt_selection(&text, 2, 9), Tol::witness()) {
+        Err(e @ PersistError::Snapshot(SnapshotError::SelectionShape { .. })) => e.to_string(),
+        other => panic!("expected the load door's refusal, got {other:?}"),
+    };
+    assert!(
+        at_load.contains(&expected),
+        "the load door forwards the same sentence: {at_load}"
+    );
+}
+
+// ---------------------------------------------------------------
+// Adopted from the style review's probe lane (`review/blend-rv`):
+// every row above named `at: 0`, so the computed index was never
+// compared against a non-zero expectation and the mutant `at: 0`
+// survived the suite. These rows kill it.
+// ---------------------------------------------------------------
+
+/// `Select::fault` directly, at each position of a three-name selection,
+/// and with both faults present at once — the answer is the FIRST
+/// break, whichever kind it is.
+#[test]
+fn at_names_each_position() {
+    let (doc, solid) = prism();
+    let cases: &[(&str, Vec<u32>, Option<usize>)] = &[
+        ("canonical", vec![0, 2, 4], None),
+        ("swap at 0", vec![2, 0, 4], Some(0)),
+        ("swap at 1", vec![0, 4, 2], Some(1)),
+        ("repeat at 0", vec![0, 0, 4], Some(0)),
+        ("repeat at 1", vec![0, 2, 2], Some(1)),
+        // Both faults present, the repeat LATER than the swap.
+        ("swap at 0 + repeat at 2", vec![2, 0, 4, 4], Some(0)),
+        // Both faults present, the repeat EARLIER than the swap.
+        ("repeat at 0 + swap at 2", vec![0, 0, 4, 2], Some(0)),
+    ];
+    for (what, segs, want) in cases {
+        let names: Vec<StableName> = segs.iter().map(|s| edge(&doc, solid, *s)).collect();
+        let got = match Select::fault(VarKind::Edges, &names) {
+            Some(SelectionFault::NotCanonical { at }) => Some(at),
+            None => None,
+            other => panic!("{what}: unexpected fault {other:?}"),
+        };
+        assert_eq!(got, *want, "{what}");
+    }
+}
+
+/// The same non-zero position, reported by the INSERT door.
+#[test]
+fn the_insert_door_reports_a_non_zero_position() {
+    let (doc, solid) = prism();
+    match apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(raw_fillet(&doc, solid, &[0, 4, 2])),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
+        Err(EditError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at },
+            ..
+        }) => {
+            assert_eq!(at, 1, "the break is between entries 1 and 2");
+        }
+        other => panic!("expected a typed refusal, got {other:?}"),
+    }
+}
+
+/// The same non-zero position, reported by the LOAD door.
+#[test]
+fn the_load_door_reports_a_non_zero_position() {
+    let text = saved_fillet(&[0, 2, 4]);
+    load(&text, Tol::witness()).expect("the canonical fixture loads");
+    // `[0, 2, 4]` → `[0, 9, 4]`: the break moves to entry 1.
+    match load(&corrupt_selection(&text, 2, 9), Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::SelectionShape {
+            fault: SelectionFault::NotCanonical { at },
+            ..
+        })) => assert_eq!(at, 1, "the load door names the same entry"),
+        other => panic!("expected a typed refusal, got {other:?}"),
+    }
+}
+
+/// **`Rebind` re-establishes the form it repairs.** The rewrite goes
+/// through the same canonicalizer the construction doors use, so a
+/// rebind onto an already-selected edge shrinks the set by one and
+/// what it writes answers `Select::fault` with `None` — the repair
+/// cannot leave behind a shape a door would refuse.
+#[test]
+fn a_rebind_leaves_a_canonical_selection() {
+    let (doc, solid) = prism();
+    let (doc, fillet) = {
+        let applied = apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(Node::fillet(
+                    solid,
+                    fixture::len(0.0625),
+                    vec![
+                        edge(&doc, solid, 0),
+                        edge(&doc, solid, 2),
+                        edge(&doc, solid, 4),
+                    ],
+                )),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("a canonical three-edge fillet inserts");
+        let id = applied.record.minted.expect("the fillet is minted");
+        (applied.doc, id)
+    };
+    // Entry 2 onto entry 0's name: the set shrinks to two and re-sorts.
+    let doc = apply(
+        &doc,
+        &DocEdit::Rebind {
+            body: doc.output(solid, 0),
+            from: edge(&doc, solid, 4),
+            to: edge(&doc, solid, 0),
+        },
+        Tol::witness(),
+    )
+    .expect("the rebind applies")
+    .doc;
+    let Some(Node::Fillet { selection, .. }) = doc.node(fillet) else {
+        panic!("the fillet survives the rebind")
+    };
+    let names = &doc.selection(*selection).expect("a selection").names;
+    assert_eq!(
+        names,
+        &vec![edge(&doc, solid, 0), edge(&doc, solid, 2)],
+        "the repair re-establishes the canonical form, shrinking by one"
+    );
+    assert!(
+        Select::fault(VarKind::Edges, names).is_none(),
+        "so the repaired selection passes the predicate every door asks"
+    );
+}

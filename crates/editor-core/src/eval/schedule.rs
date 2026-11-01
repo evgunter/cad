@@ -1,0 +1,105 @@
+//! Deterministic scheduling of the recipe DAG (spec D2): the
+//! evaluation `order` is a pure function of the document — Kahn's
+//! algorithm with a min-heap of ready nodes, ties broken by id, which
+//! is the order the nodes were inserted in ([`Doc::ids`]).
+//! The parallel path (spec D6) additionally groups nodes into
+//! longest-path LEVELS: every node's inputs live in strictly earlier
+//! levels, so a level's nodes are pairwise independent and may run as
+//! one rayon idiom-1 indexed map. `order` is data, not schedule — the
+//! two paths produce the same `Evaluation`.
+
+use std::cmp::Reverse;
+use std::collections::{BTreeMap, BinaryHeap};
+
+use crate::doc::Doc;
+use crate::node::RecipeNodeId;
+
+/// The schedule: the D2 order, the D6 levels, and any unschedulable
+/// leftover (cycle members and their descendants — unreachable through
+/// `apply`, which only ever inserts back-references, but the evaluator
+/// refuses them TYPED rather than trusting the door).
+pub(crate) struct Schedule {
+    /// Topological order, ties to the lesser id: the node inserted first.
+    pub order: Vec<RecipeNodeId>,
+    /// Longest-path levels; concatenated they are ALSO a topological
+    /// order (level ascending, id order within a level).
+    pub levels: Vec<Vec<RecipeNodeId>>,
+    /// Nodes Kahn never released (in-cycle or downstream of one), in id
+    /// order.
+    pub unschedulable: Vec<RecipeNodeId>,
+}
+
+pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
+    // In-degree counts edges from inputs that EXIST in the doc; a
+    // dangling input (unreachable through `apply`) simply contributes
+    // no edge and the node fails later at operand lookup.
+    let mut indegree: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
+    let mut dependents: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
+    // A space is scheduled nowhere: the world's and a `new_space()`'s
+    // hold nothing, so no node reads a value of either, and an
+    // evaluation is of the nodes that build.
+    let upstream: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = doc
+        .nodes
+        .iter()
+        .filter(|&(_, node)| !node.is_space())
+        .map(|(&id, node)| (id, doc.upstream_of(id, node)))
+        .collect();
+    for (&id, inputs) in &upstream {
+        let live_inputs: Vec<RecipeNodeId> = inputs
+            .iter()
+            .copied()
+            .filter(|i| doc.node(*i).is_some())
+            .collect();
+        indegree.insert(id, live_inputs.len());
+        for input in live_inputs {
+            dependents.entry(input).or_default().push(id);
+        }
+    }
+
+    let mut ready: BinaryHeap<Reverse<RecipeNodeId>> = indegree
+        .iter()
+        .filter(|&(_, &d)| d == 0)
+        .map(|(&id, _)| Reverse(id))
+        .collect();
+    let mut order = Vec::with_capacity(indegree.len());
+    let mut level: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
+    while let Some(Reverse(id)) = ready.pop() {
+        order.push(id);
+        let lvl = upstream
+            .get(&id)
+            .into_iter()
+            .flatten()
+            .filter_map(|i| level.get(i).copied())
+            .max()
+            .map_or(0, |m| m + 1);
+        level.insert(id, lvl);
+        for &dep in dependents.get(&id).into_iter().flatten() {
+            if let Some(d) = indegree.get_mut(&dep) {
+                *d -= 1;
+                if *d == 0 {
+                    ready.push(Reverse(dep));
+                }
+            }
+        }
+    }
+
+    let unschedulable: Vec<RecipeNodeId> = indegree
+        .keys()
+        .filter(|id| !level.contains_key(id))
+        .copied()
+        .collect();
+
+    let mut levels: Vec<Vec<RecipeNodeId>> = Vec::new();
+    for (&id, &lvl) in &level {
+        if levels.len() <= lvl {
+            levels.resize_with(lvl + 1, Vec::new);
+        }
+        levels[lvl].push(id);
+    }
+
+    Schedule {
+        order,
+        levels,
+        unschedulable,
+    }
+}

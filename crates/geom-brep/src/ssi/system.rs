@@ -1,0 +1,826 @@
+//! The two **trace shapes** of M5 PR 7 (spec §2, C3), behind one
+//! interface: the underdetermined local system the Hoffmann stepper
+//! marches on.
+//!
+//! An arm's trace shape is a **compile-time decision** (C5: no runtime
+//! fallback), so this module offers exactly two concrete systems and no
+//! way to pick between them at runtime:
+//!
+//! | shape | state | equations | SVD | used by |
+//! |---|---|---|---|---|
+//! | [`ImplicitPairR3`] | `(x, y, z) ∈ ℝ³` | `f₁ = f₂ = 0` | 2×3 | analytic × analytic (cylinder×sphere) |
+//! | [`ParametricPairR4`] | `(u₁,v₁,u₂,v₂) ∈ ℝ⁴` | `G₁ − G₂ = 0` | 3×4 | anything with a NURBS operand (plane×NURBS) |
+//!
+//! # The ℝ⁴ trace and OQ4
+//!
+//! The ℝ⁴ trace is why the OQ4 checkpoint discharged the way it did:
+//! one traced object carries **all three** classical representations on
+//! **one parameter** — the 3-D curve through either chart, and both
+//! pcurves as coordinate projections `(u₁,v₁)` and `(u₂,v₂)`. That
+//! shared parameter is precisely the parameter-identity contract PR 6
+//! ratified for pcurve caches, so the projections go through the PR 6
+//! doors unchanged and the 3-D carrier stays the certified authority
+//! (carrier-primary).
+//!
+//! # Derivative data
+//!
+//! Both systems must supply the right-hand sides of Hoffmann Eq. 6.1 at
+//! orders 2 and 3. The ℝ³ system gets them from [`super::jet`]'s
+//! truncated Taylor evaluation of the implicit forms along the
+//! approximant; the ℝ⁴ system gets them from the charts' third-order
+//! jets ([`geom::SurfaceJet3`]) through the written-out chain
+//! rule. Neither ever forms a derivative tensor.
+//!
+//! `f64`-only and untrusted throughout — C6's selection lane.
+
+use geom::{NurbsSurface, Surface, SurfaceJet3};
+use geom_core::{Point3, Real, Vec3};
+
+use super::jet::implicit_path_jet;
+
+/// The underdetermined local system of a trace: `M` equations in `N`
+/// unknowns with `N = M + 1`.
+///
+/// Every method is **total**: poison in, poison out. A NaN anywhere
+/// propagates into the SVD (which poisons wholesale) and then into the
+/// step's transversality band, where it refuses.
+pub(crate) trait LocalSystem<const M: usize, const N: usize> {
+    /// `F(x)` — the residual vector, in meters.
+    fn residual(&self, x: &[f64; N]) -> [f64; M];
+
+    /// `∂F/∂x` — the `M × N` Jacobian, row-major.
+    fn jacobian(&self, x: &[f64; N]) -> [[f64; N]; M];
+
+    /// `b₂ = −D²F(d₁, d₁)` — the order-2 right-hand side.
+    fn rhs2(&self, x: &[f64; N], d1: &[f64; N]) -> [f64; M];
+
+    /// `b₃ = −(D³F(d₁,d₁,d₁) + 3·D²F(d₁,d₂))` — the order-3 right-hand
+    /// side (Hoffmann's `b_{f,3}`).
+    fn rhs3(&self, x: &[f64; N], d1: &[f64; N], d2: &[f64; N]) -> [f64; M];
+
+    /// The 3-D point a state denotes — the carrier's sample.
+    fn point(&self, x: &[f64; N]) -> Point3<f64>;
+
+    /// A per-coordinate scale for the state space, in meters per unit
+    /// of that coordinate. The closure and domain trileans need it to
+    /// state parameter-space distances **in meters** (D4 ¶1: no
+    /// dimensionless margins).
+    fn coordinate_scale(&self, x: &[f64; N]) -> [f64; N];
+
+    /// `‖d/ds P(x + s·d)‖` at `s = 0`, in meters per unit of the
+    /// state-space parameter — the **exact** speed of the traced point,
+    /// which converts a step in state units into a step in meters.
+    /// Separate from [`LocalSystem::coordinate_scale`] because the ℝ⁴
+    /// state carries two charts and only the carrier-primary one
+    /// generates the 3-D curve.
+    fn tangent_speed(&self, x: &[f64; N], d: &[f64; N]) -> f64;
+
+    /// The carrier's first three derivatives `[C′, C″, C‴]` along the
+    /// state curve `x + s·d₁ + s²/2·d₂ + s³/6·d₃` at `s = 0`, in metres
+    /// per power of the state parameter: the 3-D curve the march's step
+    /// rungs bound, read through the chart [`LocalSystem::point`] reads.
+    fn carrier_jet(
+        &self,
+        x: &[f64; N],
+        d1: &[f64; N],
+        d2: &[f64; N],
+        d3: &[f64; N],
+    ) -> [Vec3<f64>; 3];
+}
+
+// ---------------------------------------------------------------------
+// ℝ³: an implicit pair
+// ---------------------------------------------------------------------
+
+/// The ℝ³ implicit-pair trace: march the point itself on
+/// `f₁ = f₂ = 0` (Hoffmann §6.2, Eq. 6.1 at 2×3).
+pub(crate) struct ImplicitPairR3<'a> {
+    /// The first surface (its implicit form is equation 1).
+    pub a: &'a Surface<f64>,
+    /// The second surface.
+    pub b: &'a Surface<f64>,
+}
+
+impl LocalSystem<2, 3> for ImplicitPairR3<'_> {
+    fn residual(&self, x: &[f64; 3]) -> [f64; 2] {
+        let p = Point3::from_array(*x);
+        [
+            crate::implicit::implicit_residual(self.a, p),
+            crate::implicit::implicit_residual(self.b, p),
+        ]
+    }
+
+    fn jacobian(&self, x: &[f64; 3]) -> [[f64; 3]; 2] {
+        let p = Point3::from_array(*x);
+        let g1 = crate::implicit::implicit_gradient(self.a, p);
+        let g2 = crate::implicit::implicit_gradient(self.b, p);
+        [g1.to_array(), g2.to_array()]
+    }
+
+    fn rhs2(&self, x: &[f64; 3], d1: &[f64; 3]) -> [f64; 2] {
+        let p = Point3::from_array(*x);
+        let d = Vec3::from_array(*d1);
+        [
+            -implicit_path_jet(self.a, p, d, Vec3::zero()).d2(),
+            -implicit_path_jet(self.b, p, d, Vec3::zero()).d2(),
+        ]
+    }
+
+    fn rhs3(&self, x: &[f64; 3], d1: &[f64; 3], d2: &[f64; 3]) -> [f64; 2] {
+        let p = Point3::from_array(*x);
+        let (u, w) = (Vec3::from_array(*d1), Vec3::from_array(*d2));
+        [
+            -implicit_path_jet(self.a, p, u, w).d3(),
+            -implicit_path_jet(self.b, p, u, w).d3(),
+        ]
+    }
+
+    fn point(&self, x: &[f64; 3]) -> Point3<f64> {
+        Point3::from_array(*x)
+    }
+
+    fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
+        // The state already is meters.
+        [1.0, 1.0, 1.0]
+    }
+
+    fn tangent_speed(&self, _x: &[f64; 3], d: &[f64; 3]) -> f64 {
+        // The state IS the point: the speed is the tangent's length.
+        Vec3::from_array(*d).norm()
+    }
+
+    fn carrier_jet(
+        &self,
+        _x: &[f64; 3],
+        d1: &[f64; 3],
+        d2: &[f64; 3],
+        d3: &[f64; 3],
+    ) -> [Vec3<f64>; 3] {
+        [*d1, *d2, *d3].map(Vec3::from_array)
+    }
+}
+
+// ---------------------------------------------------------------------
+// ℝ⁴: a parametric pair
+// ---------------------------------------------------------------------
+
+/// A parametric chart with third-order derivative data — the ℝ⁴
+/// trace's operand.
+///
+/// Only the two charts the PR's implemented arms need exist here: an
+/// analytic plane (whose second and third partials vanish identically,
+/// so the cubic term costs nothing) and a NURBS surface. Adding a
+/// chart is adding an arm, per C12.1's per-arm retirement rule; there
+/// is deliberately no `Surface`-wide constructor that would silently
+/// admit a chart whose third-order data nobody has written.
+pub(crate) enum Chart<'a> {
+    /// `S(u, v) = origin + u·du + v·dv`, on the caller's window.
+    Plane {
+        /// `S(0, 0)`.
+        origin: Point3<f64>,
+        /// The (unit) `u` axis.
+        du: Vec3<f64>,
+        /// The (unit) `v` axis.
+        dv: Vec3<f64>,
+        /// The `u` window `[lo, hi]` — a plane is unbounded, so the
+        /// domain is the caller's named extent, never a guess.
+        u_range: (f64, f64),
+        /// The `v` window `[lo, hi]`.
+        v_range: (f64, f64),
+    },
+    /// A NURBS surface on its own knot domain.
+    Nurbs(&'a NurbsSurface<f64>),
+}
+
+impl Chart<'_> {
+    /// The plane chart of a [`Surface::Plane`] on a named window.
+    /// Returns `None` for any other kind — the caller (an arm) knows
+    /// its kinds at compile time and this is the assertion of that.
+    pub(crate) fn plane_of(
+        s: &Surface<f64>,
+        u_range: (f64, f64),
+        v_range: (f64, f64),
+    ) -> Option<Self> {
+        match *s {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => Some(Self::Plane {
+                origin,
+                du: u_ref,
+                dv: normal.cross(u_ref),
+                u_range,
+                v_range,
+            }),
+            _ => None,
+        }
+    }
+
+    /// The parameter domain rectangle `((u0, u1), (v0, v1))`.
+    pub(crate) fn domain(&self) -> ((f64, f64), (f64, f64)) {
+        match self {
+            Self::Plane {
+                u_range, v_range, ..
+            } => (*u_range, *v_range),
+            Self::Nurbs(n) => (
+                n.knots_u_f64_interim().domain(),
+                n.knots_v_f64_interim().domain(),
+            ),
+        }
+    }
+
+    /// `S(u, v)`.
+    pub(crate) fn eval(&self, u: f64, v: f64) -> Point3<f64> {
+        match self {
+            Self::Plane { origin, du, dv, .. } => *origin + *du * u + *dv * v,
+            Self::Nurbs(n) => n.eval(u, v),
+        }
+    }
+
+    /// The third-order jet at `(u, v)` — all partials with `k + l ≤ 3`.
+    pub(crate) fn jet3(&self, u: f64, v: f64) -> SurfaceJet3<f64> {
+        match self {
+            Self::Plane { origin, du, dv, .. } => SurfaceJet3 {
+                jet: geom::SurfaceJet {
+                    point: *origin + *du * u + *dv * v,
+                    du: *du,
+                    dv: *dv,
+                    duu: Vec3::zero(),
+                    duv: Vec3::zero(),
+                    dvv: Vec3::zero(),
+                },
+                duuu: Vec3::zero(),
+                duuv: Vec3::zero(),
+                duvv: Vec3::zero(),
+                dvvv: Vec3::zero(),
+            },
+            Self::Nurbs(n) => n.ders3(u, v),
+        }
+    }
+}
+
+/// `d²/ds² G(u + s·a, v + s·b)` — the pure second-order chain term
+/// (module docs: no tensor is formed).
+fn chart_d2(j: &SurfaceJet3<f64>, a: f64, b: f64) -> Vec3<f64> {
+    j.jet.duu * (a * a) + j.jet.duv * (2.0 * a * b) + j.jet.dvv * (b * b)
+}
+
+/// `d³/ds³ G(u + s·a + s²p/2, v + s·b + s²q/2)`, the whole of it —
+/// the cubic chain terms plus the three mixed second-order terms
+/// (derivation in the module docs of [`geom_core::linalg::svd`]; the
+/// factor 3 on the mixed block is the one every hand derivation drops).
+fn chart_d3(j: &SurfaceJet3<f64>, a: f64, b: f64, p: f64, q: f64) -> Vec3<f64> {
+    let cubic = j.duuu * (a * a * a)
+        + j.duuv * (3.0 * a * a * b)
+        + j.duvv * (3.0 * a * b * b)
+        + j.dvvv * (b * b * b);
+    let mixed =
+        j.jet.duu * (3.0 * a * p) + j.jet.duv * (3.0 * (a * q + b * p)) + j.jet.dvv * (3.0 * b * q);
+    cubic + mixed
+}
+
+/// The ℝ⁴ parametric×parametric trace (Hoffmann §6.3.2, 3×4): the
+/// state is `(u₁, v₁, u₂, v₂)` and the system is `G₁ − G₂ = 0`.
+pub(crate) struct ParametricPairR4<'a> {
+    /// The first chart — the **carrier-primary** one: `point()` reads
+    /// the 3-D curve off this chart, and `(u₁, v₁)` is its pcurve.
+    pub a: Chart<'a>,
+    /// The second chart; `(u₂, v₂)` is its pcurve.
+    pub b: Chart<'a>,
+}
+
+impl LocalSystem<3, 4> for ParametricPairR4<'_> {
+    fn residual(&self, x: &[f64; 4]) -> [f64; 3] {
+        let pa = self.a.eval(x[0], x[1]);
+        let pb = self.b.eval(x[2], x[3]);
+        let d = pa - pb;
+        d.to_array()
+    }
+
+    fn jacobian(&self, x: &[f64; 4]) -> [[f64; 4]; 3] {
+        let ja = self.a.jet3(x[0], x[1]);
+        let jb = self.b.jet3(x[2], x[3]);
+        let (au, av) = (ja.jet.du, ja.jet.dv);
+        let (bu, bv) = (jb.jet.du, jb.jet.dv);
+        [
+            [au.x, av.x, -bu.x, -bv.x],
+            [au.y, av.y, -bu.y, -bv.y],
+            [au.z, av.z, -bu.z, -bv.z],
+        ]
+    }
+
+    fn rhs2(&self, x: &[f64; 4], d1: &[f64; 4]) -> [f64; 3] {
+        let ja = self.a.jet3(x[0], x[1]);
+        let jb = self.b.jet3(x[2], x[3]);
+        let s = chart_d2(&ja, d1[0], d1[1]) - chart_d2(&jb, d1[2], d1[3]);
+        (-s).to_array()
+    }
+
+    fn rhs3(&self, x: &[f64; 4], d1: &[f64; 4], d2: &[f64; 4]) -> [f64; 3] {
+        let ja = self.a.jet3(x[0], x[1]);
+        let jb = self.b.jet3(x[2], x[3]);
+        let s =
+            chart_d3(&ja, d1[0], d1[1], d2[0], d2[1]) - chart_d3(&jb, d1[2], d1[3], d2[2], d2[3]);
+        (-s).to_array()
+    }
+
+    fn point(&self, x: &[f64; 4]) -> Point3<f64> {
+        // Carrier-primary: chart A is the authority for the 3-D curve;
+        // the residual limb checks chart B independently.
+        self.a.eval(x[0], x[1])
+    }
+
+    fn coordinate_scale(&self, x: &[f64; 4]) -> [f64; 4] {
+        // Meters per unit parameter: the chart speeds. A collapsed
+        // speed yields a zero scale, which makes the margin that uses
+        // it collapse and the predicate refuse — the honest behavior at
+        // a chart singularity.
+        let ja = self.a.jet3(x[0], x[1]);
+        let jb = self.b.jet3(x[2], x[3]);
+        [
+            ja.jet.du.norm(),
+            ja.jet.dv.norm(),
+            jb.jet.du.norm(),
+            jb.jet.dv.norm(),
+        ]
+    }
+
+    fn tangent_speed(&self, x: &[f64; 4], d: &[f64; 4]) -> f64 {
+        // Carrier-primary: the 3-D curve is chart A's image, so its
+        // velocity is the one that converts state steps to meters.
+        let ja = self.a.jet3(x[0], x[1]);
+        (ja.jet.du * d[0] + ja.jet.dv * d[1]).norm()
+    }
+
+    fn carrier_jet(
+        &self,
+        x: &[f64; 4],
+        d1: &[f64; 4],
+        d2: &[f64; 4],
+        d3: &[f64; 4],
+    ) -> [Vec3<f64>; 3] {
+        // Carrier-primary, as `tangent_speed`: only chart A's coordinates
+        // move the 3-D point, so chart B's bending never reaches it.
+        let ja = self.a.jet3(x[0], x[1]);
+        let along = |d: &[f64; 4]| ja.jet.du * d[0] + ja.jet.dv * d[1];
+        [
+            along(d1),
+            along(d2) + chart_d2(&ja, d1[0], d1[1]),
+            along(d3) + chart_d3(&ja, d1[0], d1[1], d2[0], d2[1]),
+        ]
+    }
+}
+
+impl super::march::TransversalityData<3> for ImplicitPairR3<'_> {
+    fn normals(&self, x: &[f64; 3]) -> super::march::NormalPair {
+        let p = Point3::from_array(*x);
+        (
+            crate::implicit::implicit_gradient(self.a, p),
+            crate::implicit::implicit_gradient(self.b, p),
+        )
+    }
+
+    fn max_curvature(&self, x: &[f64; 3]) -> f64 {
+        let p = Point3::from_array(*x);
+        Real::max(
+            crate::implicit::implicit_max_normal_curvature(self.a, p),
+            crate::implicit::implicit_max_normal_curvature(self.b, p),
+        )
+    }
+}
+
+impl super::march::TransversalityData<4> for ParametricPairR4<'_> {
+    fn normals(&self, x: &[f64; 4]) -> super::march::NormalPair {
+        let ja = self.a.jet3(x[0], x[1]);
+        let jb = self.b.jet3(x[2], x[3]);
+        (ja.jet.du.cross(ja.jet.dv), jb.jet.du.cross(jb.jet.dv))
+    }
+
+    fn max_curvature(&self, x: &[f64; 4]) -> f64 {
+        let [a, b] = [self.a.jet3(x[0], x[1]), self.b.jet3(x[2], x[3])]
+            .map(|j| crate::shape_operator::max_principal_curvature(&j.jet));
+        Real::max(a, b)
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop
+)]
+mod tests {
+    use super::*;
+    use geom_core::spline::KnotVector;
+
+    fn sphere() -> Surface<f64> {
+        Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cylinder() -> Surface<f64> {
+        Surface::Cylinder {
+            origin: Point3::new(0.4, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn bilinear() -> NurbsSurface<f64> {
+        bilinear_weighted(1.0)
+    }
+
+    fn bilinear_weighted(w: f64) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        for iu in 0..3 {
+            for iv in 0..2 {
+                let x = iu as f64 * 0.5;
+                control.push(Point3::new(x, iv as f64, 0.4 * x * (1.0 - x)));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![w; 6]).unwrap()
+    }
+
+    /// The Jacobian rows must be the implicit gradients — the system is
+    /// the same object the certificate later encloses.
+    #[test]
+    fn r3_jacobian_is_the_gradient_pair() {
+        let (a, b) = (sphere(), cylinder());
+        let sys = ImplicitPairR3 { a: &a, b: &b };
+        let x = [0.8, 0.3, 0.2];
+        let j = sys.jacobian(&x);
+        let g = crate::implicit::implicit_gradient(&a, Point3::from_array(x));
+        assert_eq!(j[0][0].to_bits(), g.x.to_bits());
+        assert_eq!(j[0][2].to_bits(), g.z.to_bits());
+    }
+
+    /// **The ℝ³ curvature is poison when either operand's is**: a NURBS
+    /// operand has no implicit form, and the fold must hand that to the
+    /// march's arm guard rather than the sphere's curvature.
+    #[test]
+    fn r3_curvature_with_a_nurbs_operand_is_poison() {
+        use super::super::march::TransversalityData;
+        let (s, n) = (sphere(), Surface::nurbs_placeholder());
+        let x = [0.8, 0.3, 0.2];
+        for (a, b) in [(&s, &n), (&n, &s)] {
+            let kappa = ImplicitPairR3 { a, b }.max_curvature(&x);
+            assert!(
+                kappa.is_nan(),
+                "a NURBS operand folded to {kappa:e}, not poison"
+            );
+        }
+    }
+
+    /// **The ℝ³ curvature is the surfaces' largest principal curvature**,
+    /// not a kind's own length scale: on the fat torus `R` 1, `r` 0.8 the
+    /// inner equator bends at `1/(R − r)` = 5, harder than the tube's
+    /// `1/r`, which is what [`crate::curvature_lever_arm`] reads there; on
+    /// a cone of half-angle `α` it is `cos α / w` at distance `w` from the
+    /// axis; on a sphere it is the reciprocal radius. The pair takes the
+    /// larger.
+    #[test]
+    fn r3_curvature_is_the_largest_principal_curvature() {
+        use super::super::march::TransversalityData;
+        let torus = Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major_radius: 1.0,
+            minor_radius: 0.8,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let alpha = std::f64::consts::FRAC_PI_6;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let inner = [0.2, 0.0, 0.0];
+        assert_eq!(
+            crate::curvature_lever_arm(&torus, Point3::from_array(inner)),
+            0.8,
+            "FIXTURE: the kind's length scale is the tube radius"
+        );
+        let w = alpha.tan();
+        let flank = [w, 0.0, 1.0];
+        for (what, a, x, truth) in [
+            ("the torus's inner equator", &torus, inner, 5.0),
+            ("the cone", &cone, flank, alpha.cos() / w),
+            ("the sphere", &sphere(), [0.6, 0.0, 0.8], 1.0),
+        ] {
+            for sys in [
+                ImplicitPairR3 { a, b: &plane },
+                ImplicitPairR3 { a: &plane, b: a },
+            ] {
+                let kappa = sys.max_curvature(&x);
+                assert!(
+                    (kappa / truth - 1.0).abs() <= 1e-9,
+                    "{what}: κ {kappa:e}, truth {truth:e}"
+                );
+            }
+        }
+    }
+
+    /// **The ℝ⁴ curvature is poison when either chart's jet is**. The
+    /// healthy bilinear chart is the cylinder `z = 0.2x(1 − x)`, whose
+    /// principal curvature at `x = ½` is 0.4. A chart whose weights
+    /// underflow to `0/0` at the midpoint has a poisoned jet, and the
+    /// fold is poison rather than its sibling's 0.4.
+    #[test]
+    fn r4_curvature_is_poison_when_a_chart_jet_is() {
+        use super::super::march::TransversalityData;
+        let healthy = bilinear();
+        let poisoned = bilinear_weighted(f64::from_bits(1));
+        let x = [0.5, 0.5, 0.5, 0.5];
+        let both = ParametricPairR4 {
+            a: Chart::Nurbs(&healthy),
+            b: Chart::Nurbs(&healthy),
+        };
+        let kappa = both.max_curvature(&x);
+        assert!(
+            (kappa - 0.4).abs() <= 1e-12,
+            "the healthy chart's curvature: {kappa:e}"
+        );
+        assert!(
+            Chart::Nurbs(&poisoned)
+                .jet3(0.5, 0.5)
+                .jet
+                .duu
+                .norm()
+                .is_nan(),
+            "FIXTURE: an underflowing weight poisons the second derivative"
+        );
+        for sys in [
+            ParametricPairR4 {
+                a: Chart::Nurbs(&poisoned),
+                b: Chart::Nurbs(&healthy),
+            },
+            ParametricPairR4 {
+                a: Chart::Nurbs(&healthy),
+                b: Chart::Nurbs(&poisoned),
+            },
+        ] {
+            let kappa = sys.max_curvature(&x);
+            assert!(
+                kappa.is_nan(),
+                "a poisoned chart folded to {kappa:e}, not poison"
+            );
+        }
+    }
+
+    /// A biquadratic patch from its 3×3 control net (row-major in `u`)
+    /// and per-`u`-row weights.
+    fn biquadratic(control: [[Point3<f64>; 3]; 3], w: [f64; 3]) -> NurbsSurface<f64> {
+        let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let weights = w.iter().flat_map(|&wi| [wi; 3]).collect();
+        NurbsSurface::new(k.clone(), k, control.concat(), weights).unwrap()
+    }
+
+    /// The parameter lines' own radius, speed² over acceleration: what a
+    /// chart reads, folded min-wins over both lines.
+    fn parameter_line_radius(j: &geom::SurfaceJet<f64>) -> f64 {
+        let along = |d: Vec3<f64>, dd: Vec3<f64>| d.dot(d) / dd.norm();
+        along(j.du, j.duu).min(along(j.dv, j.dvv))
+    }
+
+    /// **The ℝ⁴ curvature is the surfaces', whatever the chart.** A flat
+    /// wall whose parameter lines bunch and shear reads 0, and a cylinder
+    /// of radius `r` reads `1/r` under two charts of it, the rational quarter circle and
+    /// the same arc with its weights rescaled by powers of 3 (a Möbius
+    /// reparameterisation), each run unevenly along the axis. Every
+    /// chart here has parameter lines whose own radius is not the
+    /// surface's, so a chart's reading would fail the row.
+    #[test]
+    fn r4_curvature_is_the_surfaces_whatever_the_chart() {
+        use super::super::march::TransversalityData;
+        let p = Point3::new;
+        let flat = biquadratic(
+            [
+                [p(0.0, 0.0, 0.0), p(0.05, 0.4, 0.0), p(0.0, 1.0, 0.0)],
+                [p(0.1, 0.0, 0.0), p(0.5, 0.3, 0.0), p(0.2, 0.9, 0.0)],
+                [p(1.0, 0.1, 0.0), p(1.1, 0.6, 0.0), p(0.9, 1.0, 0.0)],
+            ],
+            [1.0; 3],
+        );
+        let r = 0.3;
+        let arc = |z: f64| [p(r, 0.0, z), p(r, r, z), p(0.0, r, z)];
+        let rows = |z: [f64; 3]| {
+            let [a, b, c] = z.map(arc);
+            [0, 1, 2].map(|i| [a[i], b[i], c[i]])
+        };
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let uneven = [0.0, 0.05, 1.0];
+        let cylinders = [
+            biquadratic(rows(uneven), [1.0, h, 1.0]),
+            biquadratic(rows(uneven), [1.0, 3.0 * h, 9.0]),
+        ];
+        let at = [0.13, 0.5, 0.81];
+        let mut chart_reads_r = [true; 2];
+        for u in at {
+            for v in at {
+                let x = [u, v, u, v];
+                let jet = Chart::Nurbs(&flat).jet3(u, v).jet;
+                assert!(
+                    parameter_line_radius(&jet) < 1e3,
+                    "FIXTURE: the flat wall's parameter lines bend at ({u}, {v})"
+                );
+                let kappa = ParametricPairR4 {
+                    a: Chart::Nurbs(&flat),
+                    b: Chart::Nurbs(&flat),
+                }
+                .max_curvature(&x);
+                assert_eq!(kappa, 0.0, "the flat wall at ({u}, {v}): {kappa:e}");
+                for (k, cylinder) in cylinders.iter().enumerate() {
+                    let jet = Chart::Nurbs(cylinder).jet3(u, v).jet;
+                    chart_reads_r[k] &= (parameter_line_radius(&jet) - r).abs() <= 1e-2 * r;
+                    for sys in [
+                        ParametricPairR4 {
+                            a: Chart::Nurbs(cylinder),
+                            b: Chart::Nurbs(&flat),
+                        },
+                        ParametricPairR4 {
+                            a: Chart::Nurbs(&flat),
+                            b: Chart::Nurbs(cylinder),
+                        },
+                    ] {
+                        let kappa = sys.max_curvature(&x);
+                        assert!(
+                            (kappa * r - 1.0).abs() <= 1e-9,
+                            "cylinder chart {k} at ({u}, {v}): κ {kappa:e}, radius {r:e}"
+                        );
+                    }
+                }
+            }
+        }
+        assert_eq!(
+            chart_reads_r, [false; 2],
+            "FIXTURE: each cylinder chart's parameter lines miss the radius somewhere"
+        );
+    }
+
+    /// **The march's refusal names the length that levered it.** A
+    /// plane turned from a wall's tangent plane by `sin θ = ε/2` over the
+    /// arm the decision should read: on a cylinder of radius 1 mm the
+    /// arm is the radius and the refusal says so; on a flat wall it is
+    /// the extent of 1 m. Both margins are `ε/2`, inside the band.
+    #[test]
+    fn the_marchs_transversality_refusal_names_its_lever() {
+        use super::super::march::decide_transversality;
+        use crate::ssi::{PointLever, SsiError};
+        let p = Point3::new;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let rho = 1e-3;
+        let arc = |z: f64| [p(rho, 0.0, z), p(rho, rho, z), p(0.0, rho, z)];
+        let [a, b, c] = [0.0, 0.5, 1.0].map(arc);
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        let cylinder = biquadratic([0, 1, 2].map(|i| [a[i], b[i], c[i]]), [1.0, h, 1.0]);
+        let flat = biquadratic(
+            [0.0, 0.5, 1.0].map(|y| [p(0.0, y, 0.0), p(0.0, y, 0.5), p(0.0, y, 1.0)]),
+            [1.0; 3],
+        );
+        for (what, wall, arm, lever) in [
+            ("the cylinder", &cylinder, rho, PointLever::CurvatureRadius),
+            ("the flat wall", &flat, 1.0, PointLever::Extent),
+        ] {
+            let sin = band.zero() / (2.0 * arm);
+            let cos = (1.0 - sin * sin).sqrt();
+            let sys = ParametricPairR4 {
+                a: Chart::Plane {
+                    origin: p(0.0, 0.0, 0.0),
+                    du: Vec3::new(-sin, cos, 0.0),
+                    dv: Vec3::new(0.0, 0.0, 1.0),
+                    u_range: (-1.0, 1.0),
+                    v_range: (-1.0, 1.0),
+                },
+                b: Chart::Nurbs(wall),
+            };
+            match decide_transversality(&sys, &[0.0, 0.5, 0.0, 0.5], 0.0, 1.0, band) {
+                Err(SsiError::TransversalityBand {
+                    lever: got, arm: a, ..
+                }) => {
+                    assert_eq!(got, lever, "{what}: the lever, arm {a:e}");
+                    assert!((a / arm - 1.0).abs() <= 1e-9, "{what}: the arm {a:e}");
+                }
+                other => panic!("{what}: expected the band, got {other:?}"),
+            }
+        }
+    }
+
+    /// The order-2 and order-3 right-hand sides must be exactly the
+    /// non-`r⁽ᵐ⁾` part of `dᵐ/dsᵐ F(r̃(s))`, which is checkable by
+    /// differencing `F` along the very path the approximant describes.
+    #[test]
+    fn r3_taylor_rhs_reproduces_the_composite_derivatives() {
+        let (a, b) = (sphere(), cylinder());
+        let sys = ImplicitPairR3 { a: &a, b: &b };
+        let x = [0.75, 0.35, 0.2];
+        let d1 = [0.3, -0.6, 0.5];
+        let d2 = [0.1, 0.2, -0.15];
+        let h = 1.0e-3;
+        let f_at = |t: f64, k: usize| {
+            let q = [
+                x[0] + t * d1[0] + 0.5 * t * t * d2[0],
+                x[1] + t * d1[1] + 0.5 * t * t * d2[1],
+                x[2] + t * d1[2] + 0.5 * t * t * d2[2],
+            ];
+            sys.residual(&q)[k]
+        };
+        let b3 = sys.rhs3(&x, &d1, &d2);
+        for k in 0..2 {
+            // Third central difference, Richardson-extrapolated.
+            let d3a = (f_at(2.0 * h, k) - 2.0 * f_at(h, k) + 2.0 * f_at(-h, k) - f_at(-2.0 * h, k))
+                / (2.0 * h * h * h);
+            let d3b = (f_at(4.0 * h, k) - 2.0 * f_at(2.0 * h, k) + 2.0 * f_at(-2.0 * h, k)
+                - f_at(-4.0 * h, k))
+                / (16.0 * h * h * h);
+            let d3 = (4.0 * d3a - d3b) / 3.0;
+            assert!(
+                (b3[k] + d3).abs() < 1e-4,
+                "b3[{k}] = {} vs −h‴ = {}",
+                b3[k],
+                -d3
+            );
+        }
+    }
+
+    #[test]
+    fn r4_jacobian_columns_are_the_two_charts_partials() {
+        let n = bilinear();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.05),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sys = ParametricPairR4 {
+            a: Chart::plane_of(&plane, (-1.0, 1.0), (-1.0, 1.0)).unwrap(),
+            b: Chart::Nurbs(&n),
+        };
+        let x = [0.3, 0.4, 0.5, 0.5];
+        let j = sys.jacobian(&x);
+        // Plane's u axis is +x, v axis is normal×u_ref = +y.
+        assert!((j[0][0] - 1.0).abs() < 1e-15);
+        assert!((j[1][1] - 1.0).abs() < 1e-15);
+        let nb = n.ders(0.5, 0.5);
+        assert!((j[0][2] + nb.du.x).abs() < 1e-15);
+        assert!((j[2][3] + nb.dv.z).abs() < 1e-15);
+    }
+
+    #[test]
+    fn r4_taylor_rhs_reproduces_the_composite_derivatives() {
+        let n = bilinear();
+        let plane = Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.05),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let sys = ParametricPairR4 {
+            a: Chart::plane_of(&plane, (-1.0, 1.0), (-1.0, 1.0)).unwrap(),
+            b: Chart::Nurbs(&n),
+        };
+        let x = [0.3, 0.4, 0.45, 0.55];
+        let d1 = [0.2, -0.3, 0.15, 0.25];
+        let d2 = [0.05, 0.1, -0.08, 0.02];
+        let h = 1.0e-3;
+        let f_at = |t: f64, k: usize| {
+            let mut q = [0.0f64; 4];
+            for i in 0..4 {
+                q[i] = x[i] + t * d1[i] + 0.5 * t * t * d2[i];
+            }
+            sys.residual(&q)[k]
+        };
+        let b3 = sys.rhs3(&x, &d1, &d2);
+        for k in 0..3 {
+            let d3a = (f_at(2.0 * h, k) - 2.0 * f_at(h, k) + 2.0 * f_at(-h, k) - f_at(-2.0 * h, k))
+                / (2.0 * h * h * h);
+            let d3b = (f_at(4.0 * h, k) - 2.0 * f_at(2.0 * h, k) + 2.0 * f_at(-2.0 * h, k)
+                - f_at(-4.0 * h, k))
+                / (16.0 * h * h * h);
+            let d3 = (4.0 * d3a - d3b) / 3.0;
+            assert!(
+                (b3[k] + d3).abs() < 1e-3,
+                "b3[{k}] = {} vs −h‴ = {}",
+                b3[k],
+                -d3
+            );
+        }
+    }
+
+    #[test]
+    fn a_non_plane_surface_has_no_plane_chart() {
+        assert!(Chart::plane_of(&sphere(), (0.0, 1.0), (0.0, 1.0)).is_none());
+    }
+}

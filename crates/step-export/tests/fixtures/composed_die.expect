@@ -1,0 +1,34 @@
+# The M6 composed die: the pipped cube (21 balls, one group cut)
+# filleted IN PLACE — twelve box-edge blends with every pip rim
+# carried through as a ring, then all 21 rims replaced by slit-seamed
+# torus bands. Four elementary surface kinds in one solid (plane,
+# cylinder, sphere, torus), every carrier a line or a circle, meeting
+# along TANGENT trimlines; the bands' slit meridians are Seam edges.
+#
+# Kernel counts are 89 faces / 174 edges / 108 vertices: each band's
+# two host trimlines meet at the host foot its slit does not reach,
+# and the blend's closing join makes them one edge (maximal edges). OCC keeps
+# the faces and vertices and splits periodic carriers at their seams
+# (the filleted_die/ball/donut accounting), so its edge count exceeds
+# the kernel's. The volume is the Pappus closed form
+# (Steiner blank − 21·(cap + rim-torus term)) — FreeCAD's own measure
+# reproduces it to sub-mm³ on a ~0.95 m³ body.
+#
+# KERNEL_* pin the NATIVE body's census and certified volume, full
+# precision (the literal is the export writer's round-tripping float
+# printer's output; crates/step-export/tests/kernel_sidecars.rs asserts
+# these lines against the live kernel). scripts/check_step.sh consumes
+# EXPECT_* (what FreeCAD/OCC reports after import) and ignores KERNEL_*.
+KERNEL_SOLIDS=1
+KERNEL_SHELLS=1
+KERNEL_FACES=89
+KERNEL_EDGES=174
+KERNEL_VERTICES=108
+KERNEL_VOLUME_MM3=952914984.0146481
+KERNEL_VOLUME_PAD_MM3=0.0
+EXPECT_SOLIDS=1
+EXPECT_SHELLS=1
+EXPECT_FACES=89
+EXPECT_EDGES=224
+EXPECT_VERTICES=108
+EXPECT_VOLUME_MM3=952914984

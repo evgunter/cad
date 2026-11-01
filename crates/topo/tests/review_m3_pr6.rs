@@ -1,0 +1,803 @@
+//! M3 PR 6a ADVERSARIAL REVIEW (PR #75) — falsification suite.
+//! Assignments R1–R5, R7 (R6 e2e lives in
+//! `crates/stl/tests/review_m3_pr6_e2e.rs`). Each test names the claim
+//! it attacks; comments record the verdict the run demonstrated.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use common::{brick, cube_into, finished, mapped_cube, prism, prism_z};
+use geom_core::Tol;
+use geom_core::{Decide, Point3, Vec3};
+use topo::{
+    Body, BooleanError, BooleanResult, ContactRecords, SplitPart, SplitPlane, ValidationError,
+    intersect, mass_properties, split, subtract, union, validate_pseudomanifold,
+};
+
+fn plane_y<T: Decide>(c: f64, ny: f64) -> SplitPlane<T> {
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(0.0), T::from_f64(c), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(0.0), T::from_f64(ny), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
+}
+
+fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+    part.body().expect("side has material")
+}
+
+// =================================================================
+// R1 — pinches, and the mirror identity split(S, n) ≡ swap(split(S, −n)).
+// =================================================================
+
+/// The PR-3 pinch profiles, verbatim (below-pinch under +n / above-
+/// pinch under +n respectively).
+const MIRRORED: &[(f64, f64)] = &[
+    (0.0, 0.0),
+    (3.0, 0.0),
+    (4.0, 1.0),
+    (5.0, 0.0),
+    (6.0, 1.0),
+    (7.0, 1.0),
+    (8.0, 0.0),
+    (8.0, 2.0),
+    (0.0, 2.0),
+];
+const NOTCHED: &[(f64, f64)] = &[
+    (0.0, 0.0),
+    (8.0, 0.0),
+    (8.0, 2.0),
+    (7.0, 1.0),
+    (6.0, 1.0),
+    (5.0, 2.0),
+    (4.0, 1.0),
+    (3.0, 2.0),
+    (0.0, 2.0),
+];
+
+/// A profile pinching on BOTH sides of y = 1: a bottom notch with apex
+/// (4,1) pinches the BELOW pieces (MIRRORED's class) and a top notch
+/// with apex (9,1) pinches the ABOVE pieces (NOTCHED's class). Its
+/// decomposition is 2 shells above pinched at (9,1) + 2 shells below
+/// pinched at (4,1), each side what the orientation table produces
+/// one-sided.
+const BOTH_SIDED: &[(f64, f64)] = &[
+    (0.0, 0.0),
+    (3.0, 0.0),
+    (4.0, 1.0),
+    (5.0, 0.0),
+    (12.0, 0.0),
+    (12.0, 2.0),
+    (10.0, 2.0),
+    (9.0, 1.0),
+    (8.0, 2.0),
+    (0.0, 2.0),
+];
+/// Single-sided controls carved out of BOTH_SIDED (same plane, same
+/// tips).
+const BUMP_ONLY: &[(f64, f64)] = &[
+    (0.0, 0.0),
+    (3.0, 0.0),
+    (4.0, 1.0),
+    (5.0, 0.0),
+    (12.0, 0.0),
+    (12.0, 2.0),
+    (0.0, 2.0),
+];
+const NOTCH_ONLY: &[(f64, f64)] = &[
+    (0.0, 0.0),
+    (12.0, 0.0),
+    (12.0, 2.0),
+    (10.0, 2.0),
+    (9.0, 1.0),
+    (8.0, 2.0),
+    (0.0, 2.0),
+];
+
+/// R1(a)+(c): the both-sided pinch class splits, as each single-sided
+/// half does under the same plane: tier 3 on both sides, two shells on
+/// each side of the both-sided profile, and the volume conserved. Each
+/// tip mints a copy for the side its pieces meet on, whichever side of
+/// the plane that is.
+fn both_sided_pinch_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+    for (profile, shells) in [
+        (BUMP_ONLY, [1, 2]),
+        (NOTCH_ONLY, [2, 1]),
+        (BOTH_SIDED, [2, 2]),
+    ] {
+        let fx = prism::<T>(profile, 1.0, Tol::witness());
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+        let v0 = mass_properties(
+            &topo::test_support::finished("the measured body", fx.body.clone(), Tol::witness()),
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness()),
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume;
+        let r = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness())
+            .unwrap_or_else(|e| panic!("{profile:?}: refused: {e:?}"));
+        for (side, want) in [(&r.above, shells[0]), (&r.below, shells[1])] {
+            let b = body_of(side);
+            assert_eq!(
+                topo::validate_geometric(b, Tol::witness()),
+                Ok(()),
+                "{profile:?}: tier 3"
+            );
+            assert_eq!(b.shells().count(), want, "{profile:?}: shells");
+        }
+        let (va, vb) = (
+            mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    (body_of(&r.above)).clone(),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+            mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    (body_of(&r.below)).clone(),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+        );
+        let d = (va + vb - v0).abs();
+        assert!(d.hi() <= 1e-9, "{profile:?}: volume conservation: {d:?}");
+    }
+}
+
+#[test]
+fn r1_both_sided_pinch_f64() {
+    both_sided_pinch_scenario::<f64>();
+}
+
+/// R1(b): structural comparison of the two paths of the identity —
+/// `split(S, +n)` vs swap(`split(S, −n)`) — on both pinch profiles
+/// (under each orientation one of them is pinched below the normal).
+/// Compares volumes, shell/face/edge/vertex counts per assigned side,
+/// and the section-face normal convention (above section m = −n,
+/// below m = +n) that the doc claims survives the swap.
+fn mirror_identity_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>() {
+    for profile in [MIRRORED, NOTCHED] {
+        let fx = prism::<T>(profile, 1.0, Tol::witness());
+        let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+        let rp = split(&operand, &plane_y::<T>(1.0, 1.0), Tol::witness()).unwrap();
+        let rn = split(&operand, &plane_y::<T>(1.0, -1.0), Tol::witness()).unwrap();
+        // swap(split(S,−n)): its BELOW is our ABOVE.
+        let pairs = [
+            (body_of(&rp.above), body_of(&rn.below), "above"),
+            (body_of(&rp.below), body_of(&rn.above), "below"),
+        ];
+        for (x, y, side) in pairs {
+            assert_eq!(
+                x.shells().count(),
+                y.shells().count(),
+                "{profile:?} {side} shells"
+            );
+            assert_eq!(
+                x.faces().count(),
+                y.faces().count(),
+                "{profile:?} {side} faces"
+            );
+            assert_eq!(
+                x.edges().count(),
+                y.edges().count(),
+                "{profile:?} {side} edges"
+            );
+            assert_eq!(
+                x.vertices().count(),
+                y.vertices().count(),
+                "{profile:?} {side} vertices"
+            );
+            let d = (mass_properties(
+                &topo::test_support::finished("the measured body", (x).clone(), Tol::witness()),
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume
+                - mass_properties(
+                    &topo::test_support::finished("the measured body", (y).clone(), Tol::witness()),
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap()
+                .met()
+                .expect("the pinned resolution is met")
+                .volume)
+                .abs();
+            assert!(d.hi() <= 1e-9, "{side}: volume mismatch {d:?}");
+        }
+        // Section-normal convention: outward normals point away from
+        // material, so every y=1 section face on y>1 material carries
+        // −y and on y<1 material +y — under BOTH plane orientations
+        // (doc: "above face m = −n, below face m = +n" per call).
+        // rp.above / rn.below are the y>1 material; rp.below /
+        // rn.above the y<1 material.
+        for (part, want_down) in [
+            (body_of(&rp.above), true),
+            (body_of(&rp.below), false),
+            (body_of(&rn.below), true),
+            (body_of(&rn.above), false),
+        ] {
+            let mut found = 0;
+            for (_, f) in part.faces() {
+                let Some(topo::Surface::Plane { origin, normal, .. }) = part.get_surface(f.surface)
+                else {
+                    continue;
+                };
+                let on_plane = (origin.y - T::from_f64(1.0)).abs().hi() < 1e-9;
+                if on_plane && normal.y.lo().abs().max(normal.y.hi().abs()) > 0.99 {
+                    found += 1;
+                    if want_down {
+                        assert!(
+                            normal.y.hi() < 0.0,
+                            "{profile:?} above-side normal {:?}",
+                            normal.y
+                        );
+                    } else {
+                        assert!(
+                            normal.y.lo() > 0.0,
+                            "{profile:?} below-side normal {:?}",
+                            normal.y
+                        );
+                    }
+                }
+            }
+            assert!(found > 0, "{profile:?}: no section face found on y=1");
+        }
+    }
+}
+
+#[test]
+fn r1_mirror_identity_structural_f64() {
+    mirror_identity_scenario::<f64>();
+}
+
+mod interval_r1 {
+    use super::*;
+
+    #[test]
+    fn r1_interval_lane() {
+        both_sided_pinch_scenario::<geom_core::Interval>();
+        mirror_identity_scenario::<geom_core::Interval>();
+    }
+}
+
+// =================================================================
+// R2 — census completeness: coincidence classes with a deliberately
+// vertex-free / minimal witness skeleton.
+// =================================================================
+
+/// The prompt's prime candidate miss: a coplanar face-face AREA
+/// overlap whose boundaries cross ONLY edge×edge (no vertex of either
+/// face touches the other entity anywhere) — a plus/cross of two
+/// slabs occupying the same z range. The census has no face-face
+/// sweep; the claim is the skeleton lanes catch it. Expect LOUD:
+/// EdgeEdgeCross (in-plane boundary crossings) and/or EdgeFaceOverlap.
+/// The two slabs' tops (and bottoms) lie on one plane facing the same
+/// way and share interior, so the instance arm decides the overlap as
+/// one `SameSideInterference`, and the edge×edge crossings answer to it.
+#[test]
+fn r2_coplanar_plus_overlap_detected() {
+    let mut body = mapped_cube(|x, y, z| Point3::new(3.0 * x, 1.0 + y, z), Tol::witness());
+    cube_into(
+        &mut body,
+        |x, y, z| Point3::new(1.0 + x, 3.0 * y, z),
+        Tol::witness(),
+    );
+    let errors =
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    // Beside the findings, the instance arm's one decided interference.
+    assert!(
+        matches!(
+            errors
+                .iter()
+                .filter(|e| !matches!(e, ValidationError::UnrecordedContact { .. }))
+                .collect::<Vec<_>>()[..],
+            [ValidationError::SameSideInterference { .. }]
+        ),
+        "{errors:?}"
+    );
+    // The in-plane crossings of the two tops (and bottoms) lie in the
+    // closure of that aligned pair's shared area, and are the pair's.
+    assert!(
+        !errors.iter().any(|e| matches!(
+            e,
+            ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::EdgeEdgeCross { .. },
+                ..
+            }
+        )),
+        "the crossings are the aligned pair's: {errors:?}"
+    );
+}
+
+/// Identical coincident faces (full flush overlap, all-vv skeleton):
+/// two unit cubes stacked flush at z = 1 as one two-shell body.
+/// (a) Undeclared: must be LOUD, and it is one face pair, the area
+/// contact. (b) With the four corner vv pairs fabricated as
+/// declarations (read off the structural twin, which confirms no pair
+/// and so reports the corners): 3′ does not certify a full face-on-face
+/// area contact from four vertex records, since the contact is the face
+/// pair, which no vertex record names.
+#[test]
+fn r2_flush_stack_full_overlap() {
+    let mut body = mapped_cube(Point3::new, Tol::witness());
+    cube_into(
+        &mut body,
+        |x, y, z| Point3::new(x, y, 1.0 + z),
+        Tol::witness(),
+    );
+    let face_pair = |errors: &[ValidationError]| {
+        matches!(
+            errors,
+            [ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { .. },
+                ..
+            }]
+        )
+    };
+    let errors =
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    assert!(face_pair(&errors), "{errors:?}");
+    let corners =
+        topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
+    let mut contacts = ContactRecords::default();
+    for e in &corners {
+        if let ValidationError::UnrecordedContact {
+            contact: topo::CensusContact::VertexVertex { a, b },
+            ..
+        } = e
+        {
+            contacts.extend([topo::Cited::new(
+                topo::Contact::new(&body, topo::Cell::Vertex(*a), topo::Cell::Vertex(*b)).unwrap(),
+                topo::Cites::decided(0),
+            )]);
+        }
+    }
+    assert_eq!(
+        contacts.vertex_vertex().count(),
+        4,
+        "expected the 4 corner kisses"
+    );
+    let verdict =
+        validate_pseudomanifold(&body, &contacts, Tol::witness()).expect_err("still loud");
+    assert!(face_pair(&verdict), "{verdict:?}");
+}
+
+/// Containment with vertices exactly ON the boundary: a diamond prism
+/// balanced on a cube's top face with its 4 base vertices resting on
+/// the top face's EDGE interiors (region containment, no interior
+/// vertex, no boundary crossing). LOUD: the diamond's base lies on the
+/// top over an area, one face pair; read where no pair is confirmed
+/// (the structural twin), the VertexOnEdge lane fires, since nothing
+/// here is declared.
+#[test]
+fn r2_inscribed_diamond_vertices_on_edges() {
+    let mut body = mapped_cube(
+        |x, y, z| Point3::new(2.0 * x, 2.0 * y, 2.0 * z),
+        Tol::witness(),
+    );
+    // Diamond prism z ∈ [2,3]: base corners (1,0,2),(2,1,2),(1,2,2),(0,1,2)
+    // — each on an edge interior of the cube's top face.
+    cube_into(
+        &mut body,
+        |x, y, z| Point3::new(1.0 + x - y, x + y, 2.0 + z),
+        Tol::witness(),
+    );
+    let certified =
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    assert!(
+        matches!(
+            certified[..],
+            [ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { .. },
+                ..
+            }]
+        ),
+        "{certified:?}"
+    );
+    let errors =
+        topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::VertexOnEdge { .. },
+                ..
+            }
+        )),
+        "expected VertexOnEdge findings: {errors:?}"
+    );
+}
+
+// =================================================================
+// R4 — the saddle frontier (D8): stress tilt families the 24-sweep
+// missed, with a volume-identity oracle
+// (vol(A∪B) = vol(A)+vol(B)−vol(A∩B); vol(A∖B) = vol(A)−vol(A∩B))
+// that detects WRONG-RESULT outcomes the internal gates cannot.
+// =================================================================
+
+fn l_prism() -> topo::AtRestBody<f64> {
+    let l = prism_z::<f64>(
+        &[
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (2.0, 2.0),
+            (2.0, 4.0),
+            (0.0, 4.0),
+        ],
+        0.0,
+        1.0,
+        Tol::witness(),
+    )
+    .body;
+    finished("the L-prism", l, Tol::witness())
+}
+
+/// Volume of a boolean outcome: `Some(v)` when it closed (Empty = 0),
+/// `None` on a typed refusal. Panics on `PairingMismatch` so that it is
+/// read (`m3_pr6_saddle`'s module docs): a bug at any number of
+/// crossings.
+fn vol_of(r: Result<BooleanResult<f64>, BooleanError>, ctx: &str) -> Option<f64> {
+    match r {
+        Ok(BooleanResult::Body(b)) => Some(
+            mass_properties(
+                &b.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+        ),
+        Ok(BooleanResult::Empty) => Some(0.0),
+        Err(BooleanError::PairingMismatch { .. }) => {
+            panic!("PairingMismatch at {ctx}: a bug at any number of crossings")
+        }
+        Err(_) => None,
+    }
+}
+
+/// Families the 24-tilt sweep missed: all three OPS (they swept union
+/// only), near-tangent tilts, and a rotation-only family (no shear).
+/// Every closing case must satisfy the inclusion-exclusion volume
+/// identities to 1e-9 — a wrong-but-gated body fails HERE even when
+/// tier 1–2 pass.
+#[test]
+fn r4_extended_sweep_volume_identities() {
+    let a = l_prism();
+    let va = mass_properties(
+        &a,
+        Tol::witness(),
+        topo::test_support::pinned_resolution(Tol::witness()),
+    )
+    .unwrap()
+    .met()
+    .expect("the pinned resolution is met")
+    .volume;
+    let mut closed = 0;
+    let mut refused = 0;
+    for zc in [0.5f64, 1.0] {
+        for family in 0..2u8 {
+            for k in 0..10 {
+                let t = if k < 5 {
+                    0.02 + 0.03 * f64::from(k) // near-tangent band
+                } else {
+                    0.3 + 0.22 * f64::from(k - 5)
+                };
+                let (c, s) = (t.cos(), t.sin());
+                let map = move |x: f64, y: f64, z: f64| {
+                    let (x1, y1) = (x * c - y * s, x * s + y * c);
+                    if family == 0 {
+                        // Their family (rot + tilt + shear).
+                        let (t2c, t2s) = ((t / 2.0).cos(), (t / 2.0).sin());
+                        let (y2, z2) = (y1 * t2c - z * t2s, y1 * t2s + z * t2c);
+                        Point3::new(
+                            2.0 + 0.7 * x1 + 0.3 * y2,
+                            2.0 + 0.6 * y2 - 0.2 * z2 + 0.3 * x1,
+                            zc + 0.8 * z2 - 0.3 * x1,
+                        )
+                    } else {
+                        // Rotation-only about z then x — corner AT the
+                        // reflex site, no shear (higher symmetry).
+                        let (txc, txs) = (t.cos(), t.sin());
+                        let (y2, z2) = (y1 * txc - z * txs, y1 * txs + z * txc);
+                        Point3::new(2.0 + x1, 2.0 + y2, zc + z2)
+                    }
+                };
+                let b = finished(
+                    "a tilted cube",
+                    mapped_cube(map, Tol::witness()),
+                    Tol::witness(),
+                );
+                let vb = mass_properties(
+                    &b,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .unwrap()
+                .met()
+                .expect("the pinned resolution is met")
+                .volume;
+                let ctx = format!("zc={zc} family={family} k={k}");
+                let vu = vol_of(union(&a, &b, Tol::witness()), &ctx);
+                let vi = vol_of(intersect(&a, &b, Tol::witness()), &ctx);
+                let vs = vol_of(subtract(&a, &b, Tol::witness()), &ctx);
+                if let (Some(vu), Some(vi)) = (vu, vi) {
+                    assert!(
+                        (vu - (va + vb - vi)).abs() <= 1e-9,
+                        "{ctx}: union identity broke: {vu} vs {va}+{vb}-{vi}"
+                    );
+                    closed += 1;
+                }
+                if let (Some(vs), Some(vi)) = (vs, vi) {
+                    assert!(
+                        (vs - (va - vi)).abs() <= 1e-9,
+                        "{ctx}: subtract identity broke: {vs} vs {va}-{vi}"
+                    );
+                }
+                if vu.is_none() || vi.is_none() || vs.is_none() {
+                    refused += 1;
+                }
+            }
+        }
+    }
+    // The sweep must EXERCISE both outcomes to mean anything.
+    eprintln!("R4 sweep: {closed} identity-checked, {refused} typed refusals");
+    assert!(closed > 0, "sweep never closed — fixtures miss the site");
+}
+
+// =================================================================
+// R5 — census predicates near/at the ε boundary, f64 AND Interval:
+// escalation must surface typed (CensusEscalated / UnrecordedContact),
+// never a silent pass, on fixtures built to straddle the band.
+// =================================================================
+
+/// A prism whose top notch apex hangs `delta` above the bottom edge:
+/// vertex-edge gap = delta, exercising the point-on-span reading's gap
+/// and end rows (and the vv lane at delta = 0 corners). For
+/// every delta at or inside ε the validator must REFUSE (finding or
+/// typed escalation) — a silent Ok is the R5 falsification.
+fn straddle_scenario<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(delta: f64) {
+    let fx = prism_z::<T>(
+        &[
+            (0.0, 0.0),
+            (4.0, 0.0),
+            (4.0, 2.0),
+            (3.0, 2.0),
+            (2.0, delta),
+            (1.0, 2.0),
+            (0.0, 2.0),
+        ],
+        0.0,
+        1.0,
+        Tol::witness(),
+    );
+    let verdict = validate_pseudomanifold(&fx.body, &ContactRecords::default(), Tol::witness());
+    let errors = verdict.expect_err("near-touch at/inside eps must be loud");
+    let (mut esc, mut und) = (0, 0);
+    for e in &errors {
+        match e {
+            ValidationError::CensusEscalated { .. } => esc += 1,
+            ValidationError::UnrecordedContact { .. } => und += 1,
+            _ => {}
+        }
+    }
+    eprintln!("R5 delta={delta}: {und} findings, {esc} escalations");
+    // A touch the band decides is read for sides too, and a side read in
+    // band refuses as loudly as an escalation.
+    for e in &errors {
+        assert!(
+            matches!(
+                e,
+                ValidationError::UnrecordedContact { .. }
+                    | ValidationError::CensusEscalated { .. }
+                    | ValidationError::BoundaryCrossesItselfUndecided {
+                        why: topo::TouchUnread::InBand | topo::TouchUnread::PieceInBand,
+                        ..
+                    }
+            ),
+            "unexpected error class: {e:?}"
+        );
+    }
+}
+
+/// f64 lane: deltas strictly inside the band (default ε = 1e-12 per
+/// the gate's tolerance rows) and exactly AT it.
+#[test]
+fn r5_straddle_f64() {
+    for delta in [0.0, 5e-13, 1e-12] {
+        straddle_scenario::<f64>(delta);
+    }
+}
+
+// =================================================================
+// R7 — contract surface: tamper distinction on the vf lane, and the
+// closure gap's loudness on rows the acceptance suite skipped
+// (reversed subtract, intersect vs second toucher).
+// =================================================================
+
+/// vf tamper: on the vertex-on-face kiss body, point the record at a
+/// WRONG face — must fire StaleContactDeclaration (dead/witness-free
+/// declaration) AND UnrecordedContact (the orphaned real rest): the
+/// two directions must stay distinguishable on the vf lane too (the
+/// acceptance suite only tampers vv).
+#[test]
+fn r7_vf_tamper_distinguishes_stale_vs_undeclared() {
+    let slab = finished(
+        "slab",
+        brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let tilted = mapped_cube(
+        |x, y, z| {
+            let (e1, e2, e3) = (
+                Vec3::new(0.9, 0.1, 0.3),
+                Vec3::new(-0.2, 0.8, 0.45),
+                Vec3::new(-0.3, -0.4, 0.85),
+            );
+            Point3::new(
+                2.0 + x * e1.x + y * e2.x + z * e3.x,
+                2.0 + x * e1.y + y * e2.y + z * e3.y,
+                1.0 + x * e1.z + y * e2.z + z * e3.z,
+            )
+        },
+        Tol::witness(),
+    );
+    let tilted = finished("the tilted cube", tilted, Tol::witness());
+    let BooleanResult::Body(r) = union(&slab, &tilted, Tol::witness()).unwrap() else {
+        panic!("kiss union is a body");
+    };
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()),
+        Ok(())
+    );
+    let rests: Vec<_> = r.contacts.vertex_face().collect();
+    assert_eq!(rests.len(), 1, "expected exactly one vf record");
+    let (vertex, right) = rests[0];
+    let wrong = r
+        .body
+        .faces()
+        .map(|(k, _)| k)
+        .find(|&k| {
+            k != right
+                && topo::Contact::new(&r.body, topo::Cell::Vertex(vertex), topo::Cell::Face(k))
+                    .is_ok()
+        })
+        .unwrap();
+    let tampered = topo::test_support::records(
+        &r.body,
+        [(topo::Cell::Vertex(vertex), topo::Cell::Face(wrong))],
+    );
+    let errors = validate_pseudomanifold(&r.body, &tampered, Tol::witness()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::StaleContactDeclaration { .. })),
+        "{errors:?}"
+    );
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
+        "{errors:?}"
+    );
+}
+
+/// Closure rows the suite skipped: REVERSED subtract (mover minus
+/// kiss assembly) and intersect against a second toucher at the same
+/// locus. Every outcome must be a certified result with the exact
+/// volume oracle or LOUD (typed refusal / UnrecordedContact-only
+/// gate) — never silent wrongness.
+#[test]
+fn r7_closure_reversed_rows_loud() {
+    let block =
+        |what, x, y, z| finished(what, brick::<f64>(x, y, z, Tol::witness()), Tol::witness());
+    let a = block("a", (0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    let b = block("b", (1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let BooleanResult::Body(base) = union(&a, &b, Tol::witness()).unwrap() else {
+        panic!("kiss base");
+    };
+    // Reversed subtract: mover ∖ assembly. Oracle: mover [1.5,2.5]^3
+    // minus its overlap with B-cube [1,2]^3 = 1 − 0.125 = 0.875.
+    let mover = block("mover", (1.5, 2.5), (1.5, 2.5), (1.5, 2.5));
+    match subtract(&mover, &base.body, Tol::witness()) {
+        Ok(BooleanResult::Body(r)) => {
+            assert_eq!(
+                mass_properties(
+                    &r.body,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness())
+                )
+                .unwrap()
+                .met()
+                .expect("the pinned resolution is met")
+                .volume,
+                0.875
+            );
+            match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
+                Ok(()) => {}
+                Err(errors) => {
+                    for e in &errors {
+                        assert!(
+                            matches!(e, ValidationError::UnrecordedContact { .. }),
+                            "gate must stay in the documented gap class: {e:?}"
+                        );
+                    }
+                }
+            }
+        }
+        Ok(BooleanResult::Empty) => panic!("reversed subtract cannot be empty"),
+        Err(e) => eprintln!("R7 reversed subtract refusal: {e:?}"),
+    }
+    // Intersect vs a second toucher kissing the same (1,1,1) locus.
+    let toucher = block("toucher", (0.0, 1.0), (1.0, 2.0), (1.0, 2.0));
+    match intersect(&base.body, &toucher, Tol::witness()) {
+        Ok(BooleanResult::Body(r)) => {
+            // The intersection of the assembly with the edge-tied
+            // toucher: B-cube ∩ toucher is the face-flush region of
+            // measure 0 → must not silently return junk; A ∩ toucher
+            // is the shared edge only. Any BODY here must certify or
+            // refuse loudly.
+            let v = mass_properties(
+                &r.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness()),
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume;
+            match validate_pseudomanifold(&r.body, &r.contacts, Tol::witness()) {
+                Ok(()) => eprintln!("R7 intersect second-toucher closed: vol {v}"),
+                Err(errors) => {
+                    for e in &errors {
+                        assert!(
+                            matches!(e, ValidationError::UnrecordedContact { .. }),
+                            "{e:?}"
+                        );
+                    }
+                }
+            }
+        }
+        Ok(BooleanResult::Empty) => eprintln!("R7 intersect second-toucher: Empty (measure-zero)"),
+        Err(e) => eprintln!("R7 intersect second-toucher refusal: {e:?}"),
+    }
+}
+
+mod interval_r5 {
+    use super::*;
+
+    /// Interval lane: the same deltas — the enclosure straddling the
+    /// band edge must surface as typed escalation or finding, never a
+    /// silent skip or a poison panic.
+    #[test]
+    fn r5_straddle_interval() {
+        for delta in [0.0, 5e-13, 1e-12] {
+            straddle_scenario::<geom_core::Interval>(delta);
+        }
+    }
+}

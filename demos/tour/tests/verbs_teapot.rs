@@ -1,0 +1,808 @@
+//! **What `shell` survives, tabulated** — the teapot scene's two
+//! findings, generalized past the teapot.
+//!
+//! `demos/tour/src/teapot.rs` pins both of them LIVE, on the teapot's
+//! own bodies: wall 1 is the bellied pot's hollow and wall 2 is the
+//! opened pot's mesh. A pin on one body says the door refused THAT
+//! body. This file is the other half — the claim the scene's prose
+//! makes about the CLASS, executed:
+//!
+//! 1. **the hollow refuses at OBLIQUE junctions, and curvature has
+//!    nothing to do with it.** A box and a right prism on an L hollow;
+//!    a right prism on a TRIANGLE does not. A cylinder between two
+//!    caps normal to its axis hollows; a cone between the same two
+//!    caps does not, and neither does a sphere zone, and neither do a
+//!    partial revolve's meridian caps — planes CONTAINING the axis
+//!    rather than normal to it, which is the same rule from the
+//!    direction the first cut of this table omitted. A CURVED
+//!    neighbour refuses at a SECOND door, and that door is about the
+//!    neighbour's offset not being a rigid translation rather than
+//!    about tangency: `lifted_dome` is a definitely-non-tangent
+//!    fixture that refuses at the identical site with the identical
+//!    `what` string, which the table now asserts.
+//!
+//!    **The door survived U2's description collapse, and moved ARMS**
+//!    (PCURVE P-1b). A conventional locus written as a 3-space
+//!    pushforward has to be carried bodily with the face it hangs off.
+//!    U2 restated such loci as chart IMAGES, in the chart's own
+//!    coordinates, which an offset re-parameterizes without moving —
+//!    so for an edge the kernel DERIVED (a seam, an iso boundary, a
+//!    cap rim) the door genuinely has nothing left to refuse. But U2
+//!    did not delete the pushforward: it moved it beside the image as
+//!    the AUTHORITY record, and a DECLARED locus still owes the
+//!    transport. So the same `what` is raised from the other arm, and
+//!    the table distinguishes them.
+//!
+//!    An intermediate state of that unit read `ReanchorOffCarrier`
+//!    here and published it as a moved verdict. That was reading a
+//!    bug — the offset lane was dropping the declaration, so nothing
+//!    was left to ask the question of — and the correction is recorded
+//!    at `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+//!    rather than quietly reverted.
+//! 2. **the opened rim is an annulus on every solid of revolution**,
+//!    as it always was on a box.
+//!    `the_opened_rim_is_an_annulus_on_every_revolve` sweeps five wall
+//!    thicknesses, mouth radii at two scales (41–47 mm and 1 m) and
+//!    three chord budgets, and every one comes back one rim face, one
+//!    ring, genus 0, meshing, at the closed-form volume;
+//!    `the_annular_mouth_opens_to_two_disjoint_rims` pins the other
+//!    shape of the same class — a revolved TUBE's mouth, ONE face on a
+//!    body with no axis apex, whose correct rim is TWO disjoint annuli
+//!    and therefore a face SPLIT.
+//!
+//!    The class was *a designated face whose cavity counterpart's
+//!    boundary cannot become an interior-disjoint RING of it*, and on
+//!    a revolved cap it could not because the cap arrives carrying the
+//!    REVOLVE's seam — an axis apex both half-discs own, or a radial
+//!    slit the annulus walks twice. That is a fact about the sweep and
+//!    not about the mouth, and `shell_open` now retires it through the
+//!    Euler doors before the glue. The invariant is also stated at
+//!    rest: tier 3's check 9 refuses a ring standing on its own face's
+//!    outer loop.
+//!
+//! **Two claims this file used to make and no longer does**, both
+//! retracted on measurement rather than on argument: that the tangent
+//! row's door could not be separated from tangency (`lifted_dome`
+//! separates it), and that the opened rim's discriminator was "one
+//! face versus two half-discs on a chart" (the revolved tube falsifies
+//! it). The fixtures that did it were contributed by the review of
+//! #1078 and are merged beside this file as
+//! `verbs_teapot_r1_probes.rs` and `verbs_teapot_r2_probes.rs`.
+//!
+//! The junction table (finding 1) is a PLANTED RED in the direction of
+//! the fix: each refusal is asserted by its exact variant and, at the
+//! second door, its exact `what`. A door that grows any of those cases
+//! fails here and sends the reader to the retire note beside the
+//! assertion. The rim rows (finding 2) are the opposite — they were
+//! planted red and have FLIPPED, so they now pin what the fixed
+//! surgery builds, closed forms included.
+//!
+//! # The sweeps, and what they could not match
+//!
+//! The fixtures are solids of revolution and right prisms, built
+//! through `revolve` and `extrude`. What that leaves untested, stated
+//! rather than implied: NURBS walls (the offset door's approximating
+//! lane, which no fixture here enters); junctions between two CURVED
+//! faces on one body; multi-designation openings; and operands whose
+//! charts are shared by adoption rather than by a revolve's seam.
+//! A tangent junction IS covered (`bullet`), and so is its
+//! non-tangent twin (`lifted_dome`), which is what turns that row from
+//! a two-variable observation into a one-variable one.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::census::{genus, rings};
+use demo_tour::booleans::at_rest;
+use demo_tour::torusvessel::plane_chart_at;
+use pncad::authoring::{p2, validated};
+use pncad::geom::Surface;
+use pncad::geom_core::{Point2, Tol, Vec2};
+use pncad::prelude::{Open, Start};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
+use pncad::sweep::ExtrudeSide;
+use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::topo::AtRestBody;
+use pncad::topo::Body;
+
+/// Every fixture's mouth plane.
+const TOP: f64 = 8.0 / 64.0;
+
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
+    revolve(
+        &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol,
+    )
+    .expect("the meridian fully revolves")
+    .body
+}
+
+fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
+    extrude(
+        &validated(SketchPlane::xy(), vec![lp], tol).expect("the footprint validates"),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the footprint extrudes")
+    .body
+}
+
+/// A cylinder of radius `r` between two caps normal to its axis.
+fn drum(r: f64, tol: Tol) -> Body<f64> {
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(r, 0.0), tol)
+            .expect("base")
+            .line_to(Point2::new(r, TOP), tol)
+            .expect("wall")
+            .line_to(Point2::new(0.0, TOP), tol)
+            .expect("mouth")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// A cone frustum between the same two caps: the junctions are the
+/// drum's, tilted.
+fn frustum(tol: Tol) -> Body<f64> {
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(4.0 / 64.0, 0.0), tol)
+            .expect("base")
+            .line_to(Point2::new(2.0 / 64.0, TOP), tol)
+            .expect("cone")
+            .line_to(Point2::new(0.0, TOP), tol)
+            .expect("mouth")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// A sphere zone between the same two caps.
+fn barrel(tol: Tol) -> Body<f64> {
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(3.0 / 64.0, 0.0), tol)
+            .expect("base")
+            .arc_to(
+                Center {
+                    c: Point2::new(0.0, 1.0 / 16.0),
+                    winding: ArcSweep::Ccw,
+                    p: Point2::new(3.0 / 64.0, TOP),
+                },
+                tol,
+            )
+            .expect("belly")
+            .line_to(Point2::new(0.0, TOP), tol)
+            .expect("mouth")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// The same barrel bulged about a centre OFF the axis: the wall is a
+/// TORUS rather than a sphere zone, and that is the whole difference.
+/// Its two junction stations and its 5/64 radius are the barrel's own;
+/// only the centre moved, from `(0, 1/16)` to the other point on the
+/// chord's perpendicular bisector.
+fn torus_barrel(tol: Tol) -> Body<f64> {
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(3.0 / 64.0, 0.0), tol)
+            .expect("base")
+            .arc_to(
+                Center {
+                    c: Point2::new(6.0 / 64.0, 1.0 / 16.0),
+                    winding: ArcSweep::Cw,
+                    p: Point2::new(3.0 / 64.0, TOP),
+                },
+                tol,
+            )
+            .expect("a belly about a centre off the axis is a torus")
+            .line_to(Point2::new(0.0, TOP), tol)
+            .expect("mouth")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// A cylinder capped by a dome that is definitely NOT tangent to it:
+/// the dome's centre is lifted `d` above the wall's top, so the
+/// meridian turns through a real angle there, and the arc is authored
+/// through the ordinary `Center` door rather than the tangent one.
+/// The discriminator for the second door (see the table's docs).
+fn lifted_dome(tol: Tol) -> Body<f64> {
+    let r: f64 = 3.0 / 64.0;
+    let d: f64 = 0.02;
+    let rr = (r * r + d * d).sqrt();
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(r, 0.0), tol)
+            .expect("base")
+            .line_to(Point2::new(r, TOP), tol)
+            .expect("wall")
+            .arc_to(
+                Center {
+                    c: Point2::new(0.0, TOP + d),
+                    winding: ArcSweep::Ccw,
+                    p: Point2::new(0.0, TOP + d + rr),
+                },
+                tol,
+            )
+            .expect("a dome whose centre is off the wall's top is not tangent to it")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// A QUARTER revolve of the drum's own meridian: a wedge. Its two
+/// meridian caps are planes CONTAINING the cylinder's axis, which is
+/// the direction the surviving class's "normal to the axis" excludes
+/// from the other side.
+fn wedge(tol: Tol) -> Body<f64> {
+    let r = 3.0 / 64.0;
+    let profile = validated(
+        SketchPlane::xy(),
+        vec![
+            Open.at(Point2::new(0.0, 0.0))
+                .line_to(Point2::new(r, 0.0), tol)
+                .expect("base")
+                .line_to(Point2::new(r, TOP), tol)
+                .expect("wall")
+                .line_to(Point2::new(0.0, TOP), tol)
+                .expect("top")
+                .line_to(Start, tol)
+                .expect("axis")
+                .into(),
+        ],
+        tol,
+    )
+    .expect("the meridian validates");
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol,
+    )
+    .expect("a quarter turn")
+    .body
+}
+
+/// A cylinder capped by a hemisphere of its own radius: the one
+/// junction on the body is TANGENT, and the base cap is the drum's.
+fn bullet(tol: Tol) -> Body<f64> {
+    let r = 3.0 / 64.0;
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(r, 0.0), tol)
+            .expect("base")
+            .line_to(Point2::new(r, TOP), tol)
+            .expect("wall")
+            // The tangency is DECLARED, not stumbled into: the
+            // lattice refuses an implicit G1 junction (`JunctionTangent`)
+            // and names this door, so the dome meets the wall tangentially
+            // by construction rather than to within a margin.
+            .tangent()
+            .tangent_arc_to(Point2::new(0.0, TOP + r), tol)
+            .expect("the dome is tangent to the wall at the equator")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// A right prism on a rectangle: every dihedral square.
+fn boxy(tol: Tol) -> Body<f64> {
+    extruded(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(0.2, 0.0), tol)
+            .expect("a")
+            .line_to(Point2::new(0.2, 0.3), tol)
+            .expect("b")
+            .line_to(Point2::new(0.0, 0.3), tol)
+            .expect("c")
+            .line_to(Start, tol)
+            .expect("d")
+            .into(),
+        0.25,
+        tol,
+    )
+}
+
+/// A right prism on an L: every dihedral square, the footprint not
+/// convex.
+fn l_prism(tol: Tol) -> Body<f64> {
+    extruded(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(0.6, 0.0), tol)
+            .expect("a")
+            .line_to(Point2::new(0.6, 0.2), tol)
+            .expect("b")
+            .line_to(Point2::new(0.2, 0.2), tol)
+            .expect("c")
+            .line_to(Point2::new(0.2, 0.6), tol)
+            .expect("d")
+            .line_to(Point2::new(0.0, 0.6), tol)
+            .expect("e")
+            .line_to(Start, tol)
+            .expect("f")
+            .into(),
+        0.3,
+        tol,
+    )
+}
+
+/// A right prism on a TRIANGLE: every side normal to both caps, and
+/// not one of the three side-to-side dihedrals square — they are the
+/// footprint's own interior angles, 58°, 58° and 64°.
+fn triangular_prism(tol: Tol) -> Body<f64> {
+    extruded(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(0.5, 0.0), tol)
+            .expect("a")
+            .line_to(Point2::new(0.25, 0.4), tol)
+            .expect("b")
+            .line_to(Start, tol)
+            .expect("c")
+            .into(),
+        0.3,
+        tol,
+    )
+}
+
+/// How many of `body`'s edges are still described through the
+/// SCAFFOLDING door — the arm `CarrierLaneUnsupported`'s "not a rigid
+/// translation" `what` was raised on before U2.
+fn scaffold_descriptions(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
+        })
+        .count()
+}
+
+/// How many of `body`'s edges carry a DECLARED locus — a sketch entity
+/// under a sweep map recorded as the authority (U2 Q3), which since the
+/// collapse is where the 3-space pushforward lives and therefore what
+/// the offset door still has to carry.
+fn declared_descriptions(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.authority().is_declared())
+        })
+        .count()
+}
+
+/// **Which ARM of the second door answers — and, since #1081's PR-2b,
+/// whether either of these bodies still reaches that door at all**
+/// (PCURVE P-1b, re-derived at the merge).
+///
+/// The row's own claim, unchanged: an edge of a body AT REST always
+/// says which chart it lies in, so the SCAFFOLDING arm the
+/// *"not a rigid translation"* door used to hang off cannot be
+/// entered; and these two bodies DO carry declared loci, which is what
+/// keeps the obstruction reachable through the authority record
+/// instead. Both halves are asserted on the fixtures rather than
+/// reasoned about, and both still hold — they are facts about the
+/// bodies, not about which door offsets them.
+///
+/// **What moved is which door they reach.** `shell` hands a body of
+/// REVOLUTION to the simultaneous axial door, and neither of these gets
+/// as far as a carrier lane: both hollow there. The LIFTED DOME's
+/// `cylinder ∩ sphere` junction is transversal and coaxial, so the
+/// meridian solve answers it; the TANGENT bullet's is the tangent
+/// circle, which the solve takes as the pair's foot.
+///
+/// The declared arm is still real and still reachable: a body outside
+/// the axial kinds keeps the per-face door and everything it refuses.
+/// This row no longer claims to be where that is measured.
+#[test]
+fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
+    let tol = Tol::witness();
+    for (what, body) in [
+        ("a hemisphere TANGENT to its cylinder", bullet(tol)),
+        (
+            "a dome whose centre is lifted clear of the wall's top",
+            lifted_dome(tol),
+        ),
+    ] {
+        assert_eq!(
+            scaffold_descriptions(&body),
+            0,
+            "{what}: every edge of a body at rest says which chart it lies in, so the \
+             SCAFFOLD arm the door used to hang off cannot be entered"
+        );
+        assert!(
+            declared_descriptions(&body) > 0,
+            "{what}: and these bodies do carry declared loci — which is what keeps the \
+             obstruction reachable through the authority record instead"
+        );
+    }
+    for (what, body) in [
+        ("the tangent bullet", bullet(tol)),
+        ("the lifted dome", lifted_dome(tol)),
+    ] {
+        pncad::topo::shell(
+            &AtRestBody::validate(body, tol).expect("a finished operand"),
+            1.0 / 128.0,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} hollows at the axial door, got {e}"));
+    }
+}
+
+/// **What survives now, and what the variable was.**
+///
+/// The old form of this row read "the hollow survives exactly the
+/// square junction". It did, for two waves, and the reason was never
+/// curvature: `shell` replaced ONE chart at a time and re-anchored the
+/// neighbours' edges on carriers that had not moved, so a junction
+/// survived exactly when the neighbouring surface was invariant under
+/// the moved face's own offset — a plane normal to a cylinder's axis,
+/// both ways, and nothing else. A right prism on a TRIANGLE refused
+/// exactly like a cone frustum, which is what ruled curvature out.
+///
+/// **#1081 made the offsets SIMULTANEOUS and the class is gone.**
+/// PR-2a solves an all-planar corner against every moved plane at
+/// once. PR-2b solves a body of REVOLUTION's corners in its meridian
+/// half-plane, where a plane normal to the axis is a line, a cylinder
+/// is a line, a cone is a line and a sphere is a circle — so the cone
+/// frustum, the sphere zone, the quarter-revolve wedge and the lifted
+/// dome all hollow, and so does the teapot's own belly.
+///
+/// **No junction here refuses.** The last was the **TANGENT** bullet:
+/// its `cylinder ∩ sphere` is the SAME surface pair as the bellied
+/// pot's foot-to-belly junction, at no angle at all, and its corner is
+/// the tangent circle, the foot the meridian solve takes for a tangent
+/// pair.
+///
+/// The lifted dome was the discriminator for the old third door
+/// (`CarrierLaneUnsupported`, about the neighbour's offset not being a
+/// rigid translation). It now HOLLOWS, because that door is no longer
+/// what a coaxial curved junction reaches — which retires the
+/// discriminator by answering it.
+#[test]
+fn the_hollow_now_survives_every_axial_junction() {
+    let tol = Tol::witness();
+    let t = 1.0 / 128.0;
+    for (what, body, thickness) in [
+        (
+            "a drum: cylinder between two caps normal to its axis",
+            drum(3.0 / 64.0, tol),
+            t,
+        ),
+        ("a right prism on a rectangle", boxy(tol), 0.02),
+        ("a right prism on an L", l_prism(tol), 0.02),
+        (
+            "a right prism on a triangle (58/58/64)",
+            triangular_prism(tol),
+            0.02,
+        ),
+        // FLIPPED by #1081's PR-2b: every one of these has a CURVED
+        // face at the junction, and every one of them was on the
+        // refusing list until the meridian solve landed.
+        ("a cone frustum between two caps", frustum(tol), t),
+        ("a sphere zone between two caps", barrel(tol), t),
+        ("a quarter-revolve WEDGE", wedge(tol), t),
+        (
+            "a dome whose centre is lifted clear of the wall's top",
+            lifted_dome(tol),
+            t,
+        ),
+        // FLIPPED again: the barrel bulged about a centre OFF the axis
+        // has a TORUS wall, which the axial reduction now reads as the
+        // meridian circle centred `(R, h_c)` that it is. The body no
+        // longer falls to the per-chart loop, so it never asks the C5
+        // table about `plane × torus`. VERBS-C5ARMS has since widened
+        // `intersect::route` for that pair (the exact-degenerate closed
+        // forms), so the row's evidence is no longer "the table
+        // declines it" — it is that the hollow is FLAG-INDEPENDENT:
+        // the axial door never consults `route`, and this row held
+        // green on both sides of the flip.
+        (
+            "a belly bulged about a centre OFF the axis: a TORUS wall",
+            torus_barrel(tol),
+            t,
+        ),
+        // FLIPPED: the tangent junction's corner is the tangent circle,
+        // the foot the meridian solve takes for a tangent pair.
+        ("a hemisphere TANGENT to its cylinder", bullet(tol), t),
+    ] {
+        pncad::topo::shell(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            thickness,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+    }
+}
+
+/// **The opened rim, on the acceptance corpus's own shape.** A box
+/// opened at its top is a cup: genus 0, ONE ring on the designated
+/// face, and it meshes. This row is the control for the one below.
+#[test]
+fn the_opened_rim_is_right_on_a_box() {
+    let tol = Tol::witness();
+    let body = boxy(tol);
+    let top: Vec<_> = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(body.get_surface(f.surface),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.x.abs() < 1e-9 && normal.y.abs() < 1e-9
+                        && (origin.z - 0.25).abs() < 1e-12)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        0.02,
+        &top,
+        tol,
+    )
+    .expect("a box opens at its top")
+    .body;
+    assert_eq!(
+        (rings(&cup), genus(&cup)),
+        (1, 0),
+        "one ring on the designated face, and a cup is genus 0"
+    );
+    pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it meshes");
+}
+
+/// **The opened rim on a REVOLVE is an annulus, everywhere.** The same
+/// sweep the defect row ran — five wall thicknesses over a factor of
+/// 5, mouth radii at two scales (41–47 mm, the small pair 14% apart,
+/// and 1 m), the pot's stepped meridian against the simplest fixture
+/// there is, three chord budgets over a factor of 50 — and every one
+/// now comes back as ONE rim face carrying ONE ring, genus 0, and
+/// triangulating at every budget. The volume is checked against the
+/// closed form on the drums, so "it meshes" is not standing in for
+/// "it is the right solid".
+///
+/// # What was wrong, and what fixed it
+///
+/// The class was *a designated face whose cavity counterpart's
+/// boundary cannot become an interior-disjoint RING of it*, and on a
+/// revolved cap it could not because the cap arrives carrying the
+/// REVOLVE's seam: an axis-touching cap is two half-discs meeting at
+/// the axis apex, so the counterpart's boundary reached that same apex
+/// and ran back along the outer loop's own seam legs. That contact —
+/// not a ring count — is what the CDT refused.
+///
+/// The seam is a fact about how the operand was swept, not about the
+/// mouth, and `shell_open` now removes it before the glue: the chart
+/// is reduced to one face with disjoint cycles on both sides
+/// (`kef`/`kev`/`kemr`, no new machinery), after which the
+/// counterpart's boundary IS strictly inside. The invariant is stated
+/// at rest as well — tier 3's check 9 refuses any ring standing on its
+/// face's outer loop — and `verbs_shell::a_ring_standing_on_its_outer_
+/// loop_refuses_at_tier_3` builds the old body through the same public
+/// doors to show that net firing.
+///
+/// Since BAND's "one wall per run" a full revolve no longer cuts a
+/// planar cap at its seam at all, so every case here now arrives as a
+/// one-face chart; the seam-removal arm stays for any chart that does
+/// carry one.
+#[test]
+fn the_opened_rim_is_an_annulus_on_every_revolve() {
+    let tol = Tol::witness();
+    let cases: Vec<(String, Body<f64>, f64, Option<f64>)> =
+        [1.0 / 128.0, 1.0 / 100.0, 1.0 / 64.0, 0.003, 0.0055]
+            .into_iter()
+            .map(|t| {
+                (
+                    format!("drum, t = {t}"),
+                    drum(3.0 / 64.0, tol),
+                    t,
+                    Some(3.0 / 64.0),
+                )
+            })
+            .chain([0.041_25, 3.0 / 64.0, 1.0].into_iter().map(|r| {
+                (
+                    format!("drum, mouth radius {r}"),
+                    drum(r, tol),
+                    1.0 / 128.0,
+                    Some(r),
+                )
+            }))
+            .chain(core::iter::once((
+                "the teapot's own stepped meridian".to_string(),
+                teapot_pot(tol),
+                1.0 / 128.0,
+                None,
+            )))
+            .collect();
+    for (what, body, t, drum_radius) in cases {
+        let chart = plane_chart_at(&body, TOP);
+        assert_eq!(
+            chart.len(),
+            1,
+            "{what}: a full revolve sweeps its planar cap whole"
+        );
+        let cup = pncad::topo::shell_open(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            t,
+            &chart,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
+        .body;
+        assert_eq!(
+            pncad::topo::validate_geometric(&cup, tol),
+            Ok(()),
+            "{what}: tier 3, which now also carries the ring-vs-outer invariant"
+        );
+        // Rings counted ON THE MOUTH PLANE: the stepped meridian's
+        // latitude annuli are swept whole, so they carry rings of their
+        // own elsewhere on the body.
+        let mouth_rings: usize = plane_chart_at(&cup, TOP)
+            .iter()
+            .map(|&k| cup.get_face(k).map_or(0, |f| f.rings.len()))
+            .sum();
+        assert_eq!(
+            (mouth_rings, genus(&cup)),
+            (1, 0),
+            "{what}: ONE rim annulus with one ring, and a cup is genus 0"
+        );
+        assert_eq!(
+            plane_chart_at(&cup, TOP).len(),
+            1,
+            "{what}: the rim is one face"
+        );
+        for delta in [1e-2, 1e-3, 2e-4] {
+            pncad::mesh::tessellate(&cup, delta, tol)
+                .unwrap_or_else(|e| panic!("{what}: delta = {delta} must triangulate, got {e:?}"));
+        }
+        // The drums have a closed form; the stepped pot does not get a
+        // number invented for it here (the scene owns its census).
+        if let Some(r) = drum_radius {
+            let props =
+                pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed())
+                    .expect("props");
+            let want = core::f64::consts::PI * (r * r * TOP - (r - t) * (r - t) * (TOP - t));
+            assert!(
+                (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
+                "{what}: cup volume {} (pad {}), want {want}",
+                props.enclosure.volume,
+                props.enclosure.volume_pad
+            );
+        }
+    }
+}
+
+/// A stepped pot: foot, belly and neck as straight steps at the
+/// teapot's sixty-fourths. It is this file's own fixture: the scene's
+/// vessel (`demo_tour::teapot`) has a spherical belly, so the two do
+/// not share a meridian.
+fn teapot_pot(tol: Tol) -> Body<f64> {
+    revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(3.0 / 64.0, 0.0), tol)
+            .expect("base")
+            .line_to(Point2::new(3.0 / 64.0, 1.0 / 64.0), tol)
+            .expect("foot")
+            .line_to(Point2::new(5.0 / 64.0, 1.0 / 64.0), tol)
+            .expect("lower shoulder")
+            .line_to(Point2::new(5.0 / 64.0, 6.0 / 64.0), tol)
+            .expect("belly")
+            .line_to(Point2::new(3.0 / 64.0, 6.0 / 64.0), tol)
+            .expect("upper shoulder")
+            .line_to(Point2::new(3.0 / 64.0, TOP), tol)
+            .expect("neck")
+            .line_to(Point2::new(0.0, TOP), tol)
+            .expect("mouth")
+            .line_to(Start, tol)
+            .expect("axis")
+            .into(),
+        tol,
+    )
+}
+
+/// **The ANNULAR mouth: two disjoint rims, not one ring.**
+///
+/// This row's fixture is the one that falsified the first reading of
+/// the class: a revolved TUBE's meridian is a closed off-axis loop, so
+/// the full revolve builds its mouth whole and the chart is exactly ONE face,
+/// with no axis apex anywhere on the body — and the rim was wrong here
+/// too, in a different shape (genus 2, one ring, untessellatable).
+///
+/// The correct rim here is not a ring at all but TWO DISJOINT ANNULI —
+/// `[ri, ri+t]` and `[ro-t, ro]` — which is a face SPLIT, and it is
+/// built: the counterpart's hole is promoted to its own rim face
+/// before the glue (`mfkrh`) and takes the designated face's matching
+/// hole with it after (`ring_move`). Both are existing doors; the
+/// surgery gained no new machinery. The annulus arrives with its bore
+/// already a ring; an annulus that arrives SLIT along a radial edge its
+/// own loop walks twice has that edge retired by `kemr` before the
+/// glue, for the same reason `kef`/`kev` retire the axis apex above.
+///
+/// (`verbs_teapot_r2_probes::r2_revolved_tube_separates_seam_from_axis`
+/// and `r2_annular_mouth_anatomy` are where the wrong shape was first
+/// measured; this row is where the right one is pinned.)
+#[test]
+fn the_annular_mouth_opens_to_two_disjoint_rims() {
+    let tol = Tol::witness();
+    let (ri, ro, h, t) = (0.30, 0.50, 0.40, 0.05);
+    let body = revolved(
+        Open.at(Point2::new(ri, 0.0))
+            .line_to(Point2::new(ro, 0.0), tol)
+            .expect("base annulus")
+            .line_to(Point2::new(ro, h), tol)
+            .expect("outer wall")
+            .line_to(Point2::new(ri, h), tol)
+            .expect("mouth annulus")
+            .line_to(Start, tol)
+            .expect("the bore closes the meridian")
+            .into(),
+        tol,
+    );
+    let chart = plane_chart_at(&body, h);
+    assert_eq!(
+        chart.len(),
+        1,
+        "a full revolve builds an OFF-AXIS annular cap whole, so this cap is ONE face — \
+         which is the whole point of the row"
+    );
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        &chart,
+        tol,
+    )
+    .expect("the annular mouth opens")
+    .body;
+    assert_eq!(
+        pncad::topo::validate_geometric(&cup, tol),
+        Ok(()),
+        "tiers 1-3, the third of which now carries the ring-vs-outer invariant"
+    );
+    assert_eq!(
+        (rings(&cup), genus(&cup)),
+        (4, 1),
+        "TWO rim annuli and the two floor annuli, one ring each; the bore runs through, \
+         so the cup is genus 1"
+    );
+    assert_eq!(
+        plane_chart_at(&cup, h).len(),
+        2,
+        "the mouth plane is worn by two faces — the SPLIT, which is the finding"
+    );
+    pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it triangulates");
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol, demo_tour::printed())
+        .expect("props");
+    let want = core::f64::consts::PI
+        * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
+    assert!(
+        (props.enclosure.volume - want).abs() <= 1e-9 + props.enclosure.volume_pad,
+        "annular cup volume {} (pad {}), want {want}",
+        props.enclosure.volume,
+        props.enclosure.volume_pad
+    );
+}

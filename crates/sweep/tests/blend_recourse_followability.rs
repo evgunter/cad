@@ -1,0 +1,1474 @@
+//! **Every `sweep::blend` recourse sentence, followed to its promised
+//! outcome — or its gap named.**
+//!
+//! A recourse constant is a claim about a SECOND request. Asserting
+//! that the sentence renders, or that some old refusal class is gone,
+//! says nothing about whether the request it endorses is one the
+//! kernel answers: the dead-recourse class was caught twice by
+//! reviewers who executed the sentence and watched it re-refuse. So
+//! every row here is COMPOSED — it reaches the refusal that carries
+//! the constant, asserts the typed variant and the rendered sentence
+//! (spelled against the constant, never a phrase of it), and then
+//! EXECUTES the request the sentence names and asserts the outcome it
+//! promises.
+//!
+//! **Where no fixture HERE reaches the refusal, the row says exactly
+//! that.** A `*_has_no_witness_in_this_suite` row is a measurement of
+//! this file, not an invariant of the door: on the bodies named in the
+//! row, the constant's variant is not reached through
+//! `fillet_edges`/`chamfer_edges`, and what the caller meets at the
+//! nearest site is a DIFFERENT refusal carrying a different recourse.
+//! Each such row names the PREMISE its fixture fixes — the property
+//! that excludes the failing mode — because that premise is where the
+//! next witness will come from. Two of these rows were wrong in
+//! exactly that way and are gone: `FILLET3_GEOMETRY_RECOURSE` and
+//! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
+//! ring that is neither lines nor circles and off the clearance screen's sample lattice
+//! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
+//! (issue 1278's dead-recourse class, and PR 1753's).
+//! Wording a fixture's reach as a door's reach is what hid them.
+//!
+//! Four constants are held composed elsewhere and are not duplicated
+//! here — duplicating them would buy a second copy of the same
+//! evidence at full fixture cost:
+//! `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`
+//! (`FILLET3_SEAM_VERTEX_RECOURSE`),
+//! `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`
+//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`),
+//! `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
+//! (`FILLET3_RING_RECOURSE`) and
+//! `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`
+//! (`FILLET3_CONTACT_RECOURSE`, whose fixtures are derived from the
+//! resolved band; the difference-branch site's own row is
+//! `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`).
+//!
+//! **A recourse constant is not the only place a recourse lives.** Two
+//! refusals map to `Recourse::None` in the recourse table — which
+//! decides which named CONSTANT is appended, and appends none — and
+//! then end their own `Display` arm with advice anyway. Those two are
+//! rowed here on the same terms as the named constants
+//! ([`a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`],
+//! [`a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`]):
+//! no named constant is appended, the advice IS given, and the request
+//! it names is executed. The table is not changed — what it routes is
+//! which CONSTANT gets appended, and both rows assert that routing is
+//! honoured.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common::operands::half_round_end;
+use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::blend::battery::corner_config;
+use sweep::blend::build::{chamfer_edges, fillet_edges};
+use sweep::blend::{
+    ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+    FILLET3_TURN_RECOURSE,
+};
+use sweep::test_support::{
+    ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
+    rod_with_flat, spool, waisted,
+};
+use sweep::{Revolution, RevolveAxis, revolve};
+use topo::boolean::BooleanOp;
+use topo::{Body, EdgeKey, query, validate_geometric};
+
+fn tol() -> Tol {
+    Tol::witness()
+}
+
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
+}
+
+/// `a ∖ b`, the one boolean these rows use.
+fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    realized(BooleanOp::Subtract, a, b, tol())
+}
+
+/// A radius-0.3 ball centred at `c`. Same body the review probe dimples
+/// its turned prism with, so the two fixtures differ in the ONE thing
+/// their rows are about: whether the box is axis-aligned.
+fn ball_at(c: Vec3<f64>) -> Body<f64> {
+    let lp = bulge_loop(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
+    topo::transform_rigid(&b, &geom_core::RigidMotion::translation(c).unwrap(), tol()).unwrap()
+}
+
+/// The edges of `body` on LINE carriers — on a dimpled or pocketed box,
+/// the box's own twelve.
+fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    query::all_edges(body)
+        .into_iter()
+        .filter(|k| {
+            body.get_edge(*k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(*c.carrier(), geom::Curve3::Line { .. }))
+        })
+        .collect()
+}
+
+/// The twelve edges of the OUTER unit box: line carriers whose midpoint
+/// sits on `x = 0/1` or `y = 0/1`. A pocket's own rim is interior to the
+/// top face, so this is what separates the request from the ring.
+fn outer_box_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    let on = |c: f64| c.abs() < 1e-9 || (c - 1.0).abs() < 1e-9;
+    line_edges(body)
+        .into_iter()
+        .filter(|k| {
+            let Some(g) = body
+                .get_edge(*k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+            else {
+                return false;
+            };
+            let (t0, t1) = g.params();
+            let m = g.carrier().eval((t0 + t1) / 2.0);
+            on(m.x) || on(m.y)
+        })
+        .collect()
+}
+
+/// The edges of `body` whose two supports are the SAME surface — a
+/// chart seam, whose dihedral is tangential at margin zero. The
+/// counterpart of [`rim_arcs_at`]'s second half, which excludes
+/// exactly these.
+fn seam_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    let surface_of = |he| -> Option<topo::SurfaceKey> {
+        let l = body.get_half_edge(he)?.parent_loop;
+        Some(body.get_face(body.get_loop(l)?.face)?.surface)
+    };
+    body.edges()
+        .filter_map(|(k, e)| (surface_of(e.he_plus)? == surface_of(e.he_minus)?).then_some(k))
+        .collect()
+}
+
+/// The three edges meeting at `body`'s first vertex.
+fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
+    let v0 = body.vertices().next().unwrap().0;
+    query::all_edges(body)
+        .into_iter()
+        .filter(|k| {
+            let e = body.get_edge(*k).unwrap();
+            let s = body.get_half_edge(e.he_plus).unwrap().start;
+            s == v0 || body.half_edge_end(e.he_plus) == Some(v0)
+        })
+        .collect()
+}
+
+/// The refusal a request meets, or a panic naming what built instead.
+fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str, chamfer: bool) -> BlendError {
+    let out = if chamfer {
+        chamfer_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
+    } else {
+        fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
+    };
+    match out {
+        Err(e) => e.error,
+        Ok(_) => panic!("{what}: expected a refusal, the request built"),
+    }
+}
+
+/// Execute the second request a recourse names and assert the outcome
+/// it promises: a body that builds and passes tier-3 validation.
+fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
+        .unwrap_or_else(|e| panic!("{what}: the recourse's own request must build, got {e:?}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
+}
+
+/// [`builds`] for the chamfer verb.
+fn chamfers(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
+    let out = chamfer_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
+        .unwrap_or_else(|e| panic!("{what}: the recourse's own request must build, got {e:?}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
+}
+
+/// The refusal carries exactly the recourse under test.
+fn carries(err: &BlendError, recourse: &str, what: &str) {
+    let shown = err.to_string();
+    assert!(
+        shown.contains(recourse),
+        "{what}: the refusal must carry its own recourse.\n  got: {shown}"
+    );
+}
+
+// ------------------------------------------------------------------
+// Followable: the second request the sentence names is answered.
+// ------------------------------------------------------------------
+
+/// **`FILLET3_RADIUS_RECOURSE` — "reduce the fillet radius".**
+///
+/// The dome's equator is a plane–sphere rim with a unit sphere's
+/// curvature headroom; `r = 2` exhausts it. The reduced radius the
+/// sentence endorses then builds on the SAME request.
+///
+/// The sentence's other clause — "blend a support with more curvature
+/// headroom" — names a different body, not a second request against
+/// this one, and is not pinned here.
+#[test]
+fn the_radius_recourse_reduces_to_a_radius_that_builds() {
+    let body = dome(1.0, tol());
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
+    let err = refusal(&body, &rim, 2.0, "r = 2 on a unit sphere's rim", false);
+    assert!(
+        matches!(err, BlendError::RadiusHeadroom { .. }),
+        "the curvature headroom is what refuses, got {err:?}"
+    );
+    carries(&err, FILLET3_RADIUS_RECOURSE, "radius headroom");
+    builds(&body, &rim, 0.1, "the reduced radius");
+}
+
+/// **`FILLET3_CLEARANCE_RECOURSE` — "reduce the blend size".**
+///
+/// The waisted revolve's base rim at `r = 0.5` sets back further than
+/// the cone wall is wide, so the screen cannot certify the wall
+/// survives; the two setbacks are ONE chain's, so this is the
+/// non-splittable sentence. The reduced size builds.
+///
+/// The sentence's other clause — "enlarge the band's support faces" — is a
+/// different body, and is not pinned here.
+#[test]
+fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
+    let body = waisted(tol());
+    let rim = rim_arcs_at(&body, 1.0, 0.0);
+    assert_eq!(rim.len(), 2, "the base rim is seam-split");
+    let err = refusal(&body, &rim, 0.5, "r = 0.5 on the base rim", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::FaceClearanceUncertified {
+                cross_chain: false,
+                ..
+            }
+        ),
+        "one chain's two setbacks: the non-splittable clearance sentence, got {err:?}"
+    );
+    carries(&err, FILLET3_CLEARANCE_RECOURSE, "face clearance");
+    builds(&body, &rim, 0.05, "the reduced blend size");
+}
+
+/// **`FILLET3_TANGENTIAL_RECOURSE` — "blend an edge whose supports meet
+/// at a definite angle".**
+///
+/// A chart seam's two supports are one surface, so its dihedral decides
+/// Zero at any lever. The definite-angle edge the sentence names is on
+/// the SAME body: the dome's equator, where the base plane meets the
+/// sphere.
+#[test]
+fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
+    let body = dome(1.0, tol());
+    let seams = seam_edges(&body);
+    assert!(!seams.is_empty(), "the full revolve mints chart seams");
+    let err = refusal(&body, &seams[..1], 0.05, "a chart seam", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::TangentialEdge { margin, .. }
+                if margin.predicate == "fillet3_convexity_sign"
+                    && margin.sign == Sign::Zero
+                    && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0)
+        ),
+        "a co-surface seam is the zero-margin wedge, got {err:?}"
+    );
+    carries(&err, FILLET3_TANGENTIAL_RECOURSE, "tangential edge");
+    builds(
+        &body,
+        &[one_edge_rim_at(&body, 1.0, 0.0)],
+        0.1,
+        "the definite-angle edge",
+    );
+}
+
+/// **`FILLET3_CHAIN_RECOURSE` — at the junction it still fires at.**
+///
+/// Chain G1 refuses only where a CURVED link meets another at a
+/// definite angle: between two plane–plane links a turn breaks the
+/// chain into two ends instead. The witness is a prism's top front edge
+/// and the half-round arc it meets at a kink. The sentence then says
+/// to supply a tangent-continuous chain, and the row executes one: a
+/// whole smooth rim, the dome's equator, builds. Its retired clause —
+/// "request every edge of EVERY corner the chain terminates at" — is
+/// gone with the run-out it answered: one edge of a cube, and the three
+/// edges of one corner, each build now (`band_planar_cut_off`).
+#[test]
+fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
+    let (body, front) = half_round_end();
+    let arc = query::all_edges(&body)
+        .into_iter()
+        .find(|&e| {
+            query::edge_adjacent_matches(
+                &body,
+                e,
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+            ) && {
+                let he = body.get_edge(e).unwrap().he_plus;
+                let v = body.get_half_edge(he).unwrap().start;
+                body.get_point(body.get_vertex(v).unwrap().point).unwrap().z > 0.5
+            }
+        })
+        .expect("the half-round's top arc");
+    let err = refusal(
+        &body,
+        &[front, arc],
+        0.1,
+        "a line and an arc at a kink",
+        false,
+    );
+    assert!(
+        matches!(err, BlendError::ChainNotG1 { .. }),
+        "a line meeting an arc at a kink is not tangent-continuous, got {err:?}"
+    );
+    carries(&err, FILLET3_CHAIN_RECOURSE, "chain not G1");
+    assert!(
+        !FILLET3_CHAIN_RECOURSE.contains("EVERY corner"),
+        "the retired clause is gone: {FILLET3_CHAIN_RECOURSE}"
+    );
+    let d = dome(1.0, tol());
+    builds(
+        &d,
+        &[one_edge_rim_at(&d, 1.0, 0.0)],
+        0.1,
+        "a whole smooth rim",
+    );
+}
+
+/// **`FILLET3_CORNER_RECOURSE` — the ends it names, each built, and the
+/// residue it names, refused.**
+///
+/// An edge ending at a curved end face refuses as a run-out with this
+/// sentence. Its three positive clauses are then executed on a cube: the
+/// edge alone, cut off in the plane end faces at both ends; two edges
+/// of one corner whose feet on the third meet (a cube's, symmetric about
+/// it), meeting in a mitre, or stand clearly apart, the far band
+/// overrunning it; and every edge of every corner, the corner patch. Of the residue, the
+/// third edge of a mitred corner blended in a later call refuses with
+/// this sentence — whose last clause, requesting it in the same call,
+/// builds.
+#[test]
+fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
+    let (round, edge) = half_round_end();
+    let err = refusal(&round, &[edge], 0.1, "a curved end face", false);
+    assert!(
+        matches!(err, BlendError::UnsupportedRunOut { .. }),
+        "a curved end face is a run-out, got {err:?}"
+    );
+    carries(&err, FILLET3_CORNER_RECOURSE, "run-out");
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    let corner = edges_at_first_vertex(&body);
+    builds(&body, &edges[..1], 0.1, "the edge alone, cut off");
+    builds(&body, &corner[..2], 0.1, "two edges of a symmetric corner");
+    builds(&body, &edges, 0.1, "every corner fully requested");
+    // Of the turns whose bands' feet stand apart, the leaning wall's and
+    // the sheared box's supplementary corner's fillets each build the
+    // overrun past the mitre. The supplementary corner's chamfer feet
+    // coincide, so it mitres.
+    let (leaning, _) = crate::common::operands::leaning_turn(0.5);
+    let sheared = crate::common::operands::parallelepiped(0.3);
+    let pair = |body: &topo::Body<f64>, v: [f64; 3], a: [f64; 3], b: [f64; 3]| {
+        [
+            crate::band_planar_cut_off::edge(body, v, a),
+            crate::band_planar_cut_off::edge(body, v, b),
+        ]
+    };
+    let supplementary = pair(&sheared, [2.3, 0.3, 1.0], [0.3, 0.3, 1.0], [2.3, 1.8, 1.0]);
+    builds(
+        &leaning,
+        &pair(&leaning, [0.5, 0.0, 1.0], [2.0, 0.0, 1.0], [0.5, -1.5, 1.0]),
+        0.1,
+        "an asymmetric turn",
+    );
+    builds(&sheared, &supplementary, 0.1, "a supplementary turn");
+    chamfers(
+        &sheared,
+        &supplementary,
+        0.1,
+        "a supplementary turn's chamfer",
+    );
+    let mitred = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &corner[..2],
+        0.1,
+        tol(),
+    )
+    .expect("the mitre builds");
+    let third = mitred
+        .naming
+        .as_ref()
+        .expect("births")
+        .meridian_remnants
+        .iter()
+        .find(|(_, source)| *source == corner[2])
+        .map(|(e, _)| *e)
+        .expect("the third edge's surviving piece");
+    let later = refusal(&mitred.body, &[third], 0.1, "the third edge later", false);
+    assert!(
+        matches!(
+            later,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::NEdgeVertex { valence: 4 },
+                ..
+            }
+        ),
+        "the turn foot has four edges, got {later:?}"
+    );
+    carries(&later, FILLET3_CORNER_RECOURSE, "turn foot");
+    builds(&body, &corner, 0.1, "the third edge in the same call");
+}
+
+/// **`FILLET3_TURN_RECOURSE` — "make the two bands' feet meet, for a
+/// chamfer move them clearly apart, or request that edge too".** The
+/// leaning wall's chamfer at a lean the turn reads in band
+/// (`band_turn_overrun_verdict`'s window, scaled with the run's band)
+/// escalates and carries the sentence. Each end it names builds: the
+/// feet meeting at equal face angles (no lean) and at supplementary ones
+/// (the sheared box's corner), the feet clearly apart by a more
+/// asymmetric corner (a lean of `0.5`) and by a larger setback (the same
+/// lean at `0.5`), each the overrun, and the third edge requested in the
+/// same call, the corner patch. The fillet's turn reads in band at a
+/// `60°` corner skewed by a few millionths of a degree (its gap is linear
+/// in the skew), and its ends build the same way: equal face angles, a
+/// more asymmetric corner, a five times larger radius at the same skew,
+/// and the third edge requested too. At a box corner leaning its wall
+/// (`fillet_turn_recourse_at_a_box_corner`) a larger setback or a
+/// slightly more asymmetric corner hands on to the far band's ellipse
+/// in band, whose own recourse is then followed to a build.
+#[test]
+fn the_turn_recourse_builds_at_each_end_it_names() {
+    use crate::band_planar_cut_off::edge;
+    use crate::common::operands::{
+        lean_in_band, leaning_turn, leaning_turn_in_band, parallelepiped,
+    };
+    let (leaning, bands) = leaning_turn_in_band(tol());
+    let err = refusal(&leaning, &bands, 0.1, "a turn in band", true);
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::TurnFeetGap
+                    | BlendDecision::TurnOverrunChord
+                    | BlendDecision::TurnFeet,
+                ..
+            }
+        ),
+        "a turn in band escalates on its readings, got {err:?}"
+    );
+    carries(&err, FILLET3_TURN_RECOURSE, "a turn in band");
+    let (square, turn) = leaning_turn(0.0);
+    chamfers(&square, &turn, 0.1, "equal face angles");
+    let sheared = parallelepiped(0.3);
+    let w = [2.3, 0.3, 1.0];
+    chamfers(
+        &sheared,
+        &[
+            edge(&sheared, w, [0.3, 0.3, 1.0]),
+            edge(&sheared, w, [2.3, 1.8, 1.0]),
+        ],
+        0.1,
+        "supplementary face angles",
+    );
+    let (apart, turn) = leaning_turn(0.5);
+    chamfers(
+        &apart,
+        &turn,
+        0.1,
+        "the feet clearly apart, a more asymmetric corner",
+    );
+    let larger = chamfer_edges(
+        &sweep::test_support::at_rest(&leaning, tol()),
+        &bands,
+        0.5,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a larger setback: the recourse's request must build, got {e:?}"));
+    validate_geometric(&larger.body, tol())
+        .unwrap_or_else(|e| panic!("a larger setback: tier 3, got {e:?}"));
+    assert!(
+        !larger
+            .coincidences
+            .iter()
+            .any(|r| r.relation == topo::Relation::CommonFoot),
+        "a larger setback moves the feet apart: the overrun, not a mitre"
+    );
+    let s = lean_in_band(tol());
+    let third = edge(&leaning, [s, 0.0, 1.0], [0.0, 0.0, 0.0]);
+    chamfers(
+        &leaning,
+        &[bands[0], bands[1], third],
+        0.1,
+        "the third edge in the same call",
+    );
+    fillet_turn_recourse();
+    fillet_turn_recourse_at_a_box_corner();
+}
+
+/// [`the_turn_recourse_builds_at_each_end_it_names`]'s fillet legs.
+fn fillet_turn_recourse() {
+    use crate::band_turn_overrun_probe::Cone;
+    use crate::band_turn_overrun_verdict::corner;
+    let z = Band::linear(tol()).expect("the run's band").zero() / 1e-9;
+    let at = |b: f64| {
+        corner(&Cone::angles(
+            [60f64.to_radians(), b.to_radians()],
+            90f64.to_radians(),
+        ))
+    };
+    let (skewed, bands) = at(60.0 + 2e-6 * z);
+    let err = refusal(&skewed, &bands, 0.1, "a fillet turn in band", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::TurnFeetGap
+                    | BlendDecision::TurnOverrunChord
+                    | BlendDecision::TurnFeet,
+                ..
+            }
+        ),
+        "a fillet turn in band escalates on its readings, got {err:?}"
+    );
+    carries(&err, FILLET3_TURN_RECOURSE, "a fillet turn in band");
+    let (equal, turn) = at(60.0);
+    builds(&equal, &turn, 0.1, "a fillet's equal face angles");
+    let (apart, turn) = at(80.0);
+    builds(
+        &apart,
+        &turn,
+        0.1,
+        "a fillet's feet apart, a more asymmetric corner",
+    );
+    let larger = fillet_edges(
+        &sweep::test_support::at_rest(&skewed, tol()),
+        &bands,
+        0.5,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a fillet's larger radius: the request must build, got {e:?}"));
+    validate_geometric(&larger.body, tol())
+        .unwrap_or_else(|e| panic!("a fillet's larger radius: tier 3, got {e:?}"));
+    assert!(
+        !larger
+            .coincidences
+            .iter()
+            .any(|r| r.relation == topo::Relation::CommonFoot),
+        "a larger radius moves the feet apart: the overrun, not a mitre"
+    );
+    // The corner is the origin; its third edge is the other one there.
+    let at_origin = |v: topo::VertexKey| {
+        let p = skewed
+            .get_point(skewed.get_vertex(v).unwrap().point)
+            .unwrap();
+        p.x.abs() + p.y.abs() + p.z.abs() < 1e-12
+    };
+    let third = query::all_edges(&skewed)
+        .into_iter()
+        .find(|e| {
+            let he = skewed.get_edge(*e).unwrap().he_plus;
+            !bands.contains(e)
+                && (at_origin(skewed.get_half_edge(he).unwrap().start)
+                    || at_origin(skewed.half_edge_end(he).unwrap()))
+        })
+        .expect("the corner's third edge");
+    builds(
+        &skewed,
+        &[bands[0], bands[1], third],
+        0.1,
+        "a fillet's third edge in the same call",
+    );
+}
+
+/// [`the_turn_recourse_builds_at_each_end_it_names`]'s fillet legs at
+/// a box corner whose wall leans a few millionths of a degree
+/// (`leaning_turn`, positive), where the far band is cut off at the
+/// leaning wall. Its legs build: a five times larger radius, or a lean
+/// ten times past the turn's band, the overrun, its far band ending in
+/// the exact ellipse however near-circular; squared, the feet meet and
+/// the corner mitres.
+fn fillet_turn_recourse_at_a_box_corner() {
+    use crate::common::operands::leaning_turn;
+    let band = Band::linear(tol()).expect("the run's band");
+    let z = band.zero() / 1e-9;
+    let lean = |deg: f64| leaning_turn(deg.to_radians().tan());
+    let fillet = |deg: f64, r: f64| {
+        let (body, turn) = lean(deg);
+        fillet_edges(&sweep::test_support::at_rest(&body, tol()), &turn, r, tol())
+    };
+    let (body, turn) = lean(2e-6 * z);
+    let err = refusal(&body, &turn, 0.1, "a box fillet turn in band", false);
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::TurnFeetGap
+                    | BlendDecision::TurnOverrunChord
+                    | BlendDecision::TurnFeet,
+                ..
+            }
+        ),
+        "a box fillet turn in band escalates on its readings, got {err:?}"
+    );
+    carries(&err, FILLET3_TURN_RECOURSE, "a box fillet turn in band");
+    for (what, deg, r) in [
+        ("a larger setback", 2e-6 * z, 0.5),
+        ("a more asymmetric corner", 1e-4 * z, 0.1),
+    ] {
+        let out = fillet(deg, r).unwrap_or_else(|e| panic!("{what}: builds, got {:?}", e.error));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
+        assert!(
+            !out.coincidences
+                .iter()
+                .any(|c| c.relation == topo::Relation::CommonFoot),
+            "{what}: the overrun"
+        );
+        // The leaning prism is `band_turn_overrun_oracles::leaning` at
+        // unit height and scale, so its overrun oracle reads the build.
+        let s = deg.to_radians().tan();
+        let want = crate::band_turn_overrun_fillet::poly_taken(
+            &crate::band_turn_overrun_oracles::leaning(s, 1.0, 1.0),
+            &crate::band_turn_overrun_oracles::TURN,
+            r,
+        );
+        let ((v0, p0), (v1, p1)) = (
+            crate::band_planar_cut_off::volume_enclosure(&lean(deg).0),
+            crate::band_planar_cut_off::volume_enclosure(&out.body),
+        );
+        assert!(
+            p0 + p1 < crate::band_planar_cut_off::pad_ceiling()
+                && (v0 - v1 - want).abs() < 1e-11 + crate::band_planar_cut_off::midpoint_tol(),
+            "{what}: ΔV {} ± {:e} against the oracle's {want}",
+            v0 - v1,
+            p0 + p1
+        );
+    }
+    let out = fillet(0.0, 0.1).unwrap_or_else(|e| panic!("squared: builds, got {:?}", e.error));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("squared: tier 3, got {e:?}"));
+    assert!(
+        out.coincidences
+            .iter()
+            .any(|c| c.relation == topo::Relation::CommonFoot),
+        "squared, the feet meet: the mitre"
+    );
+}
+
+/// **`FILLET3_CORNER_INDEPENDENCE_RECOURSE` — followed by each of its
+/// levers, at the corner classifier itself.**
+///
+/// **No fixture in this suite reaches `fillet3_corner_independence` in
+/// band through a door.** The PREMISE: an in-band determinant at a
+/// uniform trivalent corner needs three faces all nearly parallel to
+/// one line — two faces nearly coplanar, or the apex of a tall, sharp
+/// three-sided pyramid — and no builder these rows use mints either. So
+/// the row runs the classifier both doors run (`battery::corner_config`)
+/// on such a trihedron, reads the refusal it carries, and executes each
+/// lever the sentence names on the same corner: a face tilted clear, a
+/// larger blend size, and the tolerance the ending offers.
+#[test]
+fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
+    let vertex = topo::VertexKey::default();
+    let band = Band::linear(tol()).unwrap();
+    let k = band.escalate() / band.zero();
+    // `det(x, y, n) = n.z`, so the third face's tilt off the first is the
+    // margin at size 1, inside the band.
+    let t = (band.zero() + band.escalate()) / 2.0;
+    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let near = [x, y, Vec3::new((1.0 - t * t).sqrt(), 0.0, t)];
+    let err = corner_config(vertex, 3, 3, near, 1.0, band).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::CornerIndependence,
+                ..
+            }
+        ),
+        "a nearly flat trihedron escalates the independence decision, got {err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains(FILLET3_CORNER_INDEPENDENCE_RECOURSE) && !text.contains("declare"),
+        "{text}"
+    );
+    // The faces tilted clear of one line.
+    corner_config(vertex, 3, 3, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
+        .expect("an orthonormal corner passes");
+    // A larger size, which the margin grows with.
+    corner_config(vertex, 3, 3, near, 2.0 * k, band).expect("the same corner at a larger size");
+    // The tolerance the ending names, at the margin's own value.
+    let offered: f64 = text
+        .split_once("tighten the tolerance below ")
+        .and_then(|(_, tail)| tail.strip_suffix(" m"))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| panic!("the ending offers a valued tolerance: {text}"));
+    assert_eq!(offered, t / k, "{text}");
+    let tighter = Band::new(offered / 2.0, offered / 2.0 * k).unwrap();
+    corner_config(vertex, 3, 3, near, 1.0, tighter).expect("decided passing below the offer");
+}
+
+/// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
+/// every door it names is executed.** Four of them: the open clause and
+/// three readings of the closed clause's "whole latitude rim".
+///
+/// The refusal: an OPEN chain whose supports are not plane–plane (the
+/// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
+/// which has no built termination — the sentence's own open-chain
+/// clause, so it is true at the site that carries it.
+///
+/// The sentence names requests that carve, and each is built here:
+/// one-link open plane–plane chains ending at fully requested
+/// trivalent corners of one convexity (the cube whole), a whole
+/// latitude rim (the dome's equator), the same on a CONCAVE rim (the
+/// waisted revolve's waist, whose band adds material — a whole rim
+/// carves at either material side), and a whole rim whose arcs all lie
+/// on ONE face (the REPAIRED lantern's neck: `merge_coplanar_faces`
+/// fuses each pole cap's two half-disks into one face, as every boolean
+/// consumer must, leaving both arcs on ONE plane face with trivalent
+/// crossings).
+///
+/// What is NOT pinned: "of one convexity" admits an all-concave
+/// plane–plane corner, which no fixture here builds.
+#[test]
+fn the_assembly_recourse_names_four_doors_that_all_carve() {
+    // A PARTIAL revolve of the dome profile: its wedge walls are planes
+    // and its zone wall is a sphere, so the edge between them is an OPEN
+    // chain whose supports are not plane–plane — the termination clause
+    // of the sentence ("open chains are single plane–plane links").
+    let wedge = sweep::test_support::revolved_about_y(
+        sweep::test_support::dome_profile(1.0),
+        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    );
+    // The plane–SPHERE edge specifically: the wedge's bore is a
+    // cylinder, and its edge against a wedge wall is a RULED crease
+    // ending in the two transverse caps — a chain the open door now
+    // carves — so "any plane–curved edge" no longer names a refusal.
+    let open_curved = query::all_edges(&wedge)
+        .into_iter()
+        .find(|&e| {
+            query::edge_adjacent_matches(
+                &wedge,
+                e,
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Sphere),
+            )
+        })
+        .expect("a wedge has an edge between a flat wall and the sphere zone");
+    let err = refusal(
+        &wedge,
+        &[open_curved],
+        0.05,
+        "an open plane–sphere chain",
+        false,
+    );
+    // The refusal is pinned by its exact detail, not by a substring that
+    // several other `UnsupportedChain` arms also satisfy.
+    assert!(
+        matches!(&err, BlendError::UnsupportedChain { detail, .. }
+            if *detail == "an open chain's supports are neither a plane–plane nor a ruled \
+                 cylinder pair"),
+        "an open chain whose supports are neither plane–plane nor ruled has no built \
+         termination: {err:?}"
+    );
+    carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
+    // The corner clause's two conditions, each true of every corner the
+    // surgery carves and each a reader needs: a fully requested corner
+    // that is not trivalent, or is of mixed convexity, still refuses.
+    // Pinned one by one, so dropping either is red.
+    for condition in [
+        "trivalent plane\u{2013}plane vertices of one convexity",
+        "chains whose links share both faces",
+        "junction carry-through and the other run-outs are not implemented",
+    ] {
+        assert!(
+            FILLET3_ASSEMBLY_RECOURSE.contains(condition),
+            "the assembly recourse lost {condition:?}: {FILLET3_ASSEMBLY_RECOURSE}"
+        );
+    }
+
+    let d = dome(1.0, tol());
+    let equator = one_edge_rim_at(&d, 1.0, 0.0);
+
+    let boxy = cube(1.0, tol());
+    builds(
+        &boxy,
+        &query::all_edges(&boxy),
+        0.1,
+        "single plane–plane links at fully-requested corners",
+    );
+    // The joined clause: a cube whose bottom side was authored as a
+    // declared straight continuation, its walls merged — two of its
+    // rims are two links each on one support pair.
+    let t = tol();
+    let joined: profile::ProfileLoop<f64> = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|p| p.line(0.5, t))
+        .and_then(|p| p.continue_to(Point2::new(1.0, 0.0), t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.line_to(profile::Start, t))
+        .expect("the continuation authors")
+        .into();
+    let prof = Profile::new(SketchPlane::xy(), vec![joined])
+        .validate(t)
+        .expect("the profile validates");
+    let mut merged = sweep::extrude(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .expect("the prism extrudes")
+    .body;
+    merged
+        .merge_coplanar_faces(t)
+        .expect("the continuation's walls merge");
+    builds(
+        &merged,
+        &query::all_edges(&merged),
+        0.1,
+        "plane–plane links joined where consecutive links share both supports",
+    );
+    builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
+    let body = waisted(tol());
+    let waist = rim_arcs_at(&body, 0.5, 0.5);
+    assert_eq!(waist.len(), 2, "the waist rim is seam-split");
+    builds(
+        &body,
+        &waist,
+        0.05,
+        "a concave closed rim, on the other material side",
+    );
+    let mut repaired = sweep::test_support::lantern(tol());
+    repaired
+        .merge_coplanar_faces(tol())
+        .expect("the pole-split caps repair");
+    let neck = rim_arcs_at(&repaired, 1.0, 0.0);
+    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
+    builds(
+        &repaired,
+        &neck,
+        0.05,
+        "a closed rim whose ONE host face carries every arc",
+    );
+}
+
+/// **`FILLET3_SPINE_KIND_RECOURSE` — four support kinds, then two
+/// families they may meet in.**
+///
+/// The spool's outer wall is a TORUS, a kind no arm traces, so it
+/// reaches the refusal that carries the sentence.
+///
+/// **What this row pins is that a representative request of each
+/// family BUILDS**, which is the followability bar: the dome's
+/// plane–sphere rim for the coaxial family, and the rod's
+/// cylinder–plane crease — the ruled door's own pair, terminating in
+/// transverse caps — for the ruled one. It is deliberately not a
+/// completeness check over the arm table: whether the sentence names a
+/// kind and a family for EVERY arm is decided by reading the table,
+/// which
+/// `verbs_arms2_arms::the_spine_kind_recourse_names_a_family_for_every_arm`
+/// does. A clause naming a door that does not open is caught here; a
+/// door the sentence forgets to name is caught there.
+#[test]
+fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
+    let s = spool(Revolution::Full, tol());
+    let torus_edges: Vec<EdgeKey> = query::all_edges(&s)
+        .into_iter()
+        .filter(|k| {
+            matches!(
+                fillet_edges(&sweep::test_support::at_rest(&s, tol()), &[*k], 0.05, tol())
+                    .map_err(|r| r.error),
+                Err(BlendError::SpineUnsupported { .. })
+            )
+        })
+        .collect();
+    assert!(
+        !torus_edges.is_empty(),
+        "the spool's torus wall has no analytic arm"
+    );
+    let err = refusal(&s, &torus_edges[..1], 0.05, "a torus-supported edge", false);
+    carries(&err, FILLET3_SPINE_KIND_RECOURSE, "spine unsupported");
+
+    let coaxial = dome(1.0, tol());
+    builds(
+        &coaxial,
+        &[one_edge_rim_at(&coaxial, 1.0, 0.0)],
+        0.1,
+        "a rim between two coaxial surfaces of revolution",
+    );
+
+    // The ruled family's own pair, not a cube edge: a caller reading
+    // "a ruling shared by two supports that are each a plane or a
+    // cylinder" and holding a rod requests its cylinder–plane creases,
+    // which carve between transverse caps.
+    let rod = rod_with_flat(tol());
+    builds(
+        &rod,
+        &rod_creases(&rod),
+        ROD_FILLET,
+        "a straight edge along a ruling shared by a cylinder and a plane",
+    );
+}
+
+/// **`CHAMFER_ARM_RECOURSE` — "chamfer edges whose two supports are
+/// both planes".**
+///
+/// The dome's equator is plane–sphere: the ruled strip has no arm over
+/// it. The both-planes request the sentence names is the cube, and it
+/// chamfers.
+#[test]
+fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
+    let d = dome(1.0, tol());
+    let err = refusal(
+        &d,
+        &[one_edge_rim_at(&d, 1.0, 0.0)],
+        0.1,
+        "chamfering a plane–sphere rim",
+        true,
+    );
+    assert!(
+        matches!(err, BlendError::ChamferArmUnsupported { .. }),
+        "the chamfer's own arm table refuses, got {err:?}"
+    );
+    carries(&err, CHAMFER_ARM_RECOURSE, "chamfer arm unsupported");
+
+    let boxy = cube(1.0, tol());
+    chamfers(
+        &boxy,
+        &query::all_edges(&boxy),
+        0.1,
+        "a both-planes chamfer request",
+    );
+}
+
+// ------------------------------------------------------------------
+// Advice that is NOT a named constant. `Recourse::None` routes these
+// two away from every constant above and they advise anyway.
+// ------------------------------------------------------------------
+
+/// The refusal appends no named recourse constant — what the table
+/// routes as `Recourse::None` — and still says something.
+///
+/// Reads [`ALL_RECOURSES`], the crate's one home for that list, rather
+/// than a copy: these rows' whole content is that NONE of the list
+/// appears, so a copy that fell behind would weaken them silently, and
+/// the copy this suite used to keep is exactly the failure the home's
+/// own doc records.
+fn carries_no_named_recourse(err: &BlendError, what: &str) {
+    let shown = err.to_string();
+    for (name, sentence) in ALL_RECOURSES {
+        assert!(
+            !shown.contains(sentence),
+            "{what}: the `{name}` constant was appended, which the recourse table \
+             routes away from this variant.\n  got: {shown}"
+        );
+    }
+}
+
+/// **`NonpositiveSize` advises "supply a positive radius or setback",
+/// and the request it names builds.**
+///
+/// The recourse TABLE routes this variant to `Recourse::None`, and the
+/// table's own doc calls it a variant with no advice to give — yet the
+/// Display arm ends in a second request, which is a recourse by every
+/// working definition this unit uses. So the sentence is followed here
+/// on the same terms as a named one: the positive setback chamfers and
+/// validates.
+///
+/// Reached through the CHAMFER door. The check is no longer only
+/// there — FILLET-E1 put the shared size gate in `build.rs`, so the
+/// fillet door answers `NonpositiveSize` too — and this row stays on
+/// the chamfer because that is where the SETBACK half of the sentence
+/// ("a positive radius or setback") is followable. The fillet door's
+/// own row is E1's.
+#[test]
+fn a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of() {
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    for size in [0.0, -0.1] {
+        let err = refusal(&body, &edges, size, "a nonpositive setback", true);
+        assert!(
+            matches!(err, BlendError::NonpositiveSize { .. }),
+            "a nonpositive size is refused at the door, got {err:?}"
+        );
+        carries_no_named_recourse(&err, "a nonpositive setback");
+        assert!(
+            err.to_string()
+                .contains("supply a positive radius or setback"),
+            "and it advises anyway: {err}"
+        );
+    }
+    chamfers(&body, &edges, 0.1, "the positive setback it names");
+}
+
+/// **`RepeatedEdge` advises "request each edge once", and the request
+/// it names builds.**
+///
+/// Same shape as the row above and the same table row: no constant is
+/// appended, advice is given, and the deduplicated request carves.
+#[test]
+fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    let mut repeated = edges.clone();
+    repeated.push(edges[0]);
+    let err = refusal(&body, &repeated, 0.1, "a repeated edge", false);
+    assert!(
+        matches!(err, BlendError::RepeatedEdge { edge } if edge == edges[0]),
+        "the repeat is named, got {err:?}"
+    );
+    carries_no_named_recourse(&err, "a repeated edge");
+    assert!(
+        err.to_string().contains("request each edge once"),
+        "and it advises anyway: {err}"
+    );
+    builds(&body, &edges, 0.1, "each edge requested once");
+}
+
+// ------------------------------------------------------------------
+// No fixture HERE reaches the constant. Each row pins what the caller
+// meets instead AND the premise its fixture fixes — never "the door
+// cannot be reached", which is a claim no fixture can support and
+// which two rows in this file got wrong.
+// ------------------------------------------------------------------
+
+/// **No fixture in this suite reaches `FILLET3_SPINE_RECOURSE`.**
+///
+/// The sentence endorses "a radius below the spine's own curvature
+/// radius", which presumes the caller was told the spine folded. On the
+/// one closed-form curved spine these fixtures can build — a
+/// plane–sphere rim — the clearance screen answers at every radius from
+/// the one that builds to the one that poisons, so `SpineIrregular` is
+/// not what this caller reads.
+///
+/// **The premise, stated as one:** on a plane–sphere rim the spine's
+/// curvature limit and the face's clearance limit are the same
+/// geometry, so the screen cannot be outrun. A body whose spine folds
+/// while clearance stays ample would be handed the sentence; this row
+/// does not claim there is none, and the suite builds no such body.
+/// That is the shape of witness to look for, and the two flipped
+/// verdicts above are what makes the distinction worth writing down.
+///
+/// The nearest existing pin, `verbs_arms1_r1_probes::near_limit_radii_
+/// refuse_typed`, accepts either variant and so does not decide this.
+///
+/// Red when a radius on this ladder starts refusing at the spine gate:
+/// that is when the composed row is owed.
+#[test]
+fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
+    let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
+    let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
+    let (mut built, mut clearance) = (0, 0);
+    for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
+        match fillet_edges(&body, &rim, r, tol()).map_err(|e| e.error) {
+            Ok(_) => built += 1,
+            Err(BlendError::SpineIrregular { .. }) => panic!(
+                "r = {r} reaches the spine gate — {FILLET3_SPINE_RECOURSE} is followable now"
+            ),
+            Err(BlendError::FaceClearanceUncertified { .. } | BlendError::Escalated { .. }) => {
+                clearance += 1;
+            }
+            Err(other) => panic!("r = {r}: unexpected outcome {other}"),
+        }
+    }
+    assert!(
+        built >= 1 && clearance >= 5,
+        "the ladder must cross from building to refusing: {built} built, \
+         {clearance} met the clearance screen"
+    );
+}
+
+/// **No fixture in this suite reaches `FILLET3_CONVEXITY_RECOURSE`.**
+///
+/// The sentence endorses splitting a chain at a convexity flip, which
+/// presumes a G1 chain whose links disagree in sign.
+///
+/// **The premise, stated as one:** every G1 chain this kernel's doors
+/// can express TODAY is a rim, and a rim's convexity is uniform, so a
+/// body that mixes convexity mixes it at a CORNER and the corner tag
+/// answers first. That is a property of the doors, not a theorem about
+/// blends — a chain door admitting a non-rim G1 run is exactly where
+/// the witness would come from, and this row goes red there.
+///
+/// The L prism is that body: its reflex edge makes one vertex
+/// mixed-convexity, and the whole-body request meets
+/// `UnsupportedCorner`, never `ConvexitySignFlip`. The adversarial
+/// corpus agrees — `review_d2_adv_probes::d2_reached_variants` reaches
+/// ten refusal classes over hundreds of requests and this is not one
+/// of them.
+#[test]
+fn the_convexity_recourse_has_no_witness_in_this_suite() {
+    let l = prism(
+        vec![
+            v(0.0, 0.0, 0.0),
+            v(2.0, 0.0, 0.0),
+            v(2.0, 1.0, 0.0),
+            v(1.0, 1.0, 0.0),
+            v(1.0, 2.0, 0.0),
+            v(0.0, 2.0, 0.0),
+        ],
+        1.0,
+        tol(),
+    );
+    let err = refusal(
+        &l,
+        &query::all_edges(&l),
+        0.1,
+        "every edge of an L prism",
+        false,
+    );
+    assert!(
+        matches!(
+            err,
+            BlendError::UnsupportedCorner {
+                corner: CornerConfig::MixedConvexity { .. },
+                ..
+            }
+        ),
+        "mixed convexity is met at the CORNER, not along a chain, got {err:?}"
+    );
+    assert!(
+        !err.to_string().contains(FILLET3_CONVEXITY_RECOURSE),
+        "and the caller is handed the corner recourse, not the convexity one"
+    );
+}
+
+/// **`FILLET3_GEOMETRY_RECOURSE` names a ring and an order that
+/// builds.**
+///
+/// The refusal is reached at a support face's RING of a carrier no
+/// meter reads:
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring`
+/// is the witness — a tilted bore through a cube's top face, the
+/// twelve outer edges refused, because the ring is an ellipse and the
+/// ring meters read lines and circles only.
+///
+/// This row follows the sentence. The old wording described only the
+/// REQUEST ("blend edges whose supports are planes … carriers are lines
+/// and circles"), which the twelve requested edges already satisfied —
+/// a dead recourse of issue 1278's class. The sentence now says the
+/// offending shape need not be one you requested and gives the lever
+/// that exists: **cut the feature that leaves the ring AFTER the blend
+/// rather than before it.** Executed here, on the same body, at the
+/// same radius the bored body refuses.
+///
+/// Red if that order stops working, or if the sentence stops naming
+/// the ring — either way the caller is back to advice they cannot act
+/// on.
+#[test]
+fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
+    let bore = crate::common::tilted_bore();
+    let bored = subtract(&cube(1.0, tol()), &bore);
+    let outer = outer_box_edges(&bored);
+    assert_eq!(outer.len(), 12, "the outer box's twelve edges");
+
+    // The refusal, and that it is about the RING rather than anything
+    // the caller named.
+    let err = refusal(&bored, &outer, 0.1, "the outer edges of a bored box", false);
+    assert!(
+        matches!(err, BlendError::UnsupportedGeometry { .. }),
+        "the ring's ellipse carriers are what refuse, got {err:?}"
+    );
+    let shown = err.to_string();
+    assert!(
+        shown.contains(FILLET3_GEOMETRY_RECOURSE),
+        "the caller is handed the geometry recourse: {shown}"
+    );
+    assert!(
+        FILLET3_GEOMETRY_RECOURSE.contains("support face's own ring")
+            && FILLET3_GEOMETRY_RECOURSE.contains("AFTER the blend"),
+        "the sentence names the ring the refusal is about, and the order that \
+         answers it: {FILLET3_GEOMETRY_RECOURSE}"
+    );
+
+    // Followed: blend first, cut the bore second.
+    let blended = fillet_edges(
+        &sweep::test_support::at_rest(&cube(1.0, tol()), tol()),
+        &outer_box_edges(&cube(1.0, tol())),
+        0.1,
+        tol(),
+    )
+    .expect("the bare cube's twelve edges blend")
+    .body;
+    let after = subtract(&blended, &bore);
+    validate_geometric(&after, tol())
+        .expect("and cutting the bore into the blended cube leaves a tier-3 valid body");
+}
+
+/// **On a LATTICE-ALIGNED dimple the clearance screen answers before
+/// the ring check — a property of this fixture, not of the door.**
+///
+/// `FILLET3_RING_RECOURSE` is front-door reachable and followable;
+/// `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
+/// is the composed pin, and this row is not a second copy of it.
+///
+/// What is measured here is the ORDER, and its premise. The battery's
+/// screen samples each boundary edge at `CHAIN_SAMPLES = 9` places; a
+/// sampled gap is never smaller than the true one, so which check
+/// answers first depends on whether the ring's closest approach to a
+/// requested edge lands ON a sample. On an axis-aligned dimpled cube it
+/// does, the two margins agree, and the screen answers — the caller
+/// reads the CLEARANCE recourse. Turn the same body 30° and it does
+/// not, and the exact ring check answers instead.
+///
+/// That premise — axis alignment — is the whole content of the row, and
+/// stating it as a property of the door is what made this suite file
+/// the ring recourse unreachable (PR 1753).
+#[test]
+fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
+    let dimpled = subtract(&cube(1.0, tol()), &ball_at(Vec3::new(0.5, 0.5, 1.1)));
+    let box_edges = line_edges(&dimpled);
+    assert_eq!(
+        box_edges.len(),
+        12,
+        "the dimple leaves the twelve box edges"
+    );
+
+    builds(&dimpled, &box_edges, 0.2, "a setback that clears the ring");
+    let err = refusal(
+        &dimpled,
+        &box_edges,
+        0.25,
+        "a setback that reaches it",
+        false,
+    );
+    assert!(
+        matches!(err, BlendError::FaceClearanceUncertified { .. }),
+        "on THIS fixture the samples land on the closest approach, so the screen \
+         meters the ring gap first, got {err:?}"
+    );
+    assert!(
+        !err.to_string().contains(FILLET3_RING_RECOURSE),
+        "and the caller reads the clearance recourse here, not the ring one"
+    );
+}
+
+/// The brick `[−2, 2]² × [0, 2.5]`'s top front edge, `y = −2, z = 2.5`.
+fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
+    [crate::band_planar_cut_off::edge(
+        body,
+        [-2.0, -2.0, 2.5],
+        [2.0, -2.0, 2.5],
+    )]
+}
+
+/// **The clearance recourse's reorder leg — "if that face came after
+/// the edge, blend before it, re-picking the edges there".**
+///
+/// A bore of radius `0.1` along `z` at `(0, −1.8)` crosses the band a
+/// `0.4` blend of the brick's top front edge puts there: its ring lies
+/// in the top face's strip and its wall runs down through the band. The
+/// blend defines the result (`S − R`) and does not build a crossing, so
+/// the request on the bored brick refuses under both verbs: the ring
+/// lies wholly inside the strip, a mouth the band could take, so the
+/// screen stands down and the reach reads the wall, which runs out of
+/// the band's material through its far side with no boundary witness
+/// inside it, a bound (`FaceClearance`), and the caller reads the
+/// clearance sentence. Followed: the edge is re-picked on the brick, blended,
+/// and the bore subtracted after. The chamfer's band is a plane strip,
+/// which the Boolean serves against the bore's cylinder, so the
+/// reordered request builds, tier-3 valid. The fillet's band is a
+/// cylinder skew to the bore's, a pair the Boolean does not serve yet,
+/// so the reordered fillet refuses at the Boolean: the leg is the
+/// sentence's, the gap the intersection table's.
+#[test]
+fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
+    use crate::common::bores::bored_brick;
+    use crate::common::cavity::{brick, rod};
+    let d = 0.4;
+    let bored = bored_brick(0.0, -1.8, 0.1);
+    let edge = top_front_edge(&bored);
+    for chamfer in [true, false] {
+        let err = refusal(&bored, &edge, d, "the bore crosses the band", chamfer);
+        assert!(
+            matches!(err, BlendError::FaceClearance { bounded: true, .. }),
+            "chamfer {chamfer}: the bore's mouth is in the strip, so the reach reads its \
+             wall, got {err:?}"
+        );
+        carries(&err, FILLET3_CLEARANCE_RECOURSE, "a bore crossing the band");
+    }
+    let block = brick(Point3::new(-2.0, -2.0, 0.0), Point3::new(2.0, 2.0, 2.5));
+    let bore = rod(Point2::new(0.0, -1.8), 0.1, -0.5, 3.5);
+    let edge = top_front_edge(&block);
+    let rest = sweep::test_support::at_rest(&block, tol());
+    let blended = |chamfer: bool| {
+        let out = if chamfer {
+            chamfer_edges(&rest, &edge, d, tol())
+        } else {
+            fillet_edges(&rest, &edge, d, tol())
+        };
+        out.unwrap_or_else(|e| panic!("chamfer {chamfer}: the brick's edge blends: {e}"))
+            .body
+    };
+    let cut = |b: &Body<f64>| {
+        topo::subtract(
+            &sweep::test_support::at_rest(b, tol()),
+            &sweep::test_support::at_rest(&bore, tol()),
+            tol(),
+        )
+    };
+    let chamfered = cut(&blended(true))
+        .unwrap_or_else(|e| panic!("the bore after the chamfer builds: {e}"))
+        .body()
+        .expect("the bore leaves material")
+        .body
+        .clone()
+        .into_body();
+    validate_geometric(&chamfered, tol())
+        .unwrap_or_else(|e| panic!("the reordered chamfer is tier-3 valid, got {e:?}"));
+    // `S − R − H`: the brick, less the chamfer's prism `d²/2 · 4`, less
+    // the bore up to the chamfer plane `z = 2.1 + (y + 2)`, which is
+    // linear across the bore's disc and so averages to its centre's 2.3.
+    let (v, pad) = crate::band_planar_cut_off::volume_enclosure(&chamfered);
+    let closed = 40.0 - d * d / 2.0 * 4.0 - std::f64::consts::PI * 0.01 * 2.3;
+    assert!(
+        (v - closed).abs() <= pad + 1e-9,
+        "the reordered chamfer is the rule's `S − R − H`: {v} ± {pad} vs {closed}"
+    );
+    let filleted = cut(&blended(false));
+    assert!(
+        matches!(
+            filleted,
+            Err(topo::boolean::BooleanError::GermFrameUnsupported {
+                a_kind: geom::SurfaceKind::Cylinder,
+                b_kind: geom::SurfaceKind::Cylinder,
+                ..
+            })
+        ),
+        "the bore after the fillet: the Boolean does not serve the band's cylinder against \
+         the skew bore yet; once it does, this row flips to a build. Got {:?}",
+        filleted.err()
+    );
+}
+
+/// **The ring recourse's reorder leg, walked to a build.** A bore of
+/// radius `a = 0.02` along the unit cube's `(1, 1)` edge pokes `0.01`
+/// across the trimline into the kept material: it crosses the band and
+/// refuses `RingClearance` at the cap, carrying `FILLET3_RING_RECOURSE`,
+/// under both verbs. Followed (the edge blended on the cube, the bore
+/// subtracted after) the reorder builds tier-3 under both verbs, the
+/// fillet's band and the bore being parallel cylinders, at the rule's
+/// `S − R − H`: the chamfer less the disc's segment beyond the chord,
+/// the fillet less the lens the disc shares with the arc's circle.
+#[test]
+fn the_ring_recourses_reorder_leg_builds_on_a_parallel_bore() {
+    use crate::band_planar_cut_off::{D, Verb, edge, volume_enclosure};
+    use crate::common::cavity::{cut, rod};
+    use core::f64::consts::FRAC_1_SQRT_2;
+    let crease = |body: &Body<f64>| [edge(body, [1.0, 1.0, 0.0], [1.0, 1.0, 1.0])];
+    let (a, poke) = (0.02, 0.01);
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let (centre, kept) = match verb {
+            // From the chord's midpoint `a − poke` towards the old vertex;
+            // the segment of the disc beyond `poke` from its centre.
+            Verb::Chamfer => (
+                1.0 - D / 2.0 + (a - poke) * FRAC_1_SQRT_2,
+                a * a * (poke / a).acos() - poke * (a * a - poke * poke).sqrt(),
+            ),
+            // From the arc's centre `1 − D`, `D + a − poke` along the ray;
+            // the lens the disc shares with the arc's circle.
+            Verb::Fillet => {
+                let (d, r, big) = (D + a - poke, a, D);
+                let lens = r * r * ((d * d + r * r - big * big) / (2.0 * d * r)).acos()
+                    + big * big * ((d * d + big * big - r * r) / (2.0 * d * big)).acos()
+                    - 0.5 * ((-d + r + big) * (d + r - big) * (d - r + big) * (d + r + big)).sqrt();
+                (1.0 - D + d * FRAC_1_SQRT_2, lens)
+            }
+        };
+        let bore = rod(Point2::new(centre, centre), a, -0.5, 1.5);
+        let bored = cut("bore", &cube(1.0, tol()), &bore);
+        let err = verb
+            .run(&bored, &crease(&bored))
+            .err()
+            .unwrap_or_else(|| panic!("{verb:?}: a bore crossing the trimline refuses"));
+        assert!(
+            matches!(err, BlendError::RingClearance { bounded: false, .. }),
+            "{verb:?}: the bore's ring crosses the cap's sliver, got {err:?}"
+        );
+        carries(&err, FILLET3_RING_RECOURSE, "a bore crossing the trimline");
+        let plain = cube(1.0, tol());
+        let blended = verb
+            .run(&plain, &crease(&plain))
+            .expect("the cube's edge blends")
+            .body;
+        let out = topo::subtract(
+            &sweep::test_support::at_rest(&blended, tol()),
+            &sweep::test_support::at_rest(&bore, tol()),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{verb:?}: the reordered request builds, got {e:?}"))
+        .body()
+        .expect("the bore leaves material")
+        .body
+        .clone()
+        .into_body();
+        validate_geometric(&out, tol())
+            .unwrap_or_else(|e| panic!("{verb:?}: the reorder is tier-3 valid, got {e:?}"));
+        let (v, pad) = volume_enclosure(&out);
+        let closed = 1.0 - verb.section() - kept;
+        assert!(
+            (v - closed).abs() <= pad + 1e-12,
+            "{verb:?}: the reorder is `S − R − H`: {v} ± {pad} vs {closed}"
+        );
+    }
+}
+
+/// **A blind hole entering from a support face, wholly inside the
+/// band's removed material, goes with it** (the rule's `S − R`): its
+/// ring lies inside the strip the band takes off the support, so the
+/// clearance screen stands down and the strip meter reads it inside,
+/// and its walls and floor lie inside the band's prism
+/// (`band_strip_mouth_cups`). No recourse is owed: the hole drilled
+/// after the blend would lie in air, and the blend's body is that one,
+/// `ΔV = −(2A − π·0.005²·0.03)` over the box's edge of length `2`.
+#[test]
+fn a_blind_hole_from_the_support_face_inside_the_region_goes_with_the_band() {
+    use crate::band_planar_cut_off::{Verb, edge, the_box};
+    use crate::band_strip_mouth_cups::post_faces;
+    use crate::common::cavity::{cut, rod};
+    let (a, h) = (0.005, 0.03);
+    let body = cut(
+        "blind hole",
+        &the_box(),
+        &rod(Point2::new(1.0, 0.015), a, 1.0 - h, 1.5),
+    );
+    let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
+    let axis = (Point3::new(1.0, 0.015, 1.0), Vec3::new(0.0, 0.0, -1.0));
+    let cups = post_faces(&body, axis, a, (0.0, h));
+    assert_eq!(cups.len(), 3, "the hole's two half-walls and floor");
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let dv = -(2.0 * verb.section() - core::f64::consts::PI * a * a * h);
+        crate::band_one_cycle_members::assert_taken(
+            verb,
+            &body,
+            &[e],
+            crate::band_planar_cut_off::D,
+            (&cups, 1, 0),
+            (dv, 1.0),
+            "a blind hole from the support face",
+        );
+    }
+}

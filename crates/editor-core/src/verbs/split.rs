@@ -1,0 +1,248 @@
+//! **The split's correspondence** — the one-body-in, two-sides-out
+//! verb, in the same per-instance-data pattern as the blends', the
+//! boolean's and the sweeps'.
+//!
+//! # What it declares, and what stays upstairs
+//!
+//! `Node::Split` has two inputs and no slot: a `target` whose evaluated
+//! body AND name table the lowering reads, and a `tool` whose evaluated
+//! value must be a plane POSE. The plane is the verb's whole payload —
+//! a kernel value read off a pose, exactly as the boolean's
+//! declarations reach the kernel already resolved — and the body is the
+//! one operand, borrowed at the split door.
+//!
+//! What stays in the lowering, deliberately: which input is the body
+//! and which the tool (the node's own shape), and the refusal a tool
+//! that is not a plane draws (`NodeErrorKind::WrongOperand` — document
+//! semantics, the class the revolve's axis check keeps upstairs). What
+//! is declared HERE is the correspondence proper: how a pose value
+//! becomes the verb's plane ([`SplitVerb::tool`] and the label its
+//! refusal carries), how the plane becomes the kernel verb (`build`),
+//! and which emitter mints names from the birth record and the two
+//! sides (`emitter`). There is no slot↔parameter row because
+//! the split has no scalar slot — the same fact its empty `param_flow`
+//! declares kernel-side — and no flow is attached.
+//!
+//! # Every field is direct per-instance data
+//!
+//! As in the sibling modules: function pointers and literals per
+//! instance, no match over the kernel's verb vocabulary anywhere in this file, so
+//! a future verb never has to open it. The one match here is over the
+//! POSE vocabulary — which kind of pose is a split's tool — and it is
+//! exhaustive with no wildcard arm (D3), so a pose kind added upstairs
+//! is a visit here that says whether a split can take it.
+//!
+//! # Where an operand's expected-kind label lives, by convention
+//!
+//! Two labels of this shape exist and they are two different things,
+//! which is why they have two homes.
+//!
+//! **The convention is about which DECLARATION carries the label, not
+//! about who picks the word.** `tool_expected` is correspondence DATA
+//! because the reading it labels is the correspondence's (`tool`):
+//! whoever declares which pose kinds a verb accepts declares WHICH
+//! label the refusal carries. The profile lowering's
+//! `expected: family::PROFILE` is the LOWERING's, because every
+//! profile verb takes a profile — the operand contract belongs to
+//! `wire_swept`, not to any one correspondence. The rule: a label is
+//! data on the correspondence that owns the reading it names, and
+//! inline in the lowering that owns the contract it names.
+//!
+//! **The WORD is never a home's to invent, this one included.** Every
+//! `expected:` in the evaluation comes from `crate::eval::family` or
+//! `crate::eval::phrase`, which is where the vocabulary a refusal
+//! speaks is enumerable; a correspondence choosing its own spelling of
+//! "a plane pose" is how one vocabulary becomes several. So the field
+//! stays here and its value is `eval::phrase::PLANE_POSE`.
+//!
+//! The `assert_eq!` below pins that value BYTE-EXACT, from the
+//! correspondence's side: the label is document-reachable (a split
+//! whose tool is an axis pose refuses with it), and a const is
+//! exactly as easy to re-word as a literal was. The same two bytes are
+//! pinned from the OTHER side by
+//! `crates/editor-core/tests/wire_operand_door.rs`, which asserts the
+//! refusal a document actually gets; the two are worth having together
+//! because they fail for different reasons — one when this
+//! correspondence is re-worded, the other when the word stops reaching
+//! the user.
+
+use crate::PoseValue;
+use geom_core::{Decide, Tol};
+use topo::splitting::SplitNaming;
+use topo::{Body, SplitPlane};
+use verbs::{Split, VerbRecord};
+
+use crate::names::{self, NameTable, NamingError};
+use crate::node::RecipeNodeId;
+
+/// The split's naming emitter: this node's id, the two sides (each
+/// present or empty), the birth record, the target's id, table and
+/// body, and the tolerance, in; each half's names out, in port order.
+pub(crate) type SplitEmitter<T> = fn(
+    RecipeNodeId,
+    Option<&Body<T>>,
+    Option<&Body<T>>,
+    &SplitNaming,
+    RecipeNodeId,
+    &NameTable,
+    &Body<T>,
+    Tol,
+) -> Result<[names::Emitted; 2], NamingError>;
+
+/// **The split's correspondence**, as data — everything the split's
+/// lowering needs to turn a `Node::Split` into a [`verbs::Split`] and its two
+/// sides into a name table. Adding a field here is how the verb
+/// declares something the lowering must know.
+pub(crate) struct SplitVerb<T: Decide> {
+    /// **The tool pose → the verb's plane.** The reading of a pose
+    /// value as a parting plane, per instance: a plane pose is one, an
+    /// axis or a point is not. `None` is the document-layer refusal's
+    /// cue, never a default plane.
+    pub(crate) tool: fn(&PoseValue<T>) -> Option<SplitPlane<T>>,
+    /// What the tool operand is EXPECTED to be, in the words the
+    /// `WrongOperand` refusal carries when it is not.
+    pub(crate) tool_expected: &'static str,
+    /// **The plane → the kernel verb.** The one place a document's
+    /// resolved tool plane becomes a [`verbs::Split`] payload, per instance.
+    pub(crate) build: fn(SplitPlane<T>) -> Split<T>,
+    /// This verb's naming emitter.
+    pub(crate) emitter: SplitEmitter<T>,
+    /// **This family's arm of the closed record channel**, as a
+    /// projection — read through [`super::read_record`], which owns
+    /// the foreign-family refusal.
+    pub(crate) record: fn(VerbRecord<T>) -> Option<SplitNaming>,
+    /// What a WRONG-FAMILY record is called when this verb's result
+    /// arrives carrying another family's channel — the blends', the
+    /// boolean's and the sweeps' `foreign_record` class exactly: a
+    /// kernel bug surfaced typed, unreachable while the doors and the
+    /// correspondences agree, with the sentence naming the door so
+    /// the refusal does too.
+    pub(crate) foreign_record: &'static str,
+}
+
+/// The split's kernel payload. A named function rather than a closure
+/// so it can be a plain `fn` pointer in the struct above.
+fn build_split<T: Decide>(plane: SplitPlane<T>) -> Split<T> {
+    Split { plane }
+}
+
+/// The split family's arm of the record channel. Exhaustive with no
+/// wildcard (D3): a family added to the channel breaks this at compile
+/// time and is routed here deliberately.
+fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
+    match record {
+        VerbRecord::Split(naming) => Some(naming),
+        VerbRecord::Blend(_)
+        | VerbRecord::Boolean { .. }
+        | VerbRecord::Extrude(_)
+        | VerbRecord::Revolve(_)
+        | VerbRecord::Shell(_) => None,
+    }
+}
+
+/// A plane pose is a parting plane; no other pose kind is. A FRAME
+/// carries a plane's worth of placement and is still refused: a slot
+/// holds its kind, and a frame reaches a split as its plane only
+/// through the projection that says so (D10). The pose's normal is the
+/// [`UnitVec3`](geom_core::UnitVec3) witness the kernel's split plane
+/// takes, and its sense says which half is above.
+fn plane_of<T: Decide>(pose: &PoseValue<T>) -> Option<SplitPlane<T>> {
+    match pose {
+        PoseValue::Plane { normal, offset } => Some(SplitPlane {
+            origin: PoseValue::plane_foot(*normal, *offset),
+            normal: *normal,
+        }),
+        PoseValue::Axis(_)
+        | PoseValue::Point { .. }
+        | PoseValue::Direction { .. }
+        | PoseValue::Frame { .. } => None,
+    }
+}
+
+/// The split's correspondence.
+///
+/// A function rather than a `const` for the same reason the siblings'
+/// are: the struct is generic in the lane scalar and a module-level
+/// const cannot be; the call is monomorphized and inlined.
+pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
+    SplitVerb {
+        tool: plane_of,
+        tool_expected: crate::eval::phrase::PLANE_POSE,
+        build: build_split,
+        emitter: names::name_split,
+        record: split_record,
+        foreign_record: "the split returned a record that is not a split's",
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)] // a fixture that will not build is a failure, not a value
+mod tests {
+    use geom_core::{Band, Point3, UnitVec3, Vec3};
+    use topo::POSE_UNIT_NORM;
+    use verbs::VerbKind;
+
+    use super::*;
+
+    /// The correspondence builds the verb its name claims — the
+    /// structural check every sibling module makes.
+    #[test]
+    fn the_correspondence_builds_the_split() {
+        let plane = topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(0.0, 0.0, 1.0),
+            geom_core::Tol::witness(),
+        );
+        let v: Split<f64> = (split::<f64>().build)(plane);
+        assert_eq!(
+            v.kind(),
+            VerbKind::Split,
+            "the split correspondence built a {v:?}"
+        );
+    }
+
+    /// **The tool reading takes a plane and nothing else**, and the
+    /// label its refusal carries says so. An axis and a point are two
+    /// of the other pose kinds a document can hand a split (a direction
+    /// and a frame are the rest, refused by the same exhaustive arm),
+    /// and each is refused by the reading rather than read as some
+    /// plane.
+    #[test]
+    fn the_tool_reading_takes_a_plane_only() {
+        let corr = split::<f64>();
+        let band = Band::linear(Tol::witness()).expect("the witnessed band");
+        let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), POSE_UNIT_NORM, band)
+            .expect("a unit direction");
+        let origin = Point3::new(0.0, 0.0, 0.5);
+        let plane = (corr.tool)(&PoseValue::plane_through(origin, up))
+            .expect("a plane pose is a parting plane");
+        assert_eq!(plane.normal.get().z, 1.0);
+        assert_eq!(plane.origin.z, 0.5);
+        assert!(
+            (corr.tool)(&PoseValue::axis_through(origin, up)).is_none(),
+            "an axis was read as a parting plane"
+        );
+        assert!(
+            (corr.tool)(&PoseValue::Point { position: origin }).is_none(),
+            "a point was read as a parting plane"
+        );
+        // Byte-exact, not `contains`: this label is DOCUMENT-REACHABLE
+        // — a split whose tool is an axis pose refuses `WrongOperand
+        // { expected }` with it — so a word moved here is a refusal
+        // string moved at the document layer.
+        assert_eq!(corr.tool_expected, "plane pose");
+    }
+
+    /// The wrong-family sentence, byte-exact. It names its door (the
+    /// boolean's module pins the same property for its one instance
+    /// by `contains`; this one is unreachable from a document but is
+    /// pinned to the byte anyway, so the two split sentences are held
+    /// to one standard).
+    #[test]
+    fn the_foreign_record_sentence_names_the_door() {
+        assert_eq!(
+            split::<f64>().foreign_record,
+            "the split returned a record that is not a split's"
+        );
+    }
+}

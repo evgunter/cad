@@ -1,0 +1,63 @@
+# THE DUAL-REVIEW LOG'S NUMBERS AND INDEX. Each row of the log is its own
+# file, docs/dual-review-log/rows/PR-<n>.md, landed by its unit's PR without
+# a DR number (scripts/dual-review-log.py's header). This workflow is the ONLY
+# writer of a row's `dr:` and of docs/DUAL-REVIEW-LOG.md: on every push to
+# main that touches the rows it numbers the unnumbered ones in main's merge
+# order, re-renders the index and foot, and commits both from the Actions
+# token. No branch writes either, so no two PRs conflict over the log.
+#
+# The same shape as work-status.yml, for the same reasons: NO RECURSION
+# (pushes with the default GITHUB_TOKEN trigger no workflow runs, and the
+# subject carries [skip ci]); THE RACE IS A RETRY (a rejected push re-syncs
+# to the new main and renumbers on top, never rewriting published history).
+# `fetch-depth: 0` is load-bearing: the merge order is read from main's
+# first-parent history.
+name: dual-review-log
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/dual-review-log/**"
+      - "scripts/dual-review-log.py"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  # NO LOCAL MIRROR: this job commits numbers and the render to main from the Actions token; a developer box runs `scripts/dual-review-log.py render` to look and commits nothing
+  number:
+    name: number rows, render docs/DUAL-REVIEW-LOG.md
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: number, render and commit (main only)
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4; do
+            git fetch origin main
+            git reset --hard origin/main
+            python3 scripts/dual-review-log.py lint
+            python3 scripts/dual-review-log.py assign
+            python3 scripts/dual-review-log.py render
+            if git diff --quiet -- docs/dual-review-log/rows docs/DUAL-REVIEW-LOG.md; then
+              echo "the dual-review log is already numbered and rendered"
+              exit 0
+            fi
+            git add docs/dual-review-log/rows docs/DUAL-REVIEW-LOG.md
+            git commit -m "dual-review log: number and render for ${SHA:0:7} [skip ci]"
+            if git push origin HEAD:main; then
+              echo "committed the dual-review log"
+              exit 0
+            fi
+            echo "push rejected (main moved); retry ${attempt}"
+            sleep $((attempt * 4))
+          done
+          echo "could not land the dual-review log after 4 attempts" >&2
+          exit 1

@@ -1,0 +1,138 @@
+# Pre-GUI demo tour. Deliberately OUTSIDE the kernel workspace (the
+# empty [workspace] table below detaches it; the root manifest also
+# lists `demos` in workspace.exclude): viewer/demo tooling must never
+# become a workspace dependency. Builds the kernel by path.
+[package]
+name = "demo-tour"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+autotests = false  # tests/all.rs is the one test binary; see its header
+
+# The scenes are a library and `src/main.rs` is a thin bin over it, so
+# that the tests can reach the scenes from `tests/` and the scene code
+# compiles once per build. Neither target carries a test harness: a lib
+# or bin harness is a second compile of the same 32k lines, and every
+# test lives in `tests/all.rs`.
+[lib]
+test = false
+doctest = false
+bench = false
+
+[[bin]]
+name = "demo-tour"
+path = "src/main.rs"
+test = false
+bench = false
+
+[[test]]
+name = "all"
+path = "tests/all.rs"
+
+[workspace]
+
+# The `k-probe` mode only (src/probe.rs + its dispatch in lib.rs), which
+# rebuilds every scene at `geom_core::k_stats::Probe` to dump the margin
+# CSV for the K sweep. Opt-in because Probe is a `Real` instantiation:
+# carrying it unconditionally made every RELEASE RENDER of this tour
+# monomorphize the whole geometry stack a second time for a mode the
+# render lanes never invoke. `scripts/k_probe_sweep.sh` passes
+# `--features probe`; render.yml's tour job deliberately does not.
+#
+# The `tess-budget` mode (src/tessbudget.rs + its dispatch) is opt-in
+# for a different reason: `mesh::budget` is per-face telemetry gated at
+# its own module boundary, so the kernel a render build links carries
+# none of it. Same shape as `probe` above, no monomorphization
+# argument — the cost avoided is state in the tessellation lane, not
+# codegen. `scripts/tess_budget_sweep.sh` passes `--features budget`.
+[features]
+probe = ["pncad/probe"]
+budget = ["pncad/budget"]
+
+# The façade carries the tour. The tour is the façade's acceptance
+# corpus (LIB-U1): every scene, and every kernel type they touch
+# reached through `pncad::`, including the error payloads. It used to
+# name eleven crates here — among them `geom-brep`, present for no
+# reason but to spell `SurfaceKind`, the payload of
+# `topo::BooleanError::CurvedBooleanUnsupported` that `topo` does not
+# re-export. The façade's closure property retires that whole class,
+# so the entry is gone rather than commented.
+[dependencies]
+pncad = { path = "../../crates/pncad" }
+
+# The budget meter's consumer half: the CSV schema and the
+# counterfactual arithmetic the `tess-budget` mode writes. Not gated
+# behind the `budget` feature — the crate is plain derivation over
+# `mesh::budget`'s (ungated, data-only) measurement types, so carrying
+# it never turns the instrument on. What `budget` gates is `arm`/`take`.
+tess-meter = { path = "../../tools/tess-meter" }
+
+# The budget sweep's per-face `name` column: a `StableName` is rendered
+# through its ratified structural serialization (F3) rather than through
+# a second spelling written here, so what the CSV carries is the same
+# derivation path a saved document carries. Already in this crate's
+# graph through the document layer; named here because this crate calls
+# it directly.
+serde_json = "1.0.151"
+
+# The suite-aggregation row `tests/all.rs` carries, the same one every
+# kernel crate's aggregator carries. Test-only: the bin itself still
+# reaches the kernel through `pncad` alone.
+[dev-dependencies]
+test-utils = { path = "../../crates/test-utils" }
+
+
+# The kernel's own nextest legs are optimized DEV builds
+# (`CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL` in ci.yml), which leaves cargo's
+# dev default of debug-assertions ON, so the fail-loud postconditions keep
+# their teeth there. Cargo's release default turns them OFF, so without
+# this the tour was the one lane exercising the kernel with every
+# `debug_assert` compiled out — D9's operator postconditions, the
+# Euler-vector arena deltas, the N6 bitwise-agreement check, all vacuous.
+# (The shipped configuration, assertions off, has its own row: ci.yml's
+# `corrupt input (release profile)`.)
+#
+# Re-arming them here rather than dropping `--release` is deliberate:
+# this is a DETACHED workspace ([workspace] above), so the root
+# manifest's `[profile.dev.package]` opt-2 overrides for spade+mesh do
+# NOT reach it and a dev build would tessellate at opt 0. We want the
+# optimized codegen AND the assertions; they are independent knobs.
+# Scoped to this manifest, so the kernel workspace's own release profile
+# — and anything shipped from it — is untouched.
+#
+# `overflow-checks` is a SEPARATE knob, not a rider on debug-assertions:
+# cargo emits `-C overflow-checks=off` explicitly under release even with
+# `-C debug-assertions=on` (verified in `cargo build --release -v`). Dev
+# defaults both ON, so arming only the first would still leave this lane
+# checking less than the nextest legs do. Both, or the parity claim above
+# is false.
+[profile.release]
+debug-assertions = true
+overflow-checks = true
+
+# ci.yml's per-PR `demos tour suite` builds the tour at opt-level 1, every
+# other knob as release above (assertions and overflow checks armed). The
+# nightly and the render lanes keep the full release profile.
+#
+# Measured on one 4-core box, the kernel built from scratch with
+# CARGO_INCREMENTAL=0 and the `ci` nextest profile run after:
+#
+#   | profile   | build | tests | total    |
+#   | opt 3     | 857 s | 195 s | 17.5 min |
+#   | opt 1     | 379 s | 221 s | 10.0 min |
+#
+# Two things make the build 2.3x cheaper. Less optimization, mostly in
+# editor-core (636 s -> 309 s), which is the build's critical path. And
+# rustc reuses an upstream crate's generic instantiations at opt-level 0,
+# 1 and s, but not at 2 or 3. At opt 3, the `all` test binary recompiles
+# every scene and kernel generic it calls for `f64`: 162 s, which cannot
+# start before editor-core finishes. At opt 1 it takes 5 s.
+#
+# Optimization level changes no floating-point result in Rust (there is no
+# fast-math, and LLVM does not contract into FMA unless asked). The
+# bit-pinned rows, `tolerance::tests::the_plate_verdicts_hold_their_bits`
+# among them, pass at both levels.
+[profile.ci-tour]
+inherits = "release"
+opt-level = 1

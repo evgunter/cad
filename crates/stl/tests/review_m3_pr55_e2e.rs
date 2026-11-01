@@ -1,0 +1,174 @@
+//! M3 PR 5.5 review, assignment D (e2e half): THE DIE built from RAW
+//! extrude outputs — profile → extrude → 21 sequential boolean pip
+//! subtracts across all six faces — with NO caller-side edge
+//! normalization (the demo's `normalize_edges_to_chords` workaround
+//! must be unnecessary after PR 5's extrude-operand remap), exact
+//! volume oracle, tiers, tessellation, and a binary STL written for
+//! the external admesh watertight gate (`scripts/check_admesh.sh`).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::type_complexity)] // fixture tables read clearer inline
+
+use crate::common::finished;
+use geom_core::Tol;
+use geom_core::{Point2, Point3, RigidMotion, Turns, UnitVec3};
+use mesh::validate::{check_mesh, signed_volume};
+use profile::RawLoop;
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
+
+use sweep::{Extrusion, extrude};
+use topo::{AtRestBody, BooleanResult, mass_properties, subtract, validate, validate_closed};
+
+fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
+    Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .unwrap()
+}
+
+/// A rectangular raw-extrude brick on an arbitrary sketch frame.
+fn slab(frame: RigidMotion<f64>, w: (f64, f64), h: (f64, f64), depth: f64) -> AtRestBody<f64> {
+    let lp = ProfileLoop::polygon([
+        Point2::new(w.0, h.0),
+        Point2::new(w.1, h.0),
+        Point2::new(w.1, h.1),
+        Point2::new(w.0, h.1),
+    ]);
+    let body = extrude(
+        &validated(SketchPlane::from_frame(frame), lp),
+        Extrusion::Distance {
+            depth,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    finished("the slab", body, Tol::witness())
+}
+
+/// THE DIE from raw extrude operands: cube [0,2]^3, 21 pips (0.25
+/// square, 0.125 deep, {0.5,1,1.5} grid, opposite faces sum 7).
+#[test]
+fn die_from_raw_extrudes_watertight_stl() {
+    let mut acc = slab(
+        RigidMotion::axes_xy(Point3::origin()),
+        (0.0, 2.0),
+        (0.0, 2.0),
+        2.0,
+    );
+    let g = [0.5, 1.0, 1.5];
+    // (sketch frame, pip centers (u,v)) per face; sketch plane sits
+    // 0.125 under the face, extrude 0.625 outward. Each face's frame is
+    // a world frame or a written turn of one.
+    let (x, y, z) = (
+        UnitVec3::exact_x(),
+        UnitVec3::exact_y(),
+        UnitVec3::exact_z(),
+    );
+    let faces: [(RigidMotion<f64>, Vec<(f64, f64)>); 6] = [
+        (
+            RigidMotion::axes_xy(Point3::new(0.0, 0.0, 1.875)),
+            vec![(g[1], g[1])],
+        ),
+        (
+            // (ŷ, x̂), normal −ẑ
+            RigidMotion::turned(Point3::new(0.0, 0.0, 0.125), z, Turns::quarters(1))
+                .compose(RigidMotion::half_turn_x())
+                .unwrap(),
+            vec![
+                (g[0], g[0]),
+                (g[1], g[1]),
+                (g[2], g[2]),
+                (g[0], g[2]),
+                (g[2], g[0]),
+                (g[0], g[1]),
+            ],
+        ),
+        (
+            RigidMotion::axes_yz(Point3::new(1.875, 0.0, 0.0)),
+            vec![(g[0], g[0]), (g[2], g[2])],
+        ),
+        (
+            // (ẑ, ŷ), normal −x̂
+            RigidMotion::turned(Point3::new(0.125, 0.0, 0.0), y, Turns::quarters(-1)),
+            vec![
+                (g[0], g[0]),
+                (g[2], g[2]),
+                (g[0], g[2]),
+                (g[2], g[0]),
+                (g[1], g[1]),
+            ],
+        ),
+        (
+            RigidMotion::axes_zx(Point3::new(0.0, 1.875, 0.0)),
+            vec![(g[0], g[0]), (g[1], g[1]), (g[2], g[2])],
+        ),
+        (
+            // (x̂, ẑ), normal −ŷ
+            RigidMotion::turned(Point3::new(0.0, 0.125, 0.0), x, Turns::quarters(1)),
+            vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0])],
+        ),
+    ];
+    let mut pips = 0u32;
+    for (frame, centers) in faces {
+        for (cu, cv) in centers {
+            let pip = slab(
+                frame,
+                (cu - 0.125, cu + 0.125),
+                (cv - 0.125, cv + 0.125),
+                0.625,
+            );
+            let r = subtract(&acc, &pip, Tol::witness()).unwrap();
+            let BooleanResult::Body(bb) = r else {
+                panic!("pip subtract emptied the die");
+            };
+            acc = bb.body;
+            pips += 1;
+            assert_eq!(validate(&acc), Ok(()));
+            assert_eq!(validate_closed(&acc), Ok(()));
+            let expect = 8.0 - f64::from(pips) * 0.25 * 0.25 * 0.125;
+            assert_eq!(
+                mass_properties(
+                    &acc,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness())
+                )
+                .unwrap()
+                .met()
+                .expect("the pinned resolution is met")
+                .volume,
+                expect,
+                "pip {pips}"
+            );
+        }
+    }
+    assert_eq!(pips, 21);
+    assert_eq!(
+        mass_properties(
+            &acc,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
+        7.8359375
+    );
+    // Tessellate + self-checked mesh + STL for the admesh gate.
+    let mesh = mesh::tessellate(&acc, 1e-2, Tol::witness()).unwrap();
+    check_mesh(&mesh).unwrap();
+    let v = signed_volume(&mesh);
+    assert!((v - 7.8359375).abs() < 1e-9, "mesh volume {v}");
+    let dir = std::env::var("REVIEW_STL_DIR").unwrap_or_else(|_| {
+        std::env::temp_dir()
+            .join("review_m3_pr55_stl")
+            .to_string_lossy()
+            .into_owned()
+    });
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = format!("{dir}/die21.stl");
+    let mut file = std::fs::File::create(&path).unwrap();
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut file).unwrap();
+}

@@ -1,0 +1,107 @@
+---
+id: validate-classifiers-and-lower-displays-classify-refusals-differently
+kind: issue
+title: validate.rs - about a dozen at-rest classifier arms put a refusal in a different class (defect, not yet, a lever) from the refusal type's own message, and each needs a ruling on which reading is true
+status: open
+opened: 2026-09-29
+priority: P3
+cost: M
+refs: [3387, validate-own-close-levers-follow-the-d4-recourse-ruling, chart-region-corrupt-spells-its-kernel-defect-ending-by-hand]
+---
+
+**Where this comes from.** S-DUP's design fork on
+`validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`
+(PR 3387, row 9 of `docs/DESIGN-FORK-LOG.md`). Ev ruled on 2026-09-29.
+The at-rest texts stay in `validate.rs`'s `classify_*` functions,
+written for the checks window, and are not moved into the refusal
+types: *"the choice should ultimately be made based on code quality
+rather than drift risk"*. The two texts for an arm may differ on
+purpose, because the lever differs by reading. What that ruling leaves
+is the arms where the two texts disagree on **what kind of refusal
+this is**. That is not wording. One side is wrong, and nobody has
+decided which. Both designers found these arms independently. Their
+tables are in PR 3387.
+
+**The arms** (`validate.rs` on main at 2026-09-29; re-take at the
+lane's merge base):
+
+| classifier | arm | refusal type's own message | classifier at rest |
+|---|---|---|---|
+| `classify_pcurve` | `SingularChartJoint` | not built yet; nothing to repair (`pcurves.rs` ~:412) | defect |
+| `classify_pcurve` | `LoopWraps` | report it | not yet |
+| `classify_pcurve` | `OuterSpansPeriod` | describe it as pieces within one period | not yet |
+| `classify_pcurve` | `LoopDiscontinuity`, `MissingCache` | re-mint the body | defect (is every at-rest body minted by its door? unmeasured) |
+| `classify_mass_props` | `RingOnCurvedFace` (`props.rs` ~:229) | report it | not yet |
+| `classify_mass_props` | `NappeSpanning` | report it | not yet |
+| `classify_mass_props` | `NotOneChartBranch` | state it as two edges | not yet |
+| `classify_mass_props` | `DegenerateFace` | the coincidence menu | defect |
+| `classify_mass_props` | `QuadratureBudget` | loosen the tolerance or simplify the trim | loosen the tolerance (both texts miss D4's last-resort qualifier) |
+| `classify_chart_region` | `ChartDivergence` | give the pair a structural identity | not yet |
+| `classify_chart_region` | `NonPlanarTrim` | structural-identity and re-mint levers | not yet |
+| `classify_chart_region` | `RayExhausted` | move the point off the boundary it grazes, or read the pair at a tighter ε | the coincidence menu (the lane offers no declaration) |
+| `classify_chart_region` | `DegenerateLoop` | repair the loop or re-mint its pcurves | widen the face |
+| `classify_census_cause` | `FaceUnboundable` | repair the face's loop, then check again | defect |
+
+**The unit.** For each arm, decide which reading is true at rest, then
+fix whichever text is wrong. That may be the lower message, and the
+fix then lands on the type's owner by announced seam. Where the two
+texts differ on purpose, the classifier says why in one line. The
+per-arm rulings follow D4's recourse ruling (`[ev]` PR 3352) and the
+D2-addendum rows. An arm whose true class is unclear is a question for
+Ev, not a guess.
+
+**Already filed, fold if they are still open:** the `own_close(…, "lower
+the tolerance")` arms (`work/encl/validate-own-close-levers-follow-the-d4-recourse-ruling.md`),
+`work/charttail/chart-region-corrupt-spells-its-kernel-defect-ending-by-hand.md`,
+and `work/props/nappe-spanning-spells-its-kernel-defect-ending-by-hand.md`.
+
+**Fixed already, not members:** `ArcLoopUnsupported` (#3388) and
+`classify_offset_fit`'s `Band` arm (#3403).
+
+**Instruments.** `topo::test_support_samples::validation_error_samples`
+enumerates every nested variant. `refusal_concision_at_rest` renders
+each one through the viewer's standard. That row checks a sentence's
+shape, not its truth, so a wrong class stays green. A plant proves only
+that the arm is reached.
+
+## A reference that outlived its program (2026-10-03)
+
+`nappe-spanning-spells-its-kernel-defect-ending-by-hand` was PROPS' and was deleted with `work/props/` when that program closed.
+It is dropped from this row's `refs:` because `refs` names live items; the
+finding is unchanged and readable at `git show 63df2069c:work/props/<id>.md`,
+and PROPS' done-state of record is `docs/doc-ledger/props-leaves-the-tracker.md`.
+
+## Evidence from SHELL's designer pair (2026-10-06)
+
+Weighing how `shell_open` should report a curved rim that builds
+but whose volume props cannot yet read, an Opus and a Fable designer
+crossed twice: a per-verb `VolumeUnmeasured` arm against rendering
+each error's reading inside `NotValid`/`ResultInvalid`. Both then
+landed on the question beneath: **the class belongs in the tier-3
+verdict.**
+
+- `validate_geometric`'s `Err(Vec<ValidationError>)` already mixes
+  three kinds: violations (`NegativeVolume`, `RingOutsideOuter`),
+  undecided (`RingNestingUndecided`, `ShellRoleUndecided`) and
+  uncomputable (`VolumeUncomputable`, whose own doc assigns D9 row 1
+  or row 2 by `source`).
+- Every consumer therefore re-sorts it: the boolean's backstop
+  `ops::props_refusal` (by `classify_mass_props(..).defect`), the
+  boolean's gate (which does not sort, so one ringed wall reads
+  "unmeasured" at one site and "invalid" at the other), shell, and
+  the editor's display.
+
+The converged recommendation is a typed class on the verdict, owned
+by the validator, which knows the reasons. The verbs' closing arms
+then mean exactly "violates" or carry the class verbatim, and no verb
+reads props' inventory.
+
+The two designers differ only on spelling:
+- two verdict arms, `Violates` / `Uncertified { check, reason }`;
+- or a `class()` on each `ValidationError`, with `NotValid` renamed
+  `Uncertified` and rendered per verdict, which handles a mixed
+  vector without a sort.
+
+This row's per-arm ruling becomes load-bearing for shell once curved
+rims build (`work/shell/shell-open-refuses-a-curved-designated-face`).
+(SHELL orchestrator)

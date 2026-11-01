@@ -1,0 +1,745 @@
+//! M4 PR 7 (appearance half): per-face/body appearance attributes
+//! keyed by StableName — DocEdit apply validation, survival across
+//! recompute (the attribute rides the name, not the topology), loud
+//! typed N3/N5 loss semantics on retire/vanish, and the
+//! renderer-facing resolved output.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+
+use editor_core::NodeStanding;
+use editor_core::{
+    AppearanceLossCause, Attr, AttrKind, CancelToken, CapEnd, Dimension, DocEdit, EditError,
+    EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, ProfileDoc,
+    RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
+};
+use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, square, step};
+use geom_core::Tol;
+
+fn run(doc: &ProfileDoc) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+fn rerun(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+    evaluate::<f64>(
+        doc,
+        Some(prior),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+}
+
+fn red() -> Attr {
+    Attr::Color(Rgba8::opaque(200, 30, 30))
+}
+
+fn set(doc: ProfileDoc, name: StableName, attr: Attr) -> ProfileDoc {
+    let read = crate::fixture::painted_in(&doc, &name);
+    step(
+        doc,
+        DocEdit::SetAppearance {
+            body: read,
+            name,
+            attr,
+        },
+    )
+    .0
+}
+
+/// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
+fn block(
+    doc: ProfileDoc,
+    (x0, x1): (f64, f64),
+    (y0, y1): (f64, f64),
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(dz),
+        },
+    )
+}
+
+// ---- DocEdit apply validation ----
+
+#[test]
+fn set_appearance_validates_and_applies_purely() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+
+    let applied = doc
+        .apply(
+            &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &cap),
+                name: cap.clone(),
+                attr: red(),
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    // Non-structural, nothing minted; the input document untouched.
+    assert!(!applied.record.structural);
+    assert_eq!(applied.record.minted, None);
+    assert!(doc.appearance().is_empty(), "apply must be pure");
+    assert_eq!(
+        crate::fixture::painted(&applied.doc, &cap)
+            .unwrap()
+            .attrs
+            .get(&AttrKind::Color),
+        Some(&red())
+    );
+
+    // Edge/vertex names: typed refusal (v1 scope is face/body).
+    let edge = minted(
+        EntityKind::Edge,
+        ext,
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0).into()),
+    );
+    assert_eq!(
+        doc.apply(
+            &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &edge),
+                name: edge.clone(),
+                attr: red(),
+            },
+            Tol::witness()
+        )
+        .unwrap_err(),
+        EditError::AppearanceWrongKind {
+            name: doc.spoken_name(&edge)
+        }
+    );
+
+    // A never-existed node id: typed refusal at the edit door.
+    let bogus = minted(
+        EntityKind::Face,
+        RecipeNodeId::new(0, 999),
+        RoleSeg::Cap(CapEnd::End),
+    );
+    assert_eq!(
+        doc.apply(
+            &DocEdit::SetAppearance {
+                body: crate::fixture::painted_in(&doc, &bogus),
+                name: bogus.clone(),
+                attr: red(),
+            },
+            Tol::witness()
+        )
+        .unwrap_err(),
+        EditError::AppearanceNamesMissingNode {
+            name: SpokenName::absent(bogus)
+        }
+    );
+}
+
+#[test]
+fn multi_attribute_per_entity_and_clear_semantics() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let body = minted(EntityKind::Body, ext, RoleSeg::OutputBody);
+
+    // Clearing an attribute that is not set: loud.
+    assert_eq!(
+        doc.apply(
+            &DocEdit::ClearAppearance {
+                body: crate::fixture::painted_in(&doc, &body),
+                name: body.clone(),
+                kind: AttrKind::Color,
+            },
+            Tol::witness()
+        )
+        .unwrap_err(),
+        EditError::AppearanceNotSet {
+            name: doc.spoken_name(&body),
+            kind: AttrKind::Color,
+        }
+    );
+
+    // Three kinds coexist on one name.
+    let doc = set(doc, body.clone(), red());
+    let doc = set(doc, body.clone(), Attr::Visibility(false));
+    let doc = set(
+        doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("housing").unwrap()),
+    );
+    let attrs = crate::fixture::painted(&doc, &body).unwrap();
+    assert_eq!(attrs.attrs.len(), 3);
+    assert_eq!(
+        attrs.attrs.get(&AttrKind::Label),
+        Some(&Attr::Label(editor_core::Label::new("housing").unwrap()))
+    );
+
+    // Same-kind set replaces (one slot per kind).
+    let doc = set(doc, body.clone(), Attr::Color(Rgba8::opaque(0, 0, 255)));
+    let attrs = crate::fixture::painted(&doc, &body).unwrap();
+    assert_eq!(attrs.attrs.len(), 3);
+    assert_eq!(
+        attrs.attrs.get(&AttrKind::Color),
+        Some(&Attr::Color(Rgba8::opaque(0, 0, 255)))
+    );
+
+    // Clear kind-by-kind; clearing the last one drops the entry, and
+    // a second clear of the same kind is loud.
+    let read = crate::fixture::painted_in(&doc, &body);
+    let (doc, _) = step(
+        doc,
+        DocEdit::ClearAppearance {
+            body: read,
+            name: body.clone(),
+            kind: AttrKind::Color,
+        },
+    );
+    assert!(
+        !crate::fixture::painted(&doc, &body)
+            .unwrap()
+            .attrs
+            .contains_key(&AttrKind::Color)
+    );
+    let read = crate::fixture::painted_in(&doc, &body);
+    let (doc, _) = step(
+        doc,
+        DocEdit::ClearAppearance {
+            body: read,
+            name: body.clone(),
+            kind: AttrKind::Visibility,
+        },
+    );
+    let read = crate::fixture::painted_in(&doc, &body);
+    let (doc, _) = step(
+        doc,
+        DocEdit::ClearAppearance {
+            body: read,
+            name: body.clone(),
+            kind: AttrKind::Label,
+        },
+    );
+    assert!(
+        crate::fixture::painted(&doc, &body).is_none(),
+        "empty set drops the entry"
+    );
+    assert!(doc.appearance().is_empty());
+}
+
+#[test]
+fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
+    let doc0 = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
+    let (doc1, p) = insert(
+        doc0.clone(),
+        Node::Profile(desc(vec![square(0.0, 0.0, 0.5)])),
+    );
+    let (doc2, ext) = insert(
+        doc1,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        },
+    );
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let doc3 = set(doc2.clone(), cap.clone(), red());
+
+    // diff: appearance-only change is reported, and only it.
+    let d = doc2.diff(&doc3);
+    assert!(d.appearance_changed);
+    assert!(d.nodes.is_empty() && d.vars.is_empty() && !d.metadata_changed);
+    assert!(!d.is_empty());
+
+    // Replay from empty reproduces the appearance bit-identically.
+    let edits = [
+        DocEdit::InsertNode {
+            node: Box::new(crate::fixture::as_authored(&doc3, doc3.node(p).unwrap())),
+            fresh: Vec::new(),
+        },
+        DocEdit::InsertNode {
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(ext).unwrap(),
+            )),
+            fresh: Vec::new(),
+        },
+        DocEdit::SetAppearance {
+            body: crate::fixture::painted_in(&doc3, &cap),
+            name: cap,
+            attr: red(),
+        },
+    ];
+    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
+    assert!(replayed.bit_eq(&doc3));
+}
+
+// ---- Survival across recompute ----
+
+#[test]
+fn attribute_survives_no_flip_parameter_motion_on_the_die() {
+    let d = die();
+    // Attribute the final body and one face of the final table by the
+    // names the FINAL node mints.
+    let body = minted(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
+    let ev0 = run(&d.doc);
+    let final_table = ev0.table_at(d.final_node).unwrap();
+    let face = final_table
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face && matches!(e, editor_core::Entry::Unique(_)))
+                .then(|| n.clone())
+        })
+        .expect("final die table has a unique face");
+    let doc = set(
+        d.doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("die").unwrap()),
+    );
+    let doc = set(doc, face.clone(), red());
+
+    let ev1 = run(&doc);
+    assert!(
+        ev1.appearance.is_lossless(),
+        "losses: {:?}",
+        ev1.appearance.losses
+    );
+    let rows = ev1.appearance.for_node(d.final_node).unwrap();
+    // The body row and the face row both landed.
+    assert!(rows.iter().any(|(ent, attrs)| {
+        ent.key == EntityKey::Body && attrs.get(&AttrKind::Label).is_some()
+    }));
+    assert!(rows.iter().any(|(ent, attrs)| {
+        matches!(ent.key, EntityKey::Face(_)) && attrs.get(&AttrKind::Color) == Some(&red())
+    }));
+
+    // No-flip continuous motion (the D5 invariance corpus pattern:
+    // dyadic, still-shallow pip depth).
+    let (doc2, _) = step(
+        doc,
+        DocEdit::DefineVar {
+            var: VarName::from_static("pip_depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
+            fresh: Vec::new(),
+        },
+    );
+    let ev2 = rerun(&doc2, &ev1);
+    assert!(ev2.recomputed > 0, "the edit must recompute its cone");
+    // The attribute rode the name: same resolution, zero losses.
+    assert!(
+        ev2.appearance.is_lossless(),
+        "losses: {:?}",
+        ev2.appearance.losses
+    );
+    assert_eq!(ev1.appearance, ev2.appearance);
+}
+
+#[test]
+fn appearance_only_edit_recomputes_zero_nodes() {
+    let d = die();
+    let ev0 = run(&d.doc);
+    let body = minted(EntityKind::Body, d.final_node, RoleSeg::OutputBody);
+    let doc = set(d.doc, body.clone(), red());
+    let ev1 = rerun(&doc, &ev0);
+    // Appearance is presentation metadata: not in any content key.
+    assert_eq!(ev1.recomputed, 0, "appearance edit must not recompute");
+    assert!(ev1.appearance.is_lossless());
+    let rows = ev1.appearance.for_node(d.final_node).unwrap();
+    assert_eq!(rows.len(), 1);
+    // And the resolution reflects the edit immediately.
+    let (_, attrs) = rows.iter().next().unwrap();
+    assert_eq!(attrs.get(&AttrKind::Color), Some(&red()));
+}
+
+#[test]
+fn a_split_pass_through_carries_the_attribute_downstream() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let tool = fixture::plane_on(&doc, ext, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, moved) = insert(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool,
+        },
+    );
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let doc = set(doc, cap.clone(), red());
+    let ev = run(&doc);
+    assert!(ev.appearance.is_lossless());
+    // The SAME name resolves in both tables (a split passes a cap it
+    // does not cut through with no RolePath segment), so the half
+    // inherits the attribute with no policy involved.
+    for node in [ext, moved] {
+        let rows = ev.appearance.for_node(node).unwrap();
+        assert_eq!(rows.len(), 1, "one attributed face at {node:?}");
+        let (ent, attrs) = rows.iter().next().unwrap();
+        assert!(matches!(ent.key, EntityKey::Face(_)));
+        assert_eq!(attrs.get(&AttrKind::Color), Some(&red()));
+    }
+}
+
+// ---- Loud, typed loss semantics (N3/N5) ----
+
+/// The loss is what the next EVALUATION says about a stranded key;
+/// `dm7_delete_strands`' appearance rows assert what the DELETE DOOR
+/// said about the same key at the moment it stranded it
+/// (`Maintenance::StrandedAppearance`), so the two ends of one key's
+/// life are pinned in one place each.
+#[test]
+fn deleting_the_minting_node_strands_the_attribute_loudly() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let doc = set(doc, cap.clone(), red());
+    // Deleting the extrude is allowed (N5 dangling semantics — the
+    // appearance entry is a reference, not a DAG edge).
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ext });
+    let ev = run(&doc);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    let loss = &ev.appearance.losses[0];
+    assert_eq!(loss.name, cap);
+    // The extrude took the entry's read with it, and the read answers
+    // first (N5's `ReadGone`, ahead of the name's `NodeGone`).
+    assert_eq!(loss.cause, AppearanceLossCause::ReadGone);
+    // Nothing silently dropped: the payload rides the loss and the
+    // store still holds the entry.
+    assert_eq!(loss.attrs.get(&AttrKind::Color), Some(&red()));
+    let read = crate::fixture::painted_in(&doc, &cap);
+    assert!(doc.appearance_of(read, &cap).is_some());
+    // ClearAppearance is the repair path and works on the stranded
+    // name (no liveness requirement).
+    let (doc, _) = step(
+        doc,
+        DocEdit::ClearAppearance {
+            body: read,
+            name: cap,
+            kind: AttrKind::Color,
+        },
+    );
+    assert!(doc.appearance().is_empty());
+    assert!(run(&doc).appearance.is_lossless());
+}
+
+#[test]
+fn failed_target_node_is_a_typed_indeterminate_loss() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let doc = set(doc, cap.clone(), red());
+    // Degenerate the extrusion: the node fails, the attachment is
+    // indeterminate (NOT retired) and typed as such.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: ext,
+            slot: editor_core::SlotId::Distance,
+            value: len(0.0).into(),
+            fresh: Vec::new(),
+        },
+    );
+    let ev = run(&doc);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    assert_eq!(
+        ev.appearance.losses[0].cause,
+        AppearanceLossCause::Indeterminate(NodeStanding::Failed { node: ext })
+    );
+    // Repair the parameter: the attribute resolves again, unchanged —
+    // it was never dropped.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: ext,
+            slot: editor_core::SlotId::Distance,
+            value: len(1.0).into(),
+            fresh: Vec::new(),
+        },
+    );
+    let ev = run(&doc);
+    assert!(ev.appearance.is_lossless());
+}
+
+#[test]
+fn poisoned_target_node_reports_the_failed_ancestor() {
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
+    // Decoupled overlap (M4 PR 5: coincident planes demand a Declare;
+    // this test wants a plain transversal union).
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, b) = block(doc, (1.0, 3.0), (0.25, 1.75), 0.75);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 0.125]);
+    let (doc, uni) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        },
+    );
+    // Attribute a UNION-minted face name (node = the boolean).
+    let ev = run(&doc);
+    let uni_face = ev
+        .table_at(uni)
+        .unwrap()
+        .iter()
+        .find_map(|(n, e)| {
+            (n.kind == EntityKind::Face
+                && n.node == uni
+                && matches!(e, editor_core::Entry::Unique(_)))
+            .then(|| n.clone())
+        })
+        .expect("union mints face names");
+    let doc = set(doc, uni_face.clone(), red());
+    assert!(run(&doc).appearance.is_lossless());
+    // Break operand A: the union is poisoned through it.
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetParam {
+            node: a,
+            slot: editor_core::SlotId::Distance,
+            value: len(0.0).into(),
+            fresh: Vec::new(),
+        },
+    );
+    let ev = run(&doc);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    assert_eq!(
+        ev.appearance.losses[0].cause,
+        AppearanceLossCause::Indeterminate(NodeStanding::Poisoned {
+            node: uni,
+            through: a
+        })
+    );
+}
+
+#[test]
+fn an_index_count_reduction_vanishes_the_member_name_loudly() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let (doc, k, pat) = crate::fixture::linear(doc, ext, [1.0, 0.0, 0.0], 2.0, 3);
+    // Attribute a face of member 2 by its family-minted name.
+    let ev = run(&doc);
+    let inst2_face = ev
+        .table_at(pat)
+        .unwrap()
+        .iter()
+        .find_map(|(n, _)| {
+            (n.kind == EntityKind::Face
+                && matches!(n.path.first(), Some(RoleSeg::Member { at, .. }) if at.as_slice() == [(k, 2)]))
+            .then(|| n.clone())
+        })
+        .expect("the family mints member-2 face names");
+    let doc = set(doc, inst2_face.clone(), red());
+    assert!(run(&doc).appearance.is_lossless());
+
+    // The index's count 3 -> 2. Member 2 no longer exists; the name
+    // vanishes and the loss is typed, never silent.
+    let doc = crate::fixture::recount(doc, k, Formula::count(2));
+    let ev = run(&doc);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    let loss = &ev.appearance.losses[0];
+    assert_eq!(loss.name, inst2_face);
+    assert_eq!(
+        loss.cause,
+        AppearanceLossCause::Vanished {
+            candidates: Vec::new()
+        }
+    );
+    // Restoring the count restores resolution (the attribute rode the
+    // name through the round trip).
+    let doc = crate::fixture::recount(doc, k, Formula::count(3));
+    assert!(run(&doc).appearance.is_lossless());
+}
+
+/// The PR 3 genuine-tie fixture: a U cutter through one wall; both
+/// B-cap prong fragments tie (no covariant qualifier separates them).
+/// Returns (doc, subtract node).
+fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
+    );
+    let (doc, b) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(2.0),
+        },
+    );
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 1.0]);
+    let (doc, sub) = insert(
+        doc,
+        Node::Subtract {
+            from: a.into(),
+            tool: b.into(),
+        },
+    );
+    (doc, sub)
+}
+
+/// A tied name (width 2) from the fixture's subtract table.
+fn tied_name(ev: &Evaluation<f64>, sub: RecipeNodeId) -> StableName {
+    ev.table_at(sub)
+        .unwrap()
+        .iter()
+        .find_map(|(n, e)| {
+            matches!(e, editor_core::Entry::Tied(c) if c.len() == 2).then(|| n.clone())
+        })
+        .expect("the U-cutter fixture ties")
+}
+
+#[test]
+fn tied_name_appearance_is_ambiguous_never_painted() {
+    let (doc, sub) = tie_fixture();
+    let ev = run(&doc);
+    let tied = tied_name(&ev, sub);
+    // Attaching is a legal edit (tie status is evaluation-level
+    // knowledge)…
+    let doc = set(doc, tied.clone(), red());
+    let ev = run(&doc);
+    // …but resolution refuses to auto-pick: typed Ambiguous, and the
+    // tied candidates are NOT painted.
+    assert_eq!(ev.appearance.losses.len(), 1);
+    assert_eq!(
+        ev.appearance.losses[0].cause,
+        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+    );
+    assert!(ev.appearance.resolved.is_empty());
+}
+
+#[test]
+fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
+    // Review A2 (adapted from the reviewer's pass-through-duplicate
+    // probe): a tied name passed through a split's half appears in TWO
+    // tables; the loss report stays per-name — exactly ONE Ambiguous
+    // row, `at` = the first carrying node in evaluation order, the rest
+    // derivable by table lookup.
+    let (doc, sub) = tie_fixture();
+    let tool = fixture::plane_on(&doc, sub, [0.0, 0.0, 3.5], [0.0, 0.0, 1.0]);
+    let (doc, _split) = insert(
+        doc,
+        Node::Split {
+            target: sub.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    let tied = tied_name(&ev, sub);
+    let doc = set(doc, tied.clone(), red());
+    let ev = run(&doc);
+    assert_eq!(
+        ev.appearance.losses.len(),
+        1,
+        "one loss row per (name, cause): {:?}",
+        ev.appearance.losses
+    );
+    assert_eq!(ev.appearance.losses[0].name, tied);
+    assert_eq!(
+        ev.appearance.losses[0].cause,
+        AppearanceLossCause::Ambiguous { at: sub, width: 2 }
+    );
+    assert!(ev.appearance.resolved.is_empty(), "ties are never painted");
+}
+
+#[test]
+fn operand_paint_does_not_follow_the_face_through_a_boolean() {
+    // Review A1 (RULED, upheld as correct v1 semantics; fixture
+    // adapted from the reviewer's probe_boolean_final_output_
+    // silently_unpainted): painting an OPERAND's cap and then
+    // consuming the operand in a union paints the operand node's
+    // output ONLY. The union's corresponding face is a DIFFERENT
+    // derivation (`FromA(cap)` ≠ `cap`, N1 identity), so the final
+    // node shows neither the paint nor a loss and the resolution is
+    // lossless — auto-following the face through the boolean would be
+    // a silent rebinding policy, and the N5 menu is EMPTY by ratified
+    // decision. Repairs are explicit: attribute the name the
+    // displayed node's table mints, or PR 4's Rebind. This test PINS
+    // the ruling; changing it requires a ratified policy, not a code
+    // tweak.
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0; 3]);
+    let (doc, uni) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
+        },
+    );
+    let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    let doc = set(doc, cap.clone(), red());
+    let ev = run(&doc);
+    // Lossless, painted at `a` — and NOTHING at the union node.
+    assert!(ev.appearance.is_lossless());
+    assert!(ev.appearance.for_node(a).is_some());
+    assert!(
+        ev.appearance.for_node(uni).is_none(),
+        "the final body carries no paint and no loss row (ruled A1)"
+    );
+}
+
+#[test]
+fn canceled_run_reports_not_evaluated_not_vanished() {
+    let (doc, ext) = block(
+        ProfileDoc::empty_derived("m4_pr7_appearance", Tol::witness()),
+        (0.0, 1.0),
+        (0.0, 1.0),
+        1.0,
+    );
+    let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let doc = set(doc, cap, red());
+    let cancel = CancelToken::new();
+    cancel.cancel();
+    let ev = evaluate::<f64>(&doc, None, &cancel, &EvalOptions::default(), Tol::witness());
+    assert_eq!(ev.outcome, editor_core::EvalOutcome::Canceled);
+    assert_eq!(ev.appearance.losses.len(), 1);
+    assert_eq!(
+        ev.appearance.losses[0].cause,
+        AppearanceLossCause::Indeterminate(NodeStanding::NotEvaluated { node: ext })
+    );
+}

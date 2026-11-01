@@ -1,0 +1,161 @@
+//! The cross-lap joint (#91 C1, Ev's pick): two beams, each notched
+//! half-depth by a subtract — each notched beam is itself a boolean
+//! result, so the joint is #90's boolean-of-boolean payload made
+//! visible. Geometry is the `issue86_double_subtract` crossing-slots
+//! class promoted to real joint proportions.
+//!
+//! The mated union BUILDS through the join — it decides the contacts
+//! one carrier by margin (D10), the contact patches (notch
+//! floor/ceiling and the four flush walls) are removed as interior and
+//! the seam is fused, volume exactly 2·(BEAM_VOL − NOTCH_VOL). The stop
+//! ships the GLUED union (watertight STL + STEP exported by the tour
+//! like every stop body).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use pncad::authoring::v3;
+use pncad::geom_core::RigidMotion;
+use pncad::topo::BooleanBody;
+
+use crate::bool_bodies::slab;
+use crate::booleans::{check, expect_seamed, try_subtract, try_union};
+use crate::scalar::Scalar;
+use crate::{SceneBody, TourStop, View};
+use pncad::geom_core::Tol;
+
+/// Beam cross-section 0.5 x 0.5, length 4; notches half-depth (0.25),
+/// exactly beam-width wide, at the crossing x,y ∈ [1.75, 2.25]. All
+/// notch cutters overshoot so no cutter plane coincides with a beam
+/// plane except the intended crossing walls.
+const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
+const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
+
+/// Beam A runs along x, notched from the TOP at the crossing.
+fn beam_a<S: Scalar>(tol: Tol) -> BooleanBody<S> {
+    let beam: pncad::topo::AtRestBody<S> = slab((0.0, 4.0), (1.75, 2.25), (0.0, 0.5), tol);
+    let cutter = slab((1.75, 2.25), (1.5, 2.5), (0.25, 0.75), tol);
+    expect_seamed(
+        "beam A notch subtract",
+        check(try_subtract(&beam, &cutter, tol), BEAM_VOL - NOTCH_VOL, tol),
+        BEAM_VOL - NOTCH_VOL,
+    )
+}
+
+/// Beam B runs along y, notched from the BOTTOM — the two half-depth
+/// notches interlock.
+fn beam_b<S: Scalar>(tol: Tol) -> BooleanBody<S> {
+    let beam: pncad::topo::AtRestBody<S> = slab((1.75, 2.25), (0.0, 4.0), (0.0, 0.5), tol);
+    let cutter = slab((1.5, 2.5), (1.75, 2.25), (-0.25, 0.25), tol);
+    expect_seamed(
+        "beam B notch subtract",
+        check(try_subtract(&beam, &cutter, tol), BEAM_VOL - NOTCH_VOL, tol),
+        BEAM_VOL - NOTCH_VOL,
+    )
+}
+
+/// The joint's boolean work, generic (the Probe sweep runs the same
+/// ops): both notched beams, the glued union, and the lifted exploded
+/// copy.
+pub(crate) fn build<S: Scalar>(
+    tol: Tol,
+) -> (
+    BooleanBody<S>,
+    BooleanBody<S>,
+    BooleanBody<S>,
+    pncad::topo::Body<S>,
+) {
+    let a = beam_a::<S>(tol);
+    let b = beam_b::<S>(tol);
+
+    let expected = 2.0 * (BEAM_VOL - NOTCH_VOL);
+    // The union BUILDS through the join, which leaves the coincident
+    // contact patches out and fuses the seam — exact dyadic volume
+    // additivity (interiors disjoint).
+    let glued = expect_seamed(
+        "mated union (the join)",
+        check(try_union(&a.body, &b.body, tol), expected, tol),
+        expected,
+    );
+    println!(
+        "   mated-union: GLUED on the decided zero (D10), volume {expected} exactly — \
+         through the join"
+    );
+
+    // Exploded: beam B lifted by a rigid transform (#84 — every moved
+    // edge witness is re-minted, and the moved body revalidates).
+    let lift = RigidMotion::translation(v3(0.0, 0.0, 1.25)).expect("a finite lift");
+    let b_lifted = pncad::topo::transform_rigid(&b.body, &lift, tol).expect("lift beam B");
+    (a, b, glued, b_lifted)
+}
+
+pub fn stops(tol: Tol) -> Vec<TourStop> {
+    let (a, _b, glued, b_lifted) = build::<f64>(tol);
+    let note = format!(
+        "each beam is a boolean RESULT (notch subtract, volume {} — observed \
+         bit-exact, gated 1e-9); the join GLUES the joint on the contacts' \
+         decided zero (D10) — one watertight body, volume {} exactly \
+         (2·(beam − notch); interiors disjoint, nothing discarded)",
+        BEAM_VOL - NOTCH_VOL,
+        2.0 * (BEAM_VOL - NOTCH_VOL)
+    );
+    vec![
+        TourStop {
+            name: "crosslap",
+            caption: "cross-lap (glued)".to_string(),
+            // Off the sheet: `twopeg` shows this cell's whole claim —
+            // a glued union across a coincident PLANAR
+            // contact — and adds two CYLINDRICAL contacts on a shape
+            // that is more part-like. The cross-lap keeps its
+            // standalone render, its narration, and every non-sheet
+            // role (corpus, latency, exports).
+            montage: false,
+            story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
+                    UNIONED into one body through the join — the \
+                    contact patches are interior now; only the seam edges remain",
+            ops: "2 x (extrude beam, extrude cutter -> subtract); mate -> union",
+            delta: 1e-2,
+            note: Some(note.clone()),
+            view: View {
+                elev: 22.0,
+                azim: -60.0,
+                up: 'z',
+            },
+            bodies: vec![SceneBody::seamed(
+                "crosslap_glued",
+                [0.72, 0.53, 0.30],
+                glued.body.into_body(),
+                glued.contacts.clone(),
+            )],
+        },
+        TourStop {
+            name: "crosslap_exploded",
+            caption: "cross-lap (exploded)".to_string(),
+            // Off the sheet with its own glued cell (see above);
+            // `twopeg`'s apart framing is what the sheet now
+            // carries.
+            montage: false,
+            story: "the same joint exploded: beam B lifted by a rigid transform \
+                    (re-minted witnesses, #84), the interlocking notches visible",
+            ops: "transform_rigid(beam B, +1.25 z) — transform witnesses re-minted",
+            delta: 1e-2,
+            note: None,
+            view: View {
+                elev: 22.0,
+                azim: -60.0,
+                up: 'z',
+            },
+            bodies: vec![
+                SceneBody::seamed(
+                    "crosslap_exp_a",
+                    [0.72, 0.53, 0.30],
+                    a.body.into_body(),
+                    a.contacts,
+                ),
+                // The lifted copy is a TRANSFORM result, not a boolean
+                // result — its contacts don't survive the move; it
+                // validates through the plain tier-3 gate.
+                SceneBody::plain("crosslap_exp_b", [0.55, 0.42, 0.65], b_lifted),
+            ],
+        },
+    ]
+}

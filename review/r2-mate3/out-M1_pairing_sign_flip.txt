@@ -1,0 +1,149 @@
+=== MUTATION M1_pairing_sign_flip ===
+---- tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are stdout ----
+
+thread 'tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are' (16360) panicked at crates/topo/src/tier3_tests.rs:714:10:
+called `Result::unwrap_err()` on an `Ok` value: ()
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::result::unwrap_failed
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1867:5
+   3: <core::result::Result<(), alloc::vec::Vec<topo::validate::ValidationError>>>::unwrap_err
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/result.rs:1329:22
+   4: topo::tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are
+             at ./src/tier3_tests.rs:714:10
+   5: topo::tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are::{closure#0}
+             at ./src/tier3_tests.rs:695:78
+   6: <topo::tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers stdout ----
+
+thread 'tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers' (16363) panicked at crates/topo/src/tier3_tests.rs:667:5:
+[VolumeUncomputable { source: Face { face: FaceKey(1v1), source: NotIsoRectangle { what: "curved face without a rim (non-sphere)" } } }]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: topo::tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers
+             at ./src/tier3_tests.rs:667:5
+   3: topo::tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers::{closure#0}
+             at ./src/tier3_tests.rs:652:73
+   4: <topo::tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    face_normal::tests::every_hand_multiply_of_the_face_sign_is_inventoried
+    r2_probes::r2_declaration_gating_is_by_class_and_by_pair_and_stays_the_same_refusal
+    r2_probes::r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement
+    r2_probes::r2_ordinary_solids_earn_no_wedge_verdict
+    r2_probes::r2_the_cusp_prisms_material_is_the_crescent_by_volume
+    tier3_tests::a_scaffold_at_rest_is_refused_and_the_chart_description_is_not
+    tier3_tests::an_undeclared_cusp_refuses_and_only_its_own_tangent_declaration_legalizes_it
+    tier3_tests::coplanar_split_is_smooth_and_tier3_clean
+    tier3_tests::revert_maps_the_declared_cusp_to_the_declared_slit
+    tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are
+    tier3_tests::the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina
+    tier3_tests::the_second_order_band_has_three_outcomes_and_they_are_three_answers
+
+test result: FAILED. 491 passed; 12 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.89s
+
+error: test failed, to rerun pass `-p topo --lib`
+--- step-export ---
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::m6_6_sense_gate::die_pips_dimple_flip_refuses
+             at ./tests/m6_6_sense_gate.rs:207:5
+   3: all::m6_6_sense_gate::die_pips_dimple_flip_refuses::{closure#0}
+             at ./tests/m6_6_sense_gate.rs:205:34
+   4: <all::m6_6_sense_gate::die_pips_dimple_flip_refuses::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    m6_6_sense_gate::ball_half_flip_is_caught_at_the_shared_edge
+    m6_6_sense_gate::cone_lateral_flip_refuses
+    m6_6_sense_gate::countersink_cone_bore_both_directions
+    m6_6_sense_gate::cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue
+    m6_6_sense_gate::die_pips_dimple_flip_refuses
+    m6_6_sense_gate::donut_torus_flips_refuse
+    m6_6_sense_gate::lily_lantern_zone_and_pucker_flips_refuse
+    m6_6_sense_gate::washer_cylinder_walls_both_directions
+    m6_6_sense_gate::whole_body_inverted_ball_stays_negative_volume
+    r2_probes::r2_lamina_verdicts_versus_measured_volume
+    rev_probe::ball_both_single_band_flips_are_laminae_with_the_curved_arm_still_silent
+    rev_probe::conic_trimmed_wall_flip_probe
+    rev_probe::nappe_adversaries
+
+test result: FAILED. 42 passed; 13 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.03s
+
+error: test failed, to rerun pass `-p step-export --test all`
+--- sweep m9_3 ---
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: all::r1_probes_m9_3::probe_two_ring_patch_unions_exactly
+             at ./tests/r1_probes_m9_3.rs:415:9
+   3: all::r1_probes_m9_3::probe_two_ring_patch_unions_exactly::{closure#0}
+             at ./tests/r1_probes_m9_3.rs:398:41
+   4: <all::r1_probes_m9_3::probe_two_ring_patch_unions_exactly::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    m9_3_wall_door::tangent_door_contradicts_escalates_and_admits
+    m9_3_zip::tube_chain_rim_unions_and_carries_the_tangent_intersection
+    m9_3_zip::two_peg_plate_union_is_exactly_additive
+    r1_probes_m9_3::probe_peg_offset_one_ulp_characterized
+    r1_probes_m9_3::probe_two_ring_patch_unions_exactly
+
+test result: FAILED. 13 passed; 5 failed; 0 ignored; 0 measured; 911 filtered out; finished in 0.40s
+
+error: test failed, to rerun pass `-p sweep --test all`
+--- profile ---
+test crates/profile/src/path/family.rs - path::family (line 32) ... ok
+test crates/profile/src/path/family.rs - path::family (line 54) ... ok
+test crates/profile/src/path/family.rs - path::family (line 78) ... ok
+test crates/profile/src/validate.rs - validate::ValidatedLoop<T>::blend_arcs (line 799) ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 17 tests
+test crates/profile/src/lib.rs - ProfileLoop (line 208) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 165) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 182) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 173) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 189) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 203) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 197) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 213) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 230) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 220) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 240) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 253) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 273) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 263) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 284) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 317) - compile fail ... ok
+test crates/profile/src/path.rs - path (line 332) - compile fail ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+all doctests ran in 0.57s; merged doctests compilation took 0.39s

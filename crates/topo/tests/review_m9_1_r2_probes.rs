@@ -1,0 +1,284 @@
+//! Blinded-review probes for PR #524 (M9-1 PR-1). Each probe attacks
+//! one claim from the review brief; see the review report for the
+//! verdict each one produced.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use common::{brick, finished};
+use geom_core::Tol;
+use geom_core::{Band, Point3, Vec3};
+use topo::boolean::carrier_eq::{CarrierDesc, CarrierRelation, carrier_eq};
+use topo::boolean::contact_verify::tangent_locus_relation;
+use topo::contact::ContactRefusal;
+use topo::{BooleanResult, Surface, ValidationError, union};
+
+fn band() -> Band {
+    Band::linear(Tol::witness()).unwrap()
+}
+
+/// A ball of radius `arm` about the origin: the extent a bare arm
+/// names.
+fn at(arm: f64) -> topo::ConsumedExtent<f64> {
+    topo::ConsumedExtent::new(geom_brep::ExtentBall::new(Point3::origin(), arm))
+}
+
+fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::from_array(o),
+        normal: Vec3::from_array(n),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
+    geom::Curve3::Line {
+        origin: Point3::from_array(o),
+        dir: Vec3::from_array(d),
+    }
+}
+
+/// PROBE 1 (claim 2): a genuine CROSSING — a cylinder half-embedded in
+/// a plane, read tangent along one of the two transverse
+/// intersection lines. The locus lies exactly on both surfaces, so
+/// nothing is separated; the contradiction triggers must beat the
+/// bridge.
+#[test]
+fn probe_crossing_cylinder_through_plane_contradicts() {
+    let cyl = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(1.0, 0.0, 0.0),
+        radius: 1.0,
+        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    // The intersection line y = 1, z = 0: on the plane and on the
+    // cylinder, but the surfaces CROSS there (normals perpendicular).
+    let locus = line([0.0, 1.0, 0.0], [1.0, 0.0, 0.0]);
+    let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band())
+        .expect_err("a transverse crossing must contradict a tangency");
+    assert!(
+        matches!(err, ContactRefusal::Contradicted { .. }),
+        "must be Contradicted, got {err:?}"
+    );
+}
+
+/// PROBE 2 (claim 2, the #175 bridge attacked head-on): two planes
+/// meeting at a genuine dihedral angle, read tangent along their
+/// intersection line. kappa_rel is exactly zero (plane/plane), which is
+/// the bridged residue; if the bridge waves this through, a genuine
+/// crossing was certified. The first-order trigger must beat it.
+#[test]
+fn probe_dihedral_crossing_planes_contradict_despite_zero_kappa() {
+    let alpha: f64 = 0.2;
+    let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    // Tilted about the x-axis by alpha; material side flipped so the
+    // sense check reads "opposed" and cannot mask the verdict.
+    let tilted = plane([0.0, 0.0, 0.0], [0.0, alpha.sin(), -alpha.cos()]);
+    let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let err = tangent_locus_relation(&flat, true, &tilted, true, &locus, -1.0, 1.0, band())
+        .expect_err("crossing planes must contradict a tangency");
+    assert!(
+        matches!(err, ContactRefusal::Contradicted { .. }),
+        "must be Contradicted, got {err:?}"
+    );
+}
+
+/// PROBE 3 (claim 2): definite separation — the same cylinder-on-plane
+/// pair as the green row, with the cylinder lifted 1 mm. The locus (on
+/// the plane) is definitely off the cylinder; the bridge must not
+/// carry a tangency across a real gap.
+#[test]
+fn probe_separated_pair_contradicts() {
+    let cyl = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 1.001),
+        axis: Vec3::new(1.0, 0.0, 0.0),
+        radius: 1.0,
+        u_ref: Vec3::new(0.0, 1.0, 0.0),
+    };
+    let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band())
+        .expect_err("a 1 mm gap must contradict a tangency");
+    assert!(
+        matches!(err, ContactRefusal::Contradicted { .. }),
+        "expected Contradicted, got {err:?}"
+    );
+}
+
+/// PROBE 4 (claim 1): the mm-vs-metre twin on the sphere rung. The
+/// same relative difference at two absolute scales: the verdict stays
+/// definite where the margin is definite, at both scales (a
+/// wrong-dimension comparand would flip one of them).
+#[test]
+fn probe_sphere_rung_mm_vs_metre_twin() {
+    for scale in [1.0_f64, 1e-3] {
+        let a = CarrierDesc::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0 * scale,
+            outward: true,
+        };
+        let b = CarrierDesc::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.5 * scale,
+            outward: false,
+        };
+        assert_eq!(
+            carrier_eq(&a, &b, &at(1.0), band()).unwrap(),
+            CarrierRelation::Distinct,
+            "scale {scale}: the radius decides at both scales"
+        );
+    }
+}
+
+/// PROBE 5 (claim 1): near-tie cylinder pair — a sub-band axis tilt is
+/// one carrier, and a definite tilt at the same arm is two, on the
+/// cylinder rung.
+#[test]
+fn probe_cylinder_axis_near_tie_three_outcomes() {
+    let base = CarrierDesc::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 3.0,
+        outward: true,
+    };
+    let tilt = |t: f64| CarrierDesc::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(t, 0.0, 1.0).normalize(),
+        radius: 3.0,
+        outward: false,
+    };
+    // Tilts stated in BAND units, not literals: a fixed 1e-12 rad is
+    // sub-band at the default ε and definite at ε = 1e-12, so the
+    // literal version of this row asserted the wrong posture in the
+    // matrix's own lower leg (adopted-probe fix, M9-1 fix pass).
+    let b = band();
+    let near = tilt(b.zero() * 0.001);
+    assert_eq!(
+        carrier_eq(&base, &near, &at(1.0), band()).unwrap(),
+        CarrierRelation::SameOpposite,
+        "sub-band: one carrier"
+    );
+    // Definite tilt: three orders above the escalate edge at the same
+    // 1 m arm.
+    assert_eq!(
+        carrier_eq(&base, &tilt(b.escalate() * 1000.0), &at(1.0), band()).unwrap(),
+        CarrierRelation::Distinct,
+        "definite: two carriers"
+    );
+}
+
+/// PROBE 6 (claim 5): the replay row must BITE — a mutated record set
+/// compares unequal, so the PartialEq row is discriminating rather
+/// than vacuously true.
+#[test]
+fn probe_replay_partial_eq_bites_on_mutation() {
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+        tol,
+    );
+    let BooleanResult::Body(x) = union(&a, &b, Tol::witness()).unwrap() else {
+        panic!("overlapping union cannot be empty");
+    };
+    let mut mutated = x.contacts.clone();
+    assert_eq!(mutated, x.contacts, "clone is bit-identical");
+    if let Some((_, kept)) = x.contacts.rows().split_last() {
+        let dropped: topo::ContactRecords = kept.iter().cloned().collect();
+        assert_ne!(dropped, x.contacts, "a dropped row must show");
+    }
+    let mut faces = x.body.faces().map(|(k, _)| k);
+    let (fa, fb) = (faces.next().unwrap(), faces.next().unwrap());
+    mutated.extend([topo::Cited::new(
+        topo::Contact::new(&x.body, topo::Cell::Face(fa), topo::Cell::Face(fb)).unwrap(),
+        topo::Cites::decided(0),
+    )]);
+    assert_ne!(mutated, x.contacts, "an added row must show");
+}
+
+/// PROBE 7 (claim 6): the AT-REST gate executes. A fabricated
+/// face–face record between two adjacent brick faces, which cross at
+/// their shared edge and lie on two carriers, is never blessed.
+#[test]
+fn probe_census_gate_refuses_a_fabricated_face_pair() {
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let (_, edge) = a.edges().next().expect("brick has edges");
+    let face_of = |he: topo::HalfEdgeKey| {
+        a.get_loop(a.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    let f1 = face_of(edge.he_plus);
+    let f2 = face_of(edge.he_minus);
+    let contacts = topo::test_support::records(&a, [(topo::Cell::Face(f1), topo::Cell::Face(f2))]);
+    let errors = topo::validate_pseudomanifold(&a, &contacts, Tol::witness())
+        .expect_err("fabricated contact records must be refused at rest");
+    // The patch certifier reads two carriers: the record is
+    // CONTRADICTED (the Rest-class refusal), never blessed.
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::ContactContradicted {
+                declaration: topo::ContactPair {
+                    class: topo::GlueClass::Rest,
+                    ..
+                },
+                ..
+            }
+        )),
+        "the fabricated patch record must be contradicted: {errors:?}"
+    );
+}
+
+/// PROBE 8 (claim 2, verdict honesty): an in-band GAP under a tangency
+/// is never verified. A gap is an on-surface RESIDUAL margin, which C4
+/// puts on the must-verify-DEFINITE list, so in band it escalates.
+///
+/// The gaps are derived FROM the run's band, not hard-coded: a literal
+/// 3e-9 is in-band only at the default ε and reads as definite
+/// separation at ε = 1e-12 and as no gap at all at ε = 1e-6. A row that
+/// only means what it says at one ε is not an ε row. Each cell below
+/// asserts its own posture's invariant.
+#[test]
+fn probe_in_band_gap_escalates() {
+    let flat = plane([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
+    let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let at_gap = |gap: f64| {
+        let cyl = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0 + gap),
+            axis: Vec3::new(1.0, 0.0, 0.0),
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, band())
+    };
+    let b = band();
+
+    // Below the band's zero: no gap the run can see.
+    assert!(
+        at_gap(b.zero() * 0.1).is_ok(),
+        "a sub-zero gap is not a gap at this ε"
+    );
+
+    // Inside the band: a residual margin that cannot be decided.
+    let mid = (b.zero() + b.escalate()) * 0.5;
+    let refusal = at_gap(mid).expect_err("an in-band gap refuses");
+    assert!(
+        matches!(refusal, ContactRefusal::Escalated { .. }),
+        "in-band gap must escalate: {refusal:?}"
+    );
+
+    // Above the band: definite separation contradicts.
+    let far = at_gap(b.escalate() * 1000.0).expect_err("a definite gap contradicts");
+    assert!(
+        matches!(far, ContactRefusal::Contradicted { .. }),
+        "a definite gap must contradict: {far:?}"
+    );
+}

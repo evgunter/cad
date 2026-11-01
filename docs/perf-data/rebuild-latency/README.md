@@ -1,0 +1,98 @@
+# rebuild-latency timing history
+
+One file per RUN of the reporting job, named
+`<epoch-seconds>-<short-sha>.json` so a lexicographic sort is a
+chronological one. Written and committed by `nightly.yml`'s `rebuild
+latency (reporting)` job, on a hosted runner. That job is on a nightly
+cron and is gated on `main` having moved since the last run, so the
+cadence is at most one entry per night and a quiet day adds none — not
+one entry per merge, which is what this said while the job lived in
+`ci.yml`.
+
+**Append-only.** A run adds a filename; it never edits an existing one.
+That is what makes it conflict-free under concurrent merges (two runs
+write different names), what makes it survive the workflow's
+`cancel-in-progress: true` (a cancelled run drops its own entry and
+nothing else), and what makes drift recoverable — an overwritten
+reference would launder a slow regression, an accumulating one cannot.
+
+## What reads it
+
+`crates/editor-core/tests/m4_pr8_latency.rs` diffs its `vs base`
+columns against the **newest** entry: on a PR that is `main`'s last
+hosted measurement, on `main` it is the previous merge. An empty
+directory is the bootstrap state, not an error — the row then prints
+`n/a` and is pure reporting.
+
+## What these numbers are, and are not
+
+**REPORTING ONLY — measured, never gated** (M4-PLAN F8; PERF-PLAN
+stays advisory). No CI row fails on a millisecond here. The assertions
+in that test are the ε-independent structural ones, pinned separately
+in `crates/editor-core/tests/baseline/rebuild-latency.json`.
+
+They are **dev profile** (opt-level 0 for the kernel crates, opt-level
+2 only for spade and mesh), which is what every other CI row builds —
+comparable across rows and across PRs, and **never release-
+representative**.
+
+Read the `±` spread before believing a delta. Each figure is the median
+of 5 runs in one process; a shared hosted runner has a fat tail, and a
+`vs base` move inside the spread is noise, not a regression.
+
+## Where a column changed meaning
+
+A column whose subject moved steps at the change, and the step is not a
+regression or a speed-up of the same work:
+
+- `registry_split.census_ms` times the assembly gate over the heat
+  sink's product. Up to PR 3374 that gate ran tier 3's local battery
+  and then the census; from it on the product carries its tier-3
+  verdict and the gate runs the census alone, so the column drops by the
+  battery's share (about 60–100 ms in a local dev-profile run).
+
+## Why the history exists at all
+
+The single committed baseline this replaces disqualified itself in its
+own provenance: three developer-workstation refreshes disagreed by
+90–98% on every row with contention ruled out, leaving a build/
+environment hypothesis nobody captured side by side, and
+`docs/PERF-SCAN-2026-08.md` §0 had to label every absolute-millisecond
+claim in the repo provisional as a result. Every entry here records its
+own `environment` block (runner, nproc, memory, `cpu_model`, `cpu_flags`,
+toolchain, RUSTFLAGS, `CARGO_PROFILE_*` overrides, debug-assertions, ε),
+so two entries that disagree can be compared as environments rather than
+argued about.
+
+**What the block can now tell you**: which host CPU produced an entry, by
+model string and by whether `avx2` / `avx512f` were available. Those two
+fields are the ones that vary inside a hosted runner class — `nproc`,
+memory, arch and toolchain are constant across the whole `ubuntu-latest`
+pool, which is why the block used to be readable and still say nothing.
+
+**Reading the pair.** `cpu_flags` is the field that says whether
+`/proc/cpuinfo` was read at all: `null` means it could not be, and ANY list
+— the empty one included — means it could. Three shapes, not two:
+
+| `cpu_model` | `cpu_flags` | what happened |
+|---|---|---|
+| a string | a list | read; the ordinary case, and `[]` there means neither extension was present |
+| `null` | `null` | `/proc/cpuinfo` unreadable — the box is unidentified, not featureless |
+| `null` | a list | read, but it carried no `model name` line (an aarch64 one spells its flags `Features` and names no model) |
+
+So `cpu_model: null` is not by itself a reading: pair it with `cpu_flags`
+before concluding anything about the host. The third row is not
+hypothetical — it is the case
+`crates/editor-core/tests/m4_pr8_latency.rs`'s
+`cpu_identity_degrades_rather_than_failing` pins.
+
+**What it still cannot.** *The two fields begin with the first entry
+written after they were added. Every earlier entry carries the old field
+set and stays unattributable — the history is append-only and nothing
+retro-fits it.* Two boxes of the same model are still one reading, and
+nothing here records what else the host was doing. One step change is
+only half-covered: the runner class moved from 2 vCPU / 7 GB to 4 vCPU /
+16 GB on 2026-09-03 (`.github/workflows/ci.yml`), so `nproc` separates
+the two eras and nothing separates the boxes within either. A `vs base`
+delta that straddles that date is a property of the runner, not of the
+tree.

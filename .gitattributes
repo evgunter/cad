@@ -1,0 +1,5 @@
+# A program's log is append-only (work/README.md, "The log merges by
+# union"): two branches that each append an entry are both right, so a
+# merge keeps both. Notes from other programs arrive without a conflict
+# to point at them; `scripts/work.py incoming` is the read that does.
+work/*/log.md merge=union

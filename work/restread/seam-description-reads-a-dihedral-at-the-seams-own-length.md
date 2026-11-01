@@ -1,0 +1,54 @@
+---
+id: seam-description-reads-a-dihedral-at-the-seams-own-length
+kind: issue
+title: The boolean's seam description reads a seam's dihedral at the seam's own length, so a short seam between faces that part far away is left a scaffold at rest
+status: closed
+opened: 2026-09-28
+priority: P1
+cost: M
+closed: 2026-10-15
+---
+
+
+Filed by CONTACT-9.
+
+`boolean/ops.rs` (the seam description, `classify_dihedral(surf1,
+surf2, witness, extent, band)` at `:1475`) decides whether a result
+edge's two faces cross transversally. It levers their angle at the
+edge's own length. A seam 1 mm long between faces `5e-8` rad apart
+reads Smooth, and the edge is left a `Scaffold` at rest. Tier 3 then
+reports `ScaffoldAtRest`, and on the intersection also `LaminaWedge`.
+But the two faces part by `500·ε` 10 m away.
+
+Witness: `crates/topo/tests/contact9_side_codes.rs`,
+`a_sector_parallel_at_a_short_arm_is_coplanar_only_if_its_bounds_read_on`.
+It skips tier 3 for this reason. The same pose with a 1 m seam passes
+tier 3. This is the lever class CONTACT-7 and CONTACT-9 closed at the
+touch analysis and the side codes: a reading levered at a length that
+is not the one the verdict is about. Here the dihedral should be read
+at the faces' extent from the seam.
+
+## Now a refusal (FUSE, 2026-10-02)
+
+The boolean's result gate refuses a scaffold at rest
+(`boolean::ops::gate`, from the FUSE unit
+`a-boolean-result-gate-ships-a-scaffold-at-rest`). The poses this
+lever leaves a scaffold no longer answer: in `contact9_side_codes`,
+the tilted wedge's ∩ and − and the pierce row's `tool − block` refuse
+`ResultInvalid` with `ScaffoldAtRest` alone, and those rows now pin the
+refusal. They are valid ops, so this now costs answers (P1).
+
+When the lever lands, the three refusals turn back into answers, and
+the rows get back the assertions this change took out: the wedge's ∩
+corners and volume through `answers`, and the pierce row's
+`tool − block` corners, volume and the point above the top.
+
+## Closed (TANG U-lever, 2026-10-15)
+
+Every reader of an edge's wedge now levers it at the farther face's
+extent (`topo::wedge_reach`), the boolean's seam description among them
+(`boolean::ops`'s describe pass). The three refusals turned back into
+answers, and `contact9_side_codes` asserts them again: the tilted
+wedge's ∩ and − answer through `answers` (corners, volume, membership,
+tier 3), and the pierce row's `tool − block` holds the sliver's corners
+and volume and the point above the top.

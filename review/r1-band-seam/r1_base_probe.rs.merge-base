@@ -1,0 +1,36 @@
+//! R1 review probe at the MERGE BASE (0f88de2): C4(i) — is the row-2
+//! volume summation-order sensitivity pre-existing? The cq fixture
+//! cannot import here (band refusal), so the probe imports a doctored
+//! copy whose blue_cylinder ABSR lists no MSB — the untouched cube
+//! shell alone, with the wild file's original interleaved entity ids —
+//! and runs exactly row 2's write/re-read comparison on it.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use step_import::{ImportOptions, StepImport, import_step};
+
+#[test]
+fn r1_base_cq_cube_only_roundtrip_volume() {
+    let dir = std::env::var("R1_PROBE_DIR").expect("set R1_PROBE_DIR");
+    let text = std::fs::read_to_string(format!("{dir}/cq_cube_only.step")).unwrap();
+    let Ok(StepImport::Solid { body, eps_in, .. }) =
+        import_step(&text, &ImportOptions::default())
+    else {
+        panic!("cube-only cq imports at base");
+    };
+    let _ = eps_in;
+    let options = step_export::StepOptions {
+        product_name: "cq_cube_only".to_owned(),
+        ..step_export::StepOptions::default()
+    };
+    let wire = step_export::step_string(&body, &options).unwrap();
+    let Ok(StepImport::Solid { body: again, .. }) =
+        import_step(&wire, &ImportOptions::default())
+    else {
+        panic!("re-imports at base");
+    };
+    let v1 = topo::mass_properties(&body).unwrap().volume;
+    let v2 = topo::mass_properties(&again).unwrap().volume;
+    let ulps = (v1 - v2).abs() / (f64::EPSILON * v1.abs());
+    eprintln!("base cube-only: v1={v1:.17e} v2={v2:.17e} diff={} ulps", ulps);
+    assert_eq!(v1, v2, "BIT-EQUAL at base? diff = {ulps} ulps of v1");
+}

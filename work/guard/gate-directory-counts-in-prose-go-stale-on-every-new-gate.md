@@ -1,0 +1,83 @@
+---
+id: gate-directory-counts-in-prose-go-stale-on-every-new-gate
+kind: issue
+title: Two GUARD rows carry gate-directory counts that a new gate silently falsifies
+status: closed
+opened: 2026-09-15
+closed: 2026-10-26
+priority: P3
+cost: D
+---
+
+
+Filed by PORT (2026-09-15). PORT's `msrv-floor-equals-channel.sh` is the
+25th file in `scripts/gates/`, and landing it falsifies a count in two of
+GUARD's own live rows. PORT did not edit either: they are GUARD's files and
+one of them is a quoted transcript whose accuracy is the point.
+
+## The two
+
+1. **`work/guard/gate-roster-and-probe-census-have-no-reader-guards.md:33`**
+   quotes a `gate-roster.sh` OK line verbatim — *"for all 21 gates in
+   scripts/gates/ … (22 registered gates scanned)"* — as the output a
+   shimmed `sed` produces while the gate reads nothing. The gate now prints
+   **22** and **23**. The quote is evidence of a reproduction and moving it
+   would be rewriting the observation, so this needs a decision rather than
+   a sed: either date the quote as a transcript (*"at the time of the
+   reproduction"*), or re-take it. `:94` then asks *"whether 21 gates have
+   this or two do"* — that one is a live question about today's directory
+   and is simply wrong now.
+2. **`work/guard/plan.md:56`** scopes a sweep to *"`scripts/gates/*` (24
+   files)"*. Exact before this PR (`lib.sh` and `viewer-readme-fence.awk`
+   are in the directory but not gates, which is why 24 ≠ the roster's 21);
+   **25** after it. This is a scope statement for work not yet done, so a
+   lane picking it up sizes the sweep from a number that is one short.
+
+## Why this is a row and not a chore
+
+**Neither file is a frozen log**, which is the test `work/README.md` applies
+to whether stale prose matters: both are live rows scoping work someone will
+pick up. And the class recurs on a schedule nobody controls — *every* future
+gate falsifies both counts again. The directory is the roster precisely so
+that no second list has to be maintained (`gate-roster.sh`'s header argues
+this at length); a count written into prose is that second list wearing
+different clothes.
+
+So the fix worth having is not "say 25": it is deciding, once, whether a
+directory size belongs in prose at all, and where it does, writing it as a
+derivation (`ls scripts/gates/*.sh | wc -l`) or dating it.
+
+## How PORT found it, and what its sweep could not match
+
+PORT swept for a hardcoded **gate count** before landing, reported "no prose
+in the repo carries one", and was wrong — the style review found both hits.
+The pattern was gate-count-shaped (`21 gates`, `all 21`, `twenty-one`) while
+the drift was **directory-size-shaped** (`(24 files)`), and a count written
+as a parenthetical after a glob matches none of it. Stated here because a
+sweep whose blind spot is unstated is an unverified claim
+(`docs/prompts/implementer-discipline.md` §5), and because the next lane to
+add a gate will run the same sweep.
+
+A pattern that would have caught both:
+`grep -rnE '\b(all )?[0-9]+ (gates|files)\b' work/ docs/ scripts/ .github/`.
+Its own blind spot: a count spelled as a word (`twenty-four`), and a count
+in a file this grep's roots do not cover.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Both instances are gone; the class question is not taken up.**
+
+1. The quoted `gate-roster.sh` OK line: that gate was deleted in
+   `24fedbfadf` (2026-09-28), so the quote is now a transcript of a
+   deleted gate, not a count of the live directory.
+   `gate-roster-and-probe-census-have-no-reader-guards` says so in a dated
+   section, and its `:94` "whether 21 gates have this" sentence is
+   superseded by that section's "whether this is one gate or many".
+2. `work/guard/plan.md`'s "(24 files)" and its sibling counts ("17 gate
+   consumers", "22 gates", "seventeen gates") are removed in this sweep;
+   the table now names the population ("every gate that calls
+   `gate_rust_code`", "every gate in `scripts/gates/`") instead of a size.
+
+The general rule the row floated — decide once whether a directory size
+belongs in prose — is the kind of note `work/README.md` ("The tracker is
+not comprehensive") says to fix where you stand rather than schedule.

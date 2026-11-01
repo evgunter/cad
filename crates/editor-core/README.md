@@ -1,0 +1,267 @@
+# editor-core
+
+`editor-core` is the headless document layer between the kernel op crates
+(`profile`, `sweep`, `topo`) and any client.
+
+- **The document** (`Doc<P>`, `src/doc.rs`) is a plain value: the recipe (the
+  feature DAG of `Node`s, data only, DESIGN.md D8), named parameters, the
+  recorded tolerance ε, per-node witness data, appearance attributes and
+  metadata.
+- **Edits.** All mutation goes through the typed `DocEdit` vocabulary and
+  `apply(doc, edit, tol, reach) -> Applied` (`src/edit.rs`), pure over the
+  document and the mated parts' reach. It returns a new document together with
+  what the edit maintained (the offsets the mate door cleared, the names a
+  delete stranded). Undo is keeping the prior value; replay re-applies the
+  edits alone, without a solve.
+- **Mates at the edit door.** A mate being inserted passes the solve's own
+  per-mate admission (`EditError::MateRefused`, the solve's fault unaltered),
+  so what the coset table refuses about a mate alone is met where the mate is
+  authored. The doors decide edits and the solve decides states: a verdict
+  about a pair, and a per-mate fault a mate comes to carry after insert (a
+  stranded head, a re-pointed `Part`, a loaded snapshot), are met at
+  evaluation.
+- **Evaluation** (`src/eval/`), `evaluate(doc, prior, cancel, opts, tol) ->
+  Evaluation<T>`, runs the live nodes in a deterministic topological order,
+  reuses prior results by content key (`src/eval/memo.rs`: bit-exact inputs
+  plus ε hashed, so equal key implies equal output under D9), poisons only a
+  failed node's descendants, and is generic over the scalar lane `T` (the `f64`
+  build lane; the `Interval` and `Dual` analysis lanes).
+- **Persistence** is `src/persist/`.
+
+This page holds the witness mechanism (W1–W9), the group boolean, and the
+profile-parameter lift (PP1–PP6). Elsewhere: the three-layer split and the GUI,
+`crates/viewer/README.md`; persistent naming,
+`crates/editor-core/src/names/README.md`; assemblies and mates,
+`crates/editor-core/ASSEMBLY.md`; the reference vocabulary,
+`crates/editor-core/REFERENCES.md`; identity across time,
+`crates/editor-core/IDENTITY.md`; the error-propagation lane (analysis,
+distributions, duals, stackups), `docs/ERROR-DESIGN.md` and
+`docs/DUAL-DESIGN.md`.
+
+## Where in the code
+
+| Decisions | Modules |
+|---|---|
+| Witness W1–W9 | `src/witness.rs` (`WitnessDatum`, `BranchCertification`, `WitnessBifurcation`); `src/edit.rs` (`ReWitness`, `ReWitnessBulk`); `src/doc.rs` (`Doc::witness`); `src/eval/mod.rs` (`NodeErrorKind::WitnessBifurcation`, `content_key`); `src/resolve/mod.rs` (`Diagnosis::WitnessBifurcation`) |
+| Group boolean | `src/eval/wire.rs` (`images_apart`, `fold_members`); `src/eval/counters.rs` (`judgements`); `crates/topo/src/separation.rs` (`Separation::apart`); `crates/topo/src/boolean/nary.rs` (`Apart`, `nary_boolean_apart`) |
+| Profile lift PP1–PP6 | `src/eval/wire.rs` (`prepare_profile`, `lane_profile`, `section_value`); `src/eval/mod.rs` (`ProfileLane`, `content_key`); `src/eval/anchor.rs` (`derive_naming`); `src/program.rs` (resolution at `T`); `crates/profile/src/structure.rs`; `crates/profile/src/path/program.rs` (`replay_recording`, `replay_guided`); `crates/profile/src/validate.rs` (`validate_recording`, `validate_guided`); consumers `src/drive.rs`, `src/stackup.rs` |
+
+## The witness mechanism (W1–W9)
+
+A constrained sketch has a discrete solution set; the *witness* is the
+recipe-stored datum saying which solution the user meant (branch selection, not
+the rigidity-probing "witness configuration" of the constraint-solving
+literature). Selection is `solution(constraints, params, witness)`, pure in
+exactly those three; continuation along the edit path is banned.
+
+The sketch solver is not implemented: what exists is the document contract
+below. No evaluation constructs `WitnessBifurcation`, and the
+`solver_branch_margin` predicate does not exist.
+
+**W1 — The witness is the committed solved assignment.** The full solved
+coordinate assignment (f64, kernel units) recorded at the last committed sketch
+edit, with the parameters it solved under. Discrete invariants (chirality,
+tangency side, arc orientation) are derived from it, never stored. At the
+document layer it is opaque: `WitnessDatum { schema, bytes }`, kept per node in
+`Doc::witnesses`, persisted bit-exactly as hex, accepted only on `Node::Profile`
+(the sketch-bearing node; `EditError::WitnessOnNonSketch` otherwise).
+
+**W2 — Selection is certification, not search.** Deterministic Newton iteration
+from the witness proposes a candidate. The decision is a Krawczyk /
+Hansen–Sengupta containment `K(X) ⊆ int X` on an ε-inflated box enclosing
+witness and candidate, proving at once that the box holds exactly one root (the
+witness lies in the returned root's uniqueness region) and that the interval
+Jacobian is regular throughout (the distance-to-singularity margin). There is
+no nearness metric in the semantics. The margin is a named k_stats trilean,
+`solver_branch_margin`; a small margin escalates instead of selecting. The
+interval lane runs the same containment from the f64 witness and contracts; it
+never solves. Refusal after the bounded inflation schedule is typed (W3), never
+a retry loop.
+
+**W3 — `WitnessBifurcation`, the typed refusal.** Its fields:
+
+- `kind`: `FoldProximity` (the regularity margin entered the sliver band),
+  `AmbiguousBasin` (inflation swallowed several roots), or `ResidualFailure`
+  (the committed assignment failed ε-certification);
+- `margin`: `BranchMarginEvidence`, the certified bound against its band;
+- `implicated`: entities by stable name and constraints by index, from the
+  interval Jacobian's near-nullspace;
+- `witness_age`: the parameters solved under vs. now.
+
+It is layer 2 of the two-layer DOF diagnosis: never rendered as
+over/under-constrained (layer 1, structural) and never as "did not converge".
+It reaches the DAG as `NodeErrorKind::WitnessBifurcation`; a name failing to
+resolve through such a node carries it as `Diagnosis::WitnessBifurcation`.
+
+**W4 — Witness update: commits only, repair explicit.** The witness changes at
+a committed sketch edit and at the recorded `DocEdit::ReWitness { node,
+witness }`. Parameter-edit rebuilds never write it back: that would be
+continuation smuggled through the document. `ReWitnessBulk { entries,
+certification }` records many adoptions and is legitimate exactly when the W2
+certificate proves each old witness and new solution share one uniqueness
+region, which changes no predicate outcome; `apply` validates shape only (live
+sketch nodes, no duplicates, non-empty), and the checker consuming
+`BranchCertification` is not implemented. A drag is a user-supplied homotopy
+and may author the proposal: fold-free, it identifies the endpoint branch with
+no dialog; crossing the wall where the margin vanishes is explicit recorded
+intent. Undo/redo and `SetTolerance` need no special cases.
+
+**W5 — Composition with the result DAG.** The sketch node's value is the
+certified assignment; `WitnessBifurcation` poisons descendants only. The
+witness datum is an input to the node's content key, so a witness change moves
+the key, and the pure triple is the cache key's correctness proof.
+
+**W6 — Certification schedule.** At commit: residuals ≤ ε on the committed
+assignment, typed on failure. At solve: the W2 containment, its failure W3. At
+the interval lane: the same containment at `Interval`; an indeterminate joins
+the subdivision driver's posture. Residuals use `powi(2)`, never `x·x`, for
+possibly-zero quantities.
+
+**W7 — Certification, not the iterator, is the contract.** The solver engine
+(DESIGN.md Q3) is audited for bit identity: libm-only transcendentals, no
+hash-map or pointer-identity iteration order, bit-identical results across
+builds and platforms, a documented termination schedule. An engine failing the
+audit is demoted to a seed proposer outside `build`, with a small deterministic
+Newton polish from the witness inside it; W2 carries correctness either way.
+
+**W8 — Mates: contract verbatim, mechanism per manifold.** The contract
+(witness = branch selection, purity, certified selection, typed bifurcation
+with margin) transfers to mates. The datum is per-node and opaque, so a mate
+node can store points of ∏SE(3) with no document change. The interface is
+"certified-unique in a chart-box centered at the witness", the chart a
+deterministic function of the witness (exp-map chart, quaternion double cover
+quotiented). The mechanism is not designed; `src/mate/` places instances by a
+constructive coset fold with no witness.
+
+**W9 — Structural layer, interface pinned.** Layer 1 of the DOF diagnosis
+(combinatorial decomposition, exact and float-free) is a pure function of the
+constraint graph: it may key caches but never consults coordinates;
+generic-configuration rigidity probes live there. Not implemented.
+
+## The group boolean: a union over copies
+
+There is no group-boolean node: a union of copies is `union` reading a
+family of placements of one body (`docs/DESIGN.md` D10, Repetition;
+REFERENCES.md DM4), and what the group boolean adds is that union's fast
+path, taken when its bodies are rigid images of one body, visible in the
+reads.
+
+- **Naming does not grow.** Each copy's names carry its `Member { (i, …),
+  of }` segment, keyed by the index variables' ids; each copy's rows reach
+  the one output body as any union member's do.
+- **Disjointness is certified, never declared.** `topo::Separation::of` builds
+  one BVH of padded conservative face boxes over the one body;
+  `Separation::apart(maps)` tests each pair `(i, j)` in that body's frame
+  through `M_i⁻¹ ∘ M_j` and returns the pairs it certifies apart. Box
+  separation is real separation, and the test is sufficient-not-necessary:
+  a pair it cannot certify apart is judged by the union's ordinary n-ary
+  door (DM4, `topo::nary_boolean`), which decides its contact as for any
+  members. The certificate runs before any body is placed.
+- **Lowering.** The union runs `topo::nary_boolean_apart` with the certified
+  pairs (`topo::Apart`): the n-ary door judges every other pair and never a
+  certified one, so a family whose pairs are all certified is a body of one
+  solid per copy, judged nowhere. That is the body the full judgement
+  produces, since a solid is one piece of material (`docs/DESIGN.md`), and it
+  is a boolean operand like any other. The judged pairs are counted
+  (`EvalCounters::judgements`), which is how the fast path is visible. No new
+  kernel op or naming record; `BooleanNaming` stays two-operand.
+
+## The profile-parameter lift (PP1–PP6)
+
+A profile is a program (`crates/profile/README.md`): *replay* elaborates its
+resolved steps into loops and *validation* canonicalizes the loops. Structure
+(fillet candidate, fit signs, corner gates, loop roles, loop orientation) is
+selected once at f64, identically for every lane (C6); the lift is geometry
+at the lane scalar.
+
+**PP1 — Guided replay: the f64 elaboration is the witness.** Two passes:
+
+- Pass 1 (`prepare_profile`): resolve at f64, `replay_recording`,
+  `validate_recording`, `derive_naming`, emitting the structure record.
+- Pass 2 (`lane_profile`, every evaluation): resolve the same program at
+  `VarEnv<T>`; `replay_guided` and `validate_guided` consume every discrete
+  decision from the record and re-run its predicate at `T`.
+
+Agreement proceeds. An indeterminate refuses
+`StructureRefusalKind::Indeterminate` (the E6 driver's cue to bisect); a
+definite disagreement refuses
+`Flipped { recorded, found }` (the binding provably left the nominal's
+structure, the `FlipCrossing` shape). Both surface as
+`NodeErrorKind::ProfileLaneReplay`. No lane ever selects: the fillet ladder
+never ranks at `T`, because in a hairline-asymmetric lens two lanes may legally
+pick different pockets, so re-ranking would be a second choice, not a check.
+
+**PP2 — The structure record.** `profile::ProfileStructure`: per program loop a
+`ReplayStructure` (its fillet decisions — each fillet's corner-gate outcomes,
+survivor count, chosen candidate index and fit signs — plus each authored
+step's segment span and each authored radius's emission), and a
+`CanonicalStructure` holding per loop a `LoopCanonical` (role, containment row,
+representative vertex, reversal, per-segment shapes, tangent and cusp joints).
+The canonical start is always the authored vertex 0, so there is no start to
+record. Derived, content-keyed, never persisted.
+
+**PP3 — Canonicalization is pinned.** `validate_guided` takes the reversal and
+the containment representative from the record instead of re-running the
+orientation decide and `lex_min`: both sit on ulp-wide bands, total at f64 and
+indeterminate at `Interval` on essentially every input. It verifies the value
+channel they induce (segment shapes, declared joints) and re-runs the
+containment forest, an ordinary decided predicate, against the record. Neither
+pass decides an arc's consistency checks: both validate a
+`profile::ConstructedProfile` of the loops `replay_recording` and
+`replay_guided` mint, whose arcs were verified at their construction at that
+scalar (D1).
+
+**PP4 — Naming stays f64.** `derive_naming` runs on pass 1 only; names are
+canonical indices and the lane pass takes them verbatim. `T`-valued geometry
+changes no name because the canonical permutation is pinned (PP3); the two
+decisions are one commitment.
+
+**PP5 — Content keys.** The f64-resolved program stream is the structural
+identity. When pass 2 runs, the `T`-resolved program's continuous arguments
+also feed the key through `ContentBits::feed` (both channels of a dual,
+DUAL-DESIGN DL2), so a seeded or widened profile parameter cannot alias the
+nominal memo entry. Keys never persist.
+
+**PP6 — Scope and the bit-identity fence.** Every evaluation elaborates profile
+geometry through both passes; there is no option that embeds the f64
+elaboration instead, and the `f64` lane skips the second pass internally
+(Ev on #5068, 2026-10-14: "A, ideally with some internal skip on the second
+pass if f64"). At `f64`, over an environment that binds the nominal bit for
+bit, pass 2 reproduces pass 1 bitwise (`tests/m10_p_fence.rs`,
+`crates/profile/tests/scalar_channels.rs`), so that lane takes pass 1's
+validated form and runs no pass 2: a sealed per-scalar fact (`ProfileLane`).
+In pass 2's place the node logs what pass 2 decides there: pass 1's
+decisions less those guidance pins (`profile::PINNED_UNDER_GUIDANCE`), so an
+`f64` verdict log is the one pass 2 leaves and compares with any lane's
+(`diff_verdicts`, the E6 drive's witness). Both the value and the log are held
+against pass 2 run at `f64` over the corpus (`tests/m10_p_lift.rs`). A box at
+`f64` whose degenerate axis binds `nominal + c` (the Monte Carlo lane) runs
+pass 2.
+
+- **Sections.** A loft reads each section operand's Profile value at the
+  lane scalar, as an extrude reads its profile: the loops and plane the
+  profile node produced, and its pass-1 pieces for naming. Nothing is
+  re-resolved and no section has a second placement path. The skin's
+  structure is selected on the sections' value channel where its values are
+  points, and over a range is what every value shares or a typed refusal
+  (`sweep::loft_profiles`). At a projective scalar the walls are computed
+  from the section values themselves, so a seed on a parameter a section
+  reads rides to the walls. At `Interval` the loft encloses the family its
+  sections stand for: sections and planes whose values are points loft as the
+  `f64` skin of that value channel, enclosed, and wider ones (a box over the
+  section, or values a few ulps wide with no box at all, as a station
+  turned by an angle the lane rounds) are skinned at the lane scalar. An
+  arc's weight is no point at `Interval`, so an arc section there refuses
+  typed at the carrier's door (`SplineError::CarrierWeightNotAPoint`, until
+  C6's S4/S5) rather than standing for the nominal over its box.
+- **The sketch plane.** A profile is drawn on its own `xy` (D10): its
+  placed coordinates are its 2-D ones with `z = 0`, exact at every scalar,
+  and a loft's later section stands at its station, the first section's
+  plane carried by slides and spins of the lane scalar. The 2-D structure
+  record (PP1) stays f64-pinned.
+- **Out of scope:** naming, persistence, the sketch solver.
+
+## Open
+
+- The sketch solver: build vs. bind (DESIGN.md Q3).
+- The mate-witness mechanism (W8; `ASSEMBLY.md`, A1).

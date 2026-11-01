@@ -1,0 +1,17 @@
+{
+  "run_id": 33719350040,
+  "head_sha": "70182ddfebdc8a3e8c94bb00dbf265ae578a3693",
+  "branch": "smell/k-lint-readings",
+  "role": "CONTROL — the rig inert (vars.SCCACHE = '0'), so `install sccache` and `sccache stats` both report `skipped`",
+  "lane": "default",
+  "lane_source": "drawn",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "job_id": 100535225192,
+  "archive_step_s": 769,
+  "compiling_lines": 192,
+  "rust_cache": "No cache found",
+  "rust_cache_key": "v0-rust-build-Linux-x64-6f07d2f1-66da18f8",
+  "rust_cache_post_step": "saved 275901512 bytes under that key",
+  "sccache": null,
+  "reading": "Same tier, same package set and same lane as the trial's default-lane rows, with the rig off: 769 s. Its rust-cache key differs from the trial branch's (`…-61bb9c0c-…`) in exactly the env-hash component, which is what `RUSTC_WRAPPER` moves — the reason no A/B of sccache alone is available through this rig. Its build job restored nothing either, and its post step wrote the entry a later run on that same branch could have restored."
+}

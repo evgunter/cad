@@ -1,0 +1,67 @@
+[package]
+name = "profile"
+autotests = false  # tests/all.rs aggregates every suite; see its header
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Makes two things nameable from a `tests/` binary, which is a SEPARATE
+# crate and can name neither a `#[cfg(test)]` item nor a `pub(crate)`
+# one:
+#
+#   1. the FIXTURE doors: `RawLoop`, which takes the canonical form, and
+#      `test_support::bulge_loop`, which hands a bulge chain to the
+#      lowering. Under this feature the trait is declared `pub`; under
+#      its negation it is declared `pub(crate)`, so a shipped build has
+#      no route to it and no re-export of it compiles, and the helper's
+#      module does not exist. The trait's own docs carry the argument.
+#   2. the fillet recourse SENTENCES — the prose one `Display` arm
+#      appends. A suite asserting that a caller reads them would
+#      otherwise restate them, and a restated sentence agrees with
+#      itself rather than with the code (S52).
+#
+# Off by default and enabled only through the self-dev-dependency below
+# and the dev-dependency edges of the crates whose fixtures need the
+# door, so it is on for tests and off for every normal build — which is
+# why none of these names is part of the surface pncad's facade
+# completeness guard watches.
+test-support = []
+# Forwards geom-core's K-telemetry recording scalar so the
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
+# for why Probe is opt-in (it is a `Real` instantiation, so it
+# monomorphizes every generic-over-`Real` body, and only the K
+# experiment consumes it).
+probe = ["geom-core/probe"]
+
+[dependencies]
+geom-core = { path = "../geom-core" }
+
+[dev-dependencies]
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests without exposing it to production dependents. Same
+# shape and same argument as sweep's, written out there: a
+# dev-dependency is in no consumer's build graph, and a flagless
+# `cargo build [--release]` does not build test targets, so this is the
+# only edge that ever enables the feature.
+profile = { path = ".", features = ["test-support"] }
+# Shared fuzz harness for this crate's randomized sweeps (one RNG, the
+# per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
+# named by [dev-dependencies] only, here and everywhere else — which is
+# what keeps it off every shipped build path.
+test-utils = { path = "../test-utils" }
+proptest = { workspace = true }
+# The promoted M2 PR 2 reviewer consumer suite
+# (tests/review_m2_pr2_consumers.rs) is the PR 4/PR 3 composition
+# dry-run: it lowers validated arc segments onto `geom` Circle
+# carriers; geom is acyclic here (it does not depend on profile).
+geom = { path = "../geom" }
+
+# ONE test binary for the whole suite (see tests/all.rs). Each extra test
+# target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
+[[test]]
+name = "all"
+path = "tests/all.rs"

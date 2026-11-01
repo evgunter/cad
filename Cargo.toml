@@ -1,0 +1,299 @@
+[workspace]
+resolver = "3"
+# demos/ is a deliberately separate cargo project (pre-GUI visual demo
+# tour + STL viewer tooling); it must never join the kernel workspace.
+# tools/ holds CI tooling (the k-lint fragility lint) — same posture:
+# lint policy must never become a workspace dependency.
+# benches/ is the criterion harness (PERF-PLAN §5); same posture again —
+# criterion's dependency tail must never enter `cargo nextest archive
+# --workspace` or `cargo clippy --workspace --all-targets`, which is to say
+# the two build jobs and both clippy rows of every code-tier PR. How big
+# that tail is is counted once, in `benches/Cargo.toml`, and deliberately
+# not restated here: two copies of one count drift apart independently and
+# nothing reads either. That manifest states the exclusion's full price.
+# interval-transcendentals/ is the interval scalar's backend (M5 PR 1)
+# and IS depended on by geom-core, but stays a separate workspace root on
+# purpose: its differential-certification oracle is a gmp-backed inari
+# DEV-dependency, and dev-dependencies of a path dependency never enter
+# the dependent's graph — whereas a workspace MEMBER's would be built by
+# every `cargo test --workspace`, dragging the LGPL C build back in. The
+# exclusion is also what lets a nested crate keep its own `[workspace]`
+# table without cargo reporting two roots in one workspace.
+exclude = ["benches", "demos", "tools", "interval-transcendentals"]
+members = [
+    "crates/bvh",
+    "crates/editor-core",
+    "crates/geom-brep",
+    "crates/geom-core",
+    "crates/geom",
+    "crates/mesh",
+    "crates/pncad",
+    "crates/pncad-py",
+    "crates/profile",
+    "crates/quantity",
+    "crates/step-export",
+    "crates/step-import",
+    "crates/stl",
+    "crates/sweep",
+    "crates/test-utils",
+    "crates/topo",
+    "crates/verbs",
+    "crates/viewer",
+]
+
+# No root package: the project name is pending (Q9), so the workspace stays
+# nameless. Shared package metadata lives here and is inherited by members
+# via `package.<field>.workspace = true`.
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+# Kept equal to rust-toolchain.toml's channel; bump the two together.
+# Not documentation-only: `resolver = "3"` above makes
+# this an input to dependency version selection.
+rust-version = "1.97.0"
+# Nothing is publishable until the project has its name (Q9).
+publish = false
+
+# Shared dependency versions, inherited by members via `<dep>.workspace = true`.
+# Policy (memories/review-and-dependency-policy.md): versions must have been
+# released on crates.io for at least ~2 weeks before adoption.
+[workspace.dependencies]
+# D9: transcendentals via the pure-Rust libm crate — system libms differ
+# across platforms in the last ulp. 0.2.16 released 2026-01-24.
+libm = "0.2.16"
+# Property testing from day one (M0-PLAN working agreements). 1.11.0 released
+# 2026-03-24.
+proptest = "1.11.0"
+# D9 addendum: the two sanctioned deterministic-parallelism idioms are
+# rayon idioms — first consumer is M4 PR 2's evaluation service (idiom 1
+# over independent DAG nodes). rayon has been stable since 2017; the
+# 1.x line satisfies the dependency-age rule by years.
+rayon = "1.11"
+# D1: typed generational arenas (`new_key_type!` per entity kind) for the
+# topology store; `SecondaryMap` carries D5 provenance. Zlib license.
+# 1.1.1 released 2025-12-06.
+slotmap = "1.1.1"
+# Interval arithmetic (Q1's certified scalar). In-repo crate (#115): rigorous
+# enclosures over the same pure-Rust `libm` the kernel already uses, with
+# PROVEN per-function outward error pads, differentially certified against
+# two independent oracles. It replaced `inari` as the backend in M5 PR 1:
+# inari's transcendentals require its `gmp` feature, which pulls the
+# LGPL-3.0+ `gmp-mpfr-sys`/`rug` C build — the license/toolchain fork issue
+# #4 resolved by feature-gating. After the swap the scalar and its backend
+# are MIT/Apache and C-free like every other part of the kernel, and the
+# dependency-age policy is moot for an in-repo crate. inari survives only as
+# a DEV-dependency of that crate (its differential oracle); dev-dependencies
+# of a path dependency never enter the dependent's graph. geom-core takes it
+# as a normal dependency, so it is on every build path — which is also what
+# serves the C9 interval ring's differential oracle in that crate's tests.
+interval-transcendentals = { path = "interval-transcendentals" }
+# DEV-ONLY derivative oracle for Dual<f64> tests (M0 PR 5). The crate table
+# originally slated num-dual as the Dual<f64> implementation; it was demoted
+# to a test oracle because its transcendentals route through std (not libm),
+# which cannot uphold the value-channel bit-identity contract — see
+# crates/geom-core/src/dual.rs module docs. MIT OR Apache-2.0; 0.14.1
+# released 2026-06-14, past the 2-week age policy.
+num-dual = "0.14.1"
+# Arbitrary-precision integers for the symbolic tier's coefficient ring
+# (M10-8, `geom_core::sym::Rat`): the normal form's coefficients are exact
+# dyadic rationals built from f64 literals — 53-bit mantissas — and an
+# `i128` overflows at the THIRD power of one, which was measured to be
+# where the arc family's forms froze. Pure Rust, MIT OR Apache-2.0,
+# already in the graph through num-dual's num-rational; 0.4.8 released
+# 2025-11-14, past the 2-week age policy.
+num-bigint = { version = "0.4.8", default-features = false, features = ["std"] }
+num-integer = { version = "0.1.46", default-features = false }
+num-traits = { version = "0.2.19", default-features = false }
+# Constrained Delaunay triangulation for tessellation (M2 PR 6; ratified
+# crate table). MIT OR Apache-2.0. 2.15.1 released 2026-03-24, well past the
+# 2-week age policy.
+spade = "2.15.1"
+# M4 PR 6 (F3 ratified): persistence is serde-based; editor-core only —
+# the kernel crates gain no serde dependency (G1 layering). MIT OR
+# Apache-2.0 both. serde 1.0.219 released 2025-03-09; serde_json 1.0.140
+# released 2025-03-09 — both far past the 2-week age policy. serde_json
+# is the schema-v1 text writer/reader: floats go through ryu (shortest
+# round-trip, spec D2) and parse errors carry line/column (D6.3's typed
+# position info). float_roundtrip is LOAD-BEARING for D2: serde_json's
+# default float parse takes a fast path that is not correctly rounded
+# (the PR 6 property tests caught last-ulp drift on e.g.
+# 0x3fefffffffffffff); the feature switches to full-precision parsing.
+# unbounded_depth only makes the reader's fixed recursion limit (128)
+# switchable: editor-core's load door switches it off behind a nesting
+# limit of its own, derived from the values a document nests
+# (`persist::nesting`), which the fixed one sits below.
+# raw_value is load-bearing for the JSON doors' stable names: a name
+# nests one whole name per derivation level, and the doors read and write
+# it one level at a time through a raw slice of its text
+# (`editor-core`'s `names::nest`), so a name of any depth loads on any
+# stack.
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = { version = "1.0.140", features = ["float_roundtrip", "raw_value", "unbounded_depth"] }
+# ASM-1 (spec D-2): content pins are SHA-256 over the canonical
+# semantic bytes — the pin IS version identity (ASSEMBLY-DESIGN A4),
+# so collision resistance is required; the in-process memo's FNV
+# `ContentKey` stays a deliberately separate, weaker vocabulary.
+# RustCrypto's sha2, MIT OR Apache-2.0. 0.10.9 released 2025-04-25,
+# far past the 2-week age policy.
+sha2 = "0.10.9"
+# ASM-1 (spec D-1): OS randomness for interactively-authored document
+# ids. Document layer (`pncad`) ONLY — editor-core stays
+# deterministic-by-construction (no ambient randomness in the kernel).
+# MIT OR Apache-2.0; 0.3.4 already in-tree as a transitive
+# dev-dependency, far past the 2-week age policy.
+getrandom = "0.3.4"
+# DEV-ONLY STEP parse-back oracles for step-export's tests (F6 decision,
+# 2026-07-23: in-house subset writer, adopt nothing at runtime; these
+# two crates are test oracles only). ruststep gives
+# syntactic Part 21 parse-back; truck-stepio's `in::Table` gives an
+# independent semantic reconstruction (topology counts). Both Apache-2.0,
+# both released 2024-09-20 — far past the 2-week age policy. ruststep is
+# used parser-layer only (its espr-generated AP203 semantic layer is
+# demonstrably broken — references/notes/step-spike-report.md).
+ruststep = "0.4.0"
+truck-stepio = "0.3.0"
+
+# Workspace-wide lints, inherited by members via `[lints] workspace = true`.
+# D9 (determinism / engineering charter): our own code carries essentially no
+# unsafe (the exception budget lives in vetted dependencies). Public API is
+# documented.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+# A `pub` item that no path from the crate root reaches is invisible to
+# `dead_code`, which exempts anything `pub` on the assumption an external
+# crate may call it. That assumption is false here: this workspace's only
+# consumers are its own members plus `pncad`/`pncad-py`, so nothing outside
+# the tree can be the caller such an item is being kept for. This lint is
+# what sees them: a `pub` that is a lie about reachability becomes a
+# compile-time warning rather than something whoever opens the file next
+# has to notice.
+#
+# WHAT IT DOES NOT SEE, so the clean run is not read as a census: struct
+# fields (a bare `pub` field of a `pub(crate)` struct is not linted — it
+# hides no corpse, because `dead_code` DOES report an unread field whatever
+# its keyword, but the keyword still claims a reach the type cannot give
+# it); items an external macro expands to; and `demos/`, `tools/` and
+# `interval-transcendentals/`, which are `exclude`d from this workspace and
+# inherit no `[lints]` table.
+#
+# Two shapes carry an `allow` rather than a narrower keyword.
+#
+# 1. A facade whose door opens under a `cfg` the current build does not
+#    have: `pub` is right for the widest arm and unreachable under the
+#    narrowest, so the `allow` names the arm the `pub` is for.
+#    `crates/topo/src/test_support_impl.rs` and `profile::RawLoop`'s
+#    private `raw_loop` module are the population: each is `pub` for the
+#    arm its gate opens in, and each names the arm in the `cfg_attr` that
+#    carries the allow.
+# 2. A `tests/` helper module — and here the allow is not a judgement
+#    call, because THE DEFECT ABOVE CANNOT OCCUR IN A TEST BINARY. A test
+#    binary has no external API, so `dead_code` is not blinded by `pub`
+#    there: an unused `pub` helper is already reported, by name. Demoting
+#    those helpers would buy no coverage that another lint does not
+#    already give. (Counterfactual, re-run against this tree: drop the
+#    `#![allow(dead_code)]` from `crates/mesh/tests/common/mod.rs` and
+#    `cargo check -p mesh --all-targets` names all 19 of that file's `pub`
+#    helpers.) Each helper tree carries one file-level allow citing this
+#    paragraph; none of them restates it.
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+# D9: the kernel never panics on any INPUT — every input-reachable failure
+# is a typed error. CI's `-D warnings` makes this family hard errors. Test
+# code may allow the unwrap/expect/panic lints per-module (`#[allow(...)]`
+# on `mod tests` / `#![allow(...)]` in integration-test files) — panicking
+# is a test's failure mechanism.
+#
+# `unreachable` is DELIBERATELY ABSENT from this family (D9's D2 addendum,
+# ratified 2026-08-19). It is the sanctioned mechanism for a kernel bug the
+# code can OBSERVE in a branch; the thing it replaces is the silent
+# `if let Some` discard, and silent discard is never an answer. It does not
+# weaken the headline: `unreachable!` is by construction not input-reachable.
+# `panic` / `todo` / `unimplemented` stay banned, and a valid-but-unbuilt
+# state takes a typed `Unsupported*` error, never a macro. A bug that needs
+# RE-DERIVATION to detect (e.g. a full tier-1 re-validate) stays a
+# `debug_assert`.
+#
+# Mirrored by hand in `crates/pncad-py/Cargo.toml` and enforced by its
+# `crate_lints_match_the_workspace_minus_unsafe_code` test — edit both.
+#
+# `indexing_slicing` is absent for the same reason `unreachable` is, and
+# the two paragraphs are one position rather than two: an index panic is
+# not an input-reachable failure, it is a kernel bug the code trips over.
+# The family above is about input-reachable failure, so the shape does not
+# belong in it and the lint stays off.
+#
+# It remains a useful instrument to RUN. `cargo clippy --workspace --lib
+# -- -W clippy::indexing_slicing` prints the index expressions of the
+# workspace's LIBRARIES — not the tree's: no tests, no benches, no
+# `tools/` binaries, and clippy is blind inside `macro_rules!` bodies.
+# Some of what it prints reads better rewritten; that output is something
+# to browse while doing style work, a sample of the shape rather than a
+# census of it, and not a queue anyone owes.
+unwrap_used = "warn"
+expect_used = "warn"
+panic = "warn"
+todo = "warn"
+unimplemented = "warn"
+dbg_macro = "warn"
+
+# Test-speed hot spot (measured 2026-07-21, test-timing advisory): the CDT
+# insertion path in `mesh` + the external `spade` crate dominates the suite
+# (one washer test: 91.7s at opt 0 vs ~1.2s optimized). Optimize exactly
+# those two packages; the rest of the workspace stays at opt 0 so per-PR
+# CI recompiles of the frequently-edited core crates stay cheap (blanket
+# opt 2 via CI env was measured net-SLOWER on core-crate PRs — see #52,
+# reverted by the PR that added this block). debug-assertions default ON
+# in dev — fail-loud postconditions keep their teeth. Integration tests
+# build the lib under `dev`, so these overrides cover the hot loops.
+#
+# GUARD: `crates/mesh/tests/profile_overrides.rs` goes red if either stanza
+# below is deleted or stops being `opt-level = 2`. It pins the DECISION,
+# not the timing: the 91.7s/1.2s pair is a 2026-07-21 reading on one box
+# and nothing re-takes it, because a timing asserted in the suite would be
+# box-dependent and this repo reports timings rather than gating them
+# (`docs/PERF-PLAN.md`). So the numbers above are a dated reason for a
+# guarded decision, and re-measuring them is a perf-lane act, not a CI one.
+[profile.dev.package.spade]
+opt-level = 2
+[profile.dev.package.mesh]
+opt-level = 2
+# Scope note: extending these overrides to the geom crates was measured
+# and rejected — the kernel's generic (T: Real) hot code monomorphizes
+# into the CALLING crate's binaries, so per-package lib overrides barely
+# move it (91.7s -> 37.4s -> 26.9s), and geom-core/geom-brep are edited
+# constantly (per-PR opt-2 recompiles = the #52 regression). The full
+# whole-graph win (suite 75s -> 4.9s) is available locally via
+# local-scripts/test-fast.sh where warm caches absorb the build cost. The
+# durable fix is spade bulk-loading (PERF-PLAN §2). These figures are a
+# record of a rejected alternative and nothing reads them: no stanza below
+# depends on them, so there is nothing for a guard to go red about. They
+# are dated in the same 2026-07-21 reading as the block above.
+
+# Release builds keep their `debug_assert`s. The kernel's fail-loud
+# postconditions are D2-addendum row-5 checks — kernel-bug states
+# detectable only by re-derivation — and D9's converse half makes a panic
+# on such a state an OBLIGATION, "as loudly and as early as it is
+# detectable". Cargo's release default compiles every one of them out, so
+# the profile that would meet real parts is the one profile checking
+# nothing. Dev already defaults this ON (see
+# the note above the `[profile.dev.package]` block); this makes release
+# agree. The detached `demos/` workspaces already set this for the same
+# reason; being detached, their stanzas never reached the kernel, and
+# `demos/tour`'s note that it is "the ONLY release build of the kernel
+# in CI" is still true — this stanza adds no release build, it changes
+# what one contains.
+#
+# `overflow-checks` is a SEPARATE knob and is deliberately left at its
+# release default of OFF: cargo emits `-C overflow-checks=off` under
+# release even with `-C debug-assertions=on` (verified in `cargo build
+# --release -v` on 1.97.0), so this stanza does not smuggle in
+# integer-overflow panics. `demos/` sets both because it is claiming
+# parity with the nextest legs; this stanza is not.
+#
+# PRE-PUBLISH: this comes back OUT. `docs/DESIGN.md`'s "Before
+# publishing" list is where that is written down, together with the
+# version numbers.
+[profile.release]
+debug-assertions = true

@@ -1,0 +1,125 @@
+# OFF: installs the pinned sccache prebuilt and restores its object
+# cache, but only when the repo variable SCCACHE is "1", which nothing
+# sets. Nothing in the gate depends on it running.
+#
+# TRIED AND DECLINED. The trial this was built for was taken in
+# 2026-09-03's window and came back negative for a structural reason: sccache does not cache `--crate-type bin`, so every test
+# binary in the nextest archive is a refusal, and those are 82% of the
+# build job's compile time. docs/CI-MINUTES-2026-08.md finding F4 has
+# the runs and docs/perf-data/sccache-trial/ the raw stats.
+#
+# What survives is below, and it is why this file is still here: the
+# install and the object cache are correct, so turning the rig back on
+# is one variable rather than a re-derivation. Anyone doing that owes
+# the paragraphs below a new answer to `crate-type`.
+#
+# THE FIRST RUN AFTER A FLIP IS COLD AND IS NOT A READING:
+# RUSTC_WRAPPER is RUST*-prefixed, so Swatinem/rust-cache hashes it and
+# the flip buys one cold rebuild in each job that flips. That is not a
+# footnote here — it is why no hosted A/B of sccache ALONE is possible
+# through this rig, and why F4's verdict rests on the stats step rather
+# than on a pair of step durations.
+#
+# WHY IT IS WORTH TRYING HERE, WHEN IT WAS REVERTED LOCALLY.
+# docs/LOCAL-BUILD-PERF.md reverted sccache on a real measurement — a
+# cold build went 156 s -> 96 s at a 99.4% hit rate, and that was given
+# up because sccache and incremental compilation are mutually exclusive
+# and going non-incremental cost 5-7x on the edit-rebuild loop. That
+# objection does not reach the runner: Swatinem/rust-cache sets
+# CARGO_INCREMENTAL=0 itself, on every job that uses it, so hosted CI
+# has ALREADY paid sccache's one documented cost and currently gets
+# nothing back for it.
+#
+# WHAT WAS TESTED, AND WHAT CAME BACK. The hypothesis was narrow:
+# rust-cache does not cache WORKSPACE crates (ci.yml's note on the build
+# job, and render.yml's), so sccache's contribution in CI would be
+# exactly those — and the 156 -> 96 s local figure, which is about
+# dependency rlibs, does not predict it and must not be quoted for it.
+# `sccache --show-stats` settled it, negatively, in two parts:
+#
+#   * the workspace crates split into LIBS, which sccache serves, and
+#     TEST BINARIES, which it refuses — `crate-type`, because a test
+#     target is a bin. The archive is made of test binaries and they are
+#     82% of the job's compile time, so the half of the hypothesis that
+#     mattered was never available;
+#   * the ~205 MB object cache below did not survive between runs at
+#     38- and 60-minute gaps, only at 9. It competes for the same repo
+#     cache budget rust-cache's own entries lose to.
+#
+# LOCAL DISK CACHE, NOT THE GHA BACKEND, deliberately. sccache's native
+# GitHub-Actions backend needs ACTIONS_RESULTS_URL and
+# ACTIONS_RUNTIME_TOKEN exported into the step environment, which a
+# `run:` step cannot see and which is normally arranged by a
+# third-party action. SCCACHE_DIR plus actions/cache reaches the same
+# place with first-party pieces only, and matches what this repo
+# already does for the FreeCAD AppImage and the nextest binary.
+#
+# The install mirrors install-nextest exactly — same official-release
+# fetch, same cache-by-version content key, same curl retry rules, and
+# the same download-to-a-file-then-extract discipline (a retried
+# `curl | tar` appends the failed attempt's bytes onto a corrupt
+# stream). Read that action's header for the full reasoning.
+name: install sccache
+description: "Install a pinned sccache prebuilt and restore its object cache (on trial; see F4 and #853)."
+
+inputs:
+  version:
+    description: sccache version to install (ci.yml's SCCACHE_VERSION pin).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: cache the sccache binary
+      id: bin
+      uses: actions/cache@v4
+      with:
+        path: ~/.sccache-bin
+        key: sccache-bin-${{ inputs.version }}-${{ runner.os }}-${{ runner.arch }}
+
+    - name: download sccache (pinned, official prebuilt)
+      if: steps.bin.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        tri=x86_64-unknown-linux-musl
+        dir="sccache-v${{ inputs.version }}-${tri}"
+        mkdir -p "$HOME/.sccache-bin"
+        curl -sSfL \
+          --retry 5 --retry-all-errors --retry-max-time 120 \
+          --connect-timeout 15 --max-time 300 \
+          -o "$RUNNER_TEMP/sccache.tar.gz" \
+          "https://github.com/mozilla/sccache/releases/download/v${{ inputs.version }}/${dir}.tar.gz"
+        tar zxf "$RUNNER_TEMP/sccache.tar.gz" -C "$RUNNER_TEMP" "${dir}/sccache"
+        mv "$RUNNER_TEMP/${dir}/sccache" "$HOME/.sccache-bin/sccache"
+        chmod +x "$HOME/.sccache-bin/sccache"
+        rm -rf "$RUNNER_TEMP/sccache.tar.gz" "$RUNNER_TEMP/${dir}"
+
+    # THE OBJECT CACHE, rolling. The key carries the run id so every run
+    # saves a fresh entry, and `restore-keys` takes the newest previous
+    # one — the standard shape for a cache that must ACCUMULATE rather
+    # than be pinned to a content hash. One key: there is one build
+    # graph since the `interval` feature went (RING-4), where there were
+    # two feature unifications keyed apart so they would not fight over
+    # one entry.
+    - name: restore the sccache object cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.sccache-objects
+        key: sccache-obj-${{ github.run_id }}
+        restore-keys: |
+          sccache-obj-
+
+    # Fail here rather than in whatever step first reports a wrapper it
+    # cannot execute: a restored-but-empty entry is the one failure mode
+    # this action can plausibly introduce.
+    - name: put sccache on PATH and point it at the object cache
+      shell: bash
+      run: |
+        set -euo pipefail
+        test -x "$HOME/.sccache-bin/sccache"
+        echo "$HOME/.sccache-bin" >> "$GITHUB_PATH"
+        {
+          echo "SCCACHE_DIR=$HOME/.sccache-objects"
+          echo "SCCACHE_CACHE_SIZE=2G"
+        } >> "$GITHUB_ENV"

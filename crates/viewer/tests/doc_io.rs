@@ -1,0 +1,603 @@
+//! **open(path) / save(path) round-trip, with no dialog anywhere.**
+//!
+//! The file dialog is the one thing in this unit that escapes headless
+//! testing. These rows are the reason that costs nothing: the
+//! operations the dialog calls are ordinary typed functions over a
+//! `Path`, and everything a user gets from Open… and Save… is
+//! exercised here without a window.
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+use crate::common;
+
+use pncad::document::SlotId;
+use pncad::geom_core::Tol;
+use pncad::prelude::{EntityKind, StableName};
+use pncad::workspace::WorkspaceError;
+use viewer::docio::{self, DocIoError};
+use viewer::props::SlotValue;
+use viewer::session::{
+    BoundsTarget, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp, Step,
+};
+
+fn distance(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    node: pncad::document::RecipeNodeId,
+) -> SlotValue {
+    viewer::props::slot_rows(doc, node)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the extrude carries a distance")
+        .value
+        .expect("the distance evaluates")
+}
+
+#[test]
+fn a_document_round_trips_through_save_and_open() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetVariable {
+        var: common::thickness_var(session.committed_doc()),
+        value: SlotValue::Continuous(0.020),
+    });
+    assert_eq!(
+        distance(session.committed_doc(), extrude),
+        SlotValue::Continuous(0.010)
+    );
+
+    let dir = common::tempdir("gui3-round-trip");
+    let file = dir.join("plate.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
+    assert_eq!(session.path(), Some(file.as_path()));
+
+    // Opening into a fresh session reproduces the document; the file
+    // is the document's state, so the history starts at the open.
+    let mut reopened = DocSession::inline(common::parametric_plate(tol).0, tol);
+    assert!(
+        reopened
+            .perform(SessionOp::Open(file.clone()))
+            .refusal
+            .is_none()
+    );
+    assert_eq!(
+        distance(reopened.committed_doc(), extrude),
+        SlotValue::Continuous(0.010)
+    );
+    assert_eq!(reopened.path(), Some(file.as_path()));
+
+    // Undo ends at an open: the edit made before the save is not in
+    // the file, so there is nothing to undo.
+    let undone = reopened.perform(SessionOp::Undo);
+    assert!(
+        matches!(
+            undone.refusal,
+            Some(Refusal::NothingToDo {
+                direction: Step::Undo
+            })
+        ),
+        "nothing to undo after a reopen: {:?}",
+        undone.refusal
+    );
+    assert_eq!(
+        distance(reopened.committed_doc(), extrude),
+        SlotValue::Continuous(0.010),
+        "the refused undo moved nothing"
+    );
+    let text = std::fs::read_to_string(&file).expect("the saved file reads");
+    let loaded = pncad::document::load(&text, tol).expect("the saved file loads");
+    assert!(loaded.edits.is_empty(), "the file carries no edit log");
+
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **Opening drops everything the previous document answered.** The
+/// two doors that replace the document share one reset, and
+/// `NewDocument` is the row that has always asserted it
+/// (`creation_ops.rs`); this is the same assertion for `Open`, over a
+/// real file rather than the nonexistent path the mid-gesture rows
+/// use, so the fields that reset owns are covered at both doors and
+/// not at one. `frame_policy.rs` already holds the landed half for
+/// this door; what is new here is the selection, the hover and the
+/// range probe, which nothing asserted `Open` drops.
+#[test]
+fn opening_a_document_drops_what_the_previous_one_answered() {
+    let tol = Tol::witness();
+    let (doc, profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+
+    let dir = common::tempdir("gui3-open-clears");
+    let file = dir.join("plate.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
+    session.pump();
+
+    session.perform(SessionOp::Select(Selection::Node(profile)));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(FaceSelection {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: profile,
+            path: vec![],
+        },
+        node: profile,
+        body: 0,
+    }))));
+    let probed = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Variable {
+            var: common::thickness_var(session.committed_doc()),
+        },
+    });
+    assert!(probed.refusal.is_none(), "{:?}", probed.refusal);
+    assert!(session.bounds().is_some(), "a probe landed");
+    assert!(session.landed_pair().is_some(), "a run landed");
+
+    assert!(
+        session
+            .perform(SessionOp::Open(file.clone()))
+            .refusal
+            .is_none()
+    );
+    assert_eq!(
+        session.selection(),
+        &Selection::None,
+        "a selection names entities of the document that is gone"
+    );
+    assert!(session.hover().is_none(), "so does a hover");
+    assert!(
+        session.bounds().is_none(),
+        "a range is a statement about one document"
+    );
+    assert!(
+        session.landed_pair().is_none(),
+        "the landed run answered the previous document"
+    );
+    assert!(session.product_fault().is_none());
+    assert!(session.at_rest().is_none());
+    assert!(session.checks().is_none());
+    assert!(session.landed_generation().is_none());
+
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+#[test]
+fn opening_a_missing_file_refuses_typed_and_leaves_the_session_alone() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let before = distance(session.committed_doc(), extrude);
+    let outcome = session.perform(SessionOp::Open(
+        std::env::temp_dir().join("gui3-no-such-document.pncad"),
+    ));
+    match outcome.refusal {
+        Some(Refusal::Io(ref error)) => assert!(matches!(**error, DocIoError::Read { .. })),
+        ref other => panic!("expected a read refusal, got {other:?}"),
+    }
+    assert_eq!(distance(session.committed_doc(), extrude), before);
+    assert!(session.path().is_none());
+}
+
+#[test]
+fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("gui3-not-a-document");
+    let file = dir.join("junk.pncad");
+    std::fs::write(&file, "not a document").expect("the fixture file is writable");
+    match docio::open(&file, tol) {
+        Err(DocIoError::Persist(_)) => {}
+        other => panic!("expected a persistence refusal, got {other:?}"),
+    }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A real gallery document, opened through the typed door.**
+///
+/// The file is the tour's `gallery` mode output for the ring scene,
+/// committed verbatim — so this suite's rows over it are the
+/// acceptance walk (open a gallery `.pncad`, see its feature tree
+/// with live statuses, save it back) with the dialog and the window
+/// taken out. The fixture and its ε re-stamp live in `common`
+/// (`common::GALLERY_RING` / `common::gallery_ring_at`) now that a
+/// second suite (`creation_ops`) compares against the same file; the
+/// serializer-fidelity claim below still gates the re-stamp.
+use common::gallery_ring_at;
+
+/// **The ε claim, measured through the serializer rather than through
+/// the re-stamp's own arithmetic.**
+///
+/// The claim the fixture rests on is that ε is the file's ONLY
+/// ε-dependent byte, so re-stamping one line reproduces what
+/// `demo-tour gallery` would write at this run's tolerance. This row
+/// takes the re-stamped bytes, loads them, and asks `save` — the same
+/// door the exporter calls — to write the document back at this ε. If
+/// the format ever grows a second ε-dependent byte the two texts
+/// disagree and this goes red, which is exactly what the old
+/// self-check could not do.
+///
+/// It measures at whichever point of the ε matrix the run drew, not
+/// only at the one the fixture was born at, because the tolerance it
+/// uses is the run's own witness.
+#[test]
+fn the_restamped_fixture_is_what_the_serializer_writes_at_this_eps() {
+    let tol = Tol::witness();
+    let restamped = gallery_ring_at(tol);
+    let loaded = pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads");
+    assert!(
+        loaded.edits.is_empty(),
+        "the gallery ships state, not a log"
+    );
+    let rewritten =
+        pncad::document::save(&loaded.snapshot, &loaded.edits, tol).expect("and saves back");
+    assert_eq!(
+        rewritten, restamped,
+        "re-stamping ε reproduced the serializer's own output at this ε, \
+         so ε is the file's only ε-dependent byte"
+    );
+}
+
+#[test]
+fn a_gallery_document_opens_evaluates_and_saves_back() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("gui3-gallery");
+    let file = dir.join("ring.pncad");
+    std::fs::write(&file, gallery_ring_at(tol)).expect("the fixture is writable");
+
+    let history = docio::open(&file, tol).expect("the gallery document opens");
+    let mut session = DocSession::new(
+        history.doc().clone(),
+        tol,
+        Box::new(viewer::InlineEvaluator::new()),
+    );
+    session.pump();
+
+    let rows = session.tree_rows();
+    assert_eq!(rows.len(), 3, "profile, revolve and its placement");
+    assert!(
+        !viewer::tree::has_faults(&rows),
+        "a gallery document evaluates clean: {:?}",
+        rows.iter().map(|r| &r.status).collect::<Vec<_>>()
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.spoken.kind() == Some("Revolve") && row.placed),
+        "the revolve carries the world badge: the gallery places it"
+    );
+
+    // Round-trip: opened, saved, and opened again is the same document.
+    // Into another folder: beside the original, the same identity
+    // under a second name is refused.
+    let again = dir.join("again");
+    std::fs::create_dir_all(&again).expect("the second folder is creatable");
+    let out = again.join("ring-again.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(out.clone()))
+            .refusal
+            .is_none()
+    );
+    let reopened = docio::open(&out, tol).expect("the re-saved document opens");
+    assert!(
+        reopened.doc().bit_eq(history.doc()),
+        "bit-identical round trip"
+    );
+
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+#[test]
+fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
+    // Save is a function of the committed document, so saving it twice
+    // must produce the same bytes — the property that makes "did this
+    // document change" answerable at all.
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetVariable {
+        var: common::thickness_var(session.committed_doc()),
+        value: SlotValue::Continuous(0.020),
+    });
+    let dir = common::tempdir("gui3-stable-save");
+    let a = dir.join("a.pncad");
+    let first = session.perform(SessionOp::Save(a.clone()));
+    assert!(first.refusal.is_none(), "{:?}", first.refusal);
+    let before = std::fs::read_to_string(&a).expect("a is readable");
+    let second = session.perform(SessionOp::Save(a.clone()));
+    assert!(second.refusal.is_none(), "a resave: {:?}", second.refusal);
+    assert_eq!(before, std::fs::read_to_string(&a).expect("a is readable"));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// INVARIANT: a document whose placed copies occupy the same space
+/// still DRAWS, and the session carries the finding that says so.
+///
+/// This is the diefillet gallery bug, as a session row. The two copies
+/// gather into one product whose picture looks almost right — the
+/// second copy's material fills the first's cavities and z-fights its
+/// outer faces — and every local battery passes, because each copy's
+/// body is individually perfect. The report is the only thing that
+/// says otherwise, so it has to land with the evaluation, and the
+/// scene has to keep building alongside it (report, never gate: a
+/// modeller cannot fix what the viewer refuses to show).
+#[test]
+fn overlapping_copies_still_draw_and_land_a_finding() {
+    let tol = Tol::witness();
+    // Two extrudes over the same square, each placed: two copies,
+    // exactly on top of each other.
+    let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
+    let mut copies = Vec::new();
+    for _ in 0..2 {
+        let profile = common::insert_into(&mut doc, common::square(1.0), tol);
+        let extrude = common::insert_into(
+            &mut doc,
+            pncad::document::Node::Extrude {
+                profile: profile.into(),
+                distance: common::len(1.0),
+            },
+            tol,
+        );
+        let (placed, copy) = common::placed(&doc, extrude, tol);
+        doc = placed;
+        copies.push(copy);
+    }
+    assert_eq!(doc.placements().len(), 2, "two placements, two copies");
+
+    let mut session = DocSession::new(doc, tol, Box::new(viewer::InlineEvaluator::new()));
+    session.pump();
+
+    // It draws. The scene is the thing the modeller needs in order to
+    // see what is wrong with it.
+    let body = session
+        .landed_body()
+        .expect("an evaluation landed and gathered");
+    let scene = viewer::scene::scene_of_body(
+        body,
+        viewer::DisplayTolerance::new(5e-3).expect("a display delta"),
+        tol,
+    )
+    .expect("an overlapping product still tessellates");
+    assert!(scene.stats().triangles > 0, "the picture is not empty");
+
+    // And the finding landed with it, naming both copies.
+    let report = session.checks().expect("the registry ran");
+    let overlaps: Vec<_> = report
+        .findings
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            pncad::document::CheckEvidence::Interference { finding } => Some(finding),
+            _ => None,
+        })
+        .collect();
+    let [overlap] = overlaps.as_slice() else {
+        panic!("one pair, one interference finding: {report}")
+    };
+    let doc = session.committed_doc();
+    let reads: Vec<_> = copies.iter().map(|&copy| doc.output(copy, 0)).collect();
+    assert_eq!(
+        vec![Some(overlap.a.var), Some(overlap.b.var)],
+        reads,
+        "the finding names both copies: {report}"
+    );
+}
+
+/// **A declaration authored in millimetres comes back in
+/// millimetres.** The notation rides on the declaration, so it is
+/// persisted state and not a view setting — the create door mints it
+/// (`props::doc_variable`) and the file carries it.
+#[test]
+fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
+    let tol = Tol::witness();
+    let name = pncad::document::VarName::from_static("base_r");
+    let mut session = DocSession::inline(
+        pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
+            "auth2-round-trip",
+            tol,
+        ),
+        tol,
+    );
+    let outcome = session.perform(SessionOp::DeclareVar {
+        name: name.clone(),
+        value: viewer::props::doc_variable(
+            pncad::document::Dimension::Length,
+            SlotValue::Continuous(0.05),
+            Some(pncad::prelude::MM.def()),
+        ),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    let dir = common::tempdir("auth2-param-notation");
+    let file = dir.join("param.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
+    let reopened = docio::open(&file, tol).expect("the saved document opens");
+    let row = viewer::props::variable_rows(reopened.doc())
+        .into_iter()
+        .find(|row| row.label.name() == Some(&name))
+        .expect("the variable survived the round trip");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// A plate saved at `plate.pncad` in a folder of its own, then edited
+/// once more, so the session has an undo the file does not hold.
+fn saved_plate(
+    label: &str,
+    tol: Tol,
+) -> (
+    DocSession,
+    pncad::document::RecipeNodeId,
+    std::path::PathBuf,
+    std::path::PathBuf,
+) {
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let dir = common::tempdir(label);
+    let file = dir.join("plate.pncad");
+    let saved = session.perform(SessionOp::Save(file.clone()));
+    assert!(
+        saved.refusal.is_none(),
+        "the plate saves: {:?}",
+        saved.refusal
+    );
+    let edited = session.perform(SessionOp::SetVariable {
+        var: common::thickness_var(session.committed_doc()),
+        value: SlotValue::Continuous(0.020),
+    });
+    assert!(edited.refusal.is_none(), "{:?}", edited.refusal);
+    (session, extrude, dir, file)
+}
+
+/// **Save As beside the original refuses, and writes nothing**: one
+/// document under two names would make the folder's scan refuse for
+/// every document in it.
+#[test]
+fn save_as_beside_the_original_refuses_and_the_folder_still_scans() {
+    let tol = Tol::witness();
+    let (mut session, _extrude, dir, file) = saved_plate("vseam-save-beside", tol);
+    let original = std::fs::read_to_string(&file).expect("the original reads");
+    let copy = dir.join("copy.pncad");
+    let refused = session.perform(SessionOp::Save(copy.clone()));
+    match refused.refusal {
+        Some(Refusal::Workspace(ref error)) => match **error {
+            WorkspaceError::SaveWouldDuplicateId {
+                ref existing,
+                ref requested,
+                ..
+            } => {
+                assert_eq!(existing, &file, "the refusal names the original");
+                assert_eq!(requested, &copy, "and the name asked for");
+            }
+            ref other => panic!("expected SaveWouldDuplicateId, got {other:?}"),
+        },
+        ref other => panic!("expected a store refusal, got {other:?}"),
+    }
+    assert!(!copy.exists(), "nothing was written at the copy");
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the original reads"),
+        original,
+        "and the original is as it was"
+    );
+    assert_eq!(
+        session.path(),
+        Some(file.as_path()),
+        "the session stays on the original"
+    );
+    let store = pncad::workspace::Workspace::open(&dir).expect("the folder still scans");
+    assert_eq!(store.documents().len(), 1);
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **The refusal's choice, taken as a new document**: a fresh id at
+/// the chosen name, the original untouched, and the session's undo
+/// still working, under the new identity.
+#[test]
+fn saving_as_a_new_document_from_the_refusal_forks_at_the_chosen_name() {
+    let tol = Tol::witness();
+    let (mut session, extrude, dir, file) = saved_plate("vseam-save-fork", tol);
+    let original_id = session.committed_doc().id();
+    let original = std::fs::read_to_string(&file).expect("the original reads");
+    let copy = dir.join("copy.pncad");
+    let refusal = session
+        .perform(SessionOp::Save(copy.clone()))
+        .refusal
+        .expect("beside the original, a save refuses");
+    let choice = refusal.save_choice().expect("the refusal offers a choice");
+    assert!(
+        matches!(choice.over(), SessionOp::Save(ref path) if *path == file),
+        "one way on saves over the original"
+    );
+    assert_eq!(choice.over_label(), "Save over plate.pncad");
+    assert_eq!(choice.fork_label(), "Save copy.pncad as a new document");
+
+    let forked = session.perform(choice.fork());
+    assert!(
+        forked.refusal.is_none(),
+        "the fork lands: {:?}",
+        forked.refusal
+    );
+    let fork_id = session.committed_doc().id();
+    assert_ne!(fork_id, original_id, "a fork is a new identity");
+    assert_eq!(
+        session.path(),
+        Some(copy.as_path()),
+        "the session follows the fork"
+    );
+
+    let written = docio::open(&copy, tol).expect("the fork opens");
+    assert_eq!(written.doc().id(), fork_id, "the file carries the new id");
+    assert_eq!(
+        std::fs::read_to_string(&file).expect("the original reads"),
+        original,
+        "the original is untouched"
+    );
+    let store = pncad::workspace::Workspace::open(&dir).expect("the folder still scans");
+    assert_eq!(store.documents().len(), 2, "two documents, one file each");
+
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert_eq!(
+        distance(session.committed_doc(), extrude),
+        SlotValue::Continuous(0.004),
+        "undo still steps the session's history"
+    );
+    assert_eq!(
+        session.committed_doc().id(),
+        fork_id,
+        "and never returns to the original's identity"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A save into another folder rebinds the resolver** to it: the
+/// directory rule follows the file.
+#[test]
+fn a_save_into_another_folder_rebinds_the_resolver() {
+    let tol = Tol::witness();
+    let (mut session, _extrude, dir, _file) = saved_plate("vseam-save-rebind", tol);
+    assert_eq!(session.resolve_dir(), Some(dir.as_path()));
+    let other = common::tempdir("vseam-save-rebind-other");
+    let moved = session.perform(SessionOp::Save(other.join("plate.pncad")));
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    assert_eq!(session.resolve_dir(), Some(other.as_path()));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+    std::fs::remove_dir_all(&other).expect("the fixture directory is removable");
+}
+
+/// **A save into a folder whose scan refuses gives that refusal**, and
+/// writes nothing: the store has to scan before it can say what the
+/// save is.
+#[test]
+fn a_save_into_a_folder_with_a_broken_document_refuses() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let dir = common::tempdir("vseam-save-broken");
+    let broken = dir.join("broken.pncad");
+    std::fs::write(&broken, "not a document").expect("the fixture file is writable");
+    let file = dir.join("plate.pncad");
+    let refused = session.perform(SessionOp::Save(file.clone()));
+    match refused.refusal {
+        Some(Refusal::Workspace(ref error)) => assert!(
+            matches!(**error, WorkspaceError::Header { ref path, .. } if *path == broken),
+            "the scan's refusal names the broken file: {error:?}"
+        ),
+        ref other => panic!("expected the scan's refusal, got {other:?}"),
+    }
+    assert!(!file.exists(), "nothing was written");
+    assert!(session.path().is_none(), "the session is not backed by it");
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}

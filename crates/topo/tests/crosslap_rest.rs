@@ -1,0 +1,216 @@
+//! The mated cross-lap union — the REST-contact frontier.
+//!
+//! The mate is a pure REST contact (the half-depth notches interlock
+//! exactly; the two interiors are DISJOINT): at a REST site a seam
+//! direction lies in FOUR coincident planes (two per solid, coplanar
+//! via the declared rung), and the join matches the segment's two end
+//! records by the loci their germs lie in. The pins at BOTH doors:
+//!
+//! - UNDECLARED, the mate still refuses at the coincidence door
+//!   (rung (b) — value equality never classifies; the ladder is law).
+//! - DECLARED, the mate BUILDS: exact dyadic volume
+//!   2·(BEAM_VOL − NOTCH_VOL), gate-ladder green (tiers + 3′ with the
+//!   rest records consumed into structure), watertight STL and STEP
+//!   rows, and bit-identical on re-run (naming-key stability).
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::common;
+
+use common::{brick, finished};
+use geom_core::Tol;
+use topo::{
+    BooleanResult, mass_properties, subtract, union, validate_geometric, validate_pseudomanifold,
+};
+
+const NOTCH_VOL: f64 = 0.5 * 0.5 * 0.25;
+const BEAM_VOL: f64 = 4.0 * 0.5 * 0.5;
+
+fn notched_beams() -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let block =
+        |what, x, y, z| finished(what, brick::<f64>(x, y, z, Tol::witness()), Tol::witness());
+    let beam_a = block("beam A", (0.0, 4.0), (1.75, 2.25), (0.0, 0.5));
+    let cut_a = block("cut A", (1.75, 2.25), (1.5, 2.5), (0.25, 0.75));
+    let BooleanResult::Body(a) = subtract(&beam_a, &cut_a, Tol::witness()).expect("notch A") else {
+        panic!("notch A yields a body");
+    };
+    let beam_b = block("beam B", (1.75, 2.25), (0.0, 4.0), (0.0, 0.5));
+    let cut_b = block("cut B", (1.5, 2.5), (1.75, 2.25), (-0.25, 0.25));
+    let BooleanResult::Body(b) = subtract(&beam_b, &cut_b, Tol::witness()).expect("notch B") else {
+        panic!("notch B yields a body");
+    };
+    for (label, notched) in [("A", &a), ("B", &b)] {
+        assert_eq!(
+            mass_properties(
+                &notched.body,
+                Tol::witness(),
+                topo::test_support::pinned_resolution(Tol::witness())
+            )
+            .unwrap()
+            .met()
+            .expect("the pinned resolution is met")
+            .volume,
+            BEAM_VOL - NOTCH_VOL,
+            "notched beam {label}: exact dyadic volume"
+        );
+    }
+    (a.body, b.body)
+}
+
+/// The glued union (the declared door), shared by the pins below.
+fn glued() -> topo::BooleanBody<f64> {
+    let (a, b) = notched_beams();
+    match union(&a, &b, Tol::witness()).expect("declared mate unions") {
+        BooleanResult::Body(body) => body,
+        BooleanResult::Empty => panic!("mated union cannot be empty"),
+    }
+}
+
+/// Declared and undeclared are one body (D10): UNDECLARED, the mate's
+/// flush pairs decide Zero on their margins and glue, and the union is
+/// the declared one, bit for bit.
+#[test]
+fn undeclared_crosslap_is_the_declared_crosslap() {
+    let (a, b) = notched_beams();
+    match union(&a, &b, Tol::witness()).expect("the undeclared mate glues on Zero") {
+        BooleanResult::Body(undeclared) => assert_eq!(
+            format!("{:?}", undeclared.body),
+            format!("{:?}", glued().body),
+            "declared and undeclared are one body"
+        ),
+        BooleanResult::Empty => panic!("mated union cannot be empty"),
+    }
+}
+
+/// The certified pass at the declared door (the retired wire's
+/// promise): the DECLARED mated cross-lap BUILDS — one seamed body,
+/// exact dyadic volume, gate-ladder green, every rest record consumed
+/// into seam structure (the census's consumed class: 3′ ≡ tier 3).
+#[test]
+fn declared_crosslap_rest_union_builds() {
+    let glued = glued();
+    assert_eq!(glued.kind, topo::BooleanResultKind::Seamed);
+    assert_eq!(
+        mass_properties(
+            &glued.body,
+            Tol::witness(),
+            topo::test_support::pinned_resolution(Tol::witness())
+        )
+        .unwrap()
+        .met()
+        .expect("the pinned resolution is met")
+        .volume,
+        2.0 * (BEAM_VOL - NOTCH_VOL),
+        "exact dyadic volume additivity (disjoint interiors)"
+    );
+    assert_eq!(
+        validate_geometric(&glued.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&glued.body, &glued.contacts, Tol::witness()),
+        Ok(()),
+        "3′ with the surviving records"
+    );
+    assert!(
+        glued.contacts.vertex_vertex().next().is_none()
+            && glued.contacts.vertex_face().next().is_none(),
+        "every REST record is consumed into seam structure: {:?}",
+        glued.contacts
+    );
+    assert!(
+        !glued.naming.seam_edges.is_empty(),
+        "the join mints real seam edges"
+    );
+}
+
+/// The glue removes both beams' contact patches as interior: each
+/// operand's patch is recorded as discarded, and every stretch a patch
+/// face bordered a kept face along settles onto a seam edge, unless the
+/// declared merge glued the faces beside it into one (no live edge then
+/// joins its ends).
+#[test]
+fn declared_crosslap_records_both_contact_patches_as_discarded() {
+    let glued = glued();
+    let seams: std::collections::BTreeSet<topo::EdgeKey> = glued
+        .naming
+        .seam_edges
+        .iter()
+        .map(|&e| glued.naming.joined_edge(e))
+        .collect();
+    let edges = crate::boolean_discards::bordered_edges(&glued);
+    for operand in [topo::Operand::A, topo::Operand::B] {
+        let settled = glued
+            .naming
+            .discards
+            .iter()
+            .zip(&edges)
+            .filter(|(d, _)| d.operand == operand)
+            .flat_map(|(_, s)| s.iter().flatten())
+            .count();
+        assert!(
+            settled > 0,
+            "{operand:?}'s contact patch is recorded and borders a kept face: {:?}",
+            glued.naming.discards
+        );
+    }
+    for (e, _) in edges.iter().flatten().flatten() {
+        assert!(
+            seams.contains(e),
+            "a patch's bordered stretch is a seam edge"
+        );
+    }
+}
+
+/// Watertight export rows: the glued union tessellates to a checked
+/// (watertight, outward-oriented) mesh whose signed volume converges
+/// on the exact one, writes as binary STL, and exports STEP.
+#[test]
+fn declared_crosslap_union_exports_watertight() {
+    let glued = glued();
+    let mesh = mesh::tessellate(&glued.body, 1e-2, Tol::witness()).expect("tessellate");
+    mesh::validate::check_mesh(&mesh).expect("watertight, consistently oriented");
+    let v_mesh = mesh::validate::signed_volume(&mesh);
+    let exact = 2.0 * (BEAM_VOL - NOTCH_VOL);
+    assert!(
+        ((v_mesh - exact) / exact).abs() < 1e-9,
+        "planar mesh volume matches the exact one: {v_mesh} vs {exact}"
+    );
+    let mut stl = Vec::new();
+    stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut stl).expect("STL row");
+    assert!(!stl.is_empty());
+    let step = step_export::step_string(
+        &glued.body,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("STEP row");
+    assert!(step.contains("ADVANCED_BREP_SHAPE_REPRESENTATION"));
+}
+
+/// Naming-key stability: the glued union re-runs bit-identical — the
+/// naming emission (seam edges, fusions, graft rows, merge groups)
+/// and the exported STL bytes are equal across independent runs
+/// (D9; parallel-vs-sequential mint identity rides the same
+/// determinism).
+#[test]
+fn declared_crosslap_union_rerun_is_bit_identical() {
+    let g1 = glued();
+    let g2 = glued();
+    assert_eq!(g1.naming.seam_edges, g2.naming.seam_edges);
+    assert_eq!(g1.naming.vertex_merges, g2.naming.vertex_merges);
+    assert_eq!(g1.naming.graft_vertices, g2.naming.graft_vertices);
+    assert_eq!(g1.naming.graft_edges, g2.naming.graft_edges);
+    assert_eq!(g1.naming.graft_faces, g2.naming.graft_faces);
+    assert_eq!(g1.naming.merge_groups, g2.naming.merge_groups);
+    assert_eq!(g1.naming.face_fragments_a, g2.naming.face_fragments_a);
+    assert_eq!(g1.naming.face_fragments_b, g2.naming.face_fragments_b);
+    let stl_of = |g: &topo::BooleanBody<f64>| {
+        let mesh = mesh::tessellate(&g.body, 1e-2, Tol::witness()).expect("tessellate");
+        let mut buf = Vec::new();
+        stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut buf).expect("stl");
+        buf
+    };
+    assert_eq!(stl_of(&g1), stl_of(&g2), "STL bytes bit-identical");
+}

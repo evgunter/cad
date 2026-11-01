@@ -1,0 +1,173 @@
+//! Corpus document **measured_web** — the measurement vocabulary in
+//! the registry (ERROR-DESIGN E3/E10; M10-2).
+//!
+//! **Why it exists.** M10-2 added `Measure` and `Assertion` arms to
+//! the Dual/Interval corpus digests, and those arms were UNREACHABLE:
+//! no registered document carried either node, so the digest walk
+//! never entered them while the PR's own sweep table presented them as
+//! coverage. Registering this document is what makes them live —
+//! every scalar lane, every ε row, the persistence round trip and the
+//! incremental probe now run over a measured document.
+//!
+//! **The shape**: a plate with two cylindrical hole tools beside it —
+//! the worked example's geometry — plus a `Measure` of the distance
+//! between the two hole walls, and an `Assertion` that the web
+//! (`distance − 2·hole_r`, its anonymous definition) clears a minimum.
+//! The tools are separate extrudes on purpose: it makes the measure
+//! CROSS-NODE, so the digest sees a measure whose two references are
+//! read at two different nodes rather than a degenerate one.
+//!
+//! No mass pin: the head is an assertion, not a body, so `result` is
+//! `None` for the reason `cut_cylinder`'s is — the document's point is
+//! not a single solid.
+
+use super::PlacePart;
+use editor_core::UnitSym;
+use editor_core::{
+    AssertionRelation, Dimension, DocEdit, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    ProfileProgram, SitedRef, VarName,
+};
+use geom_core::Tol;
+
+use crate::fixture::len;
+
+use super::{CorpusDoc, Recorder};
+
+/// The parameter driving both holes.
+pub const HOLE_R: &str = "hole_r";
+/// Hole centres at x = ±`HOLE_X`.
+pub const HOLE_X: f64 = 0.30;
+/// The authored hole radius.
+pub const R0: f64 = 0.2;
+/// The assertion's bound.
+pub const MIN_WEB: f64 = 0.0005;
+
+/// The measured-web corpus document.
+pub fn document() -> CorpusDoc {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static(HOLE_R),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: R0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: None,
+        }),
+    });
+
+    let plate_profile = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![
+            LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
+                .expect("finite plate corners"),
+        ],
+        ids: Vec::new(),
+        on: None,
+    }));
+    let plate = r.insert(Node::Extrude {
+        profile: plate_profile.into(),
+        distance: len(0.1),
+    });
+
+    let hole = |cx: f64| {
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::Circle {
+                centre: [len(cx), len(0.0)],
+                radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
+            }],
+            ids: Vec::new(),
+            on: None,
+        })
+    };
+    let pa = r.insert(hole(-HOLE_X));
+    let hole_a = r.insert(Node::Extrude {
+        profile: pa.into(),
+        distance: len(0.1),
+    });
+    let pb = r.insert(hole(HOLE_X));
+    let hole_b = r.insert(Node::Extrude {
+        profile: pb.into(),
+        distance: len(0.1),
+    });
+    // Each hole is a construction of its own: the second, placed
+    // against the first where it was drawn, joins its space, so the
+    // distance between them is a distance in one space.
+    let hole_b = r.against(hole_a, hole_b, &editor_core::Frame::IDENTITY);
+
+    // The wall names come from the SELECTION door, the way a user gets
+    // them — evaluate what is built so far, then ask each hole for its
+    // cylindrical faces. A circular extrude's wall is two faces
+    // sharing one cylinder carrier, and the closed form reads the
+    // carrier, so the first in canonical order answers for the hole.
+    //
+    // Read AT the node that holds it: the first hole's own extrude, and
+    // the second's copy — spelled explicitly rather than assumed.
+    let ev = editor_core::evaluate::<f64>(
+        &r.doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &editor_core::EvalOptions::default(),
+        Tol::witness(),
+    );
+    let wall = |node| {
+        let mut faces = editor_core::select_where(
+            &ev,
+            node,
+            &editor_core::Selector::of(editor_core::NamePat::of_kind(
+                editor_core::EntityKind::Face,
+            )),
+            &[editor_core::GeomPred::SurfaceKind(
+                editor_core::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+            )],
+            &r.doc.var_env::<f64>(),
+            Tol::witness(),
+        )
+        .expect("the surface-kind atom is exact");
+        faces.sort();
+        assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
+        SitedRef::new(node, faces.remove(0))
+    };
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[wall(hole_a), wall(hole_b)],
+    );
+    let radius = || Formula::named(VarName::from_static(HOLE_R), Dimension::Length);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius(), radius()).expect("Length + Length"),
+    )
+    .expect("Length - Length");
+    let _assertion = r.insert(Node::Assertion {
+        value: web,
+        bound: len(MIN_WEB),
+        relation: AssertionRelation::AtLeast,
+    });
+    r.place_part(plate);
+
+    CorpusDoc {
+        name: "measured_web",
+        about: "M10-2: a measured web with an assertion over it (E3/E10)",
+        edits: r.edits,
+        doc: r.doc,
+        // The head is an assertion, not a body.
+        result: None,
+        pin: None,
+        // The plate's own thickness: a cone of exactly one node, so
+        // the hole chains and the measure over them are the reuse the
+        // incremental probe is there to observe.
+        //
+        // NOT the `hole_r` parameter, tempting as that is: a doc-param
+        // edit reaches both holes AND the measure that reads them, so
+        // its cone is most of the document and there is little left to
+        // reuse. That the measured value moves with `hole_r` is a real
+        // claim and it is asserted where it belongs — over the
+        // two-hole plate in `m10_2_measure.rs`, which flips an
+        // assertion by exactly that edit.
+        bump: DocEdit::SetParam {
+            node: plate,
+            slot: editor_core::SlotId::Distance,
+            value: len(0.125).into(),
+            fresh: Vec::new(),
+        },
+        bump_root: plate,
+    }
+}

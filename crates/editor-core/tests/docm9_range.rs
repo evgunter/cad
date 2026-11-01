@@ -1,0 +1,1110 @@
+//! **The certified locally-valid range** — the on-demand query that
+//! proves instead of sampling (`editor_core::range`).
+//!
+//! Everything here goes through the public doors a consumer has:
+//! `derive` for the query's own document, `certified_range` for the
+//! answer, the answer's accessors for reading it. Nothing reaches past
+//! them and nothing edits the driver.
+//!
+//! # The probe this is compared against
+//!
+//! The sampling probe itself lives above this crate (`viewer::bounds`),
+//! so what is reproduced here is its QUESTION — the failing-node set,
+//! tested for growth against the value the field has now
+//! ([`no_new_failure`]) — which is what "a certified range is a subset
+//! of the LOCALLY-VALID RANGE" is a claim about. It is not a claim
+//! about the probe's reported bracket, and the row that runs the real
+//! probe beside the query is `viewer::docm9_range_vs_probe`.
+//!
+//! # What is NOT here
+//!
+//! The walk and the arm-separating predicate over leaf lists no
+//! document produces are `range::tests`, in the crate: a
+//! `NewFailure` needs a flip whose evidence carries a standing change,
+//! and no fixture reaches one
+//! (`work/props/coincidence-zone-priced-budget-at-the-floor`).
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::fixture;
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use editor_core::analysis::{AnalysisPolicy, analyzed_box};
+use editor_core::drive::{BudgetKind, DriveConfig, RefusalReason};
+use editor_core::range::{
+    CertifiedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range, derive,
+};
+use editor_core::{
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
+    LoopProgram, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SpokenNode,
+    StableName, VarName, evaluate,
+};
+
+use fixture::{Recorder, len, scl, tol};
+
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
+}
+
+/// The variable `doc` declares as `n`.
+fn var(doc: &editor_core::ProfileDoc, n: &'static str) -> editor_core::VarId {
+    doc.var_named(n).expect("the fixture declares it")
+}
+
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
+}
+
+/// The drive's budgets, both of them the caller's: the query is on
+/// demand, so what it spends is what it was asked to spend.
+fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
+    DriveConfig {
+        max_depth,
+        max_leaves,
+        ..DriveConfig::default()
+    }
+}
+
+fn declare(r: &mut Recorder, n: &'static str, value: f64) {
+    r.push(DocEdit::DeclareVar {
+        name: name(n),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
+    });
+}
+
+fn unit_square() -> LoopProgram<Formula> {
+    LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
+        .expect("finite square corners")
+}
+
+/// **The slab**: a unit square extruded by a document parameter. A
+/// depth is a size, so below zero the extrude refuses: the slab's
+/// field has one boundary, a half-line floor at depth zero.
+fn slab(depth: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "depth", depth);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: param("depth"),
+    });
+    r.doc
+}
+
+/// **The branch fixture**: a unit square whose bottom side has a
+/// vertex at its midpoint, the vertex's height a document parameter,
+/// extruded.
+///
+/// Below zero the vertex is a convex point; past zero ([`THROUGH`]) it
+/// is a notch, and the walls either side of it turn the other way:
+/// every node still builds and the body is a perfectly good solid, on
+/// a branch the witness's recorded decisions do not describe. That is
+/// the difference between "nothing new fails", which the probe asks,
+/// and "nothing decides differently", which a certificate asserts.
+fn notch(height: f64) -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "height", height);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [len(0.5), param("height")],
+            [len(1.0), len(0.0)],
+            [len(1.0), len(1.0)],
+            [len(0.0), len(1.0)],
+        ])],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    r.doc
+}
+
+/// The height at which [`notch`]'s vertex is collinear with its
+/// neighbours.
+const THROUGH: f64 = 0.0;
+
+/// The heights below [`THROUGH`] at which two of [`notch`]'s lines
+/// stop or start lying apart along one's axis, each a `segment_gap`
+/// decision that changes sign (`profile::seg`'s `line_line` reads that
+/// gap before any side): `(1 − √2)/2`, where `(0.5, h)–(1, 0)`'s axis
+/// reads the left wall's top at its own start, and `−1/2`, where
+/// `(0, 0)–(0.5, h)`'s reads the top edge's start `(1, 1)` at its own
+/// start. The pair's contacts are none on either side of both.
+const GAP_ZEROS: [f64; 2] = [(1.0 - std::f64::consts::SQRT_2) / 2.0, -0.5];
+
+/// The notch's nominal height, a convex point below the square, above
+/// both [`GAP_ZEROS`].
+const NOMINAL: f64 = -0.125;
+
+/// The notch's seed: from a deeper point still clear of the
+/// [`GAP_ZEROS`] to just past the crossing, at offset
+/// `THROUGH − NOMINAL`, so the crossing is the one boundary inside it.
+const NOTCH_SEED: RangeSeed = RangeSeed {
+    lo: -0.0625,
+    hi: 0.15,
+};
+
+/// The same document with the extrusion distance left as a bare
+/// LITERAL — a field with no name at all until the query derives one.
+/// A slab whose depth slot reads a variable DEFINED by a formula over
+/// the document's `depth`.
+fn defined_slab() -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "depth", 1.0);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: Formula::mul(param("depth"), scl(2.0)).expect("a length times a scalar"),
+    });
+    r.doc
+}
+
+fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
+    let mut r = Recorder::new();
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+        on: None,
+    }));
+    let e = r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(depth),
+    });
+    (r.doc, e)
+}
+
+/// A slab with a SECOND, annotated parameter that the query is not
+/// about — the document the one-field contract has to pin.
+fn two_param_slab() -> ProfileDoc {
+    let mut r = Recorder::new();
+    declare(&mut r, "depth", 1.0);
+    r.push(DocEdit::DeclareVar {
+        name: name("side"),
+        def: editor_core::VarDecl::Free(FreeVar::continuous_with(
+            Dimension::Length,
+            1.0,
+            Distribution::Uniform { lo: -0.1, hi: 0.1 },
+        )),
+    });
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::polygon_expr([
+            [len(0.0), len(0.0)],
+            [param("side"), len(0.0)],
+            [param("side"), param("side")],
+            [len(0.0), param("side")],
+        ])],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: param("depth"),
+    });
+    r.doc
+}
+
+/// The structural slot [`patterned`]'s node carries: the index of its
+/// read of one member.
+const INDEX: SlotId = SlotId::Index {
+    seat: editor_core::OperandSlot::Source,
+    k: 0,
+};
+
+/// A document whose one interesting slot is STRUCTURAL: a row of three
+/// and a copy of its member 1, whose index ([`INDEX`]) is a count.
+fn patterned() -> (ProfileDoc, RecipeNodeId) {
+    let mut r = Recorder::new();
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+        on: None,
+    }));
+    let e = r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(0.5),
+    });
+    let (_, row) = r.linear(e, [1.0, 0.0, 0.0], 2.0, 3);
+    let read = r.member(row, 1);
+    (r.doc, read)
+}
+
+fn f64_run(doc: &ProfileDoc) -> Evaluation<f64> {
+    evaluate(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    )
+}
+
+fn failing(ev: &Evaluation<f64>) -> BTreeSet<RecipeNodeId> {
+    ev.nodes
+        .iter()
+        .filter(|(_, r)| matches!(r, NodeResult::Failed(_)))
+        .map(|(id, _)| *id)
+        .collect()
+}
+
+/// The PROBE's question at one value of one parameter: does this
+/// document fail anywhere the document at the nominal did not?
+fn no_new_failure(doc: &editor_core::ProfileDoc, p: &'static str, value: f64) -> bool {
+    let baseline = failing(&f64_run(doc));
+    let moved = editor_core::apply(
+        doc,
+        &DocEdit::SetVarValue {
+            var: name(p).into(),
+            value: editor_core::FreeValue::Continuous(value),
+        },
+        tol(),
+    )
+    .expect("a value edit applies")
+    .doc;
+    failing(&f64_run(&moved)).is_subset(&baseline)
+}
+
+/// Every node's standing and every published name of one f64 run —
+/// the two halves of "the derived witness is the document's own".
+fn standings_and_names(
+    ev: &Evaluation<f64>,
+) -> (
+    BTreeMap<RecipeNodeId, &'static str>,
+    BTreeMap<RecipeNodeId, BTreeSet<StableName>>,
+) {
+    let standings = ev
+        .nodes
+        .iter()
+        .map(|(id, r)| {
+            (
+                *id,
+                match r {
+                    NodeResult::Ok(_) => "ok",
+                    NodeResult::Failed(_) => "failed",
+                    NodeResult::Poisoned { .. } => "poisoned",
+                },
+            )
+        })
+        .collect();
+    let names = ev
+        .nodes
+        .iter()
+        .filter_map(|(id, r)| {
+            r.value().map(|_| {
+                let tables = crate::fixture::tables(ev, *id);
+                (
+                    *id,
+                    tables
+                        .into_iter()
+                        .flat_map(|t| t.iter())
+                        .map(|(n, _)| n.clone())
+                        .collect(),
+                )
+            })
+        })
+        .collect();
+    (standings, names)
+}
+
+fn range_of(
+    doc: &editor_core::ProfileDoc,
+    p: &'static str,
+    seed: RangeSeed,
+    config: &DriveConfig,
+) -> CertifiedRange {
+    certified_range(doc, &RangeField::Param(var(doc, p)), seed, config, tol())
+        .expect("the fixture has an axis and a witness that builds")
+}
+
+// -------------------------------------------------- the certified arm
+
+/// A side with nothing to find stops at the SEED's edge, never at
+/// "unbounded": outside the seed nothing was replayed.
+#[test]
+fn a_certified_side_stops_at_the_seeds_edge() {
+    let doc = slab(1.0);
+    let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
+    assert_eq!(*r.lo(), RangeSide::Certified { to: -0.25 });
+    assert_eq!(*r.hi(), RangeSide::Certified { to: 0.25 });
+    assert_eq!(r.certified_interval(), (0.75, 1.25));
+    assert_eq!(r.nominal(), 1.0);
+}
+
+// ------------------------------------------------ the four-arm contract
+
+/// **A2.** A branch change whose flipped leaf still builds every node
+/// is a [`RangeSide::DecisionFlip`] and never a
+/// [`RangeSide::NewFailure`]: the evidence names the predicate that
+/// decided otherwise, and no node's standing moved IN THE LEAF THE
+/// ARM WAS CHOSEN BY.
+///
+/// It pins the fold in one direction — a document that reaches
+/// `DecisionFlip` cannot be answered `NewFailure`. The PREDICATE
+/// itself, both directions, is pinned at the function in
+/// `range::tests::a_standing_change_is_what_makes_a_flip_a_new_failure`,
+/// because no document reaches `NewFailure` at all
+/// (`work/props/coincidence-zone-priced-budget-at-the-floor`).
+#[test]
+fn a_branch_change_is_a_decision_flip_and_names_the_predicate() {
+    let doc = notch(NOMINAL);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    assert_eq!(*r.lo(), RangeSide::Certified { to: NOTCH_SEED.lo });
+    let RangeSide::DecisionFlip {
+        certified_to,
+        within,
+        evidence,
+    } = r.hi()
+    else {
+        panic!("the branch change is a decision flip, got {:?}", r.hi());
+    };
+    // The certificate stops short of the crossing, and the bracket
+    // holds it.
+    let crossing = THROUGH - NOMINAL;
+    assert!(
+        0.0 < *certified_to && *certified_to < crossing,
+        "certified to {certified_to}"
+    );
+    assert!(
+        within.0 <= crossing && crossing <= within.1,
+        "the crossing at offset {crossing} is inside {within:?}"
+    );
+    assert_eq!(within.0, *certified_to);
+    // NAMED, by the driver's own engine: the vertex's turn decided
+    // the other way.
+    let named: Vec<_> = evidence
+        .verdicts
+        .nodes
+        .values()
+        .flat_map(|d| &d.flips)
+        .map(|f| (f.predicate, f.from, f.to))
+        .collect();
+    assert!(
+        named.iter().any(|(p, from, to)| *p == "path_junction_turn"
+            && *from == geom_core::Sign::Positive
+            && *to == geom_core::Sign::Negative),
+        "the flip was not named: {named:?}"
+    );
+    // And it is a decision flip BECAUSE no standing moved — the
+    // predicate this arm is chosen by, asserted rather than implied.
+    assert!(
+        evidence
+            .verdicts
+            .nodes
+            .values()
+            .all(|d| d.old_status == d.new_status),
+        "a standing changed, so this should have been a new failure"
+    );
+}
+
+/// **A3.** A budget too small to reach the boundary answers
+/// [`RangeSide::Indeterminate`], which is NOT a bound; the same
+/// document with the budget raised answers the boundary.
+#[test]
+fn a_budget_too_small_is_indeterminate_and_never_a_bound() {
+    let doc = notch(NOMINAL);
+    let starved = range_of(&doc, "height", NOTCH_SEED, &budget(1, 2048));
+    let RangeSide::Indeterminate {
+        certified_to,
+        reason,
+        ..
+    } = starved.hi()
+    else {
+        panic!("a starved drive is indeterminate, got {:?}", starved.hi());
+    };
+    assert!(matches!(
+        **reason,
+        RefusalReason::Budget(BudgetKind::Depth { max_depth: 1 })
+    ));
+    // Proven ground, short of the seed's edge and short of the
+    // crossing: an indeterminate side still carries what it proved.
+    assert!(
+        0.0 < *certified_to && *certified_to < THROUGH - NOMINAL,
+        "certified to {certified_to}"
+    );
+    assert!(!starved.hi().is_bound(), "indeterminate is not a bound");
+
+    let funded = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    assert!(funded.hi().is_bound(), "got {:?}", funded.hi());
+    assert!(
+        funded.hi().certified_to() > starved.hi().certified_to(),
+        "more budget proves more ground"
+    );
+}
+
+/// **A line pair's gap is a boundary of its own.** From a nominal below
+/// the first of the [`GAP_ZEROS`], the walk up stops at it, which the
+/// seed holds short of the crossing, and names `segment_gap` leaving Negative: the two lines'
+/// projections go from overlapping to apart there (through the zero
+/// band, which a coarse ε reaches first), and nothing else about the
+/// notch changes.
+#[test]
+fn a_gap_between_two_lines_is_a_decision_flip_below_the_crossing() {
+    let nominal = -0.25;
+    let doc = notch(nominal);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    let RangeSide::DecisionFlip {
+        within, evidence, ..
+    } = r.hi()
+    else {
+        panic!("the gap's zero is a decision flip, got {:?}", r.hi());
+    };
+    // The bracket closes where the gap's margin enters the band, which
+    // at a coarse ε lies short of its exact zero by about ε.
+    let zero = GAP_ZEROS[0] - nominal;
+    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
+    assert!(
+        within.0 <= zero && zero - within.1 < 100.0 * resolution.max(tol().eps()),
+        "the gap's zero at offset {zero} closes {within:?}"
+    );
+    let named: Vec<_> = evidence
+        .verdicts
+        .nodes
+        .values()
+        .flat_map(|d| &d.flips)
+        .map(|f| (f.predicate, f.from, f.to))
+        .collect();
+    assert!(
+        named.iter().any(|(p, from, to)| *p == "segment_gap"
+            && *from == geom_core::Sign::Negative
+            && *to != geom_core::Sign::Negative),
+        "the gap's flip was not named: {named:?}"
+    );
+}
+
+/// **A MEASUREMENT, and a defect's cost.** `within` is a bracket
+/// around a boundary whose interior the driver did not decide, and
+/// today that interior CONTAINS values at which the document does not
+/// build at all: `drive::classify_replay` bisects a leaf whose node
+/// definitely fails to the budget floor and prices it `Budget`
+/// (`work/props/coincidence-zone-priced-budget-at-the-floor`) rather
+/// than naming the failure, so the failure never reaches a leaf class
+/// the walk can report.
+///
+/// The row exists so that the arm's documentation and the behaviour
+/// cannot drift apart: a consumer rendering `within` as valid would
+/// be confidently wrong, and when the PROPS row lands this assertion
+/// is the one that will turn over and say so.
+#[test]
+fn a_decision_flips_within_contains_a_value_that_does_not_build() {
+    let doc = notch(NOMINAL);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    let RangeSide::DecisionFlip { within, .. } = r.hi() else {
+        panic!(
+            "the A2 fixture's hi side is a decision flip, got {:?}",
+            r.hi()
+        );
+    };
+    // The crossing itself is one of the sampled offsets, by
+    // construction rather than by a grid's luck: at a tight eps the
+    // window that refuses is narrower than any ten-way split of the
+    // bracket, and a row that relied on the split would be a row about
+    // the eps the gate happened to run.
+    let crossing = THROUGH - NOMINAL;
+    let broken: Vec<f64> = (0..=10)
+        .map(|k| within.0 + (within.1 - within.0) * f64::from(k) / 10.0)
+        .chain(std::iter::once(crossing))
+        .filter(|&off| !no_new_failure(&doc, "height", r.absolute(off)))
+        .collect();
+    assert!(
+        !broken.is_empty(),
+        "`within` {within:?} is expected to hold values that do not build, and none of the \
+         eleven sampled offsets did — if the driver now names such a leaf, this arm can say \
+         more than it does and the docs must be re-cut"
+    );
+    // And the crossing itself is one of them: named rather than left
+    // to a sweep's luck.
+    assert!(
+        !no_new_failure(&doc, "height", THROUGH),
+        "at the crossing the vertex is collinear with its neighbours, which does not build"
+    );
+    assert!(
+        within.0 <= crossing && crossing <= within.1,
+        "and it is inside the bracket: {within:?}"
+    );
+}
+
+// ----------------------------------------------- against the probe
+
+/// **The certificate is inside the LOCALLY-VALID RANGE**, on a
+/// fixture with a real boundary: every value it covers passes the
+/// probe's own validity test, and the frontier stops orders short of
+/// the crossing rather than at it.
+///
+/// It is NOT a claim about the sampling probe's reported bracket —
+/// those are different questions, and the row that runs the real
+/// probe beside the query is
+/// `viewer::docm9_range_vs_probe::the_certificate_is_inside_the_locally_valid_range_not_the_probes_bracket`.
+/// This one reproduces the probe's QUESTION, which is all a crate
+/// below the viewer can do.
+#[test]
+fn the_certificate_is_inside_the_locally_valid_range() {
+    let doc = notch(NOMINAL);
+    let r = range_of(&doc, "height", NOTCH_SEED, &budget(24, 2048));
+    let (lo, hi) = r.certified_interval();
+    assert!(lo < hi);
+    for i in 0..=32 {
+        let v = lo + (hi - lo) * f64::from(i) / 32.0;
+        assert!(
+            no_new_failure(&doc, "height", v),
+            "the certificate covers {v}, which the probe's test calls invalid"
+        );
+    }
+    // The crossing is at THROUGH and the proof stops below it, at the
+    // DRIVER's own floor rather than at the boundary. The bound is
+    // DERIVED from the two mechanisms that set that floor — the run's
+    // ambiguity band and the drive's resolution over this seed —
+    // because a constant here is a claim about one eps row and the
+    // gate runs three. It caught exactly that: a literal `1e-6` passed
+    // at the shipped eps and red at 1e-6 and 1e-12.
+    let resolution = (NOTCH_SEED.hi - NOTCH_SEED.lo) / 2f64.powi(24);
+    assert!(
+        hi < THROUGH,
+        "the certificate must not reach the crossing: {hi}"
+    );
+    assert!(
+        THROUGH - hi < 100.0 * resolution.max(tol().eps()),
+        "the frontier is the driver's stopping point, not the boundary: {hi}"
+    );
+}
+
+/// **A4.** Validity is not monotone, and the query says so by
+/// stopping: the far branch is valid to the probe and is NOT in the
+/// certificate. A seed placed on that branch certifies it.
+#[test]
+fn the_first_boundary_stops_the_walk_and_a_seed_on_the_island_certifies_it() {
+    let doc = notch(NOMINAL);
+    let r = range_of(
+        &doc,
+        "height",
+        RangeSeed { lo: -0.25, hi: 0.5 },
+        &budget(24, 2048),
+    );
+    assert!(r.hi().is_bound(), "got {:?}", r.hi());
+    assert!(
+        r.certified_interval().1 < THROUGH,
+        "the certificate must stop at the crossing, not leap it"
+    );
+    assert!(
+        no_new_failure(&doc, "height", 0.2),
+        "the far branch is valid to the probe"
+    );
+
+    let island = notch(0.2);
+    let on_it = range_of(
+        &island,
+        "height",
+        RangeSeed::symmetric(0.1),
+        &budget(24, 2048),
+    );
+    assert_eq!(*on_it.lo(), RangeSide::Certified { to: -0.1 });
+    assert_eq!(*on_it.hi(), RangeSide::Certified { to: 0.1 });
+}
+
+// ------------------------------------------------- purity and identity
+
+/// **A5.** The query writes nothing: the input document is
+/// bit-identical and serializes identically after a range is taken.
+#[test]
+fn the_query_does_not_touch_the_input_document() {
+    let (doc, node) = slab_slot(1.0);
+    let before = doc.clone();
+    let before_text = editor_core::persist::save(&doc, &[], tol()).expect("the fixture saves");
+    let _ = certified_range(
+        &doc,
+        &RangeField::Slot {
+            node,
+            slot: SlotId::Distance,
+        },
+        RangeSeed::symmetric(0.25),
+        &budget(24, 2048),
+        tol(),
+    )
+    .expect("the slot widens");
+    assert!(doc.bit_eq(&before));
+    assert_eq!(
+        editor_core::persist::save(&doc, &[], tol()).expect("the fixture saves"),
+        before_text
+    );
+}
+
+/// **A5.** The derived document's f64 build IS the input's: the
+/// synthetic parameter enters the environment through the same
+/// `from_f64` the literal did, so every node's standing and every
+/// published name match.
+#[test]
+fn the_derived_witness_is_the_documents_own_build() {
+    let (doc, node) = slab_slot(1.0);
+    let derived = derive(
+        &doc,
+        &RangeField::Slot {
+            node,
+            slot: SlotId::Distance,
+        },
+        RangeSeed::symmetric(0.25),
+        tol(),
+    )
+    .expect("the slot widens");
+    let (mine, theirs) = (
+        standings_and_names(&f64_run(&doc)),
+        standings_and_names(&f64_run(&derived.doc)),
+    );
+    assert_eq!(mine.0, theirs.0, "a node's standing moved");
+    assert_eq!(mine.1, theirs.1, "a published name moved");
+    assert!(!mine.0.is_empty());
+}
+
+/// **C3.** A slot widens through the free variable it reads (VR4):
+/// the axis is the slot's own id, its nominal the written value's
+/// bits, and the derived document names nothing, declares nothing and
+/// rewrites no slot (`range-synthetic-name-mints-a-name`).
+#[test]
+fn the_slot_widens_its_own_variable() {
+    let literal = 1.0_f64 + 2.0_f64.powi(-40);
+    let (doc, node) = slab_slot(literal);
+    let derived = derive(
+        &doc,
+        &RangeField::Slot {
+            node,
+            slot: SlotId::Distance,
+        },
+        RangeSeed::symmetric(0.25),
+        tol(),
+    )
+    .expect("the slot widens");
+    assert_eq!(derived.nominal.to_bits(), literal.to_bits());
+    assert_eq!(
+        Some(derived.axis),
+        doc.slot(node, SlotId::Distance),
+        "the axis is the variable the slot already reads"
+    );
+    let Some(FreeVar::Continuous { value, dim, .. }) = derived.doc.free(derived.axis) else {
+        panic!("the slot reads a free continuous variable");
+    };
+    assert_eq!(value.to_bits(), literal.to_bits());
+    assert_eq!(*dim, Dimension::Length);
+    assert_eq!(
+        derived.doc.slot(node, SlotId::Distance),
+        doc.slot(node, SlotId::Distance),
+        "the slot is not rewritten"
+    );
+    assert_eq!(
+        derived.doc.var_names(),
+        doc.var_names(),
+        "no name is minted"
+    );
+    assert_eq!(
+        derived.doc.var_ids(),
+        doc.var_ids(),
+        "no variable is declared"
+    );
+}
+
+/// **A6.** A parameter field boxes directly: no rewrite, no synthetic
+/// name, and the same four arms.
+#[test]
+fn a_parameter_field_boxes_directly() {
+    let doc = slab(1.0);
+    let derived = derive(
+        &doc,
+        &RangeField::Param(var(&doc, "depth")),
+        RangeSeed::symmetric(0.25),
+        tol(),
+    )
+    .expect("the parameter boxes");
+    assert_eq!(derived.axis, var(&doc, "depth"));
+    assert_eq!(derived.doc.vars().len(), doc.vars().len());
+    assert_eq!(derived.doc.ids(), doc.ids());
+    assert_eq!(derived.nominal, 1.0);
+    let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
+    assert!(matches!(r.lo(), RangeSide::Certified { .. }));
+}
+
+/// **A6.** A slot the rewrite cannot name refuses TYPED, at the door,
+/// before anything is driven.
+#[test]
+fn a_slot_the_rewrite_cannot_name_refuses_typed() {
+    let seed = RangeSeed::symmetric(0.25);
+    let (doc, pattern) = patterned();
+    assert_eq!(
+        derive(
+            &doc,
+            &RangeField::Slot {
+                node: pattern,
+                slot: INDEX,
+            },
+            seed,
+            tol()
+        ),
+        Err(RangeRefusal::StructuralSlot {
+            node: doc.spoken(pattern),
+            slot: INDEX
+        })
+    );
+    // A slot reading a defined variable has no interval of its own:
+    // the query refuses, naming the variables to certify instead.
+    let driven = defined_slab();
+    let extrude = *driven.ids().last().expect("the extrude is last");
+    assert_eq!(
+        derive(
+            &driven,
+            &RangeField::Slot {
+                node: extrude,
+                slot: SlotId::Distance
+            },
+            seed,
+            tol()
+        ),
+        Err(RangeRefusal::SlotIsDefined {
+            node: driven.spoken(extrude),
+            slot: SlotId::Distance
+        })
+    );
+    // A slot the node does not carry, and a node the document does not
+    // carry.
+    assert_eq!(
+        derive(
+            &driven,
+            &RangeField::Slot {
+                node: extrude,
+                slot: SlotId::Radius
+            },
+            seed,
+            tol()
+        ),
+        Err(RangeRefusal::UnknownSlot {
+            node: driven.spoken(extrude),
+            slot: SlotId::Radius
+        })
+    );
+    let ghost = RecipeNodeId::new(0, 9999);
+    assert_eq!(
+        derive(
+            &driven,
+            &RangeField::Slot {
+                node: ghost,
+                slot: SlotId::Distance
+            },
+            seed,
+            tol()
+        ),
+        Err(RangeRefusal::UnknownNode {
+            node: SpokenNode::absent(ghost)
+        })
+    );
+    assert_eq!(
+        derive(
+            &driven,
+            &RangeField::Param(editor_core::VarId::new(0, 0)),
+            seed,
+            tol()
+        ),
+        Err(RangeRefusal::NotAContinuousParam {
+            param: editor_core::SpokenVar::new(editor_core::VarId::new(0, 0), None)
+        })
+    );
+}
+
+/// **The door's read order**: whether THIS node carries the slot is
+/// asked before what the slot id means in the vocabulary.
+///
+/// An index slot is structural everywhere, so a door that tested that
+/// first told a caller "the index slot of node N is structural" about a
+/// node with no such slot at all — the vocabulary's fact where the
+/// caller asked about this document's.
+#[test]
+fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
+    let (doc, node) = slab_slot(1.0);
+    assert!(
+        doc.node(node).and_then(|n| n.expr(INDEX)).is_none(),
+        "an extrude reads no member"
+    );
+    assert_eq!(
+        derive(
+            &doc,
+            &RangeField::Slot { node, slot: INDEX },
+            RangeSeed::symmetric(0.25),
+            tol()
+        ),
+        Err(RangeRefusal::UnknownSlot {
+            node: doc.spoken(node),
+            slot: INDEX
+        })
+    );
+    // And a node that DOES carry it still refuses structural — the
+    // reorder narrows the first door, it does not open the second.
+    let (patterned_doc, pattern) = patterned();
+    assert!(
+        patterned_doc
+            .node(pattern)
+            .and_then(|n| n.expr(INDEX))
+            .is_some()
+    );
+    assert_eq!(
+        derive(
+            &patterned_doc,
+            &RangeField::Slot {
+                node: pattern,
+                slot: INDEX
+            },
+            RangeSeed::symmetric(0.25),
+            tol()
+        ),
+        Err(RangeRefusal::StructuralSlot {
+            node: patterned_doc.spoken(pattern),
+            slot: INDEX
+        })
+    );
+}
+
+/// A profile step argument — whose label, `loop L step S · <arg>`, is
+/// prose for a person and no identifier — widens like any other
+/// continuous slot: through the variable it reads.
+#[test]
+fn a_profile_step_argument_widens() {
+    let mut r = Recorder::new();
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![unit_square()],
+        ids: Vec::new(),
+        on: None,
+    }));
+    r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    let doc = r.doc;
+    let profile = doc.node(p).expect("the profile");
+    let slot = profile
+        .slots()
+        .into_iter()
+        .find(|s| matches!(s, SlotId::Profile { .. }) && doc.slot_value(p, *s).is_some())
+        .expect("the square carries a literal step argument");
+    assert!(
+        VarName::new(slot.label().replace(' ', "_")).is_err(),
+        "the fixture's premise: the label {:?} is not an identifier",
+        slot.label()
+    );
+    let derived = derive(
+        &doc,
+        &RangeField::Slot { node: p, slot },
+        RangeSeed::symmetric(0.1),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the {} slot widens: {e}", slot.label()));
+    assert_eq!(
+        Some(derived.axis),
+        doc.slot(p, slot),
+        "the slot widens through its own variable"
+    );
+    assert_eq!(
+        derived.doc.var_names(),
+        doc.var_names(),
+        "no name is minted"
+    );
+}
+
+/// **The three guard arms**, which the doors cannot reach and which
+/// stay anyway: what a reader would be told if a driver or analysis
+/// change ever fired one.
+///
+/// `SeedIsNotTheAnalyzedAxis` and `MoreThanOneAxisVaries` are
+/// unreachable through [`derive`] (whose `Band` states the seed's own
+/// offsets, and which clears every other spread), and
+/// `LeavesAreNotAPartition` is unreachable through the driver
+/// (`ParamBox::split` refuses a midpoint on an endpoint, so the halves
+/// tile). The walk-side behaviour is pinned at the function in
+/// `range::tests`; what is pinned here is that each refusal RENDERS
+/// both of the facts its payload carries, since a guard that fires
+/// with half a message costs exactly the debugging it exists to save.
+#[test]
+fn the_guard_refusals_render_what_they_carry() {
+    let axis = RangeRefusal::SeedIsNotTheAnalyzedAxis {
+        analyzed: (-0.5, 0.5),
+        asked: (-0.25, 0.75),
+    }
+    .to_string();
+    for fragment in ["-0.5", "0.5", "-0.25", "0.75"] {
+        assert!(axis.contains(fragment), "{axis:?} omits {fragment}");
+    }
+    let axes = RangeRefusal::MoreThanOneAxisVaries { varying: 3 }.to_string();
+    assert!(axes.contains('3'), "{axes:?} omits the count");
+    let gap = RangeRefusal::LeavesAreNotAPartition { at: (1.5, 2.5) }.to_string();
+    for fragment in ["1.5", "2.5"] {
+        assert!(gap.contains(fragment), "{gap:?} omits {fragment}");
+    }
+}
+
+/// **The answer carries its condition.** The derivation holds every
+/// other annotated parameter at its nominal, so the names it pinned
+/// ride on the certificate for a consumer to state.
+#[test]
+fn the_answer_names_the_parameters_it_pinned() {
+    let doc = two_param_slab();
+    let r = range_of(&doc, "depth", RangeSeed::symmetric(0.1), &budget(24, 64));
+    assert_eq!(r.pinned(), [var(&doc, "side")]);
+    // The axis itself is never pinned: it did not lose a spread, it
+    // was given one.
+    assert!(!r.pinned().contains(&var(&doc, "depth")));
+    // A document with no other spread to drop pins nothing, which is
+    // not the same claim as "nothing was checked".
+    let plain = range_of(
+        &slab(1.0),
+        "depth",
+        RangeSeed::symmetric(0.1),
+        &budget(24, 64),
+    );
+    assert!(plain.pinned().is_empty());
+}
+
+/// A seed that does not bracket the field's current value refuses: the
+/// witness is taken there, so a range around some other point is a
+/// range of a different document.
+#[test]
+fn a_seed_that_does_not_bracket_the_nominal_refuses() {
+    let doc = slab(1.0);
+    for (lo, hi) in [
+        (0.1, 0.5),
+        (-0.5, -0.1),
+        (0.0, 0.0),
+        (f64::NAN, 1.0),
+        (-1.0, f64::INFINITY),
+    ] {
+        // Compared on BITS, because a NaN seed is one of the cases and
+        // `NaN != NaN` would make the equality pass for the wrong
+        // reason — or, here, fail for one.
+        let Err(RangeRefusal::SeedNotABracket { lo: glo, hi: ghi }) = derive(
+            &doc,
+            &RangeField::Param(var(&doc, "depth")),
+            RangeSeed { lo, hi },
+            tol(),
+        ) else {
+            panic!("seed [{lo}, {hi}] must refuse");
+        };
+        assert_eq!((glo.to_bits(), ghi.to_bits()), (lo.to_bits(), hi.to_bits()));
+    }
+}
+
+/// **`RangeSeed::symmetric` is infallible, and the invariant still
+/// holds at one door.** A negative, zero or non-finite half-width
+/// builds a seed the derivation refuses, naming the offsets it was
+/// handed — which is why the constructor does not refuse a second
+/// time under a second spelling.
+#[test]
+fn a_symmetric_seed_of_a_bad_half_width_refuses_at_the_derivation() {
+    let doc = slab(1.0);
+    for w in [-1.0, 0.0, f64::NAN, f64::INFINITY] {
+        let seed = RangeSeed::symmetric(w);
+        let out = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol());
+        assert!(
+            matches!(out, Err(RangeRefusal::SeedNotABracket { .. })),
+            "symmetric({w}) must refuse at the door, got {out:?}"
+        );
+    }
+    assert_eq!(
+        RangeSeed::symmetric(0.25),
+        RangeSeed {
+            lo: -0.25,
+            hi: 0.25
+        }
+    );
+}
+
+// ------------------------------------------- the seed reaches the axis
+
+/// The seed IS the analyzed axis, bit for bit — the stop-clause check
+/// the query makes before it drives anything.
+#[test]
+fn the_seed_reaches_the_driver_as_the_analyzed_axis() {
+    let doc = slab(1.0);
+    let seed = RangeSeed { lo: -0.3, hi: 0.7 };
+    let derived = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol())
+        .expect("the parameter boxes");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let axis = analyzed.get(derived.axis).expect("the axis is there");
+    assert_eq!(axis.offsets.lo.to_bits(), seed.lo.to_bits());
+    assert_eq!(axis.offsets.hi.to_bits(), seed.hi.to_bits());
+    assert_eq!(
+        axis.distribution,
+        Some(Distribution::Band {
+            lo: seed.lo,
+            hi: seed.hi
+        })
+    );
+}
+
+/// The query's contract is ONE field: every other parameter of the
+/// derived document is pinned at its nominal, whatever the input
+/// declared.
+#[test]
+fn every_other_parameter_is_pinned() {
+    let doc = two_param_slab();
+    assert_eq!(
+        analyzed_box(&doc, &AnalysisPolicy::default())
+            .varying()
+            .count(),
+        1,
+        "the fixture's OTHER parameter is the annotated one"
+    );
+    let derived = derive(
+        &doc,
+        &RangeField::Param(var(&doc, "depth")),
+        RangeSeed::symmetric(0.1),
+        tol(),
+    )
+    .expect("the parameter boxes");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let varying: Vec<editor_core::VarId> = analyzed.varying().map(|(n, _)| n).collect();
+    assert_eq!(varying, vec![var(&doc, "depth")]);
+    assert!(
+        matches!(
+            derived.doc.free_named("side"),
+            Some(FreeVar::Continuous {
+                distribution: None,
+                ..
+            })
+        ),
+        "the other parameter keeps its value and loses its spread"
+    );
+}
+
+/// The stop clause's third condition, checked on a real drive: the
+/// one-axis leaves tile the seed end to end, with no gap and no
+/// overlap, so the walk has something to walk.
+#[test]
+fn the_one_axis_leaves_tile_the_seed() {
+    let doc = slab(1.0);
+    let seed = RangeSeed { lo: -1.05, hi: 0.5 };
+    let derived = derive(&doc, &RangeField::Param(var(&doc, "depth")), seed, tol())
+        .expect("the parameter boxes");
+    let analyzed = analyzed_box(&derived.doc, &AnalysisPolicy::default());
+    let verdict = editor_core::drive::drive(&derived.doc, &analyzed, &budget(24, 512), tol())
+        .expect("the nominal builds");
+    let mut spans: Vec<(f64, f64)> = verdict
+        .certified()
+        .iter()
+        .map(|l| l.box_.clone())
+        .chain(verdict.refused().iter().map(|l| l.box_.clone()))
+        .map(|b| {
+            let varying: Vec<_> = b.varying().collect();
+            assert_eq!(varying.len(), 1, "a one-axis drive varies one axis");
+            assert_eq!(varying[0].0, derived.axis);
+            (varying[0].1, varying[0].2)
+        })
+        .collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(spans.first().expect("some leaf").0, seed.lo);
+    assert_eq!(spans.last().expect("some leaf").1, seed.hi);
+    for pair in spans.windows(2) {
+        assert_eq!(pair[0].1, pair[1].0, "a gap or an overlap at {pair:?}");
+    }
+    assert!(verdict.receipt().holds());
+}

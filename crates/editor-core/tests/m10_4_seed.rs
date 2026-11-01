@@ -1,0 +1,612 @@
+//! **The E4 seed door** (`docs/ERROR-DESIGN.md` E4; `docs/M10-4-SPEC.md`
+//! §1): `EvalOptions::seed`, the `param_box` seam's twin.
+//!
+//! What the rows pin, in the spec's own order:
+//!
+//! - **Zero impact unseeded.** `seed: None` is the default and leaves
+//!   the environment exactly as the nominal or box door built it; the
+//!   build-path bit-identity fence (`m10_p_fence.rs`) is the corpus-wide
+//!   differential and runs unchanged beside this suite.
+//! - **Capability is at the scalar.** A tangentless scalar (`f64`,
+//!   `Interval`) refuses a seed on every node, typed; an unknown or
+//!   `Count` name refuses at env construction at every scalar.
+//! - **Seed hygiene.** Tangent exactly `1.0` on the seeded parameter's
+//!   lift and exactly `0.0` on every other binding and every literal —
+//!   read through the public `seed_env` door and through a measure's
+//!   public tangent field.
+//! - **DL2 exercised, not trusted.** A pass threaded from ANOTHER
+//!   parameter's pass as its memo prior reads its own tangent, bit for
+//!   bit, and reuses only the seed-independent subgraph.
+//! - **The REQUIRED profile pin.** A seed on a profile dimension
+//!   reaches the measure with the analytically correct nonzero
+//!   tangent, where a lift through `from_f64` gave a silent zero.
+//! - **Composition** (interval rows): `seed` and `param_box` together
+//!   are legal exactly at `Dual<Interval>`; `Dual64` keeps the
+//!   degenerate-only box rule; `Interval` plus a seed refuses.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use crate::corpus;
+use crate::fixture;
+
+use editor_core::UnitSym;
+use editor_core::{
+    CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
+};
+use geom_core::{Dual64, Tol};
+
+use fixture::{Recorder, fname, len, wall};
+
+/// A variable as the free mass doors' refusals speak it.
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId::new(0, 0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
+}
+
+fn param(n: &'static str) -> Formula {
+    Formula::named(name(n), Dimension::Length)
+}
+
+fn continuous(value: f64) -> FreeVar {
+    FreeVar::Continuous {
+        dim: Dimension::Length,
+        value,
+        display_unit: UnitSym::canonical_for(Dimension::Length),
+        distribution: None,
+    }
+}
+
+fn opts(doc: &ProfileDoc, seed: Option<&'static str>) -> EvalOptions {
+    EvalOptions {
+        seed: seed.map(|n| var(doc, n)),
+        ..EvalOptions::default()
+    }
+}
+
+/// The variable `doc` declares as `n`, or an id it never minted (not
+/// `(0, 0)`, the world's space, which every document holds).
+fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
+    doc.var_named(n).unwrap_or(editor_core::VarId::new(999, 7))
+}
+
+/// `doc`'s variable `n` as a refusal speaks it.
+fn spoken(doc: &ProfileDoc, n: &str) -> editor_core::SpokenVar {
+    doc.spoken_var(var(doc, n))
+}
+
+fn run<T: editor_core::EvalScalar>(
+    doc: &ProfileDoc,
+    prior: Option<&Evaluation<T>>,
+    o: &EvalOptions,
+) -> Evaluation<T> {
+    evaluate::<T>(doc, prior, &CancelToken::new(), o, Tol::witness())
+}
+
+/// The measure node of a document, by kind — the one sink these rows
+/// read.
+fn measure_node(doc: &ProfileDoc) -> editor_core::VarId {
+    if let Some(m) = doc.var_named("m") {
+        return m;
+    }
+    let node = doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| matches!(doc.node(id), Some(Node::Measure { .. })))
+        .expect("the document carries a measure");
+    doc.output(node, 0).expect("a measure defines its value")
+}
+
+/// The measured value of an evaluation at `Dual64`, both channels.
+fn measured(doc: &ProfileDoc, ev: &Evaluation<Dual64>, var: editor_core::VarId) -> Dual64 {
+    crate::fixture::reading(doc, ev, var).unwrap_or_else(|| panic!("{var:?} did not read"))
+}
+
+/// **The two-parameter measured plate**: the corpus's measured web
+/// (`distance(wall, wall) − 2·hole_r`, `hole_r` driving two hole
+/// profiles through the lift) with a SECOND parameter `depth` on the
+/// plate's extrude distance — a magnitude slot — added to the measure
+/// as `+ depth`, so one measure reads a profile-driven and a
+/// magnitude-driven parameter at once: ∂m/∂hole_r = −2, ∂m/∂depth = 1.
+fn two_param_web() -> ProfileDoc {
+    let base = corpus::measured_web::document();
+    let mut doc = base.doc;
+    let push = |doc: &ProfileDoc, edit: DocEdit<ProfileProgram>| -> ProfileDoc {
+        editor_core::apply(doc, &edit, Tol::witness())
+            .unwrap_or_else(|e| panic!("edit refused: {e}"))
+            .doc
+    };
+    doc = push(
+        &doc,
+        DocEdit::DeclareVar {
+            name: name("depth"),
+            def: editor_core::VarDecl::Free(continuous(0.1)),
+        },
+    );
+    // The plate is the corpus web's extrude; its distance becomes the
+    // parameter. Found by kind, not by literal id: the sketch frame
+    // is a node too, so a profile's own index is no longer one less
+    // than its extrude's.
+    let plate = doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
+        .expect("the corpus web extrudes its plate");
+    doc = push(
+        &doc,
+        DocEdit::SetParam {
+            node: plate,
+            slot: editor_core::SlotId::Distance,
+            value: param("depth").into(),
+            fresh: Vec::new(),
+        },
+    );
+    // The measured value: the corpus web's distance, less both radii,
+    // plus the depth, named `m`.
+    let distance = measure_node(&doc);
+    let m = Formula::add(
+        Formula::sub(
+            Formula::sub(Formula::var(distance, Dimension::Length), param("hole_r"))
+                .expect("Length"),
+            param("hole_r"),
+        )
+        .expect("Length"),
+        param("depth"),
+    )
+    .expect("Length");
+    push(
+        &doc,
+        DocEdit::DeclareVar {
+            name: name("m"),
+            def: editor_core::VarDecl::Defined(m),
+        },
+    )
+}
+
+/// **The width slab — M10-P's shape for the REQUIRED profile pin.** A
+/// rectangle whose WIDTH is a document parameter (`w`, a profile
+/// dimension: it feeds a chain program's point, not a magnitude slot),
+/// extruded by a literal; the measure is the distance between its two
+/// `x`-walls, which is `w` exactly. Returns the document and the
+/// measure node.
+fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: name("w"),
+        def: editor_core::VarDecl::Free(continuous(w)),
+    });
+    let chain = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([param("w"), len(0.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([param("w"), len(1.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let p = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![chain],
+        ids: Vec::new(),
+        on: None,
+    }));
+    let slab = r.insert(Node::Extrude {
+        profile: p.into(),
+        distance: len(1.0),
+    });
+    // Segment 3 is the x = 0 wall, segment 1 the x = w wall (chain
+    // order: bottom, right, top, left).
+    let refs = vec![
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
+    ];
+    let width = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let m_measured = r.measure(&[width], &refs);
+    let (_m, m_value) = (m_measured.measures[0], m_measured.outputs[0]);
+    (r.doc, m_value)
+}
+
+/// A document with a `Count` parameter beside a continuous one.
+fn with_count() -> ProfileDoc {
+    let (mut doc, _) = width_slab(2.0);
+    doc = editor_core::apply(
+        &doc,
+        &DocEdit::DeclareVar {
+            name: name("n"),
+            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
+        },
+        Tol::witness(),
+    )
+    .expect("a count parameter")
+    .doc;
+    doc
+}
+
+fn every_node_refuses_seed(ev: &Evaluation<impl geom_core::Decide>, expect: impl Fn(&SeedError)) {
+    assert!(!ev.order.is_empty());
+    for id in &ev.order {
+        match ev.result(*id) {
+            Some(NodeResult::Failed(e)) => match &e.kind {
+                NodeErrorKind::Seed { source } => expect(source),
+                other => panic!("node {} refused for another reason: {other}", id.0),
+            },
+            other => panic!("node {} did not refuse the seed: {other:?}", id.0),
+        }
+    }
+}
+
+// --------------------------------------------------------- unseeded
+
+/// **An unseeded evaluation is the build.** The default options carry
+/// no seed, and holding every continuous variable `Fixed` at its
+/// nominal changes no node's key: a box seam that varies nothing is not
+/// an analysis. The corpus-wide bit-identity
+/// differential against the pre-seed build path is `m10_p_fence.rs`,
+/// which this unit leaves untouched.
+#[test]
+fn an_unseeded_evaluation_is_the_build() {
+    assert!(EvalOptions::default().seed.is_none());
+    for doc in corpus::documents() {
+        let held: std::collections::BTreeMap<_, _> = doc
+            .doc
+            .free_vars()
+            .filter(|(_, p)| matches!(p, editor_core::FreeVar::Continuous { .. }))
+            .map(|(id, _)| (id, editor_core::analysis::BoxAxis::Fixed))
+            .collect();
+        let default = run::<f64>(&doc.doc, None, &EvalOptions::default());
+        let fixed = run::<f64>(
+            &doc.doc,
+            None,
+            &EvalOptions {
+                param_box: Some(std::sync::Arc::new(
+                    editor_core::analysis::ParamBox::from_axes(held),
+                )),
+                ..EvalOptions::default()
+            },
+        );
+        assert_eq!(default.order, fixed.order, "{}", doc.name);
+        for id in &default.order {
+            let (a, b) = (default.value(*id), fixed.value(*id));
+            assert_eq!(
+                a.map(|v| v.content_key),
+                b.map(|v| v.content_key),
+                "{}: node {} keyed differently under an all-`Fixed` box",
+                doc.name,
+                id.0
+            );
+        }
+    }
+}
+
+// -------------------------------------------------------- refusals
+
+/// A point scalar has no tangent channel: a seeded `f64` evaluation
+/// refuses every node typed rather than dropping the seed.
+#[test]
+fn a_seed_at_f64_refuses_every_node_typed() {
+    let doc = two_param_web();
+    let ev = run::<f64>(&doc, None, &opts(&doc, Some("hole_r")));
+    every_node_refuses_seed(&ev, |e| {
+        assert_eq!(
+            *e,
+            SeedError::TangentUnrepresentable {
+                var: spoken(&doc, "hole_r")
+            }
+        );
+    });
+}
+
+/// An unknown or structural name refuses at env construction — before
+/// any node runs, and identically at a scalar that COULD carry a seed.
+#[test]
+fn an_unknown_or_count_seed_refuses_at_env_construction() {
+    let doc = with_count();
+    let unknown = run::<Dual64>(&doc, None, &opts(&doc, Some("nope")));
+    every_node_refuses_seed(&unknown, |e| {
+        assert_eq!(
+            *e,
+            SeedError::UnknownVar {
+                var: spoken(&doc, "nope")
+            }
+        );
+    });
+    let count = run::<Dual64>(&doc, None, &opts(&doc, Some("n")));
+    every_node_refuses_seed(&count, |e| {
+        assert_eq!(
+            *e,
+            SeedError::CountVar {
+                var: spoken(&doc, "n")
+            }
+        );
+    });
+    // The same door, called directly: the name is checked against the
+    // DOCUMENT first, so an unknown name refuses as unknown even at a
+    // scalar that would have refused the tangent.
+    assert_eq!(
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "nope")).err(),
+        Some(SeedError::UnknownVar {
+            var: spoken(&doc, "nope")
+        })
+    );
+    assert_eq!(
+        seed_env::<f64, _>(&doc, doc.var_env::<f64>(), var(&doc, "w")).err(),
+        Some(SeedError::TangentUnrepresentable {
+            var: spoken(&doc, "w")
+        })
+    );
+}
+
+// --------------------------------------------------------- hygiene
+
+/// The seed is exactly `1.0` on the seeded lift and exactly `0.0` on
+/// every other binding — by construction, read off the public door.
+#[test]
+fn the_seed_is_exactly_one_and_zero_by_construction() {
+    let doc = two_param_web();
+    let env = seed_env::<Dual64, _>(&doc, doc.var_env::<Dual64>(), var(&doc, "hole_r"))
+        .expect("hole_r is continuous");
+    let binding = |n: &'static str| match env.bindings[&var(&doc, n)] {
+        ParamValue::Continuous { value, .. } => value,
+        ParamValue::Count(_) => panic!("{n} is continuous"),
+    };
+    assert_eq!(binding("hole_r").deriv.to_bits(), 1.0f64.to_bits());
+    assert_eq!(binding("hole_r").value.to_bits(), 0.2f64.to_bits());
+    assert_eq!(binding("depth").deriv.to_bits(), 0.0f64.to_bits());
+    assert_eq!(binding("depth").value.to_bits(), 0.1f64.to_bits());
+}
+
+/// Through the evaluation door: the web's tangent is `−2` on the
+/// radius (the plate's own formula, `distance − 2·hole_r`, the axis
+/// separation not depending on the radius) and `+1` on the depth term;
+/// the unseeded parameter and every literal contribute exactly zero;
+/// the value channel is the f64 build's number, bit for bit.
+#[test]
+fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
+    let doc = two_param_web();
+    let m = measure_node(&doc);
+    let f = run::<f64>(&doc, None, &EvalOptions::default());
+    let web = crate::fixture::reading(&doc, &f, m).expect("the measured value reads");
+    let on_r = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),
+        m,
+    );
+    assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits());
+    assert_eq!(on_r.value.to_bits(), web.to_bits());
+    let on_d = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"))),
+        m,
+    );
+    assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits());
+    assert_eq!(on_d.value.to_bits(), web.to_bits());
+    let unseeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, None)), m);
+    assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits());
+}
+
+/// D9 at the evaluation level: a seeded pass's tangent is the same bits
+/// under either schedule.
+#[test]
+fn a_seeded_pass_is_schedule_independent() {
+    let doc = two_param_web();
+    let m = measure_node(&doc);
+    let seq = measured(
+        &doc,
+        &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"))),
+        m,
+    );
+    let par = measured(
+        &doc,
+        &run::<Dual64>(
+            &doc,
+            None,
+            &EvalOptions {
+                parallel: true,
+                ..opts(&doc, Some("hole_r"))
+            },
+        ),
+        m,
+    );
+    assert_eq!(seq.value.to_bits(), par.value.to_bits());
+    assert_eq!(seq.deriv.to_bits(), par.deriv.to_bits());
+}
+
+// ------------------------------------------------------------- DL2
+
+/// **DL2 exercised, not trusted.** A pass seeded on `depth`, threaded
+/// from a pass seeded on `hole_r` as its memo prior, reads ITS OWN
+/// tangent bit for bit — the prior's seed-downstream nodes carry other
+/// tangent bits and cannot be served — while the seed-independent
+/// subgraph IS served: reuse is positive and the pass recomputes
+/// exactly what the two seeds' cones cover.
+#[test]
+fn the_memo_never_serves_one_parameters_pass_to_another() {
+    let doc = two_param_web();
+    let m = measure_node(&doc);
+    let on_r = run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r")));
+    let on_d_fresh = run::<Dual64>(&doc, None, &opts(&doc, Some("depth")));
+    let on_d_threaded = run::<Dual64>(&doc, Some(&on_r), &opts(&doc, Some("depth")));
+    let (fresh, threaded) = (
+        measured(&doc, &on_d_fresh, m),
+        measured(&doc, &on_d_threaded, m),
+    );
+    assert_eq!(threaded.deriv.to_bits(), fresh.deriv.to_bits());
+    assert_eq!(threaded.deriv.to_bits(), 1.0f64.to_bits());
+    assert_eq!(threaded.value.to_bits(), fresh.value.to_bits());
+    // The nodes downstream of EITHER seed differ in tangent bits
+    // between the two passes and must recompute; the rest reuses.
+    // Each seed's readers by what they READ, not by literal id: the
+    // hole profiles are the programs whose expressions name `hole_r`,
+    // and `depth` drives the plate extrude's distance (set above).
+    let r_cone = doc
+        .ids()
+        .iter()
+        .copied()
+        .filter(|&id| match doc.node(id) {
+            Some(Node::Profile(p)) => doc.var_named("hole_r").is_some_and(|v| p.reads(v)),
+            _ => false,
+        })
+        .flat_map(|id| corpus::cone(&doc, id))
+        .collect::<std::collections::BTreeSet<_>>();
+    let d_cone = corpus::cone(
+        &doc,
+        doc.ids()
+            .iter()
+            .copied()
+            .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
+            .expect("the corpus web extrudes its plate"),
+    );
+    let either: std::collections::BTreeSet<_> = r_cone.union(&d_cone).copied().collect();
+    assert_eq!(on_d_threaded.recomputed, either.len());
+    assert_eq!(on_d_threaded.reused, doc.len() - either.len());
+    assert!(on_d_threaded.reused > 0, "nothing was seed-independent");
+}
+
+// ---------------------------------------------------- the profile pin
+
+/// **The REQUIRED profile-dimension pin.** A seed on `w` — a chain
+/// program's point, reachable only through the lift — reaches the
+/// width measure with tangent exactly `1.0`.
+#[test]
+fn a_profile_dimension_seed_propagates_through_the_lift() {
+    let (doc, m) = width_slab(2.0);
+    let seeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, Some("w"))), m);
+    assert_eq!(seeded.value.to_bits(), 2.0f64.to_bits());
+    assert_eq!(
+        seeded.deriv.to_bits(),
+        1.0f64.to_bits(),
+        "∂width/∂w through the lift is 1, got {}",
+        seeded.deriv
+    );
+}
+
+// ------------------------------------------------------- the σ door
+
+/// **DATUM — the truncated normal's variance formula over a grid.** The
+/// σ door clamps its variance at zero before the root, on the claim
+/// that rounding can push the two-sided truncation formula a few ulps
+/// negative under extreme truncation. This row measures that claim:
+/// the same formula, computed here independently over a grid of
+/// windows from ±0.001σ to ±8σ, symmetric and one-sided, reports its
+/// MINIMUM, and every σ the door returns is finite and non-negative.
+/// The minimum is printed; the clamp is a guard on the printed number,
+/// not a claim beyond it.
+#[test]
+fn the_truncated_normal_sigma_is_finite_and_the_variance_floor_is_measured() {
+    use editor_core::{Distribution, std_deviation};
+    let phi = |x: f64| (-0.5 * x * x).exp() / f64::sqrt(2.0 * core::f64::consts::PI);
+    let mass =
+        |a: f64, b: f64| 0.5 * (libm::erf(b / f64::sqrt(2.0)) - libm::erf(a / f64::sqrt(2.0)));
+    let mut min_var = f64::INFINITY;
+    let mut at = (0.0, 0.0);
+    let mut rows = 0_usize;
+    for &sigma in &[1e-3, 1.0, 40.0] {
+        for &lo in &[-8.0, -3.0, -1.0, -0.1, -0.001, 0.0] {
+            for &hi in &[0.0, 0.001, 0.1, 1.0, 3.0, 8.0] {
+                if lo > hi || (lo == 0.0 && hi == 0.0) {
+                    continue;
+                }
+                let dist = Distribution::TruncatedNormal {
+                    sigma,
+                    lo: lo * sigma,
+                    hi: hi * sigma,
+                };
+                let s = std_deviation(&sp("p"), &dist).expect("a truncated normal prices");
+                assert!(s.is_finite() && s >= 0.0, "{dist:?}: σ = {s}");
+                let z = mass(lo, hi);
+                if z > 0.0 {
+                    let var =
+                        1.0 + (lo * phi(lo) - hi * phi(hi)) / z - ((phi(lo) - phi(hi)) / z).powi(2);
+                    if var < min_var {
+                        min_var = var;
+                        at = (lo, hi);
+                    }
+                    // The door's number is the formula's where the
+                    // formula is non-negative and its mass is not
+                    // cancellation-dominated (the door measures Z
+                    // through `erfc` half-lines, this row through an
+                    // `erf` difference, and the two part company only
+                    // where an `erf` difference has no digits left).
+                    if var >= 0.0 && z > 1e-3 {
+                        assert!(
+                            (s - sigma * var.sqrt()).abs() <= 1e-9 * sigma,
+                            "{dist:?}: door {s} vs formula {}",
+                            sigma * var.sqrt()
+                        );
+                    }
+                }
+                rows += 1;
+            }
+        }
+    }
+    println!(
+        "EVIDENCE-ONLY truncated-normal variance over {rows} windows: minimum {min_var:e} \
+         (in σ² units) at ({}, {})σ; the clamp fires only below zero",
+        at.0, at.1
+    );
+}
+
+// ---------------------------------------------------- composition
+
+/// `seed` and `param_box` together are legal exactly at
+/// `Dual<Interval>`: the value channel carries the leaf's enclosure,
+/// the tangent channel the seed. `Interval` plus a seed refuses on
+/// every node; `Dual64` plus a widened box keeps the degenerate-only
+/// rule and refuses through the box door.
+#[test]
+fn seed_and_box_compose_exactly_at_dual_interval() {
+    use std::sync::Arc;
+
+    use editor_core::analysis::{BoxAxis, ParamBox};
+    use geom_core::{Bounds, DualInterval, Interval};
+    let doc = two_param_web();
+    let m = measure_node(&doc);
+    let mut axes = std::collections::BTreeMap::new();
+    axes.insert(var(&doc, "hole_r"), BoxAxis::Fixed);
+    axes.insert(
+        var(&doc, "depth"),
+        BoxAxis::Varying {
+            lo: -0.01,
+            hi: 0.01,
+        },
+    );
+    let box_ = Arc::new(ParamBox::from_axes(axes));
+    let both = EvalOptions {
+        param_box: Some(Arc::clone(&box_)),
+        ..opts(&doc, Some("depth"))
+    };
+    let ev = run::<DualInterval>(&doc, None, &both);
+    let value = crate::fixture::reading(&doc, &ev, m).expect("the measured value reads");
+    // The value channel encloses the web over the box (0.2 + depth
+    // over depth ∈ 0.1 ± 0.01); the tangent channel is the seed.
+    assert!(value.value.lo() <= 0.29 && 0.31 <= value.value.hi());
+    assert_eq!(value.deriv.lo(), 1.0);
+    assert_eq!(value.deriv.hi(), 1.0);
+
+    let interval = run::<Interval>(&doc, None, &both);
+    every_node_refuses_seed(&interval, |e| {
+        assert_eq!(
+            *e,
+            SeedError::TangentUnrepresentable {
+                var: spoken(&doc, "depth")
+            }
+        );
+    });
+
+    let dual64 = run::<Dual64>(&doc, None, &both);
+    for id in &dual64.order {
+        assert!(
+            matches!(
+                dual64.result(*id),
+                Some(NodeResult::Failed(e)) if matches!(e.kind, NodeErrorKind::ParamBox { .. })
+            ),
+            "node {} did not refuse the widened box at Dual64",
+            id.0
+        );
+    }
+}

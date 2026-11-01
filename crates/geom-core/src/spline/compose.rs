@@ -1,0 +1,2930 @@
+//! **Ring-coefficient composites** `f ∘ C` (M5 PR 4): the reusable
+//! promotion of the PR 2 rehearsal (`hull_circle_rehearsal.rs`) from
+//! test-local code to certification substrate. Given a NURBS curve's
+//! structure and ring-lifted control data, build the ring-coefficient
+//! Bernstein form of polynomial composites — products of coordinate
+//! splines, linear functionals, and the quadric-family implicit
+//! composites (plane, sphere, cylinder, cone, torus — the torus is
+//! degree 4 in the point, still polynomial) — and read **certified
+//! sup-norm bounds** off their coefficient hulls. Data in, bounds out:
+//! nothing here evaluates or samples anything (C2.2, OQ2: hull bounds
+//! are the entry requirement for fitted-cache certification).
+//!
+//! # The pipeline (the rehearsal's, generalized)
+//!
+//! 1. Lift the homogeneous channels in certification arithmetic: per coordinate `d`,
+//!    `G_d,i = w_i·(x_d,i − c_d)` (center-shifted **before** any
+//!    product — forming `|P|² − 2P·c + …` instead would cancel
+//!    catastrophically in the coefficients, and an interval bound
+//!    reports that cancellation as width rather than hiding it), plus
+//!    the weight channel `W_i = w_i`.
+//! 2. Bézier-decompose each channel: each span's window restricted to
+//!    each of its pieces ([`super::CoeffWindow::restrict`]), the
+//!    **structure** (breaks, spans) read from the `f64` knot vector and
+//!    the **coefficients** blossomed in certification arithmetic with
+//!    every ratio a ring quotient of knot enclosures (an `f64`-rounded
+//!    ratio would silently drop its rounding error).
+//! 3. Per span, exact Bernstein products: degree `da × db → da + db`
+//!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
+//!    as ring quotients (several are not `f64`-representable).
+//! 4. Bounds: per-span coefficient hulls of numerator and denominator,
+//!    the quotient per span (interval arithmetic refuses a zero-touching divisor,
+//!    so a degenerate denominator is refused loudly), hulled across spans.
+//!
+//! # Scaling conventions (what the bound means)
+//!
+//! With unit `normal`/`axis` data the composites are the standard
+//! signed residuals: meters for [`ImplicitSurface::Plane`], meters² for
+//! sphere/cylinder/cone, meters⁴ for the torus. Axis normalization for
+//! the quadratic terms is **exact in certification arithmetic** — `(Q·a)²` enters as
+//! `T²/|a|²` with `|a|²` a certification enclosure — so a non-unit axis changes
+//! nothing for those terms; the plane's linear normalization would need
+//! a square root, which certification arithmetic deliberately does not
+//! take (C9), so the plane
+//! composite is `n·(P − p₀)` as given (meters only for unit `n`).
+//!
+//! # C6 and the refusal posture
+//!
+//! Structure (knots, weights, degrees, binomials) is `f64`; everything
+//! coefficient-valued is [`Interval`]. Checkable structural errors
+//! at the entry points are typed refusals; anything downstream (zero
+//! axis, degenerate weights) refuses the bound, which fails every
+//! `≤ ε` comparison (D4 ¶2).
+
+use super::hull::SplineCoeffs;
+use super::knots::{KnotVector, SplineError};
+use crate::interval::Interval;
+use crate::interval::certification::Certification;
+use crate::readable::Readable;
+use std::borrow::Cow;
+
+pub mod patch;
+pub mod tensor;
+
+/// A typed compose refusal (entry-point structure validation).
+#[derive(Clone, Debug, PartialEq)]
+pub enum ComposeError {
+    /// Weight/coordinate counts or weight positivity fail basic spline
+    /// structure validation.
+    Structure(SplineError),
+    /// The curve data has the wrong number of coordinate channels for
+    /// the requested composite (implicit surfaces need 3).
+    DimensionMismatch {
+        /// Channels supplied.
+        dims: usize,
+        /// Channels required.
+        expected: usize,
+    },
+    /// A coordinate channel index is out of range.
+    ChannelOutOfRange {
+        /// The offending channel index.
+        channel: usize,
+        /// The channel count.
+        dims: usize,
+    },
+    /// A curve pair fed to a shared-parameter composite lives on two
+    /// different knot domains, so "the same `t`" is not a statement
+    /// (the OQ4 identity is the entry requirement, exact in `f64`).
+    DomainMismatch {
+        /// The first curve's `(lo, hi)` domain.
+        a: (f64, f64),
+        /// The second curve's `(lo, hi)` domain.
+        b: (f64, f64),
+    },
+}
+
+impl core::fmt::Display for ComposeError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            ComposeError::Structure(e) => write!(f, "compose: {e}"),
+            ComposeError::DimensionMismatch { dims, expected } => {
+                write!(f, "compose: {dims} coordinate channels, need {expected}")
+            }
+            ComposeError::ChannelOutOfRange { channel, dims } => {
+                write!(
+                    f,
+                    "compose: channel {channel} out of range ({dims} channels)"
+                )
+            }
+            ComposeError::DomainMismatch { a, b } => {
+                write!(
+                    f,
+                    "compose: a shared-parameter composite needs one knot domain, \
+                     got [{}, {}] and [{}, {}] — refit the pair on one \
+                     parameterization (the shared-parameter identity) before composing",
+                    Readable(a.0),
+                    Readable(a.1),
+                    Readable(b.0),
+                    Readable(b.1)
+                )
+            }
+        }
+    }
+}
+
+impl core::error::Error for ComposeError {}
+
+/// A NURBS curve in certification form: its structure plus its control
+/// coordinates — the data-in shape every composite consumes. `coords[d][i]`
+/// is the `d`-th coordinate of control point `i` as a certification enclosure (a plain
+/// `f64` control point lifts via [`Interval::point`]; a perturbed
+/// or interval-valued one via [`Interval::from_bounds`]).
+#[derive(Clone, Debug)]
+pub struct CurveCertData<'a> {
+    kv: &'a KnotVector,
+    weights: &'a [f64],
+    coords: &'a [Vec<Interval>],
+    extra: &'a [f64],
+}
+
+// `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+impl<'a> CurveCertData<'a> {
+    /// Validated construction: weight count/positivity/finiteness and
+    /// per-channel coordinate counts against the knot vector. The
+    /// channel count (2-D pcurves, 3-D curves, …) is free; composites
+    /// that need a specific dimension check it themselves.
+    ///
+    /// # Errors
+    ///
+    /// [`ComposeError::Structure`] naming the exact violation.
+    pub fn new(
+        kv: &'a KnotVector,
+        weights: &'a [f64],
+        coords: &'a [Vec<Interval>],
+    ) -> Result<Self, ComposeError> {
+        let n = kv.control_count();
+        if weights.len() != n {
+            return Err(ComposeError::Structure(SplineError::WeightCountMismatch {
+                weights: weights.len(),
+                control: n,
+            }));
+        }
+        crate::spline::check_weight_values(weights).map_err(ComposeError::Structure)?;
+        for ch in coords {
+            if ch.len() != n {
+                return Err(ComposeError::Structure(SplineError::ControlCountMismatch {
+                    control: ch.len(),
+                    expected: n,
+                }));
+            }
+        }
+        Ok(Self {
+            kv,
+            weights,
+            coords,
+            extra: &[],
+        })
+    }
+
+    /// The same data with `extra` break parameters: every channel is
+    /// Bézier-decomposed with each `extra` value strictly inside the
+    /// domain cut in as a break, each piece's row its span window
+    /// restricted to it ([`super::CoeffWindow::restrict`]), so every
+    /// composite built from it has a break there and its span bounds
+    /// read the finer pieces. The represented curve is the same
+    /// one: no control point or weight is re-rounded, as a refinement
+    /// of the net through an `f64` plan would re-round them. Values
+    /// outside the open domain or on a knot are filtered, not errors.
+    #[must_use]
+    pub fn with_breaks(self, extra: &'a [f64]) -> Self {
+        Self { extra, ..self }
+    }
+
+    /// The number of coordinate channels.
+    pub fn dims(&self) -> usize {
+        self.coords.len()
+    }
+
+    /// The weight channel `W_i = w_i`, Bézier-decomposed.
+    fn weight_channel(&self) -> BernsteinSpans {
+        self.kv.with_coeffs_from_fn(
+            |i| Interval::point(self.weights[i]),
+            |pair| to_bezier_spans_extra(pair, self.extra),
+        )
+    }
+
+    /// The unshifted weighted channel `w_i·x_d,i`, Bézier-decomposed.
+    /// Caller guarantees `d < dims()`.
+    fn weighted_channel(&self, d: usize) -> BernsteinSpans {
+        self.kv.with_coeffs_from_fn(
+            |i| Interval::point(self.weights[i]) * self.coords[d][i],
+            |pair| to_bezier_spans_extra(pair, self.extra),
+        )
+    }
+
+    /// The shifted weighted channel `w_i·(x_d,i − shift)` (module docs
+    /// step 1: shift before any product), Bézier-decomposed. Caller
+    /// guarantees `d < dims()`.
+    fn shifted_channel(&self, d: usize, shift: f64) -> BernsteinSpans {
+        let s = Interval::point(shift);
+        self.kv.with_coeffs_from_fn(
+            |i| Interval::point(self.weights[i]) * (self.coords[d][i] - s),
+            |pair| to_bezier_spans_extra(pair, self.extra),
+        )
+    }
+}
+
+/// The per-span Bernstein form of one scalar channel: `spans[j]` holds
+/// the `degree + 1` ring coefficients of the polynomial on
+/// `[breaks[j], breaks[j+1]]`.
+#[derive(Clone, Debug)]
+pub struct BernsteinSpans {
+    degree: usize,
+    breaks: Vec<f64>,
+    spans: Vec<Vec<Interval>>,
+}
+
+impl BernsteinSpans {
+    /// The Bernstein degree shared by every span.
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
+
+    /// The break parameters: span `j` covers `[breaks[j], breaks[j+1]]`.
+    pub fn breaks(&self) -> &[f64] {
+        &self.breaks
+    }
+
+    /// The per-span coefficient rows.
+    pub fn spans(&self) -> &[Vec<Interval>] {
+        &self.spans
+    }
+
+    /// Per-span coefficient hulls (the convexity fact of
+    /// [`super::hull`]: each is a certified enclosure of the channel's
+    /// values on that span). Fixed ascending fold order (D9).
+    pub fn span_hulls(&self) -> Vec<Interval> {
+        self.spans
+            .iter()
+            .map(|row| {
+                let mut acc = Interval::refused();
+                for (n, c) in row.iter().enumerate() {
+                    acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
+                }
+                acc
+            })
+            .collect()
+    }
+}
+
+// ---------------------------------------------------------------------
+// Bézier decomposition (module docs step 2)
+// ---------------------------------------------------------------------
+
+impl SplineCoeffs<'_, Interval> {
+    /// This channel's Bernstein form over its own knots and every
+    /// `extra` break strictly inside the domain — the decomposition every
+    /// composite here is built on ([`to_bezier_spans_extra`]'s docs).
+    #[must_use]
+    pub fn bernstein_spans(self, extra: &[f64]) -> BernsteinSpans {
+        to_bezier_spans_extra(self, extra)
+    }
+}
+
+/// Bézier-decomposes one scalar channel: every piece's Bernstein row
+/// is its span window restricted to the piece
+/// ([`super::CoeffWindow::restrict`]), with **extra break parameters**
+/// injected: each `extra` value strictly inside the domain and not
+/// already a knot becomes a break, so two channels decomposed with each
+/// other's knots as extras land on one shared break list (the tensor
+/// composite's alignment substrate; restriction is exact in ℝ, so the
+/// represented function is unchanged). Values outside the open domain
+/// or duplicating a knot are structure-filtered, not errors.
+///
+/// Every row is read from the pair's own window, `p` blossom steps
+/// deep whatever the knot multiplicities and however many breaks are
+/// cut into a span — no row inherits another's rounding.
+fn to_bezier_spans_extra(pair: SplineCoeffs<'_, Interval>, extra: &[f64]) -> BernsteinSpans {
+    let kv = pair.knots();
+    let p = kv.degree();
+    let (lo, hi) = kv.domain();
+    let own: Vec<f64> = kv.interior_knot_runs().map(|(v, _)| v.value()).collect();
+    let mut segment_ends = Vec::with_capacity(own.len() + 2);
+    segment_ends.push(lo);
+    segment_ends.extend(own.iter().copied());
+    segment_ends.push(hi);
+    // The fresh extras, ascending with exact-`f64` dedup — pure
+    // structure (C6's f64 lane). An extra becomes a break only through
+    // `interior_knot`, the one filter to the open domain.
+    let mut cuts: Vec<f64> = extra
+        .iter()
+        .copied()
+        .filter(|&v| kv.interior_knot(v).is_some() && !own.contains(&v))
+        .collect();
+    cuts.sort_by(f64::total_cmp);
+    cuts.dedup();
+    let mut breaks = vec![lo];
+    let mut spans = Vec::with_capacity(segment_ends.len() + cuts.len() - 1);
+    let mut next_cut = cuts.iter().copied().peekable();
+    for ends in segment_ends.windows(2) {
+        let (s0, s1) = (ends[0], ends[1]);
+        // The span starting at `s0`, nonempty: the segment ends are the
+        // vector's distinct knot values.
+        let window = pair.span_at(s0);
+        let piece = |a: f64, b: f64| {
+            window
+                .and_then(|w| w.restrict((Interval::point(a), Interval::point(b))).ok())
+                .unwrap_or_else(|| vec![Interval::refused(); p + 1])
+        };
+        let mut from = s0;
+        while let Some(cut) = next_cut.next_if(|&cut| cut < s1) {
+            spans.push(piece(from, cut));
+            breaks.push(cut);
+            from = cut;
+        }
+        spans.push(piece(from, s1));
+        breaks.push(s1);
+    }
+    BernsteinSpans {
+        degree: p,
+        breaks,
+        spans,
+    }
+}
+
+// ---------------------------------------------------------------------
+// Bernstein algebra (module docs step 3) — fixed association orders
+// ---------------------------------------------------------------------
+
+/// The largest row degree [`binom_row`] serves exactly. The rows are
+/// formed in integers ([`super::pieces::binomial`]), so the cap is the
+/// values' own, [`super::pieces::BINOMIAL_EXACT_MAX`] (differentially
+/// pinned against `u128` arithmetic in the tests).
+const BINOM_EXACT_MAX: usize = super::pieces::BINOMIAL_EXACT_MAX;
+
+/// Binomial row `C(n, 0..=n)` at `f64` — exact for `n ≤`
+/// [`BINOM_EXACT_MAX`], which covers every degree this module can
+/// produce from kernel-sized splines (composite degrees are ≤ 4·p).
+/// Beyond the cap the row is **all-NaN**, which refuses every
+/// composite coefficient built from it and fails every `≤ ε`
+/// certification loudly (D4 ¶2) — a rounded weight would instead be a
+/// silently unsound enclosure. (Forming the weights as ring quotients
+/// was considered and rejected: interval arithmetic's products widen outward
+/// unconditionally, which would break the rehearsal's ratified
+/// bit-identity pin for the exact small-degree cases.)
+fn binom_row(n: usize) -> Vec<f64> {
+    binom_table()
+        .get(n)
+        .cloned()
+        .unwrap_or_else(|| vec![f64::NAN; n + 1])
+}
+
+/// The binomial rows `0 ..= BINOM_EXACT_MAX`, built once from
+/// [`super::pieces::binomial`]. A memo, not a second spelling: the
+/// tensor composites ask for the same few rows hundreds of thousands
+/// of times per bound. Every value is exact, so through `n = 54` the
+/// rows are the bits of the multiplicative recurrence they replaced,
+/// which fed the bounds' bit-identity pins (pinned in the tests).
+fn binom_table() -> &'static [Vec<f64>] {
+    static TABLE: std::sync::OnceLock<Vec<Vec<f64>>> = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| {
+        (0..=BINOM_EXACT_MAX)
+            .map(|n| (0..=n).map(|k| super::pieces::binomial(n, k)).collect())
+            .collect()
+    })
+}
+
+/// Bernstein product of two coefficient rows (degrees from lengths):
+/// `(ab)_k = Σ_{i+j=k} [C(da,i)·C(db,j)/C(da+db,k)] · a_i·b_j`, the
+/// binomial weight formed as a ring quotient. Fixed association (D9):
+/// ascending `k`, ascending `i`, terms exactly as written
+/// (`acc = acc + a_i·b_j·w`). The `f64` numerator product is exact
+/// whenever the output row is served at all: by Vandermonde,
+/// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
+/// [`BINOM_EXACT_MAX`] is already refused through `binom_row`.
+///
+/// **`derivative`'s `product` states the same product with the other
+/// association**: exact integer numerators, a division after each
+/// coefficient's sum (by `C(ma+mb, k)`, then `C(na+nb, l)`), at any
+/// `Real` on bivariate grids. Each association is the tighter one for
+/// its own callers, so neither is folded into the other. Here, a
+/// memoized outward quotient weight per term keeps the tensor powers'
+/// exact points exact and their coefficients tightest: taking the
+/// other association widens coefficients by up to 6× at the tensor
+/// path, the curve product and the patch block, and widens exact points
+/// at the tensor powers. Taking this one in `product` widens its area
+/// and cross terms by up to 1470×. Both enclose the exact rational
+/// product (`derivative`'s
+/// `both_bernstein_products_enclose_the_exact_rational_product`); the
+/// measurement is in
+/// `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
+pub(super) fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+    let w = bern_weights(a.len() - 1, b.len() - 1);
+    bern_mul_row_with(a, b, &w)
+}
+
+/// The Bernstein product's weight rows for ONE degree pair, carrying
+/// that pair: `row(k)[i − lo(k)] = C(da,i)·C(db,k−i)/C(da+db,k)` as
+/// interval arithmetic quotient, over the `i` the convolution actually visits
+/// (`lo(k) = k − db` clamped at zero, up to `min(k, da)`), in the
+/// ascending order [`bern_mul_row_into`] folds them in.
+///
+/// **The degrees are part of the value because the shape is not.** A
+/// table built for `(db, da)` has exactly the same row widths as one
+/// built for `(da, db)`, so a table handed to the wrong operands
+/// indexes perfectly and answers with the wrong numbers — the failure
+/// no index check can catch. Carrying `(da, db)` with the rows is what
+/// lets [`bern_mul_row_into`] check the table against the operands it
+/// folds it over, and gives the `lo(k)` convention ONE home rather
+/// than one spelling per reader: the builder, the fold, the tensor
+/// product's u-lookup and the tests all read it here.
+#[derive(Clone)]
+struct BernWeights {
+    da: usize,
+    db: usize,
+    rows: Vec<Vec<Interval>>,
+}
+
+impl BernWeights {
+    /// The first `i` that row `k` holds: `k − db`, clamped at zero.
+    fn lo(&self, k: usize) -> usize {
+        k.saturating_sub(self.db)
+    }
+
+    /// Row `k`, over `i ∈ lo(k) ..= min(k, da)`, ascending.
+    fn row(&self, k: usize) -> &[Interval] {
+        &self.rows[k]
+    }
+
+    /// The weight at `(k, i)`, `i` being an operand index rather than
+    /// an offset into the row.
+    fn at(&self, k: usize, i: usize) -> Interval {
+        self.rows[k][i - self.lo(k)]
+    }
+
+    /// The number of output coefficients the table serves,
+    /// `da + db + 1`.
+    fn row_count(&self) -> usize {
+        self.rows.len()
+    }
+}
+
+/// The [`BernWeights`] of one degree pair, from the binomial rows.
+///
+/// The weight depends on the two DEGREES alone — pure structure — so
+/// there is exactly one value per `(da, db, k, i)` for the life of the
+/// process, while the loop that reads it runs once per coefficient
+/// pair of every span of every product. This is a memo, not a second
+/// spelling: each entry is the same two `f64` binomials multiplied and
+/// the same ring division, in the same order, bit for bit. Giving the
+/// table a type moves no arithmetic — `lo(k)` is the same
+/// `k.saturating_sub(db)` the loop spelled, read from one place now.
+fn build_bern_weights(da: usize, db: usize) -> BernWeights {
+    let bin_a = binom_row(da);
+    let bin_b = binom_row(db);
+    let bin_ab = binom_row(da + db);
+    let mut out = BernWeights {
+        da,
+        db,
+        rows: Vec::with_capacity(da + db + 1),
+    };
+    for (k, bk) in bin_ab.iter().enumerate() {
+        // `point(*bk)` is a pure constructor of the same divisor the
+        // inline loop rebuilt per term; the quotients below are that
+        // loop's, term for term.
+        let den = Interval::point(*bk);
+        let row = (out.lo(k)..=k.min(da))
+            .map(|i| Interval::point(bin_a[i] * bin_b[k - i]) / den)
+            .collect();
+        out.rows.push(row);
+    }
+    out
+}
+
+/// [`build_bern_weights`], memoized on the degree pair: the table is
+/// built on first ask and shared thereafter.
+///
+/// **A refused table is not what the grid excludes.** Every pair with
+/// `da + db >` [`BINOM_EXACT_MAX`] has an all-refused table, and plenty
+/// of those pairs are INSIDE the grid — `(28, 29)` is a slotted pair
+/// whose every entry is `NaN`. That is the correct answer for the pair
+/// and it is memoized like any other. What is served fresh rather than
+/// given a slot is a pair with a SINGLE degree past the cap, and that
+/// is a bound on the grid rather than a statement about the values: no
+/// kernel-sized spline reaches such a degree (composite degrees are
+/// ≤ 4·p), and keeping it out keeps the grid square and bounded
+/// without a second builder.
+///
+/// **Retained memory**, all of it for the life of the process and
+/// never freed: `(BINOM_EXACT_MAX + 1)² = 57 × 57` `OnceLock` slots,
+/// plus, for each pair actually asked for, that pair's table —
+/// `da + db + 1` rows holding `(da + 1)·(db + 1)` certification values in
+/// total. A structural memo of a pure function, like [`binom_table`]
+/// one level down.
+fn bern_weights(da: usize, db: usize) -> Cow<'static, BernWeights> {
+    const N: usize = BINOM_EXACT_MAX + 1;
+    if da >= N || db >= N {
+        return Cow::Owned(build_bern_weights(da, db));
+    }
+    static GRID: std::sync::OnceLock<Vec<std::sync::OnceLock<BernWeights>>> =
+        std::sync::OnceLock::new();
+    let grid = GRID.get_or_init(|| (0..N * N).map(|_| std::sync::OnceLock::new()).collect());
+    Cow::Borrowed(grid[da * N + db].get_or_init(|| build_bern_weights(da, db)))
+}
+
+/// [`bern_mul_row`] over a weight table the caller already holds —
+/// the entry point for the tensor product, where one degree pair
+/// serves every cell of a whole patch.
+fn bern_mul_row_with(a: &[Interval], b: &[Interval], w: &BernWeights) -> Vec<Interval> {
+    let mut out = Vec::with_capacity(w.row_count());
+    bern_mul_row_into(a, b, w, &mut out);
+    out
+}
+
+/// [`bern_mul_row_with`] into a caller-owned buffer (overwritten), so
+/// a loop over cells allocates one output row rather than one per
+/// coefficient block.
+///
+/// The table must be the one built for these two operands. A table for
+/// the transposed pair has the same row widths, so the mismatch is a
+/// wrong answer rather than an out-of-range index; the pair travels
+/// with the rows so that the check below can exist at all, and a
+/// hoisted lookup handed to the wrong direction announces itself here
+/// (D2 addendum row 5).
+fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut Vec<Interval>) {
+    debug_assert!(
+        w.da == a.len() - 1 && w.db == b.len() - 1,
+        "weight table for degrees ({}, {}) folded over operands of degree ({}, {})",
+        w.da,
+        w.db,
+        a.len() - 1,
+        b.len() - 1
+    );
+    out.clear();
+    out.reserve(w.row_count());
+    for k in 0..w.row_count() {
+        let lo = w.lo(k);
+        let mut acc = Interval::zero();
+        for (t, wt) in w.row(k).iter().enumerate() {
+            let i = lo + t;
+            // A binomial quotient is non-negative: [`Interval::mul_nonneg`].
+            acc = acc + (a[i] * b[k - i]).mul_nonneg(*wt);
+        }
+        out.push(acc);
+    }
+}
+
+/// [`bern_mul_row`] of `a` with itself, bit for bit: term `i` of row
+/// `k`, `(a[i]·a[k − i])·w(k, i)`, is its mirror `k − i`'s (the product
+/// and its binomial weight are both symmetric in the two factors), so
+/// each is formed once and the row is summed in [`bern_mul_row_into`]'s
+/// ascending order.
+fn bern_square_row(a: &[Interval]) -> Vec<Interval> {
+    let w = bern_weights(a.len() - 1, a.len() - 1);
+    let mut out = Vec::with_capacity(w.row_count());
+    let mut terms: Vec<Interval> = Vec::with_capacity(a.len());
+    for k in 0..w.row_count() {
+        let lo = w.lo(k);
+        terms.clear();
+        for (t, wt) in w.row(k).iter().enumerate() {
+            let i = lo + t;
+            let mirror = k - i;
+            terms.push(if mirror < i {
+                terms[mirror - lo]
+            } else {
+                (a[i] * a[mirror]).mul_nonneg(*wt)
+            });
+        }
+        out.push(terms.iter().fold(Interval::zero(), |acc, t| acc + *t));
+    }
+    out
+}
+
+/// A structurally refused channel: the shape mismatch outcome for the
+/// span-wise combinators (never produced by the entry-point builders,
+/// which share one decomposition structure; total anyway, D4).
+fn refused_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
+    BernsteinSpans {
+        degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .map(|_| vec![Interval::refused(); degree + 1])
+            .collect(),
+    }
+}
+
+/// Span-wise sum (equal degrees and span counts required; mismatch
+/// is refused). Ascending span, ascending coefficient (D9).
+fn ch_add(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
+    if a.degree != b.degree || a.spans.len() != b.spans.len() {
+        return refused_like(a, a.degree);
+    }
+    BernsteinSpans {
+        degree: a.degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .zip(b.spans.iter())
+            .map(|(ra, rb)| ra.iter().zip(rb.iter()).map(|(x, y)| *x + *y).collect())
+            .collect(),
+    }
+}
+
+/// Span-wise difference (contract as [`ch_add`]).
+fn ch_sub(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
+    if a.degree != b.degree || a.spans.len() != b.spans.len() {
+        return refused_like(a, a.degree);
+    }
+    BernsteinSpans {
+        degree: a.degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .zip(b.spans.iter())
+            .map(|(ra, rb)| ra.iter().zip(rb.iter()).map(|(x, y)| *x - *y).collect())
+            .collect(),
+    }
+}
+
+/// Span-wise Bernstein product (degrees add; span counts must match).
+/// A channel times itself is [`ch_square`], the same bits.
+fn ch_mul(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
+    let degree = a.degree + b.degree;
+    if a.spans.len() != b.spans.len() {
+        return refused_like(a, degree);
+    }
+    if core::ptr::eq(a, b) {
+        return ch_square(a);
+    }
+    BernsteinSpans {
+        degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .zip(b.spans.iter())
+            .map(|(ra, rb)| bern_mul_row(ra, rb))
+            .collect(),
+    }
+}
+
+/// [`ch_mul`] of `a` with itself, span by span through
+/// [`bern_square_row`].
+fn ch_square(a: &BernsteinSpans) -> BernsteinSpans {
+    BernsteinSpans {
+        degree: 2 * a.degree,
+        breaks: a.breaks.clone(),
+        spans: a.spans.iter().map(|r| bern_square_row(r)).collect(),
+    }
+}
+
+/// Span-wise left scale `c·x` (constant on the left — the rehearsal's
+/// `r²·W²` association, kept verbatim).
+fn ch_scale_left(c: Interval, a: &BernsteinSpans) -> BernsteinSpans {
+    BernsteinSpans {
+        degree: a.degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .map(|row| row.iter().map(|x| c * *x).collect())
+            .collect(),
+    }
+}
+
+/// Span-wise right scale `x·c` (constant on the right — the rehearsal's
+/// `g_d,i·n_d` association, kept verbatim).
+fn ch_scale_right(a: &BernsteinSpans, c: Interval) -> BernsteinSpans {
+    BernsteinSpans {
+        degree: a.degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .map(|row| row.iter().map(|x| *x * c).collect())
+            .collect(),
+    }
+}
+
+/// An all-zero channel shaped like `a` at the given degree — the
+/// accumulator seed (`0 + first term` is the rehearsal's association,
+/// kept for bit-identity).
+fn ch_zero_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
+    BernsteinSpans {
+        degree,
+        breaks: a.breaks.clone(),
+        spans: a
+            .spans
+            .iter()
+            .map(|_| vec![Interval::zero(); degree + 1])
+            .collect(),
+    }
+}
+
+// ---------------------------------------------------------------------
+// Composites (module docs steps 1 + 3) and their bounds (step 4)
+// ---------------------------------------------------------------------
+
+/// A composite residual in rational Bernstein form: `num/den` span by
+/// span, both in ring coefficients on shared breaks. Public data —
+/// consumers may hull it, subdivide it, or feed the numerator to
+/// further algebra; [`CompositeForm::span_bounds`] is the standard
+/// bounds-out reading.
+#[derive(Clone, Debug)]
+pub struct CompositeForm {
+    /// The numerator channel.
+    pub num: BernsteinSpans,
+    /// The denominator channel (a power of the weight function, times
+    /// an exact axis-normalization constant where the surface has an
+    /// axis — strictly positive for valid data).
+    pub den: BernsteinSpans,
+}
+
+impl CompositeForm {
+    /// Per-span certified enclosures of the composite's values: the
+    /// numerator hull divided by the denominator hull, span by span.
+    /// Interval arithmetic refuses a zero-touching divisor, so a degenerate
+    /// denominator yields a refused (NaN-bracket) entry — fail-loud.
+    pub fn span_bounds(&self) -> Vec<Interval> {
+        self.num
+            .span_hulls()
+            .into_iter()
+            .zip(self.den.span_hulls())
+            .map(|(n, d)| n / d)
+            .collect()
+    }
+
+    /// The whole-domain enclosure: the hull of [`Self::span_bounds`]
+    /// (fixed ascending fold, D9). Refused if any span is refused.
+    pub fn bound(&self) -> Interval {
+        let mut acc = Interval::refused();
+        for (n, b) in self.span_bounds().into_iter().enumerate() {
+            acc = if n == 0 { b } else { Interval::hull(acc, b) };
+        }
+        acc
+    }
+
+    /// A certified upper bound on `|f ∘ C|` over each span of
+    /// [`Self::span_bounds`], `NaN` where the span is refused.
+    pub fn span_sup_bounds(&self) -> Vec<f64> {
+        self.span_bounds().into_iter().map(|b| b.mag()).collect()
+    }
+
+    /// A certified upper bound on `|f ∘ C|` over the whole domain —
+    /// C2.2's sup-norm honesty limb as one number. `NaN` on every
+    /// refusal path (fails `≤ ε` in every direction, D4 ¶2).
+    pub fn sup_bound(&self) -> f64 {
+        self.bound().mag()
+    }
+
+    /// Certified enclosures of `f ∘ C` AT its breaks, one per entry of
+    /// `num.breaks()`. A Bernstein row interpolates its end
+    /// coefficients, so the value at a break is the quotient of the end
+    /// coefficients there: read off the span the break starts, the last
+    /// break off the last span's end. Refused where that denominator
+    /// coefficient is not proven away from zero.
+    pub fn break_values(&self) -> Vec<Interval> {
+        let (num, den) = (self.num.spans(), self.den.spans());
+        let mut values: Vec<Interval> = num
+            .iter()
+            .zip(den)
+            .map(|(n, d)| end_quotient(n.first(), d.first()))
+            .collect();
+        values.push(end_quotient(
+            num.last().and_then(|n| n.last()),
+            den.last().and_then(|d| d.last()),
+        ));
+        values
+    }
+}
+
+/// `n / d`, refused where either row is empty.
+fn end_quotient(n: Option<&Interval>, d: Option<&Interval>) -> Interval {
+    match (n, d) {
+        (Some(n), Some(d)) => *n / *d,
+        _ => Interval::refused(),
+    }
+}
+
+/// The analytic implicit surfaces whose composites `f ∘ C` this module
+/// builds (C11's certification shapes for PR 5/7). All parameter data
+/// is `f64` structure; see the module docs for the scaling conventions
+/// (axis-bearing surfaces are normalized by `|axis|²` exactly in the
+/// ring; the plane is not normalized).
+#[derive(Clone, Copy, Debug)]
+pub enum ImplicitSurface {
+    /// `f(P) = n·(P − p₀)` — signed distance for unit `n`.
+    Plane {
+        /// A point `p₀` on the plane.
+        point: [f64; 3],
+        /// The plane normal `n` (unit for meters semantics).
+        normal: [f64; 3],
+    },
+    /// `f(P) = |P − c|² − r²` (meters²).
+    Sphere {
+        /// The center `c`.
+        center: [f64; 3],
+        /// The radius `r` in meters.
+        radius: f64,
+    },
+    /// `f(P) = |Q|² − (Q·â)² − r²` with `Q = P − c`, `â = a/|a|`
+    /// (meters²; the `|a|²` normalization is exact in certification arithmetic).
+    Cylinder {
+        /// A point `c` on the axis.
+        point: [f64; 3],
+        /// The axis direction `a` (any nonzero length).
+        axis: [f64; 3],
+        /// The radius `r` in meters.
+        radius: f64,
+    },
+    /// `f(P) = |Q|² − (1 + tan²γ)·(Q·â)²` with `Q = P − apex`
+    /// (meters²) — zero on the double cone of half-angle `γ` about the
+    /// axis through the apex.
+    Cone {
+        /// The apex.
+        apex: [f64; 3],
+        /// The axis direction `a` (any nonzero length).
+        axis: [f64; 3],
+        /// `tan γ` of the half-angle.
+        tan_half_angle: f64,
+    },
+    /// `f(P) = (|Q|² + R² − r²)² − 4R²·(|Q|² − (Q·â)²)` with
+    /// `Q = P − c` (meters⁴) — degree 4 in the point, still polynomial.
+    Torus {
+        /// The torus center `c`.
+        center: [f64; 3],
+        /// The axis direction `a` (any nonzero length).
+        axis: [f64; 3],
+        /// The major radius `R` in meters.
+        major_radius: f64,
+        /// The minor radius `r` in meters.
+        minor_radius: f64,
+    },
+}
+
+/// `Σ_d a_d²` as a certification enclosure (ascending `d`, `acc + p·p`).
+fn axis_norm2(axis: &[f64; 3]) -> Interval {
+    let mut acc = Interval::zero();
+    for a in axis {
+        let p = Interval::point(*a);
+        acc = acc + p.sqr();
+    }
+    acc
+}
+
+/// `Σ_d G_d·G_d` — the squared-distance numerator channel `S`
+/// (ascending `d`, accumulator seeded at zero: the rehearsal's
+/// association, kept verbatim).
+fn sum_of_squares(g: &[BernsteinSpans]) -> BernsteinSpans {
+    let Some(first) = g.first() else {
+        return BernsteinSpans {
+            degree: 0,
+            breaks: Vec::new(),
+            spans: Vec::new(),
+        };
+    };
+    let mut acc = ch_zero_like(first, first.degree * 2);
+    for gd in g {
+        acc = ch_add(&acc, &ch_mul(gd, gd));
+    }
+    acc
+}
+
+/// `Σ_d G_d·c_d` — a linear functional channel (ascending `d`,
+/// coefficient on the right: the rehearsal's association).
+fn dot_channel(g: &[BernsteinSpans], c: &[f64; 3]) -> BernsteinSpans {
+    let Some(first) = g.first() else {
+        return BernsteinSpans {
+            degree: 0,
+            breaks: Vec::new(),
+            spans: Vec::new(),
+        };
+    };
+    let mut acc = ch_zero_like(first, first.degree);
+    for (gd, cd) in g.iter().zip(c.iter()) {
+        acc = ch_add(&acc, &ch_scale_right(gd, Interval::point(*cd)));
+    }
+    acc
+}
+
+/// The composite `f ∘ C` for an analytic implicit surface along a 3-D
+/// NURBS curve, in rational Bernstein form (module docs: pipeline and
+/// scaling conventions). Requires exactly 3 coordinate channels.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3` (the
+/// structure errors were caught at [`CurveCertData::new`]).
+pub fn implicit_composite(
+    data: &CurveCertData<'_>,
+    surface: &ImplicitSurface,
+) -> Result<CompositeForm, ComposeError> {
+    if data.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: 3,
+        });
+    }
+    let w = data.weight_channel();
+    let shifted = |c: &[f64; 3]| -> [BernsteinSpans; 3] {
+        [
+            data.shifted_channel(0, c[0]),
+            data.shifted_channel(1, c[1]),
+            data.shifted_channel(2, c[2]),
+        ]
+    };
+    let form = match surface {
+        ImplicitSurface::Plane { point, normal } => {
+            let g = shifted(point);
+            CompositeForm {
+                num: dot_channel(&g, normal),
+                den: w,
+            }
+        }
+        ImplicitSurface::Sphere { center, radius } => {
+            let g = shifted(center);
+            let w2 = ch_mul(&w, &w);
+            let r = Interval::point(*radius);
+            let r2 = r.sqr();
+            let s = sum_of_squares(&g);
+            CompositeForm {
+                num: ch_sub(&s, &ch_scale_left(r2, &w2)),
+                den: w2,
+            }
+        }
+        ImplicitSurface::Cylinder {
+            point,
+            axis,
+            radius,
+        } => {
+            let g = shifted(point);
+            let w2 = ch_mul(&w, &w);
+            let a2 = axis_norm2(axis);
+            let r = Interval::point(*radius);
+            let r2 = r.sqr();
+            let s = sum_of_squares(&g);
+            let t = dot_channel(&g, axis);
+            // (A2·S − T·T) − (r²·A2)·W², over A2·W².
+            let num = ch_sub(
+                &ch_sub(&ch_scale_left(a2, &s), &ch_mul(&t, &t)),
+                &ch_scale_left(r2 * a2, &w2),
+            );
+            CompositeForm {
+                num,
+                den: ch_scale_left(a2, &w2),
+            }
+        }
+        ImplicitSurface::Cone {
+            apex,
+            axis,
+            tan_half_angle,
+        } => {
+            let g = shifted(apex);
+            let w2 = ch_mul(&w, &w);
+            let a2 = axis_norm2(axis);
+            let tg = Interval::point(*tan_half_angle);
+            let k = Interval::one() + tg.sqr();
+            let s = sum_of_squares(&g);
+            let t = dot_channel(&g, axis);
+            // A2·S − k·(T·T), over A2·W².
+            let num = ch_sub(&ch_scale_left(a2, &s), &ch_scale_left(k, &ch_mul(&t, &t)));
+            CompositeForm {
+                num,
+                den: ch_scale_left(a2, &w2),
+            }
+        }
+        ImplicitSurface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+        } => {
+            let g = shifted(center);
+            let w2 = ch_mul(&w, &w);
+            let a2 = axis_norm2(axis);
+            let rr = Interval::point(*major_radius);
+            let rm = Interval::point(*minor_radius);
+            let c1 = rr.sqr() - rm.sqr(); // R² − r²
+            let c4 = Interval::point(4.0) * rr.sqr(); // 4R²
+            let s = sum_of_squares(&g);
+            let t = dot_channel(&g, axis);
+            // A2·(S + (R²−r²)·W²)² − 4R²·(A2·S − T·T)·W², over A2·W⁴.
+            let s2 = ch_add(&s, &ch_scale_left(c1, &w2));
+            let term1 = ch_scale_left(a2, &ch_mul(&s2, &s2));
+            let inner = ch_sub(&ch_scale_left(a2, &s), &ch_mul(&t, &t));
+            let term2 = ch_scale_left(c4, &ch_mul(&inner, &w2));
+            CompositeForm {
+                num: ch_sub(&term1, &term2),
+                den: ch_scale_left(a2, &ch_mul(&w2, &w2)),
+            }
+        }
+    };
+    Ok(form)
+}
+
+/// `|C(t) − c|² + shift` along a 3-D curve, in rational Bernstein form:
+/// numerator `S + shift·W²` (`S` the squared-distance channel of
+/// [`implicit_composite`]'s sphere arm), denominator `W²`. Built from
+/// the same data as a composite of that curve, it shares its spans and
+/// breaks; at `shift = R² − r²` it is the torus quartic's `A`.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3`.
+pub fn squared_distance_composite(
+    data: &CurveCertData<'_>,
+    center: &[f64; 3],
+    shift: Interval,
+) -> Result<CompositeForm, ComposeError> {
+    if data.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: 3,
+        });
+    }
+    let w = data.weight_channel();
+    let g = [
+        data.shifted_channel(0, center[0]),
+        data.shifted_channel(1, center[1]),
+        data.shifted_channel(2, center[2]),
+    ];
+    let w2 = ch_mul(&w, &w);
+    Ok(CompositeForm {
+        num: ch_add(&sum_of_squares(&g), &ch_scale_left(shift, &w2)),
+        den: w2,
+    })
+}
+
+/// The product of two coordinate splines `x_i(t)·x_j(t)` in rational
+/// Bernstein form: numerator `A_i·A_j` (weighted, unshifted channels),
+/// denominator `W²`.
+///
+/// # Errors
+///
+/// [`ComposeError::ChannelOutOfRange`] for a bad channel index.
+pub fn coordinate_product(
+    data: &CurveCertData<'_>,
+    i: usize,
+    j: usize,
+) -> Result<CompositeForm, ComposeError> {
+    let dims = data.dims();
+    for ch in [i, j] {
+        if ch >= dims {
+            return Err(ComposeError::ChannelOutOfRange { channel: ch, dims });
+        }
+    }
+    let w = data.weight_channel();
+    let ai = data.weighted_channel(i);
+    let aj = data.weighted_channel(j);
+    Ok(CompositeForm {
+        num: ch_mul(&ai, &aj),
+        den: ch_mul(&w, &w),
+    })
+}
+
+/// A linear functional along the curve, `Σ_d c_d·x_d(t) + offset`, in
+/// rational Bernstein form: numerator `Σ_d A_d·c_d + W·offset`
+/// (ascending `d`, then the offset term), denominator `W`. Works at
+/// any channel count (2-D pcurves included).
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless
+/// `coeffs.len() == data.dims()`.
+pub fn linear_composite(
+    data: &CurveCertData<'_>,
+    coeffs: &[f64],
+    offset: f64,
+) -> Result<CompositeForm, ComposeError> {
+    if coeffs.len() != data.dims() {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: coeffs.len(),
+        });
+    }
+    let w = data.weight_channel();
+    let mut acc = ch_zero_like(&w, w.degree);
+    for (d, cd) in coeffs.iter().enumerate() {
+        let ad = data.weighted_channel(d);
+        acc = ch_add(&acc, &ch_scale_right(&ad, Interval::point(*cd)));
+    }
+    acc = ch_add(&acc, &ch_scale_right(&w, Interval::point(offset)));
+    Ok(CompositeForm { num: acc, den: w })
+}
+
+/// An analytic implicit surface in its own **canonical chart frame** —
+/// origin at the chart's origin, apex or centre, the axis along the
+/// third coordinate — with its scalars as certification enclosures,
+/// so a chart whose radius or angle is itself a bracket composes
+/// without being refused as a widened family ([`ImplicitSurface`]
+/// takes exact `f64` structure). The curve composed with it is the
+/// carrier's net already written in that frame.
+#[derive(Clone, Copy, Debug)]
+pub enum CanonicalSurface {
+    /// `f = z` (metres): the plane `z = 0`.
+    Plane,
+    /// `f = x² + y² − R²` (metres²).
+    Cylinder {
+        /// The radius `R`.
+        radius: Interval,
+    },
+    /// `f = x² + y² + z² − r²` (metres²).
+    Sphere {
+        /// The radius `r`.
+        radius: Interval,
+    },
+    /// `f = cos²α·(x² + y²) − sin²α·z²` (metres²): the double cone of
+    /// half-angle `α` about the third axis, apex at the origin.
+    Cone {
+        /// `cos²α`.
+        cos2: Interval,
+        /// `sin²α`.
+        sin2: Interval,
+    },
+    /// `f = (x² + y² + z² + R² − r²)² − 4R²·(x² + y²)` (metres⁴), which
+    /// factors as `((ρ − R)² + z² − r²)·((ρ + R)² + z² − r²)`.
+    Torus {
+        /// The major radius `R`.
+        major: Interval,
+        /// The minor radius `r`.
+        minor: Interval,
+    },
+}
+
+/// The composite `f ∘ C` for a [`CanonicalSurface`] along a 3-D NURBS
+/// curve already written in that surface's chart frame, in rational
+/// Bernstein form over the curve's knot spans.
+///
+/// # Errors
+///
+/// [`ComposeError::DimensionMismatch`] unless `data.dims() == 3`.
+pub fn canonical_composite(
+    data: &CurveCertData<'_>,
+    surface: &CanonicalSurface,
+) -> Result<CompositeForm, ComposeError> {
+    if data.dims() != 3 {
+        return Err(ComposeError::DimensionMismatch {
+            dims: data.dims(),
+            expected: 3,
+        });
+    }
+    let w = data.weight_channel();
+    let g = [
+        data.weighted_channel(0),
+        data.weighted_channel(1),
+        data.weighted_channel(2),
+    ];
+    // The weight's square, which the plane's form does not read.
+    let squared = || ch_mul(&w, &w);
+    let radial = || ch_add(&ch_mul(&g[0], &g[0]), &ch_mul(&g[1], &g[1]));
+    let form = match *surface {
+        CanonicalSurface::Plane => CompositeForm {
+            num: g[2].clone(),
+            den: w.clone(),
+        },
+        CanonicalSurface::Cylinder { radius } => {
+            let w2 = squared();
+            CompositeForm {
+                num: ch_sub(&radial(), &ch_scale_left(radius.sqr(), &w2)),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Sphere { radius } => {
+            let w2 = squared();
+            CompositeForm {
+                num: ch_sub(&sum_of_squares(&g), &ch_scale_left(radius.sqr(), &w2)),
+                den: w2,
+            }
+        }
+        CanonicalSurface::Cone { cos2, sin2 } => CompositeForm {
+            num: ch_sub(
+                &ch_scale_left(cos2, &radial()),
+                &ch_scale_left(sin2, &ch_mul(&g[2], &g[2])),
+            ),
+            den: squared(),
+        },
+        CanonicalSurface::Torus { major, minor } => {
+            let w2 = squared();
+            let shifted = ch_add(
+                &sum_of_squares(&g),
+                &ch_scale_left(major.sqr() - minor.sqr(), &w2),
+            );
+            let four_r2 = Interval::point(4.0) * major.sqr();
+            CompositeForm {
+                num: ch_sub(
+                    &ch_mul(&shifted, &shifted),
+                    &ch_scale_left(four_r2, &ch_mul(&radial(), &w2)),
+                ),
+                den: ch_mul(&w2, &w2),
+            }
+        }
+    };
+    Ok(form)
+}
+
+/// The exact-rational oracle the containment rows below compare against,
+/// shared with this crate's integration suites and `derivative`'s tests.
+#[cfg(test)]
+#[path = "../../tests/exact_q/mod.rs"]
+pub(super) mod exact_q;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::exact_q::{Q, QInt};
+    use super::*;
+    use crate::real::Bounds;
+    use crate::spline::algebra::insert_knot_plan;
+    use crate::spline::basis;
+    use crate::spline::knots::{InteriorKnot, find_span_in};
+    use num_bigint::BigInt;
+
+    /// **A row squared is the general product, bit for bit**: rows of
+    /// mixed signs, points, signed zeros, a straddle of zero, magnitudes
+    /// apart by 1e300, and a refused coefficient, at several degrees.
+    /// Red under a mirror term that is not its partner's.
+    #[test]
+    fn a_row_squared_is_the_general_product_bit_for_bit() {
+        let iv = Interval::from_bounds;
+        let rows: Vec<Vec<Interval>> = vec![
+            vec![iv(0.3, 0.30000000000000004), iv(-1.7, -1.6), iv(2.0, 2.0)],
+            vec![
+                iv(-0.0, 0.0),
+                iv(-1e-300, 1e300),
+                iv(0.1, 0.7),
+                iv(-3.0, 5.0),
+            ],
+            vec![
+                iv(1.0 / 3.0, 0.5),
+                Interval::refused(),
+                iv(-2.5, -2.5),
+                iv(7.0, 9.0),
+                iv(-1e-9, 1e-9),
+            ],
+            (0..13)
+                .map(|i| {
+                    let x = (f64::from(i) * 0.37).sin() * 1e3;
+                    iv(x, x + 1e-12 * f64::from(i % 3))
+                })
+                .collect(),
+            (0..13)
+                .map(|i| {
+                    let x = (f64::from(i) * 1.7).cos() * 10f64.powi(i % 7 - 3) + 1.0 / 3.0;
+                    iv(x, x.next_up())
+                })
+                .collect(),
+        ];
+        let bits = |r: &[Interval]| -> Vec<(u64, u64, bool)> {
+            r.iter()
+                .map(|c| {
+                    (
+                        Bounds::lo(*c).to_bits(),
+                        Bounds::hi(*c).to_bits(),
+                        c.is_certified(),
+                    )
+                })
+                .collect()
+        };
+        for row in &rows {
+            assert_eq!(
+                bits(&bern_square_row(row)),
+                bits(&bern_mul_row(row, row)),
+                "{row:?}"
+            );
+        }
+    }
+
+    /// f64 rational-curve oracle: `x_d(t)` via A2.2 basis values —
+    /// independent of every ring/decomposition code path.
+    fn rat_eval(kv: &KnotVector, w: &[f64], coords: &[Vec<f64>], t: f64) -> Vec<f64> {
+        let span = kv.span_at(t).expect("a numeric parameter");
+        let n = basis::basis_funs(span, t);
+        let mut den = 0.0;
+        let mut num = vec![0.0; coords.len()];
+        for (j, nj) in n.iter().enumerate() {
+            let i = span.first_control() + j;
+            let cw = nj * w[i];
+            den += cw;
+            for (d, ch) in coords.iter().enumerate() {
+                num[d] += cw * ch[i];
+            }
+        }
+        num.iter().map(|v| v / den).collect()
+    }
+
+    /// Every canonical form's per-span enclosure holds the form's value
+    /// at points of the span, on a rational cubic with a repeated
+    /// interior knot, against the direct `f64` evaluation of `f`.
+    #[test]
+    fn canonical_composites_enclose_the_form_along_the_curve() {
+        let kv = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 0.6, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        let w = [1.0, 0.7, 1.3, 0.9, 1.1, 0.8, 1.0];
+        let raw: Vec<Vec<f64>> = vec![
+            vec![1.2, 1.5, 0.4, -0.3, -1.1, -0.9, 0.2],
+            vec![0.1, 0.9, 1.4, 1.2, 0.6, -0.5, -0.8],
+            vec![-0.4, 0.2, 0.7, 0.1, -0.6, 0.3, 0.5],
+        ];
+        let coords: Vec<Vec<Interval>> = raw
+            .iter()
+            .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
+            .collect();
+        let data = CurveCertData::new(&kv, &w, &coords).unwrap();
+        let (big, small, ang) = (1.1_f64, 0.35_f64, 0.6_f64);
+        type Form = Box<dyn Fn(f64, f64, f64) -> f64>;
+        let forms: [(CanonicalSurface, Form); 5] = [
+            (CanonicalSurface::Plane, Box::new(|_, _, z| z)),
+            (
+                CanonicalSurface::Cylinder {
+                    radius: Interval::point(big),
+                },
+                Box::new(move |x, y, _| x * x + y * y - big * big),
+            ),
+            (
+                CanonicalSurface::Sphere {
+                    radius: Interval::point(big),
+                },
+                Box::new(move |x, y, z| x * x + y * y + z * z - big * big),
+            ),
+            (
+                CanonicalSurface::Cone {
+                    cos2: Interval::point(ang.cos().powi(2)),
+                    sin2: Interval::point(ang.sin().powi(2)),
+                },
+                Box::new(move |x, y, z| {
+                    ang.cos().powi(2) * (x * x + y * y) - ang.sin().powi(2) * z * z
+                }),
+            ),
+            (
+                CanonicalSurface::Torus {
+                    major: Interval::point(big),
+                    minor: Interval::point(small),
+                },
+                Box::new(move |x, y, z| {
+                    let q = x * x + y * y + z * z + big * big - small * small;
+                    q * q - 4.0 * big * big * (x * x + y * y)
+                }),
+            ),
+        ];
+        for (n, (surface, f)) in forms.iter().enumerate() {
+            let form = canonical_composite(&data, surface).unwrap();
+            let breaks = form.num.breaks().to_vec();
+            let bounds = form.span_bounds();
+            for (j, b) in bounds.iter().enumerate() {
+                for k in 0..=10 {
+                    let t = breaks[j] + (breaks[j + 1] - breaks[j]) * f64::from(k) / 10.0;
+                    let p = rat_eval(&kv, &w, &raw, t);
+                    let v = f(p[0], p[1], p[2]);
+                    let slack = 1e-12 * (1.0 + v.abs());
+                    assert!(
+                        b.lo() - slack <= v && v <= b.hi() + slack,
+                        "form {n}, span {j}, t = {t}: {v} outside [{}, {}]",
+                        b.lo(),
+                        b.hi()
+                    );
+                }
+            }
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // The insertion combination: containment against exact rationals
+    // -----------------------------------------------------------------
+
+    /// The exact shadow of one Boehm insertion to the refined net, over
+    /// the same `f64` knot list the ring fold reads: `λ` is the exact ratio of
+    /// exact knot differences, and nothing here rounds.
+    fn insert_once_exact(
+        knots: &[f64],
+        p: usize,
+        s: usize,
+        coeffs: &[QInt],
+        u: InteriorKnot,
+    ) -> Vec<QInt> {
+        let k = find_span_in(knots, p, u);
+        let u = u.value();
+        let n_old = coeffs.len();
+        let uq = Q::from_f64(u);
+        let one = Q::new(BigInt::from(1), BigInt::from(1));
+        let mut out = Vec::with_capacity(n_old + 1);
+        for i in 0..=n_old {
+            if i + p <= k {
+                out.push(coeffs[i].clone());
+            } else if i + s <= k {
+                let lo = Q::from_f64(knots[i]);
+                let hi = Q::from_f64(knots[i + p]);
+                let lam = uq.sub(&lo).div(&hi.sub(&lo));
+                let co = one.sub(&lam);
+                out.push(QInt {
+                    lo: co.mul(&coeffs[i - 1].lo).add(&lam.mul(&coeffs[i].lo)),
+                    hi: co.mul(&coeffs[i - 1].hi).add(&lam.mul(&coeffs[i].hi)),
+                });
+            } else {
+                out.push(coeffs[i - 1].clone());
+            }
+        }
+        out
+    }
+
+    /// One certified Boehm insertion of `u` into the raw list `knots`:
+    /// the production applier ([`super::super::CurvePlan::apply_certified`])
+    /// on a plan built against that list, so a ring fold here is the
+    /// schedule the exact shadow folds.
+    fn ring_insert(
+        knots: &mut Vec<f64>,
+        p: usize,
+        ring: &[Interval],
+        u: InteriorKnot,
+    ) -> Vec<Interval> {
+        let kv = KnotVector::clamped(knots.clone(), p).unwrap();
+        let plans = insert_knot_plan(&kv, &vec![1.0; kv.control_count()], u.value(), 1).unwrap();
+        let plan = &plans[0];
+        *knots = plan.knots().knots().to_vec();
+        plan.apply_certified(ring)
+    }
+
+    /// The fixture families, chosen to BREAK containment rather than to
+    /// flatter it: `(name, degree, knot vector, coefficient endpoints)`.
+    /// Each name says what it attacks.
+    #[allow(clippy::type_complexity)]
+    fn containment_fixtures() -> Vec<(&'static str, usize, Vec<f64>, Vec<(f64, f64)>)> {
+        let pts = |v: &[f64]| -> Vec<(f64, f64)> { v.iter().map(|x| (*x, *x)).collect() };
+        let mut out: Vec<(&'static str, usize, Vec<f64>, Vec<(f64, f64)>)> = Vec::new();
+
+        // λ is 1/3 and 2/3 — not representable in f64, so the quotient
+        // rounds on every step and outwardness is the only thing
+        // keeping the truth inside.
+        out.push((
+            "non-dyadic ratios",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 3.0, 6.0, 9.0, 9.0, 9.0, 9.0],
+            pts(&[1.0, -2.0, 4.0, 8.0, -16.0, 32.0]),
+        ));
+
+        // Knots one ulp apart at 1.0: Δ is exact by Sterbenz but tiny,
+        // so the quotient's relative rounding is at its worst.
+        let e = f64::EPSILON;
+        out.push((
+            "ulp-scale knot spans",
+            2,
+            vec![
+                1.0,
+                1.0,
+                1.0,
+                1.0 + e,
+                1.0 + 2.0 * e,
+                1.0 + 3.0 * e,
+                1.0 + 3.0 * e,
+                1.0 + 3.0 * e,
+            ],
+            pts(&[1.0, -1.0, 1.0, -1.0, 1.0]),
+        ));
+
+        // Cancelling coefficients of huge magnitude: the combination's
+        // true value is ~0 while its inputs are ~1e17, so any width the
+        // form invents is astronomically larger than the answer — and
+        // any width it FAILS to carry loses containment outright.
+        out.push((
+            "catastrophic cancellation",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0, 1.0, 1.0, 1.0],
+            pts(&[1e17, -1e17, 1e17, -1e17, 1e17, -1e17]),
+        ));
+
+        // λ within an ulp of 0 and of 1: the near-degenerate ends of
+        // the barycentric range, where `1 − α` and a knot-derived `β`
+        // differ most.
+        out.push((
+            "ratios at the ends",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 1e-300, 1.0 - 1e-16, 1.0, 1.0, 1.0, 1.0],
+            pts(&[3.0, 5.0, 7.0, 11.0, 13.0, 17.0]),
+        ));
+
+        // Subnormal coefficients: the one regime where an ulp is
+        // absolute rather than relative.
+        out.push((
+            "subnormal coefficients",
+            2,
+            vec![0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0],
+            pts(&[5e-324, -1e-320, 3e-322, 0.0, 7e-323, -5e-324]),
+        ));
+
+        // Already-WIDE inputs, of both signs and mixed magnitudes: the
+        // fold then has real dust to carry, which is the case the lerp
+        // form multiplies up and the case a too-clever contraction
+        // would lose.
+        out.push((
+            "wide inputs",
+            3,
+            vec![0.0, 0.0, 0.0, 0.0, 0.1, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0],
+            vec![
+                (-1.0, 1.0),
+                (0.999_999_999, 1.000_000_001),
+                (-1e8, 1e8),
+                (2.0, 2.0),
+                (-3e-7, 5e-7),
+                (1e10, 1.000_000_1e10),
+                (-7.0, -6.999_999),
+            ],
+        ));
+
+        // Degree 5 over an irregular, clustered knot vector at a knot
+        // that already has multiplicity 2 — a deep fold with the window
+        // arm entered at several `s`, which is where the accumulated
+        // dust is largest.
+        out.push((
+            "deep irregular fold",
+            5,
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.017, 0.017, 0.33, 0.9, 0.999_9, 1.0, 1.0, 1.0, 1.0,
+                1.0, 1.0,
+            ],
+            pts(&[
+                1.0, -0.5, 0.25, -0.125, 6.0, -7.0, 8.0, -9.0, 10.0, 11.0, -12.0,
+            ]),
+        ));
+
+        // Spans that overflow, go subnormal, or whose numerator
+        // underflows: the regimes where the two quotients are least
+        // like each other and a refusal is the sound answer. A REFUSAL
+        // is fine (loud); an escape is not, and the row below treats
+        // them differently.
+        out.push((
+            "overflowing knot span",
+            2,
+            vec![-1e308, -1e308, -1e308, 0.0, 1e308, 1e308, 1e308],
+            pts(&[1.0, -1.0, 2.0, 3.0]),
+        ));
+        out.push((
+            "subnormal knot span",
+            2,
+            vec![0.0, 0.0, 0.0, 5e-324, 1e-323, 1.5e-323, 1.5e-323, 1.5e-323],
+            pts(&[1.0, -1.0, 1.0, -1.0, 1.0]),
+        ));
+        out.push((
+            "numerator underflow across 1e300",
+            3,
+            vec![
+                0.0, 0.0, 0.0, 0.0, 1e-308, 1e300, 1e308, 1e308, 1e308, 1e308,
+            ],
+            pts(&[1.0, -2.0, 4.0, -8.0, 16.0, -32.0]),
+        ));
+
+        // Wide coefficients that straddle zero at the SAME magnitude as
+        // their neighbour — the cancellation the lerp form hides inside
+        // its `c_i − c_{i−1}`.
+        {
+            let mut knots = vec![0.0; 5];
+            knots.extend([0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875]);
+            knots.extend(core::iter::repeat_n(1.0, 5));
+            #[allow(clippy::cast_precision_loss)]
+            let ends: Vec<(f64, f64)> = (0..12)
+                .map(|i| {
+                    let m = 1e16_f64 * if i % 2 == 0 { 1.0 } else { -1.0 };
+                    (m - 1.0, m + 1.0)
+                })
+                .collect();
+            out.push(("equal-magnitude straddling wide inputs", 4, knots, ends));
+        }
+
+        // Degree 7 over a vector clustered at an ulp of 0.5 — the
+        // deepest fold the row runs, at the degree where the window arm
+        // is entered most often.
+        {
+            let mut knots = vec![0.0; 8];
+            knots.extend([
+                1e-9,
+                0.5 - f64::EPSILON,
+                0.5,
+                0.5 + f64::EPSILON,
+                1.0 - 1e-9,
+            ]);
+            knots.extend(core::iter::repeat_n(1.0, 8));
+            #[allow(clippy::cast_precision_loss)]
+            let ends: Vec<(f64, f64)> = (0..13)
+                .map(|i| {
+                    let x = (i as f64) * 0.5 - 3.0;
+                    (x, x + 1e-13)
+                })
+                .collect();
+            out.push(("degree 7 clustered deep fold", 7, knots, ends));
+        }
+
+        out
+    }
+
+    /// **The certified Boehm step ENCLOSES the true inserted
+    /// coefficient**, through a fold of
+    /// [`super::super::CurvePlan::apply_certified`] to full multiplicity.
+    ///
+    /// The failure mode is a bound that comes out TIGHTER THAN TRUTH,
+    /// which reads as an improvement and is an unsound certificate. A
+    /// narrower bound is the expected outcome of the change and is
+    /// therefore not evidence for it; containment is, and containment
+    /// is what this asserts — against exact rational arithmetic, on
+    /// families chosen to break it (non-dyadic ratios, ulp-scale knot
+    /// spans, cancelling 1e17 coefficients, ratios an ulp from either
+    /// end, subnormals, already-wide inputs, a degree-5 fold over a
+    /// clustered vector, spans that overflow or go subnormal, a
+    /// numerator that underflows across 1e300, equal-magnitude
+    /// straddling wide inputs, and a degree-7 fold clustered at an ulp
+    /// of 0.5).
+    ///
+    /// The shadow folds the SAME schedule the ring fold does, over the
+    /// same `f64` knot list, with `λ` the exact ratio of exact knot
+    /// differences. Its per-coefficient value set is exactly an
+    /// interval because the combination is affine with coefficients in
+    /// `(0, 1)`, so it is monotone in each source; the extremes are
+    /// therefore attained at the sources' endpoints and two rationals
+    /// describe the set with nothing left over.
+    ///
+    /// **What the shadow does NOT test, stated so nobody reads it as
+    /// more than it is.** It is an oracle of the ARITHMETIC, not of the
+    /// structure: it calls the same [`find_span_in`] the plan does, so a
+    /// wrong span is invisible here — both folds would make the same
+    /// wrong choice and agree. The plan's structure is covered by
+    /// `algebra`'s evaluation-invariance rows. What the shadow proves is
+    /// that given the schedule, the ring combination encloses the real
+    /// one.
+    ///
+    /// **A REFUSAL is sound and is treated as such.** On the overflow
+    /// and subnormal families a quotient can legitimately refuse (D4);
+    /// the row counts those and requires that a slot which does NOT
+    /// refuse contains the truth. A row that demanded certification
+    /// everywhere would be asserting that interval arithmetic never
+    /// refuses, which is a different and false claim.
+    #[test]
+    fn the_ring_fold_encloses_the_exact_refined_net() {
+        let mut worst_slack_ulps = f64::INFINITY;
+        let (mut checked, mut refused, mut tie_lo, mut tie_hi) = (0usize, 0usize, 0usize, 0usize);
+        let (mut unreported, mut no_ulp_scale) = (0usize, 0usize);
+        for (name, p, knot_list, coeff_ends) in containment_fixtures() {
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            assert_eq!(
+                kv.control_count(),
+                coeff_ends.len(),
+                "{name}: fixture coefficient count does not match the knot vector"
+            );
+            let mut knots = kv.knots().to_vec();
+            let mut ring: Vec<Interval> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| Interval::from_bounds(*lo, *hi))
+                .collect();
+            let mut exact: Vec<QInt> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| QInt {
+                    lo: Q::from_f64(*lo),
+                    hi: Q::from_f64(*hi),
+                })
+                .collect();
+            let interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            for (v, m) in &interior {
+                for step in *m..p {
+                    exact = insert_once_exact(&knots, p, step, &exact, *v);
+                    ring = ring_insert(&mut knots, p, &ring, *v);
+                    assert_eq!(ring.len(), exact.len(), "{name}: the two folds left step");
+                    for (i, (r, x)) in ring.iter().zip(exact.iter()).enumerate() {
+                        if !r.is_certified() {
+                            // Loud, and outward: a refusal encloses
+                            // everything, so it cannot be tighter than
+                            // truth. Counted, not asserted away.
+                            refused += 1;
+                            continue;
+                        }
+                        // Containment, in exact arithmetic: the ring
+                        // bracket must reach at or past the true set on
+                        // BOTH sides. A tighter bound fails here, which
+                        // is the whole point of the row.
+                        assert!(
+                            x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less,
+                            "{name}: slot {i} after inserting {} (step {step}) is TIGHTER \
+                             THAN TRUTH below — ring lo {:e} is above the exact lo {:e}",
+                            v.value(),
+                            r.lo(),
+                            x.lo.to_f64_report()
+                        );
+                        assert!(
+                            x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                            "{name}: slot {i} after inserting {} (step {step}) is TIGHTER \
+                             THAN TRUTH above — ring hi {:e} is below the exact hi {:e}",
+                            v.value(),
+                            r.hi(),
+                            x.hi.to_f64_report()
+                        );
+                        checked += 1;
+                        // Is the reported "0.00 ulps of slack" a REAL
+                        // zero — the ring bracket exactly on the truth
+                        // in exact arithmetic — or a rendering of a
+                        // small positive slack? Counted exactly, so the
+                        // headline figure cannot be a rounding.
+                        if x.lo.cmp_f64(r.lo()) == core::cmp::Ordering::Equal {
+                            tie_lo += 1;
+                        }
+                        if x.hi.cmp_f64(r.hi()) == core::cmp::Ordering::Equal {
+                            tie_hi += 1;
+                        }
+                        // How much room the enclosure has left over the
+                        // truth, in ulps of the slot's own scale. It is
+                        // reported, not asserted tight: this row is
+                        // about the sound direction only. What IS
+                        // asserted is that every certified slot reaches
+                        // the reported figure — a metric that silently
+                        // drops its hard cases says nothing.
+                        let scale = r.lo().abs().max(r.hi().abs());
+                        let ulp = scale * f64::EPSILON;
+                        #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                        if !(ulp > 0.0) || !ulp.is_finite() {
+                            // The slot has no representable ulp scale:
+                            // it is exactly `{0}`, or it sits at a
+                            // subnormal magnitude where `scale·ε`
+                            // underflows to zero. Legitimate, and
+                            // distinguished from a sample the metric
+                            // LOST — the exact asserts above cover
+                            // these slots like any other, so a truth
+                            // outside one would have red there.
+                            no_ulp_scale += 1;
+                        } else {
+                            let slack = (r.hi() - x.hi.to_f64_report())
+                                .min(x.lo.to_f64_report() - r.lo())
+                                / ulp;
+                            if slack.is_finite() {
+                                worst_slack_ulps = worst_slack_ulps.min(slack);
+                            } else {
+                                unreported += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            println!("{name}: contained through the fold to full multiplicity");
+        }
+        assert!(
+            checked > 400,
+            "only {checked} slot comparisons — the fixture families stopped folding"
+        );
+        // The slack figure is reported over EVERY certified comparison
+        // or it is not reported. `to_f64_report`'s predecessor divided
+        // two overflowed `BigInt::to_f64()`s and lost 45 of 487 samples
+        // to `inf / inf`; a zero-scale slot (a true zero coefficient
+        // held exactly) is the only legitimate exclusion.
+        assert!(
+            unreported == 0,
+            "{unreported} of {checked} certified comparisons never reached the reported \
+             slack figure, so '{worst_slack_ulps:.2} ulps' is taken over a subset the row \
+             does not name ({no_ulp_scale} slots with no representable ulp scale are \
+             excluded by construction and are not these)"
+        );
+        // The zero is a real zero: some slot's bracket lands exactly on
+        // the truth in exact arithmetic. If this ever reads 0 while the
+        // slack prints 0.00, the headline is a rendering and not a
+        // measurement.
+        assert!(
+            tie_lo > 0 && tie_hi > 0,
+            "no slot is exactly on the truth ({tie_lo} lo, {tie_hi} hi), so the reported \
+             {worst_slack_ulps:.2} ulps of slack is a rounded positive number"
+        );
+        println!(
+            "{checked} exact containment comparisons ({refused} slots refused, which is \
+             outward; {no_ulp_scale} carry no representable ulp scale); tightest \
+             side left {worst_slack_ulps:.2} ulps of slack over the truth, and it is an \
+             EXACT tie on {tie_lo} slots below and {tie_hi} above"
+        );
+    }
+
+    /// **The width the lerp form gives away, asserted as a ceiling the
+    /// lerp form cannot meet.**
+    ///
+    /// With point inputs the only width in the answer is the ratios'
+    /// own outward rounding, so it accumulates ADDITIVELY — a few ulps
+    /// of the coefficient scale per insertion. The lerp form reads
+    /// `c_{i−1}` twice, so its dust is multiplied by `1 + α` per step
+    /// and grows GEOMETRICALLY with the fold's depth. The ceiling is
+    /// therefore stated against the insertion COUNT: a per-step growth
+    /// factor blows through it, an additive one does not.
+    ///
+    /// The deep fold is degree 6, sixteen interior knots already present
+    /// once, five insertions each to full multiplicity, 80 in all,
+    /// through [`super::super::CurvePlan::apply_certified`]: 2.7 ulps of
+    /// the coefficient scale, where the step `β·x + α·y` read 4.7.
+    ///
+    /// **What this ceiling can and cannot catch, said at the claim
+    /// site.** The allowance has a lot of room: 7.0x at `p = 2` over 30
+    /// insertions, widening to about 15x at `p = 6` over 200, because
+    /// the step's width per insertion FALLS with depth while the
+    /// line's slope is constant. So it cannot catch a regression under
+    /// roughly 7x, and the 0.06-ulps-per-insertion and 100x figures the
+    /// row prints are evidence for a reader, not gates. Tightening it to
+    /// bite harder would mean a per-degree ceiling fitted to measured
+    /// values, i.e. a second baseline to re-derive whenever any
+    /// coefficient of the assembly changes; the claim this row is for —
+    /// the fold does not INFLATE, additive against geometric — is a
+    /// claim about the shape of the growth, and a linear allowance is
+    /// the honest statement of it. The lerp form misses it by 431.7
+    /// ulps, which is the size of regression it exists to catch.
+    #[test]
+    fn the_certified_fold_does_not_inflate() {
+        // (degree, interior count). The first is TESS-2's measuring
+        // shape — degree 2, thirty insertions; the last is the deep
+        // full-multiplicity fold of a plan chain to Bézier form.
+        let cases: &[(usize, usize)] = &[(2, 30), (3, 16), (6, 16)];
+        let mut worst_excess = f64::NEG_INFINITY;
+        for &(p, m) in cases {
+            let mut knot_list = vec![0.0; p + 1];
+            #[allow(clippy::cast_precision_loss)]
+            for j in 1..=m {
+                knot_list.push(j as f64 / (m + 1) as f64);
+            }
+            knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let n = kv.control_count();
+            // Both signs and O(1) magnitudes, so a sign error in either
+            // ratio shows as an escape rather than as width.
+            #[allow(clippy::cast_precision_loss)]
+            let coeffs: Vec<f64> = (0..n)
+                .map(|i| {
+                    if i % 2 == 0 {
+                        1.0 + i as f64
+                    } else {
+                        -(1.0 + i as f64)
+                    }
+                })
+                .collect();
+            let scale = coeffs.iter().fold(0.0f64, |a, c| a.max(c.abs()));
+            let mut knots = kv.knots().to_vec();
+            let mut ring: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
+            let mut insertions = 0usize;
+            for (v, s) in kv.interior_knot_runs().collect::<Vec<_>>() {
+                for _ in s..p {
+                    ring = ring_insert(&mut knots, p, &ring, v);
+                    insertions += 1;
+                }
+            }
+            let worst = ring.iter().fold(0.0f64, |a, r| {
+                assert!(r.is_certified(), "p={p}: refused slot in the fold");
+                a.max(r.hi() - r.lo())
+            });
+            // The inputs are points, but the refined coefficients are
+            // combinations at non-dyadic ratios of neighbours that
+            // differ, so their true values are not `f64`s and no slot
+            // may come out a point: a fold that held every slot exactly
+            // would be reporting a tighter enclosure than its own
+            // rounding licenses.
+            assert!(
+                worst > 0.0,
+                "p={p}: every slot of a {insertions}-insertion fold held a point, so the \
+                 ratios stopped rounding outward"
+            );
+            let ulps = worst / (scale * f64::EPSILON);
+            #[allow(clippy::cast_precision_loss)]
+            let allowance = 2.0 + 0.5 * insertions as f64;
+            worst_excess = worst_excess.max(ulps - allowance);
+            #[allow(clippy::cast_precision_loss)]
+            let per_insertion = ulps / insertions as f64;
+            println!(
+                "p={p}, {insertions} insertions: widest slot {worst:.3e} ({ulps:.1} ulps of \
+                 the coefficient scale, {per_insertion:.2} per insertion, allowance \
+                 {allowance:.1})"
+            );
+        }
+        // The allowance is LINEAR in the insertion count, and that is
+        // the whole content of the claim: two outward-rounded quotients
+        // and one combination add a fraction of an ulp per step, so a
+        // line through them holds at any depth. A form that reads a
+        // coefficient twice multiplies its dust by `1 + α` per step
+        // instead, and no line holds a geometric series — the lerp form
+        // clears this by 473.7 ulps against 42.0 on the p=6 row.
+        assert!(
+            worst_excess < 0.0,
+            "a fold ran {worst_excess:.1} ulps of width past a linear-in-depth allowance, so \
+             the width is no longer the two ratios rounding outward once per step — a form \
+             that reads a coefficient twice multiplies its dust up instead of adding to it"
+        );
+    }
+
+    fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
+        coords
+            .iter()
+            .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
+            .collect()
+    }
+
+    /// The composite's whole-domain bound contains every densely
+    /// sampled residual value (soundness by falsification).
+    fn assert_sound(
+        form: &CompositeForm,
+        kv: &KnotVector,
+        w: &[f64],
+        coords: &[Vec<f64>],
+        f: impl Fn(&[f64]) -> f64,
+    ) -> f64 {
+        let b = form.sup_bound();
+        assert!(b.is_finite(), "refused bound");
+        let (lo, hi) = kv.domain();
+        let mut worst = 0.0f64;
+        for k in 0..=1024 {
+            let t = lo + (hi - lo) * (f64::from(k) / 1024.0);
+            let r = f(&rat_eval(kv, w, coords, t)).abs();
+            assert!(r <= b, "sample {r:e} at t = {t} exceeds bound {b:e}");
+            worst = worst.max(r);
+        }
+        worst
+    }
+
+    #[test]
+    fn cone_composite_vanishes_on_a_ruling_line() {
+        // Line through the apex at half-angle γ: exactly on the cone.
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 3.0, 3.0], 1).unwrap();
+        let (tg, l) = (0.75, 4.0);
+        let coords = vec![
+            vec![0.0, tg * l], // x = tanγ·z direction, |axis| slope
+            vec![0.0, 0.0],
+            vec![0.0, l],
+        ];
+        let w = vec![1.0, 1.0];
+        let ring = lift(&coords);
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
+        let cone = ImplicitSurface::Cone {
+            apex: [0.0, 0.0, 0.0],
+            axis: [0.0, 0.0, 1.0],
+            tan_half_angle: tg,
+        };
+        let form = implicit_composite(&data, &cone).unwrap();
+        let worst = assert_sound(&form, &kv, &w, &coords, |p| {
+            let q2 = p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
+            q2 - (1.0 + tg.powi(2)) * p[2] * p[2]
+        });
+        assert!(form.sup_bound() < 1e-12, "bound {:e}", form.sup_bound());
+        assert!(worst <= form.sup_bound());
+    }
+
+    #[test]
+    fn cylinder_composite_vanishes_on_a_parallel_line_and_scales_off_axis() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let r = 1.25;
+        let coords = vec![vec![r, r], vec![0.0, 0.0], vec![-2.0, 5.0]];
+        let w = vec![1.0, 1.0];
+        let ring = lift(&coords);
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
+        // Non-unit axis on purpose: the |a|² normalization is exact in
+        // interval arithmetic, so the bound is still the meters² residual.
+        let cyl = ImplicitSurface::Cylinder {
+            point: [0.0, 0.0, 1.0],
+            axis: [0.0, 0.0, 3.0],
+            radius: r,
+        };
+        let form = implicit_composite(&data, &cyl).unwrap();
+        assert_sound(&form, &kv, &w, &coords, |p| {
+            p[0] * p[0] + p[1] * p[1] - r.powi(2)
+        });
+        assert!(form.sup_bound() < 1e-13, "bound {:e}", form.sup_bound());
+    }
+
+    /// The §7.3 rational-quadratic full circle of radius `rad` in the
+    /// xy-plane about the origin (exact-on-locus in ℝ).
+    fn circle_fixture(rad: f64) -> (KnotVector, Vec<f64>, Vec<Vec<f64>>) {
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        let kv = KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.0, 0.25, 0.25, 0.5, 0.5, 0.75, 0.75, 1.0, 1.0, 1.0,
+            ],
+            2,
+        )
+        .unwrap();
+        let x = vec![rad, rad, 0.0, -rad, -rad, -rad, 0.0, rad, rad];
+        let y = vec![0.0, rad, rad, rad, 0.0, -rad, -rad, -rad, 0.0];
+        let z = vec![0.0; 9];
+        let w = vec![1.0, s, 1.0, s, 1.0, s, 1.0, s, 1.0];
+        (kv, w, vec![x, y, z])
+    }
+
+    #[test]
+    fn torus_composite_vanishes_on_the_outer_equator() {
+        let (big_r, small_r) = (2.0, 0.5);
+        let (kv, w, coords) = circle_fixture(big_r + small_r);
+        let ring = lift(&coords);
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
+        let torus = ImplicitSurface::Torus {
+            center: [0.0, 0.0, 0.0],
+            axis: [0.0, 0.0, 2.0], // non-unit on purpose
+            major_radius: big_r,
+            minor_radius: small_r,
+        };
+        let form = implicit_composite(&data, &torus).unwrap();
+        assert_sound(&form, &kv, &w, &coords, |p| {
+            let q2 = p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
+            let c = q2 + big_r.powi(2) - small_r.powi(2);
+            c.powi(2) - 4.0 * big_r.powi(2) * (q2 - p[2] * p[2])
+        });
+        // Exact locus: the bound is pure fp scale (meters⁴ at
+        // magnitudes ~ (R+r)⁴ ≈ 39).
+        assert!(form.sup_bound() < 1e-11, "bound {:e}", form.sup_bound());
+    }
+
+    #[test]
+    fn products_and_linear_functionals_are_sound_across_real_decomposition() {
+        // Degree-2 spline with a single-multiplicity interior knot —
+        // the Bézier decomposition actually inserts here.
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let coords = vec![vec![0.0, 0.7, 1.3, 2.0], vec![1.0, -0.4, 0.9, -1.5]];
+        let w = vec![1.0, 0.8, 1.3, 1.0];
+        let ring = lift(&coords);
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
+
+        let prod = coordinate_product(&data, 0, 1).unwrap();
+        assert_sound(&prod, &kv, &w, &coords, |p| p[0] * p[1]);
+
+        let lin = linear_composite(&data, &[2.0, -1.0], 3.0).unwrap();
+        assert_sound(&lin, &kv, &w, &coords, |p| 2.0 * p[0] - p[1] + 3.0);
+
+        // Tightness sanity: the linear bound is within the coefficient
+        // hull's honest reach (not vacuously wide).
+        let worst = assert_sound(&lin, &kv, &w, &coords, |p| 2.0 * p[0] - p[1] + 3.0);
+        assert!(lin.sup_bound() <= 4.0 * worst.max(1.0));
+    }
+
+    /// **The convolution this unit replaced, kept verbatim**: the body
+    /// [`bern_mul_row`] had before the weight table existed, with the
+    /// binomial rows read and interval arithmetic quotient formed inside the
+    /// coefficient loop. It is the oracle for every bit-identity row
+    /// here and in [`super::patch`], so those rows pin the memo
+    /// against the code it retired rather than against a second typing
+    /// of the code that replaced it — a re-typed oracle agrees with a
+    /// mis-typed builder.
+    pub(super) fn bern_mul_row_base(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+        let da = a.len() - 1;
+        let db = b.len() - 1;
+        let bin_a = binom_row(da);
+        let bin_b = binom_row(db);
+        let bin_ab = binom_row(da + db);
+        let mut out = Vec::with_capacity(da + db + 1);
+        for (k, bk) in bin_ab.iter().enumerate() {
+            let mut acc = Interval::zero();
+            for (i, ai) in a.iter().enumerate() {
+                let Some(j) = k.checked_sub(i) else { continue };
+                if j > db {
+                    continue;
+                }
+                let w = Interval::point(bin_a[i] * bin_b[j]) / Interval::point(*bk);
+                acc = acc + *ai * b[j] * w;
+            }
+            out.push(acc);
+        }
+        out
+    }
+
+    /// A coefficient row of degree `n` with mixed sign, magnitude and
+    /// width, so a dropped, reordered or mis-weighted term shows in
+    /// the endpoints.
+    pub(super) fn sample_row(n: usize, seed: usize) -> Vec<Interval> {
+        (0..=n)
+            .map(|i| {
+                let c = (i as f64 - 3.5) * (1.0 + seed as f64) / 7.0;
+                Interval::from_bounds(c - 1e-13, c + 3e-13)
+            })
+            .collect()
+    }
+
+    /// Bitwise identity of a certification value: NaN endpoints compare equal
+    /// to each other and to nothing else, which is what a refused
+    /// weight has to preserve.
+    pub(super) fn same_bits(x: Interval, y: Interval) -> bool {
+        x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
+    }
+
+    /// **The production weights, read two corners, are the general
+    /// product.** Every weight [`bern_weights`] serves for degrees
+    /// `0 ..= BINOM_EXACT_MAX / 2` each (the square whose every pair
+    /// has exact rows, `da + db <=` [`BINOM_EXACT_MAX`]) times operands drawn to provoke ties —
+    /// intervals over dyadic values with few significant bits (whose
+    /// products are often exact), random doubles, values near the
+    /// 2Prod floor and zeros, both signs — [`Interval::mul_nonneg`]
+    /// against `x * w`, bit for bit.
+    #[test]
+    fn every_production_weight_reads_two_corners_as_the_general_product() {
+        let mut s: u64 = 0x9E37_79B9_7F4A_7C15;
+        let mut next = || {
+            s ^= s << 13;
+            s ^= s >> 7;
+            s ^= s << 17;
+            s
+        };
+        let draw = |n: &mut dyn FnMut() -> u64| -> f64 {
+            let r = n();
+            let sign = if r & 1 == 0 { 1.0 } else { -1.0 };
+            let m = ((r >> 8) % 64) as f64;
+            let e = ((r >> 20) % 40) as i32 - 20;
+            match (r >> 40) % 4 {
+                0 => sign * m * 2f64.powi(e),
+                1 => sign * f64::from_bits((r >> 2) & 0x3FEF_FFFF_FFFF_FFFF),
+                2 => sign * m * 2f64.powi(-1060),
+                _ => 0.0,
+            }
+        };
+        let (mut n, mut shortcut) = (0usize, 0usize);
+        for da in 0..=BINOM_EXACT_MAX / 2 {
+            for db in 0..=BINOM_EXACT_MAX / 2 {
+                let table = bern_weights(da, db);
+                for k in 0..table.row_count() {
+                    for &w in table.row(k) {
+                        for _ in 0..4 {
+                            let (x0, x1) = (draw(&mut next), draw(&mut next));
+                            let x = Interval::from_bounds(x0.min(x1), x0.max(x1));
+                            let (got, want) = (x.mul_nonneg(w), x * w);
+                            assert!(same_bits(got, want), "({da}, {db}, {k}): {x:?} * {w:?}");
+                            n += 1;
+                            shortcut += usize::from(w.lo() < w.hi());
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            shortcut > n / 2,
+            "the weights reach the shortcut: {shortcut} of {n} products"
+        );
+    }
+
+    #[test]
+    fn the_memoized_weight_table_is_the_recurrence_it_replaces_bitwise() {
+        // Every degree pair the kernel can produce, and then the
+        // straddle: `da + db` past the exactness cap (all-refused rows)
+        // and a single degree past it (the un-slotted path).
+        let mut pairs: Vec<(usize, usize)> = Vec::new();
+        for da in 0..=12 {
+            for db in 0..=12 {
+                pairs.push((da, db));
+            }
+        }
+        pairs.extend([
+            (BINOM_EXACT_MAX, 0),
+            (BINOM_EXACT_MAX - 1, 1),
+            (27, 27),
+            (28, 28),
+            (28, 29),
+            (BINOM_EXACT_MAX, 1),
+            (BINOM_EXACT_MAX, BINOM_EXACT_MAX),
+            (BINOM_EXACT_MAX + 1, 0),
+            (BINOM_EXACT_MAX + 1, 3),
+            (80, 2),
+        ]);
+        for (da, db) in pairs {
+            let table = bern_weights(da, db);
+            // The table knows which pair it is for, and its keying is
+            // the convolution's: `lo(k) = k − db` clamped at zero.
+            assert_eq!((table.da, table.db), (da, db), "pair at ({da}, {db})");
+            assert_eq!(table.row_count(), da + db + 1, "row count at ({da}, {db})");
+            let refused = da + db > BINOM_EXACT_MAX;
+            for k in 0..table.row_count() {
+                let lo = table.lo(k);
+                assert_eq!(lo, k.saturating_sub(db), "lo({k}) at ({da}, {db})");
+                assert_eq!(
+                    table.row(k).len(),
+                    k.min(da) + 1 - lo,
+                    "row {k} width at ({da}, {db})"
+                );
+                for (t, w) in table.row(k).iter().enumerate() {
+                    // `at` is the one door the u-lookup reads through;
+                    // it must land on the entry the fold folds.
+                    assert!(
+                        same_bits(*w, table.at(k, lo + t)),
+                        "at({k}, {}) at ({da}, {db})",
+                        lo + t
+                    );
+                    // Past the cap the row is all-refused, and the memo
+                    // must carry the refusal rather than a rounded
+                    // weight (`binom_row`'s contract).
+                    assert_eq!(
+                        w.lo().is_nan() && w.hi().is_nan(),
+                        refused,
+                        "refusal at ({da}, {db}) k={k} i={}",
+                        lo + t
+                    );
+                }
+            }
+            // The arithmetic, against the loop the table replaced: a
+            // product driven through the memo equals the pre-memo
+            // convolution, coefficient for coefficient, bitwise. A
+            // memo whose entries were merely re-typed from the builder
+            // would pass every assertion above and fail this one.
+            let (a, b) = (sample_row(da, da + 1), sample_row(db, db + 3));
+            let (got, want) = (bern_mul_row(&a, &b), bern_mul_row_base(&a, &b));
+            assert_eq!(got.len(), want.len(), "row length at ({da}, {db})");
+            for (k, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                assert!(
+                    same_bits(*g, *w),
+                    "memoized product ({da}, {db}) coefficient {k}: {g:?} vs {w:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_row_product_is_the_inline_convolution_bitwise() {
+        for da in 0..=9 {
+            for db in 0..=9 {
+                let a = sample_row(da, da + 1);
+                let b = sample_row(db, db + 3);
+                // The pre-memo spelling, term for term.
+                let want = bern_mul_row_base(&a, &b);
+                let got = bern_mul_row(&a, &b);
+                assert_eq!(got.len(), want.len(), "row length at ({da}, {db})");
+                for (k, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                    assert!(
+                        same_bits(*g, *w),
+                        "product ({da}, {db}) coefficient {k}: {g:?} vs {w:?}"
+                    );
+                }
+                // A buffer carrying another product's row must leave
+                // no residue: the scratch entry point overwrites.
+                let mut buf = bern_mul_row(&b, &a);
+                buf.push(Interval::point(7.0));
+                let w = bern_weights(da, db);
+                bern_mul_row_into(&a, &b, &w, &mut buf);
+                assert_eq!(buf.len(), want.len(), "reused buffer length ({da}, {db})");
+                for (k, (g, w)) in buf.iter().zip(want.iter()).enumerate() {
+                    assert!(
+                        same_bits(*g, *w),
+                        "reused buffer ({da}, {db}) coefficient {k}: {g:?} vs {w:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn typed_refusals_and_refusal_paths() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let coords2 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0]]);
+        let w = vec![1.0, 1.0];
+        let data2 = CurveCertData::new(&kv, &w, &coords2).unwrap();
+        // Implicit surfaces need 3 channels.
+        let sphere = ImplicitSurface::Sphere {
+            center: [0.0; 3],
+            radius: 1.0,
+        };
+        assert!(matches!(
+            implicit_composite(&data2, &sphere),
+            Err(ComposeError::DimensionMismatch {
+                dims: 2,
+                expected: 3
+            })
+        ));
+        assert!(matches!(
+            coordinate_product(&data2, 0, 2),
+            Err(ComposeError::ChannelOutOfRange {
+                channel: 2,
+                dims: 2
+            })
+        ));
+        assert!(matches!(
+            linear_composite(&data2, &[1.0], 0.0),
+            Err(ComposeError::DimensionMismatch { .. })
+        ));
+        // Bad weights are typed at construction.
+        assert!(matches!(
+            CurveCertData::new(&kv, &[1.0, -1.0], &coords2),
+            Err(ComposeError::Structure(
+                SplineError::NonPositiveWeight { .. }
+            ))
+        ));
+        // A zero axis reaches the denominator as a zero-touching
+        // divisor: interval arithmetic refuses, the bound is refused (NaN), and NaN
+        // fails every ≤ ε certification (D4 ¶2).
+        let coords3 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]]);
+        let data3 = CurveCertData::new(&kv, &w, &coords3).unwrap();
+        let cyl = ImplicitSurface::Cylinder {
+            point: [0.0; 3],
+            axis: [0.0; 3],
+            radius: 1.0,
+        };
+        let form = implicit_composite(&data3, &cyl).unwrap();
+        assert!(form.sup_bound().is_nan());
+    }
+
+    /// MINOR-1 pin (adversarial review): the rows are exact through
+    /// `BINOM_EXACT_MAX` (differential vs `u128` integer arithmetic) and
+    /// refuse — all-NaN, never a rounded weight — beyond it. Row 57 is
+    /// the first holding an unrepresentable value, `C(57, 25)`.
+    #[test]
+    fn binom_rows_are_exact_through_the_cap_and_nan_beyond_it() {
+        for n in 0..=BINOM_EXACT_MAX {
+            let row = binom_row(n);
+            let mut exact: u128 = 1;
+            for (k, v) in row.iter().enumerate() {
+                if k > 0 {
+                    exact = exact * (n as u128 - k as u128 + 1) / k as u128;
+                }
+                #[allow(clippy::cast_precision_loss)]
+                let e = exact as f64;
+                assert!(exact < (1u128 << 53), "C({n},{k}) not representable");
+                assert_eq!(v.to_bits(), e.to_bits(), "C({n},{k}): {v} vs {exact}");
+            }
+        }
+        assert!(binom_row(BINOM_EXACT_MAX + 1).iter().all(|v| v.is_nan()));
+        assert!(binom_row(80).iter().all(|v| v.is_nan()));
+    }
+
+    /// **The rows the bounds were pinned on did not move.** Through
+    /// `n = 54` every row [`binom_row`] serves is, bit for bit, the
+    /// multiplicative recurrence it was before the rows were formed in
+    /// integers, `(row[k−1]·(n−k+1))/k` in that association. Every
+    /// weight [`bern_weights`] builds from them, and so every pin they
+    /// fed, is the old one; the rows the recurrence refused (55 and 56)
+    /// are the only ones that change, from refused to served.
+    #[test]
+    fn the_integer_rows_are_the_retired_recurrence_through_its_cap() {
+        for n in 0..=54 {
+            let mut old = vec![1.0f64; n + 1];
+            for k in 1..=n {
+                old[k] = old[k - 1] * ((n - k + 1) as f64) / (k as f64);
+            }
+            let new = binom_row(n);
+            for k in 0..=n {
+                assert_eq!(new[k].to_bits(), old[k].to_bits(), "C({n},{k})");
+            }
+        }
+        for n in [55, 56] {
+            assert!(
+                binom_row(n).iter().all(|v| v.is_finite()),
+                "row {n} is served"
+            );
+        }
+    }
+
+    #[test]
+    fn bit_replay_composites_are_deterministic() {
+        let (kv, w, coords) = circle_fixture(2.5);
+        let ring = lift(&coords);
+        let data = CurveCertData::new(&kv, &w, &ring).unwrap();
+        let sphere = ImplicitSurface::Sphere {
+            center: [0.1, -0.2, 0.3],
+            radius: 2.5,
+        };
+        let a = implicit_composite(&data, &sphere).unwrap();
+        let b = implicit_composite(&data, &sphere).unwrap();
+        assert_eq!(a.sup_bound().to_bits(), b.sup_bound().to_bits());
+        for (ba, bb) in a.span_bounds().iter().zip(b.span_bounds().iter()) {
+            assert_eq!(ba.lo().to_bits(), bb.lo().to_bits());
+            assert_eq!(ba.hi().to_bits(), bb.hi().to_bits());
+        }
+    }
+
+    /// The decomposition with extra breaks encloses the exact Bézier
+    /// rows: every span coefficient [`to_bezier_spans_extra`] returns
+    /// contains the one exact rational insertion of every break gives.
+    /// The fixtures are the containment families plus degree-1 rows,
+    /// a double knot and Bézier segments at degrees 4 and 5; the
+    /// extras land inside segments, twice on one value, on an own knot
+    /// (the double knot's included), at both domain ends, outside the
+    /// domain, and at non-dyadic places. Every fixture certifies every
+    /// slot, so no family passes by refusing.
+    #[test]
+    fn cutting_extras_from_their_segment_encloses_the_exact_rows() {
+        let pts = |v: &[f64]| -> Vec<(f64, f64)> { v.iter().map(|x| (*x, *x)).collect() };
+        let mut fixtures = containment_fixtures();
+        fixtures.extend([
+            (
+                "degree 1 with knots",
+                1,
+                vec![0.0, 0.0, 0.4, 0.7, 1.0, 1.0],
+                pts(&[0.3, -1.7, 2.9, 0.1]),
+            ),
+            (
+                "degree 1 Bézier, wide",
+                1,
+                vec![0.0, 0.0, 1.0, 1.0],
+                vec![(0.1, 0.2), (-3.0, 7.0)],
+            ),
+            (
+                "degree 2 double knot",
+                2,
+                vec![0.0, 0.0, 0.0, 0.4, 0.4, 1.0, 1.0, 1.0],
+                pts(&[1.0, -2.0, 3.0, 0.5, 9.0]),
+            ),
+            (
+                "degree 4 Bézier, one huge coefficient",
+                4,
+                [[0.0; 5], [1.0; 5]].concat(),
+                pts(&[1.0, -1.0, 1e10, -1.0, 1.0]),
+            ),
+            (
+                "degree 5 at a knot 0.5",
+                5,
+                [&[0.0; 6][..], &[0.5], &[1.0; 6]].concat(),
+                pts(&[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]),
+            ),
+        ]);
+        for (name, p, knot_list, coeff_ends) in fixtures {
+            let kv = KnotVector::clamped(knot_list, p).unwrap();
+            let (lo, hi) = kv.domain();
+            let extra: Vec<f64> = [
+                0.9,
+                0.1,
+                0.1,
+                0.3,
+                1.0 / 3.0,
+                0.4,
+                0.5,
+                0.5,
+                0.77,
+                0.9,
+                0.0,
+                1.0,
+                -0.5,
+                0.123_456_789,
+            ]
+            .iter()
+            .map(|f| lo + (hi - lo) * f)
+            .collect();
+            let ring: Vec<Interval> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| Interval::from_bounds(*lo, *hi))
+                .collect();
+            let got = to_bezier_spans_extra(kv.with_coeffs(&ring).unwrap(), &extra);
+            let mut knots = kv.knots().to_vec();
+            let mut exact: Vec<QInt> = coeff_ends
+                .iter()
+                .map(|(lo, hi)| QInt {
+                    lo: Q::from_f64(*lo),
+                    hi: Q::from_f64(*hi),
+                })
+                .collect();
+            let mut runs: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
+            for &v in &extra {
+                if let Some(k) = kv.interior_knot(v)
+                    && !runs.iter().any(|(w, _)| w.value() == v)
+                {
+                    runs.push((k, 0));
+                }
+            }
+            runs.sort_by(|a, b| a.0.value().total_cmp(&b.0.value()));
+            for (v, m) in &runs {
+                for step in *m..p {
+                    exact = insert_once_exact(&knots, p, step, &exact, *v);
+                    knots.insert(find_span_in(&knots, p, *v) + 1, v.value());
+                }
+            }
+            let mut want_breaks = vec![lo];
+            want_breaks.extend(runs.iter().map(|(v, _)| v.value()));
+            want_breaks.push(hi);
+            assert_eq!(
+                got.breaks, want_breaks,
+                "{name}: the breaks are the merged list"
+            );
+            let mut checked = 0usize;
+            for (j, row) in got.spans.iter().enumerate() {
+                for (i, r) in row.iter().enumerate() {
+                    if !r.is_certified() {
+                        continue;
+                    }
+                    let x = &exact[j * p + i];
+                    assert!(
+                        x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less
+                            && x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                        "{name}: span {j} slot {i} [{:e}, {:e}] does not enclose the exact \
+                         [{:e}, {:e}]",
+                        r.lo(),
+                        r.hi(),
+                        x.lo.to_f64_report(),
+                        x.hi.to_f64_report()
+                    );
+                    checked += 1;
+                }
+            }
+            let slots = got.spans.iter().flatten().count();
+            assert_eq!(checked, slots, "{name}: every slot certifies");
+        }
+    }
+
+    /// Cutting more breaks into one segment does not widen its rows: a
+    /// Bézier segment of each degree 1–5 cut at the 254 interior 255ths
+    /// keeps every coefficient ulp-wide, where inserting the breaks one
+    /// after another into the whole net folds each new coefficient out
+    /// of the last one's width.
+    ///
+    /// **The ceilings are goldens with a margin, per degree.** Head reads
+    /// 2, 2, 4, 3.25 and 5 ulps of 1; the convex step (`β·x + α·y`, the
+    /// battery's comparison) reads 2.5, 2.75, 6.5, 5.5 and 10.5. Each
+    /// ceiling sits halfway between the two, so a change to the step that
+    /// gives back half the gap at any degree reds here, and the convex
+    /// step reds at every degree. A move inside the margin is not a
+    /// finding; a move past it is re-measured, not re-ceilinged.
+    #[test]
+    fn a_segment_cut_many_times_keeps_its_rows_ulp_wide() {
+        let base = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
+        let extra: Vec<f64> = (1..255).map(|k| f64::from(k) / 255.0).collect();
+        for p in 1..=5usize {
+            let kv = KnotVector::clamped([vec![0.0; p + 1], vec![1.0; p + 1]].concat(), p).unwrap();
+            let row: Vec<Interval> = base[..=p].iter().map(|x| Interval::point(*x)).collect();
+            let got = to_bezier_spans_extra(kv.with_coeffs(&row).unwrap(), &extra);
+            assert_eq!(got.spans.len(), 255, "degree {p}: one span per piece");
+            let widest = got
+                .spans
+                .iter()
+                .flatten()
+                .map(|c| c.hi() - c.lo())
+                .fold(0.0f64, f64::max);
+            let ceiling = [2.25, 2.375, 5.25, 4.375, 7.75][p - 1] * f64::EPSILON;
+            assert!(
+                widest <= ceiling,
+                "degree {p}: the widest coefficient after 254 cuts is {widest:e}, {} ulps of 1",
+                widest / f64::EPSILON
+            );
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // The step's form: the monotone step against the convex one
+    // -----------------------------------------------------------------
+
+    /// **The convex step the monotone one replaced — a copy kept on
+    /// purpose**: the battery's point is the comparison, and the shipped
+    /// tree has no convex step to call. `β·x + α·y` with both ratios ring
+    /// quotients of the knots, met with the sources' hull. Every helper
+    /// below that takes a step exists for this comparison; the shipped
+    /// side of each row calls production code (`algebra::boehm_step`,
+    /// `CurvePlan::apply_certified`, [`to_bezier_spans_extra`]).
+    fn convex_reference(x: Interval, y: Interval, lo: f64, hi: f64, u: f64) -> Interval {
+        let (lo, hi, u) = (Interval::point(lo), Interval::point(hi), Interval::point(u));
+        let span = hi - lo;
+        (x * ((hi - u) / span) + y * ((u - lo) / span)).meet(Interval::hull(x, y))
+    }
+
+    /// One Boehm insertion of `u` into the raw list `knots` with the
+    /// convex step (the comparison), and the list updated.
+    fn convex_insert(knots: &mut Vec<f64>, p: usize, c: &[Interval], u: f64) -> Vec<Interval> {
+        let kv = KnotVector::clamped(knots.clone(), p).unwrap();
+        let k = find_span_in(knots, p, kv.interior_knot(u).unwrap());
+        let s = knots.iter().filter(|&&v| v == u).count();
+        let ring = (0..=c.len())
+            .map(|i| {
+                if i + p <= k {
+                    c[i]
+                } else if i + s <= k {
+                    convex_reference(c[i - 1], c[i], knots[i], knots[i + p], u)
+                } else {
+                    c[i - 1]
+                }
+            })
+            .collect();
+        knots.insert(k + 1, u);
+        ring
+    }
+
+    /// The widest excess of `ring` over the exact sets `exact`, after
+    /// asserting every slot contains its set.
+    fn widest_excess(ring: &[Interval], exact: &[QInt], tag: &str) -> f64 {
+        ring.iter()
+            .zip(exact)
+            .enumerate()
+            .fold(0.0f64, |worst, (i, (r, x))| {
+                assert!(
+                    r.is_certified()
+                        && x.lo.cmp_f64(r.lo()) != core::cmp::Ordering::Less
+                        && x.hi.cmp_f64(r.hi()) != core::cmp::Ordering::Greater,
+                    "{tag}: slot {i} [{:e}, {:e}] does not enclose the exact [{:e}, {:e}]",
+                    r.lo(),
+                    r.hi(),
+                    x.lo.to_f64_report(),
+                    x.hi.to_f64_report()
+                );
+                let up = Q::from_f64(r.hi()).sub(&x.hi).to_f64_report();
+                let down = x.lo.sub(&Q::from_f64(r.lo())).to_f64_report();
+                worst.max(up + down)
+            })
+    }
+
+    /// The widest excess over the exact refined net of the fold of
+    /// `inserts` into `kv`: `(shipped, convex)` — the shipped fold is
+    /// `CurvePlan::apply_certified`'s ([`ring_insert`]).
+    fn fold_excess(kv: &KnotVector, inputs: &[Interval], inserts: &[f64], tag: &str) -> (f64, f64) {
+        let p = kv.degree();
+        let start: Vec<QInt> = inputs
+            .iter()
+            .map(|r| QInt {
+                lo: Q::from_f64(r.lo()),
+                hi: Q::from_f64(r.hi()),
+            })
+            .collect();
+        let (mut knots, mut ring, mut exact) = (kv.knots().to_vec(), inputs.to_vec(), start);
+        for &u in inserts {
+            let knot = KnotVector::clamped(knots.clone(), p)
+                .unwrap()
+                .interior_knot(u)
+                .unwrap();
+            let s = knots.iter().filter(|&&v| v == u).count();
+            exact = insert_once_exact(&knots, p, s, &exact, knot);
+            ring = ring_insert(&mut knots, p, &ring, knot);
+        }
+        let (mut knots, mut convex) = (kv.knots().to_vec(), inputs.to_vec());
+        for &u in inserts {
+            convex = convex_insert(&mut knots, p, &convex, u);
+        }
+        (
+            widest_excess(&ring, &exact, tag),
+            widest_excess(&convex, &exact, &format!("{tag} (convex)")),
+        )
+    }
+
+    /// The Bernstein row on `[a, b]` of the Bézier `row` on `[0, 1]`
+    /// under the convex step (the comparison): coefficient `i` the
+    /// blossom at `a` taken `p − i` times and `b` taken `i` times, by de
+    /// Casteljau.
+    fn convex_cut(row: &[Interval], (a, b): (f64, f64)) -> Vec<Interval> {
+        let p = row.len() - 1;
+        (0..=p)
+            .map(|i| {
+                let mut r = row.to_vec();
+                for level in 0..p {
+                    let t = if level < p - i { a } else { b };
+                    for j in 0..p - level {
+                        r[j] = convex_reference(r[j], r[j + 1], 0.0, 1.0, t);
+                    }
+                }
+                r[0]
+            })
+            .collect()
+    }
+
+    /// [`convex_cut`]'s exact shadow, on point rows.
+    fn cut_exact(row: &[f64], (a, b): (f64, f64)) -> Vec<Q> {
+        let p = row.len() - 1;
+        let one = Q::new(BigInt::from(1), BigInt::from(1));
+        (0..=p)
+            .map(|i| {
+                let mut r: Vec<Q> = row.iter().map(|&c| Q::from_f64(c)).collect();
+                for level in 0..p {
+                    let t = Q::from_f64(if level < p - i { a } else { b });
+                    for j in 0..p - level {
+                        r[j] = one.sub(&t).mul(&r[j]).add(&t.mul(&r[j + 1]));
+                    }
+                }
+                r[0].clone()
+            })
+            .collect()
+    }
+
+    /// **The monotone step is no wider than the convex one on any row of
+    /// the battery, and contains the exact set on every one.** Each row
+    /// is the widest excess over an exact-rational reference — never over
+    /// another carrier — for the shipped step
+    /// ([`Certification::between`] at the knot ratio) and for the convex
+    /// step `β·x + α·y` it replaced:
+    ///
+    /// - one step on point inputs, mean and max, in ulps of the larger
+    ///   source;
+    /// - the degree-6 fold of 80 insertions (sixteen knots to full
+    ///   multiplicity) on points of size O(1), points offset to 1e3,
+    ///   inputs 1e-9 wide, a homogeneous channel `w·(x − c)`, and a
+    ///   near-constant `1 + 1e-9·sin`;
+    /// - the equal-split plan chains of `algebra`'s ring-applier row, in
+    ///   ulps of the coefficient scale;
+    /// - one Bézier segment of each degree 1–5 cut at the 254 interior
+    ///   255ths, in ulps of 1.
+    ///
+    /// The step sample is a fixed seed: the row is a statistic over a
+    /// witness set, not a search, and the figures in the PR are its.
+    #[test]
+    #[allow(clippy::cast_precision_loss, clippy::too_many_lines)]
+    fn the_monotone_step_is_no_wider_than_the_convex_step_on_every_battery_row() {
+        let mut rows: Vec<(String, f64, f64)> = Vec::new();
+
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let one = Q::new(BigInt::from(1), BigInt::from(1));
+        let n = 4000;
+        let (mut sum, mut max) = ([0.0f64; 2], [0.0f64; 2]);
+        for _ in 0..n {
+            let lo = rnd();
+            let hi = lo + 0.01 + rnd();
+            let u = lo + (hi - lo) * rnd();
+            let x = 2.0 * rnd() - 1.0;
+            let y = x + (2.0 * rnd() - 1.0) * 10f64.powf(-6.0 * rnd());
+            let (ql, qh) = (Q::from_f64(lo), Q::from_f64(hi));
+            let lam = Q::from_f64(u).sub(&ql).div(&qh.sub(&ql));
+            let truth = one
+                .sub(&lam)
+                .mul(&Q::from_f64(x))
+                .add(&lam.mul(&Q::from_f64(y)));
+            let exact = [QInt {
+                lo: truth.clone(),
+                hi: truth,
+            }];
+            let scale = x.abs().max(y.abs()) * f64::EPSILON;
+            for (k, step) in [
+                super::super::algebra::boehm_step
+                    as fn(Interval, Interval, f64, f64, f64) -> Interval,
+                convex_reference,
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let r = step(Interval::point(x), Interval::point(y), lo, hi, u);
+                let e = widest_excess(&[r], &exact, "one step") / scale;
+                sum[k] += e;
+                max[k] = max[k].max(e);
+            }
+        }
+        rows.push((
+            "one step, mean ulps".into(),
+            sum[0] / n as f64,
+            sum[1] / n as f64,
+        ));
+        rows.push(("one step, max ulps".into(), max[0], max[1]));
+
+        let p = 6usize;
+        let mut knot_list = vec![0.0; p + 1];
+        for j in 1..=16 {
+            knot_list.push(f64::from(j) / 17.0);
+        }
+        knot_list.extend(core::iter::repeat_n(1.0, p + 1));
+        let kv = KnotVector::clamped(knot_list, p).unwrap();
+        let inserts: Vec<f64> = kv
+            .interior_knots()
+            .flat_map(|(v, s)| core::iter::repeat_n(v, p - s))
+            .collect();
+        assert_eq!(inserts.len(), 80, "the deep fold is 80 insertions");
+        let base: Vec<f64> = (0..kv.control_count())
+            .map(|i| {
+                if i % 2 == 0 {
+                    1.0 + i as f64
+                } else {
+                    -(1.0 + i as f64)
+                }
+            })
+            .collect();
+        let pt = Interval::point;
+        let families: Vec<(&str, Vec<Interval>)> = vec![
+            (
+                "p=6 fold, points O(1)",
+                base.iter().map(|&c| pt(c)).collect(),
+            ),
+            (
+                "p=6 fold, points offset 1e3",
+                base.iter().map(|&c| pt(c + 1e3)).collect(),
+            ),
+            (
+                "p=6 fold, width 1e-9",
+                base.iter()
+                    .map(|&c| Interval::from_bounds(c - 1e-9, c + 1e-9))
+                    .collect(),
+            ),
+            (
+                "p=6 fold, homogeneous w(x-c)",
+                base.iter()
+                    .enumerate()
+                    .map(|(i, &c)| pt(1.0 + 0.1 * (i as f64).sin()) * (pt(c) - pt(0.3)))
+                    .collect(),
+            ),
+            (
+                "p=6 fold, near-constant 1+1e-9 sin",
+                (0..base.len())
+                    .map(|i| pt(1.0 + 1e-9 * (i as f64).sin()))
+                    .collect(),
+            ),
+        ];
+        for (name, inputs) in families {
+            let (m, c) = fold_excess(&kv, &inputs, &inserts, name);
+            rows.push((format!("{name}, abs"), m, c));
+        }
+
+        let chains: &[(usize, &[f64])] = &[
+            (1, &[]),
+            (2, &[1.0]),
+            (2, &[1.0, 2.0]),
+            (3, &[1.0, 1.0, 2.0]),
+            (4, &[1.0, 2.0, 2.0, 3.0]),
+        ];
+        let mut chain_worst = (0.0f64, 0.0f64);
+        for &(p, interior) in chains {
+            let mut knots = vec![0.0; p + 1];
+            knots.extend_from_slice(interior);
+            let top = interior.last().copied().unwrap_or(0.0) + 1.0;
+            knots.extend(core::iter::repeat_n(top, p + 1));
+            let kv = KnotVector::clamped(knots, p).unwrap();
+            let coeffs: Vec<f64> = (0..kv.control_count())
+                .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
+                .collect();
+            let scale = coeffs.iter().fold(1.0f64, |m, c| m.max(c.abs())) * f64::EPSILON;
+            let inputs: Vec<Interval> = coeffs.iter().map(|&c| pt(c)).collect();
+            for splits in [2usize, 3, 8, 16] {
+                let mut points = crate::spline::algebra::equal_split_points(&kv, splits);
+                points.sort_by(f64::total_cmp);
+                let tag = format!("equal split p={p} {interior:?} x{splits}");
+                let (m, c) = fold_excess(&kv, &inputs, &points, &tag);
+                chain_worst = (chain_worst.0.max(m / scale), chain_worst.1.max(c / scale));
+            }
+        }
+        rows.push((
+            "equal-split chains, ulps".into(),
+            chain_worst.0,
+            chain_worst.1,
+        ));
+
+        let row = [0.1, 0.7, -0.3, 0.9, 0.2, 0.55];
+        let cuts: Vec<f64> = (0..=255).map(|k| f64::from(k) / 255.0).collect();
+        for p in 1..=5usize {
+            let kv = KnotVector::bezier(p, (0.0, 1.0)).unwrap();
+            let points: Vec<Interval> = row[..=p].iter().map(|&c| pt(c)).collect();
+            let shipped = to_bezier_spans_extra(kv.with_coeffs(&points).unwrap(), &cuts);
+            let (mut m, mut c) = (0.0f64, 0.0f64);
+            for (j, piece) in cuts.windows(2).enumerate() {
+                let exact: Vec<QInt> = cut_exact(&row[..=p], (piece[0], piece[1]))
+                    .into_iter()
+                    .map(|q| QInt {
+                        lo: q.clone(),
+                        hi: q,
+                    })
+                    .collect();
+                let tag = format!("254 cuts p={p} piece {j}");
+                m = m.max(widest_excess(&shipped.spans[j], &exact, &tag));
+                let convex = convex_cut(&points, (piece[0], piece[1]));
+                c = c.max(widest_excess(&convex, &exact, &format!("{tag} (convex)")));
+            }
+            rows.push((
+                format!("254 cuts p={p}, ulps of 1"),
+                m / f64::EPSILON,
+                c / f64::EPSILON,
+            ));
+        }
+
+        for (name, monotone, convex) in &rows {
+            println!("{name:<44} monotone {monotone:>10.4e}   convex {convex:>10.4e}");
+        }
+        for (name, monotone, convex) in &rows {
+            assert!(
+                monotone <= convex,
+                "{name}: the monotone step reads {monotone:e}, wider than the convex step's \
+                 {convex:e}"
+            );
+        }
+    }
+
+    /// **A refined weight never leaves the range of the weights it was
+    /// refined from**, at a subnormal weight beside `1e2` — the weight
+    /// positivity every rational hull stands on. The ratios are points
+    /// within ulps of either end, a coarse sweep, and enclosures as wide
+    /// as a blossom argument spanning a few-ulp span makes them (up to
+    /// `[0, 1]`). On the wide ones the step's corners alone reach past
+    /// the subnormal to zero, which is the probe's power: the step's meet
+    /// with its sources' hull is what holds the guarantee.
+    #[test]
+    fn a_refined_weight_stays_between_its_sources() {
+        // `between` with its meet deleted — a copy on purpose: the
+        // probe's power is that this mutant escapes where the door does
+        // not, and the shipped tree has no unmet door to call.
+        let corners_only = |x: f64, y: f64, lam: Interval| {
+            let (from, to, t) = if lam.lo() + lam.hi() <= 1.0 {
+                (x, y, lam)
+            } else {
+                (y, x, Interval::one() - lam)
+            };
+            let (a, b) = (Interval::point(from), Interval::point(to));
+            a + (b - a) * t
+        };
+        let mut ratios: Vec<Interval> = Vec::new();
+        for k in 1..500u32 {
+            let e = f64::from(k) * f64::EPSILON;
+            ratios.push(Interval::point(e));
+            ratios.push(Interval::point(1.0 - e));
+            ratios.push(Interval::point(f64::from(k) / 500.0));
+            ratios.push(Interval::from_bounds(e, 1.0));
+            ratios.push(Interval::from_bounds(0.0, 1.0 - e));
+        }
+        ratios.push(Interval::from_bounds(0.0, 1.0));
+        let (mut escapes_unmet, mut zero_unmet, mut probes) = (0usize, 0usize, 0usize);
+        for &w in &[f64::from_bits(1), 1e-300, 1e-20, 1e-3] {
+            for &lam in &ratios {
+                for (x, y) in [(w, 1e2), (1e2, w)] {
+                    let r = Interval::between(Interval::point(x), Interval::point(y), lam);
+                    assert!(
+                        r.is_certified() && r.lo() >= w && r.hi() <= 1e2,
+                        "weights {x:e}, {y:e} at [{:e}, {:e}]: the step [{:e}, {:e}] left \
+                         [{w:e}, 1e2]",
+                        lam.lo(),
+                        lam.hi(),
+                        r.lo(),
+                        r.hi()
+                    );
+                    let bare = corners_only(x, y, lam);
+                    escapes_unmet += usize::from(bare.lo() < w || bare.hi() > 1e2);
+                    zero_unmet += usize::from(bare.lo() <= 0.0);
+                    probes += 1;
+                }
+            }
+        }
+        assert!(
+            zero_unmet > 0,
+            "no probe of {probes} took the unmet corners to zero, so this row no longer \
+             shows the meet is what keeps a weight positive"
+        );
+        println!(
+            "{escapes_unmet} of {probes} probes leave the sources' range without the meet \
+             ({zero_unmet} reach zero); none with it"
+        );
+    }
+}

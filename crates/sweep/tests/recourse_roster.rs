@@ -1,0 +1,591 @@
+//! **The roster: every predicate name this crate decides is a blend
+//! decision, or listed here as another door's and why.**
+//!
+//! `BlendError::Escalated` carries the closed `BlendDecision` it could
+//! not take, and its subject and ending are exhaustive matches over
+//! that type (D4 ¶1 (i)): a blend gate cannot escalate without naming
+//! the decision whose levers its reader is handed, so there is no
+//! fall-through to reach. What stays name-shaped is the `k_stats` name
+//! each decision is metered under, and the rows here hold that the
+//! names the crate decides are exactly the blend's closed set plus the
+//! other doors' gates. The revolve's axis clearance
+//! (`ClearanceDecision`) and the tube (`TubeDecision`) are closed the
+//! same way, so their names come from their types, not from a list.
+//!
+//! The crate decides for five doors, and only the blend's own gates
+//! escalate onto `BlendError`; the rest reach the caller through their
+//! own door's error type. They are listed here, and the row that reads
+//! them is the one that would notice a blend name decided outside the
+//! blend's funnel.
+//!
+//! Three blend decisions are taken by another crate's door and relayed
+//! under the closed type: `ContactArm`, `ContactWedge` and
+//! `ContactSecondOrder` (`geom_brep`'s must-carry rule, by the reading
+//! that escalated). Their
+//! names are decided nowhere in this crate's src, so the census does
+//! not see them, and nothing here lists them as another door's.
+//!
+//! The reader is `test_utils::source::predicate_census`, the tree's one
+//! home for this walk. **What it cannot read it reports** — an
+//! unreadable spelling, an indirect site whose carrier is undeclared, a
+//! file it does not walk — and each is a red row here.
+//!
+//! Which lever a decision renders is MEASURED — each decision is put
+//! through the door's own error value and the rendered text read —
+//! never inferred from the match in the source.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use geom_core::{Band, Indeterminate, MarginDiag, MissingRecourse, Tol};
+use std::collections::BTreeSet;
+use sweep::blend::{BlendDecision, BlendError, BlendSite};
+use sweep::{ClearanceDecision, TubeDecision};
+use test_utils::source::{NameCarrier, PredicateCensus, predicate_census};
+
+/// The carriers that hand a name to the funnel from somewhere other
+/// than the call.
+const CARRIERS: &[NameCarrier] = &[
+    // The cosurface decision reports under the row names its caller's
+    // table supplies, so the extrude's side walls and the revolve's
+    // walls are separate rows of the K inventory.
+    NameCarrier::Call("CosurfaceNames"),
+    // The direction and turn mints decide in `geom-core` under the
+    // name the caller hands them, held in these constants.
+    NameCarrier::Const("REVOLVE_AXIS_DIRECTION"),
+    NameCarrier::Const("SWEEP_PATH_TANGENT"),
+    NameCarrier::Const("SWEEP_PATH_CHORD"),
+    NameCarrier::Const("SWEEP_PATH_TURN"),
+];
+
+/// The `decide*` calls whose name the reader cannot read at the site,
+/// as `<file>: <expr>`, with what carries the name there.
+const INDIRECT: &[(&str, &str)] = &[
+    (
+        "blend/mod.rs: name",
+        "the blend's one funnel, naming the closed `BlendDecision` it takes — its names are \
+         `BlendDecision::ALL`'s, read by `the_decided_names_are_the_blend_decisions_and_the_listed_doors`",
+    ),
+    (
+        "swept.rs: name",
+        "the swept-traversal funnel, forwarding its parameter",
+    ),
+    (
+        "swept.rs: names.lines",
+        "a `CosurfaceNames` field — the line half of a caller's table",
+    ),
+    (
+        "swept.rs: names.arcs",
+        "a `CosurfaceNames` field — the arc half of the same table",
+    ),
+    (
+        "revolve/axis.rs: name",
+        "the axis clearance's funnel, naming the closed `ClearanceDecision` it takes — its \
+         names are `ClearanceDecision::ALL`'s",
+    ),
+    (
+        "revolve/tube.rs: name",
+        "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
+         `TubeDecision::ALL`'s",
+    ),
+    (
+        "revolve/turn_rows.rs: name",
+        "the tube's old funnel, kept as the agreement test's oracle, naming the closed \
+         `TubeDecision` it takes",
+    ),
+];
+
+/// Every name decided outside the blend, and the door that reports it.
+///
+/// For all of them the reason is the same shape — the gate belongs to
+/// another of this crate's doors, whose refusals are typed on that
+/// door's own error and rendered there, so `BlendError` is not on the
+/// escalation's path.
+const OTHER_DOORS: &[(&str, &str)] = &[
+    ("axis_gap", AXIS),
+    ("axis_vertex_radius", AXIS),
+    ("revolve_axis_direction", AXIS),
+    ("revolve_angle", REVOLVE),
+    ("revolve_angle_headroom", REVOLVE),
+    ("extrusion_normal_component", EXTRUDE),
+    ("extrusion_obliquity", EXTRUDE),
+    ("loft_stacking", LOFT),
+    ("sweep_path_tangent", PATH),
+    ("sweep_path_chord", PATH),
+    ("sweep_path_turn", PATH),
+    ("cap_plane_orientation", CAP),
+    ("side_cylinders_cosurface", COSURFACE),
+    ("side_planes_cosurface", COSURFACE),
+    ("wall_arcs_cosurface", COSURFACE),
+    ("wall_lines_cosurface", COSURFACE),
+];
+
+const AXIS: &str = "the revolve axis's own classifications: an escalation here is typed on \
+                    `RevolveError` and rendered by that door";
+const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveError`";
+const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
+const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
+const PATH: &str = "the path sweep's station tangents, chords and turns, typed on `SkinError`";
+const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
+                   the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
+const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
+                         verb; the escalation is typed on that verb's error";
+
+/// Each decision with the lever its refusals lead with.
+///
+/// Held here as an independent statement of what the door SHOULD say,
+/// so a decision rewired to another lever reds
+/// [`every_decision_renders_its_own_lever_and_no_other`]. Its
+/// completeness is checked against `BlendDecision::ALL`.
+const PAIRING: &[(BlendDecision, &str)] = &[
+    (
+        BlendDecision::RadiusHeadroom,
+        sweep::blend::FILLET3_RADIUS_RECOURSE,
+    ),
+    (
+        BlendDecision::FaceClearance,
+        sweep::blend::FILLET3_CLEARANCE_RECOURSE,
+    ),
+    (
+        BlendDecision::SpineRegularity,
+        sweep::blend::FILLET3_SPINE_RECOURSE,
+    ),
+    (BlendDecision::ChainG1, sweep::blend::FILLET3_CHAIN_RECOURSE),
+    (
+        BlendDecision::ChainArm,
+        sweep::blend::FILLET3_CHAIN_RECOURSE,
+    ),
+    (
+        BlendDecision::ConvexitySign,
+        sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+    ),
+    (
+        BlendDecision::RingClearance,
+        sweep::blend::FILLET3_RING_RECOURSE,
+    ),
+    (
+        BlendDecision::SupportCoaxiality,
+        sweep::blend::FILLET3_SPINE_KIND_RECOURSE,
+    ),
+    (
+        BlendDecision::ContactArm,
+        sweep::blend::FILLET3_CONTACT_ARM_RECOURSE,
+    ),
+    (
+        BlendDecision::ContactWedge,
+        sweep::blend::FILLET3_CONTACT_WEDGE_RECOURSE,
+    ),
+    (
+        BlendDecision::ContactSecondOrder,
+        sweep::blend::FILLET3_CONTACT_RECOURSE,
+    ),
+    (
+        BlendDecision::CornerIndependence,
+        sweep::blend::FILLET3_CORNER_INDEPENDENCE_RECOURSE,
+    ),
+    (
+        BlendDecision::CapTransverse,
+        sweep::blend::FILLET3_CAP_TILT_RECOURSE,
+    ),
+    (
+        BlendDecision::CutOffFeet,
+        sweep::blend::FILLET3_CORNER_RECOURSE,
+    ),
+    (
+        BlendDecision::TurnFeetGap,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+    (
+        BlendDecision::TurnOverrunChord,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+    (BlendDecision::TurnFeet, sweep::blend::FILLET3_TURN_RECOURSE),
+    (
+        BlendDecision::MitreSection,
+        sweep::blend::FILLET3_TURN_RECOURSE,
+    ),
+];
+
+fn census() -> PredicateCensus {
+    predicate_census(
+        &test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src"),
+        CARRIERS,
+    )
+}
+
+/// An escalation carrying `name`, its margin inside the run's band.
+fn escalation(name: Option<&'static str>) -> Indeterminate {
+    let band = Band::linear(Tol::witness()).expect("the run's band forms");
+    Indeterminate {
+        margin: MarginDiag::value((band.zero() + band.escalate()) / 2.0),
+        band,
+        predicate: name,
+        terminal_sliver: false,
+    }
+}
+
+/// Renders the blend door's refusal for `decision` escalating with a
+/// payload that names `name`.
+fn rendered(decision: BlendDecision, name: Option<&'static str>) -> String {
+    BlendError::Escalated {
+        site: BlendSite::Chain,
+        decision,
+        source: escalation(name),
+    }
+    .to_string()
+}
+
+/// **The names the crate decides are the blend's closed set and the
+/// listed doors' gates, and nothing else.**
+///
+/// The blend's names reach the funnel only through
+/// `BlendDecision::predicate`, and the clearance's and the tube's
+/// through theirs, so none may appear at a decide site as a literal:
+/// one that did would be a gate metered outside its closed type. Every other name is listed with its door, and a listed
+/// name nothing decides is a stale entry. The blend's names are
+/// distinct, since two decisions under one name would fuse two K rows.
+#[test]
+fn the_decided_names_are_the_blend_decisions_and_the_listed_doors() {
+    let census = census();
+    assert!(
+        census.names.contains("loft_stacking"),
+        "the reader found no funnel calls it should have: {:?}",
+        census.names
+    );
+    let blend: BTreeSet<&str> = BlendDecision::ALL.iter().map(|d| d.predicate()).collect();
+    assert_eq!(
+        blend.len(),
+        BlendDecision::ALL.len(),
+        "two blend decisions share a k_stats name"
+    );
+    let listed: BTreeSet<&str> = OTHER_DOORS.iter().map(|(n, _)| *n).collect();
+    assert_eq!(
+        listed.len(),
+        OTHER_DOORS.len(),
+        "a name is listed twice in OTHER_DOORS"
+    );
+    for (name, _) in OTHER_DOORS {
+        assert!(
+            census.names.contains(*name),
+            "`{name}` is listed as another door's, but nothing in the crate's src decides it \
+             — a stale entry"
+        );
+        assert!(
+            !blend.contains(name),
+            "`{name}` is listed as another door's and is a blend decision's name"
+        );
+    }
+    // The revolve clearance and the tube decide through closed types as
+    // the blend does, so their names are the types' and never a literal's.
+    let closed: BTreeSet<&str> = ClearanceDecision::ALL
+        .iter()
+        .map(|d| d.predicate())
+        .chain(TubeDecision::ALL.iter().map(|d| d.predicate()))
+        .collect();
+    assert_eq!(
+        closed.len(),
+        ClearanceDecision::ALL.len() + TubeDecision::ALL.len(),
+        "two closed decisions share a k_stats name"
+    );
+    for name in &census.names {
+        assert!(
+            !blend.contains(name.as_str()),
+            "`{name}` is a blend decision's name decided at a literal site, outside the \
+             blend's funnel"
+        );
+        assert!(
+            !closed.contains(name.as_str()),
+            "`{name}` is a closed decision's name decided at a literal site, outside its \
+             door's funnel"
+        );
+        assert!(
+            listed.contains(name.as_str()),
+            "`{name}` is decided in the crate's src and is neither a blend decision nor \
+             listed with its door"
+        );
+    }
+}
+
+/// **Each decision renders the lever its own refusals lead with, and no
+/// other decision's.**
+///
+/// Pinned against a table written independently of the match, and held
+/// complete against `BlendDecision::ALL`.
+#[test]
+fn every_decision_renders_its_own_lever_and_no_other() {
+    let paired: Vec<BlendDecision> = PAIRING.iter().map(|(d, _)| *d).collect();
+    assert_eq!(
+        paired,
+        BlendDecision::ALL,
+        "the pairing table and the closed set disagree"
+    );
+    for (decision, lever) in PAIRING {
+        let text = rendered(*decision, Some(decision.predicate()));
+        assert!(
+            text.contains(lever),
+            "{decision:?} should carry its own lever; it renders: {text}"
+        );
+        for (other_decision, other) in PAIRING {
+            assert!(
+                other == lever || !text.contains(other),
+                "{decision:?} renders the lever {other_decision:?} owns: {text}"
+            );
+        }
+    }
+}
+
+/// **The payload's name is data, never routing.**
+///
+/// An escalation reads by the decision it carries whatever name its
+/// payload holds — another decision's, one the crate never decides, or
+/// none — and never renders the gap sentence, which no blend refusal
+/// can reach.
+#[test]
+fn the_payloads_name_does_not_route_the_refusal() {
+    let decision = BlendDecision::RadiusHeadroom;
+    let own = rendered(decision, Some(decision.predicate()));
+    for name in [
+        Some(BlendDecision::ChainG1.predicate()),
+        Some("roster_unknown_probe"),
+        None,
+    ] {
+        let text = rendered(decision, name);
+        assert_eq!(text, own, "the payload's name {name:?} changed the refusal");
+        assert!(!text.contains(&MissingRecourse(name).to_string()), "{text}");
+    }
+}
+
+/// Every in-band reading either lane reports, on both sides of zero,
+/// with whether it is negative.
+fn in_band_readings() -> Vec<(MarginDiag, bool)> {
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    vec![
+        (MarginDiag::value(mid), false),
+        (MarginDiag::value(-mid), true),
+        (MarginDiag::enclosure(mid * 0.9, mid), false),
+        (MarginDiag::enclosure(-mid, -mid * 0.9), true),
+    ]
+}
+
+/// The decisions no smaller tolerance can truthfully be offered for:
+/// those that pass only at zero (a refused margin is a miss, D4 ¶1
+/// (i)), the contact edge's first-order wedge among them; the contact
+/// edge's arm, whose deciding tolerance decides the wedge it meters
+/// transverse unless that wedge reads zero; and the mitre's section,
+/// which relays three readings, two passing only at zero.
+const NO_TOLERANCE: &[BlendDecision] = &[
+    BlendDecision::ChainG1,
+    BlendDecision::SupportCoaxiality,
+    BlendDecision::ContactArm,
+    BlendDecision::ContactWedge,
+    BlendDecision::CapTransverse,
+    BlendDecision::TurnFeetGap,
+    BlendDecision::TurnOverrunChord,
+    BlendDecision::TurnFeet,
+    BlendDecision::MitreSection,
+];
+
+/// The decisions that pass on a negative sign as well as a positive one:
+/// the convexity sign on either side, and the contact edge's
+/// second-order separation on any definite sign.
+const TWO_SIDED: &[BlendDecision] = &[
+    BlendDecision::ConvexitySign,
+    BlendDecision::ContactSecondOrder,
+];
+
+/// **No tolerance is offered where none decides the margin passing**,
+/// on any in-band reading, whatever name its payload carries.
+#[test]
+fn a_decision_no_tolerance_decides_passing_is_offered_none() {
+    for decision in NO_TOLERANCE {
+        for (m, _) in in_band_readings() {
+            for name in [decision.predicate(), "dihedral_wedge"] {
+                let text = BlendError::Escalated {
+                    site: BlendSite::Chain,
+                    decision: *decision,
+                    source: Indeterminate {
+                        margin: m,
+                        ..escalation(Some(name))
+                    },
+                }
+                .to_string();
+                assert!(!text.contains("tighten"), "{decision:?} {m}: {text}");
+                assert!(text.contains(decision.lever()), "{decision:?} {m}: {text}");
+            }
+        }
+    }
+}
+
+/// **Each sized decision's pass set, read on both sides of zero**: an
+/// in-band reading is offered the tolerance exactly where the decision
+/// passes on that reading's sign, and never where it passes only at
+/// zero.
+#[test]
+fn an_in_band_reading_is_offered_the_tolerance_exactly_where_its_sign_passes() {
+    for decision in BlendDecision::ALL {
+        for (m, negative) in in_band_readings() {
+            let text = BlendError::Escalated {
+                site: BlendSite::Chain,
+                decision,
+                source: Indeterminate {
+                    margin: m,
+                    ..escalation(Some(decision.predicate()))
+                },
+            }
+            .to_string();
+            let want =
+                !NO_TOLERANCE.contains(&decision) && (!negative || TWO_SIDED.contains(&decision));
+            assert_eq!(
+                text.contains("tighten the tolerance below "),
+                want,
+                "{decision:?} {m}: {text}"
+            );
+        }
+    }
+}
+
+/// **`fillet3_chain_arm` tells one story on its band-decided arms**
+/// (D4 ¶1 (iv)): a junction arm decided zero ends as an in-band one
+/// does — the chain lever and the tolerance its own reading gives — and
+/// neither reads as an unreadable margin. The ending is pinned whole,
+/// and its offer followed: below the offered tolerance the same
+/// tangent junction passes. An offer at or below `EPS_MIN` is withheld
+/// (D4 ¶4), as the decided zero's is at CI's 1e-12 row, and the floor's
+/// sentence ends the refusal there.
+#[test]
+fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
+    use sweep::blend::battery::chain_g1;
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let k = b.escalate() / b.zero();
+    let v = topo::VertexKey::default();
+    let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    let short = b.zero() / 2.0;
+    for (arm, what) in [(mid, "in band"), (short, "decided zero")] {
+        let err = chain_g1(x, x, arm, v, b).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                BlendError::Escalated {
+                    decision: BlendDecision::ChainArm,
+                    ..
+                }
+            ),
+            "{what}: {err:?}"
+        );
+        let text = err.to_string();
+        assert!(
+            !text.contains(geom_core::UNREADABLE_MARGIN_NOTE),
+            "{what}: a short link is the caller's geometry: {text}"
+        );
+        let ending = geom_core::MarginDiag::value(arm).sized_recourse(
+            b,
+            geom_core::SizedWords {
+                lever: sweep::blend::FILLET3_CHAIN_RECOURSE,
+                size: "link length",
+                passes: geom_core::SizedPass::Positive,
+                no_size: None,
+                unreadable: geom_core::UNREADABLE_MARGIN_NOTE,
+                refused: geom_core::RefusedReading::AsShown,
+            },
+        );
+        assert!(text.ends_with(&ending), "{what}: {text}");
+        // Follow the offer, where there is one: below it the junction
+        // passes.
+        let Some(offered) = b.offer_deciding(arm) else {
+            continue;
+        };
+        let tighter = Band::new(offered / 2.0, offered / 2.0 * k).expect("a tighter band");
+        chain_g1(x, x, arm, v, tighter)
+            .unwrap_or_else(|e| panic!("{what}: below the offer the junction passes: {e}"));
+    }
+}
+
+/// **The convexity sign's tolerance offer names its margin as a length**:
+/// the dihedral's sine levered by the arm, "wedge opening", in metres.
+#[test]
+fn the_convexity_sign_offer_names_the_wedge_opening() {
+    let b = Band::linear(Tol::witness()).expect("the run's band forms");
+    let mid = (b.zero() + b.escalate()) / 2.0;
+    let text = BlendError::Escalated {
+        site: BlendSite::Chain,
+        decision: BlendDecision::ConvexitySign,
+        source: escalation(Some(BlendDecision::ConvexitySign.predicate())),
+    }
+    .to_string();
+    assert!(
+        text.ends_with(&format!(
+            "Recourse: {}, or, if this wedge opening is intended, tighten the tolerance below \
+             {:e} m",
+            sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+            mid / (b.escalate() / b.zero())
+        )),
+        "{text}"
+    );
+}
+
+/// **Nothing in the crate's `src` is invisible to the reader.**
+///
+/// A name built somewhere other than the call — a const, a struct
+/// field, a `concat!` — is exactly the name a census misses, and two
+/// hand-rolled readers were defeated that way before the shared one
+/// existed. So the reader reports rather than skips, and each kind of
+/// report is a red row here: an indirect site whose carrier nobody has
+/// declared, a spelling it cannot parse, and a file it does not walk.
+#[test]
+fn nothing_in_src_is_invisible_to_the_reader() {
+    let census = census();
+    let declared: BTreeSet<String> = INDIRECT.iter().map(|(site, _)| site.to_string()).collect();
+    assert_eq!(
+        census.indirect, declared,
+        "the funnel calls whose name the reader cannot read at the site are not the ones \
+         declared in INDIRECT"
+    );
+    assert!(
+        census.unreadable.is_empty(),
+        "a `decide*` call is spelled in a way the reader cannot parse, so the gate it names \
+         is outside the roster: {:?}",
+        census.unreadable
+    );
+    assert!(
+        census.unwalked.is_empty(),
+        "an `include!` or `#[path]` pulls source into this crate from a file the reader does \
+         not walk, so a gate there is outside the roster: {:?}",
+        census.unwalked
+    );
+}
+
+/// **`split_edge`'s in-band interiority reads whole through the blend's
+/// operator door**, on a constructed value (no blend fixture reaches
+/// the band): the decision as its subject, one recourse the blend can
+/// take — the geometry, and the tolerance the positive margin gives —
+/// and no declaration, which a blend does not take. The split's and
+/// the Boolean's doors have their rows in `topo`
+/// (`boolean::refusal_routes`).
+#[test]
+fn the_split_param_escalation_reads_whole_through_the_blend_door() {
+    use test_utils::refusal::{recourse_markers, stage_prefixes, subjectless_escalations};
+    let text = BlendError::Op {
+        site: "meridian split",
+        source: Box::new(topo::EulerOpError::SplitParamEscalated {
+            edge: topo::EdgeKey::default(),
+            diag: escalation(Some("split_edge_param_interior")),
+        }),
+    }
+    .to_string();
+    assert_eq!(recourse_markers(&text), 1, "{text}");
+    assert!(subjectless_escalations(&text).is_empty(), "{text}");
+    assert!(stage_prefixes(&text, &[]).is_empty(), "{text}");
+    let band = Band::linear(Tol::witness()).expect("the run's band forms");
+    let below = (band.zero() + band.escalate()) / 2.0 / (band.escalate() / band.zero());
+    assert!(
+        text.contains("whether a crossing lands strictly inside its edge is undecided: margin ")
+            && text.ends_with(&format!(
+                "Recourse: move the geometry so the crossing lands clearly away from the edge's \
+                 ends, or, if this distance from the edge's end is intended, tighten the \
+                 tolerance below {below:e} m",
+            ))
+            && !text.contains("declare"),
+        "{text}"
+    );
+}

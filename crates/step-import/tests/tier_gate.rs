@@ -1,0 +1,1385 @@
+//! **M7-7 acceptance: the shared at-rest gate over the whole corpus**
+//! (issue #260, ruling (a)).
+//!
+//! Since M7-7, `import_step` hands each `MANIFOLD_SOLID_BREP` on its
+//! own body, and then the assembled body, to
+//! `topo::validate_geometric` — the kernel's own at-rest validator,
+//! the same function a native body's caller runs — and ships only
+//! bodies it passes. This suite is the per-file record of what that
+//! means, for EVERY committed STEP file the workspace holds: the two
+//! fixture roots are walked, so a fixture added without a row here
+//! turns this suite red rather than quietly escaping the gate.
+//!
+//! Three things are asserted per file at the file's own declared ε_in,
+//! and additionally at the overrides 1e-6 / 1e-12 for the files
+//! [`EPS_IN_SWEPT`] names — measured 2026-08-22 to be the only ones
+//! whose outcome moves with ε_in at all. See that constant for the
+//! measurement and for what the reduction gives up:
+//!
+//! * **the disposition** — solid, wireframe, or a typed refusal with
+//!   its reason. Every file in [`CORPUS`] not marked `EpsSensitive`
+//!   holds ONE disposition across the whole matrix, and that
+//!   constancy is the claim; the counts are [`CORPUS`]'s own length
+//!   and the `EpsSensitive` markers in it, so they are not
+//!   transcribed here. The `EpsSensitive` files are pinned cell by
+//!   cell in [`EPS_ROWS`], each cell carrying the live signature of the
+//!   sub-reason that actually fires there — because a row that may
+//!   Pass at one ambient ε and refuse typed at another can otherwise
+//!   be green for the wrong reason. No ε is ever special-cased into
+//!   silence: a refusal that fires at a tighter tolerance is pinned AS
+//!   the honest posture, and the reason it moved is written down;
+//! * **tier-validity of every shipped body, positively** — the gate is
+//!   re-run on the body `import_step` handed out. That is redundant
+//!   only while the gate is wired: delete or narrow the call and these
+//!   rows are what catches the invalid body going out the door; and
+//! * **the census of every shipped body**, which is what makes the
+//!   rows able to see entity loss at all (R1 MINOR-2: a `take(1)` in
+//!   `build_body` used to leave this whole suite green). Four corpus
+//!   files carry two solids each — `compound_two`,
+//!   `twobody_importexport`, `cq_red_cube_blue_cylinder`,
+//!   `kiss_assembly` — so the solid counts are also the standing
+//!   evidence that the per-solid pass runs on real corpus geometry.
+//!
+//! **Scope** (R1 MINOR-1, RESOLVED in M9-2): the aggregate gate is
+//! now the tier-3′ form, recording what it finds between solids
+//! (D7 step 4, `topo::record_at_rest`) — an imported assembly whose
+//! parts touch with vertex/line/planar boundary evidence certifies
+//! with its touches recorded (`kiss_assembly`'s row below and
+//! `review_r1_tier_gate_probes.rs`), and one whose parts overlap
+//! refuses; cross-solid
+//! curved proximity and nested instance extents refuse UNDECIDABLE
+//! (the census's conservative backstop); the full class-by-class
+//! reach is the census module docs' envelope statement.
+//!
+//! **Measured (M7-7), at the ambient default:** no committed corpus
+//! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
+//! unit (one of them, `band_c180`, at the gate itself — the inside-out
+//! torus band, refusing now through the general mechanism that
+//! replaced its band-only backstop), and one file is a wireframe.
+//! The one body class the gate newly refuses is the
+//! rational-walled loft, which has no committed fixture and whose row
+//! lives in `nurbs_import.rs`.
+//!
+//! **S58 / #649 (2026-08-19) added four rows**, #649's own fixtures:
+//! `iso-rect/cross.step` and `iso-rect/tee.step`, valid solids whose
+//! cylinder walls have a plus- and a T-shaped domain, and
+//! `iso-rect/rect.step` / `iso-rect/xsplit.step`, the controls. All
+//! four pass: a cylinder wall's flux is its chart Green form, which
+//! measures any rim-and-ruling domain exactly (the cross once measured
+//! 19% low under the span-sum rule).
+//!
+//! **Issue 723 (2026-08-29) added the two `halfcap/` rows; one of
+//! them is a newly-passing body class.** Both twins are the same
+//! half-of-a-spherical-cap solid whose sphere face's meridian side is
+//! a pole-crossing great-circle arc. `halfcap.step` (the arc split by
+//! one ordinary vertex) USED to pass this gate and then measure 47%
+//! low with `pad = 0.0`; `halfcap_nosplit.step` USED to refuse
+//! `DegenerateFace` on the endpoint fold's `lo == hi`. With the
+//! sphere's `v`-extent derived from each arc's stored span, both pass
+//! and `halfcap_pole.rs` holds both to the exact closed-form volume.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::path::{Path, PathBuf};
+
+use Disposition::{EpsSensitive, Escalated, Pass, Refused, Wireframe};
+use geom_core::{Band, Tol};
+use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use test_utils::vacuity::Exposure;
+
+/// What a corpus file does at import, at every tolerance in the sweep.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Disposition {
+    /// Imports as a solid, and the shipped body passes the gate, with
+    /// this census: (solids, shells, faces, edges, vertices).
+    ///
+    /// The census is not decoration. A disposition alone cannot see a
+    /// reader that silently drops solids — the R1 review's `take(1)`
+    /// mutation of `build_body` left this suite entirely green — and
+    /// the solid count is exactly the number the per-solid gate now
+    /// iterates, so a body arriving with fewer solids than the file
+    /// states means fewer solids were gated.
+    Pass(usize, usize, usize, usize, usize),
+    /// Imports as a curve-set wireframe (no body, nothing to gate).
+    Wireframe,
+    /// Refuses typed; the string is a distinctive fragment of the
+    /// refusal's own message, so the ROW says why, not just that.
+    Refused(&'static str),
+    /// Refuses typed on an escalation of the named predicate, with the
+    /// message containing the fragment (empty: any message). The name
+    /// is routing, which the message a person reads leaves out, so it
+    /// is read off the typed refusal's `Debug`.
+    Escalated(&'static str, &'static str),
+    /// This file's disposition genuinely MOVES with the ambient ε, and
+    /// its cells are pinned one by one in [`EPS_ROWS`] — a marker, not
+    /// an outcome, so no cell of it can be satisfied by accident.
+    EpsSensitive,
+}
+
+/// The ambient tolerances this suite pins cell by cell — the hosted
+/// matrix's three rows (`CAD_TOLERANCE_EPS` unset, `1e-6`, `1e-12`).
+const PINNED_AMBIENT: [f64; 3] = [geom_core::tolerance::DEFAULT_EPS, 1e-6, 1e-12];
+
+/// The `eps_in` overrides swept per ambient row, tagged as the failure
+/// messages name them. **Index 0 is the default row** — the file's own
+/// declared ε_in, the one every corpus file is swept at
+/// unconditionally; [`eps_in_rows_for`] slices from here.
+const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
+    [("file", None), ("1e-6", Some(1e-6)), ("1e-12", Some(1e-12))];
+
+/// **The files swept at all three ε_in tags.** Every other corpus file
+/// is imported once, at its own declared ε_in.
+///
+/// This is the 2026-08-13 audit's dm1 exemption, generalised on a
+/// measurement rather than on cost alone.
+///
+/// # What the ε_in sweep is FOR, and why one file carries it
+///
+/// ε_in is the INTERPRETATION tolerance — the budget the adoption
+/// ladder spends deciding what a file's carriers certify AS. It can
+/// only change a disposition for a file with something sitting near
+/// that budget. Every committed file but one states itself to full
+/// double precision and certifies with enormous margin, so its
+/// disposition is a constant function of ε_in — which the sweep was
+/// re-measuring 61 times a run, at every ambient band. `ftc11_uref_off`
+/// is the exception BY CONSTRUCTION: it is the deliberately degenerate
+/// band fixture, whose ~1.6e-6 m seam residual is engineered to sit
+/// where a tolerance decides it.
+///
+/// # The measurement, taken rather than assumed (2026-08-22)
+///
+/// Every file in [`CORPUS`] was imported at all three ε_in tags at all
+/// three [`PINNED_AMBIENT`] bands — 558 imports — and the outcomes
+/// compared in FULL: the whole census for a solid, the whole refusal
+/// message for a refusal, not the coarse [`Disposition`] class. Across
+/// the entire corpus **exactly one file's outcome moves with ε_in**,
+/// and it is `ftc11_uref_off` (`file` imports, its generator a wrap
+/// edge at the rim vertices' azimuth; `1e-6` and `1e-12` reached the
+/// intersection arm, the param span, or passed — see [`EPS_ROWS`],
+/// where since U-lever they pass at every band but 1e-6). The other 61
+/// are invariant to the byte.
+///
+/// Comparing full messages rather than classes is what makes that
+/// negative result worth acting on: a file that changed WHY it refused
+/// while staying `Refused` would have shown up here.
+///
+/// # What it costs, said plainly, and what is NOT lost
+///
+/// Given up: the EXECUTED per-run re-measurement of ε_in-invariance for
+/// 61 files. It is a recorded finding now, not a live one, exactly as
+/// dm1's has been since 2026-08-13. A file that BECOMES ε_in-sensitive
+/// would go unnoticed until someone re-takes the measurement above.
+///
+/// Not given up: the AMBIENT sweep, which is the axis these files
+/// actually move on, and which still runs on every file at every band;
+/// every file's disposition, census and refusal reason at its own
+/// declared ε_in, every run; and the full ε_in sweep on the one file
+/// that is ε_in-sensitive, still pinned cell by cell in [`EPS_ROWS`].
+///
+/// Measured saving: ~2.8 s of this row's ~8.1 s at CI's opt-2 settings
+/// (4-vCPU box, 2026-08-22; CI's 2-vCPU runner differs). `dm1` was
+/// already exempt and is not in the figure.
+const EPS_IN_SWEPT: [&str; 1] = [FTC11];
+
+/// The `eps_in` rows THIS file is swept at — see [`EPS_IN_SWEPT`] for
+/// the measurement that decides which files get all three.
+fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
+    if EPS_IN_SWEPT.contains(&rel) {
+        &EPS_IN_ROWS
+    } else {
+        &EPS_IN_ROWS[..1]
+    }
+}
+
+/// **The ε-row pins.** Ten corpus files' dispositions are a function
+/// of the ambient ε, and hiding that behind one row per file would make
+/// the suite either red for an honest reason or green for a wrong one.
+/// Each cell is `(file, ambient ε, eps_in row, disposition)`; the
+/// coverage test below holds this table to exactly one cell per
+/// (`EpsSensitive` file × [`PINNED_AMBIENT`] × the ε_in rows that file
+/// is actually swept at, per [`eps_in_rows_for`]), and to nothing else,
+/// so a pin can neither go missing nor rot unread — and a cell for a
+/// combination that no longer runs is red, not silently unread.
+///
+/// Both movements are the kernel deciding HONESTLY at the tolerance it
+/// was given, and the fragments below are each sub-reason's own live
+/// signature, never the shared preamble:
+///
+/// * **`ftc11_uref_off`** is the deliberately-degenerate band fixture:
+///   its rim vertices sit ~1.6e-6 m off the surface's `u_ref` azimuth.
+///   At its own ε_in the band's minted generator runs through them and
+///   is the wall's wrap edge there (D1: a wrap edge sits where the
+///   construction cut), so it imports at every ambient band. At the
+///   finer ε_in overrides the offset is past the mint's vertex budget,
+///   so the mint splits the rims at the `u_ref` azimuth and leaves a
+///   1.6e-6 m edge beside each rim vertex: at ambient 1e-6 that span
+///   lands INSIDE the ambiguity band and the refusal is an ESCALATION;
+///   at ambient 1e-9 and 1e-12 it is outside every band, and the file
+///   imports. Until the wedge between an edge's faces was levered at
+///   the faces' extent (`topo::wedge_reach`, TANG's U-lever) the
+///   1e-9 cells refused there too: the Intersection transversality
+///   precondition read the two walls' angle at the 1.6e-6 m edge's own
+///   length, where they read as one ("tangent planes coincide"); at the
+///   walls' extent they cross clearly.
+/// * **`nist_ftc_09_asme1_rd`** refuses at ambient 1e-12 with definite
+///   `EndpointStart` residuals on both the seam and the mapped-curve
+///   arm. This is the floor `wild.rs` already measures and documents:
+///   the NIST inch translator prints ~12 significant digits, so the
+///   file does not state itself to 1e-12 m, and the adoption ladder
+///   says so by name instead of certifying a carrier it cannot. The
+///   miss lies within the file's declared ε_in, so the refusal names
+///   setting ε to ε_in as a stopgap beside re-exporting more precisely
+///   (D4 ¶1).
+const EPS_ROWS: [(&str, f64, &str, Disposition); 36] = [
+    // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). At ambient 1e-6 both
+    // twins refuse at EDGE ADOPTION — the rim/plane wedge angle's
+    // certification margin (~8.6e-6 rad) is inside the ambiguity
+    // band, so no props arithmetic is even reached; at the default
+    // and fine bands both certify with the exact closed-form volume
+    // (`cert1_r1_import_probes.rs` holds the value), the split twin
+    // with its ordinary vertex joined, so with the no-split census.
+    // Each meridian arc crosses the pole, which import makes a vertex
+    // (`chart_singularity_vertex.rs`), so the census is that of the arc
+    // split there.
+    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
+    (
+        NEARPOLAR_SPLIT,
+        1e-6,
+        "file",
+        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
+    ),
+    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
+    (
+        NEARPOLAR_NOSPLIT,
+        1e-6,
+        "file",
+        Escalated(NEARPOLAR_WEDGE_ESCALATED.0, NEARPOLAR_WEDGE_ESCALATED.1),
+    ),
+    (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
+    (FTC11, 1e-9, "file", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-9, "1e-6", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-9, "1e-12", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-6, "file", Pass(1, 1, 6, 12, 8)),
+    (
+        FTC11,
+        1e-6,
+        "1e-6",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        FTC11,
+        1e-6,
+        "1e-12",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (FTC11, 1e-12, "file", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 12, 8)),
+    (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 12, 8)),
+    // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
+    // The AMBIENT sweep only, at this file's own ε_in — the same shape
+    // dm1 took in 2026-08-13, for the same reason and on the same kind
+    // of evidence. It was nine cells until 2026-08-22; the six dropped
+    // ones were the `1e-6` and `1e-12` ε_in tags, and each held the
+    // SAME disposition, census and refusal message as the `file` tag
+    // beside it at every band. This file is AMBIENT-sensitive and
+    // ε_in-INVARIANT, and those are different axes: what moves it is
+    // that the NIST inch translator prints ~12 significant digits, so
+    // at ambient 1e-12 the file does not state itself finely enough —
+    // a property of the file against the ambient band, which no
+    // interpretation budget in this sweep touches. See [`EPS_IN_SWEPT`].
+    (NIST09, 1e-9, "file", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
+    (NIST09, 1e-12, "file", Refused(NIST09_STOPGAP)),
+    // -- tests/fixtures/halfcap/halfcap_eps{6,7}.step (Ev, PR 4251) ---
+    // The AMBIENT sweep only, at the files' own ε_in. The split vertex
+    // sits 1e-8 m (eps6) and 1e-9 m (eps7) off the pole, and whether
+    // it IS the pole is import's first reading, at the coarser of the
+    // file's band and the run's: at 1e-6 it reads AT the pole, so the
+    // pole is already a vertex and the file ships as stated; at the
+    // default band it lies in the band of the pole and the import
+    // refuses rather than guess; at 1e-12 it is off the pole, so the
+    // arc is split there and the vertex, a regular point, joined.
+    (HALFCAP_EPS6, 1e-9, "file", Refused(HALFCAP_EPS6_POLE)),
+    (HALFCAP_EPS6, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
+    (HALFCAP_EPS6, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (HALFCAP_EPS7, 1e-9, "file", Refused(HALFCAP_EPS7_POLE)),
+    (HALFCAP_EPS7, 1e-6, "file", Pass(1, 1, 3, 4, 3)),
+    (HALFCAP_EPS7, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
+    // The AMBIENT sweep only, at this file's own ε_in: three cells,
+    // all at the pcurve MINT on the l-bracket wall's ARC rim.
+    //
+    // They used to be the RATIONAL FLUX STALL at the two fine bands
+    // and the convergence predicate's ESCALATION at the coarse one —
+    // both the at-rest gate chasing a PRECISION, finished since
+    // Tier 3's check 7 reads a SIGN (this file's volume enclosure
+    // excludes zero at round 0 at every band) — and then the ladder's
+    // `#389` gap those had masked. That gap is RETIRED (#388):
+    // degree-1 carriers promote to `Curve3::Line` and the promoted
+    // slit holds its wall's boundary-column candidate in either
+    // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
+    // witness). What every band meets now is the frontier past it:
+    // wall `#382` states its circle as four rational spans whose end
+    // weights are 1 and 2 (unnormalized), against three-arc rational
+    // rim circles. Since the import splits the wall at its C⁰ knots,
+    // each sub-patch is one such span, and the arc-rim pick finds no
+    // row holding the rim circle at its probe; before the split, the
+    // whole-chart arc-rim construction refused the same rim at its
+    // residual (`MapResidual`).
+    //
+    // It was nine cells until the 2026-08-13 test-time audit — the six
+    // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
+    // held the SAME disposition as the `file` tag beside them, at every
+    // band: ε_in moved nothing, which was itself the measurement
+    // (recognition certifies this file's carriers with ~14 decades of
+    // margin, so no interpretation budget in this sweep changes what is
+    // promoted). That measurement is now RECORDED here rather than
+    // re-executed every run; see [`eps_in_rows_for`] for what the
+    // three imports it cost were buying and what was given up.
+    (DM1, 1e-9, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-6, "file", Refused(ARC_RIM_NOT_HELD)),
+    (DM1, 1e-12, "file", Refused(ARC_RIM_NOT_HELD)),
+    // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). The near-pole feature is
+    // 0.9e-9 m by construction, so which certification refuses is a
+    // function of the ambient band alone: the span escalates in the
+    // default band's indeterminate zone and certifies ZERO at 1e-6. At
+    // 1e-12 the pole the feature sits beside is read before any of it:
+    // 0.9e-9 m is inside the file's band (ε_in = 1e-10 m, K·ε_in =
+    // 1e-9 m), so whether it is a vertex of the face is undecided and
+    // the import refuses, its ending naming the file's coincidence
+    // distance (`chart_singularity_vertex.rs`); the pcurve
+    // re-mint that refused there before is no longer reached —
+    // `poleguard.rs` holds the route argument.
+    (
+        POLEBAND,
+        1e-9,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_TOLD)),
+    (POLEBAND, 1e-12, "file", Refused(POLEBAND_POLE_IN_FILE_BAND)),
+    // The ε-relative sibling's cells mirror the twins' one band down:
+    // its 5.65e-12 m span escalates exactly where the band is 1e-12
+    // and certifies ZERO at both coarser bands.
+    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_ZERO_SPAN_UNTOLD)),
+    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN_UNTOLD)),
+    (
+        POLEBAND12,
+        1e-12,
+        "file",
+        Escalated(PARAM_SPAN_UNTOLD, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        POLEFRUSTUM,
+        1e-9,
+        "file",
+        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+    ),
+    (
+        POLEFRUSTUM,
+        1e-6,
+        "file",
+        Refused(POLEFRUSTUM_ZERO_SPAN_TOLD),
+    ),
+    (
+        POLEFRUSTUM,
+        1e-12,
+        "file",
+        Refused(POLEFRUSTUM_POLE_IN_FILE_BAND),
+    ),
+];
+
+const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
+const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
+/// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
+/// angle's adoption certification, by predicate name, so a regression
+/// that moves the refusal to another door fails these cells.
+const NEARPOLAR_WEDGE_ESCALATED: (&str, &str) =
+    ("the crossing angle at sample 1 escalated", "dihedral_wedge");
+const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
+const POLEBAND: &str = "tests/fixtures/poleguard/poleband.step";
+const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
+const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
+/// The poleguard twins' coarse-band sub-reason: the sub-band span
+/// certifies zero, and the attachment gate refuses the interval by name,
+/// printing the span — the span's Zero verdict, not a reversed one. The
+/// span is a real edge shorter than the tolerance, a band-decided arm
+/// like every sized decision's, and certification at adoption reads as
+/// at rest (D4 ¶1): each twin's span lies past its file's ε_in
+/// (1e-10 m), so the file tells it from zero and the offer to tighten
+/// stands, valued — the value is the span over K, so it pins the span.
+/// A span of no length is refused as the interval the adoption's mint
+/// was handed instead, in the lever alone, which the offer's words
+/// cannot match.
+const POLEBAND_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
+     forward (length 5.654866773844621e-9 m). Recourse: move the geometry so this \
+     edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
+     below 5.654866773844621e-10 m";
+/// [`POLEBAND_ZERO_SPAN_TOLD`], for the frustum twin's shorter span.
+const POLEFRUSTUM_ZERO_SPAN_TOLD: &str = "the stored parameter interval is not shown to run \
+     forward (length 1.799999999166981e-9 m). Recourse: move the geometry so this \
+     edge runs forward over a clear length, or, if this length is intended, tighten the tolerance \
+     below 1.799999999166981e-10 m";
+/// The ε-relative sibling at every band: its span lies within the
+/// file's ε_in (1e-10 m), so the file cannot tell it from zero, and the
+/// import door ends it in one sentence whether the run's band reads it as
+/// zero (the coarse bands, this fragment) or in band (the fine one,
+/// [`PARAM_SPAN_UNTOLD`]): the lever, or both steps that keep the
+/// span together — declare the file's uncertainty below it, and tighten
+/// below it over K (D4 ¶1). The values pin the span.
+const INTERVAL_ZERO_SPAN_UNTOLD: &str = "the stored parameter interval is not shown to run \
+     forward (length 5.65487109168879e-12 m). This length is within the file's \
+     declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it from zero. \
+     Recourse: move the geometry so this edge runs forward over a clear length, or, if this length \
+     is intended, re-export the file with its uncertainty declared below 5.65487109168879e-12 m \
+     and tighten the tolerance below 5.65487109168879e-13 m";
+/// [`INTERVAL_ZERO_SPAN_UNTOLD`]'s sentence on the fine band's
+/// escalation of the same span.
+const PARAM_SPAN_UNTOLD: &str = "lies inside the ambiguity band (1e-12, 1e-11). This length is \
+     within the file's declared coincidence distance ε_in = 1e-10 m, so the file cannot tell it \
+     from zero. Recourse: move the geometry so this edge runs forward over a clear length, or, if \
+     this length is intended, re-export the file with its uncertainty declared below \
+     5.65487109168879e-12 m and tighten the tolerance below 5.65487109168879e-13 m";
+// dm1's `#389` polyline gap ("edge #389: no intensional description
+// certifies", with an empty attempt list) is RETIRED, by execution and
+// not by unreachability: degree-1 carriers promote to `Curve3::Line`
+// (#388) and a promoted slit holds its wall's boundary-column
+// candidate in either traversal order —
+// `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
+// the component that carries `#389` and gets past every polyline edge.
+/// dm1's frontier at every band: the pcurve mint on the l-bracket
+/// wall's arc rim, split at its C⁰ knots into one-span sub-patches
+/// whose rows state the circle with end weights 1 and 2, and the
+/// arc-rim pick holds no row at its probe. Named
+/// specifically so a refusal that drifted to a different door cannot
+/// stand in.
+const ARC_RIM_NOT_HELD: &str = "not an arc rim of this chart";
+const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
+const HALFCAP_EPS6: &str = "tests/fixtures/halfcap/halfcap_eps6.step";
+const HALFCAP_EPS7: &str = "tests/fixtures/halfcap/halfcap_eps7.step";
+/// The halfcap near-pole twins' default-band refusal: the split vertex
+/// lies in the RUN's band of the pole, so whether the pole is a vertex
+/// of the face is undecided, and the import door ends the sized
+/// decision with its margin and the tolerance that decides it. Pinned
+/// as the whole message, face, margin, band and number included.
+const HALFCAP_EPS6_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
+     or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
+     one of its vertices is undecided: margin 9.999999999789241e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
+     vertex, onto that point or clear of it, or, if this distance is intended, tighten \
+     the tolerance below 9.999999999789241e-10 m";
+/// As [`HALFCAP_EPS6_POLE`], for the twin a decade nearer the pole.
+const HALFCAP_EPS7_POLE: &str = "step import: face #56: whether a sphere pole or cone apex, \
+     or where a meridian minted from one meets a face's boundary, lies on that boundary or at \
+     one of its vertices is undecided: margin 1.0000000011961913e-9 \
+     lies inside the ambiguity band (1e-9, 1e-8). Recourse: move the face's boundary, or its \
+     vertex, onto that point or clear of it, or, if this distance is intended, tighten \
+     the tolerance below 1.0000000011961913e-10 m";
+/// The poleguard twins' fine-band refusal: at 1e-12 the run's band
+/// reads their 0.9e-9 m distance clear, and the FILE's band, `(ε_in,
+/// K·ε_in)`, cannot call it, so no tolerance decides it and the ending
+/// names the file's coincidence distance instead.
+const POLEBAND_POLE_IN_FILE_BAND: &str = "step import: face #50: whether a sphere pole or cone \
+     apex, or where a meridian minted from one meets a face's boundary, lies on that boundary \
+     or at one of its vertices is undecided: margin \
+     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
+     face's boundary, or its vertex, onto that point or clear of it, or, if this \
+     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
+     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance, which no tolerance of this run decides";
+/// As [`POLEBAND_POLE_IN_FILE_BAND`], for the frustum twin.
+const POLEFRUSTUM_POLE_IN_FILE_BAND: &str = "step import: face #70: whether a sphere pole or \
+     cone apex, or where a meridian minted from one meets a face's boundary, lies on that \
+     boundary or at one of its vertices is undecided: margin \
+     8.999999995834914e-10 lies inside the ambiguity band (1e-10, 1e-9). Recourse: move the \
+     face's boundary, or its vertex, onto that point or clear of it, or, if this \
+     distance is intended, re-export the file with a smaller declared uncertainty (or pass a \
+     smaller ε_in override): the distance lies in the band past the file's coincidence \
+     distance, which no tolerance of this run decides";
+
+/// At ambient 1e-6 the file's own span decision is in-band too, and it
+/// is reached first — at assembly, before any edge is adopted.
+const PARAM_SPAN_ESCALATED: (&str, &str) = (
+    "the stored parameter interval's length (not a sampled check) escalated",
+    "interval_span_forward",
+);
+/// The MAPPED-CURVE arm's definite miss, read at the import door by its
+/// own value: it lies within the file's ε_in (its inch uncertainty,
+/// 1.331353158630e-3 in), so the ending names setting ε to ε_in as a
+/// stopgap (D4 ¶1) rather than a kernel defect or a damaged file.
+const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-endpoint residual \
+     at sample 0 definitely exceeds the tolerance band (the cache does not represent the \
+     description, D4 ¶2). This miss lies beyond the tolerance and within the file's declared \
+     coincidence distance ε_in = 3.3816370229201994e-5 m, to which alone the file's data claims \
+     to agree. Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance \
+     to ε_in = 3.3816370229201994e-5 m";
+
+/// Every committed STEP file, with the disposition measured at M7-7.
+/// Paths are relative to this crate's manifest directory (the `../`
+/// rows are `step-export`'s corpus, which this crate imports from).
+const CORPUS: [(&str, Disposition); 91] = [
+    ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
+    ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
+    ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
+    (
+        "tests/fixtures/band/band_c180.stp",
+        Refused("shared at-rest validation gate"),
+    ),
+    (
+        "tests/fixtures/band/band_d180.stp",
+        Refused("ORIENTATION-INVERTED cylinder band"),
+    ),
+    (
+        "tests/fixtures/band/band_d_invcyl.stp",
+        Refused("ORIENTATION-INVERTED cylinder band"),
+    ),
+    ("tests/fixtures/band/ftc11_uref_off.stp", EpsSensitive),
+    ("tests/fixtures/band/washer180.stp", Pass(1, 1, 3, 3, 2)),
+    ("tests/fixtures/band/washer90.stp", Pass(1, 1, 3, 3, 2)),
+    // The C⁰-knot split: each wall is two sub-patches, each ridge edge
+    // two sub-arcs and each cone rim two arcs, and a knot on an edge alone
+    // is a vertex the closing join keeps
+    // (`a_foreign_carrier_splits_at_each_c0_knot`).
+    ("tests/fixtures/c0-knot/half_cone.step", Pass(1, 1, 5, 9, 6)),
+    ("tests/fixtures/c0-knot/ridge_u.step", Pass(1, 1, 7, 15, 10)),
+    ("tests/fixtures/c0-knot/ridge_v.step", Pass(1, 1, 7, 15, 10)),
+    (
+        "tests/fixtures/c0-knot/seam_edge.step",
+        Pass(1, 1, 6, 13, 9),
+    ),
+    ("tests/fixtures/freecad/box.step", Pass(1, 1, 6, 12, 8)),
+    (
+        "tests/fixtures/freecad/box_fillet_corner.step",
+        Pass(1, 1, 10, 21, 13),
+    ),
+    (
+        "tests/fixtures/freecad/box_fillet_edge.step",
+        Pass(1, 1, 7, 15, 10),
+    ),
+    (
+        "tests/fixtures/freecad/box_hole.step",
+        Pass(1, 1, 7, 15, 10),
+    ),
+    (
+        "tests/fixtures/freecad/box_importexport.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/freecad/compound_two.step",
+        Pass(2, 2, 8, 14, 10),
+    ),
+    ("tests/fixtures/freecad/cone_apex.step", Pass(1, 1, 3, 4, 3)),
+    (
+        "tests/fixtures/freecad/cone_trunc.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    ("tests/fixtures/freecad/cylinder.step", Pass(1, 1, 3, 3, 2)),
+    (
+        "tests/fixtures/freecad/fuse_boxes.step",
+        Pass(1, 1, 14, 32, 20),
+    ),
+    ("tests/fixtures/freecad/sphere.step", Pass(1, 1, 2, 2, 2)),
+    ("tests/fixtures/freecad/torus.step", Pass(1, 1, 1, 2, 1)),
+    (
+        "tests/fixtures/freecad/twobody_importexport.step",
+        Pass(2, 2, 8, 14, 10),
+    ),
+    // -- tests/fixtures/cert1-r1/ (reviewer probes, adopted) ----------
+    // R1's adversarial near-polar variants of the halfcap generator:
+    // `nearpolar_*` puts the rim 0.0208 rad off the pole; `polesplit_*`
+    // is issue 723's body with the split vertex EXACTLY on the pole
+    // (the pole-membership decide sits on its Zero through this door).
+    // `cert1_r1_import_probes.rs` holds all four to the closed form.
+    // Every one states a meridian arc across the pole or ending at it;
+    // where the pole lies inside the arc, import splits it there
+    // (`chart_singularity_vertex.rs`), so all four ship one census.
+    // The nearpolar twins are AMBIENT-sensitive: their rim sits
+    // 0.0208 rad off the pole on a 0.208 mm circle, and at ambient
+    // 1e-6 the rim/plane wedge angle's adoption margin (~8.6e-6)
+    // lands in the escalation band — the coarse band honestly cannot
+    // tell this near-tangency from a tangency. Pinned cell by cell
+    // in `EPS_ROWS`.
+    (
+        "tests/fixtures/cert1-r1/nearpolar_nosplit.step",
+        EpsSensitive,
+    ),
+    ("tests/fixtures/cert1-r1/nearpolar_split.step", EpsSensitive),
+    (
+        "tests/fixtures/cert1-r1/polesplit_nosplit.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/cert1-r1/polesplit_split.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    // -- tests/fixtures/halfcap/ (issue 723) --------------------------
+    // Half of a spherical cap, whose sphere face's meridian side is one
+    // POLE-CROSSING great-circle arc — the sphere's v-extent must come
+    // from the arc's stored span, not its endpoint latitudes. The two
+    // twins are the same solid; the split one carries one ordinary
+    // vertex on the arc. That vertex once flipped the disposition —
+    // no-split refused degenerate (endpoint fold saw lo == hi) while
+    // split MEASURED, tier 3 green, 47% low at pad = 0.0. Both now
+    // pass, and `halfcap_pole.rs` holds both to the exact closed-form
+    // volume. The arc holds the pole inside it, which import makes a
+    // vertex (`chart_singularity_vertex.rs`); the split twin's ordinary
+    // vertex is joined at import (`docs/DESIGN.md`, maximal edges), so
+    // it ships the no-split twin's census.
+    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 4, 3)),
+    // The near-pole split twins: the same solid with the ordinary
+    // vertex 1e-6 / 1e-7 rad off the pole, ambient-sensitive since the
+    // import joins (`EPS_ROWS`).
+    ("tests/fixtures/halfcap/halfcap_eps6.step", EpsSensitive),
+    ("tests/fixtures/halfcap/halfcap_eps7.step", EpsSensitive),
+    (
+        "tests/fixtures/halfcap/halfcap_nosplit.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
+    // #649's own fixtures. Both plus-domain solids are geometrically
+    // VALID — manifold, closed, χ = 2 — and both pass: a cylinder wall's
+    // flux is its chart Green form, which measures the plus and the tee
+    // exactly. `cross` once imported and measured 19% low with
+    // `pad = 0.0`, and was then refused on the iso-rectangle predicate;
+    // `s58_iso_rectangle.rs` holds all four to their EXACT volumes and
+    // runs `merge_coplanar_faces` on `xsplit` — #649's second door.
+    // `rect` is the control (a genuine iso-rectangle of the same Δu and
+    // v extent) and `xsplit` is the same solid as `cross` authored with
+    // rectangular sub-faces.
+    ("tests/fixtures/iso-rect/cross.step", Pass(1, 1, 14, 36, 24)),
+    ("tests/fixtures/iso-rect/rect.step", Pass(1, 1, 6, 12, 8)),
+    ("tests/fixtures/iso-rect/tee.step", Pass(1, 1, 10, 24, 16)),
+    (
+        "tests/fixtures/iso-rect/xsplit.step",
+        Pass(1, 1, 18, 40, 24),
+    ),
+    // -- tests/fixtures/m7-8-cube/ -----------------------------------
+    // The unit cube with one bowed NURBS wall whose rims are M7-8
+    // intersections, the input of `placed_m7_8_instance.rs`. Its source
+    // body is not at rest (scaffold chords), and the reader adopts the
+    // file as a finished cube.
+    (
+        "tests/fixtures/m7-8-cube/m7_8_cube.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    // -- tests/fixtures/poleguard/ (issue 896) ------------------------
+    // The mesh walk's undeclared-pole guard, import-door half: a
+    // sphere truncated 9e-8 rad below its pole, so its top rim's
+    // vertices sit 0.9e-9 m from a chart pole no vertex declares.
+    // `poleguard.rs` states the route argument (any authoring of the
+    // state carries a boundary feature of at most 2π·ε, which the
+    // K = 10 band cannot certify clear); here the twins are corpus
+    // like any other file, AMBIENT-sensitive by construction, pinned
+    // cell by cell in `EPS_ROWS`: the sub-band span escalates at the
+    // default band, certifies ZERO at 1e-6, and at 1e-12 — where the
+    // spans certify — the near-tangent rim/sphere contact refuses one
+    // level up, at adoption.
+    ("tests/fixtures/poleguard/poleband.step", EpsSensitive),
+    // The ε-relative sibling: the same band form with the vertex
+    // 0.9e-12 m from the pole, so the 1e-12 band also pins a fixture
+    // whose near-pole feature is INSIDE it (the two twins above sit
+    // 900× outside that band and pin the adoption bar there instead).
+    ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
+    ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
+    // -- tests/fixtures/occ/ ------------------------------------------
+    // Open CASCADE's own statements of a sphere face reaching a pole
+    // (`gen_occ.py`): a cap and a side-cut ball, each a seam ending at a
+    // pole vertex of valence 1, which import completes into the pole
+    // form (`chart_singularity_vertex.rs`); and the side-cut ball whose
+    // cut misses OCC's seam, stated as a vertex loop beside the cut
+    // circle, which no re-mint covers.
+    ("tests/fixtures/occ/cap.step", Pass(1, 1, 3, 4, 3)),
+    ("tests/fixtures/occ/side_cut.step", Pass(1, 1, 3, 5, 4)),
+    (
+        "tests/fixtures/occ/side_cut_ring.step",
+        Refused("mixing a VERTEX_LOOP with other bounds"),
+    ),
+    // -- tests/fixtures/rim-only-cap/ ---------------------------------
+    // A sphere pole or cone apex in a face's closure that the file does
+    // not state as a pole-form vertex: inside the face (one rim, a
+    // tilted rim, a cone's rim, a rim wearing a meridian spur that stops
+    // short of the pole), or at the tip of a seam that is its only edge. Import makes each a vertex with two meridians
+    // (`chart_singularity_vertex.rs`), so each ships the census of a
+    // cap cut in two along them.
+    (
+        "tests/fixtures/rim-only-cap/conecap.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/rimonly1.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/rimonly2.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/seamed.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    ("tests/fixtures/rim-only-cap/spur.step", Pass(1, 1, 3, 4, 3)),
+    (
+        "tests/fixtures/rim-only-cap/tilted.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    // -- tests/fixtures/seam-region/ ---------------------------------
+    // A ball with the cap x > 8 cut away and its sphere split at the
+    // equator into two faces of one surface, each holding a chart pole
+    // inside it, which import makes a vertex by cutting the face in two
+    // (`poles_inside_a_seam_region.rs`). Its twin splits the lower face
+    // along the meridian through the south pole, which import splits
+    // there.
+    (
+        "tests/fixtures/seam-region/side_cut_equator_split.step",
+        Pass(1, 1, 5, 10, 7),
+    ),
+    (
+        "tests/fixtures/seam-region/side_cut_meridian_split.step",
+        Pass(1, 1, 5, 10, 7),
+    ),
+    // #653's import route: one D-prism, stated four ways. The two
+    // `split_*` files state the cylindrical face's vertical boundary as
+    // two collinear `EDGE_CURVE`s, which is what every exporter emits
+    // when a vertex lands mid-side; the two `*_oblique` files place the
+    // part by a general rotation. Tessellating them is
+    // `split_iso_side.rs`'s row — here they are corpus like any other
+    // file, and the census below is the pin that says the difference is
+    // exactly the split and nothing else.
+    //
+    // The `split_*` censuses equal the `plain_*` ones: the two collinear
+    // sub-edges meet at a vertex nothing else does, so the import ends
+    // by joining them (`docs/DESIGN.md`, maximal edges) and reports the
+    // join as a `JoinedEdges` normalization. The `*_oblique` rows equal
+    // their `*_axis` counterparts exactly, so the placement changes no
+    // count at all.
+    (
+        "tests/fixtures/split-iso/plain_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/plain_oblique.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/split_axis.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    // `split_axis` with one collinear half of its cylinder-side edge a
+    // straight degree-1 spline: the line is kept and the two join.
+    (
+        "tests/fixtures/line-beside-spline/mixed_lower.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/line-beside-spline/mixed_upper.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/split-iso/split_oblique.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "tests/fixtures/wild/adafruit/1982_MPR121.step",
+        Pass(1, 1, 10, 24, 16),
+    ),
+    (
+        "tests/fixtures/wild/adafruit/328_2500mAh_battery.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/wild/adafruit/64_Halfsize_Breadboard.step",
+        Pass(1, 1, 18, 48, 32),
+    ),
+    (
+        "tests/fixtures/wild/adafruit/805_slide_switch.step",
+        Pass(1, 1, 19, 46, 30),
+    ),
+    (
+        "tests/fixtures/wild/adafruit/931_OLED_128x32_I2C.step",
+        Pass(1, 1, 24, 60, 40),
+    ),
+    (
+        "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp",
+        EpsSensitive,
+    ),
+    (
+        "tests/fixtures/wild/nist/nist_ftc_11_asme1_rb.stp",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "tests/fixtures/wild/occ-oss/b123d_nema17_bracket.step",
+        Refused("(SURFACE_CURVE) is outside the imported subset"),
+    ),
+    (
+        "tests/fixtures/wild/occ-oss/cq_red_cube_blue_cylinder.step",
+        Pass(2, 2, 9, 15, 10),
+    ),
+    (
+        // Refuses in EVERY ambient-ε cell, but the refusal SITE and
+        // sub-reason shift with ε (edge #170 SurfaceResidual at
+        // default/1e-12; edge #177 tangent-planes at 1e-6). This row's
+        // fragment is the shared adoption-ladder preamble, so the shift
+        // is invisible here BY DESIGN: pinning it would cost 9 more
+        // EpsSensitive cells to buy site-pinning the pin design does
+        // not offer anywhere (fragments pin sub-reason, not site). The
+        // preamble still pins the refusal to the adoption-ladder class
+        // — a drift to a parse error, crash, or Pass goes red.
+        "tests/fixtures/wild/stepcode/TAIL_TURBINE.stp",
+        Refused("no intensional description certifies"),
+    ),
+    (
+        // **Two halves of this refusal are now retired.** M8
+        // instancing took the placement half (dm1's seven occurrences
+        // of three component representations materialize as seven
+        // placed instances); #327 took the D7 half — the rims of the
+        // file's seven RATIONAL cylinders arrive as rational-quadratic
+        // NURBS carriers, stage-1 CURVE recognition certifies them as
+        // circles against an exact ring-composite bound and promotes
+        // them, and every edge of every instance adopts with its
+        // pcurve minted and certified.
+        //
+        // What is left is the SHARED AT-REST GATE on those same
+        // rational walls: the exact-B-rep volume's quadrature
+        // enclosure stalls short of its target within the fixed round
+        // budget — the same lane, and the same budget, a NATIVELY
+        // built rational-walled loft refuses on too. The fragment names that
+        // stall specifically rather than the gate's preamble, because
+        // the preamble would also match a tier-1/2 verdict, which
+        // would be a regression and not this lane.
+        //
+        // **ε-SENSITIVE since #327**, and the sweep is the reason to
+        // know it: at the two FINE ambient bands the frontier is the
+        // rational-flux stall above, but at ambient 1e-6 the frontier
+        // is the aggregate gate's convergence-ambiguity escalation
+        // (the `#389` ladder gap this cell once exposed is retired —
+        // #388's reversed wall-column candidate). Three cells
+        // in `EPS_ROWS`, one per ambient band. This was the FIRST file
+        // the ε_in sweep stopped running (the 2026-08-13 audit); since
+        // 2026-08-22 that is the corpus-wide default and the exemption
+        // is the other way round — see `EPS_IN_SWEPT`. Either way its
+        // ε_in-invariance is recorded rather than re-measured, and the
+        // ambient sweep — the axis it MOVES on — is untouched.
+        DM1,
+        EpsSensitive,
+    ),
+    (
+        "tests/fixtures/wild/stepcode/io1-cm-214.stp",
+        Refused("expected a doubled backslash"),
+    ),
+    (
+        "tests/fixtures/wild/stepcode/sg1-c5-214.stp",
+        Pass(1, 1, 16, 32, 20),
+    ),
+    (
+        "../step-export/tests/fixtures/ball.step",
+        Pass(1, 1, 2, 2, 2),
+    ),
+    (
+        "../step-export/tests/fixtures/boss_union.step",
+        Pass(1, 1, 10, 21, 14),
+    ),
+    (
+        "../step-export/tests/fixtures/composed_die.step",
+        Pass(1, 1, 89, 174, 108),
+    ),
+    (
+        "../step-export/tests/fixtures/cone.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "../step-export/tests/fixtures/cube.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/cut_cylinder.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+    (
+        "../step-export/tests/fixtures/die.step",
+        Pass(1, 1, 11, 24, 16),
+    ),
+    (
+        "../step-export/tests/fixtures/die_pips.step",
+        Pass(1, 1, 48, 96, 71),
+    ),
+    (
+        "../step-export/tests/fixtures/donut.step",
+        Pass(1, 1, 2, 4, 2),
+    ),
+    (
+        "../step-export/tests/fixtures/filleted_die.step",
+        Pass(1, 1, 26, 48, 24),
+    ),
+    (
+        // The touching two-solid assembly: the shared gate is the
+        // tier-3′ form, recording the corner kiss between its two
+        // solids as a contact (`topo::record_at_rest`; the record is
+        // pinned in review_r1_tier_gate_probes.rs).
+        "../step-export/tests/fixtures/kiss_assembly.step",
+        Pass(2, 2, 22, 48, 32),
+    ),
+    (
+        "../step-export/tests/fixtures/lily_lantern.step",
+        Pass(1, 1, 6, 10, 6),
+    ),
+    (
+        "../step-export/tests/fixtures/loft_prism.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/nonuniform_loft.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/notched.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/nurbs_wireframe.step",
+        Wireframe,
+    ),
+    (
+        // The #327 reporting witness: a `GEOMETRIC_CURVE_SET` stating
+        // dm1's carrier form verbatim (degree 2, 7 points, weights
+        // `1, ½, …`, knots at multiples of √3, the 3×120°
+        // construction, r = 5 mm). It is here because the corpus table
+        // is the WHOLE corpus by construction — and its disposition is
+        // the same `Wireframe` every curve-set file gets: promotion
+        // changes the carrier's DESCRIPTION, never the file's
+        // disposition. `curve_promotion_report.rs` is what asserts the
+        // promotion itself.
+        "tests/fixtures/curveset_rational_circle.step",
+        Wireframe,
+    ),
+    (
+        "../step-export/tests/fixtures/swept_elbow.step",
+        Pass(1, 1, 6, 12, 8),
+    ),
+    (
+        "../step-export/tests/fixtures/washer.step",
+        Pass(1, 1, 4, 6, 4),
+    ),
+];
+
+/// Every `.step` / `.stp` file under `dir`, recursively, sorted.
+fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(dir)
+        .unwrap_or_else(|e| panic!("reading {dir:?}: {e}"))
+        .map(|e| e.unwrap().path())
+        .collect();
+    entries.sort();
+    for p in entries {
+        if p.is_dir() {
+            walk(&p, out);
+        } else {
+            let s = p.to_string_lossy().to_lowercase();
+            if s.ends_with(".step") || s.ends_with(".stp") {
+                out.push(p);
+            }
+        }
+    }
+}
+
+/// The corpus as the filesystem holds it, keyed the way the table is.
+fn discovered() -> Vec<String> {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut files = Vec::new();
+    walk(&root.join("tests/fixtures"), &mut files);
+    walk(&root.join("../step-export/tests/fixtures"), &mut files);
+    files
+        .iter()
+        .map(|p| {
+            p.strip_prefix(&root)
+                .unwrap_or(p)
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect()
+}
+
+/// The table covers the corpus exactly — no file escapes the sweep by
+/// being new, and no row survives its fixture's deletion.
+#[test]
+fn the_table_is_the_whole_corpus() {
+    let mut found = discovered();
+    found.sort();
+    let mut tabled: Vec<String> = CORPUS.iter().map(|(p, _)| (*p).to_owned()).collect();
+    tabled.sort();
+    assert_eq!(
+        found, tabled,
+        "the committed STEP corpus and this suite's table have diverged"
+    );
+}
+
+/// The claim that holds at ANY ambient ε, pinned matrix or not: the
+/// outcome is TYPED — a solid whose SHIPPED body the gate itself
+/// passes, a wireframe, or a typed refusal — and never a body the
+/// kernel would call geometrically false. A row that asserted nothing
+/// off the matrix would be a green tick for work not done.
+fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
+    match got {
+        Ok(StepImport::Solid { body, .. }) => assert_eq!(
+            topo::validate_geometric(body.body(), Tol::witness()),
+            Ok(()),
+            "{who}: import shipped a body its own gate refuses"
+        ),
+        Ok(StepImport::Wireframe { .. }) | Err(_) => {}
+    }
+}
+
+/// The [`EPS_ROWS`] pins cover exactly the `EpsSensitive` files, at
+/// exactly the pinned ambient tolerances, with exactly one cell per
+/// `eps_in` row THAT FILE IS SWEPT AT — so a marker cannot go unpinned
+/// and a pin cannot outlive the marker that reads it.
+///
+/// The table is held EXHAUSTIVE in both directions, which is what keeps
+/// [`eps_in_rows_for`]'s exemption honest rather than a hole: every
+/// (file, ambient, tag) the sweep executes must have exactly one cell,
+/// AND the table's total size must be exactly the number of executed
+/// combinations — so a cell that goes missing is red, and so is a cell
+/// left behind for a tag that is no longer swept (which would otherwise
+/// sit there unread, claiming a measurement nothing performs).
+/// [`EPS_IN_SWEPT`] must name files the corpus actually holds.
+///
+/// The list is the only thing standing between a file and a silently
+/// single-row sweep, so a typo in it — or a fixture renamed out from
+/// under it — must be loud rather than a quietly narrower gate.
+#[test]
+fn the_eps_in_swept_files_are_corpus_files() {
+    for swept in EPS_IN_SWEPT {
+        assert!(
+            CORPUS.iter().any(|(p, _)| *p == swept),
+            "EPS_IN_SWEPT names {swept:?}, which is not in CORPUS — the ε_in sweep it \
+             asks for runs on nothing"
+        );
+    }
+}
+
+#[test]
+fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
+    let mut markers: Vec<&str> = CORPUS
+        .iter()
+        .filter(|(_, d)| *d == EpsSensitive)
+        .map(|(p, _)| *p)
+        .collect();
+    markers.sort_unstable();
+    let mut pinned: Vec<&str> = EPS_ROWS.iter().map(|(p, ..)| *p).collect();
+    pinned.sort_unstable();
+    pinned.dedup();
+    assert_eq!(
+        markers, pinned,
+        "an EpsSensitive row with no cells, or cells for a file that is not EpsSensitive"
+    );
+    let mut want_cells = 0;
+    for file in &markers {
+        for ambient in PINNED_AMBIENT {
+            for (tag, _) in eps_in_rows_for(file) {
+                want_cells += 1;
+                let hits = EPS_ROWS
+                    .iter()
+                    .filter(|(p, a, t, _)| p == file && *a == ambient && t == tag)
+                    .count();
+                assert_eq!(
+                    hits, 1,
+                    "{file} @ ambient {ambient:e} / eps {tag}: {hits} pins"
+                );
+            }
+        }
+    }
+    assert_eq!(
+        EPS_ROWS.len(),
+        want_cells,
+        "EPS_ROWS holds cells for (file, ambient, eps_in) combinations the sweep does \
+         not execute — a pin nothing reads is a measurement nobody makes"
+    );
+}
+
+/// What this row must do, or `None` when the ambient ε is off the
+/// pinned matrix and only the every-ε obligation is claimed.
+fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
+    if row != EpsSensitive {
+        return Some(row);
+    }
+    let ambient = geom_core::Tol::witness().get().eps;
+    EPS_ROWS
+        .iter()
+        .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)
+        .map(|(.., d)| *d)
+}
+
+/// Every corpus file's disposition, and the positive tier-validity of
+/// every body that ships — at each tolerance in the sweep.
+#[test]
+fn every_corpus_import_passes_the_shared_gate() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut exposure = Exposure::new("tier_gate's import-door reading");
+    // File-major, so each file is read once and each file's own ε_in
+    // sweep (see `eps_in_rows_for`) is visible at the loop head.
+    for (rel, row) in CORPUS {
+        let text = std::fs::read_to_string(root.join(rel))
+            .unwrap_or_else(|e| panic!("reading {rel}: {e}"));
+        for &(eps_tag, eps_in) in eps_in_rows_for(rel) {
+            let options = ImportOptions {
+                eps_in,
+                ..ImportOptions::default()
+            };
+            let who = format!("{rel} @ eps {eps_tag}");
+            let Some(want) = expected(rel, row, eps_tag) else {
+                // Off the pinned ambient matrix. The disposition of an
+                // ε-sensitive file is not knowable here, but the gate's
+                // claim still is, and asserting it is not nothing.
+                assert_typed_outcome(&who, import_step(&text, &options, Tol::witness()));
+                continue;
+            };
+            match (import_step(&text, &options, Tol::witness()), want) {
+                (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
+                    assert_eq!(
+                        topo::validate_geometric(body.body(), Tol::witness()),
+                        Ok(()),
+                        "{who}: the SHIPPED body must be gate-clean — import handed out a \
+                         body its own gate refuses, which can only mean the gate is no \
+                         longer wired"
+                    );
+                    assert_eq!(
+                        (
+                            body.body().solids().count(),
+                            body.body().shells().count(),
+                            body.body().faces().count(),
+                            body.body().edges().count(),
+                            body.body().vertices().count()
+                        ),
+                        (s, sh, f, e, v),
+                        "{who}: census (solids, shells, faces, edges, vertices) — a \
+                         shipped body missing entities the file states is a silent \
+                         loss, and a missing SOLID is also a solid the per-solid gate \
+                         never saw"
+                    );
+                }
+                (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
+                (Err(e), Refused(fragment)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &e, &mut exposure);
+                    assert!(
+                        msg.contains(fragment),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want a message containing {fragment:?}): {msg}"
+                    );
+                }
+                (Err(e), Escalated(fragment, predicate)) => {
+                    let msg = e.to_string();
+                    assert_adoption_reading(&who, &e, &mut exposure);
+                    assert!(
+                        msg.contains(fragment),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want a message containing {fragment:?}): {msg}"
+                    );
+                    let typed = format!("{e:?}");
+                    assert!(
+                        typed.contains(&format!("predicate: Some({predicate:?})")),
+                        "{who}: refused for a DIFFERENT reason than the table records \
+                         (want an escalation of {predicate:?}): {typed}"
+                    );
+                }
+                (got, want) => panic!("{who}: disposition changed — want {want:?}, got {got:?}"),
+            }
+        }
+    }
+    // The guard's floor: on the pinned matrix the corpus reaches both an
+    // offer it checks and a reading that withholds one, so a guard that
+    // parsed nothing cannot pass. Off it, no refusal cell is read.
+    exposure.report();
+    if PINNED_AMBIENT.contains(&Tol::witness().get().eps) {
+        exposure.require_each(
+            &[OFFERS, WITHHELD],
+            1,
+            "the import door's guard read no offer, or no withheld one, across the corpus",
+        );
+    } else {
+        test_utils::vacuity::stood_down(
+            "ambient ε off the pinned matrix",
+            "the import door's guard floor: no refusal cell is read here",
+        );
+    }
+}
+
+/// A certification refusal at adoption reads as at rest (D4 ¶1): no
+/// ending blames the kernel alone, and no offer to tighten keeps a size
+/// at or below the file's declared coincidence distance ε_in by
+/// tightening alone. Each offer's value is `|m|/K` at the margin's
+/// nearer end, so the size it keeps, that value times K, lies past
+/// ε_in — or the offer is the second of two steps, after declaring the
+/// file's uncertainty below that size. Counts each offer it parsed, and
+/// each reading that withheld one, into `exposure`.
+fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposure) {
+    let (StepImportError::Adoption { file, .. } | StepImportError::Assembly { file, .. }) = e
+    else {
+        return;
+    };
+    let msg = e.to_string();
+    assert!(
+        !msg.contains(geom_core::KERNEL_DEFECT_ENDING),
+        "{who}: an adoption refusal ends as if read at a build: {msg}"
+    );
+    let band = Band::linear(Tol::witness()).expect("the run's band");
+    let k = band.escalate() / band.zero();
+    let pieces: Vec<&str> = msg.split("tighten the tolerance below ").collect();
+    for (before, offer) in pieces.iter().zip(&pieces[1..]) {
+        exposure.note(OFFERS);
+        let below: f64 = offer
+            .split_once(" m")
+            .and_then(|(v, _)| v.parse().ok())
+            .unwrap_or_else(|| panic!("{who}: an offer to tighten names no value: {msg}"));
+        if below * k > file.eps_in() {
+            continue;
+        }
+        let declared: Option<f64> = before
+            .strip_suffix(" m and ")
+            .and_then(|b| b.rsplit_once("uncertainty declared below "))
+            .and_then(|(_, v)| v.parse().ok());
+        assert!(
+            declared.is_some_and(|d| d <= file.eps_in() && (d / k - below).abs() <= below * 1e-9),
+            "{who}: an adoption refusal offers to keep a size of {:e} m, within the file's \
+             ε_in = {:e} m, without declaring the file's uncertainty below it: {msg}",
+            below * k,
+            file.eps_in()
+        );
+    }
+    exposure.add(
+        WITHHELD,
+        msg.matches("so the file cannot tell it from zero").count()
+            + msg
+                .matches("so the file might not tell it from zero")
+                .count(),
+    );
+}
+
+/// [`assert_adoption_reading`]'s tally: offers to tighten it parsed.
+const OFFERS: &str = "offers to tighten parsed";
+/// [`assert_adoption_reading`]'s tally: readings at the import door that
+/// withheld the offer to tighten alone, for a size the file cannot tell
+/// from zero.
+const WITHHELD: &str = "readings that withheld the offer";
+
+/// The reader touches the kernel's at-rest validators at exactly TWO
+/// places (the #260 ask: make skipping them structurally hard). The
+/// gate is asked about several subjects — each solid alone, then the
+/// assembled body — but always through `lib.rs`'s `gate` (per-solid,
+/// tier 3) and `gate3` (the aggregate, tier 3′), each of which maps the
+/// verdicts to a typed refusal and does nothing else. Import owns no
+/// validation logic of its own: no third entry, no kind predicate
+/// deciding who is asked, no verdict filter deciding which failures
+/// count. This counts the validator call sites in the crate's sources
+/// and pins the count at two; a third is not automatically wrong, but
+/// it is exactly the shape the old band-only backstop had, so it must
+/// be argued for here rather than appear.
+///
+/// # What the needle covers, and what it does not
+///
+/// COVERS the tier-3 and tier-3′ door FAMILIES by name — every
+/// spelling of `validate_geometric` and `validate_pseudomanifold`
+/// (structural, `_declared`, `_certificate`) — and `contact_marks`,
+/// which is not one of those doors but runs the SAME tier-3 battery
+/// over the same body, so a reader that grew a gate there would be
+/// growing exactly the second entry this row exists to refuse.
+///
+/// DOES NOT COVER a battery composed by hand out of parts that are not
+/// gates: `validate_closed` (tier 2) followed by `mass_properties` is
+/// two public doors, neither of them an at-rest validator, and a reader
+/// that spelled its gate that way would read as zero sites here. That
+/// is a real hole and it is named rather than papered over — the needle
+/// is a name census, so it can only see doors that exist and are
+/// called by name. What closes it is not a wider pattern but the
+/// refusal rows below, which assert the reader's typed verdicts ARE the
+/// kernel's: a hand-rolled battery does not produce
+/// `StepImportError::TierInvalid` carrying `topo::ValidationError`s.
+#[test]
+fn exactly_one_validation_call_site_in_the_reader() {
+    let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sites = Vec::new();
+    // The needle is a CALL, so comments and literal bodies are both
+    // blanked: a commented-out door must not answer for a live one,
+    // and prose naming the validator must not manufacture a site. The
+    // blanked view keeps line structure, so the line number is real.
+    //
+    // It matches the door FAMILY, not one spelling. Each tier has more
+    // than one entry — `validate_geometric` and
+    // `validate_geometric_certificate`, `validate_pseudomanifold` and
+    // `validate_pseudomanifold_certificate`, plus the structural and
+    // `_declared` forms — and they are the same door with the same
+    // verdicts. A needle pinned to one spelling would let the reader
+    // grow a second entry by taking a sibling, which is exactly the
+    // shape this row exists to catch.
+    //
+    // `contact_marks` is in the set for the same reason and it is NOT a
+    // sibling spelling: it is a different door that runs the same
+    // tier-3 battery over the same body (its own product is the marks
+    // channel). A gate grown there would be a third entry wearing a
+    // fourth name.
+    const DOORS: [&str; 3] = [
+        "validate_geometric",
+        "validate_pseudomanifold",
+        "contact_marks",
+    ];
+    for path in test_utils::source::rust_sources(&src) {
+        let text = std::fs::read_to_string(&path).unwrap();
+        for (i, line) in test_utils::source::code_only(&text).lines().enumerate() {
+            if DOORS.iter().any(|door| line.contains(door)) {
+                sites.push(format!("{}:{}", path.display(), i + 1));
+            }
+        }
+    }
+    // Two doors since M9-2, still zero opinions: the per-solid
+    // tier-3 door (`gate`) and the aggregate tier-3′ door (`gate3`,
+    // which consumes the import-side declaration channel). Anything
+    // beyond these two is validation logic growing in the reader.
+    assert_eq!(
+        sites.len(),
+        2,
+        "the reader must call the kernel's at-rest validators at exactly the two named \
+         doors — per-solid tier 3 (`gate`) and aggregate tier 3′ (`gate3`). Every \
+         spelling of both door families is counted, and so is `contact_marks`, which \
+         runs the same battery; what is NOT counted is a battery hand-composed out of \
+         non-gate parts (see this row's docs): {sites:?}"
+    );
+}
+
+/// The typed refusal is a VALIDITY refusal about the file's geometry,
+/// carrying the kernel's verdicts verbatim — not prose, and not the
+/// Corrupt-class kernel-bug voice. The inside-out torus band is the
+/// standing fixture for it.
+#[test]
+fn the_refusal_carries_the_kernels_verdicts() {
+    let text = std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/band/band_c180.stp"),
+    )
+    .unwrap();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
+    let StepImportError::TierInvalid { solid, errors } = &e else {
+        panic!("expected the gate's typed refusal, got: {e:?}");
+    };
+    assert_eq!(
+        *solid, None,
+        "a one-solid file's subject is the assembled body itself"
+    );
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::NegativeVolume { .. }]
+        ),
+        "the verdicts are the kernel's own, unfiltered and unrephrased: {errors:?}"
+    );
+    let msg = e.to_string();
+    for want in [
+        "shared at-rest validation gate",
+        "NegativeVolume",
+        "a solid encloses negative volume, so it is inside-out",
+    ] {
+        assert!(msg.contains(want), "the message must name {want:?}: {msg}");
+    }
+}

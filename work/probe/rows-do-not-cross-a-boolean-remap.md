@@ -1,0 +1,117 @@
+---
+id: rows-do-not-cross-a-boolean-remap
+kind: issue
+title: declaration rows do not cross a boolean's key remap (unreachable today: an instance carrying one is multi-solid)
+status: closed
+opened: 2026-09-06
+priority: P3
+cost: E
+closed: 2026-10-26
+---
+
+
+Filed from DOCM-6's dual review (PR #2035), which measured a claim the
+PR body made too broadly and then measured the true bound.
+
+## The class
+
+DOCM-6 carries a part's mate bookkeeping across the instantiation seam
+on the evaluation VALUE — `NodeValue::carried`, filled at the
+instantiate op and empty on every other op, beside the records channel
+`NodeValue::contacts`. The gather re-keys both through the graft's own
+descendant map (`product.rs`'s `carry_contacts` and
+`carry_declarations`).
+
+A BOOLEAN does not go through that map. Its result's records are built
+by the kernel's own remap (`crates/topo/src/boolean/ops.rs:~1222`,
+`remap_contacts`, which chases operand views and the D5 descendant
+chain and DROPS a record whose entity was consumed), and its value is
+`OpOut::plain` — so `sources_of` reads `norows()` for it
+(`crates/editor-core/src/product.rs:~296`). Records can therefore reach
+a product through a path that carries no rows.
+
+## Why it is not a live gap today
+
+Two facts, both measured on this head AND on the merge base:
+
+1. **A boolean's own records are not a mate's.**
+   `wire_boolean` reads its operands through `body_operand`
+   (`crates/editor-core/src/eval/wire.rs:~555`), which takes the BODY
+   and nothing else, so a boolean's own contact records are
+   its own `Declare` node's pairs remapped — pairs no mate authored.
+   `Attribution::Unattributed` is the correct answer for one of them.
+2. **No instance carrying a declaration can BE a boolean operand.** A
+   mate is between two members of the document that authored it, so a
+   document with a mate has a product of at least two solids, and the
+   pair boolean refuses a multi-solid operand outright. The acceptance
+   row `no_carried_declaration_can_reach_a_boolean_operand`
+   (`crates/editor-core/tests/docm6_seam_declarations.rs`) pins that at
+   three seats — penetrating, resting, gapped.
+
+So the two readings of `Attribution::Unattributed` — "no declaration
+THIS PRODUCT holds a row for" and "no declaration in the tree" —
+coincide today, and `crates/editor-core/src/assembly.rs`'s
+`Attribution::Unattributed` states the narrower one with the bound
+beside it.
+
+## What would make it reachable
+
+A boolean over MULTI-SOLID operands. The day the pair boolean (or a
+successor: the n-ary union's fold is the obvious one) admits an operand
+that is an instantiated sub-assembly with mates, that instance's
+records cross into the boolean's result through `remap_contacts` and
+its rows do not — and a finding against one of those records goes back
+to naming nobody.
+
+Closing it then means re-keying the rows through the same lineage the
+records take: `BooleanNaming`'s operand views and graft lineage
+(`crates/topo/src/boolean/ops.rs:~188-213`), plus the drop rule
+`remap_contacts` applies — a row whose face is consumed by the boolean
+has no image and must refuse or drop exactly as its record does.
+
+**Not scheduled, and deliberately not attempted at DOCM-6**: the fix
+lives at the boolean's own key remap, which is `crates/topo`, and the
+n-ary union's half is DOCM-7's fence.
+
+## Re-homed (2026-09-13)
+
+Moved from `work/docm/` to `work/bool/` at DOCM's exit sweep (`docs/DOC-LEDGER.md`,
+sweep 14): the defect is the boolean's (`crates/topo/src/boolean/*` is S-BOOL's), reached from a declared union. Id, body and header are unchanged; the directory is the
+claim (`work/README.md`). Any `## Home` section above is superseded by
+this line and is kept as the record of why the file was where it was.
+
+## Re-homed at S-BOOL's exit (2026-09-16)
+
+Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## 2026-10-03 — the fence moved to the editor (FUSE, PR 3891)
+
+Ev ruled (PR 3901) that a solid is one piece and that booleans take
+bodies, so the pair boolean no longer refuses a multi-solid operand —
+step 2's reason above no longer holds at the kernel. The fence holds in
+the editor instead. A value's part count (`NodeValue::parts`) is a
+product's number of gathered parts: an instantiation counts the
+referenced document's root outputs at their own counts (so a
+sub-assembly counts through), and the placers (`Transform`, `Pattern`)
+and `Part` carry it. Every op that fuses or reshapes one body — the
+pair boolean, the n-ary union, a placed union's prototype and the rest
+of `body_operand`'s callers — refuses a product
+(`NodeErrorKind::ProductOperand`); a datum's face frame only reads a
+face, mints no record, and takes a product as it is. An instance carrying a declaration
+is such a product. The acceptance rows in
+`crates/editor-core/tests/docm6_seam_declarations.rs`
+(`no_carried_declaration_can_reach_a_boolean_operand` and the nested,
+transformed and placed-union rows beside it) pin the refusal. This row
+stays unreachable for as long as products refuse.
+
+## 2026-10-13: names retired by PR 4820 (FUSE)
+
+`remap_contacts` is gone. The boolean's records are built by
+`boolean::ops::carry` → `carry_rows`, with `place_found` for the
+reduction's rows and `carried` (`operand_fate`, then
+`records::landings`) for the operands', which land on the census's
+record confirm rather than dropping a consumed record by key.
+
+## Closed (2026-10-26, tracker sweep)
+
+Superseded. The channel this row was about is gone from main (`bb25fa4f0b`): no `carry_declarations` exists anywhere under `crates/`, no `remap_contacts` in `crates/topo/src/boolean/ops.rs` (the boolean now carries records through `carry`, ~`:1042`), no `Attribution` enum or `Attribution::Unattributed`, and no `no_carried_declaration_can_reach_a_boolean_operand` row in `crates/editor-core/tests/docm6_seam_declarations.rs`. A mate's declaration rows were the declared-pair surface D10 retires (`docs/DESIGN.md`, "State of the build": the boolean declare surface is retired, stage 4 E and F; a mate's `ContactClass` and A5's unattributed-contact error retire into `unproven-coincidence` findings). The live question of how a carried contact reaches a finding is COINCIDE's and ATREST's.

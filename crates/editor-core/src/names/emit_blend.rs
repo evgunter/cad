@@ -1,0 +1,689 @@
+//! **The shared blend naming translation** (M6-5 PR-1) — the
+//! composition surgery's output, named from BIRTH data, for BOTH
+//! verbs: [`name_blend`] is the one implementation, and
+//! `emit_fillet` / `emit_chamfer` are its thin per-verb doors,
+//! mirroring the kernel's own shape (`sweep::blend` behind the
+//! `sweep::fillet` / `sweep::chamfer` verb modules).
+//!
+//! The kernel hands over [`BlendNaming`]: rows written by the
+//! surgery as it minted each entity, each naming the SOURCE entity the
+//! mint was made for. This pass is a mechanical translation of those
+//! rows into [`RoleSeg`]s — no geometry is read, nothing is matched.
+//! That is the whole point: `Node::Fillet` was every-edge precisely
+//! because a fillet had no birth channel, and matching after the fact
+//! is what N4 forbids; the chamfer was born on this channel.
+//!
+//! # Covariance
+//!
+//! Every blend segment carries the source entity's OWN name from the
+//! target's table, so a blend name is a function of the target's
+//! names — the `From`/`Seam` shape. When an upstream bump moves the
+//! target's names, these move with them; when the bump changes
+//! nothing upstream, these are bit-identical. This emitter contributes
+//! no independent judgment that could disagree.
+//!
+//! # The provenance channels, and the totality that closes them
+//!
+//! An output entity is either a recorded mint or a survivor keeping
+//! its source arena key ([`BlendNaming`]'s module docs), less the cells
+//! the closing join killed. Survivors take [`RoleSeg::From`] of
+//! their upstream name; mints take their role; a join's kept edge, a
+//! survivor or a mint by its key, takes the name of the input edges its
+//! cover lies along (`join_names`), which replaces its row's. Anything
+//! that is neither — a key minted without a record — has no upstream
+//! name and surfaces as
+//! [`NamingError::MissingUpstream`], loudly, rather than being guessed
+//! around. The final [`check_total`] closes the other direction.
+//!
+//! One guard sits between those two cases, because "keeps its source
+//! arena key" is a claim about NUMBERING and nothing here re-checks
+//! it. A would-be survivor whose key the records list as RETIRED
+//! panics.
+//!
+//! That guard cannot fire while `topo::Body`'s arenas reissue no
+//! retired key. The kernel owns that statement: [`sweep::blend::naming`]'s
+//! module doc says what [`Retired`](sweep::blend::naming::Retired) is
+//! for in this consumer — a guard that cannot fire, holding the
+//! invariant against the arenas' numbering changing. It is kept here
+//! because the property it rests on lives in another crate's choice of
+//! container: were a retired key ever reissued, an unrecorded mint
+//! would be named `From` of an unrelated entity, caught only if
+//! the name's real owner happened to collide at insertion. Same
+//! posture as `wire_blend`'s panic on `naming: None`.
+//!
+//! # An upstream tie PROPAGATES (B1)
+//!
+//! Every upstream name this emitter reads comes through
+//! [`super::defer::upstream_name`], which reports whether the
+//! operand's entry is an [`Entry::Tied`](super::table::Entry::Tied)
+//! row, and a name built from any tied upstream is deferred into
+//! [`super::defer::TieRows`] rather than inserted one member at a
+//! time. That is what a tie needs: its members all carry the SAME
+//! name, so the flush hands the whole candidate list to
+//! [`super::defer::narrow_into`] at once, and `Duplicate` keeps
+//! meaning what it says — the
+//! no-silent-aliasing bug, never a legitimate N2 tie.
+//!
+//! A role that wraps SEVERAL upstream names is tie-descended when ANY
+//! of them is. That is the conservative reading and the correct one:
+//! the name it composes is not distinguishable across the tied
+//! candidates, so the row belongs in the lane that merges.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+
+use sweep::blend::naming::{BlendNaming, RimSide};
+use topo::{Body, EdgeKey, FaceKey, VertexKey};
+
+use super::canonical;
+use super::defer::{TieRows, put as put_row, upstream_name};
+use super::emit::{NamingError, check_total, ent, name1};
+use super::role::{EntityKind, RimSupport, RoleSeg, StableName, edge_line};
+use super::table::{EntityKey, NameTable};
+use crate::node::RecipeNodeId;
+
+/// The birth-record translation both blend emitters run.
+///
+/// It is ONE function because the two have one input type and one role
+/// vocabulary (RECIPE-DOORS D3), and the only thing that separates a
+/// chamfer's names from a fillet's is `node` — the minting id every
+/// segment is stamped with. Written twice, the pair would drift, and
+/// the thing they would drift on is the tie deferral.
+///
+/// # Panics
+///
+/// Where `rec` records one entity twice, or lists as retired the key
+/// of an output entity it did not mint: `rec` is the surgery's own
+/// record of `body`, so either is a kernel bug.
+pub(super) fn name_blend<T: geom_core::Real>(
+    node: RecipeNodeId,
+    target_node: RecipeNodeId,
+    target_read: crate::VarId,
+    target: &NameTable,
+    body: &Body<T>,
+    rec: &BlendNaming,
+) -> Result<Arc<NameTable>, NamingError> {
+    // Every upstream read goes through the deferral's own reader, so
+    // the tie bit travels with the name it belongs to and no call site
+    // can drop it.
+    let up = |key: EntityKey| upstream_name(target, target_node, ent(0, key));
+    let up_f = |k: FaceKey| up(EntityKey::Face(k));
+    let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
+    let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
+
+    // A band's identity: its chain's source names. A rim is a cycle
+    // with no first edge, so only the SET is covariant: the
+    // canonical form sorts and deduplicates it (the N3 `Merged`
+    // convention). A band face, its seam crossings and its slit all
+    // carry the same set, which is what tells apart the crossings and
+    // slits two bands make on ONE source meridian.
+    let band_set = |edges: &[EdgeKey]| -> Result<(Vec<StableName>, bool), NamingError> {
+        let mut tied = false;
+        let mut names = Vec::with_capacity(edges.len());
+        for e in edges {
+            let e = up_e(*e)?;
+            tied |= e.tied;
+            names.push((*e.name).clone());
+        }
+        Ok((names, tied))
+    };
+
+    // ---- The mints, by role. ----
+    //
+    // Each row carries the tie bit of the upstream names it wraps: ANY
+    // tied name makes the composed name tie-descended, because the
+    // name it composes does not distinguish the tied candidates.
+    let mut minted: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
+    let mut put = |key: EntityKey, seg: RoleSeg, tied: bool| -> Result<(), NamingError> {
+        // Two records for one key is an emission bug, not a tie: the
+        // surgery mints each entity once.
+        if minted.insert(key, (seg, tied)).is_some() {
+            unreachable!(
+                "the blend's record mints {key:?} twice, though the surgery mints each entity \
+                 once and records it as it mints"
+            );
+        }
+        Ok(())
+    };
+
+    for (f, e) in &rec.blends {
+        let e = up_e(*e)?;
+        put(EntityKey::Face(*f), RoleSeg::BlendFace(e.name), e.tied)?;
+    }
+    // An open band spanning several links joined on one support pair
+    // takes the chain's source edges as a set, as a closed rim's band
+    // does: the face is one entity of several edges, and the set is
+    // its birth data whichever link the walk met first.
+    for (f, edges) in &rec.joined_blends {
+        let (names, tied) = band_set(edges)?;
+        put(
+            EntityKey::Face(*f),
+            canonical::minted_segment(RoleSeg::BandFace(names)),
+            tied,
+        )?;
+    }
+    for (f, v) in &rec.corners {
+        let v = up_v(*v)?;
+        put(EntityKey::Face(*f), RoleSeg::CornerFace(v.name), v.tied)?;
+    }
+    for (t, e, f) in &rec.trims {
+        let (e, f2) = (up_e(*e)?, up_f(*f)?);
+        let tied = e.tied || f2.tied;
+        put(
+            EntityKey::Edge(*t),
+            RoleSeg::TrimEdge {
+                edge: e.name,
+                support: f2.name,
+            },
+            tied,
+        )?;
+    }
+    for (foot, v, f) in &rec.feet {
+        let (v, f) = (up_v(*v)?, up_f(*f)?);
+        let tied = v.tied || f.tied;
+        put(
+            EntityKey::Vertex(*foot),
+            RoleSeg::FootVertex {
+                vertex: v.name,
+                support: f.name,
+            },
+            tied,
+        )?;
+    }
+    for (a, v, e) in &rec.arcs {
+        let (v, e) = (up_v(*v)?, up_e(*e)?);
+        let tied = v.tied || e.tied;
+        put(
+            EntityKey::Edge(*a),
+            RoleSeg::EndArc {
+                vertex: v.name,
+                edge: e.name,
+            },
+            tied,
+        )?;
+    }
+    for (m, v) in &rec.mitres {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Edge(*m),
+            RoleSeg::Mitre { vertex: v.name },
+            v.tied,
+        )?;
+    }
+    for (foot, v) in &rec.turn_feet {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Vertex(*foot),
+            RoleSeg::TurnFoot { vertex: v.name },
+            v.tied,
+        )?;
+    }
+    for (f, edges) in &rec.bands {
+        let (names, tied) = band_set(edges)?;
+        put(
+            EntityKey::Face(*f),
+            canonical::minted_segment(RoleSeg::BandFace(names)),
+            tied,
+        )?;
+    }
+    for (t, e, side) in &rec.rim_trims {
+        let e = up_e(*e)?;
+        let tied = e.tied;
+        put(
+            EntityKey::Edge(*t),
+            RoleSeg::BandTrim {
+                edge: e.name,
+                support: match side {
+                    RimSide::Host => RimSupport::Host,
+                    RimSide::Mate => RimSupport::Mate,
+                },
+            },
+            tied,
+        )?;
+    }
+    for (foot, v) in &rec.rim_feet {
+        let v = up_v(*v)?;
+        put(EntityKey::Vertex(*foot), RoleSeg::BandFoot(v.name), v.tied)?;
+    }
+    for (v, m, band) in &rec.meridian_splits {
+        let m = up_e(*m)?;
+        let (band, band_tied) = band_set(band)?;
+        put(
+            EntityKey::Vertex(*v),
+            // A vertex cites the edge it lies on by its line (N2).
+            canonical::minted_segment(RoleSeg::BandCross {
+                edge: edge_line(&m.name),
+                band,
+            }),
+            m.tied || band_tied,
+        )?;
+    }
+    for (e, m) in &rec.meridian_remnants {
+        let m = up_e(*m)?;
+        put(EntityKey::Edge(*e), RoleSeg::BandCut(m.name), m.tied)?;
+    }
+    for (e, m, band) in &rec.slits {
+        let m = up_e(*m)?;
+        let (band, band_tied) = band_set(band)?;
+        put(
+            EntityKey::Edge(*e),
+            canonical::minted_segment(RoleSeg::BandSlit { edge: m.name, band }),
+            m.tied || band_tied,
+        )?;
+    }
+
+    // ---- The joins (`BlendNaming::edge_joins`). ----
+    // The blend ends with the join, so an edge it made is named by the
+    // input edges its cover lies along (`join_names`), each read by the
+    // rows above: a trimline of an input edge on one support (`TrimEdge`),
+    // a rim trim on one support (`BandTrim`), or a surviving input edge
+    // (`From`). An edge the blend minted outright (an end arc, a
+    // mitre, a band's slit, a remnant) reads no input edge, and a cover
+    // holding one refuses.
+    let joined = super::join_names::name_joins(node, body, &rec.edge_joins, |m| {
+        Ok(match minted.get(&EntityKey::Edge(m)) {
+            Some((seg @ (RoleSeg::TrimEdge { .. } | RoleSeg::BandTrim { .. }), tied)) => {
+                super::join_names::Member::Image {
+                    seg: seg.clone(),
+                    tied: *tied,
+                }
+            }
+            Some(_) => super::join_names::Member::Outright,
+            None => {
+                let u = up_e(m)?;
+                super::join_names::Member::Image {
+                    seg: RoleSeg::From {
+                        read: target_read,
+                        of: u.name,
+                    },
+                    tied: u.tied,
+                }
+            }
+        })
+    })?;
+    // The joined names replace whatever the rows gave the kept edge.
+    minted.extend(joined);
+
+    // ---- The table: the body row, then every output entity. ----
+    let mut t = NameTable::new();
+    let mut tie = TieRows::default();
+    t.insert(
+        name1(EntityKind::Body, node, RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    let mut rows: Vec<(EntityKind, EntityKey)> = Vec::new();
+    rows.extend(
+        body.faces()
+            .map(|(k, _)| (EntityKind::Face, EntityKey::Face(k))),
+    );
+    rows.extend(
+        body.edges()
+            .map(|(k, _)| (EntityKind::Edge, EntityKey::Edge(k))),
+    );
+    rows.extend(
+        body.vertices()
+            .map(|(k, _)| (EntityKind::Vertex, EntityKey::Vertex(k))),
+    );
+    // The retired set, as a lookup: a key the fillet RETIRED can never
+    // be a survivor, whatever its arena says.
+    let retired_f: BTreeSet<FaceKey> = rec.dead.faces.iter().copied().collect();
+    let retired_e: BTreeSet<EdgeKey> = rec.dead.edges.iter().copied().collect();
+    let retired_v: BTreeSet<VertexKey> = rec.dead.vertices.iter().copied().collect();
+    for (kind, key) in rows {
+        let (seg, from_tie) = match minted.get(&key) {
+            Some((seg, tied)) => (seg.clone(), *tied),
+            // Not minted, so it must be a survivor keeping its source
+            // arena key — UNLESS the records say that key was retired,
+            // in which case the match is not provenance.
+            //
+            // Unreachable while the arenas reissue no retired key (the
+            // module doc, citing `sweep::blend::naming`).
+            None => {
+                let dead = match key {
+                    EntityKey::Edge(k) => retired_e.contains(&k),
+                    EntityKey::Vertex(k) => retired_v.contains(&k),
+                    EntityKey::Face(k) => retired_f.contains(&k),
+                    EntityKey::Body => false,
+                };
+                if dead {
+                    unreachable!(
+                        "output entity {key:?} is neither minted nor a survivor: the blend \
+                         recorded its key as RETIRED, and a versioned arena never reissues one"
+                    );
+                }
+                let u = up(key)?;
+                (
+                    RoleSeg::From {
+                        read: target_read,
+                        of: u.name,
+                    },
+                    u.tied,
+                )
+            }
+        };
+        put_row(
+            &mut t,
+            &mut tie,
+            from_tie,
+            name1(kind, node, seg),
+            ent(0, key),
+        )?;
+    }
+    // ONE stage, so one flush — and it must precede the totality
+    // check, which reads the table this drains into.
+    tie.flush(&mut t)?;
+    check_total(&t, body, 0)?;
+    Ok(Arc::new(t))
+}
+
+#[cfg(test)]
+mod tie_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::sync::Arc;
+
+    use geom_core::{Point2, RigidMotion, Tol};
+    use topo::Body;
+
+    use super::*;
+    use crate::names::emit_sweep::name_extrude;
+    use crate::names::table::{EntityRef, Entry};
+    use profile::RawLoop;
+
+    /// A unit cube and the extrude table that names it.
+    fn cube() -> (Body<f64>, Arc<NameTable>) {
+        let plane = profile::SketchPlane::from_frame(RigidMotion::axes_xy(geom_core::Point3::new(
+            0.0, 0.0, 0.0,
+        )));
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| Point2::new(x, y)),
+        );
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(Tol::witness())
+            .unwrap();
+        let built = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: sweep::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
+        let table = name_extrude(
+            RecipeNodeId::new(0, 1),
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .expect("the extrude names");
+        (built.body, table)
+    }
+
+    /// **A join that takes an edge the blend minted outright refuses**:
+    /// an end arc has no input edge of its own to read, so a joined edge
+    /// covering one has no input-cell reading (the ruling's stop case).
+    /// No blend run on `ci` reaches it (the joins it makes are trims,
+    /// rim trims or surviving input edges, `BlendNaming::edge_joins`), so
+    /// the row plants the record: a join whose `gone` edge the surgery
+    /// minted as an arc.
+    #[test]
+    fn a_join_over_an_edge_the_blend_minted_outright_refuses() {
+        let (body, table) = cube();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let v = body.vertices().next().unwrap().0;
+        let rec = BlendNaming {
+            arcs: vec![(edges[1], v, edges[0])],
+            edge_joins: vec![topo::EdgeJoin {
+                vertex: v,
+                gone: edges[1],
+                kept: edges[2],
+                conventional: None,
+            }],
+            ..BlendNaming::default()
+        };
+        let named = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            crate::VarId::new(1, 77),
+            &table,
+            &body,
+            &rec,
+        );
+        assert!(
+            matches!(
+                named,
+                Err(NamingError::UnsupportedJoin {
+                    shape: crate::names::JoinShape::Outright,
+                    ..
+                })
+            ),
+            "the stop case refuses typed"
+        );
+    }
+
+    /// **A join over a trimline and a survivor names their flat set**:
+    /// each is the image of one input edge — the trimline of the edge it
+    /// parallels on its support, the survivor of itself — so the joined
+    /// edge spans several input edges and is the `Merged` set of their
+    /// images, kinds mixed as they come. No blend run makes this join
+    /// (the joins it makes are trims, rim trims or survivors among
+    /// themselves), so the row plants the record: a join of a trim the
+    /// surgery minted with an edge it carried.
+    #[test]
+    fn a_join_over_a_trim_and_a_survivor_names_their_set() {
+        let (body, table) = cube();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let v = body.vertices().next().unwrap().0;
+        let f = body.faces().next().unwrap().0;
+        let rec = BlendNaming {
+            trims: vec![(edges[1], edges[0], f)],
+            edge_joins: vec![topo::EdgeJoin {
+                vertex: v,
+                gone: edges[1],
+                kept: edges[2],
+                conventional: None,
+            }],
+            ..BlendNaming::default()
+        };
+        let named = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            crate::VarId::new(1, 77),
+            &table,
+            &body,
+            &rec,
+        )
+        .expect("a mixed set is a reading");
+        let name = named
+            .name_of(&ent(0, EntityKey::Edge(edges[2])))
+            .expect("the kept edge is named");
+        let [RoleSeg::Merged(cs)] = name.path.as_slice() else {
+            panic!("the joined edge is a set: {name:?}");
+        };
+        let kinds: Vec<_> = cs
+            .iter()
+            .map(|c| match c.path.as_slice() {
+                [RoleSeg::TrimEdge { .. }] => "trim",
+                [RoleSeg::From { .. }] => "survivor",
+                other => panic!("an image of one input edge: {other:?}"),
+            })
+            .collect();
+        assert_eq!(kinds.len(), 2, "the trimline and the survivor: {name:?}");
+        assert!(kinds.contains(&"trim") && kinds.contains(&"survivor"));
+    }
+
+    /// Rebuilds `table` with `a` and `b` TIED under `a`'s name — the
+    /// planted upstream tie. Everything else is copied across
+    /// unchanged, so the only difference from the real table is the one
+    /// row under test.
+    fn with_tie(table: &NameTable, a: EntityRef, b: EntityRef) -> NameTable {
+        let tied_name = table.name_of(&a).expect("a is named").clone();
+        let b_name = table.name_of(&b).expect("b is named").clone();
+        let mut out = NameTable::new();
+        for (name, entry) in table.iter() {
+            if *name == tied_name || *name == b_name {
+                continue;
+            }
+            match entry {
+                Entry::Unique(e) => out.insert(name.clone(), *e).expect("a fresh row"),
+                Entry::Tied(es) => out
+                    .insert_tied(name.clone(), es.clone())
+                    .expect("a fresh row"),
+            }
+        }
+        let mut ents = vec![a, b];
+        ents.sort();
+        out.insert_tied(tied_name, ents).expect("the planted tie");
+        out
+    }
+
+    /// **A planted upstream tie flows through the deferral** — the
+    /// #708 row, executed rather than described.
+    ///
+    /// Both members of an `Entry::Tied` row are blended, so both mints
+    /// compose the SAME upstream name. Before the deferral the second
+    /// insertion refused `Duplicate`, reporting the no-silent-aliasing
+    /// bug for a legitimate N2 tie. Now the rows are deferred and
+    /// flushed together, and the result carries one TIED entry.
+    ///
+    /// This is a unit test of the deferral path itself: today's tree
+    /// mints no first tie, so no document reaches this state, and that
+    /// is exactly why the emitter's behaviour under one has to be
+    /// planted rather than waited for.
+    #[test]
+    fn a_planted_upstream_tie_reaches_the_output_table_as_a_tie() {
+        let (body, table) = cube();
+        let edges = topo::query::all_edges(&body);
+        let (a, b) = (edges[0], edges[1]);
+        let planted = with_tie(
+            &table,
+            ent(0, EntityKey::Edge(a)),
+            ent(0, EntityKey::Edge(b)),
+        );
+
+        let blended = sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &edges,
+            0.125_f64,
+            Tol::witness(),
+        )
+        .expect("every edge of a cube blends");
+        let rec = blended.naming.as_ref().expect("the surgery keeps records");
+
+        let out = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            crate::VarId::new(1, 77),
+            &planted,
+            &blended.body,
+            rec,
+        )
+        .expect("a tie propagates rather than refusing Duplicate");
+
+        let widths: Vec<usize> = out
+            .iter()
+            .filter_map(|(_, e)| match e {
+                Entry::Tied(es) => Some(es.len()),
+                Entry::Unique(_) => None,
+            })
+            .collect();
+        assert!(
+            !widths.is_empty(),
+            "the tie-descended rows must land as TIED entries, not be lost"
+        );
+        assert!(
+            widths.iter().all(|w| *w >= 2),
+            "a tied entry with one member is a narrowing bug, not a tie: {widths:?}"
+        );
+
+        // The CONTROL, and what makes the row above mean anything: the
+        // same body, the same request, the untouched table — no tie
+        // upstream, no tie downstream, and every row went through the
+        // strict `insert`.
+        let clean = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            crate::VarId::new(1, 77),
+            &table,
+            &blended.body,
+            rec,
+        )
+        .expect("the untied table names as it always did");
+        assert!(
+            clean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
+            "an untied operand must produce no tied rows"
+        );
+
+        // The chamfer emitter is the same translation under a
+        // different minting id, so the deferral reaches it by
+        // construction — asserted, not assumed.
+        let chamfered = sweep::blend::build::chamfer_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &edges,
+            0.125_f64,
+            Tol::witness(),
+        )
+        .expect("every edge of a cube chamfers");
+        let crec = chamfered
+            .naming
+            .as_ref()
+            .expect("the surgery keeps records");
+        let cout = crate::names::name_chamfer(
+            RecipeNodeId::new(0, 3),
+            RecipeNodeId::new(0, 1),
+            crate::VarId::new(1, 77),
+            &planted,
+            &chamfered.body,
+            crec,
+        )
+        .expect("a tie propagates through the chamfer emitter too");
+        // Held to the SAME bar as the fillet arm, not a weaker one.
+        // `name_chamfer` delegating to `name_blend` is what makes the
+        // deferral shared, but it is an implementation fact this row
+        // must not assume: assert the property, so that a future
+        // `emit_chamfer` which stops delegating still has to pass.
+        let cwidths: Vec<usize> = cout
+            .iter()
+            .filter_map(|(_, e)| match e {
+                Entry::Tied(es) => Some(es.len()),
+                Entry::Unique(_) => None,
+            })
+            .collect();
+        assert!(
+            !cwidths.is_empty(),
+            "the chamfer emitter must defer tie-descended rows as well"
+        );
+        assert!(
+            cwidths.iter().all(|w| *w >= 2),
+            "a tied entry with one member is a narrowing bug: {cwidths:?}"
+        );
+        let cclean = crate::names::name_chamfer(
+            RecipeNodeId::new(0, 3),
+            RecipeNodeId::new(0, 1),
+            crate::VarId::new(1, 77),
+            &table,
+            &chamfered.body,
+            crec,
+        )
+        .expect("the untied table names as it always did");
+        assert!(
+            cclean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
+            "an untied operand must produce no tied rows at the chamfer either"
+        );
+        // The mint id is the discrimination (D3): the same records
+        // under a different node must produce DIFFERENT names, or the
+        // shared role vocabulary would be an aliasing bug rather than a
+        // deliberate reuse. This is what delegation could hide, so it
+        // is asserted here rather than assumed.
+        let fillet_names: BTreeSet<_> = clean.iter().map(|(n, _)| n.clone()).collect();
+        let chamfer_names: BTreeSet<_> = cclean.iter().map(|(n, _)| n.clone()).collect();
+        assert!(
+            fillet_names.is_disjoint(&chamfer_names),
+            "two blends under different nodes must share no name"
+        );
+    }
+}

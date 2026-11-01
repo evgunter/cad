@@ -1,0 +1,169 @@
+"""The one-shot user journey, in Python.
+
+§L3's spirit: "build a bracket, export STEP" is served by a SMALL
+DOCUMENT, not by a second, kernel-bypassing API. So this script does
+what a Rust author would do — insert nodes, evaluate, measure — and
+never reaches past the document layer.
+
+The plate is the REAL bracket now: its four corners are rounded, and
+they are rounded the way the algebra says rounds happen — you author
+the two rays that would have met at each corner and the arc is fitted
+to their virtual intersection, trimming both. There is no moment at
+which the sharp corner exists and is then removed. The loop is fully
+filleted, so no side is privileged: it is a cyclic sequence of
+[corner, side-bindings] units, and the seam fillet at the end reads
+exactly like the three interior ones.
+
+Run it against a built module:
+
+    cargo build -p pncad-py --features extension-module
+    cp target/debug/libpncad_py.so /tmp/pncad-stage/pncad.so
+    PYTHONPATH=/tmp/pncad-stage python3 crates/pncad-py/examples/bracket.py
+
+(or `maturin develop` in a virtualenv, which does the staging for you)
+
+The journey ends at a real STEP file (`Evaluation.step_string` is
+the document-layer export door), and the
+script then re-reads its own output with the kernel's importer — the
+file must exist AND parse, asserted rather than assumed.
+"""
+
+import math
+import os
+import tempfile
+
+from pncad import Coord, Doc, Formula, MateValue, Node, Open, Placed, Settle, Start, evaluate, import_step, m, mm
+
+PLATE = (80, 40)  # mm
+# The plate's corner radius: the natural one for this plate. It was
+# held at 3 mm while the kernel boxed a corner round by the whole
+# CARRIER circle it rides (x in [0, 2r]) rather than by the quarter arc
+# it occupies, which made the pocket's x = 8 mm wall a candidate against
+# the round whenever 2r > 8 and refused the cut. That is fixed (#1044:
+# the conic edge box and the wall face box are trim-scoped, and the
+# line-clearance bound clamps its vertex to the segment), so the bound
+# is gone and the demo asks for what it actually wants.
+CORNER = 6 * mm
+
+
+def rounded_plate(doc, width, height, radius, thickness):
+    """The plate outline: a rectangle whose four corners are fillets.
+
+    The entry sits mid-edge and heads east; each corner is a `fillet`
+    followed by the next side's ray and anchor; the last `fillet`
+    closes on `Start`, which is the seam. `toward` rather than
+    `angle`: only the RATIO of the components carries meaning, so an
+    axis direction is stored verbatim and the trim points are exact —
+    `angle(pi)` would go through `sin`, and 1.22e-16 of tilt would
+    move every vertex it touches by an ulp.
+    """
+    east, north, west, south = (1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)
+    sides = [
+        (north, (width * mm, height / 2 * mm)),
+        (west, (width / 2 * mm, height * mm)),
+        (south, (0 * mm, height / 2 * mm)),
+    ]
+    tip = Open.toward(*east).at((width / 2 * mm, 0 * mm))
+    for ray, anchor in sides:
+        tip = tip.fillet(radius).toward(*ray).at(anchor)
+    outline = tip.fillet(radius).to(Start)
+    assert outline.vertex_count == 8, "four arcs, two tangent points each"
+    return doc.insert(Node.extrude(doc.insert(Node.profile(outline)), Formula.literal(thickness)))
+
+
+def slab(doc, x, y, z, on):
+    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1] in `on`'s
+    coordinates: drawn on its own plane, extruded its height, and
+    placed into `on`'s space `z0` up, by a value on that space's `z`."""
+    x0, x1 = x
+    y0, y1 = y
+    z0, z1 = z
+    profile = doc.insert(
+        Node.polygon(
+            [
+                (Formula.literal(x0), Formula.literal(y0)),
+                (Formula.literal(x1), Formula.literal(y0)),
+                (Formula.literal(x1), Formula.literal(y1)),
+                (Formula.literal(x0), Formula.literal(y1)),
+            ],
+        )
+    )
+    body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z0)]))
+
+
+def main():
+    doc = Doc()
+
+    # Faces that meet on one plane glue where their margins decide it:
+    # the web stands flush on the plate, and the
+    # pocket's floor is flush with the plate's bottom.
+
+    # A rounded base plate, and an upright web standing on it.
+    base = rounded_plate(doc, PLATE[0], PLATE[1], CORNER, 8 * mm)
+    web = slab(doc, (36 * mm, 44 * mm), (5 * mm, 35 * mm), (8 * mm, 34 * mm), base)
+    bracket = doc.insert(Node.union([base, web]))
+
+    # A lightening pocket, entering from below and stopping inside.
+    pocket = slab(doc, (8 * mm, 28 * mm), (10 * mm, 30 * mm), (0 * mm, 5 * mm), base)
+    lightened = doc.insert(Node.subtract(bracket, pocket))
+
+    ev = evaluate(doc)
+    print(f"document: {doc.node_count} nodes, tolerance {doc.epsilon}")
+    print(f"evaluated: {ev.recomputed} recomputed, {ev.reused} reused")
+
+    for node in doc.order():
+        state = ev.value(node).kind if ev.succeeded(node) else "FAILED"
+        print(f"  {node!r}: {state}")
+
+    if not ev.succeeded(lightened):
+        # Fail loud: the kernel refused, so the script refuses too.
+        raise SystemExit("the bracket did not evaluate")
+
+    body = ev.value(lightened).body()
+    body.validate()
+
+    # A measurement states what it asks: this script prints numbers, to
+    # a micrometre of mean boundary displacement.
+    to_a_micrometre = Settle.resolution(1e-6 * m)
+    measured = body.mass_properties(to_a_micrometre)
+    assert measured.stop == "met", measured
+    props = measured.enclosure
+    print(f"volume       {props.volume:.9f} m^3  (+/- {props.volume_pad:g})")
+    print(f"surface area {props.surface_area:.9f} m^2  (+/- {props.area_pad:g})")
+
+    # The closed form, stated rather than trusted: an 80 x 40 plate
+    # less what the four corner rounds take off, times 8 thick; plus
+    # the web's 30 mm of stand-off; less the pocket's 5 mm bite.
+    r = CORNER.meters
+    plate_area = 0.080 * 0.040 - 4.0 * (r * r - math.pi * r * r / 4.0)
+    expected = (
+        plate_area * 0.008
+        + 0.008 * 0.030 * 0.030
+        - 0.008 * 0.030 * 0.004
+        - 0.020 * 0.020 * 0.005
+    )
+    assert abs(props.volume - expected) < 1e-15, (props.volume, expected)
+
+    # Export STEP through the document layer (build -> measure ->
+    # export, the whole one-shot journey), then prove the file is real:
+    # it exists, and the kernel's own importer parses it back to a
+    # solid with the same volume.
+    step = ev.step_string(lightened, product_name="bracket")
+    path = os.path.join(tempfile.mkdtemp(prefix="pncad-bracket-"), "bracket.step")
+    with open(path, "w", encoding="ascii") as out:
+        out.write(step)
+    assert os.path.exists(path), "the STEP file was written"
+
+    with open(path, encoding="ascii") as inp:
+        reimported = import_step(inp.read())
+    # The report measures through the import gate's own certificate of
+    # the body it just adopted, so the round-trip check costs no second
+    # quadrature.
+    volume = reimported.measure(to_a_micrometre).enclosure.volume
+    assert abs(volume - props.volume) < 1e-12, "the export round-trips"
+    print(f"exported     {path} ({os.path.getsize(path)} bytes; re-imported OK)")
+
+
+if __name__ == "__main__":
+    main()

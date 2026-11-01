@@ -1,0 +1,3055 @@
+{
+  "loops": [
+    {
+      "Chain": [
+        {
+          "At": [
+            {
+              "Quantity": {
+                "value": 0.0,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            {
+              "Quantity": {
+                "value": 0.0,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          ]
+        },
+        {
+          "Angle": {
+            "Quantity": {
+              "value": 0.25,
+              "dim": "Angle",
+              "unit": "rad"
+            }
+          }
+        },
+        {
+          "Toward": {
+            "dx": {
+              "Quantity": {
+                "value": 1.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            },
+            "dy": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            }
+          }
+        },
+        "Tangent",
+        "Cusp",
+        {
+          "Turn": {
+            "Quantity": {
+              "value": 0.1,
+              "dim": "Angle",
+              "unit": "rad"
+            }
+          }
+        },
+        {
+          "Line": {
+            "Quantity": {
+              "value": 1.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        },
+        {
+          "Fillet": {
+            "Quantity": {
+              "value": 0.2,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        },
+        {
+          "FarEndTo": [
+            {
+              "Quantity": {
+                "value": 7.0,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            {
+              "Quantity": {
+                "value": 2.0,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          ]
+        },
+        "CloseTo",
+        {
+          "Line": {
+            "Max": [
+              {
+                "Min": [
+                  {
+                    "Add": [
+                      {
+                        "Sub": [
+                          {
+                            "Neg": {
+                              "Quantity": {
+                                "value": 3.0,
+                                "dim": "Length",
+                                "unit": "m"
+                              }
+                            }
+                          },
+                          {
+                            "Quantity": {
+                              "value": 0.5,
+                              "dim": "Length",
+                              "unit": "m"
+                            }
+                          }
+                        ]
+                      },
+                      {
+                        "Mul": [
+                          {
+                            "Quantity": {
+                              "value": 2.0,
+                              "dim": "Length",
+                              "unit": "m"
+                            }
+                          },
+                          {
+                            "Ratio": {
+                              "num": 3,
+                              "den": 2
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "Div": [
+                      {
+                        "Quantity": {
+                          "value": 8.0,
+                          "dim": "Length",
+                          "unit": "m"
+                        }
+                      },
+                      {
+                        "Ratio": {
+                          "num": 4,
+                          "den": 1
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "Add": [
+                  {
+                    "Var": {
+                      "var": "0:3fa9c1d2a0b10001",
+                      "dim": "Length"
+                    }
+                  },
+                  {
+                    "Name": {
+                      "name": "width",
+                      "dim": "Length"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "Angle": {
+            "Add": [
+              {
+                "Atan2": [
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 2.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ]
+              },
+              "Turn"
+            ]
+          }
+        },
+        {
+          "Toward": {
+            "dx": {
+              "Mul": [
+                {
+                  "Sin": {
+                    "Quantity": {
+                      "value": 0.3,
+                      "dim": "Angle",
+                      "unit": "rad"
+                    }
+                  }
+                },
+                {
+                  "Mul": [
+                    {
+                      "Cos": {
+                        "Quantity": {
+                          "value": 0.4,
+                          "dim": "Angle",
+                          "unit": "rad"
+                        }
+                      }
+                    },
+                    {
+                      "Tan": {
+                        "Quantity": {
+                          "value": 0.5,
+                          "dim": "Angle",
+                          "unit": "rad"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "dy": {
+              "CountToScalar": {
+                "Integer": 7
+              }
+            }
+          }
+        },
+        {
+          "Fillet": {
+            "Quantity": {
+              "value": 0.012,
+              "dim": "Length",
+              "unit": "mm"
+            }
+          }
+        },
+        {
+          "LineTo": "Start"
+        },
+        {
+          "ContinueTo": "Start"
+        },
+        {
+          "TangentArcTo": "Start"
+        },
+        {
+          "ArcOnto": "Start"
+        },
+        {
+          "LineTo": "StartArriving"
+        },
+        {
+          "ContinueTo": "StartArriving"
+        },
+        {
+          "TangentArcTo": "StartArriving"
+        },
+        {
+          "ArcOnto": "StartArriving"
+        },
+        {
+          "LineTo": {
+            "Point": [
+              {
+                "Quantity": {
+                  "value": 3.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Quantity": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "ContinueTo": {
+            "Point": [
+              {
+                "Quantity": {
+                  "value": 3.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Quantity": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "TangentArcTo": {
+            "Point": [
+              {
+                "Quantity": {
+                  "value": 3.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Quantity": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "ArcOnto": {
+            "Point": [
+              {
+                "Quantity": {
+                  "value": 3.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Quantity": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "ArcTo": {
+            "Radius": {
+              "r": {
+                "Quantity": {
+                  "value": 2.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              "side": "Left"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Sweep": {
+              "r": {
+                "Quantity": {
+                  "value": 1.5,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              "side": "Left",
+              "angle": {
+                "Quantity": {
+                  "value": 0.6,
+                  "dim": "Angle",
+                  "unit": "rad"
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "ArcLen": {
+              "r": {
+                "Quantity": {
+                  "value": 1.75,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              "side": "Left",
+              "len": {
+                "Quantity": {
+                  "value": 0.9,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Left",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Radius": {
+              "r": {
+                "Quantity": {
+                  "value": 2.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              "side": "Right"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Radius": {
+                "r": {
+                  "Quantity": {
+                    "value": 2.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Sweep": {
+              "r": {
+                "Quantity": {
+                  "value": 1.5,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              "side": "Right",
+              "angle": {
+                "Quantity": {
+                  "value": 0.6,
+                  "dim": "Angle",
+                  "unit": "rad"
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Sweep": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "angle": {
+                  "Quantity": {
+                    "value": 0.6,
+                    "dim": "Angle",
+                    "unit": "rad"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "ArcLen": {
+              "r": {
+                "Quantity": {
+                  "value": 1.75,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              "side": "Right",
+              "len": {
+                "Quantity": {
+                  "value": 0.9,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "ArcLen": {
+                "r": {
+                  "Quantity": {
+                    "value": 1.75,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                "side": "Right",
+                "len": {
+                  "Quantity": {
+                    "value": 0.9,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Bulge": {
+              "target": "Start",
+              "b": {
+                "Quantity": {
+                  "value": 0.3,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Bulge": {
+                "target": "Start",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Bulge": {
+                "target": "Start",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Bulge": {
+                "target": "Start",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Bulge": {
+                "target": "Start",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Via": {
+              "q": [
+                {
+                  "Quantity": {
+                    "value": 4.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 0.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "target": "Start"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "Start"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "Start"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "Start"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "Start"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Center": {
+              "c": [
+                {
+                  "Quantity": {
+                    "value": 6.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 1.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "winding": "Ccw",
+              "target": "Start"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "Start"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "Start"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "Start"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "Start"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Center": {
+              "c": [
+                {
+                  "Quantity": {
+                    "value": 6.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 1.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "winding": "Cw",
+              "target": "Start"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "Start"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "Start"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "Start"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "Start"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Bulge": {
+              "target": "StartArriving",
+              "b": {
+                "Quantity": {
+                  "value": 0.3,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Bulge": {
+                "target": "StartArriving",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Bulge": {
+                "target": "StartArriving",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Bulge": {
+                "target": "StartArriving",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Bulge": {
+                "target": "StartArriving",
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Via": {
+              "q": [
+                {
+                  "Quantity": {
+                    "value": 4.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 0.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "target": "StartArriving"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "StartArriving"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "StartArriving"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "StartArriving"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": "StartArriving"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Center": {
+              "c": [
+                {
+                  "Quantity": {
+                    "value": 6.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 1.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "winding": "Ccw",
+              "target": "StartArriving"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "StartArriving"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "StartArriving"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "StartArriving"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": "StartArriving"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Center": {
+              "c": [
+                {
+                  "Quantity": {
+                    "value": 6.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 1.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "winding": "Cw",
+              "target": "StartArriving"
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "StartArriving"
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "StartArriving"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "StartArriving"
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": "StartArriving"
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Bulge": {
+              "target": {
+                "Point": [
+                  {
+                    "Quantity": {
+                      "value": 2.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ]
+              },
+              "b": {
+                "Quantity": {
+                  "value": 0.3,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Bulge": {
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Bulge": {
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Bulge": {
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Bulge": {
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                },
+                "b": {
+                  "Quantity": {
+                    "value": 0.3,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Via": {
+              "q": [
+                {
+                  "Quantity": {
+                    "value": 4.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 0.5,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "target": {
+                "Point": [
+                  {
+                    "Quantity": {
+                      "value": 2.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Via": {
+                "q": [
+                  {
+                    "Quantity": {
+                      "value": 4.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 0.5,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Center": {
+              "c": [
+                {
+                  "Quantity": {
+                    "value": 6.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 1.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "winding": "Ccw",
+              "target": {
+                "Point": [
+                  {
+                    "Quantity": {
+                      "value": 2.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Ccw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcTo": {
+            "Center": {
+              "c": [
+                {
+                  "Quantity": {
+                    "value": 6.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                },
+                {
+                  "Quantity": {
+                    "value": 1.0,
+                    "dim": "Length",
+                    "unit": "m"
+                  }
+                }
+              ],
+              "winding": "Cw",
+              "target": {
+                "Point": [
+                  {
+                    "Quantity": {
+                      "value": 2.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "FilletArc": {
+            "radius": {
+              "Quantity": {
+                "value": 0.3,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "ArcFillet": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.4,
+                "dim": "Length",
+                "unit": "m"
+              }
+            }
+          }
+        },
+        {
+          "ArcFilletArc": {
+            "spec": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            },
+            "radius": {
+              "Quantity": {
+                "value": 0.5,
+                "dim": "Length",
+                "unit": "m"
+              }
+            },
+            "spec2": {
+              "Center": {
+                "c": [
+                  {
+                    "Quantity": {
+                      "value": 6.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  },
+                  {
+                    "Quantity": {
+                      "value": 1.0,
+                      "dim": "Length",
+                      "unit": "m"
+                    }
+                  }
+                ],
+                "winding": "Cw",
+                "target": {
+                  "Point": [
+                    {
+                      "Quantity": {
+                        "value": 2.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    },
+                    {
+                      "Quantity": {
+                        "value": 1.0,
+                        "dim": "Length",
+                        "unit": "m"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Circle": {
+        "centre": [
+          {
+            "Quantity": {
+              "value": 1.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          {
+            "Quantity": {
+              "value": 1.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        ],
+        "radius": {
+          "Quantity": {
+            "value": 0.5,
+            "dim": "Length",
+            "unit": "m"
+          }
+        }
+      }
+    },
+    {
+      "CircleSplit": {
+        "centre": [
+          {
+            "Quantity": {
+              "value": 2.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          {
+            "Quantity": {
+              "value": 2.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        ],
+        "radius": {
+          "Quantity": {
+            "value": 0.75,
+            "dim": "Length",
+            "unit": "m"
+          }
+        },
+        "n": 5,
+        "phase": {
+          "Quantity": {
+            "value": 0.2,
+            "dim": "Angle",
+            "unit": "rad"
+          }
+        }
+      }
+    }
+  ],
+  "ids": []
+}

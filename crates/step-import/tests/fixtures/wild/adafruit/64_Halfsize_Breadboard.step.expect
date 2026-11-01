@@ -1,0 +1,11 @@
+# ORACLE: FreeCAD 1.1.2 (Libs 1.1.2R20260723), `Part.Shape().read(path)`,
+# run 2026-08-04 on the UNMODIFIED upstream file (before the provenance
+# comment was added). Volume is FreeCAD's `Shape.Volume`, in mm3. The wild
+# has no closed forms: this oracle is the ONLY independent volume these
+# fixtures have, and it is an independent IMPLEMENTATION, not a proof.
+ORACLE_SOLIDS=1
+ORACLE_SHELLS=1
+ORACLE_FACES=18
+ORACLE_EDGES=48
+ORACLE_VERTICES=32
+ORACLE_VOLUME_MM3=44986.25
