@@ -55,3 +55,14 @@ AUTHOR's narrative is recoverable from
 
   **Class: all three designers framed the bound engine as the toleranced question and missed that the document's own assertion is the predicate it answers.** The question to Ev now is whether a bare clearance measure shows its bracket. The row and the PR are re-cut to that design once Ev confirms.
 - 2026-11-01 — (DOORS orchestrator) `face-pick-cannot-name-which-face`: PR 6262 is in, green, with a style review dispatched (tier as planned). The spec was **stale again, a second instance of the class logged above**: the declare offer (`c6e9e3d95b`), the add-datum form and face-frame datums (`ac1c2847ad`) and `tree::node_number` (`295c2e786e`) were all gone on main. The lane routed the sites that remain through one composer, `tree::PickedName`. It filed `a-selections-kept-labels-miss-the-nodes-its-face-words-name` (P3). **Friction:** the shared disk hit 3.7 GB free with two 11 GB viewer targets. The finished implementer's target was handed to its reviewer by rename, and the extrude lane's clone was reclaimed.
+- 2026-11-01 — (DOORS orchestrator) PR 6262 style review: mergeable after fixes. The composer re-derives no words.
+  - **MAJOR:** a mirror drop names a deleted copy by its bare tag.
+  - **Minors:** a debug print; the panel and the refusal speak two documents; `, on M` repeats a node that a join already named.
+  - **Q1:** the body scope now has three spellings.
+
+  **Classes, recorded here as their durable home:**
+  - (a) Labels kept at pick time while the sentence is recomputed at drop time against a later document (`on_body`, `seat_of` or `body_of` in a `reconcile` or `PickLost`). Look in `seats.rs` and `blend.rs`.
+  - (b) A test re-plumbed to a speaker that production does not use, so it no longer tests what the user sees.
+  - (c) "Which node do the words already name", re-stated outside the names layer's walk.
+
+  The fix pass, sent to the same lane, takes everything and sweeps (a).
