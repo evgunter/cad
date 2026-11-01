@@ -252,7 +252,7 @@ use crate::session::{
     AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
     SessionOp, VersionOffer,
 };
-use crate::tools::{PanelRefusal, ToolNotice};
+use crate::tools::{PanelRefusal, ToolKind, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -2211,6 +2211,18 @@ pub fn tool_notice(
 /// ```
 pub fn tool_news(refusal: &PanelRefusal) -> Message {
     Message::new(Subject::Document, refusal.to_string(), Retold::Again)
+}
+
+/// **What a viewport click that met nothing says while a tool is
+/// open** — the tool took no pick from it. [`Subject::Document`], like
+/// every tool's news, and [`Retold::Again`]: the same miss says it
+/// again.
+pub fn missed_pick(kind: ToolKind) -> Message {
+    Message::new(
+        Subject::Document,
+        kind.says(&"nothing under the cursor — no pick taken"),
+        Retold::Again,
+    )
 }
 
 /// **What the chrome badges about the at-rest check**, and `None`

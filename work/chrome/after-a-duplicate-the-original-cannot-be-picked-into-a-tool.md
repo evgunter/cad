@@ -1,7 +1,7 @@
 ---
 id: after-a-duplicate-the-original-cannot-be-picked-into-a-tool
 kind: issue
-title: after a duplicate, a viewport pick on the original body reaches no tool seat, silently
+title: a viewport click that meets nothing while a tool is open takes no pick, silently
 status: open
 opened: 2026-10-31
 priority: P1
@@ -28,3 +28,7 @@ vclick 0.3 0.47
 settle
 dump
 ```
+
+## Premise corrected (2026-11-01, CHROME partial-picture lane)
+
+The original body is pickable after a duplicate: a click on its material seats `Extrude …`, a click on the copy seats `Place "Part 1"` (`tests/drive.rs`, `after_a_duplicate_a_click_on_either_body_seats_it`). The replay's point falls in the plate's 12 mm hole once zoom-to-fit frames both bodies, so the index answers a miss (`Ok(None)`); without the duplicate the same fraction lands on material. What is real is that a miss with a tool open said nothing. Ruled B by the CHROME orchestrator: the viewport's miss path says it on the line, naming the tool; a tree deselect stays quiet.

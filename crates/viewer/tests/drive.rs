@@ -247,6 +247,40 @@ mod driven {
         );
     }
 
+    /// **A click that meets nothing while a tool is open says so**: the
+    /// boolean tool takes no pick from the ground around the plate, and
+    /// the line says that rather than leaving `no picks yet` as the only
+    /// answer to the click.
+    #[test]
+    fn a_click_on_nothing_with_a_tool_open_says_no_pick_was_taken() {
+        let mut driver = started("drive-missed-pick");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        let corner = driver.in_viewport(0.02, 0.02).expect("the viewport");
+        driver
+            .click_at(
+                corner,
+                egui::PointerButton::Primary,
+                egui::Modifiers::NONE,
+                1,
+            )
+            .expect("clicked");
+        driver.settle().expect("settles");
+        assert!(
+            driver.shows("no picks yet"),
+            "the premise: the click took nothing"
+        );
+        assert!(
+            driver.shows("boolean tool: nothing under the cursor — no pick taken"),
+            "the miss is said on the line: {}",
+            driver.dump()
+        );
+    }
+
     /// **The picture is the window's**: as many pixels as the window
     /// has, and inside the viewport the startup part is drawn — the
     /// pane's pixels are not all the ground it is painted on.

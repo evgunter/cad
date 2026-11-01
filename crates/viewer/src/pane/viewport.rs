@@ -1175,7 +1175,21 @@ impl ViewerBehavior<'_> {
                     // operation per frame that performs no transition
                     // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
-                    Ok(op) => self.ops.push(op),
+                    Ok(op) => {
+                        // **A click aimed at an open tool that met
+                        // nothing says so**: the tool takes no pick
+                        // from it, and a panel still reading `no picks
+                        // yet` would otherwise be the only answer.
+                        // Said here, where the click is known to be a
+                        // viewport pick; a deselect in the tree is
+                        // no attempt to seat anything and stays quiet.
+                        if matches!(op, SessionOp::Select(crate::session::Selection::None))
+                            && let Some(kind) = self.tools.open_kind()
+                        {
+                            self.notices.push(frame::missed_pick(kind));
+                        }
+                        self.ops.push(op);
+                    }
                     Err(error) => self.notices.push(frame::pick_refusal(&error, (doc, eval))),
                 }
             }
