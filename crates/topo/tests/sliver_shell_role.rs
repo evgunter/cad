@@ -520,3 +520,68 @@ fn a_millimetre_cube_on_a_thin_plate_builds() {
         );
     }
 }
+
+/// Review probe (PR 6238): the sliver's refusal, its margin and site, in
+/// both orders.
+#[test]
+fn rv_sliver_refusal_margins() {
+    let tol = Tol::witness();
+    let profile = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
+    let (prism, cube) = corner_pose(&profile, [2.0, 0.5, 1.0], [2.0, 3.5, 0.0], 1, 6e-9, tol);
+    for (order, result) in [
+        ("prism first", intersect(&prism, &cube, tol)),
+        ("cube first", intersect(&cube, &prism, tol)),
+    ] {
+        eprintln!("RVSLIVER eps {:e} {order}: {:?}", tol.eps(), result.as_ref().err());
+    }
+}
+
+/// Review probe (PR 6238): near-tangent corner poses through every op,
+/// both orders, one line each, to diff head against main.
+#[test]
+fn rv_pose_hunt() {
+    let tol = Tol::witness();
+    let vee = [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5), (0.0, 4.0)];
+    let notch = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (2.0, 1.0), (0.0, 2.0)];
+    let poses: [(&str, &[(f64, f64)], V3, V3); 5] = [
+        ("vee-e0", &vee, [2.0, 0.5, 1.0], [2.0, 3.5, 0.0]),
+        ("vee-e1", &vee, [2.0, 0.5, 1.0], [-2.0, 3.5, 0.0]),
+        ("vee-up", &vee, [2.0, 0.5, 1.0], [0.0, 0.0, -1.0]),
+        ("notch-e0", &notch, [2.0, 1.0, 1.0], [2.0, 1.0, 0.0]),
+        ("notch-e1", &notch, [2.0, 1.0, 1.0], [-2.0, 1.0, 0.0]),
+    ];
+    let ds = [1e-3, 1e-4, 1e-5, 1e-6, 3e-7, 1e-7, 3e-8, 1e-8, 6e-9, 3e-9, 1e-9, 1e-10, 1e-11];
+    let short = |r: &Result<topo::BooleanResult<f64>, BooleanError>| -> String {
+        match r {
+            Ok(b) => match b.body() {
+                Some(b) => format!("ok({} faces)", b.body.faces().count()),
+                None => "empty".into(),
+            },
+            Err(BooleanError::Escalated { decision, diag }) => {
+                format!("ESC {decision:?} {:?}", diag.predicate)
+            }
+            Err(e) => {
+                let s = format!("{e:?}");
+                format!("ERR {}", &s[..s.len().min(70)])
+            }
+        }
+    };
+    for (name, profile, v, e) in poses {
+        for a in 0..8u32 {
+            for d in ds {
+                let (prism, cube) = corner_pose(profile, v, e, a, d, tol);
+                let rows = [
+                    ("int pc", intersect(&prism, &cube, tol)),
+                    ("int cp", intersect(&cube, &prism, tol)),
+                    ("uni pc", topo::union(&prism, &cube, tol)),
+                    ("uni cp", topo::union(&cube, &prism, tol)),
+                    ("sub pc", topo::subtract(&prism, &cube, tol)),
+                    ("sub cp", topo::subtract(&cube, &prism, tol)),
+                ];
+                for (op, r) in rows {
+                    eprintln!("RVHUNT {name} a{a} d{d:e} {op}: {}", short(&r));
+                }
+            }
+        }
+    }
+}

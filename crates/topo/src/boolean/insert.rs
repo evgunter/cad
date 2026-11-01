@@ -3951,4 +3951,125 @@ mod tests {
             "{refused:?}"
         );
     }
+
+    /// Review probe (PR 6238): a germ's tilt within the zero, as a
+    /// displacement `t·zero` at the reading's lever, decides as the
+    /// upright pose, against an edge (`bool_strut_side`) and against a
+    /// second germ (`bool_shared_cut_order`), over φ, lever and tilt.
+    #[test]
+    fn rv_a_within_zero_tilt_decides_as_upright_sweep() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let z = band.zero();
+        let unit = |v: Vec3<f64>| v.normalize();
+        // Face b is z = 0 (normal +z) possibly tilted; face a leans φ
+        // off it about the x axis, possibly tilted. Their germ along ±x.
+        let germ = |n_a: Vec3<f64>, n_b: Vec3<f64>| -> Leaned<f64> {
+            let m = n_a.cross(n_b);
+            let g = m.normalize();
+            (if g.x < 0.0 { -g } else { g }, m.norm())
+        };
+        let mut bad = Vec::new();
+        let mut n = 0usize;
+        let phis = [1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 90.0];
+        let levers = [0.01, 1.23, 100.0];
+        let tilts = [0.0, 0.2, -0.2, 0.9, -0.9];
+        for &phi in &phis {
+            let (sp, cp) = (phi as f64).to_radians().sin_cos();
+            for &lever in &levers {
+                // Upright poses for the edge: along the germ (Zero), and
+                // at an offset of 30·zero off face a's plane (definite).
+                let mut thetas = vec![0.0f64];
+                let s30 = 30.0 * z / (lever * sp);
+                if s30 < 0.5 {
+                    thetas.push(s30.asin());
+                    thetas.push(-s30.asin());
+                }
+                thetas.push(std::f64::consts::FRAC_PI_2);
+                for &theta in &thetas {
+                    let e = Vec3::new(theta.cos(), theta.sin(), 0.0);
+                    // A far second germ, definite on one side of `e`.
+                    let other = (unit(Vec3::new(-theta.sin(), theta.cos(), 0.0) * -1.0 + e * 0.3), 1.0);
+                    for axis in 0..4 {
+                        for &t in &tilts {
+                            let d = t * z / lever;
+                            let (mut n_a, mut n_b) = (Vec3::new(0.0, -sp, cp), Vec3::new(0.0, 0.0, 1.0));
+                            match axis {
+                                0 => n_a = unit(n_a + Vec3::new(d, 0.0, 0.0)),
+                                1 => n_a = unit(n_a + Vec3::new(0.0, d * cp, d * sp)),
+                                2 => n_b = unit(n_b + Vec3::new(d, 0.0, 0.0)),
+                                _ => n_b = unit(n_b + Vec3::new(0.0, d, 0.0)),
+                            }
+                            let g = germ(n_a, n_b);
+                            let up = germ(Vec3::new(0.0, -sp, cp), Vec3::new(0.0, 0.0, 1.0));
+                            let read = |g: Leaned<f64>, nb: Vec3<f64>| {
+                                strut_order(((e, 1.0), lever), nb, (g, other), lever, || Ok(None), band)
+                                    .map_err(|e| format!("{e:?}").chars().take(60).collect::<String>())
+                            };
+                            let (u, tl) = (read(up, Vec3::new(0.0, 0.0, 1.0)), read(g, n_b));
+                            n += 1;
+                            if u != tl {
+                                bad.push(format!(
+                                    "EDGE phi {phi} L {lever} theta {theta:.3e} axis {axis} t {t}: up {u:?} tilted {tl:?}"
+                                ));
+                            }
+                        }
+                    }
+                }
+                // Germ against germ, both in face b: g0 from a0 at φ, g1
+                // from a1 at φ1, upright along one line or 30·zero apart.
+                for &phi1 in &phis {
+                    let (s1, c1) = (phi1 as f64).to_radians().sin_cos();
+                    let smin = sp.min(s1);
+                    let mut psis = vec![0.0f64];
+                    let s30 = 30.0 * z / (lever * smin);
+                    if s30 < 0.5 {
+                        psis.push(s30.asin());
+                    }
+                    for &psi in &psis {
+                        let (sy, cy) = psi.sin_cos();
+                        // a1's normal turned by ψ about z, so its line with
+                        // face b leans ψ off x.
+                        let rot = |v: Vec3<f64>| Vec3::new(cy * v.x - sy * v.y, sy * v.x + cy * v.y, v.z);
+                        let a0 = Vec3::new(0.0, -sp, cp);
+                        let a1 = rot(Vec3::new(0.0, s1, c1));
+                        let entry = BoolSector {
+                            he: HalfEdgeKey::default(),
+                            start: Vec3::new(1.0, -1.0, 0.0),
+                            end: Vec3::new(1.0, 1.0, 0.0),
+                            start_reach: crate::boolean::sectors::Reach::Extent(lever),
+                            end_reach: crate::boolean::sectors::Reach::Extent(lever),
+                            face: FaceKey::default(),
+                            normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+                            arm: lever,
+                        };
+                        let up = walks_after(&entry, germ(a0, Vec3::new(0.0, 0.0, 1.0)), germ(a1, Vec3::new(0.0, 0.0, 1.0)), band)
+                            .map_err(|_| ());
+                        for &t0 in &tilts {
+                            for &t1 in &tilts {
+                                let (d0, d1) = (t0 * z / lever, t1 * z / lever);
+                                let g0 = germ(unit(a0 + Vec3::new(d0, 0.0, 0.0)), Vec3::new(0.0, 0.0, 1.0));
+                                let g1 = germ(unit(a1 + rot(Vec3::new(d1, 0.0, 0.0))), Vec3::new(0.0, 0.0, 1.0));
+                                let tl = walks_after(&entry, g0, g1, band).map_err(|_| ());
+                                n += 1;
+                                if up != tl {
+                                    bad.push(format!(
+                                        "GERM phi {phi}/{phi1} L {lever} psi {psi:.3e} t {t0}/{t1}: up {up:?} tilted {tl:?}"
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let single: Vec<_> = bad.iter().filter(|b| b.starts_with("EDGE") || b.contains(" t 0/") || b.contains("/0:")).collect();
+        eprintln!("eps {:e}: {n} readings, {} moved, {} with one tilt", z, bad.len(), single.len());
+        for b in bad.iter().take(400) {
+            eprintln!("{b}");
+        }
+        // Every reading with at most one tilted direction decides as
+        // upright; two tilts whose displacements sum past the zero may
+        // escalate an upright Zero (as at φ = 90°, lean 1, unchanged).
+        assert!(single.is_empty(), "{} single-tilt readings moved", single.len());
+    }
 }
