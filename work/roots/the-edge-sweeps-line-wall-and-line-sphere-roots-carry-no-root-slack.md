@@ -23,5 +23,15 @@ two `WallRoots::Two(ts, _) => two(ts)` arms) drops the slack: a line
 edge's wall and sphere roots go on as exact. Its cone arm does meter its
 roots (`line_cone_roots`, `bool_line_cone_root_slack`).
 
+**The start form's discriminant carries its start's rounding too**
+(PR 6174's review). Read `About::Start` from far starts, 7 line × sphere
+cases decided Two roots where the exact discriminant is `≤ 0`. The disc
+rung's margin carries the `u·D²` of a residual read `D` from the sphere,
+and the band alone meters it. The edge sweep's lines start at the
+body's scale, where `u·D²` is the body's own rounding, so it never meets
+such a start; the rays, which do, read `About::Nearest` and charge the
+shift's rounding into the margin (`Centred::charged`).
+
 Owed: carry the wall and sphere slack through the edge door, as the cone
-arm carries its own.
+arm carries its own. Then state the start form's disc margin's rounding,
+or charge it as `Centred::charged` does for the nearest form.

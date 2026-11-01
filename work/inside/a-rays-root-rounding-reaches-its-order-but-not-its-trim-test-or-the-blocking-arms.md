@@ -33,5 +33,19 @@ nothing else. Three readers of the same roots still take them as exact:
   The depressed quartic's own root error is its ladder's to state
   (`depressed_quartic_roots`), and nothing carries it to the count.
 
+- **A met edge's far root** (PR 6168). `reach_margin`
+  (`solid_contain.rs:4171`, read by `reaches_root_in_band`) reads a curved
+  face's root's offset from the passage (`off`) and its rise off the
+  carrier (`rise`) with the root taken as exact. It does not read
+  `RayHit::slack`.
+- **A premise the `Interval` lane can break.** `curved_edges.rs:182`
+  decides `hi − lo` (the extremes of the passages along the ray) through
+  `decide_magnitude`, whose premise is "nonnegative by construction".
+  At `f64` it is: `hi` and `lo` are a max and a min of one set. At
+  `Interval` its enclosure's lower bound is `hi.lo − lo.hi`, which goes
+  below zero by the passages' widths, and past `−escalate` it panics.
+  It was not reached.
+
 Owed: fold each root's slack into the readers that place its point, or
-state for each why its error cannot move a verdict.
+state for each why its error cannot move a verdict. Decide `hi − lo`
+signed, or clamp it at zero.

@@ -488,6 +488,12 @@ pub mod test_support {
             .collect()
     }
 
+    /// How far each solid's aimed rays start from `aim`, over two
+    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
+    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim)
+    }
+
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.
     pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
