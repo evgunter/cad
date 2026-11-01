@@ -2,11 +2,13 @@
 id: the-pr-tour-suite-builds-at-opt-level-1
 kind: unit
 title: the per-PR tour suite builds at opt-level 1: release's opt 3 doubles the build and stops generic sharing
-status: open
+status: closed
 opened: 2026-11-01
+closed: 2026-11-01
 priority: P1
 cost: E
 refs: [the-demos-job-is-pr-cis-long-pole-on-its-release-build, 6179]
+pr: 6187
 branch: claude/gallant-heisenberg-0bj07v
 ---
 
