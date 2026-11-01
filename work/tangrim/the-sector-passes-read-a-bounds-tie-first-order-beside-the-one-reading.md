@@ -124,3 +124,12 @@ deletes `sectors.rs`'s `wedge_read`…`cone_side` block and moves
 `bound_side::read`: that lane deletes callers of the reading, not a copy
 of it, and item 1's descent no longer has to reach `cone_side` once it
 lands.
+
+## Lane finding (2026-11-01, stage 2, PR 6253)
+
+Item 3 (the vertex-pair charge) was built and backed out: charging the
+vertex-pair pass as the pierce lane is charged refuses short arcs at a
+crescent's tip that main builds valid. The measurement and what it
+needs are on `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`,
+which stays open. PR 6253's body lists what of items 1–13 landed and
+where the rest is filed.

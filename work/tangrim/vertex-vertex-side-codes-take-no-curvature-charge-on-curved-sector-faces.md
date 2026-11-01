@@ -2,14 +2,11 @@
 id: vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces
 kind: issue
 title: The vertex-vertex lane reads a bound's side against a curved sector face's tangent plane with no curvature charge, where the pierce lane charges it
-status: closed
+status: open
 opened: 2026-10-01
 priority: P3
 cost: M
 parent: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
-closed: 2026-11-01
-pr: 6253
-branch: tangrim/sector-passes-descend
 ---
 
 ## What
@@ -57,10 +54,31 @@ curved face and a bound that leaves it nearly tangent (a box corner
 touching a cylinder wall, the box's edge tilted to within a few `1e-5`
 of the wall's tangent plane) and read where it lands.
 
-## Closed
 
-2026-11-01, PR 6253 (`tangrim/sector-passes-descend`). `BoolSector`
-carries its face's lever (`PierceLever::of` at the vertex) and bend, and
-`sectors::sector_code` charges a bound's definite side against the
-other sector's face exactly as the pierce lane does. A spline sector
-face takes no charge yet (`the-edge-edge-rule-descends-a-flanks-projection-not-its-bound`, item 2).
+## Lane finding (2026-11-01, `tangrim/sector-passes-descend`, PR 6253)
+
+Built and measured, then backed out. With `BoolSector` carrying its
+face's lever (`PierceLever::of` at the vertex) and `sectors::sector_code`
+charging a definite side as `pierce_side` does, three rows of
+`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs` that build on
+main refused `CurvedSectorSideUnsupported { verdict: Zero(..) }` at the
+default ε, the charge's margin decided zero:
+
+- `a_boss_inside_a_hole_sharing_a_vertex_beside_the_tip`: `s = 1e-6`,
+  `φ = 0`, tip, A ∪ B, margin `3.0e-13`;
+- `short_arcs_at_a_crescents_tip`: both, `s = 1e-5`, A ∪ B, margin `1.0e-11`;
+- `short_arcs_at_a_turned_tip_at_the_finest_band`: inside, `φ = 0`,
+  A ∪ B, margin `9.0e-15`.
+
+(Measured in the first minutes of the full run; the rest of the suite
+was not run with the charge.) The charge is direction-agnostic on
+purpose (`bound_side::read`'s doc): it refuses a bound leaving within
+about `2·sqrt(band/lever)` of tangent, or too short to witness its slope,
+whichever way the face bends. On these short arcs at a crescent's tip
+that refuses bodies main builds valid. So the design's item 2, first
+bullet ("so the vertex-pair pass gets the MAJ-1 charge too"), is not
+landable as specified: it needs either a charge that reads which way the
+face bends (no charge where the face bends away from the verdict's side),
+or a first-order verdict the charge does not clear read one order down
+as a tie is, which is a change to the design and goes to the
+orchestrator first.
