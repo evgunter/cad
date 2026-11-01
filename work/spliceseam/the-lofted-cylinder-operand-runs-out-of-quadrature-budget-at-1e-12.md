@@ -44,3 +44,7 @@ pinned at 1e-12 on `the operand measures: the measurement did not meet
 its resolution`; the pin goes red the day the row passes.
 
 Un-pinning owes a re-measure: each pin stops its row at main's first stop, so whatever runs after it in the row is unmeasured. Known behind the 1e-12 pin: whether the far union's wrong volume (`spliceseam/main-red-the-lofted-cylinders-far-union-builds-the-wrong-volume-at-1e-6`) also holds at 1e-12.
+
+## Evidence (2026-11-01, SPLICE orchestrator)
+
+On main `fd5ae82f`, at ε 1e-12, `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`'s pinned red now PASSES: the operand's measurement no longer stops at `wall`. A SPLICE lane found this locally, and it is reproduced identically on a clean worktree. The props quad_lane/settle merges since the last nightly are the likely cause. The pin may need lifting, and this row may be closable; re-measure before deciding.
