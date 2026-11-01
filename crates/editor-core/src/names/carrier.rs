@@ -90,7 +90,9 @@ impl super::SegRewrite for Reseat<'_> {
             .take()
             .and_then(|read| self.moved.get(&read))
             .and_then(|map| map.get(n));
-        Ok(to.map_or(super::Carry::Descend, |to| super::Carry::Replace(to.clone())))
+        Ok(to.map_or(super::Carry::Descend, |to| {
+            super::Carry::Replace(to.clone())
+        }))
     }
 
     fn descended(
