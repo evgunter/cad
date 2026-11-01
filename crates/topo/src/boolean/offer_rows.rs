@@ -664,6 +664,7 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
         1.0,
         1.0,
         band(),
+        super::super::solid_contain::About::Start,
     )
     .map(|_| ())
     .map_err(|fault| BooleanError::Escalated {

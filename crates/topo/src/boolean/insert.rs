@@ -1877,6 +1877,7 @@ fn mint_directed<T: Decide>(
         };
         let departure = proven(&body.half_edges, departure_he, EntityId::HalfEdge).edge;
         let facing = strut_faces_first(
+            (body, vertex),
             (operand, sectors),
             (arrival, departure),
             (gf.cut, gf.cells),
@@ -2180,18 +2181,26 @@ enum StrutFacing {
 /// edge's lone vertex the edge key cannot say which end a germ along it
 /// runs from ([`StrutFacing::ClosedEdge`]); each caller of
 /// [`strut_faces_first`] states what it does then.
+///
+/// At a wrap edge's tip (`tip`, [`strut_faces_first`] reads it) the
+/// corner's two edges are the one edge too, walked out and back, and the
+/// corner is the face's full turn from the arriving half round to the
+/// departing one. A germ along the edge lies on both ends of that turn:
+/// as the run's start germ it is met first, beside the arrival, and as
+/// its end germ last, beside the departure, so `he_plus` faces `first`
+/// either way.
 fn strut_facing(
-    arrival: EdgeKey,
-    departure: EdgeKey,
+    (arrival, departure): (EdgeKey, EdgeKey),
+    tip: bool,
     first: Option<EdgeKey>,
     second: Option<EdgeKey>,
 ) -> Result<StrutFacing, BooleanError> {
     if arrival == departure {
         let along = first == Some(arrival) || second == Some(arrival);
-        return Ok(if along {
-            StrutFacing::ClosedEdge
-        } else {
-            StrutFacing::Unnamed
+        return Ok(match (along, tip) {
+            (false, _) => StrutFacing::Unnamed,
+            (true, true) => StrutFacing::PlusFirst,
+            (true, false) => StrutFacing::ClosedEdge,
         });
     }
     let mut votes = [
@@ -2223,19 +2232,41 @@ fn strut_facing(
 /// exactly on its bound. Otherwise the walk orders the germs' cuts
 /// ([`walk_faces_first`]).
 ///
+/// `body` and `vertex`, the corner's, are read only to tell a wrap
+/// edge's tip from a closed edge's lone vertex, where arrival and
+/// departure are one edge ([`strut_facing`]'s `tip`). The tip is
+/// `validate::wrap_tips`' (a valence-1 end of a wrap edge), read at this
+/// corner: its one edge is a wrap edge whose two ends differ, and
+/// `vertex` is one of them. At rest that is the same set: a corner
+/// bounded both ways by one edge of two ends is that edge's halves
+/// following each other round `vertex`, so its orbit holds no other
+/// edge. Mid-run it is the reading that stands, where `wrap_tips`'
+/// valence would count the struts already minted at the vertex.
+///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
 /// each caller states what it does then.
 pub(super) fn strut_faces_first<T: Decide>(
+    (body, vertex): (&Body<T>, VertexKey),
     (operand, sectors): (Operand, &[BoolSector<T>]),
     (arrival, departure): (EdgeKey, EdgeKey),
     first: (Cut<T>, Cells),
     second: (Cut<T>, Cells),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
+    let tip = arrival == departure && {
+        let e = proven(&body.edges, arrival, EntityId::Edge);
+        let ends = [Some(e.he_plus), body.mate(e.he_plus)]
+            .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
+        let wraps = body
+            .get_curve_geom(e.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .is_some_and(|c| c.description().is_wrap());
+        wraps && ends[0] != ends[1] && ends.contains(&Some(vertex))
+    };
     match strut_facing(
-        arrival,
-        departure,
+        (arrival, departure),
+        tip,
         own_locus_edge(operand, first.1),
         own_locus_edge(operand, second.1),
     )? {
@@ -2642,7 +2673,7 @@ mod tests {
         use StrutFacing::{ClosedEdge, MinusFirst, PlusFirst, Unnamed};
         let mut keys = slotmap::SlotMap::<EdgeKey, ()>::with_key();
         let (arr, dep, other) = (keys.insert(()), keys.insert(()), keys.insert(()));
-        let f = |first, second| strut_facing(arr, dep, first, second);
+        let f = |first, second| strut_facing((arr, dep), false, first, second);
         // Each single vote.
         assert_eq!(
             f(Some(arr), None).unwrap(),
@@ -2681,11 +2712,25 @@ mod tests {
             );
         }
         // A closed edge's lone vertex.
-        let closed = |first, second| strut_facing(arr, arr, first, second).unwrap();
+        let closed = |first, second| strut_facing((arr, arr), false, first, second).unwrap();
         assert_eq!(closed(Some(arr), None), ClosedEdge);
         assert_eq!(closed(None, Some(arr)), ClosedEdge);
         assert_eq!(closed(None, None), Unnamed);
         assert_eq!(closed(Some(other), None), Unnamed);
+        // A wrap tip's one edge, walked out and back: a germ along it
+        // faces `he_plus`, whichever germ it is.
+        let tip = |first, second| strut_facing((arr, arr), true, first, second).unwrap();
+        assert_eq!(
+            tip(Some(arr), None),
+            PlusFirst,
+            "the start germ along the tip's edge"
+        );
+        assert_eq!(
+            tip(None, Some(arr)),
+            PlusFirst,
+            "the end germ along the tip's edge"
+        );
+        assert_eq!(tip(None, None), Unnamed);
     }
 
     /// The survivor-validation invariants: odd counts and dirty codes

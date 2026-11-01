@@ -370,7 +370,9 @@ struct Entry {
     /// The Zero this bound's own first-order reading decided, where it
     /// read `On` there.
     on: Option<super::sectors::OnReading>,
-    /// The class is Delta 2's lump, not this bound's own reading.
+    /// The class is not this bound's first-order reading: Delta 2's
+    /// lump, or, for a bound two tangent sectors share, their
+    /// second-order reading of it.
     lumped: bool,
 }
 
@@ -571,9 +573,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     };
     // A conic tied with a plane face whose bend reads no side
     // (`BooleanDecision::ConicBend`) is held as its first-order `On`
-    // until the lumps have run: a tangent sector's lump reads its whole
-    // sector off the two carriers and overwrites the bound's reading,
-    // so the bend's refusal stands only for a bound no lump took.
+    // until the lumps have run: a lump, or the second-order reading of
+    // a bound two tangent sectors share, supersedes the bound's own
+    // reading, so the bend's refusal stands only for a bound neither
+    // took.
     let mut entries = Vec::with_capacity(n);
     let mut unread_bends = Vec::new();
     for (k, s) in sectors.iter().enumerate() {
@@ -763,6 +766,29 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         }
         entries[k].lumped = true;
         entries[(k + 1) % n].lumped = true;
+    }
+    // A bound two tangent sectors share is neither lump's: it reads its
+    // own side at second order through both, as their germs read it, so
+    // a ruling between walls curving to opposite sides stays `On` and
+    // folds the same way at each of its ends.
+    for e in (0..n).filter(|&e| n > 1 && !by_carrier[e]) {
+        let before = (e + n - 1) % n;
+        let (Some(ends), Some(starts)) = (&tangent_reads[e], &tangent_reads[before]) else {
+            continue;
+        };
+        let [_, end] = sectors[e].reached_bounds();
+        let [start, _] = sectors[before].reached_bounds();
+        let side = ends.side(n_pierced, p, end, band)?;
+        // The bound is a curve on both carriers, both tangent to the
+        // pierced face at `p`, so by Meusnier both graph accelerations
+        // along it are its curvature dotted with `n_ref`: a legal pose
+        // reads it the same through either.
+        if side != starts.side(n_pierced, p, start, band)? {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "two tangent sectors read their shared bound on different sides",
+            });
+        }
+        entries[e].class = side;
     }
     if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
         return Err(refusal);
@@ -983,6 +1009,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let germ =
                     |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
                 let facing = super::insert::strut_faces_first(
+                    (piercing_body, vertex),
                     (piercing, &sectors),
                     (arrival, corner_half.edge),
                     germ((run.0 + n - 1) % n, start_germ),

@@ -891,6 +891,96 @@ fn windows_on_an_azimuth_grid_validate_at_the_certified_scalar() {
     windows_on_an_azimuth_grid::<geom_core::Interval>("interval");
 }
 
+/// **Windows a hair apart in tube angle, at `T`**: two windows over one
+/// azimuth span, mirrored about the donut face's middle, `(-1, -g)` and
+/// `(g, 1)`, validate for gaps `2g` from 2 mrad up, far clear of the band
+/// at every ε. Their near parallels share one plane, which runs within
+/// `r·g²/2` of the top of every meridian leg's circle, so their crossings
+/// with a meridian leg are not read as that plane's roots: a near-double
+/// root, whose margin falls inside the band at a coarse ε or whose root
+/// slack does at a fine one, would leave the windows unread. The face's
+/// seam vertices also stand at the azimuth opposite the windows' middle,
+/// where an edge's angle lies at the cut of its span's branch.
+fn windows_a_hair_apart<T: Scalar>(scalar: &str) {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let donut = donut::<T>();
+    let face = same_face(&at_f64, face64, &donut);
+    for g in [0.001, 0.003, 0.01] {
+        let mut body = donut.clone();
+        plant(&mut body, face, frame, (-0.5, 0.5), (-1.0, -g));
+        plant(&mut body, face, frame, (-0.5, 0.5), (g, 1.0));
+        assert_eq!(
+            topo::validate_geometric_structural(&body, tol()),
+            Ok(()),
+            "[{scalar}] two windows {} rad apart in tube angle validate (ε {})",
+            2.0 * g,
+            tol().eps()
+        );
+    }
+}
+
+#[test]
+fn torus_windows_a_hair_apart_in_tube_angle_validate() {
+    windows_a_hair_apart::<f64>("f64");
+}
+
+#[test]
+fn torus_windows_a_hair_apart_in_tube_angle_validate_at_the_certified_scalar() {
+    windows_a_hair_apart::<geom_core::Interval>("interval");
+}
+
+/// **A torus window read in band escalates typed, at `T`**: on the donut's
+/// face, a second window whose every corner stands `3ε` off the first
+/// one's corners along both chart directions (the tube's radius is 1, so
+/// a tube angle is an arc length), so no vertex of either is placed
+/// against the other, and the arm refuses `CycleSideUndecided` carrying
+/// its margin, never a pass. It does not reach the torus door's cosine
+/// reading at an arc's span end, which the topo unit row
+/// `a_point_opposite_an_arcs_middle_is_past_its_span` and
+/// `points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_scalar`
+/// pin.
+fn a_torus_window_read_in_band<T: Scalar>(scalar: &str) {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let mut body = donut::<T>();
+    let face = same_face(&at_f64, face64, &body);
+    let d = 3.0 * tol().eps();
+    plant(&mut body, face, frame, (-0.3, 0.3), (-0.4, 0.4));
+    plant(
+        &mut body,
+        face,
+        frame,
+        (-0.3 - d, 0.3 + d),
+        (-0.4 - d, 0.4 + d),
+    );
+    let errors = topo::validate_geometric_structural(&body, tol()).unwrap_err();
+    assert!(
+        errors.iter().any(|e| matches!(
+            e,
+            ValidationError::CycleSideUndecided { face: f, source, .. }
+                if *f == face && !source.margin.is_invalid()
+        )),
+        "[{scalar}] the region arm escalates on the face: {errors:?}"
+    );
+    assert!(
+        !errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::CycleOffFaceSide { .. })),
+        "[{scalar}] and reads no side: {errors:?}"
+    );
+}
+
+#[test]
+fn a_torus_window_read_in_band_escalates_with_its_margin() {
+    a_torus_window_read_in_band::<f64>("f64");
+}
+
+#[test]
+fn a_torus_window_read_in_band_escalates_with_its_margin_at_the_certified_scalar() {
+    a_torus_window_read_in_band::<geom_core::Interval>("interval");
+}
+
 /// **A ring wound as an outer loop, refused by the essential pair's
 /// readings alone** (M5a, PR 6163's re-check): on the donut's face, a
 /// window whose ring on the face is walked the other way round, so the
@@ -980,5 +1070,33 @@ fn a_point_beside_one_torus_window_reads_in_the_face_at_the_certified_scalar() {
                 "the point ({u}, 0) beside {windows:?}"
             );
         }
+    }
+}
+
+/// **Points of the donut's other half read off the face holding a
+/// window, at the certified scalar**: one window centred on the upper
+/// face's middle, and points of the lower face at the seam's azimuth,
+/// opposite the window, read against the upper face. Each is out of it.
+/// A crossing whose span reading and cosine reading are both in band
+/// keeps the refusal: read as past the span, these points read in.
+#[test]
+fn points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_scalar() {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let mut body = donut::<geom_core::Interval>();
+    let face = same_face(&at_f64, face64, &body);
+    plant(&mut body, face, frame, (-0.5, 0.5), (-0.4, 0.4));
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for q in [
+        Point3::new(1.000025204894118, -0.007099940348317025, 0.0),
+        Point3::new(1.4770746457600645, -0.8523784804258246, 0.0),
+        Point3::new(2.0, -1.0, 0.0),
+        Point3::new(2.9955625368671877, -0.09410225920013583, 0.0),
+    ] {
+        assert_eq!(
+            topo::curved_face_containment(&body, face, pt(q), band),
+            Ok(Some(topo::FaceContainment::Out)),
+            "the point {q:?} of the lower face, read against the upper"
+        );
     }
 }

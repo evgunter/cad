@@ -302,36 +302,62 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
     }
 }
 
-/// **A pip whose poles lie in the cube's top face stops at the role
-/// read.** The `y`-poled ball(0.3) at `(0.5, 0.5, 1)` has its seam great
+/// **A pip whose poles lie in the cube's top face builds at its closed
+/// form.** The `y`-poled ball(0.3) at `(0.5, 0.5, 1)` has its seam great
 /// circle in the plane `z = 1`, so every section segment runs along a
-/// seam edge of the ball, and both chords of a join take the germs' arc.
-/// What stops it is reading which section loop bounds the result: every
-/// witness of both hemispheres lies on the cube's top face
-/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
-/// The row pins that door, not an arc: the role read stops the op
-/// whichever arc a chord takes, so no change to the chord's arc turns
-/// it red; a change that moves the frontier does, either way.
+/// seam edge of the ball, and both section loops' regions are the ball's
+/// two hemispheres, every witness of which lies on the cube's top face
+/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
+/// The join reads their sides at the seam instead, each hemisphere
+/// leaving the top face to its own side at first order
+/// (`boolean::join`'s `seam_germ_side`), so every op builds: `∪` the cube
+/// and the upper half-ball, `∩` the lower half-ball, `∖` the cube less
+/// it, each at its closed form and placing a lattice about the pip as
+/// the analytic region does. The row shows that the role read no
+/// longer blocks; it does not hold the seam read's sign, for it builds
+/// right with the read's tangent flipped too (the wells of
+/// `a_ring_on_a_sphere_face` and the die slab of `m5_pr9c_sphere_doors`
+/// do).
 #[test]
-fn a_pip_with_its_seam_in_the_cubes_top_stops_at_the_role_read() {
+fn a_pip_with_its_seam_in_the_cubes_top_builds_at_its_closed_form() {
+    use crate::common::membership::{ball as round, cuboid, holds};
     let cube = finished(
         "the cube",
         sweep::test_support::cube::<f64>(1.0, Tol::witness()),
         Tol::witness(),
     );
     let pip = ball(0.3, Vec3::new(0.5, 0.5, 1.0));
-    for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
-        let e = run(op, &cube, &pip)
-            .err()
-            .unwrap_or_else(|| panic!("{op:?}: built where the frontier was pinned"));
-        assert!(
-            matches!(
-                e,
-                topo::BooleanError::Join(ref j)
-                    if matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. })
-            ),
-            "{op:?}: expected the undecided section loop, got {e:?}"
-        );
+    let half = ball_volume(0.3) / 2.0;
+    let (c, b) = (
+        || cuboid((0.0, 1.0), (0.0, 1.0), (0.0, 1.0)),
+        || round(Point3::new(0.5, 0.5, 1.0), 0.3),
+    );
+    let about = (Point3::new(0.1, 0.1, 0.6), Point3::new(0.9, 0.9, 1.4));
+    for (op, want, region) in [
+        (
+            BooleanOp::Union,
+            1.0 + half,
+            Box::new(move |p| c()(p).max(b()(p))) as crate::common::membership::Region,
+        ),
+        (
+            BooleanOp::Intersect,
+            half,
+            Box::new(move |p| c()(p).min(b()(p))),
+        ),
+        (
+            BooleanOp::Subtract,
+            1.0 - half,
+            Box::new(move |p| c()(p).min(-b()(p))),
+        ),
+    ] {
+        let what = format!("the cube {op:?} the pip");
+        let r = run(op, &cube, &pip).unwrap_or_else(|e| panic!("{what}: {e:?}"));
+        let body = r
+            .body()
+            .unwrap_or_else(|| panic!("{what}: empty"))
+            .body
+            .clone();
+        holds(&what, &body, want, &region, about, 9);
     }
 }
 
