@@ -4067,8 +4067,7 @@ pub enum Staged<'a> {
 /// door answers once its checks pass. The door reads the session and
 /// writes nothing; [`DocSession::create`] stages the run, labels it
 /// where asked, and records it.
-type Creating =
-    Box<dyn FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<TakenOver, EditError>>;
+type Creating = Box<dyn FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<TakenOver, EditError>>;
 
 /// `action` as a [`Creating`] run that takes nothing over.
 fn creating(

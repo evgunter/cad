@@ -107,3 +107,125 @@ impl super::SegRewrite for Reseat<'_> {
         Ok(index)
     }
 }
+
+#[cfg(test)]
+mod a_carrier_is_one_whole_unique_row {
+    use super::{carriers, reseated};
+    use crate::VarId;
+    use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
+    use crate::names::table::{EntityKey, EntityRef, NameTable};
+    use crate::node::RecipeNodeId;
+    use std::collections::BTreeMap;
+
+    const READ: VarId = VarId::new(0, 7);
+    const OTHER: VarId = VarId::new(0, 8);
+
+    fn name(node: u64, path: Vec<RoleSeg>) -> StableName {
+        StableName {
+            kind: EntityKind::Body,
+            node: RecipeNodeId::new(0, node),
+            path,
+        }
+    }
+
+    /// The copied body's own entity `i`.
+    fn own(i: u32) -> StableName {
+        name(100 + u64::from(i), vec![RoleSeg::OutputBody])
+    }
+
+    fn from(read: VarId, of: StableName) -> StableName {
+        name(
+            2,
+            vec![RoleSeg::From {
+                read,
+                of: NameRef::new(of),
+            }],
+        )
+    }
+
+    fn ent(i: u32) -> EntityRef {
+        EntityRef {
+            body: i,
+            key: EntityKey::Body,
+        }
+    }
+
+    /// Each row shape against what it carries: a whole `From` row and a
+    /// set holding the carry count; a fragment, a tie, a carry of
+    /// another read and a name two rows hold do not.
+    #[test]
+    fn each_row_shape_against_its_carry() {
+        let mut table = NameTable::new();
+        let whole = from(READ, own(0));
+        let set = name(
+            2,
+            vec![RoleSeg::Merged(vec![
+                from(READ, own(1)),
+                from(OTHER, own(9)),
+            ])],
+        );
+        let piece = name(
+            2,
+            vec![
+                RoleSeg::From {
+                    read: READ,
+                    of: NameRef::new(own(2)),
+                },
+                RoleSeg::Fragment(Qualifier::Borders(vec![own(9)])),
+            ],
+        );
+        let elsewhere = from(OTHER, own(4));
+        let twice = [
+            name(
+                3,
+                vec![RoleSeg::Merged(vec![
+                    from(READ, own(5)),
+                    from(OTHER, own(6)),
+                ])],
+            ),
+            name(
+                3,
+                vec![RoleSeg::Merged(vec![
+                    from(READ, own(5)),
+                    from(OTHER, own(7)),
+                ])],
+            ),
+        ];
+        for (i, row) in [&whole, &set, &piece, &elsewhere, &twice[0], &twice[1]]
+            .into_iter()
+            .enumerate()
+        {
+            table
+                .insert(row.clone(), ent(i as u32))
+                .expect("distinct rows");
+        }
+        table
+            .insert_tied(from(READ, own(3)), vec![ent(10), ent(11)])
+            .expect("a tie");
+        let found = carriers(&table, READ);
+        assert_eq!(
+            found,
+            BTreeMap::from([(own(0), whole.clone()), (own(1), set.clone())]),
+            "the whole row and the set; not the piece, the tie, the other read or the name two rows hold"
+        );
+    }
+
+    /// A carry of a moved read is replaced at any depth; one of an
+    /// unmoved read with the same inner name is left alone.
+    #[test]
+    fn a_carry_is_reseated_through_its_read_alone() {
+        let to = name(5, vec![RoleSeg::OutputBody]);
+        let moved = BTreeMap::from([(READ, BTreeMap::from([(own(0), to.clone())]))]);
+        let deep = from(OTHER, from(READ, own(0)));
+        assert_eq!(
+            reseated(&deep, &moved),
+            Some(from(OTHER, from(READ, to))),
+            "two levels down"
+        );
+        assert_eq!(
+            reseated(&from(OTHER, own(0)), &moved),
+            None,
+            "another read's"
+        );
+    }
+}

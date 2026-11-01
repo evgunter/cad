@@ -1748,6 +1748,39 @@ impl Doc {
         Ok(SketchedOnFace(sketched))
     }
 
+    /// **A takeover**: each of `copies` (placements) re-pointed to copy
+    /// `result`, which replaces the body they copied, and every
+    /// selection that read one of them rebound where the result carries
+    /// its face uniquely; a face the result splits, ties or consumes
+    /// stays stale. One action. Answers each name moved, as
+    /// `(copy, old name, new name)`, for a name held outside the
+    /// document.
+    fn take_over(
+        &mut self,
+        py: Python<'_>,
+        copies: Vec<NodeId>,
+        result: OperandArg,
+    ) -> PyResult<Vec<(NodeId, String, String)>> {
+        let copies: Vec<d::RecipeNodeId> = copies.into_iter().map(|c| c.0).collect();
+        let result = result.read();
+        let done = d::take_over(
+            &self.inner,
+            &copies,
+            &result,
+            &d::EvalOptions::default(),
+            Tol::witness(),
+        )
+        .map_err(|err| edit_err(py, &err))?;
+        let mut moved = Vec::new();
+        for (copy, names) in &done.taken.reseated {
+            for (from, to) in names {
+                moved.push((NodeId(*copy), name_text(py, from)?, name_text(py, to)?));
+            }
+        }
+        self.take_up(done.doc, done.maintenance);
+        Ok(moved)
+    }
+
     /// **Place one copy of `source` into `target`**, placed by
     /// `constraints`, and return the placement's id: the insert of
     /// `Node.place(source, target, constraints)`.

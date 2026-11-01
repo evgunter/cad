@@ -122,7 +122,11 @@ fn mirror_across(session: &DocSession, plane: &FaceSelection) -> SessionOp {
 fn boss_on(face: FaceSelection) -> SessionOp {
     SessionOp::SketchOnFace {
         face,
-        loops: vec![viewer::test_support::rectangle_loop([0.01, 0.0], 0.004, 0.004)],
+        loops: vec![viewer::test_support::rectangle_loop(
+            [0.01, 0.0],
+            0.004,
+            0.004,
+        )],
         distance: len(0.003),
         spin: Formula::zero(Dimension::Angle),
     }
@@ -328,7 +332,12 @@ fn a_face_of_a_union_of_the_copy_is_re_seated() {
         .into_iter()
         .filter(|edit| matches!(edit, DocEdit::Rebind { body: Some(body), .. } if *body == u))
         .collect();
-    assert_eq!(rebound.len(), 1, "the union's face: {:?}", outcome.committed);
+    assert_eq!(
+        rebound.len(),
+        1,
+        "the union's face: {:?}",
+        outcome.committed
+    );
     assert_eq!(
         drawn::extent(&mut session, small_copy),
         seated_at,

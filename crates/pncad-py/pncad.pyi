@@ -4073,6 +4073,16 @@ class Doc:
         it is meant. A body with no such edge and vertex raises
         `EditError` under the pin refusal's word."""
 
+    def take_over(
+        self, copies: list[NodeId], result: _Operand
+    ) -> list[tuple[NodeId, str, str]]:
+        """A takeover: each of `copies` re-pointed to copy `result`,
+        which replaces the body they copied, and every selection that
+        read one of them rebound where the result carries its face
+        uniquely; a face the result splits, ties or consumes stays
+        stale. One action. Answers each name moved as
+        `(copy, old name, new name)`."""
+
     def sketch_on_face(
         self,
         body: _Operand,

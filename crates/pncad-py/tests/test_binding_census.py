@@ -1127,6 +1127,10 @@ BOUND_AS = {
     # nodes.
     "sketch_on_face": "Doc.sketch_on_face",
     "SketchOutcome": "Doc.sketch_on_face",
+    # A takeover, one recorded action answering the names it moved.
+    "take_over": "Doc.take_over",
+    "TakeOverOutcome": "Doc.take_over",
+    "TakenOver": "Doc.take_over",
     # A loft's later section: `Node.loft`'s `then` entries, a profile
     # and its `StationMove`s.
     "LoftSection": "Node.loft",
