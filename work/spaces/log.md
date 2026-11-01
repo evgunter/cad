@@ -239,3 +239,11 @@ Newest entries at the bottom; the tail is the program's live status.
   `a-new-body-lands-unplaced` closed with its four carried rows (PR 6269,
   merged right after). The product door and the View pane toggles are in
   flight on cloud lanes. (SPACES orchestrator)
+- 2026-11-01 — PR 6269 merged (`172368ec`), right after 6265: both P0s
+  closed. Banded the lane-filed rows: `a-pick-read-takes-the-whole-copy`
+  P2 M (API-reachable only), `the-projection-tool-writes-a-member-read-a-pick-already-seats`
+  P2 M (the README says projection writes nothing; it writes a member read
+  that draws correctly), `the-feature-trees-hide-toggles-an-undrawn-instance-silently`
+  P1 E (carried by the View-pane unit, PR 6270). P1 left beyond the two
+  units in flight: `display-frames-are-not-saved-with-the-document`
+  (touches `display.rs` with 6270; dispatched once 6270 lands). (SPACES orchestrator)

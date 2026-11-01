@@ -4,6 +4,9 @@ kind: issue
 title: the feature tree's instance checkbox toggles an undrawn instance's hide with nothing to say why the picture does not change
 status: open
 opened: 2026-11-01
+priority: P1
+cost: E
+parent: the-view-pane-toggles-spaces-and-bodies
 ---
 
 
