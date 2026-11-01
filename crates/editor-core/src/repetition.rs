@@ -302,7 +302,8 @@ impl<P: crate::ProfilePayload> Doc<P> {
         Ok(tuples
             .into_iter()
             .map(|values| {
-                let at: Vec<(VarId, i64)> = chain.iter().copied().zip(values.iter().copied()).collect();
+                let at: Vec<(VarId, i64)> =
+                    chain.iter().copied().zip(values.iter().copied()).collect();
                 let mut env = outside.clone();
                 self.bind_member(&mut env, &at);
                 (values, env)

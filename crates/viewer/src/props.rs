@@ -134,8 +134,8 @@ use editor_core::repetition::Reached;
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
-    NodeErrorKind, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName,
-    VectorSlot, eval, eval_count,
+    NodeErrorKind, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv,
+    VarId, VarName, VectorSlot, eval, eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -674,7 +674,12 @@ impl MemberValues {
                 format!("{}: {value}", at.join(", "))
             })
             .collect();
-        if let Some(more) = self.members.len().checked_sub(Self::SPELLED).filter(|&n| n > 0) {
+        if let Some(more) = self
+            .members
+            .len()
+            .checked_sub(Self::SPELLED)
+            .filter(|&n| n > 0)
+        {
             parts.push(format!("and {more} more"));
         }
         if parts.is_empty() {
@@ -808,21 +813,19 @@ fn slot_value(
             ));
         }
     };
-    let members = doc
-        .member_envs::<f64>(&chain)
-        .map_err(|kind| match kind {
-            NodeErrorKind::IndexCount { index, source } => SlotFault::IndexCount {
+    let members = doc.member_envs::<f64>(&chain).map_err(|kind| match kind {
+        NodeErrorKind::IndexCount { index, source } => SlotFault::IndexCount {
+            index: doc.spoken_var(index),
+            source,
+        },
+        NodeErrorKind::IndexCountOutOfRange { index, count, .. } => {
+            SlotFault::IndexCountOutOfRange {
                 index: doc.spoken_var(index),
-                source,
-            },
-            NodeErrorKind::IndexCountOutOfRange { index, count, .. } => {
-                SlotFault::IndexCountOutOfRange {
-                    index: doc.spoken_var(index),
-                    count,
-                }
+                count,
             }
-            other => unreachable!("listing members refuses an index's count alone, not {other:?}"),
-        })?;
+        }
+        other => unreachable!("listing members refuses an index's count alone, not {other:?}"),
+    })?;
     Err(SlotFault::PerMember(MemberValues {
         over: chain.iter().map(|&index| doc.spoken_var(index)).collect(),
         members: members

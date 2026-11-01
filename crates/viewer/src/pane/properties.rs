@@ -1627,15 +1627,15 @@ fn slot_notes(
         Ok(_) => {}
         Err(props::SlotFault::PerMember(members)) => {
             crate::widgets::message_toned(
-            ui,
-            format!(
-                "{} at each member: {}",
-                row.slot.label(),
-                members.spelled(row.dimension, notation)
-            ),
-            theme,
-            Tone::Advisory,
-        );
+                ui,
+                format!(
+                    "{} at each member: {}",
+                    row.slot.label(),
+                    members.spelled(row.dimension, notation)
+                ),
+                theme,
+                Tone::Advisory,
+            );
         }
         Err(error) => {
             crate::widgets::message_toned(
