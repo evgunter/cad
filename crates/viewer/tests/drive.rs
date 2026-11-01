@@ -243,4 +243,54 @@ mod driven {
             "a second painting of a label painted once is not on screen"
         );
     }
+
+    /// **The split panel seeds its plane through the body it picked,
+    /// says the staged split's verdict, and the viewport draws the plane
+    /// on that body** (row `the-split-tools-plane-is-typed-blind`): the
+    /// row's own replay, through the chrome. The startup plate picked
+    /// in the viewport seeds the plane's point at the plate's centre,
+    /// the panel reads the door's verdict that it cuts, and the plane
+    /// is drawn at the plate's mid-height, where its world copy stands.
+    ///
+    /// *Breaks if* the panel stops seeding (the old default lies on the
+    /// plate's bottom face, and the panel would say so), stops asking
+    /// the staged split, or the preview is not drawn on the picked copy.
+    #[test]
+    fn the_split_tool_seeds_its_plane_through_the_picked_plate_and_draws_it_there() {
+        let mut driver = started("drive-split-plane");
+        driver.click("Zoom to fit", 0).expect("the fit");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.click("Split tool…", 0).expect("the tool opens");
+        let plate = driver.in_viewport(0.3, 0.45).expect("a viewport");
+        driver
+            .click_at(
+                plate,
+                egui::PointerButton::Primary,
+                egui::Modifiers::NONE,
+                1,
+            )
+            .expect("the pick settles");
+        let bounds = viewer::scene::plate_bounds();
+        let mid = 0.5 * (bounds.min_z + bounds.max_z);
+        let origin = driver.split_origin();
+        assert!(
+            (origin[2] - mid).abs() < 1e-12,
+            "the panel seeds the plane at the plate's centre: {origin:?}"
+        );
+        assert!(
+            driver.shows("the plane cuts the body in two"),
+            "the panel reads the staged split's verdict: {}",
+            driver.dump()
+        );
+        let plane = driver
+            .split_plane()
+            .expect("the plane is drawn on the picked plate");
+        assert!(
+            (plane.centre.z - mid).abs() < 1e-9,
+            "the plane is drawn at the plate's mid-height: {:?}",
+            plane.centre
+        );
+    }
 }

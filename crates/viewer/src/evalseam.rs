@@ -812,6 +812,14 @@ pub struct StagedDone {
 /// staged run reads a token between nodes: the next stage cancels it.
 /// Its own seam, so a draft's verdict never cancels the run the
 /// picture is waiting for.
+///
+/// **One stage at a time, by design**: the session keeps one stage
+/// ([`crate::session::DocSession::staged_for`]), and what stages is the
+/// one open tool's draft ([`crate::tools::Tools`] holds at most one
+/// open tool). Any creating operation can be staged, but a second
+/// asker beside an open tool would supersede that tool's stage on
+/// every frame each asked; giving two askers each a verdict would need
+/// a slot per asker.
 pub trait StagedService {
     /// Ask for `request`. Cancels a job in flight and replaces any
     /// waiting one.

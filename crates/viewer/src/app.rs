@@ -2154,6 +2154,7 @@ impl eframe::App for ViewerApp {
         // The revolve tool's held profile as the viewport will draw its
         // axis over it, for the repaint request after the picks are fed.
         let revolve_held = self.tools.revolve().and_then(|tool| tool.profile());
+        let split_held = self.tools.split().map(|tool| tool.seats().clone());
         egui::CentralPanel::no_frame()
             .frame(egui::Frame::NONE.fill(ui.visuals().panel_fill))
             .show(ui, |ui| {
@@ -2247,6 +2248,11 @@ impl eframe::App for ViewerApp {
         // this frame's axis (`pane::viewport::push_revolve_axis`) asks
         // for the next.
         if self.tools.revolve().and_then(|tool| tool.profile()) != revolve_held {
+            ui.ctx().request_repaint();
+        }
+        // The split plane likewise (`splitplane::push_split_plane`): a
+        // target picked or cleared after it was drawn.
+        if self.tools.split().map(|tool| tool.seats().clone()) != split_held {
             ui.ctx().request_repaint();
         }
         let landed = self.session.landed_pair();

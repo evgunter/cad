@@ -323,14 +323,20 @@ pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 const SPLIT_COORDINATES: &str = "pick the body; the plane's point and normal are in the coordinates \
      of the space the body is built in, and the viewport draws the plane on the copy you picked";
 
-/// The split panel's line for a target picked in the tree: no copy was
-/// aimed at, so the viewport has nowhere to draw the plane.
-const SPLIT_PICKED_IN_TREE: &str = "the plane is not drawn: the body was picked in the tree; pick it in the viewport to see the plane on it";
+/// The split panel's line for a target picked without the viewport (a
+/// tree click): no drawn part was hit, so the viewport has nowhere to
+/// draw the plane.
+const SPLIT_NOT_AIMED: &str = "the plane is not drawn: the body was not picked in the viewport; pick it there to see the plane on it";
 
-/// The split panel's line for a copy the picture does not draw (hidden,
-/// or gone from the picture).
+/// The split panel's line for a viewport pick whose part the picture no
+/// longer draws (hidden, or gone from the picture), or whose body has no
+/// landed value to draw the plane against.
 const SPLIT_NOT_DRAWN: &str =
-    "the plane is not drawn: the copy it was picked on is not in the picture";
+    "the plane is not drawn: what was picked is not in the picture as it stands";
+
+/// The split panel's line for a target with no corner to centre the
+/// plane's point on.
+const SPLIT_NO_CENTRE: &str = "the body has no corners to centre the plane on, so the plane starts through its space's origin";
 
 /// The split panel's line while the staged split runs.
 const SPLIT_CHECKING: &str = "checking the plane against the body…";
@@ -1272,6 +1278,7 @@ impl ViewerBehavior<'_> {
             self.tools.choose_half(seat, half);
         }
         self.seed_split_plane(&tool);
+        let drawn = (self.drafts.split_origin, self.drafts.split_normal);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1283,6 +1290,11 @@ impl ViewerBehavior<'_> {
             length_picker(ui, "split_origin", &mut self.notation.length);
         });
         vec3_row(ui, "normal", UNIT_DRAG_SPEED, &mut self.drafts.split_normal);
+        // The viewport drew this frame's plane before the panel ran: an
+        // edit asks for the next frame, which draws it as typed.
+        if (self.drafts.split_origin, self.drafts.split_normal) != drawn {
+            ui.ctx().request_repaint();
+        }
         self.split_plane_rows(ui, &tool);
         self.tool_commit_row(ui, ToolKind::Split, |drafts, notation| {
             Ok(tool.op(
@@ -1302,18 +1314,21 @@ impl ViewerBehavior<'_> {
         if target == self.drafts.split_seeded {
             return;
         }
-        let centre = target.as_ref().and_then(|target| {
-            let (doc, evaluation) = self.session.landed_pair()?;
-            crate::splitplane::centre(crate::splitplane::source(doc, evaluation, target)?)
-        });
-        if let Some(centre) = centre {
-            self.drafts.split_origin = centre;
-            self.drafts.split_seeded = target;
-        } else if target.is_none() {
+        let Some(read) = target.as_ref() else {
             self.drafts.split_seeded = None;
-        }
+            return;
+        };
+        let Some((doc, evaluation)) = self.session.landed_pair() else {
+            return;
+        };
+        let Some(source) = crate::splitplane::source(doc, evaluation, read) else {
+            return;
+        };
+        // A body with no corner has no centre to seed: the plane starts
+        // at the origin, and the panel says why ([`SPLIT_NO_CENTRE`]).
+        self.drafts.split_origin = crate::splitplane::centre(source).unwrap_or([0.0; 3]);
+        self.drafts.split_seeded = target;
     }
-
     /// **What the split plane does to its target, before commit**, and
     /// whether the viewport draws it.
     ///
@@ -1327,8 +1342,15 @@ impl ViewerBehavior<'_> {
         if tool.seats().read(0).is_none() {
             return;
         }
+        if let Some((doc, evaluation)) = self.session.landed_pair()
+            && let Some(read) = tool.seats().read(0)
+            && crate::splitplane::source(doc, evaluation, &read)
+                .is_some_and(|source| crate::splitplane::centre(source).is_none())
+        {
+            crate::widgets::message_toned(ui, SPLIT_NO_CENTRE, &self.theme, Tone::Advisory);
+        }
         if tool.seats().through(0).is_none() {
-            crate::widgets::message_toned(ui, SPLIT_PICKED_IN_TREE, &self.theme, Tone::Advisory);
+            crate::widgets::message_toned(ui, SPLIT_NOT_AIMED, &self.theme, Tone::Advisory);
         } else if self.split_plane_preview().is_none() {
             crate::widgets::message_toned(ui, SPLIT_NOT_DRAWN, &self.theme, Tone::Advisory);
         }
@@ -1360,12 +1382,16 @@ impl ViewerBehavior<'_> {
             (false, _) => {
                 self.ops.push(SessionOp::Stage { creation });
                 crate::widgets::message(ui, SPLIT_CHECKING);
+                ui.ctx().request_repaint();
             }
             (true, Some(said)) => {
                 crate::widgets::message_toned(ui, said, &self.theme, Tone::Advisory);
             }
             (true, None) if matches!(staged, Some(Staged::Checking)) => {
                 crate::widgets::message(ui, SPLIT_CHECKING);
+                // A staged answer is not a user event, so nothing else
+                // would wake the frame loop to collect it.
+                ui.ctx().request_repaint();
             }
             (true, None) => {
                 crate::widgets::message(ui, SPLIT_CUTS);

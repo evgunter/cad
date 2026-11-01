@@ -135,6 +135,29 @@ pub fn preview(
     })
 }
 
+/// **The open split tool's plane, where the picture draws its target**:
+/// under the drawn part its target's viewport pick hit
+/// ([`crate::seats::Seats::through`], [`crate::pickindex::PickIndex::drawn_map`]),
+/// against the landed evaluation, for the panel's numbers `origin` and
+/// `normal`. What the viewport draws ([`push_split_plane`]). `None` with
+/// no split tool open, no target held, a tree pick, a part the picture
+/// does not draw, or a normal with no direction.
+pub fn drawn(
+    tools: &crate::tools::Tools,
+    session: &crate::session::DocSession,
+    index: Option<&crate::pickindex::PickIndex>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> Option<PlanePreview> {
+    let tool = tools.split()?;
+    let target = tool.seats().read(0)?;
+    let part = tool.seats().through(0)?;
+    let (doc, evaluation) = session.landed_pair()?;
+    let source = source(doc, evaluation, &target)?;
+    let drawn = index?.drawn_map(&session.display_view(), part)?;
+    preview(source, space_to_picture(source, drawn)?, origin, normal)
+}
+
 /// **The split plane, appended to a lane**: the square's outline, its
 /// two diagonals, and the normal stroke. It goes in the marks lane, so a
 /// fit does not frame it.

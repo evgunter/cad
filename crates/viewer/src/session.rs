@@ -1486,6 +1486,11 @@ impl DocSession {
         }
     }
 
+    /// Whether a staged run is still running ([`SessionOp::Stage`]).
+    pub fn staging(&self) -> bool {
+        self.stager.busy()
+    }
+
     /// Whether the landed report's coincidence door is still running
     /// at rest.
     pub fn proving(&self) -> bool {

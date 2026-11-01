@@ -298,11 +298,12 @@ pub struct Seats {
     held: [Option<SpokenNode>; 2],
     /// Which output of its node each seat reads.
     ports: [Port; 2],
-    /// **The copy each pick was made through**: the placement whose
-    /// drawn copy a viewport pick hit, which the seat reads past to the
-    /// body it places ([`crate::world::seat_read`]). `None` for a pick
-    /// of the body itself. Where the person aimed, for a preview drawn
-    /// where they aimed.
+    /// **The drawn part each viewport pick hit**: the node whose drawn
+    /// part was under the pointer — a placement's copy, which the seat
+    /// reads past to the body it places ([`crate::world::seat_read`]),
+    /// or a body drawn as itself. `None` for a tree pick, which hit no
+    /// part. Where the person aimed, for a preview drawn where they
+    /// aimed.
     through: [Option<RecipeNodeId>; 2],
 }
 
@@ -494,9 +495,9 @@ impl Seats {
 
     /// [`Seats::pick`] of the output `body` a viewport pick hit.
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
-        let picked = node;
+        // A viewport pick names the body it hit; a tree pick names none.
+        let through = body.map(|_| node);
         let (node, port) = crate::world::seat_read(doc, node, body);
-        let through = (picked != node).then_some(picked);
         let state = |seat: Seat| Port::of_pick(doc, node, port, seat.wants());
         // **A one-seat tool has one seat, and its role names itself
         // twice to say so** (`Seats::one`) — so a pick can only
@@ -549,6 +550,23 @@ impl Seats {
     /// keeps the last it had, which is what a drop names it by.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         respeak_each(&mut self.held, doc);
+        self.drop_stale_through(doc);
+    }
+
+    /// **A drawn part that no longer draws its seat's pick is forgotten**:
+    /// gone from the document, or now drawing another body (a takeover
+    /// re-pointed the copy). The pick stands; where it was aimed is no
+    /// longer drawn.
+    fn drop_stale_through(&mut self, doc: &Doc<ProfileProgram>) {
+        for i in 0..2 {
+            let held = self.held(i);
+            if let Some(part) = self.through[i]
+                && (doc.node(part).is_none()
+                    || Some(crate::world::seat_read(doc, part, None).0) != held)
+            {
+                self.through[i] = None;
+            }
+        }
     }
 
     /// Re-read the held picks against the document, dropping any whose
@@ -570,18 +588,12 @@ impl Seats {
                 });
             }
         }
-        // A copy that went while its body stayed: the pick stands, and
-        // where it was aimed is no longer drawn.
-        for through in &mut self.through {
-            if through.is_some_and(|copy| doc.node(copy).is_none()) {
-                *through = None;
-            }
-        }
+        self.drop_stale_through(doc);
         events
     }
 
-    /// **The copy seat `i`'s pick was made through** ([`Self::through`]'s
-    /// field), `None` for a pick of the body itself or an empty seat.
+    /// **The drawn part seat `i`'s viewport pick hit** (the field's
+    /// rule), `None` for a tree pick or an empty seat.
     pub fn through(&self, i: usize) -> Option<RecipeNodeId> {
         self.through.get(i).copied().flatten()
     }

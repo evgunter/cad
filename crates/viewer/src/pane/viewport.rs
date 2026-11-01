@@ -1398,16 +1398,10 @@ impl ViewerBehavior<'_> {
     /// with no direction: the panel says which
     /// ([`crate::pane::create`]'s split panel).
     pub(crate) fn split_plane_preview(&self) -> Option<crate::splitplane::PlanePreview> {
-        let tool = self.tools.split()?;
-        let target = tool.seats().read(0)?;
-        let copy = tool.seats().through(0)?;
-        let (doc, evaluation) = self.session.landed_pair()?;
-        let source = crate::splitplane::source(doc, evaluation, &target)?;
-        let drawn = self.index?.drawn_map(&self.session.display_view(), copy)?;
-        let to_picture = crate::splitplane::space_to_picture(source, drawn)?;
-        crate::splitplane::preview(
-            source,
-            to_picture,
+        crate::splitplane::drawn(
+            self.tools,
+            self.session,
+            self.index,
             self.drafts.split_origin,
             self.drafts.split_normal,
         )
