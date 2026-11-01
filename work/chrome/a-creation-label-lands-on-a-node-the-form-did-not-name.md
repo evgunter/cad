@@ -31,3 +31,5 @@ click "Commit mirror"
 settle
 tree
 ```
+
+- **Duplicate and projection.** Both forms default their label to `Part 1`, and the committed node is a `Place` labelled "Part 1" (third walk, 2026-11-01).
