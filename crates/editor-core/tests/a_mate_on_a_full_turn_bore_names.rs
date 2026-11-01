@@ -137,12 +137,13 @@ const SPANS: [(&str, f64, f64); 4] = [
 ];
 
 /// **Every pose names, and the shaft's vertices at the rims are
-/// classed**: on the seam at every span, off it wherever a shaft cap
-/// meets a rim (an off-seam shaft through the collar meets no rim
-/// vertex). No partner is listed unread, and each of the shaft's
-/// vertices paired at a rim reads as the module docs derive by hand: a
-/// vertex with one edge in two pieces and no other (a ruling split at the
-/// rim) one piece `On` and the other `Out`, every other row `On`.
+/// classed**: at every azimuth and span the shaft meets the collar at
+/// vertices paired at a rim (its seam ruling crossing a rim, a cap on
+/// one). No partner is listed unread, and each of the shaft's vertices
+/// paired at a rim reads as the module docs derive by hand: a ruling (a
+/// line edge) in two pieces, split at the rim, one piece `On` and the
+/// other `Out`; every other row (the cap's circle along the rim, split or
+/// not, and a ruling ending at the rim) `On`.
 #[test]
 fn a_mate_on_a_full_turn_bore_names() {
     let tol = Tol::witness();
@@ -188,19 +189,26 @@ fn a_mate_on_a_full_turn_bore_names() {
                     }
                     let mut classes: Vec<_> = edges.values().flatten().copied().collect();
                     classes.sort();
-                    let mut want = match edges.values().collect::<Vec<_>>().as_slice() {
-                        [one] if one.len() == 2 => vec![topo::SideCode::Out, topo::SideCode::On],
-                        _ => vec![topo::SideCode::On; classes.len()],
-                    };
+                    let shaft: &topo::Body<f64> = if order.starts_with("shaft") { x } else { y };
+                    let mut want: Vec<_> = edges
+                        .iter()
+                        .flat_map(|(&e, pieces)| {
+                            let ruling = topo::query::edge_carrier_kind(shaft, e)
+                                == Some(geom::CurveKind::Line);
+                            match pieces.len() {
+                                2 if ruling => vec![topo::SideCode::Out, topo::SideCode::On],
+                                n => vec![topo::SideCode::On; n],
+                            }
+                        })
+                        .collect();
                     want.sort();
                     assert!(
                         !classes.is_empty() && classes == want,
                         "{tag}: the shaft's vertex {v:?} at a rim reads {edges:?}"
                     );
                 }
-                let rim = a == 0.0 || span != "through";
-                assert_eq!(!rims.is_empty(), rim, "{tag}: {rims:?}");
-                listed += usize::from(rim);
+                assert!(!rims.is_empty(), "{tag}: the shaft meets a rim");
+                listed += 1;
                 let reads = members.map(|n| doc.output(n, 0).expect("a body port").into());
                 let (doc, union) = insert(
                     doc.clone(),
@@ -215,8 +223,5 @@ fn a_mate_on_a_full_turn_bore_names() {
             }
         }
     }
-    assert_eq!(
-        listed, 26,
-        "every on-seam pose and every off-seam cap at a rim"
-    );
+    assert_eq!(listed, 32, "every pose, in both orders");
 }

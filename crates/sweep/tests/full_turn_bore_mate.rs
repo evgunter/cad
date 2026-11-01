@@ -428,9 +428,9 @@ fn intersect_and_differences_answer_the_closed_form() {
 /// (`Out`); at a shaft cap on the rim, the cap's circle runs along the
 /// rim, on both faces (`On`), and the ruling into the collar along the
 /// bore (`On`). So at each of the shaft's vertices paired with the
-/// collar's, a vertex with one edge in two pieces and no other (a ruling
-/// split at the rim) reads one piece `On` and the other `Out`, and every
-/// other reads `On`.
+/// collar's, a ruling (a line edge) in two pieces, split at the rim,
+/// reads one piece `On` and the other `Out`, and every other row (the
+/// cap's circle, split or not, and a ruling ending at the rim) `On`.
 #[test]
 fn the_mate_classes_the_shafts_edges_at_the_rims() {
     let tol = Tol::witness();
@@ -477,10 +477,18 @@ fn the_mate_classes_the_shafts_edges_at_the_rims() {
                 }
                 let mut classes: Vec<_> = edges.values().flatten().copied().collect();
                 classes.sort();
-                let mut want = match edges.values().collect::<Vec<_>>().as_slice() {
-                    [one] if one.len() == 2 => vec![SideCode::Out, SideCode::On],
-                    _ => vec![SideCode::On; classes.len()],
-                };
+                let shaft: &topo::Body<f64> = &p;
+                let mut want: Vec<_> = edges
+                    .iter()
+                    .flat_map(|(&e, pieces)| {
+                        let ruling =
+                            topo::query::edge_carrier_kind(shaft, e) == Some(geom::CurveKind::Line);
+                        match pieces.len() {
+                            2 if ruling => vec![SideCode::Out, SideCode::On],
+                            n => vec![SideCode::On; n],
+                        }
+                    })
+                    .collect();
                 want.sort();
                 assert!(
                     !classes.is_empty() && classes == want,
