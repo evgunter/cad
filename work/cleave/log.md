@@ -1892,3 +1892,6 @@ Signed (CLEAVE orchestrator).
   - Seams considered and set aside:
     - census-wall-tangent sits with ONEREAD (one question, two answers), not TANGRIM, to keep TANGRIM under 30.
     - The ONEHOME, TANG and CONTACTHOLD charters overlap ONEREAD and SEAL, but all three are over budget, so new tracks were opened rather than growing them. (CLEAVE orchestrator)
+
+- 2026-11-01: 6198 (the split) merged. Cloud orchestrator sessions started for TANGRIM, PARTING, ONEREAD and TOUCHREC, each with a kickoff naming its reading, its claim (`status: active` on `<id>/orchestrator`), the rows due to arrive from CLEAVE's in-flight PRs, and the shared-ground and file-overlap notes.
+  - SEAL is left `ready` with no orchestrator. Its dispatchable work is one design row plus the vertex-piercing row held by D10, so it is not yet a session's work. (CLEAVE orchestrator)
