@@ -236,3 +236,35 @@ at-rest refusal is the ellipse's own rounding or an unread side. The
 far-start root rows in `solid_contain.rs` `wall_root_rows` hold the
 wall, sphere and cone roots exact from `2·10³` and `4·10⁵` m. The arc
 ball's row is in `splitting/containment.rs` `arc_ball_rows`.
+
+## The review's fix pass
+
+- **Merged main**, PR 6168 included: its met-edge block takes `RayHit::slack`'s
+  neighbour, a root's `reach_margin`, as exact (added to INSIDE's
+  root-rounding row). The census reads the same at all three ε after the
+  merge.
+- **`RayHit::pair` decides its margin signed.** The gap less both slacks
+  is negative within each other's rounding, and a magnitude door panicked
+  there. It now ties (pinned: `pair_margin_rows`). Of the other
+  `decide_magnitude` callers in `topo`, one more breaks the premise at
+  `Interval` (`curved_edges.rs`'s `hi − lo`, filed on INSIDE). The rest are
+  norms, absolute values or maxima from zero.
+- **The Nearest discriminant is charged the shift's rounding**
+  (`Centred::charged`): moved toward zero by it, and zero within it.
+  `About::Start` is unchanged.
+- **Pins that red under each change's mutant**, run at 1e-9:
+  - with the carrier ball for the arc's, the side reader's reach on a ψ
+    10⁻³ seam split is 2000 m, and
+    `the_side_readers_reach_bounds_a_section_arc_not_its_ellipse` reds;
+  - with the slack off, a ray from 10⁶ m's wall crossing is 8.4e-11 off
+    its true root and its span no longer holds it, so
+    `a_far_rays_wall_crossings_hold_their_true_roots` reds.
+
+  The census is unchanged under either mutant: no census pose needs the
+  slack. The rod pin, green on base, is dropped. The family pin asserts
+  its measured floors at 1e-9 and 1e-6; at 1e-12 every pose refuses on
+  the ellipse's rounding, where main read five inside out.
+- **One home.** `over_root_slope` is the root's sensitivity, shared with
+  the edge sweep's cone arm (bit for bit). `line_cone_quadratic` takes
+  `About` like the wall and the sphere, and `Centred::new` is the one
+  constructor.

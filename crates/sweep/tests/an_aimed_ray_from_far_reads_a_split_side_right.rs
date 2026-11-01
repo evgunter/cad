@@ -167,10 +167,13 @@ fn a_seam_split_a_hair_off_tangency_reads_no_side_inside_out() {
     // reach at the ellipse's whole carrier; at 1e-6 8 build and 13 refuse
     // the split.
     let built = reads.iter().filter(|r| **r == Read::Built).count();
-    let floor = match tol.eps() {
-        e if e == 1e-9 => 18,
-        e if e == 1e-6 => 8,
-        _ => 0,
+    let eps = tol.eps();
+    let floor = if eps == 1e-9 {
+        18
+    } else if eps == 1e-6 {
+        8
+    } else {
+        0
     };
     assert!(
         built >= floor,
