@@ -2,9 +2,11 @@
 id: after-a-duplicate-the-original-cannot-be-picked-into-a-tool
 kind: issue
 title: after a duplicate, a viewport pick on the original body reaches no tool seat, silently
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
+cost: M
+branch: chrome/duplicate-pick
 ---
 
 ## Finding
