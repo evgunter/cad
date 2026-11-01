@@ -179,4 +179,12 @@ tangency with the top face (`CurvedPairUnsupported` at
 `InteriorLoopGuard`, pinned as
 `the_die_pips_shape_stops_typed_at_its_tangent_top`).
 
+**Measured against CLEAVE's evidence above.** On the merge of main
+with this extension, `a_closed_conic_in_the_partners_face.rs`
+`a_boss_over_a_hole_by_pose` still reads `SectionLoopUndecided` for
+the aligned one-segment form, every op in both orders. So the curved
+germ alone does not decide the wall piece between the two floors.
+Which of its chords fails to read (a midpoint on a face's boundary,
+or the graze along the hole's wall) is not measured here.
+
 This row's status and priority are left to HONESPLIT.
