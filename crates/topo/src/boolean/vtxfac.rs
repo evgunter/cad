@@ -298,7 +298,7 @@ pub(crate) fn cone_classes<T: Decide>(
         .map(|&he| {
             own.iter()
                 .find(|s| s.he == he && s.end_edge())
-                .map(|s| (he, s.end_reach.point(p, s.end), s.end_reach.length()))
+                .map(|s| (he, s.end_reach.point(p, s.end)))
                 .ok_or(invariant("a vertex's edge is no edge of its own sectors"))
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -307,17 +307,10 @@ pub(crate) fn cone_classes<T: Decide>(
         .flat_map(|partner| super::sectors::fans(&partner.sectors, partner.at))
         .collect();
     let disc = corners.len();
-    let radius = bounds
-        .iter()
-        .map(|&(_, _, l)| l)
-        .fold(T::zero(), |a, b| a.max(b));
-    let cone =
-        crate::link::Cone::gathered(p, corners, touched.map(|(normal, _)| normal.vec()), radius)
-            .map_err(|_| {
-                invariant("a vertex's partners and touched face hold no face at its point")
-            })?;
+    let cone = crate::link::Cone::gathered(p, corners, touched.map(|(normal, _)| normal.vec()))
+        .map_err(|_| invariant("a vertex's partners and touched face hold no face at its point"))?;
     let mut rows = Vec::with_capacity(bounds.len());
-    for (he, q, _) in bounds {
+    for (he, q) in bounds {
         let given: Vec<(usize, Sign)> = touched
             .and_then(|(_, classes)| classes.iter().find(|&&(h, _)| h == he))
             .map(|&(_, class)| {

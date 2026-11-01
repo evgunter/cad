@@ -322,6 +322,9 @@ pub(crate) struct Sector<T: Real> {
     /// The point the fan is built about: the cone's point, or the
     /// corner of this face on one of its keys.
     pub(crate) apex: Point3<T>,
+    /// None in a closed sector read as its whole plane: a face the
+    /// cone's point lies inside, gathered with no ray of its own
+    /// ([`Cone::gathered`]), every point of the plane but the apex on it.
     pub(crate) wedges: Vec<Segment<T>>,
     /// The fan closes all the way round: `p` is inside the face.
     /// Otherwise its first ray and its last are the sector's bounds.
@@ -989,6 +992,12 @@ impl<T: Decide> FaceSector<T> {
 }
 
 impl<T: Decide> Sector<T> {
+    /// Whether the sector is its whole plane about the apex: closed, with
+    /// no wedge ([`Sector::wedges`]).
+    fn whole(&self) -> bool {
+        self.closed && self.wedges.is_empty()
+    }
+
     /// The sector's bounds, where it has them: real points on its first
     /// ray and its last.
     fn bounds(&self) -> Option<[Point3<T>; 2]> {
@@ -1004,6 +1013,9 @@ impl<T: Decide> Sector<T> {
     /// right of `b` is strictly inside). `None` where a reading the
     /// answer needs is in band.
     fn place(&self, p: Point3<T>, x: Point3<T>, rd: Reading<T>) -> Option<Place> {
+        if self.whole() {
+            return Some(Place::Inside);
+        }
         let m = self.outward;
         let last = self.wedges.len().saturating_sub(1);
         let (mut in_band, mut bound) = (false, false);
@@ -1046,6 +1058,9 @@ impl<T: Decide> Sector<T> {
     /// one of its rays, a half-space through `p` that then holds the
     /// whole arc.
     fn misses(&self, p: Point3<T>, (x0, x1): Segment<T>, rd: Reading<T>) -> bool {
+        if self.whole() {
+            return false;
+        }
         let m = self.outward;
         let beyond = |r: Point3<T>, sign: Sign| {
             [x0, x1]
@@ -1073,9 +1088,10 @@ impl<T: Decide> Cone<T> {
 
     /// **The cone of a solid at `p`, gathered across the keys the point
     /// ties**: a sector for each face corner (`corners`), its first ray
-    /// and its last the sector's bounds, and a closed disc about `p` for
-    /// each face `p` lies inside, by its outward unit normal (`inside`),
-    /// its rays out to `radius`. Nothing is decided here: a corner on
+    /// and its last the sector's bounds, and for each face `p` lies
+    /// inside, by its outward unit normal (`inside`), its whole plane
+    /// about `p`, which no ray of a construction's own choosing bounds
+    /// or divides ([`Sector::wedges`]). Nothing is decided here: a corner on
     /// another key of the point keeps its own apex, which the cone's
     /// [`tie`](Cone::tie) measures, and whether the sectors pair up at
     /// their bounds is [`Cone::held_closed`]'s to read.
@@ -1083,7 +1099,6 @@ impl<T: Decide> Cone<T> {
         p: Point3<T>,
         corners: impl IntoIterator<Item = Fan<T>>,
         inside: impl IntoIterator<Item = Vec3<T>>,
-        radius: T,
     ) -> Result<Self, TouchUnread> {
         let fans = corners.into_iter().map(|f| Sector {
             outward: f.outward,
@@ -1091,16 +1106,11 @@ impl<T: Decide> Cone<T> {
             wedges: f.rays.windows(2).map(|w| (w[0], w[1])).collect(),
             closed: false,
         });
-        let discs = inside.into_iter().map(|m| {
-            // Four quarter wedges round the disc.
-            let (u, v) = m.orthonormal_basis();
-            let rays = [u, v, -u, -v, u].map(|d| p + d * radius);
-            Sector {
-                outward: m,
-                apex: p,
-                wedges: rays.windows(2).map(|w| (w[0], w[1])).collect(),
-                closed: true,
-            }
+        let discs = inside.into_iter().map(|m| Sector {
+            outward: m,
+            apex: p,
+            wedges: Vec::new(),
+            closed: true,
         });
         Self::of(p, fans.chain(discs).collect())
     }

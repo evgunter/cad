@@ -675,7 +675,7 @@ fn read_probe(partners: &[Vec<BoolSector<f64>>], far: [f64; 3], band: Band) -> R
     let corners = partners
         .iter()
         .flat_map(|s| crate::boolean::sectors::fans(s, o));
-    let cone = Cone::gathered(o, corners, Vec::new(), probe.end_reach.length())
+    let cone = Cone::gathered(o, corners, Vec::new())
         .expect("a cone of faces")
         .reads_tied(o + Vec3::new(far[0], far[1], far[2]), &[], band);
     let key = |n: u64| VertexKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
