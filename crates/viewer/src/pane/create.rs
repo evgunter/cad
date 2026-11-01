@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Coord, DocumentId, Said, Speaker, TracePassage, TraceSense, VarKind};
+use pncad::document::{Coord, DocumentId, Said, Speaker, TracePassage, TraceSense};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
@@ -551,7 +551,14 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.mate().cloned() else {
             return self.tool_door(ui, ToolKind::Mate);
         };
-        crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
+        let kind = self.drafts.mate_kind();
+        crate::widgets::message(
+            ui,
+            ToolKind::Mate.says(&format_args!(
+                "pick two in the viewport, each {}",
+                crate::matetool::said_entities(&crate::matetool::reads(kind))
+            )),
+        );
         mate_picks_row(
             ui,
             &tool,
@@ -563,10 +570,12 @@ impl ViewerBehavior<'_> {
                 ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
             }
         });
-        let kind = MATE_KINDS
-            .get(self.drafts.mate_kind)
-            .map_or(VarKind::Plane, |(kind, _)| *kind);
-        ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
+        let kind = self.drafts.mate_kind();
+        // A point has no sense to turn round, so it is offered no flip.
+        let sensed = crate::matetool::sensed(kind);
+        if sensed {
+            ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
+        }
         ui.checkbox(
             &mut self.drafts.mate_into_target_space,
             "move the copy into the target's space",
@@ -578,7 +587,7 @@ impl ViewerBehavior<'_> {
         ui.label(MATE_UNSET_SNAPS);
         for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
             let coord = freedom.coord();
-            if !MateFreedom::offered_beside(kind) {
+            if !freedom.left_by(kind) {
                 continue;
             }
             ui.horizontal(|ui| {
@@ -596,7 +605,7 @@ impl ViewerBehavior<'_> {
             let values: Result<Vec<_>, _> = MateFreedom::ALL
                 .iter()
                 .zip(self.drafts.mate_values)
-                .filter(|(_, (set, _))| *set && MateFreedom::offered_beside(kind))
+                .filter(|(freedom, (set, _))| *set && freedom.left_by(kind))
                 .map(|(freedom, (_, value))| {
                     let coord = freedom.coord();
                     match coord {
@@ -614,7 +623,7 @@ impl ViewerBehavior<'_> {
                 (Ok(values), Some((doc, _))) => {
                     let choice = MateChoice {
                         kind,
-                        flip: self.drafts.mate_flip,
+                        flip: sensed && self.drafts.mate_flip,
                         values,
                     };
                     match tool.proposal(doc, choice) {

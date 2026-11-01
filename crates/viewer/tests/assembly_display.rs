@@ -234,6 +234,7 @@ fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
+        entities: [None, None],
     };
     let read = |session: &DocSession| {
         let view = session.display_view();

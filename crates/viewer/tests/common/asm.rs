@@ -291,9 +291,11 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::re
 /// against. `None` for a side outside the member vocabulary.
 pub fn side_face(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    side: &pncad::document::SitedFace,
+    side: &pncad::document::SitedRef,
 ) -> Option<StableName> {
-    pncad::document::head_face(doc, side).map(pncad::document::FaceName::into_name)
+    let face = pncad::document::FaceName::new(side.name.clone()).ok()?;
+    pncad::document::head_face(doc, &pncad::document::SitedFace::new(side.at, face))
+        .map(pncad::document::FaceName::into_name)
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the

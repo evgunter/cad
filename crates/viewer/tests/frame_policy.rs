@@ -3835,11 +3835,11 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
                 side: MateSide::To,
                 pick: viewer::tree::HeldPick::new(
                     &pncad::document::Doc::empty_derived("cases", Tol::witness()),
-                    FaceSelection {
+                    viewer::matetool::MatePick::Face(FaceSelection {
                         name: face.clone(),
                         node: RecipeNodeId::new(0, tagged(3)),
                         body: 0,
-                    },
+                    }),
                 ),
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {

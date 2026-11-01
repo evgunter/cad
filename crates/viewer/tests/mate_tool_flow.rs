@@ -253,7 +253,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
         format!("the to pick ({said}) no longer resolves; the tool dropped it")
     );
     match tool.state() {
-        MateToolState::One(held) => assert_eq!(held.face(), &post_top),
+        MateToolState::One(held) => assert_eq!(held.pick().face(), Some(&post_top)),
         other => panic!("the tool degrades to its previous step, got {other:?}"),
     }
 
@@ -360,8 +360,8 @@ fn shelf_on(
 
 /// **The name a target pick on a placement's copy carries**: the
 /// copied body's own name for the face, which a copy carries as it is.
-fn own_name(side: &pncad::document::SitedFace) -> pncad::prelude::StableName {
-    side.name.clone().into_name()
+fn own_name(side: &pncad::document::SitedRef) -> pncad::prelude::StableName {
+    side.name.clone()
 }
 
 /// **A pattern-placed copy is a target, and the shelf rests on it.** The
@@ -559,7 +559,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
         "the target is read at the union's copy"
     );
     assert_eq!(
-        proposal.to.name.clone().into_name(),
+        proposal.to.name.clone(),
         post_top.name,
         "by the name the union carries for post_b's face"
     );

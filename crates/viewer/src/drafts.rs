@@ -1247,6 +1247,13 @@ impl Drafts {
         }
     }
 
+    /// The mate panel's chosen kind ([`crate::matetool::MATE_KINDS`]).
+    pub(crate) fn mate_kind(&self) -> pncad::document::VarKind {
+        crate::matetool::MATE_KINDS
+            .get(self.mate_kind)
+            .map_or(pncad::document::VarKind::Plane, |(kind, _)| *kind)
+    }
+
     /// **The face this form holds**: [`Self::sketch_face`] while the
     /// add-profile form draws on a face, `None` otherwise.
     ///

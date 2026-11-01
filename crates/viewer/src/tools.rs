@@ -144,7 +144,9 @@ impl ToolKind {
     /// **What the cursor may pick while this tool is open** — an open
     /// tool narrows the priority rule, it does not re-decide it.
     ///
-    /// The mate tool takes faces, and on a real part whole faces sit
+    /// The mate tool's rule is its panel's chosen kind's
+    /// ([`Tools::pick_kinds_choosing`]); its own is a plane's, the kind
+    /// the panel opens on. A plane takes faces, and on a real part whole faces sit
     /// within the edge radius of their own boundary — a narrow shelf, a
     /// small hole's wall — so with edges always winning those faces
     /// were unpickable for as long as the tool was open. The blend tool
@@ -296,9 +298,15 @@ pub enum ToolNotice {
         /// What it lost.
         event: SeatEvent,
     },
-    /// A viewport click aimed at the open tool met nothing of the kind
-    /// it picks ([`ToolKind::pick_kinds`]), so the tool took no pick.
-    Missed(ToolKind),
+    /// A viewport click aimed at the open tool met nothing of the kinds
+    /// it picks ([`Tools::pick_kinds_choosing`]), so the tool took no
+    /// pick.
+    Missed {
+        /// The open tool.
+        tool: ToolKind,
+        /// The kinds the cursor could pick.
+        kinds: PickKinds,
+    },
 }
 
 /// The seated arm says the node its event carries (`SpokenNode`, kept
@@ -312,9 +320,9 @@ impl Say for ToolNotice {
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
-            Self::Missed(tool) => tool.says(&format_args!(
+            Self::Missed { tool, kinds } => tool.says(&format_args!(
                 "{} under the cursor — no pick taken",
-                tool.pick_kinds().nothing()
+                kinds.nothing()
             )),
         };
         f.write_str(&said)
@@ -676,6 +684,16 @@ impl Tools {
             .map_or(PickKinds::Any, ToolKind::pick_kinds)
     }
 
+    /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
+    /// narrowing the mate tool's rule ([`crate::matetool::pick_kinds`]):
+    /// what the viewport's cursor picks with.
+    pub fn pick_kinds_choosing(&self, mate: pncad::document::VarKind) -> PickKinds {
+        match self.open_kind() {
+            Some(ToolKind::Mate) => crate::matetool::pick_kinds(mate),
+            _ => self.pick_kinds(),
+        }
+    }
+
     /// **Whether an operation is the open tool's one committed edit**,
     /// which is what closes it. Answered against the OPEN tool rather
     /// than against the op alone, so an op that no tool authored — or
@@ -744,11 +762,12 @@ impl Tools {
             };
             match &mut self.open {
                 None => {}
-                Some(OpenTool::Mate(tool)) => {
-                    if let Some(face) = selection.face() {
-                        tool.pick(doc, face.clone());
-                    }
-                }
+                Some(OpenTool::Mate(tool)) => match selection {
+                    Selection::Face(face) => tool.pick(doc, face.clone()),
+                    Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                    Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                    Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
+                },
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
                         notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));

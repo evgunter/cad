@@ -193,6 +193,18 @@ pub struct Held<'a> {
     pub faces: [Option<&'a FaceSelection>; HELD_FACES],
     /// A held edge SET, if a tool holds one.
     pub edges: Option<HeldEdges<'a>>,
+    /// The held picks that are no face — a mate's edge or vertex — a
+    /// slot per pick, drawn in the held edge lane.
+    pub entities: [Option<HeldEntity<'a>>; 2],
+}
+
+/// **A held pick drawn as geometry**: an edge, or a vertex.
+#[derive(Clone, Copy, Debug)]
+pub enum HeldEntity<'a> {
+    /// A held edge.
+    Edge(&'a EdgeSelection),
+    /// A held vertex.
+    Vertex(&'a VertexSelection),
 }
 
 /// **A held edge set, as the marks read it**: the drawn body the edges
@@ -260,14 +272,23 @@ pub fn compose(
         }),
         ..highlight(index, selection, hover)
     };
-    let (held_segments, held_refused) = held
+    let (mut held_segments, held_refused) = held
         .edges
         .map(|set| set.mark(index, display))
         .unwrap_or_default();
+    let mut entity_probed = false;
+    for entity in held.entities.iter().flatten() {
+        let (legs, node) = match entity {
+            HeldEntity::Edge(edge) => (edge_segments(index, display, edge), edge.node),
+            HeldEntity::Vertex(vertex) => (vertex_segments(index, display, vertex), vertex.node),
+        };
+        held_segments.extend(legs);
+        entity_probed |= moved(display, node);
+    }
     let edges = EdgeOverlay {
         held: held_segments,
         held_refused,
-        held_probed: held.edges.is_some_and(|set| moved(display, set.node)),
+        held_probed: entity_probed || held.edges.is_some_and(|set| moved(display, set.node)),
         ..edge_overlay(index, display, selection, hover)
     };
     (highlight, edges)
@@ -1024,6 +1045,7 @@ mod tests {
             .collect();
         let held = |body| Held {
             faces: [None; HELD_FACES],
+            entities: [None, None],
             edges: Some(HeldEdges {
                 node: copy,
                 body,

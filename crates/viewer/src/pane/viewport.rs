@@ -605,17 +605,26 @@ mod composed {
         };
         // One tool is open at a time, so the mate tool's two held faces
         // and the mirror tool's plane share these two slots.
-        let [a, b] = match (tools.mate(), tools.mirror()) {
-            (Some(tool), _) => tool
-                .state()
-                .picks()
-                .map(|pick| pick.map(crate::tree::HeldPick::face)),
+        // The mate tool's edge and vertex picks are drawn as geometry.
+        let mate = tools.mate().map(|tool| tool.state().picks());
+        let [a, b] = match (mate, tools.mirror()) {
+            (Some(picks), _) => picks.map(|pick| pick.and_then(|held| held.pick().face())),
             (None, Some(tool)) => [tool.plane(), None],
             (None, None) => [None, None],
         };
+        let entities = mate.map_or([None, None], |picks| {
+            picks.map(|pick| match pick.map(crate::tree::HeldPick::pick) {
+                Some(crate::matetool::MatePick::Edge(edge)) => Some(marks::HeldEntity::Edge(edge)),
+                Some(crate::matetool::MatePick::Vertex(vertex)) => {
+                    Some(marks::HeldEntity::Vertex(vertex))
+                }
+                Some(crate::matetool::MatePick::Face(_)) | None => None,
+            })
+        });
         let held = marks::Held {
             faces: [drafts.marked_face(create_drawn), a, b],
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
+            entities,
         };
         let (highlight, edges) =
             marks::compose(index, display, session.selection(), session.hover(), &held);
@@ -1164,7 +1173,7 @@ impl ViewerBehavior<'_> {
         // vocabulary, and the narrowing travels through `hovered_for`,
         // the one door that answers what a cursor means, so a tool
         // cannot end up on a different rule.
-        let kinds = self.tools.pick_kinds();
+        let kinds = self.tools.pick_kinds_choosing(self.drafts.mate_kind());
         // **The index the PICTURE was drawn from**, which is the index
         // in hand on every frame but the ones `drawn_index` exists for.
         // Every read of an index below this line asks this one:
@@ -1199,7 +1208,7 @@ impl ViewerBehavior<'_> {
                             && let Some(kind) = self.tools.open_kind()
                         {
                             self.notices.push(frame::tool_notice(
-                                &crate::tools::ToolNotice::Missed(kind),
+                                &crate::tools::ToolNotice::Missed { tool: kind, kinds },
                                 Some((doc, eval)),
                             ));
                         }
