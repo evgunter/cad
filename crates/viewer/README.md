@@ -994,13 +994,13 @@ that say a node is not live, and `AdmissionFault::NoSuchNode`.
 **The pick path's refusals hold bare ids and are spoken where they are
 drawn.** The pick index, its edge names, the id pass and the blend
 tool's loads are built from the landed run alone, so `PickIndexError`,
-`IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
+`UndrawnCopy`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
 `BlendTarget`, `BlendEvent`, `PatchNameFault`, `idpass::IdAnswer` and
 `idpass::Disagreement` carry no document and implement `Say`; their
 `Display` says each node by its tag. The frame that draws one speaks
 it from the landed document (`DocSession::landed_pair`), the one whose
-ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`'s
-tooltip, `frame::held_edges_badge`, `frame::tool_notice` (through
+ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`,
+`frame::held_edges_badge`, `frame::tool_notice` (through
 `ToolNotice::said`), `Disagreement::notice`, the blend panel's target
 line and the add-profile form's face readout. A value carried past the frame
 that made it keeps the document it is spelled in (`frame::Spelled`),
@@ -1548,14 +1548,29 @@ index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
 
 **The index in hand is not always the index on screen.**
-`ViewerApp::sync_scene` marks the scene's `PictureKey` current
-only on a successful rebuild — a refused one must not consume the pair,
-or the stale picture stays marked as the current one and is never
-retried — so a landed index over a refused rebuild leaves a newer index
-beside an older picture, and nothing retries it while the display
-revision and the focus set hold still. The startup mesh is the same
+`ViewerApp::sync_scene` keys the scene to an index's `PictureKey`
+only on a successful rebuild; a refused one draws nothing and leaves the
+scene with no key, so a landed index over a refused rebuild is a newer
+index beside a picture no index minted, and nothing retries it while
+the display revision and the focus set hold still. The startup mesh is the same
 shape from the other end: `scene::scene_of` builds it before any index
 exists and every corner carries `IdMap::NOTHING`.
+
+**An index covers the copies it drew, and a refused one draws
+nothing.** `PickIndex::build` walks every drawn copy; a copy whose
+build refuses (no value, no body, a tessellation or indexing refusal)
+is held in `PickIndex::undrawn` with its reason and gets no part, no
+ids and no window, so the id map stays one-to-one over the drawn
+copies and a failure takes away its own copies' picture and no other.
+`frame::index_badge` says an undrawn copy, `Actionable` and by name,
+only where the feature tree draws no `Failed` or `Poisoned` row for it
+(`tree::cause_row`): that row is the notice for a copy with no value.
+The index refuses as a whole only for a fault of its own (`Ids`,
+`DrawnTwice`, `Names`), and `sync_scene` then puts
+`SceneMesh::nothing` on screen with no `PictureKey`, under the badge,
+as it does under a refused scene rebuild. An older picture stays only
+while a build is in flight, or after a canceled evaluation, which the
+toolbar says (`app::CANCELED_LINE`).
 
 **So a pane sorts its reads of the index by what they are about**, and
 the sorting is a rule about currency rather than about which fields
