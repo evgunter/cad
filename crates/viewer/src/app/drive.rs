@@ -466,6 +466,28 @@ impl Driver {
         &self.app.session
     }
 
+    /// The picture the app holds, drawn or not.
+    #[must_use]
+    pub fn scene(&self) -> &crate::scene::SceneMesh {
+        &self.app.scene
+    }
+
+    /// The pick index the app holds, if one is built for the landed run.
+    #[must_use]
+    pub fn index(&self) -> Option<&crate::pickindex::PickIndex> {
+        self.app.picks.index()
+    }
+
+    /// The pick-index seam's badge, as the toolbar draws it.
+    #[must_use]
+    pub fn index_badge(&self) -> Option<crate::frame::Badge> {
+        crate::frame::index_badge(
+            self.app.picks.error(),
+            self.app.picks.index(),
+            self.app.session.landed_pair(),
+        )
+    }
+
     /// Everything the last frame painted.
     #[must_use]
     pub fn screen(&self) -> &[Landed] {
