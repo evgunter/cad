@@ -2,10 +2,11 @@
 id: the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways
 kind: issue
 title: entry_side and sectors::side_code read one bound's side of a plane two ways, and disagree at every first-order tie
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P1
 cost: H
+branch: tangrim/one-bound-side-reading
 ---
 
 
