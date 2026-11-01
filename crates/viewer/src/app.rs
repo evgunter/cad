@@ -5873,6 +5873,51 @@ mod properties_pane_tests {
         }
     }
 
+    /// **The add-profile form's Cancel lets its held face go**: closed
+    /// behind its door, the form holds nothing, so the viewport marks
+    /// nothing as held. Goes red if `Drafts::held_face` stops reading
+    /// `profile_open`.
+    #[test]
+    fn the_add_profile_forms_cancel_lets_its_held_face_go() {
+        use crate::pickindex::IdMap;
+        const NONE: u32 = IdMap::NOTHING;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        let top_id = driven.patch_of(&top);
+        assert_eq!(driven.held(), [top_id, NONE, NONE], "held while open");
+        driven.click("Cancel");
+        driven.quiet();
+        assert!(!driven.app.drafts.profile_open, "the Cancel closed it");
+        assert_eq!(
+            driven.held(),
+            [NONE, NONE, NONE],
+            "closed, it holds nothing"
+        );
+    }
+
+    /// **Folding the section the open add-profile form sits in lets its
+    /// held face go too**: the form is no more on screen than behind
+    /// its door, and a face marked as held by a form nobody can see is
+    /// the defect the door's gate closes.
+    #[test]
+    fn folding_the_add_profile_forms_section_lets_its_held_face_go() {
+        use crate::pickindex::IdMap;
+        const NONE: u32 = IdMap::NOTHING;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        let top_id = driven.patch_of(&top);
+        assert_eq!(driven.held(), [top_id, NONE, NONE], "held while open");
+        driven.click(crate::pane::create::ADD_FEATURE);
+        driven.quiet();
+        assert!(
+            driven.each(crate::pane::create::ADD_PROFILE).is_empty(),
+            "the section folded"
+        );
+        assert_eq!(
+            driven.held(),
+            [NONE, NONE, NONE],
+            "a folded form holds nothing"
+        );
+    }
+
     /// **The add-profile form's held face is marked after the selection
     /// moves on, and only while the form holds it.**
     ///
