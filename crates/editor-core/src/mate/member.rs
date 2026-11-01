@@ -117,10 +117,11 @@ impl Walk {
 /// walk before the head is ever reached.
 pub(super) fn walk<P: crate::ProfilePayload>(
     doc: &Doc<P>,
-    r: &crate::node::SitedFace,
+    at: RecipeNodeId,
+    name: &crate::names::StableName,
 ) -> Result<Walk, RecipeNodeId> {
-    let mut at = r.at;
-    let mut name: &crate::names::StableName = &r.name;
+    let mut at = at;
+    let mut name = name;
     let mut chain: Vec<Placing> = Vec::new();
     loop {
         // A family's member: the name must SAY which member, and the
@@ -247,7 +248,17 @@ pub fn member_of<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<Member> {
-    walk(doc, head).ok().map(|w| w.member)
+    walk(doc, head.at, &head.name).ok().map(|w| w.member)
+}
+
+/// [`member_of`] for a reference of any entity kind — a face, an edge
+/// or a vertex read at `at`: the walk reads the name alone, so one
+/// vocabulary admits every pose a mate side reads off geometry.
+pub fn member_of_ref<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    head: &crate::node::SitedRef,
+) -> Option<Member> {
+    walk(doc, head.at, &head.name).ok().map(|w| w.member)
 }
 
 /// **The member a side resolves to, and the side's name as that
@@ -262,7 +273,9 @@ pub fn member_reading<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<(Member, crate::names::StableName)> {
-    walk(doc, head).ok().map(|w| (w.member, w.placed))
+    walk(doc, head.at, &head.name)
+        .ok()
+        .map(|w| (w.member, w.placed))
 }
 
 /// **The face of the member's source a side names** — the side walked
@@ -275,7 +288,7 @@ pub fn head_face<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     head: &crate::node::SitedFace,
 ) -> Option<crate::FaceName> {
-    walk(doc, head).ok()?.part_face()
+    walk(doc, head.at, &head.name).ok()?.part_face()
 }
 
 /// **A mate side's head, read off its selection** (D10): the node whose

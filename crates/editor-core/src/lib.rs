@@ -166,8 +166,8 @@ pub use mate::{
     MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal,
     Placed, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SignedAxis, SlideAxes, SolvedPoses,
     Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, corner_frame,
-    corner_frame_in, head_face, head_of, in_space, member_of, member_reading, moved_frame,
-    relative_freedom_components, solve_document, stand, unobservable,
+    corner_frame_in, head_face, head_of, in_space, member_of, member_of_ref, member_reading,
+    moved_frame, relative_freedom_components, solve_document, stand, unobservable,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
