@@ -104,7 +104,7 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, SaveChoice, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
+pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing, VertexSelection};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -1075,6 +1075,10 @@ impl DocSession {
             Selection::Edge(edge) => Standing::Edge {
                 edge: edge.clone(),
                 resolution: self.entity_resolution(edge.node, edge.body, &edge.name),
+            },
+            Selection::Vertex(vertex) => Standing::Vertex {
+                vertex: vertex.clone(),
+                resolution: self.entity_resolution(vertex.node, vertex.body, &vertex.name),
             },
         }
     }

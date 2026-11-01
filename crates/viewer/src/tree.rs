@@ -565,7 +565,10 @@ impl DrawnBody {
     pub fn of_selection(selection: &Selection) -> Option<Self> {
         match selection {
             Selection::Edge(EdgeSelection { node, body, .. })
-            | Selection::Face(FaceSelection { node, body, .. }) => Some(Self::new(*node, *body)),
+            | Selection::Face(FaceSelection { node, body, .. })
+            | Selection::Vertex(crate::session::VertexSelection { node, body, .. }) => {
+                Some(Self::new(*node, *body))
+            }
             Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
         }
     }
@@ -639,6 +642,12 @@ impl<'a> PickedName<'a> {
     /// An edge pick, on the body its ray met.
     pub fn edge(edge: &'a EdgeSelection) -> Self {
         let EdgeSelection { name, node, body } = edge;
+        Self::new(name, DrawnBody::new(*node, *body))
+    }
+
+    /// A vertex pick, on the body its ray met.
+    pub fn vertex(vertex: &'a crate::session::VertexSelection) -> Self {
+        let crate::session::VertexSelection { name, node, body } = vertex;
         Self::new(name, DrawnBody::new(*node, *body))
     }
 
