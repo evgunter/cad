@@ -136,6 +136,10 @@ const WINDOW_TITLE: &str = "pncad";
 /// What the toolbar calls a document with no path of its own.
 const UNTITLED: &str = "untitled";
 
+/// What the New… form's commit button says: what it makes, so it reads
+/// apart from every other commit on screen.
+const NEW_DOCUMENT_COMMIT: &str = "Create document";
+
 /// The tab name of the container holding the feature tree and the
 /// properties — the document's model, as against the View pane's
 /// display settings.
@@ -1345,6 +1349,7 @@ impl ViewerApp {
             self.drafts.new_variable_name = name.as_str().to_owned();
             self.drafts.new_variable_dimension = None;
             self.drafts.new_variable_offer = Some(name.clone());
+            self.drafts.new_variable_open = true;
         }
         self.apply_status(verdict);
     }
@@ -1630,7 +1635,7 @@ impl ViewerApp {
             ui.add(egui::Label::new(document_name(self.session.path())).truncate());
             ui.separator();
             // The New… control: one name field. The field is a draft; the
-            // op is emitted only by Create, gated on
+            // op is emitted only by its commit, gated on
             // `Refusal::new_document_name`, the door's own blank check,
             // so the button cannot offer a click the door refuses. Out
             // of it the button shows that refusal's own words.
@@ -1647,7 +1652,7 @@ impl ViewerApp {
                             .desired_width(120.0),
                     );
                     let named = Refusal::new_document_name(name).map(str::to_owned);
-                    if refusable_button(ui, "Create", named.as_ref().err()) {
+                    if refusable_button(ui, NEW_DOCUMENT_COMMIT, named.as_ref().err()) {
                         if let Ok(name) = named {
                             ops.push(SessionOp::NewDocument { name });
                         }
@@ -1763,16 +1768,24 @@ impl ViewerApp {
             // frame whatever the selection, the standing and the
             // layout are.
             //
-            // Enabled exactly while the door's own gesture is in
-            // flight, and out of flight it says the refusal the
-            // operation itself would give — the value that knows
-            // carries the words, so the two cannot disagree.
-            for door in self.session.cancel_doors() {
-                if refusable_button(ui, door.label, door.blocked.as_ref()) {
-                    ops.push(door.op);
+            // Drawn exactly while the door's own gesture is in
+            // flight — the door's `blocked`, the refusal its operation
+            // gives with no gesture, is the one test — so the toolbar
+            // at rest carries no cancel with nothing to cancel.
+            let mut doors = self
+                .session
+                .cancel_doors()
+                .into_iter()
+                .filter(|door| door.blocked.is_none())
+                .peekable();
+            if doors.peek().is_some() {
+                for door in doors {
+                    if ui.button(door.label).clicked() {
+                        ops.push(door.op);
+                    }
                 }
+                ui.separator();
             }
-            ui.separator();
             if ui
                 .button("Zoom to fit")
                 .on_hover_text("frame the whole model in the viewport")
@@ -3317,7 +3330,7 @@ mod tests {
     /// **A disabled toolbar control says what its own operation
     /// refuses** — and says it about ITSELF.
     ///
-    /// Three controls are held to it: Undo, Redo, and Create on the
+    /// Three controls are held to it: Undo, Redo, and the commit on the
     /// New-document form. For each, the words a reader actually sees
     /// are read back off the painted frame and compared with the
     /// sentence the session answers that control's own operation with.
@@ -3348,7 +3361,7 @@ mod tests {
     fn a_disabled_toolbar_control_says_what_its_own_operation_refuses() {
         let mut toolbar = Toolbar::open();
         // The New-document form is a draft the New… button opens; the
-        // Create button is not drawn until it is open.
+        // commit button is not drawn until it is open.
         toolbar.app.drafts.new_doc_name = Some(String::new());
 
         // A freshly assembled session is at the root of a history with
@@ -3357,7 +3370,7 @@ mod tests {
             ("Undo", SessionOp::Undo),
             ("Redo", SessionOp::Redo),
             (
-                "Create",
+                super::NEW_DOCUMENT_COMMIT,
                 SessionOp::NewDocument {
                     name: String::new(),
                 },
@@ -3398,7 +3411,7 @@ mod tests {
         // refusal moves nothing here; putting the wrong verb under a
         // button reds it.
         //
-        // The Create button takes no such clause: it has no sibling to
+        // The commit button takes no such clause: it has no sibling to
         // be confused with, and its sentence is about the name rather
         // than about the verb on the button.
         for (label, other) in [("Undo", "Redo"), ("Redo", "Undo")] {

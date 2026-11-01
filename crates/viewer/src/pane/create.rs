@@ -285,6 +285,9 @@ pub(crate) const EXTRUDE: &str = "Extrude";
 /// What the add-profile form's commit button says.
 pub(crate) const ADD_PROFILE: &str = "Add profile";
 
+/// What the door that opens the add-profile form says.
+pub(crate) const ADD_PROFILE_DOOR: &str = "Add profile…";
+
 /// What the add-profile form asks for while it draws on a face and
 /// holds none.
 pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
@@ -334,6 +337,10 @@ pub(crate) const COMBINE_BODIES: &str = "Combine bodies";
 
 /// The heading of the section whose tools reshape a body's edges.
 pub(crate) const BLEND_EDGES: &str = "Blend edges";
+
+/// The heading of the section whose tools bring in another document
+/// and place it.
+pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
 
 /// **The chooser's answer, drawn**: the directory it read, then the
 /// parts on offer or what it has to say instead — and the entry that
@@ -450,7 +457,11 @@ fn withheld_line(ui: &mut egui::Ui, theme: &Theme, withheld: Withheld) {
 }
 
 impl ViewerBehavior<'_> {
-    /// The creation sections. Each form is minimal — its few required
+    /// The creation sections, each behind its own header and each tool
+    /// or form in it behind its own button, so the pane at rest is the
+    /// headers. A form whose op takes the selection is not here: it is
+    /// drawn beside the selection while its op admits it
+    /// ([`Self::extrude_ui`]). Each form is minimal — its few required
     /// fields with sensible defaults — and emits exactly one creation
     /// op; the property panel is the editor for everything after the
     /// insert — for a profile, through this section's own path editor
@@ -458,9 +469,6 @@ impl ViewerBehavior<'_> {
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.add_profile_ui(ui);
-            // Draws its own separator, and nothing at all unless a
-            // profile is selected.
-            self.extrude_ui(ui);
             ui.separator();
             self.revolve_tool_ui(ui);
         });
@@ -491,6 +499,12 @@ impl ViewerBehavior<'_> {
         // a set rather than a seat.
         ui.collapsing(BLEND_EDGES, |ui| {
             self.blend_tool_ui(ui);
+        });
+        // The tools whose subject is another document: an instance of
+        // a part, and the mate that places one.
+        ui.collapsing(ASSEMBLE_PARTS, |ui| {
+            self.add_part_ui(ui);
+            self.mate_tool_ui(ui);
         });
         ui.separator();
     }
@@ -692,7 +706,10 @@ impl ViewerBehavior<'_> {
     /// [`SessionOp::AddProfile`] on commit — the profile on its own
     /// plane — or, drawing on a face, one [`SessionOp::SketchOnFace`]:
     /// the profile extruded away from the face picked in the viewport
-    /// and fused with its body, in one submit and one undo.
+    /// and fused with its body, in one submit and one undo. Behind its
+    /// `Add profile…` door, as every tool is behind its button: at rest
+    /// the form is one control, and it closes with its commit
+    /// ([`crate::drafts::Drafts::accepted`]) or its Cancel.
     ///
     /// The circle's optional bore is what lets this template author
     /// the hollow ring's annulus (one profile node, two loops).
@@ -701,11 +718,17 @@ impl ViewerBehavior<'_> {
     /// the profile layer's containment forest, not from list order,
     /// so a bore at or beyond the outer radius would not refuse — it
     /// would silently swap which circle is the hole. The form says
-    /// "bore", so it disables Create until the bore is smaller, with
+    /// "bore", so it disables its commit until the bore is smaller, with
     /// the reason shown. This is a chrome affordance guarding the
     /// template's stated intent; the op stays unjudged and the
     /// kernel's containment rule stays the one home.
     pub(crate) fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
+        if !self.drafts.profile_open {
+            if ui.button(ADD_PROFILE_DOOR).clicked() {
+                self.drafts.profile_open = true;
+            }
+            return;
+        }
         self.profile_drawn.create = true;
         ui.horizontal(|ui| {
             ui.label("profile");
@@ -843,13 +866,21 @@ impl ViewerBehavior<'_> {
             self.profile_previews.create.as_ref().filter(|_| !at_rest),
         );
         self.creation_label_row(ui, PROFILE_NOUN);
-        if ui
-            .add_enabled(
-                blocked.is_none() && !refused,
-                egui::Button::new(ADD_PROFILE),
-            )
-            .clicked()
-        {
+        let (commit, cancel) = ui
+            .horizontal(|ui| {
+                let commit = ui
+                    .add_enabled(
+                        blocked.is_none() && !refused,
+                        egui::Button::new(ADD_PROFILE),
+                    )
+                    .clicked();
+                (commit, ui.button("Cancel").clicked())
+            })
+            .inner;
+        if cancel {
+            self.drafts.profile_open = false;
+        }
+        if commit {
             // Lowered HERE rather than in the session: the notation is
             // the form's, and a literal that forgot it between the two
             // is exactly the gap this carries across.
@@ -1047,7 +1078,9 @@ impl ViewerBehavior<'_> {
     /// [`NodeKindWanted::Profile`], over the committed document as
     /// `DocSession::require_kind` reads it): the form is offered
     /// exactly where the op would accept it, as the instance section
-    /// is (`ViewerBehavior::instance_ui`).
+    /// is (`ViewerBehavior::instance_ui`) — and beside the selection,
+    /// outside the collapsed creation sections ([`Self::create_ui`]),
+    /// so no header has to be opened to find it.
     pub(crate) fn extrude_ui(&mut self, ui: &mut egui::Ui) {
         let Some(node) =
             self.session.selection().node().filter(|node| {

@@ -62,10 +62,15 @@ pub(crate) struct Drafts {
     pub(crate) expr_text: String,
     /// The naming field, while it is open ([`NameDraft`]).
     pub(crate) name_draft: Option<NameDraft>,
+    /// **Whether the add-variable form is open** — its `New variable…`
+    /// door clicked, or an unknown-variable refusal's offer landed
+    /// ([`crate::frame::creation_offer`]). Closed, the form's fields
+    /// below are not drawn.
+    pub(crate) new_variable_open: bool,
     /// The add-variable form's name field.
     pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
-    /// the Create button waits for the pick. The offer path lands
+    /// the commit button waits for the pick. The offer path lands
     /// here from an expression whose context does not determine the
     /// new variable's dimension, and a silently-defaulted one would
     /// be a guess none of this program's doors make.
@@ -89,8 +94,13 @@ pub(crate) struct Drafts {
     pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
-    /// Create — a name in flight is a draft, not a document.
+    /// its commit — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
+    /// **Whether the add-profile form is open** — its `Add profile…`
+    /// door clicked. Closed, the form holds no face and reads no trace
+    /// ([`Self::held_face`], [`Self::traces`]): its latches are kept,
+    /// not held, as they are off the face.
+    pub(crate) profile_open: bool,
     /// **Whether the add-profile form draws on the selected face** —
     /// "sketch on this face" ([`SessionOp::SketchOnFace`]) — rather than
     /// on the profile's own plane alone.
@@ -867,6 +877,7 @@ impl Default for Drafts {
             expr_text: String::new(),
             name_draft: None,
             new_variable_name: String::new(),
+            new_variable_open: false,
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
@@ -877,6 +888,7 @@ impl Default for Drafts {
             mate_into_target_space: false,
             mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
+            profile_open: false,
             sketch_on_face: false,
             sketch_face: None,
             sketch_face_said: HeldNodes::default(),
@@ -974,6 +986,16 @@ impl Drafts {
         }
     }
 
+    /// **The add-variable form closes**, at its commit or its Cancel,
+    /// and its fields go with it: the next `New variable…` starts empty.
+    pub(crate) fn close_new_variable(&mut self) {
+        self.new_variable_open = false;
+        self.new_variable_name.clear();
+        self.new_variable_dimension = None;
+        self.new_variable_value = 0.0;
+        self.new_variable_offer = None;
+    }
+
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
@@ -982,7 +1004,8 @@ impl Drafts {
     /// every frame), so a form left holding the shape it just committed
     /// would keep drawing that shape in the probe tint over the
     /// committed drawing of the node it became. Resting the shape
-    /// (`None`) is what the form means by "nothing being composed"; the
+    /// (`None`) is what the form means by "nothing being composed", and
+    /// the form closes with its one committed edit, as a tool does; the
     /// field values stay, so a second profile starts from where the
     /// first one left off. A sketch on a face settles the same way.
     ///
@@ -1008,6 +1031,7 @@ impl Drafts {
                 | SessionOp::AddDrawnProfile { .. }
         ) {
             self.profile_shape = None;
+            self.profile_open = false;
         }
     }
 
@@ -1201,14 +1225,16 @@ impl Drafts {
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
-    /// add-profile form draws on a face, `None` otherwise.
+    /// add-profile form is open and draws on a face, `None` otherwise.
     ///
     /// Off the face the latch is kept, not held — nothing the form
     /// commits reads it — so switching off releases the pick, and
     /// switching back holds it again. What the viewport marks as held
     /// (`crate::marks::Held`).
     pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
-        self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
+        self.sketch_face
+            .as_ref()
+            .filter(|_| self.profile_open && self.sketch_on_face)
     }
 
     /// **The latches a trace is to be read for** — when the form writes
@@ -1249,11 +1275,14 @@ impl Drafts {
         });
     }
 
-    /// **Whether the add-profile form writes a traced path**: a path,
-    /// continuing tangent to a face's trace ([`Self::trace_on`]), and
-    /// not on a picked face.
+    /// **Whether the add-profile form writes a traced path**: open, a
+    /// path, continuing tangent to a face's trace ([`Self::trace_on`]),
+    /// and not on a picked face.
     pub(crate) fn traces(&self) -> bool {
-        self.trace_on && !self.sketch_on_face && self.profile_shape == Some(ShapeKind::Path)
+        self.profile_open
+            && self.trace_on
+            && !self.sketch_on_face
+            && self.profile_shape == Some(ShapeKind::Path)
     }
 
     /// **The add-profile form's op**: the profile on its own plane, or
@@ -1561,6 +1590,7 @@ mod tests {
             ..Notation::DEFAULT
         };
         let waiting = Drafts {
+            profile_open: true,
             profile_shape: Some(ShapeKind::Circle),
             sketch_on_face: true,
             ..Drafts::default()

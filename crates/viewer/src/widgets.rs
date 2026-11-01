@@ -2725,7 +2725,7 @@ mod tests {
     /// mean opposite things, and this is the one that means abandon.
     ///
     /// It is also the ONLY abandon a user has while the button is
-    /// still down: [`crate::session::DocSession::cancel_doors`] draws
+    /// still down: [`crate::session::DocSession::cancel_doors`] puts
     /// *"Cancel free-move"* in the toolbar, and reaching a toolbar
     /// control costs the pointer release that lands the frame.
     ///

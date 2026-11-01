@@ -1906,35 +1906,25 @@ draws the button.
 **The doors are in the toolbar and not on the field**, which is the one
 siting that answers the defect: the field is what can stop being drawn,
 so a cancel beside it would vanish with the exit it replaces. And **a
-door that cannot act says so rather than vanishing** — the posture the
-two file-dialog controls take: each door is drawn whatever the
-selection, the standing and the evaluation are, and enabled exactly
-while its own gesture is in flight. **And reachable at every window
-width**, which is a second claim and has its own holds: the toolbar is
-laid out `horizontal_wrapped`, so a window narrower than the row gets a
-second line rather than a clipped one — a clipped control is not
-small, it is gone, and for these two that would mean no exit from the
-gesture at all. `ViewerApp::toolbar_ui`'s two rows hold both halves: that the
-row does not fit a narrow window, so the wrapping is answering
-something, and that it stays inside one.
-
-**How it says so is a different precedent from where it is drawn**, and
-citing one for both is wrong: a dialog control's refusal is the
-environment's and comes before the operation — with no chooser backend
-no path is chosen, so the `SessionOp::Open` or `Save` a click would push
-is never built — and the dialog controls hand
-`platform::ChooserBackend::unusable`, the sentence this crate composes on
-the probe's value and answers with the gate, to `on_disabled_hover_text`.
-A cancel door's refusal is its operation's own, and it follows
-`pane::create`'s catalogue entry
-instead — *carrying the op's own refusal, read off the entry, not
-minted here* — so `CancelDoor::blocked` is a `Refusal` and the disabled
-control's words are the refused operation's own. **That the two cannot
-come to say different things is held by a test, not by the type**:
-`gesture_table.rs`'s `a_closed_door_says_what_its_own_operation_refuses`
-performs each door's operation with no gesture open and compares both
-the rendering and the variant. Nothing structural stops a future door
-composing its own sentence; that row is what would red.
+door is drawn exactly while its own gesture is in flight**, whatever the
+selection, the standing and the evaluation are: a cancel belongs where
+its gesture is in flight, and one standing on the toolbar at rest is a
+control with nothing to do that a reader has to read past. Whether it
+is in flight is `CancelDoor::blocked` — the refusal the door's own
+operation gives with no gesture open, a `Refusal` read off the
+operation rather than a second test beside it, following
+`pane::create`'s catalogue entry (*carrying the op's own refusal, read
+off the entry, not minted here*). That the two cannot come to disagree
+is held by `gesture_table.rs`'s
+`a_closed_door_says_what_its_own_operation_refuses`, which performs
+each door's operation with no gesture open and compares both the
+rendering and the variant. **And reachable at every window width**:
+the toolbar is laid out `horizontal_wrapped`, so a window narrower than
+the row gets a second line rather than a clipped one — a clipped
+control is not small, it is gone, and for these two that would mean no
+exit from the gesture at all. `ViewerApp::toolbar_ui`'s two rows hold
+both halves: that the row does not fit a narrow window, so the wrapping
+is answering something, and that it stays inside one.
 
 **The door cannot be reached during a live pointer drag**, which is the
 half of the defect it does not answer: it is a toolbar control, and
