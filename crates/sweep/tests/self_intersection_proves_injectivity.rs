@@ -782,6 +782,161 @@ fn a_long_helical_sweep_waits_on_the_window_doors_halving() {
     refused("the helical sweep at Interval", &helical::<Interval>());
 }
 
+/// Each interior `v` knot of `wall`'s surface that lies a few ulps off
+/// the dyadic `m/2^d` (`d ≤ 6`) nearest it without being on it: the
+/// bisection lands on `m/2^d`, and a cell ending there meets the next
+/// span over those few ulps.
+fn knots_ulps_off_a_split<T: Scalar>(body: &Body<T>, wall: FaceKey) -> Vec<f64> {
+    let Surface::Nurbs(net) = surface(body, wall) else {
+        panic!("a loft wall is a spline")
+    };
+    net.knot_values_v()
+        .values()
+        .iter()
+        .map(|k| k.lo())
+        .filter(|&k| {
+            let split = (k * 64.0).round() / 64.0;
+            k != split && (k - split).abs() <= 4.0 * f64::EPSILON
+        })
+        .collect()
+}
+
+/// **Each wall against itself holds where its knots sit ulps off its
+/// splits**: `body`'s walls, each alone, at the default budget; the
+/// count of those examined with such a knot. A derivative enclosure
+/// read off a cell's few-ulp meet with a span reads that meet's rounding
+/// as slope, never shrinks along the line, and the monotone arm splits
+/// the line until the budget refuses.
+///
+/// A wall the window door refuses as a chart that does not refine is
+/// `clearance::refines` reading only lower halves
+/// (`work/clear/clearance-refines-reads-only-the-lower-halves.md`), and
+/// is asserted as that refusal: when that row lands it goes red, and
+/// the wall joins the ones asserted to hold.
+fn walls_hold_against_themselves<T: Scalar>(
+    what: &str,
+    body: &Body<T>,
+    walls: &[FaceKey],
+) -> usize {
+    let mut examined = 0;
+    for &wall in walls {
+        let side = Side {
+            body,
+            faces: vec![wall],
+        };
+        if let Err(refusal) = side.windows(Which::First) {
+            assert!(
+                matches!(&refusal, EngineRefusal::Unsupported { carrier, .. }
+                    if carrier.contains("does not refine")),
+                "{what}: a wall is refused a window only as a chart that does not refine, \
+                 got {refusal:?}"
+            );
+            continue;
+        }
+        let report = injective(body, Some(vec![wall]), BUDGET);
+        println!(
+            "[sliver] {what}: {wall:?} {} deepest {} {:?}",
+            class(&report.verdict),
+            report.widths.deepest,
+            report.receipt
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what}: a wall against itself holds within the default budget, got {} {:?}",
+            class(&report.verdict),
+            report.receipt
+        );
+        if !knots_ulps_off_a_split(body, wall).is_empty() {
+            examined += 1;
+        }
+    }
+    examined
+}
+
+/// **An arc-spine loft's walls hold against themselves at the curls
+/// whose chord-length knots round a few ulps off `k/16`**: 3.2, 3.4,
+/// 3.5, 3.6 and 6.0 rad, at both scalars.
+#[test]
+fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
+    use crate::bool6_per_slab_stacking::{arc_spine_places, spine_section};
+    fn arc<T: Scalar>(curl: f64) -> sweep::Lofted<T> {
+        let places: Vec<SketchPlane<T>> = arc_spine_places(curl, 17).iter().map(plane_at).collect();
+        loft_body::<T>(&vec![lifted(&spine_section()); 17], &places, 3, tol())
+            .expect("the arc spine lofts")
+    }
+    for curl in [3.2, 3.4, 3.5, 3.6, 6.0] {
+        let float = arc::<f64>(curl);
+        let walls: Vec<FaceKey> = float
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let what = format!("the {curl} rad arc spine");
+        assert!(
+            walls_hold_against_themselves(&what, &float.body, &walls) > 0,
+            "{what}: the row examines a wall with a knot a few ulps off a split point"
+        );
+        let twin = arc::<Interval>(curl);
+        let walls: Vec<FaceKey> = twin
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let what = format!("{what} at Interval");
+        assert!(
+            walls_hold_against_themselves(&what, &twin.body, &walls) > 0,
+            "{what}: the row examines a wall with a knot a few ulps off a split point"
+        );
+    }
+}
+
+/// **The tour's S-duct walls hold against themselves**: the square swept
+/// along the tour's `skinned` S path (two quarter arcs of radius 2, 17
+/// points, cubic) at 13 stations.
+#[test]
+fn the_s_duct_walls_hold_against_themselves() {
+    fn duct<T: Scalar>() -> sweep::Lofted<T> {
+        let (r, h) = (2.0, 0.25);
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let points: Vec<Point3<f64>> = (0..=8)
+            .map(|k| {
+                let th = quarter * f64::from(k) / 8.0;
+                Point3::new(0.0, r * (1.0 - th.cos()), r * th.sin())
+            })
+            .chain((1..=8).map(|k| {
+                let ph = quarter * f64::from(k) / 8.0;
+                Point3::new(0.0, r + r * ph.sin(), 2.0 * r - r * ph.cos())
+            }))
+            .collect();
+        let path = NurbsCurve3::interpolate(&points, 3).expect("the S path interpolates");
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]));
+        sweep_body::<T>(&profile, place, &path, 13, 3, tol()).expect("the S path sweeps")
+    }
+    let float = duct::<f64>();
+    let walls: Vec<FaceKey> = float
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    walls_hold_against_themselves("the S duct", &float.body, &walls);
+    let twin = duct::<Interval>();
+    let walls: Vec<FaceKey> = twin
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    walls_hold_against_themselves("the S duct at Interval", &twin.body, &walls);
+}
+
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two
 /// high, revolved a full turn — two walls 0.04 apart that share
 /// nothing, and two annular caps.

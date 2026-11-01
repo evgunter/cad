@@ -32,7 +32,7 @@ use common::{band_midpoint, quad};
 /// smaller than the spine's radius of curvature so the walls never
 /// fold through the spine's own centre and the row decides the
 /// STACKING rather than the geometry.
-fn spine_section() -> sweep::Section {
+pub(crate) fn spine_section() -> sweep::Section {
     quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)])
 }
 
@@ -55,7 +55,7 @@ fn four_sections() -> Vec<sweep::Section> {
 /// base tangent, so the slab margin goes negative exactly when the
 /// SLAB turns past π; and the spine closes on itself at `curl = 2π`,
 /// past which the body passes through itself.
-fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
+pub(crate) fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
     (0..stations)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
