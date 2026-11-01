@@ -2,10 +2,11 @@
 id: the-transform-gesture-moves-a-placed-body-through-a-transform
 kind: issue
 title: The viewer's Transform gesture moves a placed body through a Transform; under D10 moving a placed body edits its placement
-status: open
+status: dispatched
 opened: 2026-10-09
 priority: P1
 cost: M
+branch: placing/gesture-placements
 ---
 
 
@@ -39,3 +40,11 @@ P1 M, parked on INTENT stage 3's `a-placement-is-the-bundle-of-mates`: moving a 
 ## Re-parked at INTENT stage 3 B's close (PR 5232, 2026-10-17)
 
 B built placements: `Place { shapes, constraints }`, with a world pin as the constraint that sets a pose. It left `Transform` an operand-maker, and the viewer's mate tool commits into a bundle, so the gesture this row asks for now waits on `Transform` retiring into a placement. That is stage 3's unit D, `transform-retires-into-a-placement`.
+
+## Parked (2026-11-01, PLACING orchestrator)
+
+Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; the reason is in `work/placing/log.md` (2026-11-01, track claimed).
+
+## Unparked and dispatched (2026-11-01, PLACING orchestrator)
+
+`a-new-body-lands-unplaced` closed in PR 6269: no gesture writes a world `Place` on the person's behalf, and one `Takeover` re-points a copy's source. The lane `placing/gesture-placements` re-reads this row against that code first.

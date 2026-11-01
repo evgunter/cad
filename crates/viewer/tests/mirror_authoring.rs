@@ -38,8 +38,17 @@ const HALF_X: f64 = BLOCK[0] / 2.0;
 /// A height every level ray aims at: inside the block's walls.
 const MID_Z: f64 = BLOCK[2] / 2.0;
 
-/// A session holding the block, landed — answering the extrude.
+/// A session holding the block placed into the world by hand, landed
+/// — answering the extrude.
 fn block(tol: Tol) -> (DocSession, RecipeNodeId) {
+    let (session, block) = unplaced_block(tol);
+    let (session, _) = common::world_copy_in(&session, block, tol);
+    (session, block)
+}
+
+/// A session holding the block as it lands, unplaced — answering the
+/// extrude.
+fn unplaced_block(tol: Tol) -> (DocSession, RecipeNodeId) {
     let mut session = common::inline_without_door(Doc::empty_derived("mirror-start", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
     session.pump();
@@ -215,7 +224,7 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     };
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::drawn_copies(doc),
+        crate::common::drawn_copies(doc),
         [copy],
         "the block's copy stays the one drawn copy"
     );
@@ -403,8 +412,7 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     let (session, base) = block(tol);
     let mut session = session;
     let small = common::xy_box_in(&mut session, SMALL);
-    let doc = session.committed_doc().clone();
-    let small_copy = common::copy_of(&doc, small);
+    let (doc, small_copy) = common::world_copy(session.committed_doc(), small, tol);
     let mut session = common::inline_without_door(
         drawn::pinned(doc, small_copy, &drawn::translated([0.1, 0.0, 0.0])),
         tol,
@@ -450,11 +458,12 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     }
 }
 
-/// **A body nothing places gets its image alone**: the image is written
-/// in the body's space and reached in the tree; no part is made and the
-/// world is untouched.
+/// **An unplaced body becomes its symmetric part too**: the mirror
+/// writes `body ∪ image` whatever reads the body, so a body nothing
+/// copies is read by the union and the union is drawn in its place;
+/// the world is untouched.
 #[test]
-fn an_unplaced_body_gets_its_image_alone() {
+fn an_unplaced_body_becomes_its_symmetric_part() {
     let tol = Tol::witness();
     let (session, block) = block(tol);
     let profile = match session.committed_doc().node(block) {
@@ -480,49 +489,51 @@ fn an_unplaced_body_gets_its_image_alone() {
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let union = outcome.made.expect("the symmetric part");
     assert!(
         matches!(
             &outcome.committed[..],
-            [DocEdit::InsertNode { node, .. }] if matches!(**node, Node::Mirror { .. })
+            [DocEdit::InsertNode { node: image, .. }, DocEdit::InsertNode { node: part, .. }]
+                if matches!(**image, Node::Mirror { .. }) && matches!(**part, Node::Union { .. })
         ),
-        "the image alone: {:?}",
+        "the image and the union, nothing else: {:?}",
         outcome.committed
     );
-    assert_eq!(
-        common::world(session.committed_doc()),
-        world,
-        "the world stands"
-    );
+    let doc = session.committed_doc();
+    assert!(viewer::world::is_drawn(doc, union), "the union is drawn");
+    assert!(!viewer::world::is_drawn(doc, loose), "in the body's place");
+    assert_eq!(common::world(doc), world, "the world stands");
 }
 
 /// **A body mirrored across a face of another body in its space**: the
-/// block's duplicate is a copy read out of a pattern of the block, so
-/// it lives in the block's space. The first face pick (the block's)
-/// seats the block; the second (the duplicate's far `+x` wall) re-picks
-/// the plane alone; the image is the block reflected across that wall,
-/// and the block's copy draws the block and that image.
+/// unplaced block duplicated is a stand-in and a stepped copy, both in
+/// the block's own space. The first face pick (the stand-in's) seats
+/// the stand-in; the second (the stepped copy's far `+x` wall) re-picks
+/// the plane alone; the image is the stand-in reflected across that
+/// wall, and the symmetric part draws both.
 #[test]
 fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tol = Tol::witness();
-    let (mut session, block) = block(tol);
+    let (mut session, block) = unplaced_block(tol);
     let duplicated = session.perform(SessionOp::Duplicate {
         input: block.into(),
         beside: None,
     });
     assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
-    session.pump();
-    let world = common::world(session.committed_doc());
-    let [first, copy] = world[..] else {
-        panic!("the block and its duplicate are drawn: {world:?}")
+    let [stand_in, copy] = duplicated.minted[..] else {
+        panic!("a stand-in and a stepped copy: {:?}", duplicated.minted);
     };
-    assert_eq!(first, block, "the block is drawn first");
-    let block_copy = common::copy_of(session.committed_doc(), block);
+    session.pump();
 
     let own = face_toward(&session, 1.0);
     let far = face_toward(&session, -1.0);
     let tools = mirror_tool_picking(&session, &[own, far.clone()]);
     let tool = tools.mirror().expect("open");
-    assert_eq!(tool.input(), Some(block), "the second face keeps the body");
+    assert_eq!(
+        tool.input(),
+        Some(stand_in),
+        "the second face keeps the body"
+    );
     assert_eq!(tool.plane(), Some(&far), "and re-picks the plane");
 
     let at = corners(&mut session, copy)
@@ -533,21 +544,23 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         at > HALF_X,
         "the duplicate's far wall is clear of the block: {at}"
     );
-    let (image, _) = mirror_in(&mut session, mirror_op(&tools));
-    let source = corners(&mut session, block);
+    let (image, part) = mirror_in(&mut session, mirror_op(&tools));
+    let source = corners(&mut session, stand_in);
+    assert_eq!(
+        source,
+        corners(&mut session, block),
+        "the stand-in is the block"
+    );
     let want = reflected(&source, at);
     let built = corners(&mut session, image);
     assert!(
         same_points(&built, &want),
         "the image is the block across x = {at}: {built:?} vs {want:?}"
     );
-    assert_drawn(
-        &mut session,
-        block_copy,
-        [-HALF_X, -BLOCK[1] / 2.0, 0.0],
-        [2.0 * at + HALF_X, BLOCK[1] / 2.0, BLOCK[2]],
-        2.0 * volume_of(BLOCK),
-        "the block's copy",
+    let part = part.expect("the symmetric part");
+    assert!(
+        viewer::world::is_drawn(session.committed_doc(), part),
+        "the symmetric part is drawn"
     );
 }
 
@@ -594,7 +607,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
             .feed(
                 session.committed_doc(),
                 Err(viewer::pickcache::NotIndexed::Absent),
-                &[SessionOp::Select(Selection::Node(common::copy_of(
+                &[SessionOp::Select(Selection::Node(common::drawn_node(
                     session.committed_doc(),
                     torus
                 )))]
@@ -688,6 +701,58 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
     );
 }
 
+/// **A drop says the plane as the line said it**, after the copy it
+/// was clicked on is deleted: the line read the click on the block the
+/// copy places, so the drop says the block, and not the deleted copy by
+/// its tag. Red if the drop reads the click's body again against the
+/// document that dropped it.
+#[test]
+fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
+    let tol = Tol::witness();
+    let (mut session, block) = block(tol);
+    let wall = face_toward(&session, 1.0);
+    let copy = wall.node;
+    assert_ne!(
+        copy, block,
+        "the premise: the wall was clicked on the block's copy"
+    );
+    let mut tools = mirror_tool_picking(&session, &[wall]);
+    let line = tools
+        .mirror()
+        .expect("open")
+        .line(viewer::frame::landed_speaker(session.landed_pair()));
+    let plane = line
+        .split_once("mirror plane: ")
+        .map(|(_, plane)| plane.to_owned())
+        .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
+    let (block_said, copy_said) = (
+        session.doc().spoken(block).to_string(),
+        session.doc().spoken(copy).to_string(),
+    );
+    assert!(
+        plane.starts_with("the side wall ")
+            && plane.ends_with(&format!(" of {block_said}, on {copy_said}")),
+        "the line says the block's wall on the copy clicked: {line:?}"
+    );
+    let outcome = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    tools.respeak(session.doc());
+    session.pump();
+    let dropped: Vec<String> = tools
+        .reconcile(session.doc(), session.landed_pair())
+        .iter()
+        .filter(|notice| matches!(notice, ToolNotice::Mirror(MirrorEvent::PlaneLost { .. })))
+        .map(|notice| notice.said(session.landed_pair()))
+        .collect();
+    assert_eq!(
+        dropped,
+        [format!(
+            "mirror tool: the mirror plane pick ({plane}) no longer resolves; the tool dropped it"
+        )],
+        "the drop says the plane as the line did"
+    );
+}
+
 /// **A plane read in another space is refused, however it is reached**:
 /// a face of a second block's IMAGE (its own space's, since an image is
 /// in its source's), a face clicked on the second block's drawn copy,
@@ -700,8 +765,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     let (mut session, a) = block(tol);
     let wall = face_toward(&session, 1.0);
     let b = common::xy_box_in(&mut session, BLOCK);
-    let doc = session.committed_doc().clone();
-    let b_copy = common::copy_of(&doc, b);
+    let (doc, b_copy) = common::world_copy(session.committed_doc(), b, tol);
     let mut session = common::inline_without_door(
         drawn::pinned(doc, b_copy, &drawn::translated([0.0, 0.1, 0.0])),
         tol,
@@ -785,20 +849,29 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     );
 }
 
-/// **One click is named by one node**: a face clicked on the block's
-/// copy is said as the block in both of the tool's items, the body and
-/// the plane.
+/// **A click on a copy seats the block and says the copy**: a face
+/// clicked on the block's copy seats the block as the body, and the
+/// plane is said as the block's wall on the copy it was clicked on —
+/// the plane was taken there.
 #[test]
-fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
+fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
     let tol = Tol::witness();
     let (session, block) = block(tol);
     let wall = face_toward(&session, 1.0);
+    let wall_copy = wall.node;
     let tools = mirror_tool_picking(&session, &[wall]);
-    let doc = session.committed_doc();
-    let said = doc.spoken(block).to_string();
-    assert_eq!(
-        tools.mirror().expect("open").line(doc),
-        format!("mirrored body: {said}; mirror plane: face of {said}"),
+    let said = session.doc().spoken(block).to_string();
+    let copy = session.doc().spoken(wall_copy).to_string();
+    let line = tools
+        .mirror()
+        .expect("open")
+        .line(viewer::frame::landed_speaker(session.landed_pair()));
+    let plane = line
+        .strip_prefix(&format!("mirrored body: {said}; mirror plane: "))
+        .unwrap_or_else(|| panic!("the body seat says the block: {line:?}"));
+    assert!(
+        plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {said}, on {copy}")),
+        "the plane is the block's wall in its words, said on the copy clicked: {line:?}"
     );
 }
 
@@ -827,7 +900,7 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
     let mut tools = Tools::new();
     tools.open(ToolKind::Mirror);
     let picks = [
-        SessionOp::Select(Selection::Node(common::copy_of(
+        SessionOp::Select(Selection::Node(common::drawn_node(
             session.committed_doc(),
             block,
         ))),

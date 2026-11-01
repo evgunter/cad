@@ -1,6 +1,7 @@
 //! **A duplicate is drawn beside the original as the person sees it**:
-//! a second placement of the stepped copy, written by values at the
-//! picked copy's evaluated motion, with no mate.
+//! one more copy of its body in the picked copy's space, written by
+//! values at that copy's evaluated motion stepped along its own `x`,
+//! with no mate.
 //!
 //! Every row reads the DRAWN duplicate's extent against the box's
 //! literal dimensions and the step the door authored: on a copy moved
@@ -14,7 +15,7 @@
 
 use crate::common;
 
-use common::drawn::{self, assert_drawn, corners, spacing_of};
+use common::drawn::{self, assert_drawn, corners};
 use pncad::document::{Doc, Frame, Node, Operand, RecipeNodeId};
 use pncad::geom_core::Tol;
 use viewer::combine::DuplicateFault;
@@ -34,21 +35,21 @@ fn volume_of(size: [f64; 3]) -> f64 {
     size.iter().product()
 }
 
-/// A session holding the block, landed.
+/// A session holding the block placed into the world by hand, landed.
 fn block(tol: Tol) -> (DocSession, RecipeNodeId) {
     let mut session = common::inline_without_door(Doc::empty_derived("duplicate-start", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
-    session.pump();
+    let (session, _) = common::world_copy_in(&session, block, tol);
     (session, block)
 }
 
 /// **The duplicate tool fed `pick` and its commit performed**: the
-/// stepped copy, and the placements the duplicate minted beside it.
+/// step it measured, and the copies the duplicate minted beside it.
 fn duplicate_picking(
     session: &mut DocSession,
     pick: Selection,
     beside: Option<RecipeNodeId>,
-) -> (RecipeNodeId, Vec<RecipeNodeId>) {
+) -> (f64, Vec<RecipeNodeId>) {
     let mut tools = Tools::new();
     tools.open(ToolKind::Duplicate);
     assert!(
@@ -66,19 +67,26 @@ fn duplicate_picking(
     duplicated(session, tool.op().expect("the seat is filled"))
 }
 
-/// `op` performed and landed: the stepped copy, and the placements
-/// minted beside it.
-fn duplicated(session: &mut DocSession, op: SessionOp) -> (RecipeNodeId, Vec<RecipeNodeId>) {
+/// `op` performed and landed: the step the door measured off the landed
+/// body ([`viewer::combine::duplicate_step`]), and the copies it minted.
+fn duplicated(session: &mut DocSession, op: SessionOp) -> (f64, Vec<RecipeNodeId>) {
+    let SessionOp::Duplicate { input, .. } = &op else {
+        panic!("a duplicate: {op:?}");
+    };
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let step = viewer::combine::duplicate_step(doc, eval, input, Tol::witness())
+        .expect("the body measures");
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let doc = session.committed_doc();
-    let placements = outcome.minted[1..]
+    let placements = outcome
+        .minted
         .iter()
         .copied()
         .filter(|&n| matches!(doc.node(n), Some(Node::Place { .. })))
         .collect();
-    (outcome.minted[0], placements)
+    (step, placements)
 }
 
 /// **Whether `placement`'s bundle holds a mate**.
@@ -101,13 +109,11 @@ fn a_duplicate_of_a_moved_copy_is_drawn_beside_it() {
         drawn::moved_copy(&session, block, &drawn::translated([0.1, 0.0, 0.0]), tol);
     let picked = common::asm::pick_face(&session, &common::down_at(0.1, 0.0));
     assert_eq!(picked.node, copy, "the ray met the moved copy");
-    let (stepped, placements) =
-        duplicate_picking(&mut session, Selection::Face(picked), Some(copy));
+    let (step, placements) = duplicate_picking(&mut session, Selection::Face(picked), Some(copy));
     let [placement] = placements[..] else {
         panic!("one duplicate placed: {placements:?}");
     };
     assert!(!mated(&session, placement), "the duplicate holds no mate");
-    let step = spacing_of(&session, stepped);
     let [x, y] = HALF;
     assert_drawn(
         &mut session,
@@ -153,13 +159,12 @@ fn a_duplicate_of_a_mated_copy_is_drawn_beside_it_unmated() {
     assert!(mated(&session, small_copy), "the copy is mated");
     let picked = common::asm::pick_face(&session, &common::down_at(0.1, 0.0));
     assert_eq!(picked.node, small_copy, "the ray met the seated copy");
-    let (stepped, placements) =
+    let (step, placements) =
         duplicate_picking(&mut session, Selection::Face(picked), Some(small_copy));
     let [placement] = placements[..] else {
         panic!("one duplicate placed: {placements:?}");
     };
     assert!(!mated(&session, placement), "the duplicate holds no mate");
-    let step = spacing_of(&session, stepped);
     let (x, y, z) = (SMALL[0] / 2.0, SMALL[1] / 2.0, BLOCK[2]);
     assert_drawn(
         &mut session,
@@ -186,11 +191,10 @@ fn a_turned_copys_duplicate_steps_along_the_copys_own_x() {
         translation: [0.1, 0.05, 0.0],
     };
     let (mut session, copy) = drawn::moved_copy(&session, block, &turned, tol);
-    let (stepped, placements) = duplicate_picking(&mut session, Selection::Node(copy), Some(copy));
+    let (step, placements) = duplicate_picking(&mut session, Selection::Node(copy), Some(copy));
     let [placement] = placements[..] else {
         panic!("one duplicate placed: {placements:?}");
     };
-    let step = spacing_of(&session, stepped);
     let [x, y] = HALF;
     assert_drawn(
         &mut session,
@@ -236,11 +240,10 @@ fn a_copy_at_a_general_pose_is_duplicated_at_that_pose() {
         [0, 1, 2].map(|i| pose.translation[i] + (0..3).map(|j| rot(i, j) * p[j]).sum::<f64>())
     };
     let (mut session, copy) = drawn::moved_copy(&session, block, &pose, tol);
-    let (stepped, placements) = duplicate_picking(&mut session, Selection::Node(copy), Some(copy));
+    let (step, placements) = duplicate_picking(&mut session, Selection::Node(copy), Some(copy));
     let [placement] = placements[..] else {
         panic!("one duplicate placed: {placements:?}");
     };
-    let step = spacing_of(&session, stepped);
     let own = corners(&mut session, block);
     let sorted = |mut points: Vec<[f64; 3]>| {
         points.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
@@ -292,11 +295,10 @@ fn a_body_named_in_the_tree_is_duplicated_beside_each_drawn_copy() {
     let doc = drawn::pinned(doc, second, &drawn::translated([0.0, 0.1, 0.0]));
     let mut session = common::inline_without_door(doc, tol);
     session.pump();
-    let (stepped, placements) = duplicate_picking(&mut session, Selection::Node(block), None);
+    let (step, placements) = duplicate_picking(&mut session, Selection::Node(block), None);
     let [beside_first, beside_second] = placements[..] else {
         panic!("one duplicate placed beside each copy: {placements:?}");
     };
-    let step = spacing_of(&session, stepped);
     let [x, y] = HALF;
     for (placement, [cx, cy], copy) in [
         (beside_first, [0.1, 0.0], first),
@@ -321,7 +323,7 @@ fn a_duplicate_beside_another_bodys_copy_is_refused() {
     let (mut session, block) = block(tol);
     let other = common::xy_box_in(&mut session, SMALL);
     session.pump();
-    let elsewhere = common::copy_of(session.committed_doc(), other);
+    let (mut session, elsewhere) = common::world_copy_in(&session, other, tol);
     let before = session.committed_doc().clone();
     let outcome = session.perform(SessionOp::Duplicate {
         input: block.into(),

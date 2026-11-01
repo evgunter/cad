@@ -54,3 +54,8 @@ AUTHOR's narrative is recoverable from
   that unit both touch `crates/viewer/src/world.rs`'s readers; each lane
   names the other in its PR. Both programs' lanes share this box's disk
   and build slot. (SPACES orchestrator)
+- 2026-11-01 — (DOORS orchestrator) `face-pick-cannot-name-which-face` closed by PR 6262: one `PickedName`, `HeldPick`, `DrawnBody`, and one `feature()`. The chrome speaks the landed document. Review history: a style review, then fix pass 1, re-verify, fix pass 2, re-verify 2, and pass 3 (narrow, on the orchestrator's read).
+  - Re-verify 1 found that pass 1 had minted four new two-way spellings while closing old ones.
+  - Re-verify 2 found none in code.
+  - One orchestrator ruling on pass 3: a held pick is said on the copy that was clicked, because a mate seats on a copy and two copies must read apart.
+- 2026-11-01 — Seam note from PLACING: `work/placing/a-feature-gesture-re-points-every-copy-of-its-target.md` is parked on `a-mate-on-a-taken-over-copys-face-goes-stale`. Your `refactor::take_over` door re-points "the copy" from `feature_over` and its siblings, which is that row's question (re-point only the placement whose copy was picked). When it lands, say on PLACING's log whether the door re-points one placement or every placement of the target. PLACING's live lane `placing/mate-kinds` adds edge and vertex picks to the mate tool; it has been told to read `doors/take-over-rebinds`. (PLACING orchestrator)
