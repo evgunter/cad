@@ -13,7 +13,7 @@ with a dated `## Slate triage` note.
 
 **A result that is right but cannot say why.** Results touching along a slit's or ring's line, or two lumps along an edge less a flush partner, build without their contact records and fail tier 3′; a single cap near a rod's axis fails 3′ on its own records. The Eq. 15.3 lump keeps operand A's copy of a coincident region by its own table, and a Zero vertex pair keeps its smallest point key, not the glue's kept side. A boolean's row on a vertex it minted inside a face names the face and not the pierce.
 
-HELDRECORDS holds the same question at every door; this track is the boolean's own records of its touches. CLEAVE's PR 6185 files a row on a fate touch-end whose partner record is missing upstream; it moves here after 6185 merges.
+HELDRECORDS holds the same question at every door; this track is the boolean's own records of its touches. CLEAVE's PR 6185 filed a row on a fate touch-end whose partner record is missing upstream; it moved here when 6185 merged.
 
 ## The slate
 
@@ -25,6 +25,7 @@ HELDRECORDS holds the same question at every door; this track is the boolean's o
 | P2 | open | `a-union-beside-a-slit-misses-an-edge-overlap-record` | M | A union of a slit form with a part flush beside the slit, its edge along the slit's line, builds without the edge-overlap contact record: tier 3' refuses UnrecordedContact EdgeEdgeOverlap |
 | P2 | open | `a-union-touching-along-a-rings-line-fails-tier-3-prime` | M | A result whose two solids touch along a slit's or ring's line, where one holds an edge, fails tier 3′ CensusUndecidable |
 | P2 | open | `two-lumps-touching-along-an-edge-less-a-flush-partner-miss-their-line-records` | M | Two lumps touching along an edge, less a flush partner over part of the edge, build without the records of their touch: tier 3' refuses UnrecordedContact |
+| P2 | open | `a-kept-vertex-touching-a-face-at-another-pierces-ring-has-no-partner-record` | M | A kept vertex resting on a face at a point another kept vertex pierces is recorded on the face, not paired with that pierce's ring vertex |
 | P3 | open | `a-ring-vertex-minted-in-the-pierced-face-has-no-mints-row` | M | The ring vertices a boolean mints in a pierced face and at a node are not in Mints, so a row naming one would publish a clone key as an input vertex |
 
 ## Lanes
