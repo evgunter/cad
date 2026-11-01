@@ -2,12 +2,13 @@
 id: the-view-pane-toggles-spaces-and-bodies
 kind: unit
 title: the View pane lists the shown spaces and every body, each with a show/hide toggle
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/view-toggles
 refs: [6209]
+pr: 6270
 ---
 
 

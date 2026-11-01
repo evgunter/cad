@@ -221,3 +221,12 @@ Newest entries at the bottom; the tail is the program's live status.
   `a-family-placed-into-an-instances-space-hides-that-space` (PR 6265,
   merged ahead of 6269). Its dual-review row rides 6265 as its last
   commit. (SPACES orchestrator)
+- 2026-11-01 — `the-view-pane-toggles-spaces-and-bodies`: PR 6270 (cloud
+  lane, branch `spaces/view-toggles`, stacked on 6269 at `2b32f232`),
+  green at `d9cdc901`. Every space and body has a toggle judged against
+  the default picture (a hide where the default draws it, a show where it
+  does not; a toggle set back to its default records nothing); tree and
+  Properties read the same state, closing
+  `the-feature-trees-hide-toggles-an-undrawn-instance-silently`. Filed
+  `free-move-refuses-a-body-the-author-showed` (may touch DI5: triage
+  after the stack lands). STYLE review dispatched. (SPACES orchestrator)
