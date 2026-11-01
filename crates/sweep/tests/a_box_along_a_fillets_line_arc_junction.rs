@@ -153,6 +153,10 @@ fn beside_the_junction(make: fn(&Affine3<f64>) -> Neighbour, open: Open) {
             (-0.5, 1.0),
             (-0.5, 1.5),
             (0.25, 0.75),
+            (0.0, 1.5),
+            (0.5, 1.5),
+            (0.5, 1.0),
+            (-0.5, 0.5),
         ] {
             let (h, held) = (z.1 - z.0, f64::min(z.1, 1.0) - f64::max(z.0, 0.0));
             let b = posed("the box", brick((0.5, 1.5), (0.5, 1.0), z, tol()), &pose);
