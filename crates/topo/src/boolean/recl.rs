@@ -2044,8 +2044,65 @@ fn resolve_edge_sector<T: Decide>(
         )?,
     };
     let ref_sector = &ref_secs[ref_idx];
-    let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
+        (a_body, b_body)
+    } else {
+        (b_body, a_body)
+    };
+    let (own_op, ref_op) = if a_side {
+        (super::Operand::A, super::Operand::B)
+    } else {
+        (super::Operand::B, super::Operand::A)
+    };
+    let surface_of = |body: &Body<T>, face| {
+        body.get_face(face)
+            .and_then(|f| body.get_surface(f.surface))
+            .cloned()
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "a glued tangency's face lost its surface",
+            })
+    };
+    // A flanker glued tangent to the reference reads its key bound On at
+    // first order, as a coplanar one does; it lies in the reference only
+    // along the tangency locus, so it is keyed by the side its carrier
+    // curves to along that bound. Beside a coplanar flanker that lumps
+    // the other way, the edge is the transition. Where the bound rides
+    // the locus or reads in band, the On stands, and Table III's rule
+    // reads the pair whole (`tangent_lump`).
+    let key = |idx: usize, key_from_start: bool| {
+        let first = flank_key(own_secs, idx, key_from_start, ref_sector.normal, band)?;
+        let own_sec = &own_secs[idx];
+        if first != SideCode::On
+            || !declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face)
+        {
+            return Ok(first);
+        }
+        let read = declared.read(
+            &[(own_op, own_sec.face, ref_op, ref_sector.face)],
+            Coincide::TangentSide,
+            &[],
+        );
+        let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "edge-sector site lost its point",
+            },
+        )?;
+        let [start, end] = own_sec.reached_bounds();
+        let (d, reached) = if key_from_start { start } else { end };
+        Ok(super::sectors::tangent_relative_side(
+            &surface_of(own_body, own_sec.face)?,
+            &surface_of(ref_body, ref_sector.face)?,
+            ref_sector.normal,
+            p,
+            d,
+            reached,
+            read,
+            band,
+        )
+        .unwrap_or(SideCode::On))
+    };
+    let k1 = key(f_s, false)?;
+    let k2 = key(f_e, true)?;
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued
@@ -2060,16 +2117,6 @@ fn resolve_edge_sector<T: Decide>(
     ) {
         let on_flanker = if k1 == SideCode::On { f_s } else { f_e };
         let own_sec = &own_secs[on_flanker];
-        let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
-            (a_body, b_body)
-        } else {
-            (b_body, a_body)
-        };
-        let (own_op, ref_op) = if a_side {
-            (super::Operand::A, super::Operand::B)
-        } else {
-            (super::Operand::B, super::Operand::A)
-        };
         let arm = own_sec.arm.min(ref_sector.arm);
         lumps_out = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
             let read = declared.read(
@@ -2077,14 +2124,6 @@ fn resolve_edge_sector<T: Decide>(
                 Coincide::TangentSide,
                 &[],
             );
-            let surface_of = |body: &Body<T>, face| {
-                body.get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .cloned()
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "a glued tangency's face lost its surface",
-                    })
-            };
             let p = own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-sector site lost its point",
