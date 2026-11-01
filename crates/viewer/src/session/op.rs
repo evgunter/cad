@@ -53,9 +53,12 @@ pub enum SessionOp {
     ///
     /// The cost is knowable before the click:
     /// [`super::DocSession::delete_affordance`] carries the same list the
-    /// operation deletes. What it removes is the dependent CONE — a delete that
-    /// reconnected consumers to the target's input instead (splice) is
-    /// open as issue #1324.
+    /// operation deletes. What it removes is the dependent CONE, after
+    /// handing back to the body a doomed node took over whatever reads
+    /// that node along a seen path (a copy's source, a `⊔` operand, the
+    /// product slot) — the inverse of the takeover that re-pointed it. A
+    /// delete that reconnected any other consumer to the target's input
+    /// (splice) is open as issue #1324.
     DeleteNode {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,

@@ -2162,6 +2162,13 @@ one of the space's, else the chain of turns its frame makes; on a copy
 it edits the copy's placement. A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
+A delete hands back what a takeover re-pointed: whatever reads a
+doomed node along a seen path, where that node took a body over (a
+fillet's or chamfer's target, a boolean's first operand, a placement's
+source in its own space, a `∪` or `⊔` over a family through its
+placement), is re-pointed to the first such body the cascade leaves, in
+the delete's one action, so adding a feature and deleting it leaves the
+world as it was (`session::handed_back`).
 
 **A body reaches the product through one door.** Nothing joins the
 product unasked, a document's first body included. **Add to the

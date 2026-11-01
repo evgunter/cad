@@ -8,7 +8,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId, cascade_delete_order};
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
 
 /// **What the delete button says, and the list it says it about.**
 ///
@@ -45,13 +45,15 @@ impl DeleteAffordance {
     /// is drawn disabled, with the op's refusal on its hover
     /// (`DocSession::delete_refusal`).
     ///
-    /// Neither sentence mentions the features that merely FED the
-    /// target and survive, because this delete
-    /// does not touch them. A delete that reconnected a target's
-    /// consumers to its input instead — splice — is open as issue
-    /// #1324.
-    pub(super) fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Self {
-        let cascade = cascade_delete_order(doc, node);
+    /// `cascade` is the delete's own list, the target last. Neither
+    /// sentence mentions the features that merely FED the target and
+    /// survive, nor a reader the delete hands back to the body the
+    /// target took over, because this delete deletes neither.
+    pub(super) fn of(
+        doc: &Doc<ProfileProgram>,
+        node: RecipeNodeId,
+        cascade: Vec<RecipeNodeId>,
+    ) -> Self {
         let spoken = doc.spoken(node);
         // The cascade's last entry is the target itself; everything
         // before it is a dependent.

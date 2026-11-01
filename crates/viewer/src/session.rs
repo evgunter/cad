@@ -985,7 +985,11 @@ impl DocSession {
     /// holds a scratch value, so the two never disagree at a live
     /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
-        DeleteAffordance::of(self.committed_doc(), node)
+        let doc = self.committed_doc();
+        let cascade = self
+            .delete_plan(node)
+            .map_or_else(|_| cascade_delete_order(doc, node), |(_, doomed)| doomed);
+        DeleteAffordance::of(doc, node, cascade)
     }
 
     /// **The chrome's cancel doors, one per gesture** — the exits
@@ -3889,28 +3893,52 @@ impl DocSession {
     /// **The cone, not the chain's remainder**: nodes whose only tie
     /// to the target is that they fed it survive, so deleting one pip's
     /// boolean out of a die leaves that pip's body in the document,
-    /// unconsumed and unplaced — the cone takes the boolean's world
-    /// placements with it, since they read it. Reconnecting a deleted node's
-    /// consumers to its input instead — splice, the CAD-conventional
-    /// delete — needs an edit that rewires a live node's inputs. The
-    /// vocabulary has ONE such edit now, `DocEdit::SetMembers`, and it
-    /// reaches only the LIST inputs (a `Union`'s members, a `Loft`'s
-    /// sections): a splice has to rewire a NAMED operand, which nothing
-    /// here does. Still open as issue #1324.
+    /// unconsumed and unplaced.
+    ///
+    /// **What a takeover re-pointed is handed back** ([`handed_back`]):
+    /// before the cone is taken, whatever reads a doomed node that took
+    /// a body over along a seen path — a copy's source, a `⊔` operand,
+    /// the product slot — is re-pointed to that body, in the same
+    /// action, so a gesture's add and its delete leave the world as it
+    /// was. The kernel's cascade infers no re-point (DM6); this gesture
+    /// writes it. Reconnecting any other consumer to the target's input
+    /// — splice — is open as issue #1324.
     ///
     /// An id the document does not hold takes the single-edit path so
     /// the typed refusal comes from the door rather than from here.
     fn delete_node(&mut self, node: RecipeNodeId) -> OpOutcome {
-        let doomed = cascade_delete_order(self.committed_doc(), node);
-        if doomed.is_empty() {
-            return self.commit(DocEdit::DeleteNode { id: node });
+        match self.delete_plan(node) {
+            Ok((handed, doomed)) if !doomed.is_empty() => self.commit_action(
+                handed
+                    .into_iter()
+                    .chain(doomed.into_iter().map(|id| DocEdit::DeleteNode { id }))
+                    .collect(),
+            ),
+            Ok(_) => self.commit(DocEdit::DeleteNode { id: node }),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
-        self.commit_action(
-            doomed
-                .into_iter()
-                .map(|id| DocEdit::DeleteNode { id })
-                .collect(),
-        )
+    }
+
+    /// **What deleting `node` writes**: the hand-back edits
+    /// ([`handed_back`]) and then the cone of the document they leave,
+    /// consumers first — the list [`Self::delete_affordance`] prices
+    /// and [`Self::delete_node`] applies.
+    fn delete_plan(
+        &self,
+        node: RecipeNodeId,
+    ) -> Result<(Vec<DocEdit<ProfileProgram>>, Vec<RecipeNodeId>), Refusal> {
+        let doc = self.committed_doc();
+        let handed = handed_back(doc, node);
+        if handed.is_empty() {
+            return Ok((handed, cascade_delete_order(doc, node)));
+        }
+        let (_, doomed) = self.stage_run(|run| {
+            for edit in handed.clone() {
+                run.apply(edit)?;
+            }
+            Ok(cascade_delete_order(run.doc(), node))
+        })?;
+        Ok((handed, doomed))
     }
 
     /// **What `SessionOp::DeleteNode` would answer for `node` because
@@ -4307,30 +4335,103 @@ impl Takeover {
         result: RecipeNodeId,
         whole: Option<RecipeNodeId>,
     ) -> Result<(), EditError> {
-        let one = whole.unwrap_or(result);
+        for edit in self.edits(result.into(), whole.unwrap_or(result).into()) {
+            run.apply(edit)?;
+        }
+        Ok(())
+    }
+
+    /// The slot-door edits re-pointing every reader: a copy to `all`,
+    /// a `⊔` operand and the product slot to `one`.
+    fn edits(self, all: Operand, one: Operand) -> Vec<DocEdit<ProfileProgram>> {
         let slots = self
             .copies
             .into_iter()
-            .map(|copy| (copy, OperandSlot::Source, result))
+            .map(|copy| (copy, OperandSlot::Source, all.clone()))
             .chain(
                 self.operands
                     .into_iter()
-                    .map(|(node, seat)| (node, seat, one)),
+                    .map(|(node, seat)| (node, seat, one.clone())),
             );
-        for (node, seat, to) in slots {
-            run.apply(DocEdit::SetParam {
+        let mut edits: Vec<DocEdit<ProfileProgram>> = slots
+            .map(|(node, seat, to)| DocEdit::SetParam {
                 node,
                 slot: SlotId::Operand(seat),
-                value: pncad::document::SlotValue::Read(to.into()),
+                value: pncad::document::SlotValue::Read(to),
                 fresh: Vec::new(),
-            })?;
-        }
+            })
+            .collect();
         if self.product {
-            run.apply(DocEdit::SetProduct {
-                product: Some(one.into()),
-            })?;
+            edits.push(DocEdit::SetProduct { product: Some(one) });
         }
-        Ok(())
+        edits
+    }
+}
+
+/// **What a delete of `node` hands back** ([`DocSession::delete_node`]):
+/// for each node of its cone that took a body over ([`taken_body`]),
+/// what reads it along a seen path ([`Takeover`]) re-pointed to that
+/// body — the first one up the chain the cone leaves standing — as the
+/// takeover re-pointed it forward. A reader the cone takes that took a
+/// body over is not handed back: it goes, and its readers are. Empty
+/// where the cone takes no such reader, or where the body is read at an
+/// index.
+fn handed_back(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<DocEdit<ProfileProgram>> {
+    let doomed = cascade_delete_order(doc, node);
+    let standing = |var: VarId| doc.operation_of(var).is_none_or(|at| !doomed.contains(&at));
+    doomed
+        .iter()
+        .filter_map(|&gone| {
+            let mut to = taken_body(doc, gone)?;
+            while !standing(to) {
+                to = taken_body(doc, doc.operation_of(to)?)?;
+            }
+            Some((gone, to))
+        })
+        .flat_map(|(gone, to)| {
+            let mut takeover = Takeover::of(doc, &body_of(doc, gone));
+            // A reader the cone takes that took the body over itself
+            // goes, and hands back its own readers.
+            let goes = |reader: &RecipeNodeId| {
+                doomed.contains(reader) && taken_body(doc, *reader).is_some()
+            };
+            takeover.copies.retain(|copy| !goes(copy));
+            takeover.operands.retain(|(reader, _)| !goes(reader));
+            takeover.edits(Operand::Var(to), Operand::Var(to))
+        })
+        .collect()
+}
+
+/// **The body `node` took over**, where a takeover gesture authors its
+/// kind: a fillet's or a chamfer's target, a boolean's first operand
+/// (the mirror's `body ∪ image`, sketch-on-face's union, a combine), a
+/// placement's source where the copy stands in the source's own space
+/// (a transform's, a pattern's family), and for a `∪` or `⊔` over a
+/// family, what the family's placement took over. `None` for any other
+/// node, and for a body read at an index.
+fn taken_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
+    let plain = |read: &pncad::document::BodyRead<_>| read.at.is_empty().then_some(read.read);
+    match doc.node(node)? {
+        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
+            Some(doc.selection(*selection)?.body)
+        }
+        Node::Union { members, .. }
+        | Node::Intersect { members, .. }
+        | Node::Assemble { members, .. } => match members {
+            pncad::document::Bodies::Family(family) => {
+                taken_body(doc, doc.operation_of(plain(family)?)?)
+            }
+            pncad::document::Bodies::Spelled(reads) => match doc.node(node)? {
+                Node::Assemble { .. } => None,
+                _ => plain(reads.first()?),
+            },
+        },
+        Node::Subtract { from, .. } => plain(from),
+        Node::Place { source, target, .. } => {
+            let read = plain(source)?;
+            (doc.operand_space(&Operand::Var(read)) == Some(*target)).then_some(read)
+        }
+        _ => None,
     }
 }
 
