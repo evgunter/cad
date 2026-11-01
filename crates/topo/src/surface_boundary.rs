@@ -11,12 +11,12 @@
 //! - **The surface boundary** ([`surface_cycles`]) drops every such edge:
 //!   what remains is the cycles of edges that have another face on their
 //!   far side, the face's boundary on its surface. Region and point
-//!   placement read it. `boolean::region::boundary` keeps the same edges
-//!   by filtering each loop with the predicate, in loop order rather than
-//!   walk order, so the two agree on the set by construction; the region
-//!   arm (the next unit of this row) reads the walk itself. A face every
-//!   edge of which it lies on both sides of (the one-face ball) has an
-//!   empty surface boundary, and covers its surface.
+//!   placement read it: `boolean::region::boundary` reads its cycles, and
+//!   tier 3's region arm (`crate::one_region`) reads each cycle against
+//!   the others, a torus's by their windings
+//!   ([`surface_cycle_windings`]). A face every edge of which it lies on
+//!   both sides of (the one-face ball) has an empty surface boundary, and
+//!   covers its surface.
 //! - **The chart image** ([`chart_image`]) drops only the spurs: a
 //!   half-edge followed in its loop by its own mate walks its edge out
 //!   and straight back, which bounds no area. The reduction and the rule
@@ -127,6 +127,36 @@ pub fn surface_cycles<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, &'static str> {
+    Ok(surface_cycle_windings(body, face)?
+        .into_iter()
+        .map(|(cycle, _)| cycle)
+        .collect())
+}
+
+/// **A surface cycle and its winding** ([`surface_cycle_windings`]): its
+/// half-edges in walk order, and the composed joint elements of every
+/// half-edge its walk enters, `None` where one stores no element.
+pub type WoundCycle = (Vec<HalfEdgeKey>, Option<crate::joint::Winding>);
+
+/// **[`surface_cycles`] with each cycle's winding in the face's chart**
+/// ([`crate::joint::Winding`]), read off the same walk: the joint
+/// elements of every half-edge the walk enters, the cycle's members and
+/// the edges the face lies on both sides of that it turns through. A
+/// half-edge's element carries its image onto the end of its loop
+/// predecessor's, and an edge's two halves share one image, so the
+/// elements entered between two members compose to the element that
+/// would join them were they consecutive: a kill's sum (`crate::joint`'s
+/// module docs). Every stored element is read and none is decided. A
+/// cycle's winding is `None` where a half-edge it enters stores no
+/// element.
+///
+/// # Errors
+///
+/// As [`surface_cycles`].
+pub fn surface_cycle_windings<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<WoundCycle>, &'static str> {
     let unresolved = "a surface boundary walked a key that does not resolve";
     let f = body.get_face(face).ok_or(unresolved)?;
     let mut members = Vec::new();
@@ -145,15 +175,30 @@ pub fn surface_cycles<T: Real>(
             open.push(h);
         }
     }
-    boundary_cycles(body, open, members.len(), both_sides)
+    let mut elements: Vec<Option<Vec<crate::joint::JointElement>>> = Vec::new();
+    let cycles = boundary_cycles(body, open, members.len(), both_sides, |k, h| {
+        if elements.len() <= k {
+            elements.push(Some(Vec::new()));
+        }
+        let entered = &mut elements[k];
+        match (entered.as_mut(), body.joint(h)) {
+            (Some(list), Some(element)) => list.push(element),
+            _ => *entered = None,
+        }
+    })?;
+    Ok(cycles
+        .into_iter()
+        .zip(elements)
+        .map(|(cycle, elements)| (cycle, elements.map(crate::joint::Winding::of)))
+        .collect())
 }
 
 /// **The boundary cycles of a set of half-edges**: from each of `open`,
 /// the boundary half-edges in their stored order, the next boundary
-/// half-edge out of its end vertex, turning there through every
-/// half-edge `inside` reads as interior to the set (`next(mate(·))`, the
-/// vertex's rotation), at most `bound` turns. The one walk of the
-/// surface boundary ([`surface_cycles`]) and of a seam region's boundary
+/// half-edge out of its end vertex ([`successor`]), at most `bound`
+/// turns. `entered` sees, with its cycle's index, every half-edge each
+/// turn enters, in walk order. The one walk of the surface boundary
+/// ([`surface_cycle_windings`]) and of a seam region's boundary
 /// (`props::seam_region`).
 ///
 /// # Errors
@@ -166,25 +211,17 @@ pub(crate) fn boundary_cycles<T: Real>(
     mut open: Vec<HalfEdgeKey>,
     bound: usize,
     inside: impl Fn(HalfEdgeKey) -> Result<bool, &'static str>,
+    mut entered: impl FnMut(usize, HalfEdgeKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, &'static str> {
-    let unresolved = "a boundary walk reached a key that does not resolve";
-    let next = |h: HalfEdgeKey| body.get_half_edge(h).map(|h| h.next).ok_or(unresolved);
     let mut cycles = Vec::new();
     while let Some(&first) = open.first() {
+        let k = cycles.len();
         let mut cycle = Vec::new();
         let mut h = first;
         loop {
             cycle.push(h);
             open.retain(|&x| x != h);
-            let mut n = next(h)?;
-            let mut turns = 0;
-            while inside(n)? {
-                n = next(body.mate(n).ok_or(unresolved)?)?;
-                turns += 1;
-                if turns > bound {
-                    return Err("a boundary walk's vertex has no finite rotation");
-                }
-            }
+            let n = successor(body, h, bound, &inside, |e| entered(k, e))?;
             if n == first {
                 break;
             }
@@ -196,6 +233,38 @@ pub(crate) fn boundary_cycles<T: Real>(
         cycles.push(cycle);
     }
     Ok(cycles)
+}
+
+/// **The boundary half-edge after `h`**: out of its end vertex, turning
+/// there through every half-edge `inside` reads as interior to the set
+/// (`next(mate(·))`, the vertex's rotation), at most `bound` turns.
+/// `entered` sees each half-edge the turn enters, the interior ones and
+/// then the successor, in order.
+///
+/// # Errors
+///
+/// As [`boundary_cycles`]'s.
+fn successor<T: Real>(
+    body: &Body<T>,
+    h: HalfEdgeKey,
+    bound: usize,
+    inside: &impl Fn(HalfEdgeKey) -> Result<bool, &'static str>,
+    mut entered: impl FnMut(HalfEdgeKey),
+) -> Result<HalfEdgeKey, &'static str> {
+    let unresolved = "a boundary walk reached a key that does not resolve";
+    let next = |h: HalfEdgeKey| body.get_half_edge(h).map(|h| h.next).ok_or(unresolved);
+    let mut n = next(h)?;
+    let mut turns = 0;
+    while inside(n)? {
+        entered(n);
+        n = next(body.mate(n).ok_or(unresolved)?)?;
+        turns += 1;
+        if turns > bound {
+            return Err("a boundary walk's vertex has no finite rotation");
+        }
+    }
+    entered(n);
+    Ok(n)
 }
 
 #[cfg(test)]

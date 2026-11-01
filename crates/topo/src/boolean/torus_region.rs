@@ -132,7 +132,8 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
+    first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
     self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
@@ -429,7 +430,10 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     /// `leg`'s crossings with the plane through `on` of unit normal `n`,
-    /// in the leg's parameter over its whole turn (module docs, step 2).
+    /// in the leg's parameter over its whole turn, unwound where the leg's
+    /// start lies on the plane ([`first_harmonic_leg_roots`]): every
+    /// reader takes a root as the point of the leg it gives (module docs,
+    /// step 2).
     fn plane_roots(
         &self,
         leg: &Leg<T>,
@@ -437,7 +441,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         on: Point3<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        first_harmonic_roots_in_band(
+        first_harmonic_leg_roots(
             &FirstHarmonic::circle_off_plane(
                 (
                     leg.course.round.center,
@@ -448,8 +452,6 @@ impl<T: Decide> TorusFaceRegion<T> {
                 (on, n),
             ),
             leg.course.round.radius,
-            T::zero(),
-            T::tau(),
             &ROOT_ROWS,
             band,
         )
@@ -459,6 +461,10 @@ impl<T: Decide> TorusFaceRegion<T> {
 impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     fn edges(&self) -> &[Edge<T>] {
         &self.edges
+    }
+
+    fn edges_mut(&mut self) -> &mut Vec<Edge<T>> {
+        &mut self.edges
     }
 
     fn outer(&self) -> LoopKey {
@@ -601,18 +607,35 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
                 for s in found(self.plane_roots(leg, axis, center, band))? {
                     let y = leg.course.round.at(s);
+                    let w = y - center;
+                    let theta = || {
+                        near_span(
+                            w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                            (edge.t0, edge.t1),
+                        )
+                    };
                     let (rho, _, _) = self.polar(y);
-                    let side = row("bool_torus_region_component", rho - self.major)?;
+                    let side = match row("bool_torus_region_component", rho - self.major) {
+                        Ok(side) => side,
+                        // A root past the edge's span is no crossing of it,
+                        // whichever parallel it lies on, so only one within
+                        // the span sets the path aside. Where the root's
+                        // leg parameter is wide (a whole turn at the
+                        // certified scalar), its point's `ρ` is too, while
+                        // the azimuth `θ`, read off the point's own
+                        // coordinates, can still lie definitely past the
+                        // span.
+                        Err(fault) => match span(theta(), radius)? {
+                            None => continue,
+                            Some(_) => return Err(fault),
+                        },
+                    };
                     match (side, outer) {
                         (Sign::Zero, _) => return Err(RayFault::Graze),
                         (Sign::Positive, true) | (Sign::Negative, false) => {}
                         _ => continue,
                     }
-                    let w = y - center;
-                    let theta = near_span(
-                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
-                        (edge.t0, edge.t1),
-                    );
+                    let theta = theta();
                     if let Some(sideless) = span(theta, radius)? {
                         out.push((y, theta, sideless));
                     }
@@ -759,6 +782,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::new(0.0, 0.0, MINOR * v.sin()),
                 axis: Vec3::new(0.0, 0.0, 1.0),
@@ -835,6 +859,7 @@ mod tests {
         let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::origin() + turned(phi, c0),
                 axis: turned(phi, n0),
@@ -974,6 +999,7 @@ mod tests {
             let circle = |phi: f64, forward: bool, key: u64| RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(key)),
                 r#loop: LoopKey::default(),
+                cycle: 0,
                 carrier: geom::Curve3::Circle {
                     center: Point3::origin() + rot(phi, c0),
                     axis: rot(phi, n0),
@@ -1077,6 +1103,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center,
                 axis,
@@ -1148,6 +1175,7 @@ mod tests {
         let oval = RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(9)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Spiric {
                 center: Point3::origin(),
                 axis: Vec3::new(0.0, 0.0, 1.0),

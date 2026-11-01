@@ -60,6 +60,8 @@ mod seam_region_common;
 mod a_carried_record_no_reading_covers;
 #[path = "a_circle_of_one_radius_elsewhere_is_no_rim.rs"]
 mod a_circle_of_one_radius_elsewhere_is_no_rim;
+#[path = "a_closed_rider_lying_in_a_face_refuses_its_slit_form.rs"]
+mod a_closed_rider_lying_in_a_face_refuses_its_slit_form;
 #[path = "a_curve_off_its_face_at_a_build_is_the_kernels.rs"]
 mod a_curve_off_its_face_at_a_build_is_the_kernels;
 #[path = "a_curved_keel_in_the_plane.rs"]
@@ -272,6 +274,8 @@ mod offset_doors_end_with_the_join;
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]
 mod one_door_for_coincident_sections;
+#[path = "one_region_rows.rs"]
+mod one_region_rows;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
 #[path = "onpair_rim_pcurves.rs"]
@@ -1336,6 +1340,8 @@ mod sphere_aims_reader_ties;
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
 
+#[path = "a_box_along_a_fillets_line_arc_junction.rs"]
+mod a_box_along_a_fillets_line_arc_junction;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]

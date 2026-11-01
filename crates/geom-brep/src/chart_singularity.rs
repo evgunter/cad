@@ -400,6 +400,34 @@ fn locate_one<T: Decide>(
     band: Band,
     sides: &mut Sides<'_, T>,
 ) -> Result<Lies<T>, Unread<T>> {
+    if let Some(on) = place_on_boundary(loops, x, band)? {
+        return Ok(on);
+    }
+    // Inside the face.
+    Ok(if sides.holds(singularity, x, sense)? {
+        Lies::Interior
+    } else {
+        Lies::Outside
+    })
+}
+
+/// **Whether `x` lies on the boundary of the face whose loops are
+/// `loops`** ([`locate`]'s first reading, and its only one of the
+/// boundary): at its nearest vertex, else inside an edge (the loops and
+/// edges in order, the first that decides on). `Some` of
+/// [`Lies::AtVertex`] or [`Lies::InsideEdge`] on it, `None` definitely
+/// off it, where only a side of its loops places it.
+///
+/// # Errors
+///
+/// A distance in band ([`Unread::Boundary`]), answered before a sampled
+/// edge that does not settle ([`Unread::Carrier`]), and each only where
+/// no other vertex or edge places `x` on the boundary.
+pub(crate) fn place_on_boundary<T: Decide>(
+    loops: &[FaceLoop<'_, T>],
+    x: Point3<T>,
+    band: Band,
+) -> Result<Option<Lies<T>>, Unread<T>> {
     // At a vertex: the nearest stored corner decides, once; a farther
     // one cannot decide zero where the nearest does not. A vertex in band
     // answers at once: the edges at it pass within the band too, so
@@ -417,7 +445,7 @@ fn locate_one<T: Decide>(
         .reduce(|a, b| if below(b.2, a.2) { b } else { a });
     if let Some((l, k, distance)) = nearest {
         match vertex_at_singular_point(loops[l].corners[k], x, band) {
-            Ok(true) => return Ok(Lies::AtVertex { r#loop: l, edge: k }),
+            Ok(true) => return Ok(Some(Lies::AtVertex { r#loop: l, edge: k })),
             Ok(false) => {}
             Err(cause) => return Err(Unread::Boundary { cause, distance }),
         }
@@ -430,11 +458,11 @@ fn locate_one<T: Decide>(
             match nearest_on_edge(e, x, band) {
                 Near::Off => {}
                 Near::On { t } => {
-                    return Ok(Lies::InsideEdge {
+                    return Ok(Some(Lies::InsideEdge {
                         r#loop: l,
                         edge: k,
                         t,
-                    });
+                    }));
                 }
                 Near::InBand { cause, distance } => {
                     in_band.get_or_insert(Unread::Boundary { cause, distance });
@@ -445,15 +473,10 @@ fn locate_one<T: Decide>(
             }
         }
     }
-    if let Some(why) = in_band.or(unsettled) {
-        return Err(why);
+    match in_band.or(unsettled) {
+        Some(why) => Err(why),
+        None => Ok(None),
     }
-    // Inside the face.
-    Ok(if sides.holds(singularity, x, sense)? {
-        Lies::Interior
-    } else {
-        Lies::Outside
-    })
 }
 
 /// Where a point lies against one edge's carrier.
