@@ -388,23 +388,11 @@ pub struct ViewerApp {
     /// moves somewhere it can be — so a badge one frame behind is a
     /// badge that appears.
     projection_fault: Option<CameraError>,
-    /// **How many committed profiles the viewport could not draw on
-    /// the last frame it drew** (`crate::sketch::CommittedProfiles::
-    /// undrawn`), read by [`crate::frame::profiles_badge`].
-    ///
-    /// One frame behind for the reason above. Unlike the fault above
-    /// it is not held past the frame that made it: the frame entry
-    /// point (`<ViewerApp as eframe::App>::ui`) zeroes the value the
-    /// panes write and assigns the result back unconditionally, so
-    /// this says what the LAST FRAME found and never what some
-    /// earlier one did.
-    profiles_undrawn: usize,
-    /// **What the index could not name on the held edge set's body on
-    /// the last frame the viewport drew** (`marks::EdgeOverlay::
-    /// held_refused`), read by [`crate::frame::held_edges_badge`].
-    /// Zeroed and assigned back every frame as
-    /// [`Self::profiles_undrawn`] is.
-    held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
+    /// **What the viewport found on the last frame**, read by the
+    /// per-read badges in [`crate::frame`]. One frame behind for the
+    /// reason above, and unlike the fault above never held past the
+    /// frame that made it ([`ViewportReads`]).
+    viewport_reads: ViewportReads,
     /// What the incoming document is owed when its scene lands, and the
     /// budget's verdict about it ([`DocumentDerived`]).
     derived: DocumentDerived,
@@ -920,8 +908,7 @@ impl ViewerApp {
             scene_focus: BTreeSet::new(),
             scene_fault: None,
             projection_fault: None,
-            profiles_undrawn: 0,
-            held_edges_refused: None,
+            viewport_reads: ViewportReads::default(),
             // The startup document's δ goes through the same budget an
             // opened one's does: it is small enough that the budget
             // will not move it, and a first picture that took a
@@ -1924,12 +1911,12 @@ impl ViewerApp {
             // refusal until the seam they name succeeds, and this is a
             // count the frame re-takes. A profile left out of the
             // picture is otherwise a document without it.
-            if let Some(badge) = frame::profiles_badge(self.profiles_undrawn) {
+            if let Some(badge) = frame::profiles_badge(self.viewport_reads.profiles_undrawn) {
                 draw_badge(ui, &self.theme, &badge);
             }
             // And the held edges the mark could not tell held or not.
             if let Some(badge) = frame::held_edges_badge(
-                self.held_edges_refused.as_ref(),
+                self.viewport_reads.held_edges_refused.as_ref(),
                 self.session.landed_pair().map(|(doc, _)| doc),
             ) {
                 draw_badge(ui, &self.theme, &badge);
@@ -2042,13 +2029,12 @@ impl eframe::App for ViewerApp {
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
         let mut profile_drawn = ProfileDoors::<bool>::default();
-        // **Zeroed here and assigned back below, every frame.** The
-        // viewport writes it while it draws; a frame the viewport does
-        // not draw at all is a frame with no profile left undrawn in it,
+        // **Zeroed here, every frame: after the toolbar has read last
+        // frame's value and before the panes draw.** A frame the
+        // viewport does not draw at all is a frame it found nothing in,
         // and this is where that is said rather than left to whatever
-        // the field last held.
-        let mut profiles_undrawn = 0_usize;
-        let mut held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>> = None;
+        // the last drawn frame found.
+        self.viewport_reads = ViewportReads::default();
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
         let mut split_dragged = self.split_dragged;
@@ -2101,8 +2087,7 @@ impl eframe::App for ViewerApp {
                     profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
-                    profiles_undrawn: &mut profiles_undrawn,
-                    held_edges_refused: &mut held_edges_refused,
+                    viewport_reads: &mut self.viewport_reads,
                     notices: &mut self.notices,
                     status: &mut self.status,
                     id_answer: &self.id_answer,
@@ -2120,8 +2105,6 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
         self.profile_drawn = profile_drawn;
-        self.profiles_undrawn = profiles_undrawn;
-        self.held_edges_refused = held_edges_refused;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2201,6 +2184,28 @@ impl eframe::App for ViewerApp {
     }
 }
 
+/// **What the viewport found while it drew one frame**: the per-frame,
+/// unlatched reads the toolbar badges, one [`crate::frame`] badge door
+/// per member.
+///
+/// `Default` is the frame the viewport did not draw. The frame entry
+/// point (`<ViewerApp as eframe::App>::ui`) resets the whole value to
+/// it before the panes draw, so a member says what the LAST frame found
+/// and never what an earlier one did: a viewport dragged shut or tabbed
+/// away reports nothing. That reset names no member, so a member added
+/// here is zeroed by the line that zeroes the rest.
+#[derive(Debug, Default, PartialEq)]
+pub(crate) struct ViewportReads {
+    /// How many committed profiles the viewport drew nothing of
+    /// (`crate::sketch::CommittedProfiles::undrawn`), for
+    /// [`frame::profiles_badge`].
+    pub(crate) profiles_undrawn: usize,
+    /// What the index could not name on the held edge set's body
+    /// (`marks::EdgeOverlay::held_refused`), for
+    /// [`frame::held_edges_badge`].
+    pub(crate) held_edges_refused: Option<frame::Spelled<EdgeNamesRefused>>,
+}
+
 /// The `Behavior` egui_tiles renders panes through: a borrow of the
 /// application's state for the duration of one frame.
 pub(crate) struct ViewerBehavior<'a> {
@@ -2264,23 +2269,11 @@ pub(crate) struct ViewerBehavior<'a> {
     /// had already painted past and the next accepted act would
     /// sweep.
     pub(crate) projection_fault: &'a mut Option<CameraError>,
-    /// **How many committed profiles the viewport drew nothing of this
-    /// frame** ([`ViewerApp::profiles_undrawn`]), for
-    /// [`frame::profiles_badge`] to read.
-    ///
-    /// Written by the viewport pane and read by the toolbar next
-    /// frame, like the fault above — and unlike it, it does not have
-    /// to be cleared by anyone. The frame entry point
-    /// (`<ViewerApp as eframe::App>::ui`) zeroes the local this
-    /// borrows before the panes draw and assigns the result back
-    /// after, whether or not the viewport was one of them, so a
-    /// viewport dragged shut or tabbed away reports none rather than
-    /// leaving the last count it made standing.
-    pub(crate) profiles_undrawn: &'a mut usize,
-    /// What the index could not name on the held edge set's body
-    /// ([`ViewerApp::held_edges_refused`]); zeroed by the frame entry
-    /// point and written by the viewport, as `profiles_undrawn` is.
-    pub(crate) held_edges_refused: &'a mut Option<frame::Spelled<EdgeNamesRefused>>,
+    /// What the viewport finds while it draws this frame, for the
+    /// toolbar to badge next frame ([`ViewerApp::viewport_reads`]).
+    /// Defaulted by the frame entry point before the panes draw, so no
+    /// writer has to clear it.
+    pub(crate) viewport_reads: &'a mut ViewportReads,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
     /// produced. A pane that assigned `status` instead had no way to
@@ -6270,7 +6263,16 @@ mod properties_pane_tests {
 
         // A read of the frame the viewport drew, not a latch: with the
         // viewport not drawn, the same held set and the same refusing
-        // index badge nothing, and drawn again they badge again.
+        // index badge nothing, and drawn again they badge again. Only
+        // `held_edges_refused` is non-zero here, so the whole-value
+        // asserts below guard that member alone; `profiles_undrawn`
+        // waits on a fixture that makes it non-zero
+        // (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
+        assert_ne!(
+            driven.app.viewport_reads,
+            super::ViewportReads::default(),
+            "the drawn viewport found the refusal"
+        );
         let viewport = driven
             .app
             .tree
@@ -6284,6 +6286,11 @@ mod properties_pane_tests {
                 .iter()
                 .any(|(run, _)| run.starts_with("held edges:")),
             "a viewport that did not draw leaves no badge standing: {undrawn:?}"
+        );
+        assert_eq!(
+            driven.app.viewport_reads,
+            super::ViewportReads::default(),
+            "a viewport that did not draw leaves none of its reads standing"
         );
         driven.app.tree.set_visible(viewport, true);
         assert!(driven.quiet().iter().any(|(run, _)| run == badge.label()));

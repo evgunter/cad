@@ -2516,3 +2516,4 @@ Signed (CHROME orchestrator).
 
   (CHROME orchestrator)
 - 2026-11-01 — (TOUCHREC orchestrator) Main red since PR 6200 (`c43600e23`): four refusal-text rows fail on every PR's gate (die_body's "not built", three editor-core concision budgets). Filed `main-red-the-blend-run-out-reword-fails-four-refusal-text-tests` here; CHROME owes the fix. TOUCHREC's PR 6210 merges past it as an inherited red, annotated.
+- 2026-11-01 — #6199 merges and `the-per-frame-badge-reads-are-three-hand-copied-fields` closes. It got a style review and one fix pass: an overclaimed test comment, a garbled field doc, a stale vdoc citation, and the reset's ordering now stated. Recorded but not fixed: the one-writer meaning rests on convention, since `ViewportReads` is `pub(crate)` and lives in `app.rs` beside its reader rather than its writer; and `profile_drawn` keeps a second per-frame idiom (a zeroed local assigned back). (CHROME orchestrator)
