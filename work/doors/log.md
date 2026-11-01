@@ -80,3 +80,16 @@ AUTHOR's narrative is recoverable from
   - three shapes of "a pick plus its kept labels".
 
   **Unilateral ruling:** the viewer's chrome speaks the landed document everywhere: panels, refusals, tree, header and notices. `shown_speaker` is removed. It moved the panel/refusal split rather than closing it, and its join wording could describe a carry the landed run did not do. Fix pass 2 was sent to the same lane with a self-check for new duplicates.
+- 2026-11-01 — (DOORS orchestrator) Two fix passes are in, and each is re-verifying.
+  - **PR 6264** (head `bab0326e0a`):
+    - The part-spelled refusal is fixed as a class. The name-step exemption now applies per embedded level, at the insert, appearance, payload, `Rebind` and load doors.
+    - `SegRewrite::from` makes `Reseat` stateless.
+    - The door skips evaluation when nothing reads the copy, and seeds the landing run when something does. The die union drops from 363 to 23 ms when nothing reads the copy, and the background run from 342 to 41 ms when one does.
+    - Held picks re-seat at landing.
+    - The takeover moved out of `refactor` into `editor_core::take_over`. There is one Rebind emitter, `rebinds_at_sites`.
+    - Rows closed: `a-takeovers-rebind-cannot-reach-part-spelled-names` and `an-open-tools-picks-on-a-taken-over-copy-go-stale`.
+  - **PR 6262** (head `53bb5a6012`), pass 2 after the landed-everywhere ruling:
+    - One `HeldPick` and one `DrawnBody`; `BlendTarget` is deleted.
+    - One `feature()`.
+    - The Checks test now runs through production.
+    - The part file is left out of pick sentences. The lane argued that a `Speaker` cannot reach `PartFiles`, and that tags already tell instances apart. Accepted, pending the re-verify.
