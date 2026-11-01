@@ -2029,10 +2029,11 @@ impl eframe::App for ViewerApp {
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
         let mut profile_drawn = ProfileDoors::<bool>::default();
-        // **Zeroed here, every frame, before the panes draw.** A frame
-        // the viewport does not draw at all is a frame it found nothing
-        // in, and this is where that is said rather than left to
-        // whatever the last drawn frame found.
+        // **Zeroed here, every frame: after the toolbar has read last
+        // frame's value and before the panes draw.** A frame the
+        // viewport does not draw at all is a frame it found nothing in,
+        // and this is where that is said rather than left to whatever
+        // the last drawn frame found.
         self.viewport_reads = ViewportReads::default();
         let mut delta_request: Option<DisplayTolerance> = None;
         let mut features_content_height: Option<f32> = None;
@@ -2270,8 +2271,8 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) projection_fault: &'a mut Option<CameraError>,
     /// What the viewport finds while it draws this frame, for the
     /// toolbar to badge next frame ([`ViewerApp::viewport_reads`]).
-    /// Defaulted by the frame entry point before the panes draw, so it
-    /// is never written by anyone else and never has to be cleared.
+    /// Defaulted by the frame entry point before the panes draw, so no
+    /// writer has to clear it.
     pub(crate) viewport_reads: &'a mut ViewportReads,
     /// **What this frame's panes have to SAY**, joined and ranked by
     /// [`frame::frame_status`] with everything else the frame
@@ -6262,9 +6263,11 @@ mod properties_pane_tests {
 
         // A read of the frame the viewport drew, not a latch: with the
         // viewport not drawn, the same held set and the same refusing
-        // index badge nothing, and drawn again they badge again. The
-        // whole value is what the hidden frame leaves at rest, so every
-        // read the viewport makes is held to it, not this one alone.
+        // index badge nothing, and drawn again they badge again. Only
+        // `held_edges_refused` is non-zero here, so the whole-value
+        // asserts below guard that member alone; `profiles_undrawn`
+        // waits on a fixture that makes it non-zero
+        // (`work/vdoc/committed-profiles-undrawn-has-no-witness.md`).
         assert_ne!(
             driven.app.viewport_reads,
             super::ViewportReads::default(),
