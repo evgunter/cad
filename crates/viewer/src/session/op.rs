@@ -417,71 +417,81 @@ pub enum SessionOp {
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
     /// is then backed by the path and its resolver follows the folder.
     SaveAsNewDocument(PathBuf),
-    /// Hide or show one instance (G3): a DISPLAY operation — the
-    /// scene and the pick index drop a hidden instance; the document
-    /// and the feature tree keep it, and nothing is persisted.
-    SetInstanceHidden {
-        /// The instance.
-        instance: RecipeNodeId,
+    /// Hide or show the body `node` builds (G3): a DISPLAY operation —
+    /// the scene and the pick index drop what draws it; the document
+    /// and the feature tree keep it, and nothing is persisted
+    /// ([`crate::display::DisplayState::set_body_hidden`]).
+    SetBodyHidden {
+        /// The node building the body.
+        node: RecipeNodeId,
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on the space `instance`'s copy is
-    /// placed into (G3's fit probe, DI5). Refused typed for a copy
-    /// placed into the world, and while no evaluation that answers the
-    /// document has landed — a copy with no value has no picture to move
+    /// Hide or show a space, every body drawn in it: a DISPLAY operation
+    /// as [`SessionOp::SetBodyHidden`] is
+    /// ([`crate::display::DisplayState::set_space_hidden`]).
+    SetSpaceHidden {
+        /// The space.
+        space: VarId,
+        /// Hidden, or shown again.
+        hidden: bool,
+    },
+    /// Open a free-move probe gesture on the space `node`'s body is in
+    /// (G3's fit probe, DI5). Refused typed for a body in the world, and
+    /// while no evaluation that answers the document has landed — a
+    /// body with no value has no picture to move
     /// ([`crate::display::free_move_check`]).
     BeginFreeMove {
-        /// The instance to probe.
-        instance: RecipeNodeId,
+        /// The node whose drawn body the probe is opened on.
+        node: RecipeNodeId,
     },
     /// Stream the probe's display frame. Each preview REPLACES the
     /// last; nothing enters the document.
     ///
-    /// **It names the instance it is probing**, and is refused
+    /// **It names the node it is probing**, and is refused
     /// [`crate::display::DisplayFault::WrongFreeMove`] when that is
-    /// not the instance the open probe was begun on — the value
+    /// not the node the open probe was begun on — the value
     /// gesture's rule ([`SessionOp::PreviewGesture`]) on the other
     /// drag, where the identity is one node rather than a target.
     ///
-    /// **One node is the whole identity because an instance has one
-    /// probe**, which is the subject rule and not a coarser one: a
+    /// **One node is the whole identity because the panel draws one
+    /// probe per node**, which is the subject rule and not a coarser one: a
     /// slot has one drag and is named by a slot. The panel draws the
     /// probe as three millimetre boxes; mapped a triple per box they
     /// are three gestures over one probe, and this payload cannot
-    /// separate them — both name the same instance, so the second
+    /// separate them — both name the same node, so the second
     /// box's preview overwrites the first's frame and its commit lands
     /// it and CLOSES the probe the pointer is still holding. So the
     /// row is mapped once ([`crate::widgets::vec3_row_ops`]).
     ///
     /// **A second DRIVER naming the open probe is accepted, and that is
-    /// what a target buys over a token.** The instance's one probe is
+    /// what a target buys over a token.** The node's one probe is
     /// driven by whoever names it: a batch whose
     /// [`SessionOp::BeginFreeMove`] is refused still previews and still
     /// commits, into the probe its own payload names. That is the
     /// recovery for a probe whose field stopped being drawn — the
-    /// selection moved off the instance, which
+    /// selection moved off the node, which
     /// [`SessionOp::permitted_during_free_move`] allows — and a token
     /// minted per begin would refuse it. The value gesture spends its
     /// identity the same way; `crates/viewer/README.md`'s *A driving
     /// operation names its own gesture* carries both rows.
     PreviewFreeMove {
-        /// The instance being probed.
-        instance: RecipeNodeId,
-        /// The display frame composed over the instance's drawn
-        /// placement.
+        /// The node being probed.
+        node: RecipeNodeId,
+        /// The display frame composed over the bodies drawn in its
+        /// space.
         frame: Frame,
     },
-    /// Land the probe: the last previewed frame becomes the
-    /// instance's committed display value. NO history holds it — the
-    /// plan's undo note governs document state only. Names its
-    /// instance for [`SessionOp::PreviewFreeMove`]'s reason.
+    /// Land the probe: the last previewed frame becomes its space's
+    /// committed display value. NO history holds it — the plan's undo
+    /// note governs document state only. Names its node for
+    /// [`SessionOp::PreviewFreeMove`]'s reason.
     CommitFreeMove {
-        /// The instance being probed.
-        instance: RecipeNodeId,
+        /// The node being probed.
+        node: RecipeNodeId,
     },
     /// Abandon whichever probe is open, restoring the committed
-    /// picture. Names no instance, for [`SessionOp::CancelGesture`]'s
+    /// picture. Names no node, for [`SessionOp::CancelGesture`]'s
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
@@ -1104,8 +1114,9 @@ impl ValueGestureName {
     }
 }
 
-/// **Which free-move probe an operation names**: the instance, which
-/// is the whole identity because an instance has one probe
+/// **Which free-move probe an operation names**: the node it was
+/// opened on, which is the whole identity because the panel draws one
+/// probe per node
 /// ([`SessionOp::PreviewFreeMove`] carries why).
 ///
 /// A type rather than a bare [`RecipeNodeId`] so that the probe's
@@ -1113,17 +1124,15 @@ impl ValueGestureName {
 /// [`ValueGestureName`] mints the value drag's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FreeMoveName {
-    /// The instance being probed.
-    pub instance: RecipeNodeId,
+    /// The node being probed.
+    pub node: RecipeNodeId,
 }
 
 impl FreeMoveName {
     /// The operation that opens this probe.
     #[must_use]
     pub const fn begin(&self) -> SessionOp {
-        SessionOp::BeginFreeMove {
-            instance: self.instance,
-        }
+        SessionOp::BeginFreeMove { node: self.node }
     }
 
     /// The operation that moves it, carrying the whole composed frame
@@ -1131,7 +1140,7 @@ impl FreeMoveName {
     #[must_use]
     pub const fn preview(&self, frame: Frame) -> SessionOp {
         SessionOp::PreviewFreeMove {
-            instance: self.instance,
+            node: self.node,
             frame,
         }
     }
@@ -1139,9 +1148,7 @@ impl FreeMoveName {
     /// The operation that lands it.
     #[must_use]
     pub const fn commit(&self) -> SessionOp {
-        SessionOp::CommitFreeMove {
-            instance: self.instance,
-        }
+        SessionOp::CommitFreeMove { node: self.node }
     }
 }
 
@@ -1149,23 +1156,23 @@ impl FreeMoveName {
 /// this crate.
 ///
 /// The six driving operations spell their subject three ways, each
-/// right for its own door: a node and a slot, a variable id, an
-/// instance. What they are all spellings OF is this. A gesture's name
+/// right for its own door: a node and a slot, a variable id, a
+/// probed node. What they are all spellings OF is this. A gesture's name
 /// is what a preview and a commit are checked against before they
 /// touch anything ([`crate::g1::Slot`]'s two name checks), and
 /// [`SessionOp::names_gesture`] is the one place an operation becomes
 /// one.
 ///
 /// **The layers below still speak their own subjects.** The session
-/// compares a [`ValueGestureName`] and the display state compares an
-/// instance, because each holds only the gesture it can have; this is
+/// compares a [`ValueGestureName`] and the display state compares a
+/// probed node, because each holds only the gesture it can have; this is
 /// the name an OPERATION carries, which is the level at which all
 /// three are the same kind of fact.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GestureName {
     /// A slot or document-variable drag.
     Value(ValueGestureName),
-    /// An instance's free-move probe.
+    /// A space's free-move probe, by the node it was opened on.
     FreeMove(FreeMoveName),
 }
 
@@ -1261,7 +1268,8 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
@@ -1290,7 +1298,7 @@ impl SessionOp {
     #[must_use]
     pub fn names_gesture(&self) -> Option<GestureName> {
         let value = |name| Some(GestureName::Value(name));
-        let probe = |instance| Some(GestureName::FreeMove(FreeMoveName { instance }));
+        let probe = |node| Some(GestureName::FreeMove(FreeMoveName { node }));
         match self {
             Self::BeginGesture { node, slot }
             | Self::PreviewGesture { node, slot, .. }
@@ -1301,9 +1309,9 @@ impl SessionOp {
             Self::BeginVariableGesture { var }
             | Self::PreviewVariableGesture { var, .. }
             | Self::CommitVariableGesture { var } => value(ValueGestureName::Variable(*var)),
-            Self::BeginFreeMove { instance }
-            | Self::PreviewFreeMove { instance, .. }
-            | Self::CommitFreeMove { instance } => probe(*instance),
+            Self::BeginFreeMove { node }
+            | Self::PreviewFreeMove { node, .. }
+            | Self::CommitFreeMove { node } => probe(*node),
             Self::CancelGesture
             | Self::CancelFreeMove
             | Self::Select(_)
@@ -1331,7 +1339,8 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
             | Self::AddProfile { .. }
@@ -1478,7 +1487,7 @@ impl SessionOp {
     ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
-    ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
+    ///   family, [`SessionOp::SetBodyHidden`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
@@ -1533,7 +1542,8 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginGesture { .. }
             | Self::BeginVariableGesture { .. }
             | Self::BeginFreeMove { .. }
@@ -1616,7 +1626,7 @@ impl SessionOp {
     ///
     /// **And a report is not available here as the alternative**, which
     /// is what settles the fork rather than taste. A withdrawal names
-    /// an instance and carries a [`crate::display::DisplayFault`] about
+    /// a node or a space and carries a [`crate::display::DisplayFault`] about
     /// a document; at a replacement the only document left to ask is
     /// the incoming one, where a [`pncad::document::RecipeNodeId`]
     /// minted by the outgoing document's counter means something else
@@ -1642,7 +1652,7 @@ impl SessionOp {
     /// [`SessionOp::PreviewFreeMove`] and [`SessionOp::CommitFreeMove`]
     /// are `true` here and still refused
     /// [`crate::display::DisplayFault::WrongFreeMove`] when they name
-    /// an instance that is not the one being probed — the value
+    /// a node that is not the one being probed — the value
     /// gesture's rule, answered the same way and for the same reason:
     /// the question is about a payload against a state, and this table
     /// is a function of the operation alone.
@@ -1667,7 +1677,8 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }
@@ -1740,7 +1751,8 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetInstanceHidden { .. }
+            | Self::SetBodyHidden { .. }
+            | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
             | Self::CommitFreeMove { .. }

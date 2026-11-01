@@ -215,7 +215,7 @@ fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     };
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::drawn_copies(doc),
+        crate::common::drawn_copies(doc),
         [copy],
         "the block's copy stays the one drawn copy"
     );

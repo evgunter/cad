@@ -252,8 +252,8 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     session.pump();
     let before = session.committed_doc().clone();
     assert_eq!(common::world(&before), [a, b], "both operands are placed");
-    let [a_placement, b_placement] = viewer::world::drawn_copies(&before)[..] else {
-        panic!("two copies: {:?}", viewer::world::drawn_copies(&before));
+    let [a_placement, b_placement] = crate::common::drawn_copies(&before)[..] else {
+        panic!("two copies: {:?}", crate::common::drawn_copies(&before));
     };
     let outcome = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![a.into(), b.into()]),
@@ -288,7 +288,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
     );
     let doc = session.committed_doc();
     assert_eq!(
-        viewer::world::drawn_copies(doc),
+        crate::common::drawn_copies(doc),
         [a_placement],
         "a's placement stands"
     );
@@ -326,7 +326,7 @@ fn a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
     session.pump();
-    let [a_placement, _] = viewer::world::drawn_copies(session.committed_doc())[..] else {
+    let [a_placement, _] = crate::common::drawn_copies(session.committed_doc())[..] else {
         panic!("two copies");
     };
     let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
@@ -444,7 +444,15 @@ fn a_feature_re_points_each_placement_of_its_target() {
          its placement, inserted with its bundle: {:?}",
         outcome.committed
     );
-    assert_eq!(common::world(session.committed_doc()), world);
+    // Nothing reads the second transform's copy, so it is drawn, in the
+    // body's own space, beside the two copies it did not touch. A copy
+    // into the space of what it copies is no gesture's copy, so a pick on
+    // it is on the transform itself.
+    let second = outcome.minted[0];
+    assert_eq!(
+        common::world(session.committed_doc()),
+        [world, vec![second]].concat()
+    );
 }
 
 /// **Difference is not commutative, and the door's operand order is
@@ -2347,12 +2355,13 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
 
-/// The whole document's drawn volume — the world's copies the
-/// viewport draws, gathered as one `⊔`, as one number.
+/// The world's volume — the copies placed into the world, gathered as
+/// one `⊔`, as one number.
 ///
 /// **The world and not a node**, because every row below this line
-/// is about WHAT IS DRAWN rather than about what one node evaluates
-/// to, and the two differ as soon as a body is authored and not placed.
+/// is about what the world holds rather than about what one node
+/// evaluates to, and the two differ as soon as a body is authored and
+/// not placed.
 /// The gather is of the landed document with its product set to the
 /// world's copies, so the session's own document is not edited.
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
@@ -2524,13 +2533,19 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
     let (mut session, body, pattern) = box_and_pattern(tol);
     let one = A[0] * A[1] * A[2];
 
+    // The pattern copies the body into the body's own space, and nothing
+    // reads it, so the picture draws it there beside the body's world
+    // copy; a pick on it is on the family.
     assert_eq!(
         common::world(session.committed_doc()),
-        [body],
-        "the pattern took nothing out of the world and put nothing in",
+        [body, pattern],
+        "the pattern took nothing out of the world, and is drawn itself",
     );
     let drawn = drawn_volume(&mut session, tol);
-    assert!(near(drawn, one), "one body drawn {drawn}");
+    assert!(
+        near(drawn, one),
+        "the world's copies gather one body: {drawn}"
+    );
 
     let second = session_insert(
         &mut session,
@@ -2541,11 +2556,11 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
     );
     assert_eq!(
         common::world(session.committed_doc()),
-        [body, second],
+        [body, pattern, second],
         "the member read is placed after the body",
     );
     let both = drawn_volume(&mut session, tol);
-    assert!(near(both, one * 2.0), "both copies drawn {both}");
+    assert!(near(both, one * 2.0), "both world copies gather: {both}");
     assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
 }
 
@@ -3082,10 +3097,8 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     );
 }
 
-/// **A family is not drawn, so the part tool takes it from the
-/// tree** (A10): the family stands in its body's own space, which no
-/// placement reads into the world, so the viewport has no copy of it
-/// to click — the feature tree's row is the pick.
+/// **The part tool seats a pattern picked in the tree**: a pick on a
+/// family of copies is on the family, not on the body it copies.
 #[test]
 fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     let tol = Tol::witness();

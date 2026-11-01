@@ -138,7 +138,7 @@ mod driven {
             "the second is the sphere: {said:#?}"
         );
         let (doc, _) = driver.session().landed_pair().expect("landed");
-        let copies = viewer::world::drawn_copies(doc);
+        let copies = crate::common::drawn_copies(doc);
         assert_eq!(copies.len(), 2, "one copy per revolve: {said:#?}");
         let index = driver
             .index()

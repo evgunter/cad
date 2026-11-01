@@ -733,10 +733,20 @@ fn level(axis: [f64; 2], sense: f64, origin: [f64; 3]) -> Ray {
 // `common::head` as before.
 pub use crate::fixture::{head, head_at};
 
-/// **What the world places** (A10): for each world placement, in
-/// document order, the node defining the body it places.
+/// **The drawn copies**, in document order: the placements whose copy
+/// the picture draws ([`viewer::world::drawn_nodes`]).
+pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    let placements = doc.placements();
+    viewer::world::drawn_nodes(doc)
+        .into_iter()
+        .filter(|node| placements.contains(node))
+        .collect()
+}
+
+/// **What the world places** (A10): for each drawn copy, in document
+/// order, the node defining the body it places.
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    viewer::world::drawn_copies(doc)
+    drawn_copies(doc)
         .into_iter()
         .map(|placement| viewer::world::seat_of(doc, placement))
         .collect()
