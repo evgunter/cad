@@ -128,3 +128,11 @@
   - **Ruled:** fix it at the cause, in this PR. `seam_germ_side` now reads every chord at first order. The delta review found 59 ops main refuses now build correctly, and none builds wrong over 254 ops at three ε.
   - Seam note left on `work/honesplit/log.md`.
   - **Found while driving it:** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap`, a main red bisected to my PR 6212. Banded P1 here. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt` (PR 6238). Review: FULL, APPROVE-WITH-FIXES, no MAJOR; then the orchestrator's read of the final pass.
+  - **The change.** A germ now carries its lean (|n_a×n_b|) in a `Leaned`. The strut, walk, beside and vtxfac germ orders lever their readings through one `sectors::leaned_lever` = lever·min(lean₀, lean₁). `rays_within` reads the same `Leaned`, so the PR 6212 line and the order lever are spelled once.
+  - **Ruled.** Against an edge, the lever is reach·lean (plane offset). Germ against germ takes min-lean, whose noise ≤ lever·(δ₀+δ₁), as derived at the helper.
+  - **What the review found.**
+    - 9030 readings per ε decide as upright.
+    - Double tilts adding past the zero escalate typed, the same at φ=90°, so this is no regression.
+    - A d=6e-9 sliver now refuses honestly in band (D10's pairs). The row is re-stated; the witness pose went to TINT.
+  - **Class measured, no fix.** `HalfGerm.dir`'s join.rs readers (`bool_join_facing`, `rotational_sense`) decide at full magnitude, so a turn moves them only by α²/2. They do not amplify. (SPLITDOOR orchestrator)
