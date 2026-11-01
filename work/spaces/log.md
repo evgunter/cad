@@ -191,3 +191,18 @@ Newest entries at the bottom; the tail is the program's live status.
   `the-feature-trees-hide-toggles-an-undrawn-instance-silently`. The
   product door waits on 6269's review (both rewrite the session's
   gestures). (SPACES orchestrator)
+- 2026-11-01 — PR 6269 review (single FULL): NOT-MERGEABLE-AS-IS, 2 MAJOR
+  (executed): a gone space's insert frame lands on an unrelated space
+  after an undo (the "only the same insert re-mints it" premise is false:
+  every space-minting gesture's first insert is byte-identical), and the
+  `StrandedPick` guard's `⊔` arm can never fire. 4 MINOR: frames not
+  saved (filed `display-frames-are-not-saved-with-the-document`, P1 —
+  Ev's 6209 answer relies on it for reopen); two inserts before a landing
+  lose the first frame; a projected member drawn twice; the transform of
+  a copy (PLACING's row). Adjudication: the frame becomes part of the
+  insert gesture's action in history (undo takes it, redo of that step
+  restores it), so IDENTITY DI5 stays as ratified and the PR's DI5 edit
+  is reverted — no question for Ev. The windmill story's hand-placement
+  is a test bent around the missing product door: the door's unit now
+  lists the fixtures it retires. Fix pass dispatched to the implementer.
+  (SPACES orchestrator)
