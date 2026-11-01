@@ -1,6 +1,6 @@
 # ONEREAD — the plan
 
-No orchestrator yet. Live state is `work/oneread/log.md`'s tail and the
+Orchestrator: a ONEREAD cloud session opened 2026-11-01. Live state is `work/oneread/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`oneread/`**; away-channel tag `(ONEREAD orchestrator)`.

@@ -7,6 +7,7 @@ opened: 2026-10-26
 priority: P1
 cost: H
 refs: [material-and-convexity-are-read-three-ways]
+design: true
 ---
 
 
