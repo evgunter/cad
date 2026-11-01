@@ -90,14 +90,17 @@ reading.
 A met edge's half stands for a curved face's root far from the passage
 only where the face holds the root and `reaches_root_in_band`
 (`crates/topo/src/boolean/solid_contain.rs`) says the ray reaches it
-in band of the carrier. That predicate decides the rise off the carrier
-over the distance `off` at the root's incidence,
-`levered(|d·n̂|, off)`, against the passage's own clearance from the
-carrier. The rise is charged for the root point's residual tilt and for
-rounding. The comparison fails where it is definitely positive. Where it
-lies in band the root is set aside, graze-marked. A straddling or
-poisoned comparison (a root at a cone's apex or a torus's axis) is the
-ray's `Escalated` fault, as the file's other decided sites do.
+in band of the carrier. That predicate decides `reach_margin`: the rise off the carrier over
+the distance `off` at the root's incidence, `levered(|d·n̂|, off)`, less
+the passage's own clearance from the carrier. The margin is charged for
+the root point's residual tilt and for rounding over the advances, the
+points' coordinates and the carrier's scale. The root stands where the
+margin decides Negative or Zero. Decided Positive, or in band of either
+sign, the root is set aside, graze-marked. The fold is guarded by
+`reach_tests::a_root_whose_reach_margin_lies_in_band_is_set_aside`, which
+goes red if an in-band margin stands. A straddling or poisoned
+comparison (a root at a cone's apex or a torus's axis) is the ray's
+`Escalated` fault, as the file's other decided sites do.
 
 A plane's held crossing still stands, because a ray's distance from a
 plane is linear. On a convex carrier (a cylinder, a cone's nappe, a
@@ -123,10 +126,18 @@ incidences read it too. A face with no carrier is `CorruptFace` in both.
   per run decide Zero and stand. 0–108 per run lie in band and are set
   aside. None decide Positive, and 0 rays read wrong over the 9 runs.
 - **The reviewer's corpus probe.** 46,080 rays and 31,347 points per ε,
-  head against `origin/main`. The lines that move are rays read
-  `(0, false)` and now set aside: 2 at ε 1e-9, 38 at 1e-6 (mostly
-  inside chords, and shallow or along rays at rims) and 1 at 1e-12.
-  0 are wrong on either tree.
+  head against `origin/main`. 0 are wrong on either tree. The lines that
+  move are rays now set aside where they read before: 2 at ε 1e-9
+  (chords), 1 at 1e-12 (along), and 38 at 1e-6 (14 along, 14 chord,
+  10 shallow). At 1e-6, 30 of the 38 read `(0, false)` on base. The other
+  8 were ±1 reads, now graze marks: the slit annulus 1.5π's rot0 and rot2
+  rays, the half torus's and the kinked bore's, two each (e.g.
+  `[(1, false), (-1, false)]` → `[(0, true) ×3, (-1, false)]`).
+- **In band below zero.** At 1e-6 the margins in band below zero, where
+  the root would stand by the convexity argument, number 204: 192 with
+  the passage inside the carrier (inside chords) and 12 outside. They are
+  set aside all the same. Splitting the band by the margin's f64 sign
+  would be a tie-break (`[verdicts]`); the orchestrator ruled to keep it.
 
 Pinned in `crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
 
