@@ -55,14 +55,18 @@
 //! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
 //! [`EdgeInFaceGap::CurvedFace`]). The reading
 //! ([`holding`]) finds an edge whose carrier lies on the face's surface,
-//! a line on a plane, cylinder or cone and a conic on a plane or a
-//! quadric, where an edge-on-face record names the pair or the face holds
-//! a piece of it between the crossings its records name, whatever piece
-//! holds its midpoint. An edge it does not find, on a torus or a spline
-//! face or touching the face where no record names it, stays one edge:
-//! the result gate's line reading ([`crate::census::line_wedges`]) refuses
-//! it where its wedges overlap another edge's on the line, and it ships
-//! otherwise.
+//! a line on a plane, cylinder or cone and a circle or an ellipse on a
+//! plane, a quadric or a torus, where an edge-on-face record names the
+//! pair or the face holds a piece of it between the crossings its records
+//! name, whatever piece holds its midpoint. On a spline face the carrier
+//! is not read on the chart: an edge both of whose ends lie on the face
+//! and whose midpoint the face holds is taken to lie in it, and refuses
+//! ([`EdgeInFaceGap::SplineFace`]) where both its faces go into the
+//! face's material. An edge it does not find, a spline carrier on any
+//! other face or one touching the face where no record names it, stays
+//! one edge: the result gate's line reading
+//! ([`crate::census::line_wedges`]) refuses it where its wedges overlap
+//! another edge's on the line, and it ships otherwise.
 //!
 //! The parting is Euler surgery on the result. `mef` in the wall the
 //! edge's plus half runs in mints the second edge, and the two-edge face
@@ -982,14 +986,24 @@ struct Names {
 /// be the kernel defect [`EdgeInFaceGap::Crossed`], so it does not lie
 /// there.
 ///
+/// On a spline face, whose chart is not read for the carrier, the edge
+/// is taken to lie in `f` where both its ends lie on it and `f` holds its
+/// midpoint, and the faces are then read as for an in-band carrier: where
+/// both go into `f`'s material the edge refuses
+/// ([`EdgeInFaceGap::SplineFace`]); otherwise it does not lie in `f`.
+///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where a crossing lies, or whether
 /// `f` holds a piece's midpoint, is in band and something other than a
 /// crossing names the pair; or where whether the carrier lies on `f`'s
 /// surface is in band, both the edge's faces go into `f`'s material and
-/// something other than a crossing names the pair. [`walls_inside`]'s
-/// refusals but `Crossed`, where it reads the faces.
+/// something other than a crossing names the pair; or, on a spline face,
+/// where whether `f` holds the midpoint is in band.
+/// [`BooleanError::EdgeInFace`] with [`EdgeInFaceGap::SplineFace`] where
+/// an edge read as lying in a spline face has both its faces going into
+/// `f`'s material. [`walls_inside`]'s refusals but `Crossed`, where it
+/// reads the faces.
 fn holding<T: Decide>(
     body: &Body<T>,
     named: &[&Contact],
