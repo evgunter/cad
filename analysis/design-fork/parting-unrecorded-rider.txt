@@ -1,0 +1,6 @@
+fork: parting-unrecorded-rider (PARTING, the-parting-reads-no-edge-lying-in-a-face-no-record-names)
+drawn: 2026-11-01, od -An -tu1 -N2 /dev/urandom
+bytes: 213 92
+arm: 213 >= 86, two designers
+mapping: 92 even, A = Opus designer, B = Fable designer
+protocol: 2126b860b6
