@@ -269,22 +269,37 @@ impl ContactAcc {
         .contains_key(&(vertex, face))
     }
     /// The citations of the record placing `vertex` of `x_is` on `face`
-    /// of the other operand: strictly inside it, or one with a vertex of
-    /// the other operand (the one vertex there, which bounds `face` where
-    /// `vertex` lies in its closure).
-    fn placed_on(&self, x_is: Operand, vertex: VertexKey, face: FaceKey) -> Option<&Cites> {
+    /// of the other operand: strictly inside it, or a tie with one of
+    /// `bounding`, the vertices bounding `face` ([`face_vertices`]).
+    /// `None` where neither record exists. Two ties with vertices of
+    /// `bounding` would put two of the face's own vertices at one point,
+    /// which no valid face has, so a second fails loud rather than
+    /// letting either citation stand for the placement.
+    fn placed_on(
+        &self,
+        x_is: Operand,
+        vertex: VertexKey,
+        face: FaceKey,
+        bounding: &std::collections::BTreeSet<VertexKey>,
+    ) -> Result<Option<&Cites>, BooleanError> {
         let (seen, list) = match x_is {
             Operand::A => (&self.seen_ab, &self.records.a_on_b),
             Operand::B => (&self.seen_ba, &self.records.b_on_a),
         };
-        let tied = |c: &&Cited<VvContact>| match x_is {
-            Operand::A => c.a == vertex,
-            Operand::B => c.b == vertex,
-        };
-        match seen.get(&(vertex, face)) {
-            Some(&i) => Some(&list[i].cites),
-            None => self.records.vv.iter().find(tied).map(|c| &c.cites),
+        if let Some(&i) = seen.get(&(vertex, face)) {
+            return Ok(Some(&list[i].cites));
         }
+        let mut ties = self.records.vv.iter().filter(|c| match x_is {
+            Operand::A => c.a == vertex && bounding.contains(&c.b),
+            Operand::B => c.b == vertex && bounding.contains(&c.a),
+        });
+        let tie = ties.next();
+        if ties.next().is_some() {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a vertex is tied to two vertices bounding one face",
+            });
+        }
+        Ok(tie.map(|c| &c.cites))
     }
     /// Records the chart point `uv` of `face` that `vertex` of `x_is`
     /// was placed inside the face at ([`Self::charts`]).
@@ -1798,12 +1813,45 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     settle_in_plane([a, b], contacts, band)
 }
 
+/// The vertices bounding `face` of `body`, outer loop and rings.
+fn face_vertices<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<std::collections::BTreeSet<VertexKey>, BooleanError> {
+    let lost = |what| BooleanError::ClassificationInvariant { what };
+    let f = body
+        .get_face(face)
+        .ok_or(lost("a face an edge lies in vanished"))?;
+    let mut out = std::collections::BTreeSet::new();
+    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        match body
+            .get_loop(lk)
+            .ok_or(lost("a loop of a face an edge lies in vanished"))?
+            .boundary
+        {
+            crate::LoopBoundary::Empty { vertex } => {
+                out.insert(vertex);
+            }
+            crate::LoopBoundary::Cycle { first } => out.extend(
+                body.loop_cycle(first)
+                    .ok_or(lost("a loop of a face an edge lies in does not walk"))?
+                    .into_iter()
+                    .filter_map(|he| body.get_half_edge(he).map(|h| h.start)),
+            ),
+        }
+    }
+    Ok(out)
+}
+
 /// A fragment of a line edge the line lane read lying in a planar face's
 /// plane, both its ends decided on the plane ([`LyingIn::Plane`]), named
 /// as it stood when read: `fragment`, before every split from `mark` on.
 /// Its pieces are what those splits made of it ([`super::Mints::pieces_since`]),
 /// so each piece's ends are the fragment's ends or vertices those splits
-/// minted, each read against `face` where it was made.
+/// minted: by this edge's own sweep, which reads the vertex against
+/// `face` as it reads the ends (`lying_in`), or by the other operand's
+/// sweep at a vertex of its own ([`split_other_at_point`]), which ties
+/// the two and reads nothing against `face`.
 #[derive(Debug, Clone, Copy)]
 struct InPlane {
     x_is: Operand,
@@ -1842,6 +1890,7 @@ fn settle_in_plane<T: Decide>(
         let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
+        let bounding = face_vertices(y, lie.face)?;
         let pieces = contacts
             .splits
             .pieces_since(lie.x_is, lie.fragment, lie.mark)
@@ -1866,11 +1915,12 @@ fn settle_in_plane<T: Decide>(
                 continue;
             }
             let placed = |w| {
-                contacts.placed_on(lie.x_is, w, lie.face).cloned().ok_or(
-                    BooleanError::ClassificationInvariant {
+                contacts
+                    .placed_on(lie.x_is, w, lie.face, &bounding)?
+                    .cloned()
+                    .ok_or(BooleanError::ClassificationInvariant {
                         what: "a piece a face holds ends at a vertex no record places on the face",
-                    },
-                )
+                    })
             };
             let cites = placed(w0)?.union(&placed(w1)?);
             contacts.ef(

@@ -4,7 +4,9 @@
 //! The poses are an edge in a wall: a triangular prism's apex edge on
 //! `y = 0.5`, beside a brick over `y ∈ [0.5, 1.5]` whose face `y = 0.5`
 //! holds part of the apex, a face of the brick crossing the apex on that
-//! face's edge.
+//! face's edge; and an edge of a lid brick lying in the top of a
+//! U-shaped prism, over the notch whose floor stands within a band of
+//! the edge's midpoint.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -81,8 +83,10 @@ fn sweep(a: &Body<f64>, b: &Body<f64>) -> ([Body<f64>; 2], ReductionContacts, Ve
 /// wall face reads it; laid along `x`, the wall face reads the whole
 /// apex before the brick's end face splits it.
 ///
-/// Mutant: citing the decisions at the ends of the fragment the wall
-/// face read names the laid apex's far end.
+/// Mutants: citing the decisions at the ends of the fragment the wall
+/// face read names the laid apex's far end; citing an end's record on
+/// another face of the wall, or its tie with a wall vertex off the
+/// face, names the wall off the face.
 #[test]
 fn each_edge_face_record_cites_its_own_pieces_ends() {
     let tol = Tol::witness();
@@ -147,20 +151,32 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
                 "{what}: the piece runs {ends:?}: {pu:?} {pv:?}"
             );
             let piece_end = |cell| cell == Cell::Vertex(u) || cell == Cell::Vertex(v);
+            let bounding = super::face_vertices(y, face).unwrap();
+            let on_face = |cell| match cell {
+                Cell::Face(f) => f == face,
+                Cell::Vertex(w) => bounding.contains(&w),
+                _ => false,
+            };
             for backing in c.cites.iter() {
                 let Backing::Decided(i) = backing else {
                     panic!("{what}: the sweep cites its own decisions: {backing:?}");
                 };
                 let row = pending[usize::try_from(i).unwrap()];
-                let mine: Vec<Cell> = row
-                    .cells
-                    .iter()
-                    .filter(|&&(o, _)| o == x_is)
-                    .map(|&(_, cell)| cell)
-                    .collect();
+                let cells = |side: Operand| -> Vec<Cell> {
+                    row.cells
+                        .iter()
+                        .filter(|&&(o, _)| o == side)
+                        .map(|&(_, cell)| cell)
+                        .collect()
+                };
+                let (mine, theirs) = (cells(x_is), cells(x_is.other()));
                 assert!(
                     !mine.is_empty() && mine.into_iter().all(piece_end),
                     "{what}: cited row {i} names the apex at the piece's ends only: {row:?}"
+                );
+                assert!(
+                    !theirs.is_empty() && theirs.into_iter().all(on_face),
+                    "{what}: cited row {i} names the wall at the face or a vertex bounding it: {row:?}"
                 );
             }
         }
