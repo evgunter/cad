@@ -17,9 +17,12 @@
 //! (`ops::fallback_fates`), [`cut`] divides the dropped face along each
 //! such edge with a one-sided chord, between the vertices the dropped
 //! operand holds at the edge's two ends: the partner of a vertex–vertex
-//! site, the ring vertex of a pierce, or, where the face holds no vertex
-//! there (a vertex-on-face site the classification did no surgery at, or
-//! a partner of the dropped operand's own resting on the face
+//! site; the ring vertex of a pierce; where no record names a partner of
+//! the end in the face, a vertex of the face's division at its point
+//! (the ring vertex of another kept vertex's pierce there, say), read by
+//! where the point lies; or, where the face holds no vertex there (a
+//! vertex-on-face site the classification did no surgery at, or a
+//! partner of the dropped operand's own resting on the face
 //! unimprinted), a lone vertex minted there as the ring door mints one.
 //! No null edge is paired with the chord: it lies in a face the
 //! selection drops, so no section runs along it. Where
@@ -701,7 +704,7 @@ fn places<T: Decide>(
 ) -> Result<Option<(Vec<Place>, bool)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut found = Vec::new();
-    let (mut touched, mut tied) = (false, false);
+    let (mut held, mut tied) = (false, false);
     for &w in at {
         let vertex = body
             .get_vertex(w)
@@ -715,7 +718,7 @@ fn places<T: Decide>(
                     if let Some(lp) = body.get_loop(l)
                         && lp.boundary == (LoopBoundary::Empty { vertex: w })
                     {
-                        touched = true;
+                        held = true;
                         found.push(Place::Lone(l, w));
                     }
                 }
@@ -729,7 +732,7 @@ fn places<T: Decide>(
             if divisions.root(f) != root || body.null_face_pair(f).is_some() {
                 continue;
             }
-            touched = true;
+            held = true;
             let Some(out) = leaving(body, h, secant) else {
                 continue;
             };
@@ -795,7 +798,7 @@ fn places<T: Decide>(
             }
         }
     }
-    Ok(touched.then_some((found, tied)))
+    Ok(held.then_some((found, tied)))
 }
 
 /// **Whether a corner whose two straight bounds leave along one ray is
@@ -969,8 +972,9 @@ enum End {
     /// At these vertices: a vertex–vertex partner or a pierce's ring
     /// vertex, each with its null-edge copies.
     At(Vec<VertexKey>),
-    /// At this vertex of the kept operand touching the dropped face with
-    /// no surgery, where the face holds no partner of it.
+    /// At this vertex of the kept operand on the dropped face, where no
+    /// record names a partner of it in the face. The face may still hold
+    /// a vertex at its point, which [`lies`] reads.
     Touch(VertexKey),
 }
 
@@ -1058,13 +1062,6 @@ fn pieces<T: geom_core::Real>(
         .collect()
 }
 
-/// A fate cut's end that no one piece of its face holds.
-const fn in_no_one_piece() -> BooleanError {
-    BooleanError::ClassificationInvariant {
-        what: "a fate cut's end lies inside no one piece of its face",
-    }
-}
-
 /// Where a point lies among the faces divided from one root ([`lies`]).
 enum Lies {
     /// Inside this one piece.
@@ -1072,8 +1069,33 @@ enum Lies {
     /// Inside none, at these vertices of the pieces' loops, each once: a
     /// vertex of the face's division.
     AtCorners(Vec<VertexKey>),
-    /// Inside none and at no vertex, or inside several.
-    Nowhere,
+    /// Placed by no piece ([`Unplaced`]).
+    Nowhere(Unplaced),
+}
+
+/// Why no one piece of a face, and no vertex of their loops, places a
+/// point ([`lies`]).
+#[derive(Clone, Copy)]
+enum Unplaced {
+    /// On an edge of the face's division, inside none of its pieces.
+    OnEdge,
+    /// Inside several pieces.
+    InSeveral,
+    /// On no piece.
+    Off,
+}
+
+impl Unplaced {
+    /// A fate cut's end placed so.
+    const fn refused(self) -> BooleanError {
+        BooleanError::ClassificationInvariant {
+            what: match self {
+                Self::OnEdge => "a fate cut's end lies on an edge of its face's division",
+                Self::InSeveral => "a fate cut's end lies inside several pieces of its face",
+                Self::Off => "a fate cut's end lies on no piece of its face",
+            },
+        }
+    }
 }
 
 /// Where `p` lies among the faces divided from `root`: inside one, or
@@ -1089,7 +1111,7 @@ fn lies<T: Decide>(
         return Ok(Lies::Inside(one));
     }
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
-    let (mut inside, mut corners) = (Vec::new(), Vec::new());
+    let (mut inside, mut corners, mut on_edge) = (Vec::new(), Vec::new(), false);
     for f in pieces(body, root, divisions) {
         let at = match crate::face_normal::face_outward_normal(body, f) {
             Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
@@ -1102,7 +1124,8 @@ fn lies<T: Decide>(
         match at {
             super::FaceContainment::In => inside.push(f),
             super::FaceContainment::OnVertex(v) => corners.push(v),
-            super::FaceContainment::Out | super::FaceContainment::OnEdge(_) => {}
+            super::FaceContainment::OnEdge(_) => on_edge = true,
+            super::FaceContainment::Out => {}
         }
     }
     corners.sort();
@@ -1110,7 +1133,9 @@ fn lies<T: Decide>(
     Ok(match (inside.as_slice(), corners.is_empty()) {
         ([one], _) => Lies::Inside(*one),
         ([], false) => Lies::AtCorners(corners),
-        _ => Lies::Nowhere,
+        ([], true) if on_edge => Lies::Nowhere(Unplaced::OnEdge),
+        ([], true) => Lies::Nowhere(Unplaced::Off),
+        _ => Lies::Nowhere(Unplaced::InSeveral),
     })
 }
 
@@ -1625,14 +1650,16 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     let mut done = std::collections::BTreeSet::new();
     // Every touch is placed before any lone vertex is minted: the
     // containment reading cannot walk an empty loop.
-    // A kept vertex's point key with its touch: two kept vertices on one
-    // point (a slit's open end, one per wedge) touch the dropped face at
-    // one place.
-    let mut touches: Vec<(Operand, VertexKey, FaceKey, Point3<T>)> = Vec::new();
-    let mut touch_points: Vec<(Operand, VertexKey, crate::geometry::PointKey)> = Vec::new();
+    // A kept vertex's point key with its touch, per dropped face: two
+    // kept vertices on one point (a slit's open end, one per wedge) touch
+    // the dropped face at one place.
+    let mut touches: Vec<(Operand, FaceKey, VertexKey, Point3<T>)> = Vec::new();
+    let mut touch_points: Vec<(Operand, FaceKey, VertexKey, crate::geometry::PointKey)> =
+        Vec::new();
     // Where one kept face holds the dropped one on both sides of a
-    // slit's line, a chord along it divides nothing, so none is minted,
-    // and an end the face holds no vertex at needs none.
+    // slit's line, a chord along it divides nothing, so none is minted;
+    // its touching ends are not placed, so it is passed over before they
+    // are read.
     let across = |red: &BooleanReduction<T>, fe: &FateEdge| {
         let (div_k, kept_body) = match fe.holder {
             Operand::A => (&*div_a, &red.a),
@@ -1681,7 +1708,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 End::Touch(t) => {
                     if !touch_points
                         .iter()
-                        .any(|&(h, k, _)| (h, k) == (fe.holder, t))
+                        .any(|&(h, r, k, _)| (h, r, k) == (fe.holder, root, t))
                     {
                         let key = kept_body
                             .get_vertex(t)
@@ -1693,11 +1720,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                             .ok_or_else(|| desync("a fate cut's touching vertex has no point"))?;
                         if !touch_points
                             .iter()
-                            .any(|&(h, _, k)| (h, k) == (fe.holder, key))
+                            .any(|&(h, r, _, k)| (h, r, k) == (fe.holder, root, key))
                         {
-                            touches.push((fe.holder, t, root, p));
+                            touches.push((fe.holder, root, t, p));
                         }
-                        touch_points.push((fe.holder, t, key));
+                        touch_points.push((fe.holder, root, t, key));
                     }
                 }
             }
@@ -1705,34 +1732,36 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     }
     let touches = touches
         .into_iter()
-        .map(|(h, t, root, p)| {
+        .map(|(h, root, t, p)| {
             let (div_d, body) = match h {
                 Operand::A => (&*div_b, &red.b),
                 Operand::B => (&*div_a, &red.a),
             };
-            Ok((h, t, lies(body, root, div_d, p, band)?, p))
+            Ok((h, root, t, lies(body, root, div_d, p, band)?, p))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    for (holder, t, lies, p) in touches {
+    for (holder, root, t, reading, p) in touches {
         let body = match holder {
             Operand::A => &mut red.b,
             Operand::B => &mut red.a,
         };
-        // At a vertex of the face's division the chord ends there, its
-        // corner read by its direction (`place`); inside one piece it ends
-        // at a lone vertex.
-        let ws = match lies {
+        // The point is read, not the records: at a vertex of the face's
+        // division (such as another kept vertex's ring vertex there, which
+        // no record pairs with this one) the chord ends there, its corner
+        // read by its direction (`place`); inside one piece it ends at a
+        // lone vertex.
+        let ws = match reading {
             Lies::Inside(face) => vec![super::vtxfac::ring_vertex_in(body, face, p, tol)?.0],
             Lies::AtCorners(corners) => corners,
-            Lies::Nowhere => return Err(in_no_one_piece().into()),
+            Lies::Nowhere(unplaced) => return Err(unplaced.refused().into()),
         };
         let key = touch_points
             .iter()
-            .find(|&&(h, k, _)| (h, k) == (holder, t))
+            .find(|&&(h, r, k, _)| (h, r, k) == (holder, root, t))
             .map(|&(.., key)| key);
-        for &(h, k, at) in &touch_points {
-            if h == holder && Some(at) == key {
-                touched.insert((holder, k), ws.clone());
+        for &(h, r, k, at) in &touch_points {
+            if (h, r) == (holder, root) && Some(at) == key {
+                touched.insert((holder, root, k), ws.clone());
             }
         }
     }
@@ -1784,7 +1813,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             End::At(ws) => Ok(ws),
             End::Touch(t) => {
                 touched
-                    .get(&(fe.holder, t))
+                    .get(&(fe.holder, root, t))
                     .cloned()
                     .ok_or(BooleanError::JoinDesync {
                         what: "a touching fate cut end is not placed",
@@ -1920,7 +1949,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                                 d,
                                 band,
                             )?,
-                            Lies::Nowhere => return Err(in_no_one_piece().into()),
+                            Lies::Nowhere(unplaced) => return Err(unplaced.refused().into()),
                         }
                     }
                 }

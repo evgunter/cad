@@ -1391,84 +1391,213 @@ fn a_flush_partner_over_two_lumps_touching_along_a_diagonal_builds() {
     }
 }
 
-/// **A fate edge ending at a corner of its face's division builds.**
-/// The cube `[0, 1]³` ∪ the box `[1, 2]² × [0.5, 1.5]`, touching along
-/// `x = y = 1`, `z ∈ [0.5, 1]`, the union's records carried. A partner
-/// over `[1, 1.5]`, `[0.5, 1]` or `[0.5, 1.5]` in z lies flush with the
-/// cube's top on `z = 1`, which the box crosses: the partner's face there
-/// is divided by the box's imprint, whose corner is the cube's top corner
-/// `(1, 1, 1)`. In `x ∖ y` and `x ∩ y` the cube's top edges are fate
-/// edges of that face, touching it at that corner with no surgery: each
-/// chord ends at the division's vertex, its corner read by its direction
-/// (`fate::place`). Both ops build in both union orders, tier 3 and 3′,
-/// at the volume the boxes' overlaps give.
+/// A lump: a prism over a counterclockwise `(x, y)` polygon, over `z`.
+type Lump = (&'static [(f64, f64)], (f64, f64));
+
+/// The cube `[0, 1]³`.
+const CUBE: Lump = (
+    &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+    (0.0, 1.0),
+);
+
+/// The cube and the box `[1, 2]² × [0.5, 1.5]`, touching along
+/// `x = y = 1, z ∈ [0.5, 1]`.
+const BESIDE: [Lump; 2] = [
+    CUBE,
+    (
+        &[(1.0, 1.0), (2.0, 1.0), (2.0, 2.0), (1.0, 2.0)],
+        (0.5, 1.5),
+    ),
+];
+
+/// The cube and two prisms over `z ∈ [0.5, 1.5]`, each touching it along
+/// `x = y = 1, z ∈ [0.5, 1]`, apart across the diagonal: their imprints
+/// on `z = 1` and the gap between them make three pieces of a partner's
+/// face beside the cube's corner there.
+const THREE_PIECES: [Lump; 3] = [
+    CUBE,
+    (&[(1.0, 1.0), (2.0, 1.0), (2.0, 1.8)], (0.5, 1.5)),
+    (&[(1.0, 1.0), (1.8, 2.0), (1.0, 2.0)], (0.5, 1.5)),
+];
+
+/// The volume of `lump` inside the box `b`: its polygon clipped to the
+/// box's rectangle, by the overlap of their spans in z.
+fn lump_in_box((polygon, z): Lump, b: [(f64, f64); 3]) -> f64 {
+    let mut poly: Vec<(f64, f64)> = polygon.to_vec();
+    // Each half-plane `s · (p[k] − c) ≤ 0` of the rectangle.
+    for (k, c, s) in [
+        (0, b[0].1, 1.0),
+        (0, b[0].0, -1.0),
+        (1, b[1].1, 1.0),
+        (1, b[1].0, -1.0),
+    ] {
+        let at = |p: (f64, f64)| s * ([p.0, p.1][k] - c);
+        let mut out = Vec::new();
+        for i in 0..poly.len() {
+            let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
+            if at(p) <= 0.0 {
+                out.push(p);
+            }
+            if (at(p) < 0.0) != (at(q) < 0.0) && at(p) != 0.0 && at(q) != 0.0 {
+                let u = at(p) / (at(p) - at(q));
+                out.push((p.0 + u * (q.0 - p.0), p.1 + u * (q.1 - p.1)));
+            }
+        }
+        poly = out;
+    }
+    let area: f64 = (0..poly.len())
+        .map(|i| {
+            let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
+            p.0 * q.1 - q.0 * p.1
+        })
+        .sum::<f64>()
+        / 2.0;
+    area * (z.1.min(b[2].1) - z.0.max(b[2].0)).max(0.0)
+}
+
+/// `lumps` united in order at `pose`, with the records each step's
+/// result carries into the next op.
+fn lumps_united(lumps: &[Lump], pose: &Pose) -> (AtRestBody<f64>, topo::OperandRecords) {
+    let tol = t();
+    let body = |(polygon, z): Lump| prism(pose, "a lump", polygon, z, &|x, y, z| [x, y, z]);
+    let (first, rest) = lumps.split_first().expect("a lump");
+    let mut acc = (body(*first), topo::OperandRecords::default());
+    for &lump in rest {
+        let inputs = topo::BooleanInputs {
+            records_a: acc.1,
+            ..topo::BooleanInputs::default()
+        };
+        let r = topo::boolean_op_with(
+            topo::BooleanOp::Union,
+            &acc.0,
+            &body(lump),
+            &inputs,
+            topo::SweepStrategy::Realized,
+            tol,
+        );
+        let Ok(BooleanResult::Body(r)) = r else {
+            panic!("{}: the lumps unite, got {:?}", pose.label, r.map(|_| ()));
+        };
+        acc = (r.body, r.contacts.carried());
+    }
+    acc
+}
+
+/// `x ∖ y` or `x ∩ y`, `x` the lumps' union with its records carried and
+/// `y` the box `partner`, builds tier 3 and 3′ at the volume the lumps'
+/// overlaps with it give.
+fn builds_against(
+    what: &str,
+    pose: &Pose,
+    (lumps, (x, records)): (&[Lump], &(AtRestBody<f64>, topo::OperandRecords)),
+    partner: [(f64, f64); 3],
+    op: topo::BooleanOp,
+) {
+    let tol = t();
+    let y = common::meeting::posed_box("the partner", partner, pose, tol);
+    let total: f64 = lumps
+        .iter()
+        .map(|&l| lump_in_box(l, [(-9.0, 9.0); 3]))
+        .sum();
+    let common: f64 = lumps.iter().map(|&l| lump_in_box(l, partner)).sum();
+    let want = match op {
+        topo::BooleanOp::Subtract => total - common,
+        topo::BooleanOp::Intersect => common,
+        topo::BooleanOp::Union => panic!("{what}: no union is read here"),
+    };
+    let inputs = topo::BooleanInputs {
+        records_a: records.clone(),
+        ..topo::BooleanInputs::default()
+    };
+    let r = topo::boolean_op_with(op, x, &y, &inputs, topo::SweepStrategy::Realized, tol);
+    let Ok(BooleanResult::Body(r)) = r else {
+        panic!("{what}: builds, got {:?}", r.map(|_| ()));
+    };
+    assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+    assert_eq!(
+        validate_pseudomanifold(&r.body, &r.contacts, tol),
+        Ok(()),
+        "{what}: tier 3′"
+    );
+    let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
+    assert!(
+        (v - want).abs() < 1e-9,
+        "{what}: volume {v}, closed form {want}"
+    );
+}
+
+/// **A fate edge touching a corner of its face's division builds.** A
+/// partner flush with the cube's top on `z = 1`, over [`BESIDE`] or
+/// [`THREE_PIECES`], whose other lumps cross it: the partner's face there
+/// is divided by their imprints, with a vertex at the cube's top corner
+/// `(1, 1, 1)`: the ring vertex, and its copies, of the other lumps'
+/// pierce there. In `x ∖ y` with the partner above and `x ∩ y` with it
+/// below, the cube's top edges are fate edges of that face ending at the
+/// corner, which no record pairs with that ring (the cube's corner is
+/// recorded on the face, not in the ring): each chord ends at the
+/// division's vertex there, its corner read by its direction
+/// (`fate::place`). The right one of those vertices sorts last beside
+/// one box and not last beside the two prisms. One cell of each, at rest.
+#[test]
+fn a_fate_edge_touching_a_corner_of_its_faces_division_builds_at_rest() {
+    let pose = &poses()[0];
+    for (lumps, partner, op, what) in [
+        (
+            &BESIDE[..],
+            [(-0.5, 2.5), (-0.5, 2.5), (1.0, 1.5)],
+            topo::BooleanOp::Subtract,
+            "beside one box, the partner above: x ∖ y",
+        ),
+        (
+            &THREE_PIECES[..],
+            [(-0.5, 2.5), (-0.5, 2.5), (0.5, 1.0)],
+            topo::BooleanOp::Intersect,
+            "three pieces, the partner below: x ∩ y",
+        ),
+    ] {
+        let x = lumps_united(lumps, pose);
+        builds_against(what, pose, (lumps, &x), partner, op);
+    }
+}
+
+/// **The touching corner's family builds in every pose and order.** The
+/// lumps of [`a_fate_edge_touching_a_corner_of_its_faces_division_builds_at_rest`]
+/// united in either order, at rest and flipped and turned, against a
+/// partner over `[1, 1.5]`, `[0.5, 1]` or `[0.5, 1.5]` in z, over
+/// `[−0.5, 2.5]²`, `[−0.5, 2.5] × [0.5, 1.5]` or `[0.5, 1.5]²`. Of the
+/// 18 cells of each lumps, pose and order, 9 reach the arm that ends a
+/// touching cut at a division vertex: `x ∖ y` with the partner above,
+/// and `x ∩ y` with it below or across `z = 1`, at each footprint. The
+/// other 9 do not reach it and are pinned beside them.
 #[test]
 fn a_fate_edge_touching_a_corner_of_its_faces_division_builds() {
-    use common::meeting::posed_box;
-    type Boxed = [(f64, f64); 3];
-    let tol = t();
-    let meet = |a: &Boxed, b: &Boxed| -> f64 {
-        (0..3)
-            .map(|k| (a[k].1.min(b[k].1) - a[k].0.max(b[k].0)).max(0.0))
-            .product()
-    };
-    let lumps: [Boxed; 2] = [
-        [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
-        [(1.0, 2.0), (1.0, 2.0), (0.5, 1.5)],
-    ];
     let poses = poses();
     for pose in [&poses[0], &poses[4]] {
-        let [cube, beside] = lumps.map(|b| posed_box("a lump", b, pose, tol));
-        for (order, (a, b)) in [
-            ("cube first", (&cube, &beside)),
-            ("box first", (&beside, &cube)),
-        ] {
-            let Ok(BooleanResult::Body(x)) = topo::union(a, b, tol) else {
-                panic!("{}, {order}: the lumps unite", pose.label);
-            };
-            let inputs = topo::BooleanInputs {
-                records_a: x.contacts.carried(),
-                ..topo::BooleanInputs::default()
-            };
-            for z in [(1.0, 1.5), (0.5, 1.0), (0.5, 1.5)] {
-                for (x_span, y_span) in [
-                    ((-0.5, 2.5), (-0.5, 2.5)),
-                    ((-0.5, 2.5), (0.5, 1.5)),
-                    ((0.5, 1.5), (0.5, 1.5)),
-                ] {
-                    let partner: Boxed = [x_span, y_span, z];
-                    let y = posed_box("the partner", partner, pose, tol);
-                    let common: f64 = lumps.iter().map(|l| meet(l, &partner)).sum();
-                    for (op, kind, want) in [
-                        ("x ∖ y", topo::BooleanOp::Subtract, 2.0 - common),
-                        ("x ∩ y", topo::BooleanOp::Intersect, common),
+        for lumps in [&BESIDE[..], &THREE_PIECES[..]] {
+            for order in ["cube first", "cube last"] {
+                let mut ordered = lumps.to_vec();
+                if order == "cube last" {
+                    ordered.reverse();
+                }
+                let x = lumps_united(&ordered, pose);
+                for z in [(1.0, 1.5), (0.5, 1.0), (0.5, 1.5)] {
+                    for (x_span, y_span) in [
+                        ((-0.5, 2.5), (-0.5, 2.5)),
+                        ((-0.5, 2.5), (0.5, 1.5)),
+                        ((0.5, 1.5), (0.5, 1.5)),
                     ] {
-                        let what =
-                            format!("{}, {order}, the partner {partner:?}: {op}", pose.label);
-                        let r = topo::boolean_op_with(
-                            kind,
-                            &x.body,
-                            &y,
-                            &inputs,
-                            topo::SweepStrategy::Realized,
-                            tol,
-                        );
-                        let Ok(BooleanResult::Body(r)) = r else {
-                            panic!("{what}: builds, got {:?}", r.map(|_| ()));
-                        };
-                        assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
-                        assert_eq!(
-                            validate_pseudomanifold(&r.body, &r.contacts, tol),
-                            Ok(()),
-                            "{what}: tier 3′"
-                        );
-                        let v =
-                            topo::test_support::pinned_volume("the measured body", &r.body, tol)
-                                .volume;
-                        assert!(
-                            (v - want).abs() < 1e-9,
-                            "{what}: volume {v}, closed form {want}"
-                        );
+                        let partner = [x_span, y_span, z];
+                        for (op, kind) in [
+                            ("x ∖ y", topo::BooleanOp::Subtract),
+                            ("x ∩ y", topo::BooleanOp::Intersect),
+                        ] {
+                            let what = format!(
+                                "{} lumps, {}, {order}, the partner {partner:?}: {op}",
+                                lumps.len(),
+                                pose.label
+                            );
+                            builds_against(&what, pose, (lumps, &x), partner, kind);
+                        }
                     }
                 }
             }
