@@ -49,3 +49,10 @@ leave, rather than the panel offering only numbers for those freedoms.
   history state and change nothing, and nothing says so (reproduced
   with `examples/drive.rs`: `click "remove" 0`, history 1 → 2 states,
   tree unchanged).
+- The flip control is the checkbox "faces rest against each other"
+  (`crates/viewer/src/pane/create.rs`, `drafts.mate_flip`), which reads
+  as a yes/no about contact rather than as the mate's sense. Ev's
+  direction (2026-10-31): a **sense** choice with two named values,
+  along the lines of `flush` (normals the same way, faces level) and
+  `opposed` (normals facing each other, faces resting together),
+  writing the same `Flip`.
