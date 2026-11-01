@@ -101,3 +101,9 @@
     - `main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach`, from PR 6053, on `splitdoor/prism-tilt-reach`, tier FULL.
   - **Ruled, prism tilt:** at the two face–face sites (`pair_search`, the `insert.rs` membership tests), the face–face line is read un-normalized, i.e. as the bound's far end's offset from the other face's plane. This makes the module's contract ("a line beside a long bound is decided as its code is") true, reads the same quantity as `side_code`, and drops a 1/sin φ conditioning that the tolerance model never charges. Bisector and edge directions keep their angle reading.
   - **Decided, cone-apex fork:** the designer pair converged in round 2. The record is on the row. No `[ev]` PR: unanimous, and no ratified text changes. The vertex–vertex row is widened to P1/H as the owed second unit. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation` (PR 6226). Review tier was FULL, APPROVE-WITH-FIXES with wording only; the fix pass got the orchestrator's read.
+  - Root cause: `insert::walk_faces_first` anchored the strut order on the arrival edge's chord instead of its tangent. The fix anchors on the corner's first sector `end`.
+  - The review's independent oracle (18 poses × 4 ops) agrees on head; main fails exactly the 36 ops with tan t_a > tan t_b.
+  - **Class:** the docs called the bound a "chord" where the field holds the departure tangent. They are corrected, the bound lookup now lives in one home (`sectors::corner_edge_bound`), and the closed-edge NaN anchor is repaired, though no fixture reads it.
+  - The tier-3′ escalation on A∪B and B∖A remains honest: two coplanar ellipses internally tangent. Evidence is on the cpair rows.
+  - Filed P3 `a-strut-order-within-one-entry-is-the-walk-order-under-a-second-name`, plus a GREEN main-red row for `coincidence_door`. (SPLITDOOR orchestrator)
