@@ -7250,3 +7250,6 @@ Signed (WIRE orchestrator).
   - Fix pass sent.
 - 2026-10-28 — **Filed by SPLITDOOR:** `a-split-in-the-document-drops-its-operands-contact-records` (P1). `wire_split` gives each side an empty `Carry.contacts`. Found by SPLITDOOR's split-door-records designers. (SPLITDOOR orchestrator)
 - 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `an-assemble-of-a-family-counts-it-one-part` (P1). INTENT's charter is D10 and these are follow-ups found while building it.
+- 2026-11-01 (WIRE orchestrator) The PR 5930 fix pass resumed after the usage limit.
+  - `by_fold` is narrowed to fold-Tied rows at member corners. The suite-only assumption is stated at its site. Witness and rung docs are corrected; NITs are done.
+  - Merged at 712e1e7c46. The vertex group-size row is closed; the member-corner row is back to open. Worktree removed.

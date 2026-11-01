@@ -2,10 +2,11 @@
 id: a-unions-vertex-group-size-reads-the-fold-steps-spelling
 kind: issue
 title: A union's published vertex group reads size 1 in one member order and no group in another
-status: dispatched
+status: closed
 opened: 2026-10-26
 priority: P3
 cost: M
+closed: 2026-11-01
 ---
 
 
@@ -99,3 +100,7 @@ No face, edge or qualified-vertex base moved.
 On main it reads `GroupResized { was: 2, now: 0 }` in the orders whose
 fold joins the corner away, and `now: 1` in the others. On the branch it
 reads `now: 1` in all 24 orders.
+
+## Closed
+
+2026-11-01 (WIRE orchestrator): PR 5930 merged. A union records its vertex groups over the finished body: one group per member corner, holding its copies. The order-dependent probe went from 1806 (test, vertex) pairs to 0. Published tables are identical. A fold-tied row at a member corner still reads the fold's record (`Rederived::by_fold`), until the corner row retires that exception. The witness covers all 24 member orders and is red on main in 16 of them.
