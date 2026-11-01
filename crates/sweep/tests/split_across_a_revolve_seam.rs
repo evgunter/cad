@@ -271,8 +271,8 @@ fn plane_section_across_a_revolve_seam_is_an_annulus() {
 /// maximal edges) and that half keeps a vertex on `P` only at the seam
 /// (azimuth 0), whose meridian still ends there. Where `−D/R` rounds off ±1 its `acos` lands √-scale (1e-8
 /// rad) away from `P`: `RESIDUE_OFF_P` are azimuths where a root read
-/// there escalates `split_conic_departure` (5.9e-9 at 0.3) at the
-/// default ε.
+/// there escalates the split's conic first order (`enters_material`,
+/// 5.9e-9 at 0.3) at the default ε.
 #[test]
 fn a_section_touching_a_rim_splits_at_the_closed_form() {
     const RESIDUE_OFF_P: [f64; 6] = [
