@@ -1011,3 +1011,258 @@ fn two_windows_at_opposite_azimuths_validate() {
     antipodal_windows::<f64>("f64");
     antipodal_windows::<geom_core::Interval>("Interval");
 }
+
+// ===== REVIEW PROBE (6252): base-vs-head differential of curved_face_containment =====
+mod review_differential {
+    use super::*;
+    use geom_core::Band;
+    use std::fmt::Write as _;
+    use topo::FaceContainment;
+
+    fn revolved_by<T: Scalar>(pts: &[(f64, f64, f64)], rev: Option<f64>) -> Body<T> {
+        let meridian = bulge_loop(
+            pts.iter()
+                .map(|&(x, y, b)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b)))
+                .collect(),
+        );
+        let profile = Profile::new(SketchPlane::xy(), vec![meridian])
+            .validate(tol())
+            .expect("the meridian profile");
+        revolve(
+            &profile,
+            RevolveAxis {
+                origin: Point2::new(T::zero(), T::zero()),
+                dir: Vec2::new(T::zero(), T::one()),
+            },
+            match rev {
+                None => Revolution::Full,
+                Some(a) => Revolution::Partial(T::from_f64(a)),
+            },
+            tol(),
+        )
+        .expect("revolves")
+        .body
+    }
+
+    fn bodies<T: Scalar>() -> Vec<(String, Body<f64>, Body<T>)> {
+        let pi = core::f64::consts::PI;
+        let q = (pi / 8.0).tan();
+        let profiles: Vec<(&str, Vec<(f64, f64, f64)>)> = vec![
+            ("ball", vec![(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)]),
+            ("hemi", vec![(0.0, 0.0, 0.0), (1.0, 0.0, q), (0.0, 1.0, 0.0)]),
+            (
+                "zone",
+                vec![(0.6, -0.8, q), (0.8, 0.6, 0.0), (0.3, 0.6, 0.0), (0.3, -0.8, 0.0)],
+            ),
+            ("donut", vec![(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]),
+            ("cone", vec![(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 2.0, 0.0)]),
+            (
+                "frustum",
+                vec![(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.4, 1.5, 0.0), (0.0, 1.5, 0.0)],
+            ),
+            (
+                "tube",
+                vec![(0.5, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 2.0, 0.0), (0.5, 2.0, 0.0)],
+            ),
+        ];
+        let revs = [None, Some(pi), Some(pi / 2.0), Some(1f64.to_radians()), Some(1.5 * pi)];
+        let mut out = Vec::new();
+        for (name, p) in &profiles {
+            for rev in revs {
+                let a = std::panic::catch_unwind(|| revolved_by::<f64>(p, rev));
+                let b = std::panic::catch_unwind(|| revolved_by::<T>(p, rev));
+                if let (Ok(a), Ok(b)) = (a, b) {
+                    out.push((format!("{name}@{rev:?}"), a, b));
+                }
+            }
+        }
+        // Windows: on the donut at opposite azimuths, and on the ball near
+        // a pole and at opposite azimuths.
+        let windows: Vec<(&str, fn(&Surface<f64>) -> bool, Vec<((f64, f64), (f64, f64))>)> = vec![
+            (
+                "donut+2win",
+                is_torus,
+                vec![((-1.2, -0.2), (-0.4, 0.4)), ((pi - 1.2, pi - 0.2), (-0.4, 0.4))],
+            ),
+            ("donut+win", is_torus, vec![((-0.3, 0.3), (-0.4, 0.4))]),
+            ("ball+polewin", is_sphere, vec![((-0.3, 0.3), (0.05, 0.3))]),
+            (
+                "ball+2win",
+                is_sphere,
+                vec![((-0.3, 0.3), (1.0, 1.4)), ((pi - 0.3, pi + 0.3), (1.0, 1.4))],
+            ),
+        ];
+        for (name, kind, wins) in windows {
+            let base = if name.starts_with("donut") {
+                vec![(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)]
+            } else {
+                vec![(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)]
+            };
+            let r = std::panic::catch_unwind(|| {
+                let mut a = revolved_by::<f64>(&base, None);
+                let mut b = revolved_by::<T>(&base, None);
+                let (face64, frame) = wall(&a, kind);
+                let face = same_face(&a, face64, &b);
+                for &(us, ss) in &wins {
+                    plant(&mut a, face64, frame, us, ss);
+                    plant(&mut b, face, frame, us, ss);
+                }
+                (a, b)
+            });
+            if let Ok((a, b)) = r {
+                out.push((name.to_string(), a, b));
+            }
+        }
+        out
+    }
+
+    fn uv(frame: &Frame, p: Point3<f64>) -> (f64, f64) {
+        let w = p - frame.origin;
+        let e2 = frame.axis.cross(frame.e1);
+        let h = w.dot(frame.axis);
+        let u = w.dot(e2).atan2(w.dot(frame.e1));
+        let s = match frame.kind {
+            Kind::Sphere { radius } => (-h / radius).clamp(-1.0, 1.0).acos(),
+            Kind::Torus { major, .. } => {
+                let perp = (w - frame.axis * h).norm();
+                h.atan2(perp - major)
+            }
+            Kind::Cylinder { .. } => h,
+            Kind::Cone { half_angle } => h / half_angle.cos(),
+        };
+        (u, s)
+    }
+
+    fn points(body: &Body<f64>, face: FaceKey, frame: &Frame) -> Vec<(String, Point3<f64>)> {
+        let pi = core::f64::consts::PI;
+        let tau = core::f64::consts::TAU;
+        let mut pts = Vec::new();
+        let us: Vec<f64> = (0..16)
+            .flat_map(|k| [k as f64 * tau / 16.0, k as f64 * tau / 16.0 + 0.37])
+            .collect();
+        let ss: Vec<f64> = match frame.kind {
+            Kind::Sphere { .. } => {
+                let mut v: Vec<f64> = (1..12).map(|k| k as f64 * pi / 12.0).collect();
+                for d in [1e-3, 1e-6, 1e-9] {
+                    v.push(d);
+                    v.push(pi - d);
+                }
+                v
+            }
+            Kind::Torus { .. } => (0..12).map(|k| -pi + k as f64 * tau / 12.0 + 0.05).collect(),
+            Kind::Cylinder { .. } => (0..9).map(|k| -0.25 + k as f64 * 0.3).collect(),
+            Kind::Cone { .. } => (1..10).map(|k| k as f64 * 0.25).collect(),
+        };
+        for &u in &us {
+            for &s in &ss {
+                pts.push((format!("g{u:.4},{s:.4}"), frame.at(u, s)));
+            }
+        }
+        if let Kind::Sphere { .. } = frame.kind {
+            pts.push(("north".into(), frame.at(0.0, pi)));
+            pts.push(("south".into(), frame.at(0.0, 0.0)));
+        }
+        if let Kind::Cone { .. } = frame.kind {
+            pts.push(("apex".into(), frame.origin));
+        }
+        // Edge samples, offsets about them, antipodes on spheres.
+        let f = body.get_face(face).unwrap();
+        let mut loops = vec![f.outer];
+        loops.extend(f.rings.iter().copied());
+        let mut ei = 0;
+        for l in loops {
+            let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary else {
+                continue;
+            };
+            for h in body.loop_cycle(first).unwrap() {
+                let half = body.get_half_edge(h).unwrap();
+                let edge = body.get_edge(half.edge).unwrap();
+                let Some(curve) = body.get_curve_geom(edge.curve).and_then(|c| c.certified()) else {
+                    continue;
+                };
+                let (t0, t1) = curve.params();
+                for k in 0..=8 {
+                    let t = t0 + (t1 - t0) * k as f64 / 8.0;
+                    let p = curve.carrier().eval(t);
+                    let tag = format!("e{ei}.{k}");
+                    pts.push((tag.clone(), p));
+                    let (u, s) = uv(frame, p);
+                    for d in [1e-3, 1e-6, 1e-9] {
+                        for (du, ds, n) in [(d, 0.0, "u+"), (-d, 0.0, "u-"), (0.0, d, "s+"), (0.0, -d, "s-")] {
+                            pts.push((format!("{tag}{n}{d:e}"), frame.at(u + du, s + ds)));
+                        }
+                    }
+                    if let Kind::Sphere { .. } = frame.kind {
+                        let c = frame.origin;
+                        pts.push((format!("{tag}anti"), c + (c - p)));
+                    }
+                }
+                ei += 1;
+            }
+        }
+        pts
+    }
+
+    fn short<E: core::fmt::Debug>(e: &E) -> String {
+        let d = format!("{e:?}");
+        let head: String = d.chars().take_while(|c| *c != '{' && *c != '(' && *c != ' ').collect();
+        let pred = d
+            .find("predicate: Some(\"")
+            .map(|i| {
+                let rest = &d[i + 17..];
+                rest[..rest.find('"').unwrap_or(0)].to_string()
+            })
+            .unwrap_or_default();
+        format!("ERR:{head}:{pred}")
+    }
+
+    fn run<T: Scalar>(scalar: &str, out: &mut String) {
+        for (name, b64, bt) in bodies::<T>() {
+            for (fi, ((k64, f64face), (kt, _))) in b64.faces().zip(bt.faces()).enumerate() {
+                let Some(s) = b64.get_surface(f64face.surface) else { continue };
+                if !matches!(
+                    s,
+                    Surface::Sphere { .. } | Surface::Torus { .. } | Surface::Cylinder { .. } | Surface::Cone { .. }
+                ) {
+                    continue;
+                }
+                let frame = Frame::of(s);
+                let pts = points(&b64, k64, &frame);
+                for eps in [1e-6, 1e-9, 1e-12] {
+                    let band = Band::linear_at(tol(), eps).unwrap();
+                    for (tag, p) in &pts {
+                        let q: Point3<T> = pt(*p);
+                        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                            topo::curved_face_containment(&bt, kt, q, band)
+                        }));
+                        let r = match r {
+                            Err(_) => "PANIC".to_string(),
+                            Ok(Ok(Some(FaceContainment::Out))) => "out".into(),
+                            Ok(Ok(Some(FaceContainment::In))) => "in".into(),
+                            Ok(Ok(Some(FaceContainment::OnEdge(e)))) => format!("onedge{e:?}"),
+                            Ok(Ok(Some(FaceContainment::OnVertex(v)))) => format!("onvtx{v:?}"),
+                            Ok(Ok(Some(other))) => format!("{other:?}"),
+                            Ok(Ok(None)) => "none".into(),
+                            Ok(Err(e)) => short(&e),
+                        };
+                        let _ = writeln!(out, "{scalar}|{name}|f{fi}|{eps:e}|{tag}|{r}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn review_differential_6252() {
+        let Ok(path) = std::env::var("REVIEW_OUT") else { return };
+        let mut out = String::new();
+        let which = std::env::var("REVIEW_SCALAR").unwrap_or_default();
+        if which != "interval" {
+            run::<f64>("f64", &mut out);
+        }
+        if which != "f64" {
+            run::<geom_core::Interval>("Interval", &mut out);
+        }
+        std::fs::write(path, out).unwrap();
+    }
+}
