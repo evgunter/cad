@@ -87,33 +87,3 @@ fails at ε 1e-6 under `CAD_FUZZ_SEED=0x9cb9baff9ceb8aeb CAD_FUZZ_EFFORT=1`:
 not the region arm's. The test draws its seed per run, so it is red only
 on runs that draw this one. By the discipline's fuzzer rule, the
 counterexample is owed a pinned deterministic row beside its fix.
-
-## Two blend-wording rows red on main since PR 6200 (RESTCURVE, PR 6163, 2026-11-01)
-
-Not sweep-analytic rows; filed here as main-red evidence rather than as a
-new row. Both fail on bare `origin/main` at `a95036de` at the default ε,
-in a clean worktree, and both read text that PR 6200
-(`chrome/blend-recourse-words`, merge `c43600e2`) re-worded in
-`crates/sweep/src/blend/mod.rs`:
-
-- `editor-core` `refusal_concision_chains::every_node_refusal_renders_within_the_budget`
-  (`crates/editor-core/tests/refusal_concision_chains.rs:711`):
-  `Blend/UnsupportedRunOut` renders 90 words and
-  `Blend/UnsupportedCorner(mixed)` 95, both over the 75-word budget, the
-  new corner recourse carrying most of it.
-- `editor-core` `refusal_concision_chains::every_carried_refusal_draws_within_the_budget_at_every_line`
-  (`:1523`) and `refusal_concision_chains::every_blend_detail_renders_within_the_budget`
-  (`:6394`), the same 88–95-word renders. These two were seen red in PR
-  6163's CI (run 41276664783) on the merge with `a95036de` and not re-run
-  on bare main; they share the cause.
-- `sweep` `m5_pr12_die_body::a_subset_of_the_edges_refuses_at_the_assembly_front_door`
-  (`crates/sweep/tests/m5_pr12_die_body.rs:185`): "the refusal names the
-  missing front door" no longer matches the re-worded curved-end-face
-  refusal ("a straight blend would have to stop against a curved face,
-  which is not supported yet; …").
-- `sweep` `m6_surgery::the_surgery_front_door_refuses_its_named_gaps`
-  (`crates/sweep/tests/m6_surgery.rs:479`, a slow-set row): "the refusal
-  names the run-out gap", against the same re-worded refusal. Seen red in
-  PR 6163's local default-ε sweep run, not re-run on bare main.
-
-None of these tests is in PR 6200's diff. Why its CI passed was not looked into.
