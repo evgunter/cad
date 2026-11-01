@@ -1566,11 +1566,30 @@ impl NurbsSurface<Interval> {
     /// points, and `eval` there reads the end pieces' polynomial
     /// extension, so a clipped answer would be smaller than `eval`'s.
     pub fn rect_enclosure(&self, u: (f64, f64), v: (f64, f64)) -> Point3<Interval> {
+        let seed = Interval::from_bounds(u.0, u.1) + Interval::from_bounds(v.0, v.1);
+        self.rect_net(u, v)
+            .and_then(|points| points.into_iter().reduce(hull_point))
+            .unwrap_or_else(|| poison_point(seed))
+    }
+
+    /// **The control points of the patch restricted to `u × v`**,
+    /// dehomogenized: on each knot cell the rectangle meets, the
+    /// Bernstein net of exactly that piece ([`Self::rect_enclosure`]),
+    /// every restricted weight certified positive. Each point of the
+    /// patch over the rectangle is a convex combination of one cell's
+    /// points, so an affine function of the point is enclosed by the
+    /// hull of its values at them. A rectangle with no extent on an axis
+    /// restricts that axis to its one parameter: the points are an iso's
+    /// restricted net, repeated.
+    ///
+    /// `None` for a rectangle past the knot domain, one that meets no
+    /// cell, a restriction the blossom door refuses, and a restricted
+    /// weight not certified positive.
+    pub fn rect_net(&self, u: (f64, f64), v: (f64, f64)) -> Option<Vec<Point3<Interval>>> {
         let (iu, iv) = (
             Interval::from_bounds(u.0, u.1),
             Interval::from_bounds(v.0, v.1),
         );
-        let poison = || poison_point(iu + iv);
         // The knot reads here and in `clip_to_span` only select cells and
         // clip ends: the restriction re-admits each end to the span's own
         // knots (`blossom`'s `admit`) and refuses one outside it.
@@ -1579,18 +1598,16 @@ impl NurbsSurface<Interval> {
             start.hi() <= lo && lo <= hi && hi <= end.lo()
         };
         if !(inside(&self.knots_u, u) && inside(&self.knots_v, v)) {
-            return poison();
+            return None;
         }
-        let (Some(su), Some(sv)) = (self.knots_u.locate(iu), self.knots_v.locate(iv)) else {
-            return poison();
-        };
+        let (su, sv) = (self.knots_u.locate(iu)?, self.knots_v.locate(iv)?);
         let clip_to_span = |knots: &Knots<Interval>, span: Span<'_>, (lo, hi): (f64, f64)| {
             let values = knots.values();
             let a = lo.max(values.get(span.index())?.lo());
             let b = hi.min(values.get(span.index() + 1)?.hi());
             (a <= b).then(|| (Interval::from_bounds(a, a), Interval::from_bounds(b, b)))
         };
-        let mut acc: Option<Point3<Interval>> = None;
+        let mut points = Vec::new();
         for cu in su.0.span().index()..=su.1.span().index() {
             for cv in sv.0.span().index()..=sv.1.span().index() {
                 let Some(win) = self.window(cu, cv) else {
@@ -1602,13 +1619,10 @@ impl NurbsSurface<Interval> {
                 ) else {
                     continue;
                 };
-                let Some(piece) = restricted_hull(win, eu, ev) else {
-                    return poison();
-                };
-                acc = Some(acc.map_or(piece, |a| hull_point(a, piece)));
+                points.extend(restricted_points(win, eu, ev)?);
             }
         }
-        acc.unwrap_or_else(poison)
+        (!points.is_empty()).then_some(points)
     }
 }
 
@@ -1810,24 +1824,21 @@ fn restricted_jet(
     Some((su, sv, suv))
 }
 
-/// The hull of the dehomogenized control points of `win`'s piece
-/// restricted to `eu × ev` ([`NurbsSurface::rect_enclosure`]), or
-/// `None` where a restriction refuses or a restricted weight is not
-/// certified positive.
-fn restricted_hull(
+/// The dehomogenized control points of `win`'s piece restricted to
+/// `eu × ev` ([`NurbsSurface::rect_net`]), or `None` where a
+/// restriction refuses or a restricted weight is not certified positive.
+fn restricted_points(
     win: SurfaceWindow<'_, Interval>,
     eu: (Interval, Interval),
     ev: (Interval, Interval),
-) -> Option<Point3<Interval>> {
-    let mut acc: Option<Point3<Interval>> = None;
-    for [x, y, z, w] in restricted_net(win, eu, ev)?.into_iter().flatten() {
-        if !(w.is_certified() && w.lo() > 0.0) {
-            return None;
-        }
-        let p = Point3::new(x / w, y / w, z / w);
-        acc = Some(acc.map_or(p, |a| hull_point(a, p)));
-    }
-    acc
+) -> Option<Vec<Point3<Interval>>> {
+    restricted_net(win, eu, ev)?
+        .into_iter()
+        .flatten()
+        .map(|[x, y, z, w]| {
+            (w.is_certified() && w.lo() > 0.0).then(|| Point3::new(x / w, y / w, z / w))
+        })
+        .collect()
 }
 
 /// The point a poison parameter pair evaluates to:

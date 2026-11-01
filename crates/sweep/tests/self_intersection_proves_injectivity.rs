@@ -1881,18 +1881,17 @@ fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
         .collect()
 }
 
-/// **A lens loft's caps refuse at the lens tip, at both scalars.** Two
-/// unit lens sections, two arcs on one chord, one above the other: each
-/// cap is a plane bounded by two circles meeting at the two tips. A cap
-/// cell holding a tip holds both arcs, and no presentation reads a
-/// corner of two curved edges on a plane; the one reading left there
-/// is the wall's departure from the cap's plane, whose zero side the
-/// centred form reads to second order in the wall cell, so it decides
-/// only on cells the depth budget does not reach. This is the tour's
-/// `lily_leaf_a` cap corner (`demos/tour/tests/lily.rs`), built here at
-/// both scalars.
+/// **A lens loft's caps hold against its walls at the lens tip, at both
+/// scalars.** Two unit lens sections, two arcs on one chord, one above
+/// the other: each cap is a plane bounded by two circles meeting at the
+/// two tips. A cap cell holding a tip holds both arcs, and no
+/// presentation reads a corner of two curved edges on a plane; the
+/// wall's departure from the cap's plane certifies it, the wall's side
+/// on the shared edge read off its own restricted iso net, which lies
+/// in the cap's plane. This is the tour's `lily_leaf_a` cap corner
+/// (`demos/tour/tests/lily.rs`), built here at both scalars.
 #[test]
-fn a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars() {
+fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     fn lens_loft<T: Scalar>() -> Body<T> {
         let lens = vec![profile::test_support::bulge_loop(vec![
             (Point2::new(0.5, 0.0), -0.3),
@@ -1907,6 +1906,21 @@ fn a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars() {
             .expect("the lens loft lofts")
             .body
     }
+    fn receipts<T: Scalar>(what: &str, body: &Body<T>) -> Vec<(usize, u32)> {
+        adjacent(body, true)
+            .into_iter()
+            .map(|(a, b)| {
+                let report = pair_report(body, a, b, 8192);
+                assert!(
+                    matches!(report.verdict, BoundVerdict::Holds),
+                    "{what}: {a:?} against {b:?} holds: {:?} {:?}",
+                    report.verdict,
+                    report.receipt
+                );
+                (report.receipt.splits, report.widths.deepest)
+            })
+            .collect()
+    }
     let (float, interval) = (lens_loft::<f64>(), lens_loft::<Interval>());
     let pairs = adjacent(&float, true);
     assert_eq!(pairs.len(), 4, "two caps against two walls: {pairs:?}");
@@ -1915,13 +1929,17 @@ fn a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars() {
         pairs,
         "one topology at both scalars"
     );
-    let (cap, wall) = if is_plane(&float, pairs[0].0) {
-        pairs[0]
-    } else {
-        (pairs[0].1, pairs[0].0)
-    };
-    assert_refuses_at_depth("the lens loft's cap", &float, cap, wall);
-    assert_refuses_at_depth("the lens loft's cap at Interval", &interval, cap, wall);
+    let pinned = [(0, 0), (0, 0), (0, 0), (0, 0)];
+    assert_eq!(
+        receipts("the lens loft", &float),
+        pinned,
+        "each cap-wall pair's (splits, deepest cell)"
+    );
+    assert_eq!(
+        receipts("the lens loft at Interval", &interval),
+        pinned,
+        "each cap-wall pair's (splits, deepest cell) at Interval"
+    );
 }
 
 /// **A twisted loft refuses along a seam, at both scalars.** The
