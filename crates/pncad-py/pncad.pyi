@@ -5468,10 +5468,11 @@ class CancelToken:
     """The cooperative stop for a running evaluation — a handle onto
     ONE flag, shared with the run it was passed to.
 
-    Cooperative at NODE granularity: the kernel reads the flag between
-    nodes (between levels on the parallel schedule) and never inside a
+    Cooperative between nodes and between a family's members: the
+    kernel reads the flag between nodes (between levels on the parallel
+    schedule) and before each member of a family, and never inside a
     kernel op, so `cancel()` does not abort a boolean already in
-    flight — it stops the run before the next node starts.
+    flight — it stops the run before the next node or member starts.
 
     One-way, with no reset: a flag a canceled run observed cannot be
     un-observed, and a reusable token would let two runs disagree
@@ -5815,8 +5816,9 @@ def evaluate(
     stands.
 
     `cancel` is the COOPERATIVE STOP: a `CancelToken` the caller keeps
-    a handle on, checked between nodes, so a run already under way can
-    be abandoned. Omitted, this door mints a fresh token nobody holds
+    a handle on, checked between nodes and a family's members, so a run
+    already under way can be abandoned. Omitted, this door mints a
+    fresh token nobody holds
     — which is what it did before the keyword existed, and is why an
     evaluation without one is never canceled. A canceled run is a
     PARTIAL ANSWER and not a raise: it returns normally with

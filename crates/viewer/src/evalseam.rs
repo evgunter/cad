@@ -60,7 +60,8 @@
 //! [`InlineEvaluator`] and [`ThreadEvaluator`] both.
 //!
 //! The cancelation is the shipped `CancelToken` and nothing else: it
-//! is checked between nodes, so a canceled run returns its completed
+//! is checked between nodes and a family's members, so a canceled run
+//! returns its completed
 //! prefix typed as `EvalOutcome::Canceled`. That prefix answers a
 //! document nobody asked to see half of, so it never becomes anyone's
 //! picture: the memo is primed only from a completed run
@@ -90,9 +91,10 @@
 //!
 //! **It has no `cancel`, and that is a promise this seam makes and
 //! that one does not.** A cancelation here could only be the shipped
-//! `CancelToken`, which is checked BETWEEN NODES; the step an index
-//! build is made of — `mesh::tessellate` and the triangle BVH — has no
-//! nodes to be checked between and takes no token at all. So the
+//! `CancelToken`, which is checked between nodes and a family's
+//! members; the step an index build is made of — `mesh::tessellate`
+//! and the triangle BVH — has neither to be checked between and takes
+//! no token at all. So the
 //! policy is **restart without cancel**: a submit while a build is in
 //! flight lets that build run to completion and drops its answer
 //! inside the seam. The cost is one wasted build, and on a document
@@ -729,7 +731,7 @@ pub struct DoorDone {
 
 /// **The door seam's vocabulary** — [`EvalService`]'s shape, cancel
 /// included, because the door's replay reads a token between nodes
-/// and between the margins it discharges. The door costs seconds on a
+/// and a family's members, and between the margins it discharges. The door costs seconds on a
 /// filleted document, which is why it is a seam at all: a landing
 /// draws at once, its checks report reads the door *pending*, and the
 /// next edit cancels the job.
@@ -824,7 +826,8 @@ pub struct StagedDone {
 }
 
 /// **The staged seam's vocabulary** — [`DoorService`]'s, because a
-/// staged run reads a token between nodes: the next stage cancels it.
+/// staged run reads a token between nodes and a family's members: the
+/// next stage cancels it.
 /// Its own seam, so a draft's verdict never cancels the run the
 /// picture is waiting for.
 ///
@@ -1433,8 +1436,8 @@ mod threaded {
             // holding a `Doc` past the session's life is exactly the
             // shape that makes shutdown nondeterministic. This seam is
             // the one that may wait, because the evaluation checks the
-            // token between nodes and the join is therefore bounded by
-            // one node.
+            // token between nodes and a family's members, and the join
+            // is therefore bounded by one node or one member.
             self.cancel.cancel();
             self.inner.close_and_join();
         }
@@ -1508,8 +1511,8 @@ mod threaded {
         /// **do not wait for it** ([`Coalescing::close`]).
         ///
         /// [`ThreadEvaluator`] joins, and can: it cancels first, and
-        /// the evaluation checks the token between nodes, so the join
-        /// is bounded by one node. Nothing bounds a join here. A
+        /// the evaluation checks the token between nodes and a family's
+        /// members, so the join is bounded by one node or one member. Nothing bounds a join here. A
         /// window whose close button did nothing for the thirteen
         /// seconds an index build takes would be paying for shutdown
         /// determinism with the one thing this whole seam exists to

@@ -2,11 +2,14 @@
 id: face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt
 kind: issue
 title: Face-line germs read unit in the strut and walk orders amplify a within-zero tilt by 1/sin φ (insert strut_order, walks_after; vtxfac germ_order)
-status: open
+status: closed
+branch: splitdoor/face-line-germ-lean
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach]
+closed: 2026-11-01
+pr: 6238
 ---
 
 
@@ -46,3 +49,7 @@ Upright it is `Ok(true)`. Tilted by 0.2ε it is `Escalated { Coincidence(Sectors
 - The germ would have to carry its line's lean `|n_a × n_b|` (1 for a germ along an edge or a tangent locus). That runs through `Cut`, `vtxfac`'s `Germ` and `pierce_germ_dir`'s return.
 - Against a true edge, the plane-offset reading is exact: levering at `reach · lean` reads the edge's far end off the germ's other face.
 - **Germ against germ** is a lever choice the PR 6212 ruling did not make. Both directions carry a conditioning, so whose plane does the reading measure off? A candidate is `min(lean₀, lean₁)`: the noise then stays within the two faces' own tilts, `arm · min(s₀, s₁) · (δ₀/s₀ + δ₁/s₁) ≤ arm · (δ₀ + δ₁)`. It needs a ruling before it is built.
+
+## 2026-11-01 (SPLITDOOR, `splitdoor/face-line-germ-lean`)
+
+Built per the orchestrator's ruling. Every germ now carries its lean (`sectors::Leaned`): `|n_a × n_b|` for a face line from `insert.rs` `germ_dir`, `vtxfac::pierce_germ_dir` or the held pierce, and 1 for an edge, a bound or a tangent locus. `Cut`, vtxfac's `Germ` and `PlannedRun.order` carry it. Every reading of two directions in the order machinery levers by `sectors::leaned_lever`, `lever · min(lean₀, lean₁)`: `strut_order`'s side and order, `walks_after` (and through it `cut_order` and `walks_before`), and vtxfac `germ_order`'s side and apart, plus `tie_breaks_after`. The derivation is at the helper. The review probe is now `insert.rs` `a_germ_tilted_within_the_zero_sides_the_arrival_edge_as_upright`, and the germ-vs-germ row is `two_germs_tilted_within_the_zero_walk_as_upright`.
