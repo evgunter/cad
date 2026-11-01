@@ -322,3 +322,11 @@ Signed: (CARVE orchestrator)
     - `monotone-halves-retest-the-hull-that-just-failed` (P3).
   - The price row is parked on the first two.
   - **Class, recorded:** CLEAR has four filed rows whose enclosure width grows with translation. One home for a rational derivative over a cell is the fix; JETFRAME sweeps for it.
+- 2026-11-01 — **TRV merges (#6233)** with this commit last. The clearance engine refuses what does not certify.
+  - **R1, at the lift.** The lift is now a type, `lift::Lift`, minted only by `certified_lift`, and every reader takes it.
+  - **`poisoned(sep)`** gates the root, pair, witness and overflow reads. `overflow` now poisons as `pair` does, instead of flooring at 0.
+  - **`present_chart`** asks each clip line where it is placed. `present_plane`'s `[e]` arm asks `y`.
+  - **Census:** clearance 25/7, injective 70/27.
+  - **The review.** A single FULL review at `5caee7bf7e` returned APPROVE-WITH-FIXES. Six of its 19 mutants survived, all sub-asks or unpinned gates. It also found that the touch read came before the merge's ask. The fix pass (`838c6136de`) pinned every one; 18 of 18 are now killed. On the way it found that the census lane's reading of the `[e]` arm was right, and withdrew the "row is wrong" claim. The orchestrator read it and accepted it.
+  - **Class, recorded:** for the fourth unit running, the mutant table pinned one coordinate, one end or one site per class. This time it was the sub-asks inside a site.
+  - **Filed:** `injective-reads-past-the-trv-census-decide-on-clamped-enclosures` (P2). SPLICE's census drift was filed separately (#6236).

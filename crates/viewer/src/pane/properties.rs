@@ -178,17 +178,23 @@ impl ViewerBehavior<'_> {
         ui.label("variables");
         for row in crate::props::variable_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
-            if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+            if crate::widgets::message_link(ui, variable_line(&row, *self.notation)).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
             }
         }
         for row in crate::props::defined_rows(self.session.doc()) {
-            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
-                .clicked()
-            {
+            if crate::widgets::message_link(ui, defined_line(&row, *self.notation)).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
+            }
+            // Why it reads nothing, under its line — except while it is
+            // selected, when its own row above says it (`reading_notes`)
+            // and this pane says a fact once.
+            if self.session.selection() != &Selection::Variable(row.var) {
+                for line in reading_faults(&row.label.to_string(), &row.value) {
+                    crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
+                }
             }
         }
         self.add_variable_ui(ui);
@@ -1589,6 +1595,38 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
     }
 }
 
+/// **A free variable's line in the variables list**: its name and its
+/// value, `t = 20 mm`. The value is said in the unit its own field
+/// shows it in ([`variable_showing`]): the notation it was declared in,
+/// or the working notation where it remembers none
+/// ([`props::rendering_unit`]), so the list and the row say one value
+/// in one unit. The digits are [`props::shown_text`]'s bounded readout,
+/// where the field shows the number it edits.
+pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
+    format!(
+        "{} = {}",
+        row.label,
+        props::shown_text(
+            props::rendering_unit(row.dimension, row.unit, notation),
+            row.value.as_f64()
+        )
+    )
+}
+
+/// **A defined variable's line in the variables list**: its name, its
+/// definition and what that reads, `w = 2 * t = 40 mm` — the reading
+/// as a driven slot's field says it ([`props::reading_text`]), with why
+/// it reads nothing said under the line ([`reading_faults`]).
+pub(crate) fn defined_line(row: &props::DefinedRow, notation: Notation) -> String {
+    format!(
+        "{} = {} {} {}",
+        row.label,
+        row.formula,
+        props::DRIVEN,
+        props::reading_text(&row.value, row.dimension, notation)
+    )
+}
+
 /// **A defined variable's value field**: its formula over the number
 /// it evaluates to, and the formula again as the text an edit starts
 /// from, as a driven slot's field shows its expression. A definition
@@ -1659,19 +1697,36 @@ pub(crate) fn reading_notes(
     dimension: Dimension,
     notation: Notation,
 ) -> Vec<String> {
-    match value {
-        Ok(props::Reading::One(_)) => Vec::new(),
-        Ok(props::Reading::PerMember(members)) => core::iter::once(format!(
+    let values = match value {
+        Ok(props::Reading::PerMember(members)) => Some(format!(
             "{subject} at each member: {}",
             members.spelled(dimension, notation)
-        ))
-        .chain(
-            members
-                .refusals()
-                .into_iter()
-                .map(|line| format!("{subject} {line}")),
-        )
-        .collect(),
+        )),
+        Ok(props::Reading::One(_)) | Err(_) => None,
+    };
+    values
+        .into_iter()
+        .chain(reading_faults(subject, value))
+        .collect()
+}
+
+/// **Why a reading reads nothing, wholly or at some members**, one line
+/// each and every line naming `subject`: the fault where it does not
+/// evaluate, each refusal among its members with the members it
+/// refused at. Empty for a reading that refused nowhere. The part of
+/// [`reading_notes`] a line that already says the reading's value
+/// ([`defined_line`]) has left to say.
+pub(crate) fn reading_faults(
+    subject: &str,
+    value: &Result<props::Reading, props::SlotFault>,
+) -> Vec<String> {
+    match value {
+        Ok(props::Reading::One(_)) => Vec::new(),
+        Ok(props::Reading::PerMember(members)) => members
+            .refusals()
+            .into_iter()
+            .map(|line| format!("{subject} {line}"))
+            .collect(),
         Err(error) => vec![format!("{subject}: {error}")],
     }
 }
@@ -2454,6 +2509,131 @@ mod tests {
         assert!(
             !metres.contains("no m reading"),
             "metres still name it, so the refusal is the notation's: {metres}"
+        );
+    }
+}
+
+/// **The variables list says each variable's value**, in the unit its
+/// own field shows it in.
+#[cfg(test)]
+mod variable_lines {
+    use pncad::document::{Dimension, EvalError, SpokenVar, VarId, VarName};
+
+    use super::{defined_line, reading_faults, reading_notes, variable_line};
+    use crate::props::{
+        DefinedRow, NO_VALUE, Notation, Reading, SlotFault, SlotValue, VariableRow,
+    };
+
+    fn spoken(name: &'static str) -> SpokenVar {
+        SpokenVar::new(VarId::new(0, 7), Some(VarName::from_static(name)))
+    }
+
+    fn defined(value: Result<Reading, SlotFault>) -> DefinedRow {
+        DefinedRow {
+            var: VarId::new(0, 8),
+            label: spoken("w"),
+            dimension: Dimension::Length,
+            formula: "2 * t".to_owned(),
+            value,
+        }
+    }
+
+    /// A length declared in millimetres reads in millimetres whatever
+    /// the working notation; a count reads as the number it is.
+    #[test]
+    fn a_free_variable_reads_its_value_in_its_own_unit() {
+        let row = VariableRow {
+            var: VarId::new(0, 7),
+            label: spoken("t"),
+            dimension: Dimension::Length,
+            value: SlotValue::Continuous(0.02),
+            unit: Some(pncad::quantity::MM.def()),
+        };
+        assert_eq!(variable_line(&row, Notation::DEFAULT), "t = 20 mm");
+        let count = VariableRow {
+            dimension: Dimension::Count,
+            value: SlotValue::Count(3),
+            unit: None,
+            ..row
+        };
+        assert_eq!(variable_line(&count, Notation::DEFAULT), "t = 3");
+    }
+
+    /// The working notation is the one a definition reads in, and a
+    /// free variable remembering no unit reads in it too (review of
+    /// #6242): under millimetres, `0.04 m` is `40 mm`, so a line that
+    /// kept the default notation goes red.
+    #[test]
+    fn the_working_notation_is_what_an_unwritten_value_reads_in() {
+        let millimetres = Notation {
+            length: pncad::quantity::MM,
+            ..Notation::DEFAULT
+        };
+        assert_eq!(
+            defined_line(
+                &defined(Ok(Reading::One(SlotValue::Continuous(0.04)))),
+                millimetres
+            ),
+            "w = 2 * t = 40 mm"
+        );
+        let unremembered = VariableRow {
+            var: VarId::new(0, 7),
+            label: spoken("t"),
+            dimension: Dimension::Length,
+            value: SlotValue::Continuous(0.02),
+            unit: None,
+        };
+        assert_eq!(variable_line(&unremembered, millimetres), "t = 20 mm");
+    }
+
+    /// A definition reads its value in the working notation, and one
+    /// that reads nothing says the field's `?`.
+    #[test]
+    fn a_defined_variable_reads_its_definition_and_its_value() {
+        assert_eq!(
+            defined_line(
+                &defined(Ok(Reading::One(SlotValue::Continuous(0.04)))),
+                Notation::DEFAULT
+            ),
+            format!(
+                "w = 2 * t = {}",
+                crate::props::computed_text(Dimension::Length, 0.04, Notation::DEFAULT)
+            )
+        );
+        assert_eq!(
+            defined_line(
+                &defined(Err(SlotFault::Eval(EvalError::NonFiniteResult))),
+                Notation::DEFAULT
+            ),
+            format!("w = 2 * t = {NO_VALUE}")
+        );
+    }
+
+    /// **A definition refused at some members says why, as its row
+    /// does**: the list line shows the span, and the lines under it are
+    /// the refusals the selected row's notes carry — every note but the
+    /// values line, which the span already says.
+    #[test]
+    fn a_partly_refused_definition_says_its_refusals_as_its_row_does() {
+        let members = crate::props::MemberValues::new(
+            vec![spoken("k")],
+            vec![
+                (vec![0], Ok(SlotValue::Continuous(0.01))),
+                (vec![1], Err(EvalError::NonFiniteResult)),
+            ],
+        );
+        let value = Ok(Reading::PerMember(members));
+        let faults = reading_faults("w", &value);
+        assert!(!faults.is_empty(), "the refused member is said");
+        let notes = reading_notes("w", &value, Dimension::Length, Notation::DEFAULT);
+        assert_eq!(
+            notes[1..],
+            faults[..],
+            "the row's refusal lines, and only those"
+        );
+        assert!(
+            defined_line(&defined(value), Notation::DEFAULT).contains(NO_VALUE),
+            "the span says a member refused"
         );
     }
 }
