@@ -1949,3 +1949,12 @@ Signed (CLEAVE orchestrator).
   - 104 cells per ε go from refused to built, with no regressions (measured before the main merge).
   - Two P3 rows filed: a curved division edge, and the sphere cut-in voice.
   - Full single review dispatched. Its claims cover other mutants, near-along `d`, a straddling sector, the post-merge diff, and `BesideNoPiece`'s fallback. (CLEAVE orchestrator)
+
+- 2026-11-01: The 6237 full review is in: mergeable, nothing blocking.
+  - Confirmed by running: every pick is right by a geometric check; every wrong-side mutant is caught by `held_by_kept_faces`; an in-band `d` never reaches `piece_beside`; the outcome diff on current main matches (104 per ε, 0 regressions). The bisector argument holds, and a wrong pick would only touch naming (`SubstitutedFace.by`).
+  - A small fix pass was sent:
+    - `fallback_fates` cannot reach `BesideNoPiece` (fresh divisions), so the 'kept uncut' text is false.
+    - The curved-edge P3 row gets the reviewer's witness.
+    - `held_by_kept_faces` should check holding (`point_in_face`), not survival.
+    - Doc fixes, and one home for the touch site's on-edge text.
+    - A P3 row for three 'which piece holds `d`' readers. (CLEAVE orchestrator)
