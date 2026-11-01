@@ -111,5 +111,9 @@ in a clean worktree, and both read text that PR 6200
   missing front door" no longer matches the re-worded curved-end-face
   refusal ("a straight blend would have to stop against a curved face,
   which is not supported yet; …").
+- `sweep` `m6_surgery::the_surgery_front_door_refuses_its_named_gaps`
+  (`crates/sweep/tests/m6_surgery.rs:479`, a slow-set row): "the refusal
+  names the run-out gap", against the same re-worded refusal. Seen red in
+  PR 6163's local default-ε sweep run, not re-run on bare main.
 
-Neither test is in PR 6200's diff. Why its CI passed was not looked into.
+None of these tests is in PR 6200's diff. Why its CI passed was not looked into.
