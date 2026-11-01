@@ -2,11 +2,12 @@
 id: the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar
 kind: issue
 title: The sphere door cannot settle a pole at the certified (interval) scalar, so tier 3's pole side still reads locate
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
 cost: M
 refs: [validate-tier3-curved-boundary-containment, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt, import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave]
+branch: restcurve/pole-door
 ---
 
 ## What
@@ -63,3 +64,19 @@ this row needs it from topo. This is the ratified design, one
 reader and the doors, with its order changed. Import follows
 (`work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`).
 Filed by RESTCURVE's region-arm lane.
+
+## Spec (RESTCURVE orchestrator, 2026-11-01)
+
+Branch `restcurve/pole-door`. Review tier: **dual**: the fix is in a door the boolean shares, and it moves a tier-3 reading onto that door (difficulty M). Arm: **HOLDOUT**, a concurrent pair (byte 198, mod 3 = 0).
+
+1. **Root-cause the six enclosures.** For each named test, record which path, which leg and which reading gives the whole-turn enclosure at Interval (`bool_sphere_region_at`: a crossing's place along a great circle from the pole; `bool_sphere_region_span`: a root against its arc's span). Write it in the PR body before changing code.
+2. **Make the sphere door settle a point at a pole at the certified scalar**, with no reading through an angle whose enclosure spans a turn. Read crossings and spans by certified algebraic predicates (signs of dot and cross products against the arc's plane and endpoints) where the angle is ill-conditioned, or aim the paths from a pole along meridians where the angle is exact. Do the same for the cone door at an apex if the same reading is used there; if no row reaches it, say so and file a P3.
+   **Stop and report** if the choice of reading would change an answer the boolean relies on, or needs a design choice.
+3. **The switch.** Tier 3's chart-singularity side reads through the face's door, with every surface cycle kept, at the singular point. An in-band reading refuses `ChartSingularityUndecided` with `SideUnread::Banded`. The at-a-vertex and inside-an-edge placements stay on `place_on_boundary`, the one incidence reading. Tier 3's use of `walk_loop` and its area-error bound retires, and `a-loop-the-chart-singularity-walk-cannot-certify-is-exempt` closes by retirement if nothing else reads it (say what still does: import, per FOREIGN's row).
+4. **Rows:**
+   - the six named interval tests pass;
+   - `props_sphere_cap_door::a_tilted_cap_holds_a_pole_by_its_region` passes, now through the door;
+   - a sphere face holding a pole near a boundary (1e-2, 1e-3, 1e-4 rad) at f64 and Interval;
+   - PR 6054's 10 µm sliver 1 cm from a pole passes;
+   - a pole read in band escalates typed with its margin.
+5. **No false refusal:** topo, step-import, step-export and sweep at ε 1e-6, the default and 1e-12, plus every interval/certified sweep test. **No answer moves:** a base-vs-head differential of `curved_face_containment` on sphere bodies (grid, near-pole and arc-edge points, f64 and Interval). Any definite flip must be explained.
