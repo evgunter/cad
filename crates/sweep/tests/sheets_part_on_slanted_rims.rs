@@ -191,7 +191,7 @@ fn a_rim_crossing_with_the_inner_plane_steeper_builds() {
 /// 3′ passes on `A ∖ B` and `A ∩ B`; on `A ∪ B` and `B ∖ A` it
 /// escalates `curve_pair_coplanar_sub_side` on the coplanar touch of
 /// `B`'s rim and the section arc, a touch the curve-pair reader cannot
-/// place (`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`).
+/// place (`work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`).
 #[test]
 fn rims_crossing_on_tangent_walls_build_every_op() {
     for tilts in [
@@ -223,7 +223,7 @@ fn rims_crossing_on_tangent_walls_build_every_op() {
 /// plane, tangent at `(2, 0, 0)`. The crossing layer reads their touch
 /// in band, the edge is deferred, and every op refuses
 /// `CurvedPierceUnsupported` (the coplanar ellipse touch,
-/// `work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`). Cut
+/// `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`). Cut
 /// flat, the same rims are circles, read and built.
 #[test]
 fn two_slanted_rims_tangent_on_the_ruling_refuse_at_their_touch() {

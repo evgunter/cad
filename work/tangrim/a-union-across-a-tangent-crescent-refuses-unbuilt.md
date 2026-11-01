@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-25
 priority: P1
 cost: H
-blocked_on: [the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways]
+blocked_on: [the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading]
 ---
 
 

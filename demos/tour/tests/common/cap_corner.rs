@@ -1,13 +1,10 @@
 //! **A cap against a wall, asked alone**: the injectivity question on
-//! one plane cap and one spline wall of a lofted or swept body, the
-//! pair `work/clear/injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams.md`
-//! pins at the corner where the cap's boundary curve gives way to the
-//! next one.
+//! one plane cap and one spline wall of a lofted or swept body, at the
+//! corner where the cap's boundary curve gives way to the next one.
 
 use pncad::geom_core::{Band, Tol};
 use pncad::topo::clearance::{
-    BoundVerdict, Budgets, CertificateArm, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal,
-    SharedCell, Side, Sweep, Which,
+    BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
 };
 use pncad::topo::{Body, FaceKey, Surface};
 
@@ -32,11 +29,12 @@ pub fn cap_wall_pairs(body: &Body<f64>) -> Vec<(FaceKey, FaceKey)> {
     .collect()
 }
 
-/// **The pair `(cap, wall)` refuses `Uncertified { Departure }` across
-/// an edge the two share, at the depth budget**: the corner's cells
-/// split to `DEFAULT_MAX_CELL_DEPTH` and stop there, rather than
-/// refusing at the root. `what` names the body in the messages.
-pub fn assert_refuses_at_depth(what: &str, body: &Body<f64>, (cap, wall): (FaceKey, FaceKey)) {
+/// **The pair `(cap, wall)` holds**: the departure arm certifies it,
+/// the cap's plane as the separator and the wall's side on the shared
+/// edge read off its own restricted iso net, well under the depth
+/// budget. `what` names the body in the messages. The receipt's splits
+/// and the deepest cell are returned for the caller to pin.
+pub fn assert_holds(what: &str, body: &Body<f64>, (cap, wall): (FaceKey, FaceKey)) -> (usize, u32) {
     let window = |f| {
         Side {
             body,
@@ -57,25 +55,22 @@ pub fn assert_refuses_at_depth(what: &str, body: &Body<f64>, (cap, wall): (FaceK
     let report = sweep.run(&window(cap), &window(wall), true, |_| {
         Err::<(), _>("no witness asked".to_owned())
     });
-    let refused = matches!(
-        report.verdict,
-        BoundVerdict::Refused(EngineRefusal::Uncertified {
-            a,
-            b,
-            shared: SharedCell::Edge(_),
-            arm: CertificateArm::Departure,
-        }) if (a, b) == (cap, wall)
+    println!(
+        "[zeroside] {what}: {cap:?} against {wall:?}: {:?} {:?} deepest {}",
+        report.verdict, report.receipt, report.widths.deepest
     );
     assert!(
-        refused,
-        "{what}: cap {cap:?} against wall {wall:?} refuses Uncertified Departure across their \
-         shared edge (the row's cap-corner locus); a fix flips this row: {:?} {:?}",
-        report.verdict, report.receipt
-    );
-    assert_eq!(
-        report.widths.deepest, DEFAULT_MAX_CELL_DEPTH,
-        "{what}: cap {cap:?} against wall {wall:?} refuses at the depth budget, not at the root: \
-         {:?}",
+        matches!(report.verdict, BoundVerdict::Holds),
+        "{what}: cap {cap:?} against wall {wall:?} holds: {:?} {:?}",
+        report.verdict,
         report.receipt
     );
+    assert!(
+        report.widths.deepest < 20,
+        "{what}: cap {cap:?} against wall {wall:?} holds well under the depth budget \
+         {DEFAULT_MAX_CELL_DEPTH}: deepest {} {:?}",
+        report.widths.deepest,
+        report.receipt
+    );
+    (report.receipt.splits, report.widths.deepest)
 }

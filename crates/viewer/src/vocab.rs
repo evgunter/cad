@@ -62,7 +62,7 @@
 //! Either way it is not a hole in this one.
 //!
 //! A DELIBERATELY PARTIAL mirror is not a vocabulary either
-//! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names two of five
+//! ([`crate::frame::SUBJECTS_WITH_AN_EXPIRY_ISSUER`] names three of six
 //! `Subject`s on purpose, and each tool's own seat list names its own
 //! seats). Those stay hand-written, because completeness is exactly
 //! what they do not claim — and a MIRROR among them takes

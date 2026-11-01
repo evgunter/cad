@@ -2,10 +2,11 @@
 id: departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget
 kind: issue
 title: At a cap corner no presentation reads the cap, and the wall-departs-the-cap's-plane reading that would certify it reads the wall's zero side through the centred form over a rational spline net, second order in the cell: it decides only at depth 51-73, past the budget of 40
-status: open
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: M
+closed: 2026-11-01
 ---
 
 
@@ -102,3 +103,49 @@ Pinned, today's refusal:
 
 The helix's closure is pinned by
 `the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars`.
+
+## At eps 1e-6 the lens row already holds (HEADING, 2026-11-01)
+
+At `CAD_TOLERANCE_EPS=1e-6`,
+`a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars` fails
+on main as of `45d0f75f`, with HEADING's change and without it. The
+pair `1v1`/`3v1` reads `Holds` there: 242 splits, nothing refused,
+certified 42. The row pins a refusal, so the nightly's 1e-6 row is
+red. Its default and 1e-12 rows pass.
+
+ZEROSIDE answers this: the row now pins `Holds`
+(`a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars`),
+and CI's 1e-6 row passes on it.
+
+## Fix (ZEROSIDE, 2026-11-01)
+
+Fix shape 1. `sign_on`'s `zero_on` reads a side through `on_side`
+(`crates/topo/src/injective.rs`): a linear `ψ` on a spline chart is
+the hull of `ψ` at the side's restricted control points, read through
+the new door `NurbsSurface::<Interval>::rect_net`
+(`crates/geom/src/surfaces/nurbs.rs`). That door is the one
+`rect_enclosure` now hulls, and it refuses a restricted weight not
+certified positive. Anywhere else the reading falls back to the
+centred form.
+
+At the default depth 40, every cap–wall pair of the three pinned
+bodies holds, at depth 0–9:
+
+- the lens loft at both scalars, at the root;
+- `lily_leaf_a` at depth 1–9;
+- the Klein loop at depth 1–3.
+
+The pinned rows are renamed:
+
+- `a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars`;
+- `lily::cap_corner_departure::each_cap_of_a_lens_blade_holds_against_its_walls_at_its_tip`;
+- `klein::cap_corner_departure::each_cap_of_the_loop_holds_against_its_walls_at_its_arc_vertices`.
+
+Whole body (release, 65536 pairs):
+
+- `lily_leaf_b` and `lily_leaf_c` hold, in 2.6 s and 4.5 s.
+- `lily_leaf_a` and the Klein loop refuse `Budget(Pairs)`, in 40 s
+  and 22 s. That is the wall-against-itself price of
+  `injectivity-price-on-tour-lofts-exceeds-the-pair-budget`, not
+  this locus.
+

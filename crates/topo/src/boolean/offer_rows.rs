@@ -666,6 +666,7 @@ fn line_drifting_off_a_walls_axis(drift: f64) -> Result<(), BooleanError> {
         1.0,
         1.0,
         band(),
+        super::super::solid_contain::About::Start,
     )
     .map(|_| ())
     .map_err(|fault| BooleanError::Escalated {
@@ -2247,7 +2248,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
-        | BooleanErrorKind::RestPieceUnread
         | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
@@ -2637,7 +2637,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
-    ("fate.rs", "places", "BooleanDecision::of_normal", 1),
+    ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
         "ring_winding",
@@ -2811,8 +2811,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "piece_reading", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_reading", "BooleanDecision::Containment", 1),
     ("ops.rs", "piece_reading", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
@@ -2980,13 +2978,18 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",
+        "bound_refusal",
+        "BooleanDecision::ConicBend",
+        1,
+    ),
+    (
+        "sectors.rs",
         "bisector_zero_refusal",
         "BooleanDecision::BisectorSide",
         1,
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
     ("sectors.rs", "coincident_run", "Coincide::Sectors", 1),
-    ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
     ("sectors.rs", "crescent", "Coincide::Sectors", 3),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
@@ -3000,12 +3003,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "pair_search", "Coincide::Sectors", 1),
     (
         "sectors.rs",
-        "read_side",
+        "bound_refusal",
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "read_side", "Coincide::SectorSide", 1),
-    ("sectors.rs", "read_side", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "bound_refusal", "Coincide::SectorSide", 1),
+    ("sectors.rs", "bound_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
     ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),

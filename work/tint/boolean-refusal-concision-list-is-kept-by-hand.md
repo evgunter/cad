@@ -21,13 +21,13 @@ for `topo::BooleanError`: the feature-tree census samples only its
 its `forward` (`crates/editor-core/tests/refusal_concision_chains.rs:1185`, `UNWELDED_BOOLEAN`) cites this row for `NodeErrorKind::Boolean`. The list
 renders "every arm whose prose the concision pass wrote", by hand: a
 scripted comparison of its constructors against the enum finds 37 of
-76 arms, so 39 never render through the budget there — `Band`,
+75 arms, so 38 never render through the budget there — `Band`,
 `CrossingAtConeApex`, `NormalAtConeApex`, `UnjoinedOperand`,
 `PoisonedCarrierDatum`, `DeclarationContradicted`,
 `ContactContradicted`, `ContinuationContradicted`,
 `UnsupportedDeclarationClass`, `InvalidInput`, `PairingMismatch`,
 `ClassificationInvariant`, `CrossingInsertion`, `Euler`, `Pcurves`,
-`Join`, `JoinUndecided`, `JoinCarrierUnsupported`, `RestPieceUnread`,
+`Join`, `JoinUndecided`, `JoinCarrierUnsupported`,
 `CarryRefused`, `JoinDesync`, `SplitLineage`, `LineageRow`,
 `EdgeUndescribed`, `MixedSeam`, `TornComponent`, `SeamOrientation`,
 `ZipCorrespondence`, `Merge`, `ResultInvalid`,

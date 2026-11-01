@@ -2,11 +2,13 @@
 id: the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways
 kind: issue
 title: entry_side and sectors::side_code read one bound's side of a plane two ways, and disagree at every first-order tie
-status: dispatched
+status: closed
 opened: 2026-10-13
 priority: P1
 cost: H
 branch: tangrim/one-bound-side-reading
+closed: 2026-11-01
+pr: 6217
 ---
 
 
@@ -71,3 +73,7 @@ Weighed by two designers for `a-union-across-a-tangent-crescent-refuses-unbuilt`
 5. **Text.** CURVED-DESIGN C7's list of descents in `crates/geom-brep/README.md` (agent-written, `b6b347fc12`) is re-worded with the code to "a bound against any face through the one bound-side reading; an in-band second-order tie escalates". CONTACT-DESIGN C7 (the glued tangent lump) is unchanged; a declaration keeps its job and does not enable a bound's reading. `pierce_side`'s "no reading of the bound alone gives" clause is false for an edge and goes.
 
 Declared tangency was weighed as the home and rejected: it certifies a face-pair tangency along a locus, while a bound's tie is a fact at a point, and the face-pair form reads the wrong object (worked: boss wall × plate top, the hole's rim reads `In` by its own bend, `Out` by the faces').
+
+## Closed
+
+2026-11-01, PR 6217 — stage 1 of the design above: one parting primitive (`geom_brep::parting`, seven sites routed through it) and one first-order bound-side reading (`topo::bound_side`) that the sector passes, the vertex-on-face pass and `splitting::entry_side` all call; CURVED-DESIGN C7's descent list re-worded to the code. No outcome moves at any ε (full review, probes on `tangrim/rev6217-probes`). The rest of the design — the sector passes descending, the gateways re-keyed, the curved-face arm, the vertex-pair charge, the witness, and the review's sweep residue — is `the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading` (P1 H), which this row's `## Design` still specifies.

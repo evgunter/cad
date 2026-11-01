@@ -682,6 +682,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
+            "tree.rs",
+            ".usable(",
+            "`split_reading` reads a staged split, which has no row: the split panel's verdict \
+             before commit, said in the panel and nowhere the tree draws",
+        ),
+        (
             "features.rs",
             ".usable(",
             "a unit test's premise: reads the measure's payload to name the reason it expects, \
