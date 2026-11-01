@@ -108,8 +108,8 @@ pub fn rest_on(
     to: viewer::session::FaceSelection,
 ) {
     let mut mate = viewer::matetool::MateTool::new();
-    mate.pick_in(session.doc(), session.part_files(), on);
-    mate.pick_in(session.doc(), session.part_files(), to);
+    mate.pick(session.doc(), on);
+    mate.pick(session.doc(), to);
     let (doc, _) = session.landed_pair().expect("landed");
     let proposal = mate
         .proposal(

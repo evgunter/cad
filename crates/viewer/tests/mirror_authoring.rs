@@ -84,7 +84,6 @@ fn mirror_tool_picking(session: &DocSession, faces: &[FaceSelection]) -> Tools {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -594,7 +593,6 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(Selection::Node(common::copy_of(
                     session.committed_doc(),
@@ -619,7 +617,6 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
     let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.002, 0.003));
     let _ = tools.feed(
         session.committed_doc(),
-        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Face(wall))],
     );
@@ -710,10 +707,7 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
     let line = tools
         .mirror()
         .expect("open")
-        .line(viewer::frame::shown_speaker(
-            session.doc(),
-            session.landed_pair(),
-        ));
+        .line(viewer::frame::landed_speaker(session.landed_pair()));
     let plane = line
         .split_once("mirror plane: ")
         .map(|(_, plane)| plane.to_owned())
@@ -826,7 +820,6 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(Selection::Node(b))]
             )
@@ -853,10 +846,7 @@ fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
     let line = tools
         .mirror()
         .expect("open")
-        .line(viewer::frame::shown_speaker(
-            session.doc(),
-            session.landed_pair(),
-        ));
+        .line(viewer::frame::landed_speaker(session.landed_pair()));
     let plane = line
         .strip_prefix(&format!("mirrored body: {said}; mirror plane: "))
         .unwrap_or_else(|| panic!("the body seat says the block: {line:?}"));
@@ -902,7 +892,6 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )

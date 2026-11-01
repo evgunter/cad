@@ -230,7 +230,7 @@ use std::path::Path;
 use pncad::document::{
     CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
     Maintenance, NamedCell, NodeErrorKind, ParseError, PartFault, ProductError, ProductErrorKind,
-    ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarId, VarName,
+    ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -2395,30 +2395,23 @@ fn coincidence_cells(
         .into_iter()
         .filter_map(|cell| match cell {
             NamedCell::Entity { input, name } => {
-                let (node, body) = cell_body(landed, *input)?;
-                // A face or an edge is said as the pick its button makes.
-                let picked =
-                    || Said(&crate::tree::PickedName::on(name, node, body), by).to_string();
+                // A face or an edge read off a drawn body is said as the
+                // pick its button makes, on that body. A placement's
+                // piece names no body index the read can say, so its
+                // cell selects the node, as a vertex's or a body's does.
+                let on = crate::world::read_body(landed, *input)
+                    .filter(|_| matches!(name.kind, EntityKind::Face | EntityKind::Edge));
+                let Some(on) = on else {
+                    let node = landed.operation_of(*input)?;
+                    return Some((by.name(name).to_string(), Selection::Node(node)));
+                };
+                let label = Said(&crate::tree::PickedName::new(name, on), by).to_string();
+                let (node, body, name) = (on.node, on.body, name.clone());
                 Some(match name.kind {
-                    EntityKind::Face => (
-                        picked(),
-                        Selection::Face(FaceSelection {
-                            name: name.clone(),
-                            node,
-                            body,
-                        }),
-                    ),
-                    EntityKind::Edge => (
-                        picked(),
-                        Selection::Edge(EdgeSelection {
-                            name: name.clone(),
-                            node,
-                            body,
-                        }),
-                    ),
-                    EntityKind::Vertex | EntityKind::Body => {
-                        (by.name(name).to_string(), Selection::Node(node))
+                    EntityKind::Face => {
+                        (label, Selection::Face(FaceSelection { name, node, body }))
                     }
+                    _ => (label, Selection::Edge(EdgeSelection { name, node, body })),
                 })
             }
             NamedCell::Tool { input, .. } => {
@@ -2430,19 +2423,6 @@ fn coincidence_cells(
             }
         })
         .collect()
-}
-
-/// **The drawn body a cell named at `input` is on**: the operation
-/// defining the read, and its port as the body's index in that
-/// operation's value — a split's second half is its node's body 1, so
-/// the cell's pick and its label name that half. A placement's piece is
-/// its placement's first body.
-fn cell_body(landed: &Doc<ProfileProgram>, input: VarId) -> Option<(RecipeNodeId, u32)> {
-    let node = landed.operation_of(input)?;
-    let body = landed
-        .defined_by(input)
-        .map_or(0, |(_, port)| u32::from(port));
-    Some((node, body))
 }
 
 /// **The Checks window's rows**, each body spoken from `landed`.
@@ -2764,20 +2744,6 @@ pub fn landed_speaker<'a>(
     landed.map_or(Speaker::TAG, |(doc, evaluation)| {
         Speaker::of(doc).within(evaluation)
     })
-}
-
-/// **The speaker for a tool's panel and the refusals beside it**: each
-/// node as the session's shown document holds it now, so a rename
-/// reads at once in the line and in a refusal drawn beside it, and each
-/// name within the landed evaluation's tables, the run its picks were
-/// read off ([`Speaker::within`]); with nothing landed, each name in
-/// full.
-pub fn shown_speaker<'a>(
-    shown: &'a Doc<ProfileProgram>,
-    landed: Option<(&'a Doc<ProfileProgram>, &'a Evaluation<f64>)>,
-) -> Speaker<'a> {
-    let by = Speaker::of(shown);
-    landed.map_or(by, |(_, evaluation)| by.within(evaluation))
 }
 
 /// **What the chrome badges about a camera that cannot be
@@ -3164,9 +3130,52 @@ mod tests {
     use crate::display::AdmissionFault;
     use crate::tree::RowStatus;
 
+    /// **One unproven coincidence between `cells`, about `subject`,
+    /// reported over `doc`**: the Checks window's rows are read from
+    /// this. Built by hand, the one fixture here that does: a run of the
+    /// checks leaving a coincidence unproven needs a geometry that does,
+    /// and a row's cells are all `coincidence_cells` reads of it.
+    fn coincidence_report(
+        doc: &Doc<ProfileProgram>,
+        subject: RecipeNodeId,
+        cells: Vec<NamedCell>,
+    ) -> ChecksReport {
+        let row = editor_core::coincide::NamedCoincidence {
+            cells,
+            relation: topo::Relation::SameOpposite,
+            site: topo::DecisionSite::PlaneLadder,
+            margin: geom_core::predicate::MarginDiag::value(0.0),
+            discharge: topo::Discharge::Numeric,
+            origin: editor_core::coincide::RowOrigin::Node,
+        };
+        let residual = editor_core::coincide::Residual {
+            constructions: Vec::new(),
+            replay: editor_core::coincide::Unreplayed::Refused,
+            axes: None,
+        };
+        ChecksReport {
+            document: doc.id(),
+            findings: vec![CheckFinding {
+                check: pncad::document::CheckId::UnprovenCoincidence,
+                subject: FindingSubject::Node(subject),
+                evidence: CheckEvidence::UnprovenCoincidence {
+                    row: Box::new(row),
+                    residual: Box::new(residual),
+                    recourse: editor_core::coincide::Recourse::Assert,
+                    restated: Vec::new(),
+                    quietable: false,
+                },
+                quiet: None,
+            }],
+            skipped: Vec::new(),
+            pending: Vec::new(),
+        }
+    }
+
     /// **A Checks cell read off a split's half is on that half's
-    /// body**, and its button says so: the second half is the split's
-    /// body 1, which the cell's pick selects and its label names.
+    /// body**: the second half is the split's body 1, and the cell's
+    /// button both says it (its label) and selects it (its pick), read
+    /// through the window's rows as the window draws them.
     #[test]
     fn a_checks_cell_on_a_splits_second_half_is_on_body_one() {
         let tol = pncad::geom_core::Tol::witness();
@@ -3186,31 +3195,36 @@ mod tests {
             },
             tol,
         );
-        let halves = doc.outputs(split);
-        assert_eq!(
-            halves
-                .iter()
-                .map(|&half| cell_body(&doc, half))
-                .collect::<Vec<_>>(),
-            [Some((split, 0)), Some((split, 1))],
-            "each half's cell is on its own body of the split"
-        );
         let name = pncad::prelude::StableName {
             kind: EntityKind::Face,
             node: split,
             path: Vec::new(),
         };
-        let (node, body) = cell_body(&doc, halves[1]).expect("the half is the split's output");
-        let said = Said(
-            &crate::tree::PickedName::on(&name, node, body),
-            Speaker::of(&doc),
-        );
-        assert!(
-            said.to_string().ends_with(&format!(
-                ", on body 1 of Split {}",
-                test_utils::refusal::tag(split.0.digest())
-            )),
-            "the label names the second half: {said}"
+        let halves = doc.outputs(split);
+        let cell = |half: usize| NamedCell::Entity {
+            input: halves[half],
+            name: name.clone(),
+        };
+        let report = coincidence_report(&doc, split, vec![cell(0), cell(1)]);
+        let rows = check_rows(&report, &doc);
+        let s = test_utils::refusal::tag(split.0.digest());
+        let face = |body| {
+            Selection::Face(FaceSelection {
+                name: name.clone(),
+                node: split,
+                body,
+            })
+        };
+        assert_eq!(
+            rows.iter().map(|row| row.cells.clone()).collect::<Vec<_>>(),
+            [vec![
+                (format!("the face of Split {s}"), face(0)),
+                (
+                    format!("the face of Split {s}, on body 1 of Split {s}"),
+                    face(1)
+                ),
+            ]],
+            "each half's button says its half and selects it"
         );
     }
 

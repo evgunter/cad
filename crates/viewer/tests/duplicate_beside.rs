@@ -55,7 +55,6 @@ fn duplicate_picking(
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(pick)]
             )

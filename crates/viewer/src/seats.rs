@@ -364,14 +364,12 @@ impl Port {
     }
 }
 
-/// **A pick as the panel says it**: the node as `doc` speaks it, and
-/// the half it reads or still waits for.
-pub(crate) fn pick_said(doc: &Doc<ProfileProgram>, node: RecipeNodeId, port: Port) -> String {
-    port_said(doc.spoken(node).to_string(), port)
-}
-
-/// A seat's node, said, with what the seat reads of it.
-fn port_said(node_said: String, port: Port) -> String {
+/// **A pick as the panel says it**: the node said by `by`, a node `by`
+/// does not hold as the tool kept it (`kept`, its last label), and the
+/// half it reads or still waits for.
+pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: Port) -> String {
+    let held: HeldNodes = [kept.clone()].into_iter().collect();
+    let node_said = by.or_held(&held).node(kept.id()).to_string();
     match port {
         Port::Half(half) => format!("{node_said}, {} half", half.name()),
         Port::HalfPending => format!("{node_said}, half not chosen"),
@@ -447,21 +445,12 @@ impl Seats {
         self.ports.get(i) == Some(&Port::HalfPending)
     }
 
-    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]), the
+    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]) by
+    /// `by`, a node `by` does not hold by the label the seat kept: the
     /// item [`seat_line`] composes; `None` for an open seat.
-    pub(crate) fn said(&self, doc: &Doc<ProfileProgram>, i: usize) -> Option<String> {
-        self.held(i).map(|node| pick_said(doc, node, self.ports[i]))
-    }
-
-    /// **Seat `i`'s pick said by `by`**, a node `by` does not hold as
-    /// the seat kept it: [`Self::said`] for a panel whose other items a
-    /// speaker says (the mirror tool's line), so one speaker says the
-    /// whole line. `None` for an open seat.
-    pub(crate) fn said_by(&self, by: Speaker<'_>, i: usize) -> Option<String> {
+    pub(crate) fn said(&self, by: Speaker<'_>, i: usize) -> Option<String> {
         let kept = self.held[i].as_ref()?;
-        let held: HeldNodes = [kept.clone()].into_iter().collect();
-        let node = by.or_held(&held).node(kept.id()).to_string();
-        Some(port_said(node, self.ports[i]))
+        Some(pick_said(by, kept, self.ports[i]))
     }
 
     /// Seat `i`'s role.
@@ -684,11 +673,13 @@ pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfilePro
 /// order, or name ones the tool no longer has, and still compile.
 ///
 /// Each item is said in the words a seat's drop notice uses
-/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick as `doc`
-/// speaks it, so the panel and the notice about the same pick call it
-/// one thing.
-pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
-    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(doc, i))))
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by `by`,
+/// the landed speaker the chrome speaks
+/// ([`crate::frame::landed_speaker`]), a node it no longer holds by the
+/// label the seat kept — the label the drop notice says — so the panel
+/// and the notice about the same pick call it one thing.
+pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
+    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(by, i))))
 }
 
 /// **The composition of the seated tools' and the mate tool's

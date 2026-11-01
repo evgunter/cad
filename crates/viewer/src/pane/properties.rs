@@ -456,13 +456,11 @@ impl ViewerBehavior<'_> {
                 return;
             }
             Standing::Face { face, .. } => {
-                let picked =
-                    PickedName::face(face).in_doc(self.session.doc(), self.session.part_files());
+                let picked = PickedName::face(face);
                 self.entity_header_ui(ui, &picked, standing);
             }
             Standing::Edge { edge, .. } => {
-                let picked =
-                    PickedName::edge(edge).in_doc(self.session.doc(), self.session.part_files());
+                let picked = PickedName::edge(edge);
                 self.entity_header_ui(ui, &picked, standing);
             }
         }
@@ -2231,12 +2229,11 @@ mod tests {
     const NODE: RecipeNodeId = RecipeNodeId::new(0, test_utils::refusal::tagged(4));
 
     /// **The header's Delete deletes the node its label calls the
-    /// feature.** A name the attribution walk cannot classify (here, no
-    /// path) has no minting node, so `FaceSelection::feature` answers
-    /// the drawn node; the words say the name's own node made it. The
-    /// header deletes the one its words name, and says the drawn node
-    /// as where the pick was taken. A classified cap's feature is the
-    /// one both answer.
+    /// feature, the node the tree highlights.** A name the attribution
+    /// walk cannot classify (here, no path) is said as made by its own
+    /// node; the header deletes that one, says the drawn node as where
+    /// the pick was taken, and `FaceSelection::feature` — what the tree
+    /// highlights — answers the same node. A classified cap likewise.
     #[test]
     fn the_entity_headers_delete_is_the_feature_its_label_names() {
         use crate::session::FaceSelection;
@@ -2256,8 +2253,8 @@ mod tests {
         let unclassified = face(Vec::new());
         assert_eq!(
             unclassified.feature(),
-            drawn,
-            "the premise: the attribution walk falls back to the drawn node"
+            named,
+            "the tree's feature is the header's"
         );
         let by = pncad::document::Speaker::TAG;
         assert_eq!(

@@ -480,10 +480,11 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::document::{NodeStanding, ProductError};
     use pncad::select::{Resolution, ResolveIndeterminate};
-    use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+    use viewer::blend::{BlendEvent, BlendTool};
     use viewer::combine::DuplicateFault;
     use viewer::matetool::{MateTool, MateToolEvent};
     use viewer::session::{FaceSelection, Selection, Standing};
+    use viewer::tree::DrawnBody;
 
     let tol = Tol::witness();
     let bench = common::asm::bench("panels-agree", tol);
@@ -581,7 +582,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         }
         other => panic!("the duplicate door refuses the boolean, got {other:?}"),
     }
-    let target = BlendTarget {
+    let target = DrawnBody {
         node: bench.post_a,
         body: 0,
     };

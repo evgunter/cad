@@ -18,7 +18,7 @@
 //!
 //! [`crate::session::SessionOp::AddFillet`] and its chamfer twin carry
 //! ONE target — a fillet reads one `Edges` selection, which states its
-//! body once and resolves through that body's name table and no other. So the accumulator holds one [`BlendTarget`] and a set of
+//! body once and resolves through that body's name table and no other. So the accumulator holds one [`DrawnBody`] and a set of
 //! names under it: the first pick fixes the target, and a pick on
 //! another drawn body has nowhere to land. It is refused as a typed
 //! event ([`BlendEvent::OtherTarget`]) rather than silently ignored,
@@ -76,7 +76,7 @@ use editor_core::resolve::RimNameFault;
 
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{EdgeNamesRefused, PickIndex};
-use crate::session::{EdgeSelection, FaceSelection, Selection, SessionOp};
+use crate::session::{EdgeSelection, SessionOp};
 use crate::tree::{DrawnBody, PickedName};
 use crate::vocab::vocabulary;
 
@@ -87,73 +87,13 @@ pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: an upstream ed
      blend, and one that removes a picked edge refuses on the node rather than shrinking it \
      (only a deliberate rebind rewrites a stored selection)";
 
-/// The drawn body a blend's edges belong to: the node whose value it
-/// is, and which of that node's output bodies.
-///
-/// The NODE is the one whose output the fillet's selection reads, and
-/// what the selection's names resolve through. The BODY index rides along
-/// because an edge pick carries one and a set drawn from two bodies of
-/// one node would be as wrong as a set drawn from two nodes — the
-/// accumulator scopes to the pair it was opened on, and the refusal
-/// names the pair.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BlendTarget {
-    /// The node whose body carries the edges.
-    pub node: RecipeNodeId,
-    /// The output body index within that node's value.
-    pub body: u32,
-}
-
-impl BlendTarget {
-    /// The target an edge pick is about.
-    pub fn of(edge: &EdgeSelection) -> Self {
-        Self {
-            node: edge.node,
-            body: edge.body,
-        }
-    }
-
-    /// **The drawn body a selection is a pick on**, when it is one.
-    ///
-    /// A face pick and an edge pick both carry `(node, body)` — they
-    /// name something DRAWN, which is the only kind of selection that
-    /// can say which body. `Selection::Node` is a feature picked in
-    /// the tree and names no body at all; answering `body: 0` for it
-    /// would be a guess, and precisely on the multi-body nodes where
-    /// the narrowing matters it would be the wrong one. So it answers
-    /// `None` and the affordance that needs a body says what it wants.
-    pub fn of_selection(selection: &Selection) -> Option<Self> {
-        match selection {
-            Selection::Edge(edge) => Some(Self::of(edge)),
-            Selection::Face(FaceSelection { node, body, .. }) => Some(Self {
-                node: *node,
-                body: *body,
-            }),
-            Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
-        }
-    }
-}
-
-/// **The one sentence for this scope is the drawn body's**
-/// ([`DrawnBody`]), which a pick's `, on …` says too, so a blend's
-/// refusal and a pick's sentence name one body alike. Destructured
-/// rather than field-read, so a field added to [`BlendTarget`] is
-/// E0027 here: the pair above is the scope an accumulator opens on and
-/// the scope a refusal names, and a target that grew a third component
-/// while the sentence still named two would name the wrong scope.
-impl Say for BlendTarget {
-    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
-        let Self { node, body } = *self;
-        DrawnBody::of(node, body).say(f, by)
-    }
-}
-
-/// The sentence where no document is at hand: the node by its tag.
-impl core::fmt::Display for BlendTarget {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.say(f, Speaker::TAG)
-    }
-}
+// **The drawn body a blend's edges belong to is a [`DrawnBody`]**: the
+// node whose output the fillet's selection reads, and which of that
+// node's output bodies. The BODY index rides along because an edge pick
+// carries one and a set drawn from two bodies of one node would be as
+// wrong as a set drawn from two nodes — the accumulator scopes to the
+// pair it was opened on, and the refusal names the pair. It is the
+// pair a pick is said on, so one type and one sentence serve both.
 
 vocabulary! {
     /// Which blend is being authored — the tool's kind choice, and the
@@ -206,7 +146,7 @@ pub enum BlendEvent {
     /// picks).
     OtherTarget {
         /// The body the held edges are on.
-        held: BlendTarget,
+        held: DrawnBody,
         /// The refused pick, said as the chrome says a pick
         /// ([`PickedName`]).
         picked: EdgeSelection,
@@ -215,7 +155,7 @@ pub enum BlendEvent {
     /// the held set is untouched.
     NoEdgesOnTarget {
         /// The body that was asked.
-        target: BlendTarget,
+        target: DrawnBody,
     },
     /// The index draws edges on the target that it cannot name, so
     /// "every edge" is not a set the tool can hold: nothing was loaded
@@ -229,7 +169,7 @@ pub enum BlendEvent {
     /// untouched. The standing says why and where the repair is.
     TargetHasNoValue {
         /// The body that was asked.
-        target: BlendTarget,
+        target: DrawnBody,
         /// Its node's standing, as the feature tree draws it
         /// ([`crate::tree::standing_as_drawn`]).
         ///
@@ -243,7 +183,7 @@ pub enum BlendEvent {
     /// once.
     TargetLost {
         /// The body the set was about.
-        target: BlendTarget,
+        target: DrawnBody,
         /// The target's node by the last label the document gave it:
         /// the node is gone, so no later document says it.
         node: SpokenNode,
@@ -264,7 +204,7 @@ pub enum BlendEvent {
     /// them and for a row to assert on.
     EdgesLost {
         /// The body the set is about.
-        target: BlendTarget,
+        target: DrawnBody,
         /// The names that stopped being edges of it, in canonical
         /// order — carried rather than counted, so a chrome that wants
         /// to say WHICH can, and a row can assert on them.
@@ -421,7 +361,7 @@ pub struct BlendTool {
 /// names it by once the node is gone.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct HeldTarget {
-    at: BlendTarget,
+    at: DrawnBody,
     node: SpokenNode,
 }
 
@@ -432,7 +372,7 @@ impl BlendTool {
     }
 
     /// The body the held edges are on, once a pick has fixed it.
-    pub fn target(&self) -> Option<BlendTarget> {
+    pub fn target(&self) -> Option<DrawnBody> {
         self.target.as_ref().map(|held| held.at)
     }
 
@@ -507,7 +447,7 @@ impl BlendTool {
         edge: &EdgeSelection,
         index: Result<&PickIndex, NotIndexed>,
     ) -> Option<BlendEvent> {
-        let picked = BlendTarget::of(edge);
+        let picked = DrawnBody::new(edge.node, edge.body);
         match self.target() {
             Some(held) if held != picked => {
                 return Some(BlendEvent::OtherTarget {
@@ -630,7 +570,7 @@ impl BlendTool {
     /// button rather than implying every loaded set is buildable.
     pub fn load_all_edges(
         &mut self,
-        target: BlendTarget,
+        target: DrawnBody,
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         index: &PickIndex,
@@ -680,7 +620,7 @@ impl BlendTool {
     }
 
     /// Fix the target, with its node as `doc` says it.
-    fn fix(&mut self, doc: &Doc<ProfileProgram>, target: BlendTarget) {
+    fn fix(&mut self, doc: &Doc<ProfileProgram>, target: DrawnBody) {
         self.target = Some(HeldTarget {
             at: target,
             node: doc.spoken(target.node),
@@ -875,7 +815,7 @@ mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use super::{BlendEvent, BlendTarget, BlendTool, Said, Speaker};
+    use super::{BlendEvent, BlendTool, DrawnBody, Said, Speaker};
     use crate::pickindex::{EdgeId, EdgeNameFault, EdgeNamesRefused};
     use crate::session::EdgeSelection;
     use crate::test_support::plate_indexed;
@@ -889,7 +829,7 @@ mod tests {
         let (eval, mut index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
-        let target = BlendTarget {
+        let target = DrawnBody {
             node: copy,
             body: 0,
         };
@@ -961,7 +901,7 @@ mod tests {
         let (eval, index, copy) = plate_indexed(pncad::geom_core::Tol::witness());
         let (doc, _) = crate::scene::plate_with_hole(pncad::geom_core::Tol::witness())
             .expect("the plate authors");
-        let target = BlendTarget {
+        let target = DrawnBody {
             node: copy,
             body: 7,
         };

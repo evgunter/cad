@@ -2258,7 +2258,6 @@ impl eframe::App for ViewerApp {
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(
             self.session.doc(),
-            self.session.part_files(),
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
@@ -6104,7 +6103,6 @@ mod properties_pane_tests {
         let ops: Vec<SessionOp> = selections.into_iter().map(SessionOp::Select).collect();
         let declined = app.tools.feed(
             app.session.doc(),
-            app.session.part_files(),
             app.picks.index_or_why(app.fit.as_ref()),
             &ops,
         );
@@ -6177,7 +6175,12 @@ mod properties_pane_tests {
             let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
-                driven.app.drafts.sketch_face.as_ref(),
+                driven
+                    .app
+                    .drafts
+                    .sketch_face
+                    .as_ref()
+                    .map(crate::tree::HeldPick::face),
                 Some(&top),
                 "the rows latched it"
             );
@@ -6272,7 +6275,12 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(
-            driven.app.drafts.sketch_face.as_ref(),
+            driven
+                .app
+                .drafts
+                .sketch_face
+                .as_ref()
+                .map(crate::tree::HeldPick::face),
             Some(&bottom),
             "kept, not cleared"
         );
@@ -6413,7 +6421,10 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .sketch_face_said()
+                .sketch_face
+                .as_ref()
+                .expect("the form holds the top cap")
+                .said()
                 .spoken(extrude())
                 .to_string(),
             plinth,
@@ -7013,14 +7024,15 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the kept label
-    /// while the landed document is behind**: the run that would land
-    /// the rename and the delete is held, so the landed document still
-    /// says the picked copy's placement by its old label and the survival step keeps the
-    /// picks; the commit's refusal says the last label the shown
-    /// document gave it.
+    /// **The mate tool's same-copy refusal says the landed label while
+    /// the landed document is behind**: the run that would land the
+    /// rename and the delete is held, so the landed document still says
+    /// the picked copy's placement by its old label and the survival
+    /// step keeps the picks. The chrome speaks the landed document, so
+    /// the commit's refusal says that label, as the panel line does —
+    /// not the rename the shown document made since.
     #[test]
-    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+    fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
             node: placement(),
@@ -7066,15 +7078,15 @@ mod properties_pane_tests {
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
-        let plinth = format!(
-            "Place \"plinth\" ({})",
+        let base = format!(
+            "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
         // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("both picks are on {plinth},")),
-            "the refusal says the kept label: {said}"
+            said.contains(&format!("both picks are on {base},")),
+            "the refusal says the landed label: {said}"
         );
     }
 
@@ -7455,7 +7467,8 @@ mod properties_pane_tests {
             pane.quiet();
             assert!(*pane.app.session.committed_doc() == before, "Add is held");
 
-            pane.app.drafts.trace_face = Some(wall);
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
             pane.quiet();
             assert!(
                 pane.app

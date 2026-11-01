@@ -14,12 +14,13 @@ use pncad::document::{Dimension, Doc, Formula, NodeResult, ProfileProgram, Recip
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::RoleSeg;
-use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
+use viewer::blend::{BlendEvent, BlendTool};
 use viewer::pickcache::NotIndexed;
 use viewer::pickindex::PickIndex;
 use viewer::props::SlotValue;
 use viewer::session::{DocSession, EdgeSelection, Selection, SessionOp};
 use viewer::tools::{ToolKind, ToolNotice, Tools};
+use viewer::tree::DrawnBody;
 
 const SIDE: f64 = 0.01;
 
@@ -78,7 +79,6 @@ fn click(
 ) -> Vec<ToolNotice> {
     tools.feed(
         doc,
-        &viewer::parts::PartFiles::default(),
         index,
         &[SessionOp::Select(Selection::Edge(edge.clone()))],
     )
@@ -177,7 +177,7 @@ fn loading_every_edge_counts_each_drawn_circle_once() {
     tools.open(ToolKind::Blend);
     let (doc, eval) = session.landed_pair().expect("landed");
     let loaded = tools.blend_mut().expect("open").load_all_edges(
-        BlendTarget { node, body: 0 },
+        DrawnBody { node, body: 0 },
         doc,
         eval,
         &index,

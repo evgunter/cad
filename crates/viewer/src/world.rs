@@ -168,10 +168,18 @@ pub fn on_body(
 /// operation's value; any other drawn body as it is.
 pub fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> (RecipeNodeId, u32) {
     placed_var(doc, node)
-        .and_then(|var| doc.defined_by(var))
-        .map_or((node, body), |(operation, port)| {
-            (operation, u32::from(port))
-        })
+        .and_then(|var| read_body(doc, var))
+        .map_or((node, body), |on| (on.node, on.body))
+}
+
+/// **The drawn body a read is**: the operation defining `var`, and its
+/// port as the body's index in that operation's value — a split's
+/// second half is its node's body 1. `None` for a variable no operation
+/// defines: a placement's piece ([`Doc::pick`]) is a piece of a copy,
+/// whose index among the bodies the copy draws the read does not say.
+pub fn read_body(doc: &Doc<ProfileProgram>, var: VarId) -> Option<crate::tree::DrawnBody> {
+    let (operation, port) = doc.defined_by(var)?;
+    Some(crate::tree::DrawnBody::new(operation, u32::from(port)))
 }
 
 /// **The node a seat takes for a pick on `node`**: the operation whose

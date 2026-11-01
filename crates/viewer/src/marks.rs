@@ -332,7 +332,7 @@ pub struct EdgeOverlay {
     pub held_refused: Option<EdgeNamesRefused>,
     /// Whether the held edges belong to a free-moved instance — one
     /// flag, because a held set is on one body
-    /// ([`crate::blend::BlendTarget`]). See
+    /// ([`crate::tree::DrawnBody`]). See
     /// [`EdgeOverlay::selected_probed`].
     pub held_probed: bool,
     /// **Segments that are not in the document at all**: the

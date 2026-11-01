@@ -34,13 +34,14 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
-use viewer::blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
+use viewer::blend::{BlendEvent, BlendKindChoice, BlendTool};
 use viewer::display::DisplayView;
 use viewer::pickindex::{PickIndex, PickKinds};
 use viewer::session::{
     DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
+use viewer::tree::DrawnBody;
 use viewer::tree::{self, RowStatus};
 
 /// The cube every row blends: 10 mm on a side.
@@ -84,7 +85,7 @@ fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
 /// Drive the all-edges affordance the way the panel does: the landed
 /// evaluation for the names, the pick index for the (node, body)
 /// narrowing.
-fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
+fn load_all(tools: &mut Tools, session: &DocSession, target: DrawnBody) -> Option<BlendEvent> {
     let index = plate_index(session);
     let (doc, eval) = session.landed_pair().expect("the inline seam landed");
     tools
@@ -95,8 +96,8 @@ fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Opt
 
 /// The whole body of a node, as the blend tool's target: its drawn
 /// copy.
-fn whole(session: &DocSession, node: RecipeNodeId) -> BlendTarget {
-    BlendTarget {
+fn whole(session: &DocSession, node: RecipeNodeId) -> DrawnBody {
+    DrawnBody {
         node: common::drawn_node(session.committed_doc(), node),
         body: 0,
     }
@@ -119,7 +120,6 @@ fn pick_on(
 ) -> Vec<ToolNotice> {
     tools.feed(
         doc,
-        &viewer::parts::PartFiles::default(),
         Ok(index),
         &[SessionOp::Select(Selection::Edge(edge.clone()))],
     )
@@ -389,7 +389,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
-            target: BlendTarget {
+            target: DrawnBody {
                 node: profile,
                 body: 0
             }
@@ -911,7 +911,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             "half {half} draws {drawn} of the split's {node_wide} edge names"
         );
         tools.open(ToolKind::Blend);
-        let loaded = load_all(&mut tools, &session, BlendTarget { node, body: 0 });
+        let loaded = load_all(&mut tools, &session, DrawnBody { node, body: 0 });
         assert!(loaded.is_none(), "{loaded:?}");
         assert_eq!(
             blend(&tools).count(),
@@ -1245,19 +1245,19 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
         .expect("the box draws named patches");
 
     assert_eq!(
-        BlendTarget::of_selection(&Selection::Edge(edge.clone())),
+        DrawnBody::of_selection(&Selection::Edge(edge.clone())),
         Some(whole(&session, target))
     );
     assert_eq!(
-        BlendTarget::of_selection(&Selection::Face(face)),
+        DrawnBody::of_selection(&Selection::Face(face)),
         Some(whole(&session, target))
     );
     assert_eq!(
-        BlendTarget::of_selection(&Selection::Node(target)),
+        DrawnBody::of_selection(&Selection::Node(target)),
         None,
         "a feature picked in the tree does not say which body"
     );
-    assert_eq!(BlendTarget::of_selection(&Selection::None), None);
+    assert_eq!(DrawnBody::of_selection(&Selection::None), None);
 }
 
 /// **The freeze sentence the panel shows is true of the node it is
@@ -1363,7 +1363,6 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     let click = |tools: &mut Tools, edge: &EdgeSelection| {
         tools.feed(
             session.committed_doc(),
-            &viewer::parts::PartFiles::default(),
             Ok(&index),
             &[SessionOp::Select(Selection::Edge(edge.clone()))],
         )

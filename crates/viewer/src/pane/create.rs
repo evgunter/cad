@@ -4,14 +4,12 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{
-    Coord, Doc, DocumentId, ProfileProgram, Said, Speaker, TracePassage, TraceSense, VarKind,
-};
+use pncad::document::{Coord, DocumentId, Said, Speaker, TracePassage, TraceSense, VarKind};
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
-use crate::blend::{BlendKindChoice, BlendTarget, FREEZE_NOTE};
+use crate::blend::{BlendKindChoice, FREEZE_NOTE};
 use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
@@ -27,7 +25,8 @@ use crate::seats::{Seat, Seats, seat_line};
 use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
-use crate::tree::{self, PickedName};
+use crate::tree;
+use crate::tree::DrawnBody;
 use crate::widgets::{
     CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, point_fields,
     unit_field, unit_vec3_row, vec3_row,
@@ -112,10 +111,10 @@ pub(crate) fn duplicate_note() -> String {
 pub(crate) fn seats_row(
     ui: &mut egui::Ui,
     seats: &Seats,
-    doc: &Doc<ProfileProgram>,
+    by: Speaker<'_>,
     theme: &Theme,
 ) -> Option<(usize, SplitHalf)> {
-    crate::widgets::message_toned(ui, seat_line(seats, doc), theme, Tone::Advisory);
+    crate::widgets::message_toned(ui, seat_line(seats, by), theme, Tone::Advisory);
     half_rows(
         ui,
         (0..2)
@@ -556,7 +555,7 @@ impl ViewerBehavior<'_> {
         mate_picks_row(
             ui,
             &tool,
-            frame::shown_speaker(self.session.doc(), self.session.landed_pair()),
+            frame::landed_speaker(self.session.landed_pair()),
             &self.theme,
         );
         ui.horizontal(|ui| {
@@ -631,11 +630,11 @@ impl ViewerBehavior<'_> {
                             close = true;
                         }
                         // Said from the document the panel's
-                        // line speaks, so a rename that has
-                        // not landed reads the same in both.
+                        // line speaks, the landed one, so one
+                        // node reads alike in both.
                         Err(error) => {
                             self.notices.push(frame::tool_news(
-                                &ToolKind::Mate.refuses(&error.respoken(self.session.doc())),
+                                &ToolKind::Mate.refuses(&error.respoken(doc)),
                             ));
                         }
                     }
@@ -931,12 +930,9 @@ impl ViewerBehavior<'_> {
             _ => None,
         };
         let speaker = frame::landed_speaker(self.session.landed_pair());
-        let (doc, files) = (self.session.doc(), self.session.part_files());
+        let doc = self.session.doc();
         let mut withholds = Vec::new();
-        for (i, (label, plane)) in [(TRACE_PLANE, true), (TRACE_FACE, false)]
-            .into_iter()
-            .enumerate()
-        {
+        for (label, plane) in [(TRACE_PLANE, true), (TRACE_FACE, false)] {
             ui.horizontal(|ui| {
                 ui.label(label);
                 let held = if plane {
@@ -944,26 +940,14 @@ impl ViewerBehavior<'_> {
                 } else {
                     &mut self.drafts.trace_face
                 };
-                let said = &mut self.drafts.trace_said[i];
-                // Said as the sketch-face row beside it says its face: a
-                // node the landed document no longer holds as the latch
-                // kept it.
-                match held.as_ref() {
-                    Some(face) => ui.weak(
-                        Said(
-                            &PickedName::face(face).in_doc(doc, files),
-                            speaker.or_held(said),
-                        )
-                        .to_string(),
-                    ),
-                    None => ui.weak("none picked"),
-                };
+                // Said as the sketch-face row beside it says its face.
+                ui.weak(crate::drafts::latch_said(held.as_ref(), speaker));
                 if ui
                     .add_enabled(picked.is_some(), egui::Button::new(USE_THE_PICKED_FACE))
                     .clicked()
+                    && let Some(face) = &picked
                 {
-                    held.clone_from(&picked);
-                    said.clone_from(self.session.selection_said());
+                    crate::drafts::latch(held, doc, face);
                 }
             });
         }
@@ -1045,23 +1029,16 @@ impl ViewerBehavior<'_> {
     /// without losing the pick; a second face pick moves the seat.
     fn sketch_face_rows(&mut self, ui: &mut egui::Ui) {
         if let Selection::Face(face) = self.session.selection() {
-            self.drafts
-                .hold_sketch_face(face.clone(), self.session.selection_said());
+            crate::drafts::latch(&mut self.drafts.sketch_face, self.session.doc(), face);
         }
         ui.horizontal(|ui| {
             ui.label("face");
-            match self.drafts.held_face() {
-                // Said from the landed pair the pick was read off, a
-                // node that document no longer holds as the form kept it.
-                Some(face) => {
-                    let by = frame::landed_speaker(self.session.landed_pair())
-                        .or_held(self.drafts.sketch_face_said());
-                    let picked = PickedName::face(face)
-                        .in_doc(self.session.doc(), self.session.part_files());
-                    ui.weak(Said(&picked, by).to_string())
-                }
-                None => ui.weak("none picked"),
-            };
+            // Said from the landed pair the pick was read off, a node
+            // that document no longer holds as the form kept it.
+            ui.weak(crate::drafts::latch_said(
+                self.drafts.held_face(),
+                frame::landed_speaker(self.session.landed_pair()),
+            ));
         });
         ui.horizontal(|ui| {
             ui.label("depth");
@@ -1165,7 +1142,12 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then write its axis"),
         );
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+        if let Some((seat, half)) = seats_row(
+            ui,
+            tool.seats(),
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        ) {
             self.tools.choose_half(seat, half);
         }
         let unit = self.notation.length.def();
@@ -1254,7 +1236,7 @@ impl ViewerBehavior<'_> {
         );
         crate::widgets::message_toned(
             ui,
-            tool.line(self.session.doc()),
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
             &self.theme,
             Tone::Advisory,
         );
@@ -1280,7 +1262,12 @@ impl ViewerBehavior<'_> {
             return self.tool_door(ui, ToolKind::Split);
         };
         crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_COORDINATES));
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+        if let Some((seat, half)) = seats_row(
+            ui,
+            tool.seats(),
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        ) {
             self.tools.choose_half(seat, half);
         }
         self.seed_split_plane(&tool);
@@ -1420,10 +1407,7 @@ impl ViewerBehavior<'_> {
         );
         crate::widgets::message_toned(
             ui,
-            tool.line(frame::shown_speaker(
-                self.session.doc(),
-                self.session.landed_pair(),
-            )),
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
             &self.theme,
             Tone::Advisory,
         );
@@ -1444,7 +1428,12 @@ impl ViewerBehavior<'_> {
             return self.tool_door(ui, ToolKind::Transform);
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+        if let Some((seat, half)) = seats_row(
+            ui,
+            tool.seats(),
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        ) {
             self.tools.choose_half(seat, half);
         }
         ui.horizontal(|ui| {
@@ -1498,7 +1487,12 @@ impl ViewerBehavior<'_> {
             ToolKind::Pattern
                 .says(&"pick the body; a circular rule's axis is in its own coordinates"),
         );
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+        if let Some((seat, half)) = seats_row(
+            ui,
+            tool.seats(),
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        ) {
             self.tools.choose_half(seat, half);
         }
         ui.horizontal(|ui| {
@@ -1606,7 +1600,12 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Part.says(&"pick a pattern in the tree to project one of its copies"),
         );
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+        if let Some((seat, half)) = seats_row(
+            ui,
+            tool.seats(),
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        ) {
             self.tools.choose_half(seat, half);
         }
         part_selector_rows(ui, &self.theme, &mut self.drafts.part_instance);
@@ -1628,7 +1627,12 @@ impl ViewerBehavior<'_> {
             return self.tool_door(ui, ToolKind::Duplicate);
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
+        if let Some((seat, half)) = seats_row(
+            ui,
+            tool.seats(),
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        ) {
             self.tools.choose_half(seat, half);
         }
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
@@ -1701,8 +1705,8 @@ impl ViewerBehavior<'_> {
     /// something DRAWN. Assuming body 0 there was a guess that read
     /// wrong on exactly the nodes the narrowing matters for, so the
     /// button is disabled instead and says what it wants.
-    pub(crate) fn all_edges_row(&mut self, ui: &mut egui::Ui, held: Option<BlendTarget>) {
-        let target = held.or_else(|| BlendTarget::of_selection(self.session.selection()));
+    pub(crate) fn all_edges_row(&mut self, ui: &mut egui::Ui, held: Option<DrawnBody>) {
+        let target = held.or_else(|| DrawnBody::of_selection(self.session.selection()));
         let ready = target.zip(self.session.landed_pair()).zip(self.index);
         let Some(((target, (landed, eval)), index)) = ready else {
             ui.add_enabled(false, egui::Button::new("Select all edges"))
@@ -2008,7 +2012,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+    use pncad::document::{Doc, ProfileProgram, RecipeNodeId, Speaker};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
@@ -2055,18 +2059,17 @@ mod tests {
             Tol::witness(),
         );
         // The speaker the panel is drawn with.
-        let by = crate::frame::shown_speaker(&doc, Some((&doc, &evaluation)));
+        let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
         let painted =
             |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, by, &Theme::DEFAULT));
-        let files = crate::parts::PartFiles::default();
         let mut tool = MateTool::new();
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick_in(&doc, &files, cap_on(3, 3));
+        tool.pick(&doc, cap_on(3, 3));
         assert_eq!(
             painted(&tool),
             "on: the end cap of node 000000000003; to: —"
         );
-        tool.pick_in(&doc, &files, cap_on(3, 5));
+        tool.pick(&doc, cap_on(3, 5));
         assert_eq!(
             painted(&tool),
             "on: the end cap of node 000000000003; \
@@ -2084,7 +2087,12 @@ mod tests {
         let mut tool = BooleanTool::new();
         let painted = |tool: &BooleanTool| {
             painted_text(|ui| {
-                crate::widgets::message_toned(ui, tool.line(&doc), &Theme::DEFAULT, Tone::Advisory);
+                crate::widgets::message_toned(
+                    ui,
+                    tool.line(Speaker::of(&doc)),
+                    &Theme::DEFAULT,
+                    Tone::Advisory,
+                );
             })
         };
         assert_eq!(painted(&tool), "no picks yet");
@@ -2137,7 +2145,7 @@ mod tests {
         tool.pick(&doc, split);
         let mut chosen = None;
         let drawn = painted_after_clicking(crate::tree::split_half_label(SplitHalf::Below), |ui| {
-            if let Some(choice) = seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT) {
+            if let Some(choice) = seats_row(ui, tool.seats(), Speaker::of(&doc), &Theme::DEFAULT) {
                 chosen = Some(choice);
             }
         });
@@ -2582,10 +2590,12 @@ mod sketch_face_said {
     use crate::drafts::Drafts;
     use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
-    /// **The add-profile form keeps its held face's nodes past the
-    /// selection**: once the selection moves on, the form still says
-    /// its face's minting node by the last label it had, after a rename
-    /// and a delete, where the selection's snapshot no longer names it.
+    /// **The add-profile form keeps its latches' nodes past the
+    /// selection**: once the selection moves on, the on-face row and
+    /// both trace latches still say their face's minting node by the
+    /// last label it had, after a rename and a delete, where the
+    /// selection's snapshot no longer names it. Each row is read as the
+    /// form draws it (`latch_said`, by the landed speaker).
     #[test]
     fn a_held_sketch_face_says_its_deleted_node_by_its_last_label() {
         let tol = pncad::tolerance::witness();
@@ -2621,7 +2631,9 @@ mod sketch_face_said {
             &mut drafts,
             SessionOp::Select(Selection::Face(face.clone())),
         );
-        drafts.hold_sketch_face(face, session.selection_said());
+        crate::drafts::latch(&mut drafts.sketch_face, session.doc(), &face);
+        crate::drafts::latch(&mut drafts.trace_plane, session.doc(), &face);
+        crate::drafts::latch(&mut drafts.trace_face, session.doc(), &face);
         perform(
             &mut session,
             &mut drafts,
@@ -2642,14 +2654,19 @@ mod sketch_face_said {
             landed.node(block).is_none(),
             "the landed run lost the block"
         );
-        let said = |kept| Speaker::of(landed).or_held(kept).node(block).to_string();
+        let by = crate::frame::landed_speaker(session.landed_pair());
+        let last = format!("the end cap of Extrude \"plinth\" ({t})");
         assert_eq!(
-            said(drafts.sketch_face_said()),
-            format!("Extrude \"plinth\" ({t})"),
-            "the form says the held face's node by its last label"
+            [&drafts.sketch_face, &drafts.trace_plane, &drafts.trace_face]
+                .map(|held| crate::drafts::latch_said(held.as_ref(), by)),
+            [last.clone(), last.clone(), last],
+            "each latch says its face's node by its last label"
         );
         assert_eq!(
-            said(session.selection_said()),
+            Speaker::of(landed)
+                .or_held(session.selection_said())
+                .node(block)
+                .to_string(),
             format!("node {t}"),
             "the selection moved on, so its snapshot does not name the block"
         );
@@ -2709,12 +2726,7 @@ mod tools_respeak {
             )
             .expect("the block indexes")
         };
-        let declined = tools.feed(
-            session.doc(),
-            &crate::parts::PartFiles::default(),
-            Ok(&index),
-            &picks,
-        );
+        let declined = tools.feed(session.doc(), Ok(&index), &picks);
         assert!(declined.is_empty(), "every pick is taken: {declined:?}");
         for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
             perform(&mut session, &mut tools, op);

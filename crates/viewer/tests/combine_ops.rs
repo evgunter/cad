@@ -32,6 +32,7 @@ use common::{
     ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape, translation,
 };
 use pncad::document::BooleanValue;
+use pncad::document::Speaker;
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram, Node,
@@ -195,7 +196,6 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -1841,7 +1841,6 @@ fn the_open_tool_consumes_the_selection_stream() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -1855,7 +1854,6 @@ fn the_open_tool_consumes_the_selection_stream() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -1873,7 +1871,6 @@ fn the_open_tool_consumes_the_selection_stream() {
         tools
             .feed(
                 session.committed_doc(),
-                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks[..1]
             )
@@ -1919,18 +1916,18 @@ fn the_seat_line_names_the_roles() {
     let doc = Doc::empty_derived("seat-line", Tol::witness());
     let mut boolean = BooleanTool::new();
     boolean.set_operation(BooleanOp::Subtract);
-    assert_eq!(boolean.line(&doc), "no picks yet");
+    assert_eq!(boolean.line(Speaker::of(&doc)), "no picks yet");
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     // The empty document holds neither pick, so each is spoken by its
     // tag alone.
     assert_eq!(
-        boolean.line(&doc),
+        boolean.line(Speaker::of(&doc)),
         "body kept: node 000000000003; body removed: —"
     );
     let mut transform = TransformTool::new();
     transform.pick(&doc, RecipeNodeId::new(0, tagged(7)));
     assert_eq!(
-        seat_line(transform.seats(), &doc),
+        seat_line(transform.seats(), Speaker::of(&doc)),
         "transformed body: node 000000000007"
     );
 }
@@ -1948,7 +1945,7 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     boolean.set_operation(BooleanOp::Subtract);
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(4)));
-    let line = boolean.line(&doc);
+    let line = boolean.line(Speaker::of(&doc));
     let events = boolean.reconcile(&doc);
     assert_eq!(events.len(), 2, "neither node is in the empty document");
     for event in &events {
@@ -2887,9 +2884,9 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
         Ok(SessionOp::AddTransform { input, .. }) if input == below
     ));
     assert!(
-        seat_line(tool.seats(), &doc).ends_with("below half"),
+        seat_line(tool.seats(), Speaker::of(&doc)).ends_with("below half"),
         "{}",
-        seat_line(tool.seats(), &doc)
+        seat_line(tool.seats(), Speaker::of(&doc))
     );
 }
 
@@ -3022,7 +3019,6 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         tools.open(kind);
         let _ = tools.feed(
             doc,
-            &viewer::parts::PartFiles::default(),
             Err(viewer::pickcache::NotIndexed::Absent),
             &[SessionOp::Select(picked.clone())],
         );
@@ -3060,7 +3056,6 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     tools.open(ToolKind::Duplicate);
     let _ = tools.feed(
         session.committed_doc(),
-        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(picked)],
     );
@@ -3100,7 +3095,6 @@ fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     tools.open(ToolKind::Part);
     let _ = tools.feed(
         session.committed_doc(),
-        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Node(pattern))],
     );
@@ -3345,7 +3339,6 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     tools.open(ToolKind::Transform);
     let _ = tools.feed(
         session.committed_doc(),
-        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(picked)],
     );
@@ -3797,12 +3790,7 @@ fn the_split_plane_is_drawn_under_the_picked_copy() {
         let index = common::plate_index(session);
         let mut tools = Tools::new();
         tools.open(ToolKind::Split);
-        let declined = tools.feed(
-            session.committed_doc(),
-            &viewer::parts::PartFiles::default(),
-            Ok(&index),
-            &[picked],
-        );
+        let declined = tools.feed(session.committed_doc(), Ok(&index), &[picked]);
         assert!(declined.is_empty(), "{declined:?}");
         let tool = tools.split().expect("the split tool is open");
         let (doc, evaluation) = session.landed_pair().expect("landed");

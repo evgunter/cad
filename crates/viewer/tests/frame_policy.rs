@@ -137,14 +137,15 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 /// second necessary rather than decorative.
 #[test]
 fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::tools::ToolNotice;
+    use viewer::tree::DrawnBody;
 
     let declined = [SessionOp::Select(Selection::None)];
     // Both notices through the door the frame loop uses, so each
     // carries the answer its event arm gives rather than a second
     // spelling of it.
-    let target = BlendTarget {
+    let target = DrawnBody {
         node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
@@ -1395,7 +1396,7 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
 
 /// A refusal of one of `target`'s drawn edges' names, as
 /// `PickIndex::edge_names_in` answers it.
-fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+fn unnamed_on(target: viewer::tree::DrawnBody) -> pickindex::EdgeNamesRefused {
     pickindex::EdgeNamesRefused {
         node: target.node,
         body: target.body,
@@ -1412,10 +1413,11 @@ fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused
 /// accepts, not another index build over the same table.
 #[test]
 fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::tools::ToolNotice;
+    use viewer::tree::DrawnBody;
 
-    let target = BlendTarget {
+    let target = DrawnBody {
         node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
@@ -1442,7 +1444,7 @@ fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
     let (landed, _) = session.landed_pair().expect("landed");
-    let refused = unnamed_on(viewer::blend::BlendTarget {
+    let refused = unnamed_on(viewer::tree::DrawnBody {
         node: extrude,
         body: 0,
     });
@@ -3625,13 +3627,14 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 /// else.
 #[test]
 fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::seats::{Seat, SeatEvent};
     use viewer::tools::{ToolKind, ToolNotice};
+    use viewer::tree::DrawnBody;
 
     let declined = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
-            held: BlendTarget {
+            held: DrawnBody {
                 node: RecipeNodeId::new(0, tagged(3)),
                 body: 0,
             },
@@ -3832,13 +3835,14 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
 fn every_tool_event_says_whether_anything_will_say_it_again() {
     use editor_core::{Resolution, ResolveIndeterminate};
     use pncad::document::MateSide;
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::matetool::MateToolEvent;
     use viewer::seats::{Seat, SeatEvent};
     use viewer::session::FaceSelection;
     use viewer::tools::{ToolKind, ToolNotice};
+    use viewer::tree::DrawnBody;
 
-    let target = BlendTarget {
+    let target = DrawnBody {
         node: RecipeNodeId::new(0, tagged(3)),
         body: 0,
     };
@@ -3852,15 +3856,15 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::To,
-                said: viewer::tree::HeldPick::of(
-                    &viewer::tree::PickedName::on(&face, RecipeNodeId::new(0, tagged(3)), 0),
+                pick: viewer::tree::HeldPick::new(
                     &pncad::document::Doc::empty_derived("cases", Tol::witness()),
+                    FaceSelection {
+                        name: face.clone(),
+                        node: RecipeNodeId::new(0, tagged(3)),
+                        body: 0,
+                    },
+                    DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0),
                 ),
-                pick: FaceSelection {
-                    name: face.clone(),
-                    node: RecipeNodeId::new(0, tagged(3)),
-                    body: 0,
-                },
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
                         node: RecipeNodeId::new(0, tagged(3)),
