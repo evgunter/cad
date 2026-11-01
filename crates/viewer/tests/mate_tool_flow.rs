@@ -11,12 +11,11 @@ use pncad::document::{Dimension, Formula};
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{MateSide, RecipeNodeId, Said, Speaker};
+use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState};
 use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
-use viewer::tree::PickedName;
 
 #[test]
 fn two_picks_one_choice_one_committed_edit() {
@@ -216,11 +215,12 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let mut session = asm::open_bench(&bench, tol);
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
-    tool.pick(session.doc(), post_top.clone());
-    tool.pick(session.doc(), shelf_bottom.clone());
-    let held_line = tool.line(Speaker::of(session.doc()));
-    let said = Said(&PickedName::face(&shelf_bottom), Speaker::of(session.doc())).to_string();
-    eprintln!("PROBE held_line={held_line:?} said={said:?}");
+    tool.pick_in(session.doc(), session.part_files(), post_top.clone());
+    tool.pick_in(session.doc(), session.part_files(), shelf_bottom.clone());
+    let held_line = tool.line(viewer::frame::shown_speaker(
+        session.doc(),
+        session.landed_pair(),
+    ));
 
     // The SECOND pick's instance is deleted out from under the tool.
     session.perform(SessionOp::DeleteNode {
@@ -242,17 +242,18 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // The notice says the pick in the panel's words on the frame
     // before — the copy as the document spoke it when it was picked —
     // though the document that dropped it no longer holds it.
-    let shelf = format!(
-        "InstantiatePart {}",
-        test_utils::refusal::tag(bench.shelf_i.0.digest())
-    );
-    assert!(
-        said.ends_with(&format!(", on {shelf}")),
-        "the face is said on the copy it was picked on: {said:?}"
+    let tag = |node: RecipeNodeId| test_utils::refusal::tag(node.0.digest());
+    // The shelf's underside is the start cap of the part's own extrude,
+    // a node the assembly does not hold, picked on the shelf's instance.
+    let said = format!(
+        "the start cap of node {}, on InstantiatePart {} — {}",
+        tag(shelf_bottom.name.node),
+        tag(bench.shelf_i),
+        session.part_files().name(bench.shelf.id)
     );
     assert!(held_line.ends_with(&format!("to: {said}")), "{held_line:?}");
     assert_eq!(
-        events[0].to_string(),
+        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval)))).to_string(),
         format!("the to pick ({said}) no longer resolves; the tool dropped it")
     );
     match tool.state() {
@@ -954,7 +955,10 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
              something else"
         )
     );
-    let panel = tool.line(Speaker::of(session.doc()));
+    let panel = tool.line(viewer::frame::shown_speaker(
+        session.doc(),
+        session.landed_pair(),
+    ));
     assert!(
         panel.contains(&spoken),
         "the panel says the same node: {panel}"

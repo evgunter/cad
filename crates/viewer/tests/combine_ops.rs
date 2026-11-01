@@ -195,6 +195,7 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -1840,6 +1841,7 @@ fn the_open_tool_consumes_the_selection_stream() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -1853,6 +1855,7 @@ fn the_open_tool_consumes_the_selection_stream() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -1870,6 +1873,7 @@ fn the_open_tool_consumes_the_selection_stream() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks[..1]
             )
@@ -3018,6 +3022,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
         tools.open(kind);
         let _ = tools.feed(
             doc,
+            &viewer::parts::PartFiles::default(),
             Err(viewer::pickcache::NotIndexed::Absent),
             &[SessionOp::Select(picked.clone())],
         );
@@ -3055,6 +3060,7 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     tools.open(ToolKind::Duplicate);
     let _ = tools.feed(
         session.committed_doc(),
+        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(picked)],
     );
@@ -3094,6 +3100,7 @@ fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     tools.open(ToolKind::Part);
     let _ = tools.feed(
         session.committed_doc(),
+        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Node(pattern))],
     );
@@ -3338,6 +3345,7 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     tools.open(ToolKind::Transform);
     let _ = tools.feed(
         session.committed_doc(),
+        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(picked)],
     );
@@ -3789,7 +3797,12 @@ fn the_split_plane_is_drawn_under_the_picked_copy() {
         let index = common::plate_index(session);
         let mut tools = Tools::new();
         tools.open(ToolKind::Split);
-        let declined = tools.feed(session.committed_doc(), Ok(&index), &[picked]);
+        let declined = tools.feed(
+            session.committed_doc(),
+            &viewer::parts::PartFiles::default(),
+            Ok(&index),
+            &[picked],
+        );
         assert!(declined.is_empty(), "{declined:?}");
         let tool = tools.split().expect("the split tool is open");
         let (doc, evaluation) = session.landed_pair().expect("landed");

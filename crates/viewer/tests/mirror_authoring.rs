@@ -84,6 +84,7 @@ fn mirror_tool_picking(session: &DocSession, faces: &[FaceSelection]) -> Tools {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )
@@ -593,6 +594,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(Selection::Node(common::copy_of(
                     session.committed_doc(),
@@ -617,6 +619,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
     let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.002, 0.003));
     let _ = tools.feed(
         session.committed_doc(),
+        &viewer::parts::PartFiles::default(),
         Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Face(wall))],
     );
@@ -685,6 +688,57 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
             .reconcile(session.doc(), session.landed_pair())
             .is_empty(),
         "and a drop is said once"
+    );
+}
+
+/// **A drop says the plane as the line said it**, after the copy it
+/// was clicked on is deleted: the line read the click on the block the
+/// copy places, so the drop says the block, and not the deleted copy by
+/// its tag. Red if the drop reads the click's body again against the
+/// document that dropped it.
+#[test]
+fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
+    let tol = Tol::witness();
+    let (mut session, block) = block(tol);
+    let wall = face_toward(&session, 1.0);
+    let copy = wall.node;
+    assert_ne!(
+        copy, block,
+        "the premise: the wall was clicked on the block's copy"
+    );
+    let mut tools = mirror_tool_picking(&session, &[wall]);
+    let line = tools
+        .mirror()
+        .expect("open")
+        .line(viewer::frame::shown_speaker(
+            session.doc(),
+            session.landed_pair(),
+        ));
+    let plane = line
+        .split_once("mirror plane: ")
+        .map(|(_, plane)| plane.to_owned())
+        .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
+    let block_said = session.doc().spoken(block).to_string();
+    assert!(
+        plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {block_said}")),
+        "the line says the plane on the block: {line:?}"
+    );
+    let outcome = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    tools.respeak(session.doc());
+    session.pump();
+    let dropped: Vec<String> = tools
+        .reconcile(session.doc(), session.landed_pair())
+        .iter()
+        .filter(|notice| matches!(notice, ToolNotice::Mirror(MirrorEvent::PlaneLost { .. })))
+        .map(|notice| notice.said(session.landed_pair()))
+        .collect();
+    assert_eq!(
+        dropped,
+        [format!(
+            "mirror tool: the mirror plane pick ({plane}) no longer resolves; the tool dropped it"
+        )],
+        "the drop says the plane as the line did"
     );
 }
 
@@ -772,6 +826,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &[SessionOp::Select(Selection::Node(b))]
             )
@@ -794,12 +849,14 @@ fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
     let (session, block) = block(tol);
     let wall = face_toward(&session, 1.0);
     let tools = mirror_tool_picking(&session, &[wall]);
-    let doc = session.committed_doc();
-    let said = doc.spoken(block).to_string();
+    let said = session.doc().spoken(block).to_string();
     let line = tools
         .mirror()
         .expect("open")
-        .line(doc, pncad::document::Speaker::of(doc));
+        .line(viewer::frame::shown_speaker(
+            session.doc(),
+            session.landed_pair(),
+        ));
     let plane = line
         .strip_prefix(&format!("mirrored body: {said}; mirror plane: "))
         .unwrap_or_else(|| panic!("the body seat says the block: {line:?}"));
@@ -845,6 +902,7 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
         tools
             .feed(
                 session.committed_doc(),
+                &viewer::parts::PartFiles::default(),
                 Err(viewer::pickcache::NotIndexed::Absent),
                 &picks
             )

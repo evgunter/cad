@@ -31,12 +31,13 @@ use pncad::prelude::StableName;
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
+use crate::parts::PartFiles;
 use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
 use crate::session::refuse::one_body;
 use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
-use crate::tree::PickedName;
+use crate::tree::{HeldPick, PickedName};
 use crate::vocab::vocabulary;
 
 /// **The boolean tool**: one operation choice and the body picks it
@@ -392,9 +393,13 @@ impl SplitTool {
 pub struct MirrorTool {
     seats: Seats,
     plane: Option<FaceSelection>,
-    /// The nodes the plane's sentence names, as the document last
-    /// spoke them ([`Self::respeak`]).
-    plane_said: Option<HeldNodes>,
+    /// The plane's sentence as the tool keeps it: the body the face is
+    /// on, read once at the pick ([`crate::world::on_body`]), and the
+    /// nodes its words name as the document last spoke them
+    /// ([`Self::respeak`]). The line and the drop both say the plane
+    /// from it, so a drop after the copy it was clicked on is deleted
+    /// says what the line said.
+    plane_said: Option<HeldPick>,
 }
 
 impl Default for MirrorTool {
@@ -434,13 +439,20 @@ impl MirrorTool {
     }
 
     /// **Feed one face pick**: the plane, and the body it is on while
-    /// no body is held (the type's docs).
-    pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+    /// no body is held (the type's docs). `files` says which part an
+    /// instance the face is on is, kept with the pick.
+    pub fn pick_plane(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        files: &PartFiles,
+        face: FaceSelection,
+    ) {
         if self.seats.is_empty() {
             self.seats.pick_at(doc, face.node, Some(face.body));
         }
         let (node, body, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-        self.plane_said = Some(held_by(&PickedName::on(&name, node, body), doc));
+        let picked = PickedName::on(&name, node, body).in_doc(doc, files);
+        self.plane_said = Some(HeldPick::of(&picked, doc));
         self.plane = Some(face);
     }
 
@@ -476,15 +488,15 @@ impl MirrorTool {
             return None;
         }
         let face = self.plane.take()?;
-        let (node, body, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-        let said = self
-            .plane_said
-            .take()
-            .unwrap_or_else(|| held_by(&PickedName::on(&name, node, body), doc));
+        // The body the line said, kept at the pick: read again here, a
+        // deleted copy would answer its own node, which the line never
+        // said.
+        let said = self.plane_said.take().unwrap_or_else(|| {
+            let (node, body, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
+            HeldPick::of(&PickedName::on(&name, node, body), doc)
+        });
         Some(MirrorEvent::PlaneLost {
-            name,
-            node,
-            body,
+            name: face.name,
             said,
             resolution: Box::new(verdict),
         })
@@ -498,22 +510,21 @@ impl MirrorTool {
         }
     }
 
-    /// **The panel's held-picks line**: the body seat as [`seat_line`]
-    /// says it, and the plane as the chrome says a pick
-    /// ([`PickedName`]), on the body the face is on as a body seat says
-    /// a pick on a copy ([`crate::world::on_body`]) so one click is
-    /// named by one node in both items; by `by`, a node `by` does not
-    /// hold as the tool kept it.
-    pub fn line(&self, doc: &Doc<ProfileProgram>, by: Speaker<'_>) -> String {
-        let body = self.seats.said(doc, 0);
-        let by = match &self.plane_said {
-            Some(said) => by.or_held(said),
-            None => by,
-        };
-        let plane = self.plane.as_ref().map(|face| {
-            let (node, body, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
-            Said(&PickedName::on(&name, node, body), by).to_string()
-        });
+    /// **The panel's held-picks line**: the body seat and the plane,
+    /// each said by `by` — the body seat's node, and the plane as the
+    /// chrome says a pick ([`PickedName`]) on the body the face is on as
+    /// a body seat says a pick on a copy ([`crate::world::on_body`]), so
+    /// one click is named by one node in both items. A node `by` does
+    /// not hold is said as the tool kept it.
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        let body = self.seats.said_by(by, 0);
+        let plane = self
+            .plane
+            .as_ref()
+            .zip(self.plane_said.as_ref())
+            .map(|(face, said)| {
+                Said(&PickedName::held(&face.name, said), by.or_held(said.said())).to_string()
+            });
         picks_line([
             (Seat::MirrorBody.name(), body),
             (FaceRole::MirrorPlane.name(), plane),
@@ -545,14 +556,10 @@ pub enum MirrorEvent {
     PlaneLost {
         /// The face's name.
         name: StableName,
-        /// The node whose body the face is on, read as the panel line
-        /// reads it ([`crate::world::on_body`]).
-        node: RecipeNodeId,
-        /// That body's index in the node's value.
-        body: u32,
-        /// The nodes the face's sentence names, by the last labels the
-        /// tool kept for them.
-        said: HeldNodes,
+        /// The face's sentence as the tool kept it: the body the panel
+        /// line said it on, and the nodes its words name, by the last
+        /// labels the tool kept for them.
+        said: HeldPick,
         /// The resolution machinery's own verdict.
         resolution: Box<pncad::select::Resolution>,
     },
@@ -562,17 +569,11 @@ pub enum MirrorEvent {
 impl Say for MirrorEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost {
-                name,
-                node,
-                body,
-                said,
-                ..
-            } => crate::matetool::face_lost(
+            Self::PlaneLost { name, said, .. } => crate::matetool::face_lost(
                 f,
                 FaceRole::MirrorPlane.name(),
-                PickedName::on(name, *node, *body),
-                by.or_held(said),
+                PickedName::held(name, said),
+                by.or_held(said.said()),
             ),
         }
     }
@@ -583,7 +584,7 @@ impl Say for MirrorEvent {
 impl core::fmt::Display for MirrorEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { said, .. } => self.say(f, Speaker::held(said)),
+            Self::PlaneLost { said, .. } => self.say(f, Speaker::held(said.said())),
         }
     }
 }

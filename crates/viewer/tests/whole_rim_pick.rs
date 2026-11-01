@@ -78,6 +78,7 @@ fn click(
 ) -> Vec<ToolNotice> {
     tools.feed(
         doc,
+        &viewer::parts::PartFiles::default(),
         index,
         &[SessionOp::Select(Selection::Edge(edge.clone()))],
     )
@@ -223,7 +224,7 @@ fn an_unindexed_arc_pick_is_refused_and_an_indexed_one_holds_the_circle() {
     ] {
         match click(&mut tools, &doc, Err(why), a).as_slice() {
             [notice @ ToolNotice::Blend(BlendEvent::Unindexed { picked, why: said })] => {
-                assert_eq!(*picked, BlendTarget { node, body: 0 });
+                assert_eq!(picked, a, "the refused pick is the click");
                 assert_eq!(*said, why);
                 let line = notice.to_string();
                 assert!(line.contains(says), "{why:?}: {line}");

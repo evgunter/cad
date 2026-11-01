@@ -137,6 +137,11 @@ pub(crate) struct Drafts {
     pub(crate) trace_plane: Option<FaceSelection>,
     /// The face the sketch traces, latched the same way.
     pub(crate) trace_face: Option<FaceSelection>,
+    /// The nodes the two trace latches name, plane then face, kept as
+    /// [`Self::sketch_face_said`] keeps the on-face form's: the
+    /// selection's when the latch took it, spoken again from each later
+    /// document ([`Self::respeak`]).
+    pub(crate) trace_said: [HeldNodes; 2],
     /// Where the trace steps go in the chain, and their branches.
     pub(crate) trace_gesture: sketch::TraceGesture,
     /// The trace the two latches show, as last read against the landed
@@ -914,6 +919,7 @@ impl Default for Drafts {
             trace_on: false,
             trace_plane: None,
             trace_face: None,
+            trace_said: [HeldNodes::default(), HeldNodes::default()],
             trace_gesture: sketch::TraceGesture::default(),
             trace_shown: None,
             sketch_depth: 0.01,
@@ -1229,6 +1235,7 @@ impl Drafts {
     pub(crate) fn document_replaced(&mut self) {
         self.trace_plane = None;
         self.trace_face = None;
+        self.trace_said = [HeldNodes::default(), HeldNodes::default()];
         self.sketch_face = None;
         self.sketch_face_said = HeldNodes::default();
     }
@@ -1252,6 +1259,9 @@ impl Drafts {
     /// longer holds keeps the last it had.
     pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
         self.sketch_face_said = self.sketch_face_said.respoken(doc);
+        for said in &mut self.trace_said {
+            *said = said.respoken(doc);
+        }
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the

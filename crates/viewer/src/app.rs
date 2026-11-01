@@ -2258,6 +2258,7 @@ impl eframe::App for ViewerApp {
         // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(
             self.session.doc(),
+            self.session.part_files(),
             self.picks.index_or_why(self.fit.as_ref()),
             &ops,
         );
@@ -6103,6 +6104,7 @@ mod properties_pane_tests {
         let ops: Vec<SessionOp> = selections.into_iter().map(SessionOp::Select).collect();
         let declined = app.tools.feed(
             app.session.doc(),
+            app.session.part_files(),
             app.picks.index_or_why(app.fit.as_ref()),
             &ops,
         );
@@ -6788,7 +6790,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of Place "),
+            refused_said.contains("edges it draws on Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));

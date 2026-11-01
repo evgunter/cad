@@ -119,6 +119,7 @@ fn pick_on(
 ) -> Vec<ToolNotice> {
     tools.feed(
         doc,
+        &viewer::parts::PartFiles::default(),
         Ok(index),
         &[SessionOp::Select(Selection::Edge(edge.clone()))],
     )
@@ -1362,6 +1363,7 @@ fn a_click_on_a_seam_split_rim_blends_the_whole_rim() {
     let click = |tools: &mut Tools, edge: &EdgeSelection| {
         tools.feed(
             session.committed_doc(),
+            &viewer::parts::PartFiles::default(),
             Ok(&index),
             &[SessionOp::Select(Selection::Edge(edge.clone()))],
         )

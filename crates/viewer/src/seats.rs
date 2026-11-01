@@ -99,7 +99,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::document::{
+    Doc, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Speaker, SpokenNode,
+};
 use pncad::select::SplitHalf;
 
 use crate::session::{NodeKindWanted, admits};
@@ -365,7 +367,11 @@ impl Port {
 /// **A pick as the panel says it**: the node as `doc` speaks it, and
 /// the half it reads or still waits for.
 pub(crate) fn pick_said(doc: &Doc<ProfileProgram>, node: RecipeNodeId, port: Port) -> String {
-    let node_said = doc.spoken(node).to_string();
+    port_said(doc.spoken(node).to_string(), port)
+}
+
+/// A seat's node, said, with what the seat reads of it.
+fn port_said(node_said: String, port: Port) -> String {
     match port {
         Port::Half(half) => format!("{node_said}, {} half", half.name()),
         Port::HalfPending => format!("{node_said}, half not chosen"),
@@ -445,6 +451,17 @@ impl Seats {
     /// item [`seat_line`] composes; `None` for an open seat.
     pub(crate) fn said(&self, doc: &Doc<ProfileProgram>, i: usize) -> Option<String> {
         self.held(i).map(|node| pick_said(doc, node, self.ports[i]))
+    }
+
+    /// **Seat `i`'s pick said by `by`**, a node `by` does not hold as
+    /// the seat kept it: [`Self::said`] for a panel whose other items a
+    /// speaker says (the mirror tool's line), so one speaker says the
+    /// whole line. `None` for an open seat.
+    pub(crate) fn said_by(&self, by: Speaker<'_>, i: usize) -> Option<String> {
+        let kept = self.held[i].as_ref()?;
+        let held: HeldNodes = [kept.clone()].into_iter().collect();
+        let node = by.or_held(&held).node(kept.id()).to_string();
+        Some(port_said(node, self.ports[i]))
     }
 
     /// Seat `i`'s role.

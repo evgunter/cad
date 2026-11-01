@@ -74,15 +74,15 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Coord, Doc, Evaluation, Formula, HeldNodes, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
-    RecipeNodeId, Said, Say, SitedFace, Speaker, SpokenNode, TargetAxis, VarKind, held_by,
-    member_of, pose,
+    Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
+    RecipeNodeId, Said, Say, SitedFace, Speaker, SpokenNode, TargetAxis, VarKind, member_of, pose,
 };
 use pncad::select::Resolution;
 
+use crate::parts::PartFiles;
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
-use crate::tree::PickedName;
+use crate::tree::{HeldPick, PickedName};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **The kinds a mate's face picks are read as**, with their labels: a
@@ -290,8 +290,10 @@ impl core::error::Error for MateToolError {}
 
 impl MateToolError {
     /// This refusal with its nodes spoken from `doc`, a later version of
-    /// the document the tool read ([`crate::session::Refusal::respoken`]),
-    /// as the panel's line ([`MateTool::line`]) keeps its own labels.
+    /// the document the tool read ([`crate::session::Refusal::respoken`]):
+    /// the panel's line ([`MateTool::line`]) speaks the session's
+    /// document ([`crate::frame::shown_speaker`]), and a refusal drawn
+    /// beside it speaks the same one.
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
@@ -370,9 +372,10 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
-        /// The nodes the pick's sentence names, by the last labels the
-        /// tool kept for them ([`MateTool::respeak`]).
-        said: HeldNodes,
+        /// The pick's sentence as the tool kept it: the body it was on
+        /// and the nodes its words name, by the last labels the tool
+        /// kept for them ([`MateTool::respeak`]).
+        said: HeldPick,
         /// The resolution machinery's own verdict, read as the feature
         /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
         /// for the same width reason `Standing` boxes it.
@@ -388,7 +391,12 @@ impl Say for MateToolEvent {
         match self {
             Self::PickLost {
                 side, pick, said, ..
-            } => face_lost(f, side.name(), PickedName::face(pick), by.or_held(said)),
+            } => face_lost(
+                f,
+                side.name(),
+                PickedName::held(&pick.name, said),
+                by.or_held(said.said()),
+            ),
         }
     }
 }
@@ -398,7 +406,7 @@ impl Say for MateToolEvent {
 impl core::fmt::Display for MateToolEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { said, .. } => self.say(f, Speaker::held(said)),
+            Self::PickLost { said, .. } => self.say(f, Speaker::held(said.said())),
         }
     }
 }
@@ -495,11 +503,12 @@ fn placement_of(
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MateTool {
     state: MateToolState,
-    /// The nodes each held pick's sentence names, as the document last
-    /// spoke them, `on` then `to` ([`MateTool::respeak`]) — what a drop
+    /// Each held pick's sentence as the tool keeps it, `on` then `to`:
+    /// the body it was taken on, and the nodes its words name as the
+    /// document last spoke them ([`MateTool::respeak`]) — what a drop
     /// notice, a refusal or the panel line says once the document no
     /// longer holds a node.
-    said: [Option<HeldNodes>; 2],
+    said: [Option<HeldPick>; 2],
 }
 
 impl MateTool {
@@ -517,8 +526,24 @@ impl MateTool {
     /// into tool state. The first pick fills `on`, the second `to`; a
     /// third REPLACES `to` (the choice step is still open, and
     /// re-picking the second face is how a person corrects it).
+    ///
+    /// With no part files at hand ([`Self::pick_in`] has them), an
+    /// instance the pick is on is said without its part file.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        let said = Some(held_by(&PickedName::face(&face), doc));
+        let said = HeldPick::of(&PickedName::face(&face), doc);
+        self.hold(said, face);
+    }
+
+    /// [`Self::pick`], with `files` saying which part an instance the
+    /// pick is on is, kept with the pick ([`HeldPick`]): the door the
+    /// viewport's picks go through (`crate::tools::Tools::feed`).
+    pub fn pick_in(&mut self, doc: &Doc<ProfileProgram>, files: &PartFiles, face: FaceSelection) {
+        let said = HeldPick::of(&PickedName::face(&face).in_doc(doc, files), doc);
+        self.hold(said, face);
+    }
+
+    fn hold(&mut self, said: HeldPick, face: FaceSelection) {
+        let said = Some(said);
         self.state = match std::mem::take(&mut self.state) {
             MateToolState::Idle => {
                 self.said = [said, None];
@@ -551,14 +576,14 @@ impl MateTool {
         let [said_on, said_to] = &self.said;
         crate::seats::picks_line(
             [(MateSide::On, on, said_on), (MateSide::To, to, said_to)].map(|(side, pick, said)| {
-                let by = match said {
-                    Some(said) => by.or_held(said),
-                    None => by,
-                };
-                (
-                    side.name(),
-                    pick.map(|pick| Said(&PickedName::face(pick), by).to_string()),
-                )
+                let pick = pick.map(|pick| match said {
+                    Some(said) => {
+                        Said(&PickedName::held(&pick.name, said), by.or_held(said.said()))
+                            .to_string()
+                    }
+                    None => Said(&PickedName::face(pick), by).to_string(),
+                });
+                (side.name(), pick)
             }),
         )
     }
@@ -571,7 +596,7 @@ impl MateTool {
             MateSide::On => &self.said[0],
             MateSide::To => &self.said[1],
         };
-        match kept.as_ref().map(|kept| kept.spoken(node)) {
+        match kept.as_ref().map(|kept| kept.said().spoken(node)) {
             Some(kept) if kept.kind().is_some() => kept,
             _ => doc.spoken(node),
         }
@@ -598,7 +623,7 @@ impl MateTool {
                         MateSide::On => said_on.clone(),
                         MateSide::To => said_to.clone(),
                     }
-                    .unwrap_or_else(|| held_by(&PickedName::face(pick), doc)),
+                    .unwrap_or_else(|| HeldPick::of(&PickedName::face(pick), doc)),
                     pick: pick.clone(),
                     resolution: Box::new(verdict),
                 });

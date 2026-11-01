@@ -456,10 +456,14 @@ impl ViewerBehavior<'_> {
                 return;
             }
             Standing::Face { face, .. } => {
-                self.entity_header_ui(ui, PickedName::face(face), face.feature(), standing);
+                let picked =
+                    PickedName::face(face).in_doc(self.session.doc(), self.session.part_files());
+                self.entity_header_ui(ui, &picked, standing);
             }
             Standing::Edge { edge, .. } => {
-                self.entity_header_ui(ui, PickedName::edge(edge), edge.feature(), standing);
+                let picked =
+                    PickedName::edge(edge).in_doc(self.session.doc(), self.session.part_files());
+                self.entity_header_ui(ui, &picked, standing);
             }
         }
         standing_verdict(ui, &self.theme, standing, landed, said);
@@ -502,23 +506,21 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// A picked entity's header line: the entity as the chrome says a
-    /// pick ([`PickedName`]), and the delete the feature that made it
+    /// A picked entity's header line ([`entity_header`]): the entity as
+    /// the chrome says a pick, and the delete the feature that made it
     /// offers. Its verdict is [`standing_verdict`]'s, on the lines
     /// under it.
     fn entity_header_ui(
         &mut self,
         ui: &mut egui::Ui,
-        picked: PickedName<'_>,
-        feature: RecipeNodeId,
+        picked: &PickedName<'_>,
         standing: &Standing,
     ) {
         ui.horizontal(|ui| {
-            // The words name the feature that MADE the entity first, so
-            // the button deletes what the label names.
             let by = crate::frame::landed_speaker(self.session.landed_pair())
                 .or_held(self.session.selection_said());
-            ui.label(Said(&picked, by).to_string());
+            let (label, feature) = entity_header(picked, by);
+            ui.label(label);
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
@@ -1425,6 +1427,19 @@ fn selected_node_heading(
     }
 }
 
+/// **A picked entity's header**: the pick as the chrome says one
+/// ([`PickedName`]), and the node its Delete deletes — the feature the
+/// words name ([`PickedName::feature`]), so the button deletes what the
+/// label names. Not [`crate::session::FaceSelection::feature`]: for a
+/// name the attribution walk cannot classify, that answers the drawn
+/// node, which the words do not call the feature.
+pub(crate) fn entity_header(
+    picked: &PickedName<'_>,
+    by: pncad::document::Speaker<'_>,
+) -> (String, RecipeNodeId) {
+    (Said(picked, by).to_string(), picked.feature())
+}
+
 /// **What the selection's standing has to SAY, drawn**: the verdict on
 /// a selection that no longer denotes — a deleted node, an undeclared
 /// variable, a picked entity whose name did not resolve — in the
@@ -2214,6 +2229,53 @@ mod tests {
     use crate::test_support::spoken;
 
     const NODE: RecipeNodeId = RecipeNodeId::new(0, test_utils::refusal::tagged(4));
+
+    /// **The header's Delete deletes the node its label calls the
+    /// feature.** A name the attribution walk cannot classify (here, no
+    /// path) has no minting node, so `FaceSelection::feature` answers
+    /// the drawn node; the words say the name's own node made it. The
+    /// header deletes the one its words name, and says the drawn node
+    /// as where the pick was taken. A classified cap's feature is the
+    /// one both answer.
+    #[test]
+    fn the_entity_headers_delete_is_the_feature_its_label_names() {
+        use crate::session::FaceSelection;
+        use crate::tree::PickedName;
+        use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+        let node = |n| RecipeNodeId::new(0, test_utils::refusal::tagged(n));
+        let (named, drawn) = (node(3), node(5));
+        let face = |path| FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: named,
+                path,
+            },
+            node: drawn,
+            body: 0,
+        };
+        let unclassified = face(Vec::new());
+        assert_eq!(
+            unclassified.feature(),
+            drawn,
+            "the premise: the attribution walk falls back to the drawn node"
+        );
+        let by = pncad::document::Speaker::TAG;
+        assert_eq!(
+            super::entity_header(&PickedName::face(&unclassified), by),
+            (
+                "the face of node 000000000003, on node 000000000005".to_owned(),
+                named
+            ),
+        );
+        let cap = face(vec![RoleSeg::Cap(CapEnd::End)]);
+        assert_eq!(
+            super::entity_header(&PickedName::face(&cap), by),
+            (
+                "the end cap of node 000000000003, on node 000000000005".to_owned(),
+                cap.feature()
+            ),
+        );
+    }
 
     fn thickness() -> SpokenVar {
         SpokenVar::new(VarId::new(0, 5), Some(VarName::from_static("thickness")))

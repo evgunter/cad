@@ -556,7 +556,7 @@ impl ViewerBehavior<'_> {
         mate_picks_row(
             ui,
             &tool,
-            frame::landed_speaker(self.session.landed_pair()),
+            frame::shown_speaker(self.session.doc(), self.session.landed_pair()),
             &self.theme,
         );
         ui.horizontal(|ui| {
@@ -931,8 +931,12 @@ impl ViewerBehavior<'_> {
             _ => None,
         };
         let speaker = frame::landed_speaker(self.session.landed_pair());
+        let (doc, files) = (self.session.doc(), self.session.part_files());
         let mut withholds = Vec::new();
-        for (label, plane) in [(TRACE_PLANE, true), (TRACE_FACE, false)] {
+        for (i, (label, plane)) in [(TRACE_PLANE, true), (TRACE_FACE, false)]
+            .into_iter()
+            .enumerate()
+        {
             ui.horizontal(|ui| {
                 ui.label(label);
                 let held = if plane {
@@ -940,8 +944,18 @@ impl ViewerBehavior<'_> {
                 } else {
                     &mut self.drafts.trace_face
                 };
+                let said = &mut self.drafts.trace_said[i];
+                // Said as the sketch-face row beside it says its face: a
+                // node the landed document no longer holds as the latch
+                // kept it.
                 match held.as_ref() {
-                    Some(face) => ui.weak(Said(&PickedName::face(face), speaker).to_string()),
+                    Some(face) => ui.weak(
+                        Said(
+                            &PickedName::face(face).in_doc(doc, files),
+                            speaker.or_held(said),
+                        )
+                        .to_string(),
+                    ),
                     None => ui.weak("none picked"),
                 };
                 if ui
@@ -949,6 +963,7 @@ impl ViewerBehavior<'_> {
                     .clicked()
                 {
                     held.clone_from(&picked);
+                    said.clone_from(self.session.selection_said());
                 }
             });
         }
@@ -1041,7 +1056,9 @@ impl ViewerBehavior<'_> {
                 Some(face) => {
                     let by = frame::landed_speaker(self.session.landed_pair())
                         .or_held(self.drafts.sketch_face_said());
-                    ui.weak(Said(&PickedName::face(face), by).to_string())
+                    let picked = PickedName::face(face)
+                        .in_doc(self.session.doc(), self.session.part_files());
+                    ui.weak(Said(&picked, by).to_string())
                 }
                 None => ui.weak("none picked"),
             };
@@ -1403,10 +1420,10 @@ impl ViewerBehavior<'_> {
         );
         crate::widgets::message_toned(
             ui,
-            tool.line(
+            tool.line(frame::shown_speaker(
                 self.session.doc(),
-                frame::landed_speaker(self.session.landed_pair()),
-            ),
+                self.session.landed_pair(),
+            )),
             &self.theme,
             Tone::Advisory,
         );
@@ -1991,7 +2008,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Doc, ProfileProgram, RecipeNodeId, Speaker};
+    use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
@@ -2030,17 +2047,26 @@ mod tests {
         // The picks' nodes are not in this document, so each is spoken
         // as a bare tag.
         let doc = Doc::<ProfileProgram>::empty_derived("mate-row", Tol::witness());
-        let painted = |tool: &MateTool| {
-            painted_text(|ui| mate_picks_row(ui, tool, Speaker::of(&doc), &Theme::DEFAULT))
-        };
+        let evaluation = pncad::document::evaluate(
+            &doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            Tol::witness(),
+        );
+        // The speaker the panel is drawn with.
+        let by = crate::frame::shown_speaker(&doc, Some((&doc, &evaluation)));
+        let painted =
+            |tool: &MateTool| painted_text(|ui| mate_picks_row(ui, tool, by, &Theme::DEFAULT));
+        let files = crate::parts::PartFiles::default();
         let mut tool = MateTool::new();
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick(&doc, cap_on(3, 3));
+        tool.pick_in(&doc, &files, cap_on(3, 3));
         assert_eq!(
             painted(&tool),
             "on: the end cap of node 000000000003; to: —"
         );
-        tool.pick(&doc, cap_on(3, 5));
+        tool.pick_in(&doc, &files, cap_on(3, 5));
         assert_eq!(
             painted(&tool),
             "on: the end cap of node 000000000003; \
@@ -2638,7 +2664,7 @@ mod tools_respeak {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used, clippy::panic)]
 
-    use pncad::document::{Label, MateSide, RecipeNodeId};
+    use pncad::document::{Label, RecipeNodeId};
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
     use crate::session::{DocSession, EdgeSelection, FaceSelection, Selection, SessionOp};
@@ -2683,7 +2709,12 @@ mod tools_respeak {
             )
             .expect("the block indexes")
         };
-        let declined = tools.feed(session.doc(), Ok(&index), &picks);
+        let declined = tools.feed(
+            session.doc(),
+            &crate::parts::PartFiles::default(),
+            Ok(&index),
+            &picks,
+        );
         assert!(declined.is_empty(), "every pick is taken: {declined:?}");
         for op in [label("plinth"), SessionOp::DeleteNode { node: block }] {
             perform(&mut session, &mut tools, op);
@@ -2700,6 +2731,15 @@ mod tools_respeak {
     /// The tool's drops, as the survival step reports them.
     fn dropped(session: &DocSession, tools: &mut Tools) -> Vec<ToolNotice> {
         tools.reconcile(session.doc(), session.landed_pair())
+    }
+
+    /// The tool's drops as the status line says them
+    /// (`frame::tool_notice`).
+    fn read(session: &DocSession, tools: &mut Tools) -> Vec<String> {
+        dropped(session, tools)
+            .iter()
+            .map(|notice| notice.said(session.landed_pair()))
+            .collect()
     }
 
     fn face(node: RecipeNodeId) -> FaceSelection {
@@ -2754,22 +2794,19 @@ mod tools_respeak {
         let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Mirror, |block, _| {
             vec![Selection::Face(face(block))]
         });
-        let said: Vec<String> = dropped(&session, &mut tools)
-            .into_iter()
-            .map(|notice| match notice {
-                ToolNotice::Seated { event, .. } => {
-                    let crate::seats::SeatEvent::PickLost { node, .. } = event;
-                    node.to_string()
-                }
-                ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost {
-                    node, said, ..
-                }) => said.spoken(node).to_string(),
-                other => panic!("a mirror drop, not {other:?}"),
-            })
-            .collect();
+        let said = read(&session, &mut tools);
         assert_eq!(
             said,
-            [last.clone(), last],
+            [
+                format!(
+                    "mirror tool: the mirrored body pick ({last}) is no longer in the document; the \
+                     tool dropped it"
+                ),
+                format!(
+                    "mirror tool: the mirror plane pick (the end cap of {last}) no longer \
+                     resolves; the tool dropped it"
+                ),
+            ],
             "the body seat, then the plane, each by the block's last label"
         );
     }
@@ -2787,16 +2824,14 @@ mod tools_respeak {
                 body: 0,
             })]
         });
-        let said: Vec<String> = dropped(&session, &mut tools)
-            .into_iter()
-            .map(|notice| match notice {
-                ToolNotice::Blend(crate::blend::BlendEvent::TargetLost { node, .. }) => {
-                    node.to_string()
-                }
-                other => panic!("the target's drop, not {other:?}"),
-            })
-            .collect();
-        assert_eq!(said, [last], "the target is named by its last label");
+        assert_eq!(
+            read(&session, &mut tools),
+            [format!(
+                "blend tool: {last} is no longer in the document; the tool dropped all 1 picked \
+                 edges"
+            )],
+            "the target is named by its last label"
+        );
     }
 
     /// The instance-pick refusal is `app`'s
@@ -2807,23 +2842,17 @@ mod tools_respeak {
         let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Mate, |block, boss| {
             vec![Selection::Face(face(block)), Selection::Face(face(boss))]
         });
-        let said: Vec<String> = dropped(&session, &mut tools)
-            .into_iter()
-            .filter_map(|notice| match notice {
-                ToolNotice::Mate(crate::matetool::MateToolEvent::PickLost {
-                    side: MateSide::On,
-                    pick,
-                    said,
-                    ..
-                }) => Some(said.spoken(pick.node).to_string()),
-                ToolNotice::Mate(_) => None,
-                other => panic!("a mate drop, not {other:?}"),
-            })
-            .collect();
+        let said = read(&session, &mut tools);
         assert_eq!(
-            said,
-            [last],
-            "the on pick's drop names the block by its last label"
+            said.first().map(String::as_str),
+            Some(
+                format!(
+                    "mate tool: the on pick (the end cap of {last}) no longer resolves; the tool \
+                     dropped it"
+                )
+                .as_str()
+            ),
+            "the on pick's drop names the block by its last label: {said:?}"
         );
     }
 }

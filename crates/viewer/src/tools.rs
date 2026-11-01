@@ -44,6 +44,7 @@ use crate::combine::{
     TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
+use crate::parts::PartFiles;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickIndex, PickKinds};
 use crate::revolvetool::RevolveTool;
@@ -720,6 +721,9 @@ impl Tools {
     /// ([`NotIndexed`]); the blend tool refuses a new edge pick without
     /// one rather than hold what may be half a circle.
     ///
+    /// `files` says which part an instance a face pick is on is, which
+    /// the mate and mirror tools keep with the pick.
+    ///
     /// **`doc` is what routes a seated tool's pick**, not what
     /// judges it: a seat asks the document what KIND of node was
     /// picked so a pick that only one of two seats can hold lands in
@@ -733,6 +737,7 @@ impl Tools {
     pub fn feed(
         &mut self,
         doc: &Doc<ProfileProgram>,
+        files: &PartFiles,
         index: Result<&PickIndex, NotIndexed>,
         ops: &[SessionOp],
     ) -> Vec<ToolNotice> {
@@ -745,7 +750,7 @@ impl Tools {
                 None => {}
                 Some(OpenTool::Mate(tool)) => {
                     if let Some(face) = selection.face() {
-                        tool.pick(doc, face.clone());
+                        tool.pick_in(doc, files, face.clone());
                     }
                 }
                 Some(OpenTool::Blend(tool)) => {
@@ -775,7 +780,7 @@ impl Tools {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
                 Some(OpenTool::Mirror(tool)) => match selection.face() {
-                    Some(face) => tool.pick_plane(doc, face.clone()),
+                    Some(face) => tool.pick_plane(doc, files, face.clone()),
                     None => on_node_pick(selection, |node| tool.pick(doc, node)),
                 },
             }
