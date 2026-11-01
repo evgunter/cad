@@ -1154,7 +1154,7 @@ enum Samples {
     Ends,
     /// This many points evenly spaced along it, its ends among them; along
     /// a closed edge, whose ends are one point, this many distinct points.
-    Spread(u32),
+    Even(u32),
 }
 
 /// **Whether edge carrier `carrier`, over `(t0, t1)` (`closed` where its
@@ -1250,7 +1250,7 @@ fn carrier_on_surface<T: Decide>(
             // A conic meets a torus at no more than eight points unless
             // it lies on it, as a meridian, a parallel or a Villarceau
             // circle does.
-            Samples::Spread(if matches!(surface, geom::Surface::Torus { .. }) {
+            Samples::Even(if matches!(surface, geom::Surface::Torus { .. }) {
                 9
             } else {
                 5
@@ -1262,7 +1262,7 @@ fn carrier_on_surface<T: Decide>(
     };
     let points = match samples {
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
-        Samples::Spread(n) => spread(carrier, ((t0, t1), closed), n),
+        Samples::Even(n) => even_points(carrier, ((t0, t1), closed), n),
     };
     crate::census::points_on_surface(surface, &points, site, band)
         .map(Some)
@@ -1271,15 +1271,23 @@ fn carrier_on_surface<T: Decide>(
 
 /// `n` points of `carrier` evenly spaced over `(t0, t1)`, its ends among
 /// them; `n` distinct points where the span is `closed`, its ends one
-/// point.
-fn spread<T: Decide>(
+/// point. The `k`th of `s` steps is at `(t0·(s − k) + t1·k) / s`, each
+/// end entering once as in [`geom::mid_param`].
+fn even_points<T: Decide>(
     carrier: &geom::Curve3<T>,
     ((t0, t1), closed): ((T, T), bool),
     n: u32,
 ) -> Vec<Point3<T>> {
-    let count = |m: u32| (0..m).fold(T::zero(), |s, _| s + T::one());
-    let step = (t1 - t0) / count(if closed { n } else { n - 1 });
-    (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
+    let count = |m: u32| (0..m).fold(T::zero(), |c, _| c + T::one());
+    let steps = if closed { n } else { n - 1 };
+    (0..n)
+        .map(|k| match k {
+            0 => t0,
+            k if k == steps => t1,
+            k => (t0 * count(steps - k) + t1 * count(k)) / count(steps),
+        })
+        .map(|t| carrier.eval(t))
+        .collect()
 }
 
 /// **A conic of a torus's own reads on the torus face through
@@ -1404,7 +1412,7 @@ mod torus_rows {
             3.0,
             Vec3::unit_x(),
         );
-        let points = super::spread(&parallel, ((0.0, TAU), true), 9);
+        let points = super::even_points(&parallel, ((0.0, TAU), true), 9);
         assert_eq!(points.len(), 9, "nine samples");
         for (i, p) in points.iter().enumerate() {
             for q in &points[..i] {
