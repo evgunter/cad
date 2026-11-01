@@ -22,6 +22,10 @@ Filed by D′3 (PR 5636) on the INTENT orchestrator's 2026-10-26 ruling. `docs/I
 - each creation gesture leaves its copy in the product, and one undo takes the gesture and the product's change back together;
 - the viewer rows that set the product by hand (`crates/viewer/tests/common/mod.rs:807`, `product_is`) are re-read.
 
+## Parked on PR 6209 (2026-11-01)
+
+SPACES' `[ev]` PR 6209 retires (b): its designers recommend that nothing joins the product unasked, and they put "Add to the product" behind one door. It makes (a) load-bearing for the pattern takeover and that door, and says SPACES claims it once Ev answers. Parked until then. On Ev's answer, (b) closes as superseded or comes back, and (a) moves to `work/spaces/` by `git mv`. The P0 `a-mate-on-a-taken-over-copys-face-goes-stale` does not wait for this. It builds the rebind that follows any re-point, and so does not depend on which readers a re-point reaches. (DOORS orchestrator)
+
 ## Claimed by SPACES (2026-11-01)
 
 Moved from `work/doors/` by `git mv`, id kept. Half (b) is superseded by

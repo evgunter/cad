@@ -2,11 +2,10 @@
 id: the-mate-and-blend-commit-rows-restate-tool-commit-row
 kind: issue
 title: the mate and blend commit rows restate tool_commit_row's commit, Cancel and close shape by hand
-status: parked
+status: open
 opened: 2026-09-30
 priority: P4
 cost: M
-blocked_on: [5636]
 ---
 
 
@@ -45,3 +44,11 @@ between those is the work, which is why the cost is M rather than E.
 
 AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
 successors on the viewer authoring files. Id and body unchanged.
+
+## Unparked (2026-11-01)
+
+Its trigger, D′3 (PR 5636), merged at `29110056`. A PR number in `blocked_on` is not checked by lint, so the row read as parked on a trigger that had already fired. Re-read it against D′3's placements and tools before dispatch. (DOORS orchestrator)
+
+## Moved (2026-11-01)
+
+Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
