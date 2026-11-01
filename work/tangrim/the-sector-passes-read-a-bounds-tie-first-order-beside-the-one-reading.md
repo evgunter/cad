@@ -72,15 +72,49 @@ Still owed, each against the design's numbered items:
    `split_bisector_side` is a K-REPORT/k-lint row
    (`docs/K-REPORT.md`, `tools/k-lint`), so moving it renames a
    tracked predicate and the baseline needs re-deriving with it.
-6. **Second-order side readings landing beside the reading.** PR 6219
-   (`tangrim/fillet-line-arc-junction`, open when this row was filed)
-   re-keys a flanker glued `Tangent` to the reference in
+6. **Second-order side readings beside the reading.** PR 6219
+   (`tangrim/fillet-line-arc-junction`, merged 2026-11-01) re-keys a flanker glued `Tangent` to the reference in
    `recl::resolve_edge_sector` through `tangent_relative_side`, and reads
    a tangent sector's germ bounds at second order in
    `vtxfac::classify_vertex_on_face` (`TangentRead`). Both are instances
    of the class this row retires: fold them into `bound_side` with item
    1, keeping `crates/sweep/tests/a_box_along_a_fillets_line_arc_junction.rs`
    green.
+7. **A bisector's or probe's tie reads `Unread`.** `Tie::descend`
+   returns `BoundSide::Unread` for `Reach::Bisector` and
+   `Reach::Extent` against a plane: a direction has no bend of its own,
+   and a bisector of a sector on a curved face leaves the plane at
+   second order. The arm: the bisector's own sector face's normal
+   curvature along it stands in for the bound's bend (the design's
+   item 2, second bullet, "a bisector has no bend"), `Rides` only where
+   that face is planar. `FaceDatum` (or `Reach::Bisector`) has to carry
+   the sector face's curvature for it.
+8. **Sites the stage-1 sweep missed or left unnamed** (found by PR
+   6217's review):
+   - `geom_brep::bends_into_material`: a wall's curvature sum against
+     its tangent plane, a second-order reading of a face's side;
+   - `splitting/rules.rs` `tangent_sector_osculation`;
+   - `slit.rs` `bool_rider_wall_side` and `walls_inside`'s descent: a
+     wall's first-order side against the floor, then the parting, read
+     beside the reading.
+9. **`d̂·n̂·arm` is spelled four times**: `bound_side::rise`,
+   `geom_brep::sense_margin`, `conic_bend_side`'s residue, and
+   `split_bisector_side`.
+10. **`side_code`'s datum claims `FaceShape::Plane`** for every face
+    (`sectors::side_code`): it reads against the face's tangent plane,
+    which is a plane, but the face may be curved. Before `side_code`
+    descends (item 1), its datum must carry the face's own shape, or a
+    conic against a curved face's tangent plane will be read through
+    `conic_bend_side`, which is the plane's arm.
+11. **`FaceShape::of_face` is still in `sectors.rs`**, beside the
+    enum's home in `bound_side`.
+12. **"Tangent" names two states**: `EntersMaterial::Tangent` is a
+    tie (undecided at that order), `BoundSide::Tangent` a decided side
+    one order down. Rename one.
+13. **`entry_side`'s `unreachable!` charge arm**: a plane's datum
+    carries no curvature charge, but `BoundSideFault::Charge` is still
+    a variant `entry_side` has to answer. Give the plane datum a type
+    with no charge arm.
 
 ## Coupled: ONEREAD's cone reader
 
