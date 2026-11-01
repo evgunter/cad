@@ -36,3 +36,22 @@ pair into edges), so these are construction gaps.
 
 Build them as the material decides, or refuse them before the gate.
 
+
+## A brick's edge along a prism's reflex edge (2026-11-01, `cleave/orbit-readings-read-the-beside-tie`)
+
+The same refusal where one operand's convex edge lies along the
+other's reflex edge. `x` is the pinch of
+`union_flush_onto_edge_contact` (bricks `[0, 1]² × [0.5, 1.5]` and
+`[−1, 0]² × [0.5, 1.5]`, touching along the z-axis); `y` is the
+notched prism of
+`two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op`
+stood in the plane `x = 0` and extruded along `+x` or `−x`, so the
+reflex edge of its notch runs along the bottom edge `y = 0, z = 0.5` of
+the brick it holds. `y − x` refuses `LineWedges { fault: Overlap }` on
+that line, from `(0, 0, 0.5)` to `(±1, 0, 0.5)`, at four notches
+(−40° to 200°, −20° to 220°, −60° to 240°, −10° to 190°), at ε default,
+1e-6 and 1e-12, on main and on the branch alike: the prism's 240°
+there less the brick's 90° is two wedges, 40° and 110° at the
+−40°–200° notch, which do not overlap. The other five ops build at
+their volumes. Pinned as the refusal it is by
+`union_flush_onto_edge_contact::two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_all_but_one_op`.
