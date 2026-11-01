@@ -4,7 +4,7 @@ kind: unit
 title: The curve-pair reader refuses two coplanar ellipses that are not one curve, and refuses a near-tangent coplanar circle and ellipse instead of placing the touch
 status: open
 opened: 2026-10-14
-priority: P2
+priority: P1
 cost: M
 refs: [5227]
 ---
@@ -87,3 +87,7 @@ Building the touch alone does not settle that row. There the glue door decides t
 - **The read.** Both unions, in both forms (one segment with either or both vertices at the touch, and two arcs), at rest and turned, build at their closed forms and pass tiers 1–3 and the certificate. `validate_pseudomanifold` returns `CensusEscalated { predicate: "curve_pair_coplanar_sub_side" }`, margins `2.6ε` and `2.3ε` (one per order) at ε = 1e-9, about `2.5ε` and `1.6ε` at 1e-6, and in band at 1e-12. The differences, which keep only one rim each, pass tier 3′. Measured on `main` `7979553590` for the two-arc form and on the branch for both.
 - **Cut flat.** At tilt `0` (circle rims) every op passes tier 3′.
 - **What it blocks.** The tier-3′ half of `work/tangrim/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md` (P1). The pin asserts this escalation; once the touch places, it moves.
+
+## Slate triage
+
+2026-11-01: claimed from CPAIR (no orchestrator) by `git mv` into TANGRIM and re-banded P1. Its open second bullet, the near-tangent touch of two coplanar conics (`curve_pair_coplanar_sub_side` escalating in the census), is what stands between `one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build` (P1) and tier 3′ on every ellipse-rim union PR 6246 now builds; a blocker inherits the band of what waits on it (work/README.md, Priority). (TANGRIM orchestrator)
