@@ -2,12 +2,13 @@
 id: a-new-body-lands-unplaced
 kind: unit
 title: no gesture writes a world Place: each gesture lands what it makes as the viewer README says
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P0
 cost: H
 branch: spaces/lands-unplaced
 refs: [6209]
+pr: 6269
 ---
 
 

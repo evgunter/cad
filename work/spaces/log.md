@@ -172,3 +172,15 @@ Newest entries at the bottom; the tail is the program's live status.
   dispatched stacked on 6265's branch (it inherits the U1 lane's warm
   target by rename); its review covers the pair's interaction, and the
   two merge back to back. Tier for it: single, FULL. (SPACES orchestrator)
+- 2026-11-01 — `a-new-body-lands-unplaced`: PR 6269, stacked on 6265, green
+  at `2b32f232`. No gesture writes a world `Place`; one `Takeover`
+  (copies, `⊔` operands, the product slot) replaces `repoint` /
+  `feature_over` / `stranded_pick`; `world::made` gone; the "Add part…"
+  frame written at the insert's landing and kept across undo/redo (the
+  README and IDENTITY DI5 prune sentences re-worded to the mechanism —
+  wording, checked by review); `as_body` and the mate tool's split-output
+  read fixed in passing. Stories re-baselined (the windmill story now
+  reopens its file to place the tower by hand: under review as a possible
+  test bent around the missing product door). Filed
+  `the-projection-tool-writes-a-member-read-a-pick-already-seats`.
+  Review: single FULL, on 6269 and the pair. (SPACES orchestrator)
