@@ -1160,3 +1160,29 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
     - SPLICESEAM's 1e-12 lofted-cylinder pin, which now passes (evidence added there);
     - a 1e-12 fuzz seed of `ssi::certify` torus limb 2, reproduced on main and added to `ssiarith/a-torus-limb-twos-sampled-residual-overshoots-its-span-bound-by-rounding`.
   - **Filed:** `the-interior-loop-guard-has-no-spline-by-curved-analytic-arm`.
+- 2026-11-01 — **Sitting handed back: SPLICE's P0 and P1 rows are done** (program `ready`). Merged this sitting:
+  - 6026: the plane × spline guard arm;
+  - 6136: a spline span read through the ring composite;
+  - 6150: W5, the plane × spline pose's regularity sweep in C5's ratified stage order;
+  - 6152: a vertex on a spline face reads its normal;
+  - 6157: the rim sector clearance;
+  - 6166: the ring-vertex mint as a composition of `mev` and `kemr`, every chart through it;
+  - 6171: the NURBS × NURBS guard arm, with the pair lane's Side and Corner hand-in;
+  - `[ev]` 6188: C3 Side and Corner wording, approved by Ev;
+  - tracker PRs 6146, 6147, 6156 and 6167.
+  - **Where the demos stop now:**
+    - lily wall 8: a plane × torus spiric germ (`sectsite/c5-plane-torus-cone-cylinder-arms`);
+    - klein wall 3: the flare cone seam on the loop tube's u=½ double knot (`carvetail/the-skin-cuts-an-arc-wall-at-each-sub-arc-joint`).
+    - Neither is SPLICE ground.
+  - **The tail for a successor:**
+    - P2: `the-interior-loop-guard-has-no-spline-by-curved-analytic-arm` (H; this pairs with SECTARMS's NURBS × implicit build, so coordinate there first), `an-end-on-a-rim-inside-its-carrier-reads-no-sector`, `doors-carrying-a-shared-row-have-no-row-at-rest`.
+    - P3: the rest.
+  - **Classes logged this sitting** (in the entries above):
+    - a stage built in front of ratified stages skips their decisions;
+    - "composition of existing operators" needs a whole-arena equivalence row;
+    - a demo-only guard on a per-PR-gated change is no per-PR guard;
+    - demo pins loose enough that a stop moves unseen (four times);
+    - a loop-free test must account for the extremum's cell.
+  - **Friction, the memory candidates for Ev:**
+    - a short SHA as a session's `source_revision` fails `ref_not_found` silently;
+    - a lane's inbox can lag a long build by hours, so confirm a lane has read every message before freezing for review.
