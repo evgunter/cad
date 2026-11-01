@@ -53,12 +53,15 @@
 //! built, an arc leaves two coincident arcs the census does not read,
 //! and a curved face would carry a slit or a ring that is neither meshed
 //! nor measured ([`EdgeInFaceGap::Tangent`], [`EdgeInFaceGap::Curved`],
-//! [`EdgeInFaceGap::CurvedFace`]). The reading
-//! ([`holding`]) finds an edge whose carrier lies on the face's surface,
-//! a line on a plane, cylinder or cone and a circle or an ellipse on a
-//! plane, a quadric or a torus, where an edge-on-face record names the
-//! pair or the face holds a piece of it between the crossings its records
-//! name, whatever piece holds its midpoint. On a spline face the carrier
+//! [`EdgeInFaceGap::CurvedFace`]). A line lies in a plane face exactly
+//! where an edge-on-face record names the pair: the sweep records each
+//! piece of a line edge a plane face holds, and [`divide`] each piece it
+//! makes of one. Elsewhere the reading ([`holding`]) finds an edge whose
+//! carrier lies on the face's surface, a line on a cylinder or cone and a
+//! circle or an ellipse on a plane, a quadric or a torus, where an
+//! edge-on-face record names the pair or the face holds a piece of it
+//! between the crossings its records name, whatever piece holds its
+//! midpoint. On a spline face the carrier
 //! is not read on the chart: an edge both of whose ends lie on the face
 //! and whose midpoint the face holds is taken to lie in it, and refuses
 //! ([`EdgeInFaceGap::SplineFace`]) where both its faces go into the
@@ -121,7 +124,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
-use super::ops::{DoorInBand, PieceRead, piece_reading};
+use super::ops::{PieceRead, piece_reading};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
 use crate::body::Body;
@@ -340,10 +343,11 @@ pub(super) struct Parted {
 /// end is its kept vertex's, and a record of the edge, or of an end it
 /// divides, is held by the twin too.
 ///
-/// An edge lies in a face `f` it does not bound where its carrier lies
-/// on `f`'s surface and an edge-on-face record names the pair, or `f`
-/// holds a piece of it between the crossings of `f`'s loops its records
-/// name ([`riders`], [`holding`]). One that runs on past `f`, or whose
+/// An edge lies in a face `f` it does not bound where an edge-on-face
+/// record names the pair, a line and a plane `f`; or, any other pair,
+/// where its carrier lies on `f`'s surface and such a record names the
+/// pair, or `f` holds a piece of it between the crossings of `f`'s loops
+/// its records name ([`riders`], [`holding`]). One that runs on past `f`, or whose
 /// records name a crossing, is divided where it crosses `f`'s boundary
 /// first ([`divide`]), and its pieces read again. An edge whose faces both leave the line on `f`'s
 /// empty side touches `f` from outside its wedge, and stays one edge in
@@ -418,13 +422,7 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // A slit or a zero-area ring in a curved face is neither meshed
         // nor measured, so the parting refuses on any face it would part
         // that is no plane.
-        let plane = |f: FaceKey| {
-            matches!(
-                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-                Some(geom::Surface::Plane { .. })
-            )
-        };
-        if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
+        if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !is_plane(body, f)) {
             return Err(BooleanError::EdgeInFace {
                 edge,
                 face: curved,
@@ -840,12 +838,16 @@ struct LiesIn {
 /// faces ([`part_riders`]'s reading), in edge order, each with whether
 /// [`divide`] divides the edge against it first ([`holding`]).
 ///
-/// A face is asked of an edge where something names the two: both of
-/// the edge's ends lie on it, by structure, by a vertex-on-face record,
-/// by a vertex-vertex record with a vertex of its loops, or by a
-/// vertex-on-edge record on an edge of its loops (a curved face carries
-/// no edge-on-face record, so an edge whose ends rest on its boundary is
-/// named by those alone); an edge-on-face record names the pair; or a
+/// A line lies in a plane face exactly where an edge-on-face record
+/// names the two, and is divided first where its records name a crossing
+/// of it with the face's loops ([`cuts`]) or its ends do not both lie on
+/// the face. Any other pair is asked ([`holding`]) where something names
+/// the two: both of the edge's ends lie on the face, by structure, by a
+/// vertex-on-face record, by a vertex-vertex record with a vertex of its
+/// loops, or by a vertex-on-edge record on an edge of its loops (the
+/// sweep records no edge lying in a curved face, nor a conic in a plane,
+/// so an edge whose ends rest on its boundary is named by those alone);
+/// an edge-on-face record names the pair; or a
 /// record names a crossing of the edge with the face's loops, an
 /// edge-edge record with an edge of them or a vertex-on-edge record of a
 /// vertex of them on the edge. A closed edge is asked as an open one is:
@@ -917,12 +919,23 @@ fn riders<T: Decide>(
         // lies in.
         let sheet = |f: FaceKey| body.get_face(f).map(|d| d.surface);
         faces.retain(|&f| sheet(f).is_none() || ![sheet(fa), sheet(fb)].contains(&sheet(f)));
+        let line = span_of(body, e).filter(|(c, _)| matches!(c, geom::Curve3::Line { .. }));
         let mut lies_in = Vec::new();
         for f in faces {
             let names = Names {
                 ends: both.contains(&f),
                 record: recorded.contains(&f),
             };
+            if let Some((carrier, span)) = &line
+                && is_plane(body, f)
+            {
+                if names.record {
+                    let along = Span::new(carrier, *span);
+                    let divides = !names.ends || !cuts(body, named, e, f, &along, band)?.is_empty();
+                    lies_in.push(LiesIn { face: f, divides });
+                }
+                continue;
+            }
             if let Some(divides) = holding(body, named, e, f, names, band)? {
                 lies_in.push(LiesIn { face: f, divides });
             }
@@ -932,6 +945,14 @@ fn riders<T: Decide>(
         }
     }
     Ok(out)
+}
+
+/// Whether face `f` of `body` is a plane.
+fn is_plane<T: Decide>(body: &Body<T>, f: FaceKey) -> bool {
+    matches!(
+        body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+        Some(geom::Surface::Plane { .. })
+    )
 }
 
 /// The faces the records `named`, those naming a crossing of edge `e`,
@@ -1036,13 +1057,13 @@ fn holding<T: Decide>(
                 return Ok(None);
             }
             let mid = carrier.eval(geom::mid_param(t0, t1));
-            match piece_reading(body, f, mid, band, DoorInBand::Containment) {
+            match piece_reading(body, f, mid, band) {
                 Ok(PieceRead::In) => Err(BooleanError::EdgeInFace {
                     edge: e,
                     face: f,
                     gap: EdgeInFaceGap::SplineFace,
                 }),
-                Ok(PieceRead::NotIn | PieceRead::Unread(_)) => return Ok(None),
+                Ok(PieceRead::NotIn | PieceRead::Unread) => return Ok(None),
                 Err(read) => return Err(read),
             }
         }
@@ -1089,9 +1110,9 @@ fn holding<T: Decide>(
         let mid = carrier.eval(geom::mid_param(piece[0], piece[1]));
         // Whether the face holds the point is read here first, so the
         // door's margin in band is the operands' geometry.
-        match piece_reading(body, f, mid, band, DoorInBand::Containment) {
+        match piece_reading(body, f, mid, band) {
             Ok(PieceRead::In) => return Ok(Some(divided)),
-            Ok(PieceRead::NotIn | PieceRead::Unread(_)) => {}
+            Ok(PieceRead::NotIn | PieceRead::Unread) => {}
             Err(read) => {
                 in_band.get_or_insert(read);
             }
@@ -2040,8 +2061,8 @@ struct Division {
 /// the parting joins ([`part`]); a vertex-on-edge record of a divided
 /// edge goes to the piece holding the vertex, ordered against the
 /// crossings along that edge ([`BooleanDecision::PartingOrder`]); and
-/// the edge's edge-on-face records with `faces` are dropped: a piece
-/// lying in one has both ends on it, and [`riders`] reads it by them.
+/// the edge's edge-on-face record with each of `faces` goes to every
+/// piece that face holds ([`face_holds`]), citing what it cited.
 ///
 /// # Errors
 ///
@@ -2142,7 +2163,7 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
     // undivided edges.
     let mut resting: BTreeMap<[Cell; 2], Resting> = BTreeMap::new();
     // The edge's edge-on-face records with the faces it is divided
-    // against: each piece lying in one has both ends on it.
+    // against, each carried to the pieces its face holds.
     let edge_face: BTreeSet<[Cell; 2]> = faces
         .iter()
         .filter_map(|&f| Contact::of(Cell::Edge(edge), Cell::Face(f)).ok())
@@ -2253,6 +2274,16 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
                 .ok_or_else(desync)?;
             Contact::new(body, Cell::Vertex(rest.vertex), Cell::Edge(*piece))
         } else if edge_face.contains(&named) {
+            let ContactKind::EdgeFace(_, f) = row.record.kind() else {
+                return Err(desync());
+            };
+            for &piece in &pieces {
+                if face_holds(body, f, piece, band)? {
+                    let record = Contact::new(body, Cell::Edge(piece), Cell::Face(f))
+                        .map_err(|_| desync())?;
+                    rewritten.push(Cited::new(record, row.cites.clone()));
+                }
+            }
             continue;
         } else {
             rewritten.push(row.clone());
@@ -2265,6 +2296,24 @@ fn divide<T: Decide + crate::props::AtRestPolicy>(
         pieces,
         crossings: ends,
     })
+}
+
+/// Whether plane face `f` holds `piece`, a piece [`divide`] made of an
+/// edge lying in it, read at the piece's midpoint: its interior crosses
+/// none of `f`'s loops, so `f` holds the whole of it or none.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the reading is in band.
+fn face_holds<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    piece: EdgeKey,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let (carrier, (t0, t1)) = span_of(body, piece).ok_or_else(run_past_desync)?;
+    let mid = carrier.eval(geom::mid_param(t0, t1));
+    Ok(matches!(piece_reading(body, f, mid, band)?, PieceRead::In))
 }
 
 /// **The crossings `record` names of `edge`, its span `along`, with the

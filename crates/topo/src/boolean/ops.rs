@@ -3662,38 +3662,26 @@ pub(super) enum PieceRead {
     /// its boundary, where it meets an edge or vertex that a record of
     /// its own names.
     NotIn,
-    /// The read failed: the containment door's refusal, or `None` where
-    /// a curved face's region gives no verdict.
-    Unread(
-        #[expect(dead_code, reason = "its one reader matches it as `Unread(_)`")]
-        Option<ContainError>,
-    ),
-}
-
-/// How [`piece_reading`] types an in-band margin of the containment door.
-#[derive(Clone, Copy)]
-pub(super) enum DoorInBand {
-    /// A first reading of a point against the face: the door's own
-    /// decision, whose margin is the operands' geometry.
-    Containment,
+    /// The read failed: the containment door refused, or a curved face's
+    /// region gives no verdict.
+    Unread,
 }
 
 /// Whether `face` holds `q` strictly inside it, placed as the census
-/// confirms a vertex-on-face record ([`super::contain::face_placement`]),
-/// typing an in-band margin of the containment door as `door` says. The
-/// on-plane margin re-reads a plane the census already put the point on,
-/// so it escalates as the carry's check.
+/// confirms a vertex-on-face record ([`super::contain::face_placement`]).
+/// The on-plane margin re-reads a plane the census already put the point
+/// on, so it escalates as the carry's check; the containment door's own
+/// margin is the operands' geometry.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] on a margin in band: `SelfCheck(CarriedLineage)`
-/// for the on-plane one, `door`'s for the door's.
+/// for the on-plane one, `Containment` for the door's.
 pub(super) fn piece_reading<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
-    door: DoorInBand,
 ) -> Result<PieceRead, BooleanError> {
     use super::contain::{CurvedPlacement, PlacementError};
     let in_band = |diag| BooleanError::Escalated {
@@ -3708,20 +3696,18 @@ pub(super) fn piece_reading<T: Decide>(
                 FaceContainment::Out | FaceContainment::OnEdge(_) | FaceContainment::OnVertex(_),
             )),
         ) => Ok(PieceRead::NotIn),
-        Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread(None)),
+        Ok(CurvedPlacement::Trim(None)) => Ok(PieceRead::Unread),
         Err(PlacementError::OnPlane(diag)) => Err(in_band(diag)),
         Err(PlacementError::Door(ContainError::Escalated {
             decision,
             escalation,
             diag,
-        })) => Err(match door {
-            DoorInBand::Containment => BooleanError::Escalated {
-                decision: BooleanDecision::Containment {
-                    decision,
-                    escalation,
-                },
-                diag,
+        })) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
             },
+            diag,
         }),
         Err(PlacementError::Door(ContainError::StaleFace(face))) => {
             super::contain::driver_face_stale(face)
@@ -3729,13 +3715,13 @@ pub(super) fn piece_reading<T: Decide>(
         // Listed rather than wildcarded: a new door refusal is routed
         // here deliberately.
         Err(PlacementError::Door(
-            refusal @ (ContainError::RayExhausted
+            ContainError::RayExhausted
             | ContainError::EmptyLoop(_)
             | ContainError::LoopUnreadable(_)
             | ContainError::Uncrossable(_)
             | ContainError::Curved(_)
-            | ContainError::ArcEndClearOfCorners(_)),
-        )) => Ok(PieceRead::Unread(Some(refusal))),
+            | ContainError::ArcEndClearOfCorners(_),
+        )) => Ok(PieceRead::Unread),
     }
 }
 
@@ -10706,14 +10692,8 @@ mod found_on_a_divided_face {
 
     /// Whether `face` holds the top's point `(x, y)`.
     fn holds(body: &Body<f64>, face: FaceKey, x: f64, y: f64) -> bool {
-        super::piece_reading(
-            body,
-            face,
-            Point3::new(x, y, 1.0),
-            band(),
-            super::DoorInBand::Containment,
-        )
-        .is_ok_and(|r| matches!(r, super::PieceRead::In))
+        super::piece_reading(body, face, Point3::new(x, y, 1.0), band())
+            .is_ok_and(|r| matches!(r, super::PieceRead::In))
     }
 
     /// A lone vertex at `(x, y, z)`.
