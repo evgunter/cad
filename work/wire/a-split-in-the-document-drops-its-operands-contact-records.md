@@ -2,8 +2,9 @@
 id: a-split-in-the-document-drops-its-operands-contact-records
 kind: issue
 title: editor-core's wire_split hands each side an empty Carry.contacts, so a split of a body with contact records loses them in the document
-status: dispatched
+status: closed
 opened: 2026-10-28
+closed: 2026-11-01
 priority: P1
 cost: M
 ---

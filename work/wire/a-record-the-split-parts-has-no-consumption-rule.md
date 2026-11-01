@@ -29,3 +29,14 @@ paragraph. The paragraph is a design page, so the change is an `[ev]` PR,
 weighed by a designer pair first. heldrecords'
 `a-finished-body-holds-its-contact-records-at-every-door` moves the carry
 into the split's door, which must then adopt or replace the policy.
+
+## After PR 6268 (2026-11-01)
+
+The interim landed in topo itself as an opt-in:
+`SplitResult::carry_contacts_across` (`crates/topo/src/splitting/finish.rs`)
+retires a parted record only when each cell has an image on the cut (a
+plane face its side holds, `SplitNaming::plane_pieces`, or a cell bounding
+one), and refuses `Parted` otherwise; `carry_contacts` still refuses every
+parted record, so the README's carry paragraph stays true of it. Only
+`wire_split` calls the `_across` form. The `[ev]` question is unchanged:
+whether the README's carry paragraph gains this as a consumption case.
