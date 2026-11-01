@@ -1958,3 +1958,9 @@ Signed (CLEAVE orchestrator).
     - `held_by_kept_faces` should check holding (`point_in_face`), not survival.
     - Doc fixes, and one home for the touch site's on-edge text.
     - A P3 row for three 'which piece holds `d`' readers. (CLEAVE orchestrator)
+
+- 2026-11-01: 6237 merged (`ebc122dfe8`) on full green.
+  - The fix pass corrected the claim that the fallback reaches the limit (it cuts with fresh divisions). `held_by_kept_faces` now also checks holding by `point_in_face` at `p + 1e-2·d̂`, with an anti-vacuity assert on all 280 reaching cells. The curved-edge P3 got the reviewer's witness. The touch site's text has one home (`Unplaced::ON_EDGE`).
+  - The three-readers P3 moved to ONEREAD (its story; ONEREAD 23 → 26/30).
+- 2026-11-01: **Sitting ends and CLEAVE is handed back `ready`** (sitting rule: the track's P0 and P1 rows are done). The one live P1 (three corners) is parked; the slate is P2/P3. Hand-back state is in `plan.md`.
+  - This sitting merged 5793, 5852, 6170, 6177, 6184, 6185 and 6237, plus tracker PRs. It split the track into TANGRIM, PARTING, TOUCHREC, ONEREAD and SEAL, and started the first four as cloud orchestrators. (CLEAVE orchestrator)
