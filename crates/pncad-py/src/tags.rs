@@ -1495,6 +1495,8 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
         BooleanErrorKind::VertexPairAtConeApex => "vertex_pair_at_cone_apex",
         BooleanErrorKind::VertexNearConeAxis => "vertex_near_cone_axis",
+        BooleanErrorKind::ResultPinchedAtConeApex => "result_pinched_at_cone_apex",
+        BooleanErrorKind::ApexSection => "apex_section",
         BooleanErrorKind::NormalAtSplineCrease => "normal_at_spline_crease",
         BooleanErrorKind::PierceLeverUnread => "pierce_lever_unread",
         BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",

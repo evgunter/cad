@@ -149,6 +149,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{Proven, linked, proven};
 use crate::null::CurveGeom;
 use crate::ring_path::{LoopArc, LoopSplit, Path, Quadric, SplineArc, path_parity};
+use crate::splitting::ApexSectionReading;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::order::{FRAME_ARM, FRAME_AXIS};
 use crate::splitting::rules::{face_axial_range, face_extent};
@@ -2665,11 +2666,19 @@ pub(crate) fn apex_section_ruling<T: Decide>(
         Err(SplitJoinError::Escalated { diag, .. }) => {
             return Err(ApexRulingFault::Escalated(diag));
         }
-        Err(section) => return Err(ApexRulingFault::Refused(Box::new(section))),
+        Err(section) => {
+            return Err(ApexRulingFault::Disagrees(ApexSectionReading::Refused(
+                Box::new(section),
+            )));
+        }
         Ok(Some(WallSection {
             case: SectionCase::Conic(_),
             ..
-        })) => return Err(ApexRulingFault::ClosedOffApex),
+        })) => {
+            return Err(ApexRulingFault::Disagrees(
+                ApexSectionReading::ClosedOffApex,
+            ));
+        }
         Ok(_) => unreachable!(
             "{face:?} carries a cone, whose section table reads a conic, a line pair or a \
              tangent line"
@@ -2686,30 +2695,30 @@ pub(crate) fn apex_section_ruling<T: Decide>(
             .map_err(ApexRulingFault::Escalated)?
         {
             Sign::Positive if inside.is_none() => inside = Some(z),
-            Sign::Positive => return Err(ApexRulingFault::BothRulingsInside),
+            Sign::Positive => {
+                return Err(ApexRulingFault::Disagrees(
+                    ApexSectionReading::BothRulingsInside,
+                ));
+            }
             Sign::Zero | Sign::Negative => {}
         }
     }
-    inside.ok_or(ApexRulingFault::NoRulingInside)
+    inside.ok_or(ApexRulingFault::Disagrees(
+        ApexSectionReading::NoRulingInside,
+    ))
 }
 
-/// Why [`apex_section_ruling`] names no ruling.
+/// Why [`apex_section_ruling`] names no ruling: an escalation, or the
+/// table disagreeing with the walk, in the one vocabulary both lanes
+/// refuse it by ([`ApexSectionReading`]; the split's
+/// [`crate::SplitReduceError::ApexSection`], the Boolean's
+/// [`crate::BooleanError::ApexSection`]).
 #[derive(Debug)]
 pub(crate) enum ApexRulingFault {
     /// The table or the turn escalated.
     Escalated(Indeterminate),
-    /// The table refused the pair: for a plane the walk read through the
-    /// apex, most often an open conic standing off it
-    /// ([`SplitJoinError::OpenConicChord`]).
-    Refused(Box<SplitJoinError>),
-    /// The table reads the plane's section of the cone as a closed conic,
-    /// standing off the apex.
-    ClosedOffApex,
-    /// None of the section rulings lies inside the sub-sector.
-    NoRulingInside,
-    /// Both lie inside it, across which the walk read the plane's side
-    /// monotone.
-    BothRulingsInside,
+    /// The table disagrees with the walk on the apex.
+    Disagrees(ApexSectionReading),
 }
 
 /// [`wall_section`]'s answer.

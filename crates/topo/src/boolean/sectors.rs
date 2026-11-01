@@ -19,6 +19,19 @@
 //! [`crate::sector_shape`] — one implementation, shared with the
 //! splitting lane, called here under this lane's K names.
 //!
+//! A corner at a cone's APEX has no tangent plane and is no planar
+//! wedge: it is a fan of the cone's rulings, from one bound's ruling
+//! round the axis to the other's ([`BoolFace::Apex`]). Its bounds are
+//! still rulings stored as `start`/`end` vectors, chained as above, but
+//! "convex" is read round the axis, not in a plane: the corner is
+//! subdivided at each extremal ruling of the plane it is read against
+//! that lies inside it ([`ApexPlane`], [`crate::sector_shape::apex_corner_shape`]),
+//! so that across each sub-sector the plane's side along its rulings is
+//! monotone, and its middle is the ruling halfway round
+//! ([`BoolSector::middle`]), not its bounds' sum. Only the pierce reads
+//! such a sector; the vertex–vertex lane refuses it
+//! ([`apex_pair_refusal`]).
+//!
 //! # Side codes (the F3 chain — the 15.7 sign resolution)
 //!
 //! A bound's code against the other sector's face is read as its
@@ -75,6 +88,7 @@ use crate::chord_join::StaleSite;
 use crate::entity::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::live::{Proven, linked, proven};
 use crate::sector_face::{ConeApex, SectorCarrier, SectorFaceError, VertexFace};
+
 use crate::sector_shape::{
     ApexShape, CornerShape, FullTurn, SectorFault, SectorShape, SlitTips, TurnOrder,
     apex_corner_shape, corner_shape,
@@ -107,7 +121,7 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     /// as its rulings. Consumers pair a normal with the stored orbit
     /// order and must NOT re-apply the sense — the type says the sense
     /// is in.
-    pub at_vertex: VertexFace<T>,
+    pub at_vertex: BoolFace<T>,
     /// The metering arm: the shorter of its bounds' reaches, in metres.
     pub arm: T,
 }
@@ -146,10 +160,12 @@ impl<T: geom_core::Real> BoolSector<T> {
         ]
     }
 
-    /// The sector's middle direction, unnormalized: its bounds' sum,
-    /// inside the sector, which is convex. At a cone's apex the sector
-    /// is the rulings between its bounds, and its middle is the ruling
-    /// halfway round between them, unit.
+    /// The sector's middle direction. A planar sector's is unnormalized,
+    /// its bounds' sum, inside the sector, which is convex. A sector at a
+    /// cone's apex is a fan of rulings round the axis (module docs), whose
+    /// bounds' sum points inside the cone, off every ruling, and for a fan
+    /// over a half-turn wide away from it: its middle is the ruling
+    /// halfway round from `start` to `end` in the face's sweep, unit.
     pub(super) fn middle(&self) -> Vec3<T>
     where
         T: Decide,
@@ -171,16 +187,18 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// The face's outward normal at the base vertex, its tangent plane's.
     /// Only a pierce reads a sector at a cone's apex, through its own
     /// arms ([`Self::apex`]); the vertex–vertex lane refuses an apex
-    /// sector before it reads any ([`apex_pair_refusal`]), and the walk
-    /// refuses a vertex near a cone's axis ([`sector_face`]).
+    /// sector before it reads any ([`apex_pair_refusal`]).
+    ///
+    /// The panic at an apex rests on that order, not on the type: the
+    /// readers of a tangent are some sixty sites across both lanes'
+    /// pair algebra, and an apex sector reaching one is a lane that
+    /// skipped its apex arm, a kernel defect a typed answer would only
+    /// carry further.
     #[track_caller]
     pub(super) fn tangent(&self) -> OutwardNormal<T> {
         match self.at_vertex {
-            VertexFace::Tangent(normal) => normal,
-            VertexFace::NearAxis(_) => {
-                unreachable!("the sector walk refuses a vertex near a cone's axis")
-            }
-            VertexFace::Apex(_) => unreachable!(
+            BoolFace::Tangent(normal) => normal,
+            BoolFace::Apex(_) => unreachable!(
                 "a sector at a cone's apex has no tangent plane: the pierce reads it by its \
                  apex arms, and the vertex-vertex lane refuses it first"
             ),
@@ -191,8 +209,8 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// one.
     pub(super) fn apex(&self) -> Option<&ConeApex<T>> {
         match &self.at_vertex {
-            VertexFace::Apex(apex) => Some(apex),
-            VertexFace::Tangent(_) | VertexFace::NearAxis(_) => None,
+            BoolFace::Apex(apex) => Some(apex),
+            BoolFace::Tangent(_) => None,
         }
     }
 }
@@ -238,7 +256,48 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     /// The corner's face.
     pub face: FaceKey,
     /// What the face is at the vertex ([`sector_face`]).
-    pub at_vertex: VertexFace<T>,
+    pub at_vertex: BoolFace<T>,
+}
+
+/// **The plane a corner at a cone's apex is read against**
+/// ([`build_sectors`]). One at most: two planes' rulings are ordered
+/// round the axis by a decision of their own, the vertex–vertex lane's
+/// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`),
+/// whose unit widens this.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum ApexPlane<T: geom_core::Real> {
+    /// No plane: the vertex–vertex lane, which refuses an apex sector
+    /// ([`apex_pair_refusal`]), and every walk of a vertex no cone's
+    /// apex is.
+    None,
+    /// The unit normal of the pierced face's plane through the apex.
+    One(Vec3<T>),
+}
+
+/// **What a sector's face is at its base vertex, as the Boolean reads
+/// it**: [`VertexFace`] less its near-axis arm, which the Boolean
+/// refuses where it resolves the face ([`sector_face`]), so no reader
+/// downstream has an arm to rule out.
+#[derive(Clone, Copy, Debug)]
+pub(super) enum BoolFace<T: geom_core::Real> {
+    /// The face's outward unit normal at the vertex
+    /// ([`VertexFace::Tangent`]).
+    Tangent(OutwardNormal<T>),
+    /// The vertex is the apex of the face's cone
+    /// ([`VertexFace::Apex`]).
+    Apex(ConeApex<T>),
+}
+
+#[cfg(test)]
+impl<T: geom_core::Real> BoolFace<T> {
+    /// The tangent plane's normal; a row that reads an apex panics.
+    #[allow(clippy::panic)]
+    pub(super) fn tangent(&self) -> Vec3<T> {
+        match self {
+            Self::Tangent(normal) => normal.vec(),
+            Self::Apex(apex) => panic!("a tangent plane, not {apex:?}"),
+        }
+    }
 }
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
@@ -250,19 +309,20 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
 /// sectors, each convex.
 ///
 /// A corner at a cone's apex has no tangent plane: its directions are
-/// the cone's rulings between its bounds. It is subdivided at each
-/// extremal ruling of each plane through the apex in `planes` (the unit
-/// normals of the faces it is read against) that lies strictly inside
-/// it ([`apex_corner_shape`]), so that between two neighbouring bounds
-/// each plane's side is monotone; a ruling bound is a bisector's. With
-/// no plane, the corner is one sector, read by nothing but the refusal
-/// of the lane that has no apex algebra ([`apex_pair_refusal`]).
+/// the cone's rulings between its bounds. Read against a plane through
+/// the apex ([`ApexPlane::One`], the unit normal of the face it is read
+/// against), it is subdivided at each extremal ruling of the plane that
+/// lies strictly inside it ([`apex_corner_shape`]), so that between two
+/// neighbouring bounds the plane's side is monotone; a ruling bound is a
+/// bisector's. Against none ([`ApexPlane::None`]), the corner is one
+/// sector, read by nothing but the refusal of the lane that has no apex
+/// algebra ([`apex_pair_refusal`]).
 pub(super) fn build_sectors<T: Decide>(
     body: &Body<T>,
     operand: Operand,
     vertex: VertexKey,
     tips: &SlitTips,
-    planes: &[Vec3<T>],
+    plane: ApexPlane<T>,
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
     let corners = orbit_corners(body, operand, vertex, band);
@@ -274,13 +334,10 @@ pub(super) fn build_sectors<T: Decide>(
         let corner = corner?;
         let bounds = tips.bounds(vertex, corner.face, alone);
         let normal = match corner.at_vertex {
-            VertexFace::Tangent(normal) => normal,
-            VertexFace::NearAxis(_) => {
-                unreachable!("the sector walk refuses a vertex near a cone's axis")
-            }
-            VertexFace::Apex(apex) => {
+            BoolFace::Tangent(normal) => normal,
+            BoolFace::Apex(apex) => {
                 let face = corner.face;
-                push_apex_corner(&mut sectors, corner, &apex, bounds, planes, band)
+                push_apex_corner(&mut sectors, corner, &apex, bounds, plane, band)
                     .map_err(|fault| sector_fault(fault, vertex, face))?;
                 continue;
             }
@@ -382,18 +439,14 @@ fn sector_fault(fault: SectorFault, vertex: VertexKey, face: FaceKey) -> Boolean
 /// Pushes the corner at a cone's apex ([`build_sectors`]) in the
 /// chained order a subdivided corner is pushed in: from its own bound,
 /// one sector per stretch between neighbouring rulings, each extremal
-/// ruling of each plane in `planes` strictly inside the corner
-/// ([`apex_corner_shape`]) a bound levered at the corner's arm. One
-/// plane at most: two planes' rulings are ordered round the axis by a
-/// decision of their own, the vertex–vertex lane's
-/// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`),
-/// which no caller reaches yet.
+/// ruling of `plane` strictly inside the corner ([`apex_corner_shape`])
+/// a bound levered at the corner's arm.
 fn push_apex_corner<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     corner: OrbitCorner<T>,
     apex: &ConeApex<T>,
     bounds: crate::sector_shape::CornerBounds,
-    planes: &[Vec3<T>],
+    plane: ApexPlane<T>,
     band: Band,
 ) -> Result<(), SectorFault> {
     let OrbitCorner {
@@ -407,13 +460,9 @@ fn push_apex_corner<T: Decide>(
     } = corner;
     // With no plane, the axis's own: square to the axis, it holds no
     // extremal ruling, and the corner reads its arm and its window.
-    let across = match planes {
-        [] => apex.axis,
-        [across] => *across,
-        _ => unreachable!(
-            "an apex corner is read against one plane at most: ordering two planes' rulings \
-             is the vertex-vertex lane's, which refuses an apex first"
-        ),
+    let across = match plane {
+        ApexPlane::None => apex.axis,
+        ApexPlane::One(across) => across,
     };
     // In orbit order, from the own bound.
     let ApexShape { arm, rulings } = apex_corner_shape((end, start), apex, bounds, across, band)?;
@@ -452,7 +501,7 @@ fn push_full_turn<T: Decide>(
     turn: &FullTurn<T>,
     (start_reach, end_reach): (Reach<T>, Reach<T>),
     face: FaceKey,
-    at_vertex: VertexFace<T>,
+    at_vertex: BoolFace<T>,
 ) {
     let [q1, q2, q3] = turn.quarters(TurnOrder::FromNext);
     let bounds = [turn.unit_next, q1, q2, q3, turn.unit_own];
@@ -589,7 +638,7 @@ pub(super) fn sector_face<T: Decide>(
     vertex: VertexKey,
     he: HalfEdgeKey,
     band: Band,
-) -> Result<(FaceKey, VertexFace<T>), BooleanError> {
+) -> Result<(FaceKey, BoolFace<T>), BooleanError> {
     let near_axis = |face| BooleanError::VertexNearConeAxis {
         operand,
         face,
@@ -629,9 +678,8 @@ pub(super) fn sector_face<T: Decide>(
     }
     match resolved.at_vertex {
         VertexFace::NearAxis(_) => Err(near_axis(resolved.face)),
-        at_vertex @ (VertexFace::Tangent(_) | VertexFace::Apex(_)) => {
-            Ok((resolved.face, at_vertex))
-        }
+        VertexFace::Tangent(normal) => Ok((resolved.face, BoolFace::Tangent(normal))),
+        VertexFace::Apex(apex) => Ok((resolved.face, BoolFace::Apex(apex))),
     }
 }
 
@@ -639,7 +687,9 @@ pub(super) fn sector_face<T: Decide>(
 /// vertices is the apex of a cone face of its operand refuses
 /// [`BooleanError::VertexPairAtConeApex`], before any pair reading. A
 /// sector there is a fan of rulings, and the pair algebra over two such
-/// fans, or a fan and a flat corner, is unbuilt
+/// fans is unbuilt. The other vertex is in practice an apex too: a flat
+/// corner at the apex has an edge through it, which refuses
+/// [`BooleanError::CrossingAtConeApex`] before the pair is read
 /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`).
 pub(super) fn apex_pair_refusal<T: geom_core::Real>(
     pair: [(Operand, &[BoolSector<T>]); 2],
@@ -3227,6 +3277,55 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// **A sector at a cone's apex has its middle on the cone**: the
+    /// ruling halfway round between its bounds, not their sum, which
+    /// points inside the cone, and for a sector more than a half-turn
+    /// wide away from it. Each sector of a 45° cone's apex, from the
+    /// ruling at azimuth zero round a quarter, a half less a little, and
+    /// three quarters of a turn: the middle is unit, on the cone, and
+    /// halfway round from the start.
+    #[test]
+    fn an_apex_sectors_middle_is_the_ruling_halfway_round() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 1.0, 0.0);
+        let h = core::f64::consts::FRAC_PI_4;
+        let apex = ConeApex {
+            apex: o,
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            half_angle: h,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            sense: true,
+        };
+        let start = Vec3::new(h.sin(), -h.cos(), 0.0);
+        for turn in [0.25, 0.45, 0.75] {
+            let azimuth = turn * core::f64::consts::TAU;
+            let end = apex.ruling_from(start, azimuth);
+            let s = BoolSector {
+                he: HalfEdgeKey::from(key(1)),
+                start,
+                end,
+                start_reach: Reach::Bisector(1.0),
+                end_reach: Reach::Bisector(1.0),
+                face: FaceKey::from(key(2)),
+                at_vertex: BoolFace::Apex(apex),
+                arm: 1.0,
+            };
+            let m = s.middle();
+            assert!(
+                (m.norm() - 1.0).abs() < 1e-12,
+                "turn {turn}: |{m:?}| is not 1"
+            );
+            assert!(
+                (m.dot(apex.axis) + h.cos()).abs() < 1e-12,
+                "turn {turn}: {m:?} is off the cone's lower nappe"
+            );
+            assert!(
+                (apex.azimuth_from(start, m) - azimuth / 2.0).abs() < 1e-12,
+                "turn {turn}: {m:?} is not halfway round"
+            );
+        }
+    }
+
     /// **A flat corner reads met**: three faces on one plane, every bound
     /// on every other face's plane, which is its own face's as far as the
     /// reading reaches, so an edge below the plane is In and one above
@@ -3251,9 +3350,7 @@ mod tests {
                 start_reach: chord(start),
                 end_reach: chord(end),
                 face: FaceKey::from(key(face)),
-                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                    n, true,
-                )),
+                at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(n, true)),
                 arm: 1.0,
             };
         let up = Vec3::new(0.0, 0.0, 1.0);
@@ -3309,7 +3406,7 @@ mod tests {
                         far: o + end,
                     },
                     face: FaceKey::from(key(k as u64 + 11)),
-                    at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                    at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(
                         normal.normalize(),
                         true,
                     )),
@@ -3339,7 +3436,7 @@ mod tests {
                     far: o + d,
                 },
                 face: FaceKey::from(key(99)),
-                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(
                     Vec3::new(1.0, 0.0, 0.0),
                     true,
                 )),
@@ -3665,9 +3762,7 @@ mod tests {
                 start_reach: reach(start, s_edge),
                 end_reach: reach(end, e_edge),
                 face: FaceKey::from(key(face)),
-                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                    normal, true,
-                )),
+                at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(normal, true)),
                 arm: 1.0,
             },
         )
@@ -3806,10 +3901,7 @@ mod tests {
                     he: HalfEdgeKey::from(key(k as u64 + 1)),
                     start: v(&f[0..3]),
                     end: v(&f[3..6]),
-                    at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                        v(&f[6..9]),
-                        true,
-                    )),
+                    at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(v(&f[6..9]), true)),
                     start_reach: reach(f[9], &f[11..14]),
                     end_reach: reach(f[10], &f[14..17]),
                     face: FaceKey::from(key(1000 + f[18] as u64)),
@@ -3910,7 +4002,7 @@ mod tests {
                 start_reach: chord(at(0.0), l),
                 end_reach: chord(at(10.0), l),
                 face: FaceKey::from(key(11)),
-                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(
                     Vec3::new(0.0, 0.0, 1.0),
                     true,
                 )),
@@ -3956,10 +4048,7 @@ mod tests {
             start_reach: chord(u * far),
             end_reach: chord(v * far),
             face: FaceKey::from(key(11)),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                Vec3::new(0.0, 0.0, 1.0),
-                true,
-            )),
+            at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true)),
             arm: far,
         };
         let arc = GreatArc {
@@ -6205,10 +6294,7 @@ mod tests {
                 far: o + y,
             },
             face: FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                Vec3::new(0.0, 0.0, 1.0),
-                true,
-            )),
+            at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true)),
             arm: 1.0,
         };
         let err = within(
@@ -6472,10 +6558,7 @@ mod tests {
             start_reach: Reach::Extent(1.0),
             end_reach: Reach::Extent(1.0),
             face: FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                Vec3::from_array(normal),
-                true,
-            )),
+            at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::from_array(normal), true)),
             arm: 1.0,
         }
     }
@@ -6754,7 +6837,7 @@ mod tests {
             Operand::A,
             vertex,
             &crate::sector_shape::SlitTips::default(),
-            &[],
+            ApexPlane::None,
             b,
         )
         .unwrap();
@@ -7471,7 +7554,7 @@ mod tests {
             end: va.normalize(),
             start_reach: chord(b),
             end_reach: chord(a),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(
                 -va.cross(vb).normalize(),
                 true,
             )),
@@ -7892,7 +7975,7 @@ mod tests {
         let b = band();
         let got = sector_face(&body, Operand::A, apex_vertex, apex_he, b);
         assert!(
-            matches!(got, Ok((f, VertexFace::Apex(at))) if f == face && at.apex.distance(apex) == 0.0),
+            matches!(got, Ok((f, BoolFace::Apex(at))) if f == face && at.apex.distance(apex) == 0.0),
             "the apex corner: {got:?}"
         );
         let (f, n) = sector_face(&body, Operand::A, off_vertex, off_he, b)

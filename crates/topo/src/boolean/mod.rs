@@ -2998,7 +2998,10 @@ pub enum BooleanError {
     /// A vertex the boolean classifies is the apex of a cone face of
     /// `operand` and pairs with a vertex of the other operand. A sector
     /// there is a fan of the cone's rulings, and the vertex–vertex pair
-    /// algebra over a fan is unbuilt
+    /// algebra over a fan is unbuilt. Only an apex against an apex
+    /// reaches it: a corner or an edge of the other operand at the apex
+    /// has an edge through the apex, which refuses
+    /// [`BooleanError::CrossingAtConeApex`] first
     /// (`work/splitdoor/a-cone-with-its-apex-against-its-copy-refuses-normal-at-cone-apex.md`);
     /// a pierce of the other operand's face at the apex reads.
     VertexPairAtConeApex {
@@ -3018,6 +3021,33 @@ pub enum BooleanError {
         face: FaceKey,
         /// The band the distance off the axis was classified against.
         band: Band,
+    },
+    /// A vertex of `operand` at the apex of its cone face pierces a planar
+    /// face of the other operand, and the section table's reading of that
+    /// plane against the cone disagrees with the walk, which read the
+    /// plane crossing one of the face's sub-sectors at the apex: the
+    /// split's refusal of the same reading
+    /// ([`crate::SplitReduceError::ApexSection`]).
+    ApexSection {
+        /// The operand the cone face belongs to.
+        operand: Operand,
+        /// The cone face.
+        face: FaceKey,
+        /// How the table disagrees.
+        reading: crate::splitting::ApexSectionReading,
+    },
+    /// The result has a cone face whose boundary loop passes the cone's
+    /// apex vertex twice: two lobes of the face pinched at the apex, as a
+    /// cut through the apex along two rulings leaves them. The body is
+    /// well formed, but the mass-properties closed form refuses a cone
+    /// loop that meets itself at a vertex, so the finished-body gate
+    /// cannot certify its volume
+    /// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`).
+    /// Refused here, before that gate, so the refusal names the shape
+    /// rather than reading as the kernel's own defect.
+    ResultPinchedAtConeApex {
+        /// The apex the loop passes twice.
+        apex: String,
     },
     /// A vertex the sector walk reads, or a point the pierce pass reads a
     /// pierced face's normal at, sits within the band of a crease or an
@@ -4245,6 +4275,10 @@ pub enum BooleanErrorKind {
     VertexPairAtConeApex,
     /// [`BooleanError::VertexNearConeAxis`].
     VertexNearConeAxis,
+    /// [`BooleanError::ResultPinchedAtConeApex`].
+    ResultPinchedAtConeApex,
+    /// [`BooleanError::ApexSection`].
+    ApexSection,
     /// [`BooleanError::NormalAtSplineCrease`].
     NormalAtSplineCrease,
     /// [`BooleanError::PierceLeverUnread`].
@@ -4526,6 +4560,8 @@ impl BooleanError {
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::VertexPairAtConeApex { .. } => BooleanErrorKind::VertexPairAtConeApex,
             Self::VertexNearConeAxis { .. } => BooleanErrorKind::VertexNearConeAxis,
+            Self::ResultPinchedAtConeApex { .. } => BooleanErrorKind::ResultPinchedAtConeApex,
+            Self::ApexSection { .. } => BooleanErrorKind::ApexSection,
             Self::NormalAtSplineCrease { .. } => BooleanErrorKind::NormalAtSplineCrease,
             Self::PierceLeverUnread { .. } => BooleanErrorKind::PierceLeverUnread,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
@@ -4762,10 +4798,24 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::VertexPairAtConeApex { operand, .. } => write!(
                 f,
-                "the tip of a cone face of the {} operand meets a corner of the other \
-                 part, and a corner meeting a cone's tip is not yet supported. Recourse: \
-                 move the parts so the cone's tip clears the corner",
+                "the tip of a cone face of the {} operand meets the tip of a cone face of \
+                 the other part, and two cone tips meeting is not yet supported. \
+                 Recourse: move the parts so the two tips are apart",
                 operand_word(*operand),
+            ),
+            Self::ApexSection { reading, .. } => write!(
+                f,
+                "a face of one part passes through the tip of a cone face of the other, \
+                 and {}. Recourse: move the parts so the face passes clear of the cone's \
+                 tip, or through it clearly across the cone",
+                reading.what(),
+            ),
+            Self::ResultPinchedAtConeApex { apex } => write!(
+                f,
+                "the result has a cone face pinched at its tip {apex} into two pieces \
+                 that meet only there, and the volume of such a face cannot yet be \
+                 measured. Recourse: move the parts so the cut does not pass through the \
+                 cone's tip along two of its lines",
             ),
             Self::VertexNearConeAxis { operand, .. } => write!(
                 f,
@@ -6234,8 +6284,22 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut classified = Vec::with_capacity(contacts.vv.len());
     let mut line_touches = Vec::new();
     for (i, c) in contacts.vv.iter().map(|c| c.record).enumerate() {
-        let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, &tips[0], &[], band)?;
-        let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, &tips[1], &[], band)?;
+        let a_sectors = sectors::build_sectors(
+            &a,
+            Operand::A,
+            c.a,
+            &tips[0],
+            sectors::ApexPlane::None,
+            band,
+        )?;
+        let b_sectors = sectors::build_sectors(
+            &b,
+            Operand::B,
+            c.b,
+            &tips[1],
+            sectors::ApexPlane::None,
+            band,
+        )?;
         sectors::apex_pair_refusal([(Operand::A, &a_sectors), (Operand::B, &b_sectors)])?;
         // A touching vertex whose partner runs along the face, which
         // refuses should the pair read a sector pair on one plane.
@@ -8990,6 +9054,14 @@ mod tests {
                 face,
                 band,
             },
+            BooleanError::ResultPinchedAtConeApex {
+                apex: "(0.0, 0.0, 0.0)".into(),
+            },
+            BooleanError::ApexSection {
+                operand: Operand::A,
+                face,
+                reading: crate::splitting::ApexSectionReading::NoRulingInside,
+            },
             BooleanError::NormalAtSplineCrease {
                 operand: Operand::B,
                 face,
@@ -9332,6 +9404,8 @@ mod tests {
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::VertexPairAtConeApex => "VertexPairAtConeApex",
                 BooleanErrorKind::VertexNearConeAxis => "VertexNearConeAxis",
+                BooleanErrorKind::ResultPinchedAtConeApex => "ResultPinchedAtConeApex",
+                BooleanErrorKind::ApexSection => "ApexSection",
                 BooleanErrorKind::NormalAtSplineCrease => "NormalAtSplineCrease",
                 BooleanErrorKind::PierceLeverUnread => "PierceLeverUnread",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",

@@ -65,8 +65,8 @@ use slotmap::SecondaryMap;
 
 use super::neighborhood::{EntryRay, sector_face};
 use super::{
-    ApexSectionReading, NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading,
-    SectorEntry, SectorEntryKind, SplitPlane, SplitReduceError,
+    NullEdgeRecord, PlaneSide, SectionGermFault, SectionGermReading, SectorEntry, SectorEntryKind,
+    SplitPlane, SplitReduceError,
 };
 use crate::body::Body;
 use crate::chord_join::ApexRulingFault;
@@ -384,10 +384,7 @@ fn apex_germ<T: Decide>(
     .map(Some)
     .map_err(|fault| match fault {
         ApexRulingFault::Escalated(diag) => escalated(diag),
-        ApexRulingFault::Refused(section) => disagrees(ApexSectionReading::Refused(section)),
-        ApexRulingFault::ClosedOffApex => disagrees(ApexSectionReading::ClosedOffApex),
-        ApexRulingFault::NoRulingInside => disagrees(ApexSectionReading::NoRulingInside),
-        ApexRulingFault::BothRulingsInside => disagrees(ApexSectionReading::BothRulingsInside),
+        ApexRulingFault::Disagrees(reading) => disagrees(reading),
     })
 }
 

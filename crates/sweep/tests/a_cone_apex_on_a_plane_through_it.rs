@@ -17,10 +17,20 @@
 //! - tilted planes, among them the one whose base chord is shorter than
 //!   the ruling to its end at 30°, where a rim crossing's nearest site
 //!   facing it lies on the other ruling (`boolean::join`'s `facing`);
+//! - the same planes against the cone `sweep::revolve` builds, whose seam
+//!   meridian runs to the apex;
 //! - planes meeting the cone at its apex alone, either side;
 //! - wedges of the cone revolved a quarter turn and over a half turn,
 //!   whose apex is a corner of the cone face and of the two planar faces
-//!   the revolve leaves, against planes holding the axis.
+//!   the revolve leaves, against planes holding the axis and tilted off
+//!   it.
+//!
+//! A box whose face holds the apex, cutting the tipped cone's one face
+//! along two rulings, leaves a face pinched at the apex, which props
+//! cannot yet measure: it refuses `ResultPinchedAtConeApex` by name, and
+//! the revolved cone, whose seam parts the lobes, builds. A cylinder wall
+//! resting on the apex refuses `CurvedBooleanUnsupported` on the
+//! cylinder: the pierce at an apex reads a plane only.
 //!
 //! A plane tangent to the cone along a ruling is a tangency between
 //! distinct carriers, and an undeclared one refuses typed at the
@@ -213,6 +223,168 @@ fn a_tilted_plane_through_the_apex_cuts_each_tipped_cone_at_its_closed_form() {
     }
 }
 
+/// [`cone`] as `sweep::revolve` builds it, the form a user gets: its
+/// seam meridian runs to the apex, which is a corner of the face on
+/// either side of it (`revolve_common::needle`).
+fn revolved(alpha: f64) -> AtRestBody<f64> {
+    crate::revolve_common::needle(alpha, None, tol())
+}
+
+/// **Planes holding the axis cut the revolved cone** as they cut the
+/// tipped one: [`a_plane_holding_the_axis_cuts_each_tipped_cone_at_its_closed_form`]
+/// on [`revolved`].
+#[test]
+fn a_plane_holding_the_axis_cuts_each_revolved_cone_at_its_closed_form() {
+    for alpha in [30.0, 45.0, 60.0] {
+        let c = revolved(alpha);
+        let r = alpha.to_radians().tan();
+        for n in [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+        ] {
+            six(&format!("{alpha}°, n {n:?}"), (&c, r), (&half_space(n), n));
+        }
+    }
+}
+
+/// **Tilted planes through the apex cut the revolved cone** as they cut
+/// the tipped one: [`a_tilted_plane_through_the_apex_cuts_each_tipped_cone_at_its_closed_form`]
+/// on [`revolved`].
+#[test]
+fn a_tilted_plane_through_the_apex_cuts_each_revolved_cone_at_its_closed_form() {
+    for alpha in [30.0, 45.0, 60.0] {
+        let c = revolved(alpha);
+        let r = alpha.to_radians().tan();
+        for n in [
+            Vec3::new(1.0, 0.3, 0.2),
+            Vec3::new(-0.4, 0.25, 1.0),
+            Vec3::new(1.0, 0.3, 0.0),
+            Vec3::new(-1.0, -0.3, 0.1),
+        ] {
+            six(&format!("{alpha}°, n {n:?}"), (&c, r), (&half_space(n), n));
+        }
+    }
+}
+
+/// **A cut along two rulings through a wrap-tipped apex refuses the
+/// pinch by name**: the box `[−0.3, 0] × [0.95, 1.2] × [−0.3, 0.3]`, its
+/// face `x = 0` through the apex, cuts the tipped cone's one face along
+/// the two rulings in that plane, leaving one face whose loop is two
+/// lobes meeting only at the apex. The body is well formed, but props
+/// cannot yet measure such a loop
+/// (`work/conearm/props-measures-a-cone-loop-pinched-at-its-apex.md`),
+/// so the Boolean refuses `ResultPinchedAtConeApex` before the gate. On
+/// the revolved cone the seam parts the lobes into two faces, and every
+/// op builds: the box holds half the cone's tip of height `0.05`.
+#[test]
+fn a_cut_along_two_rulings_through_a_wrap_tipped_apex_refuses_the_pinch_by_name() {
+    let (lo, hi) = (Point3::new(-0.3, 0.95, -0.3), Point3::new(0.0, 1.2, 0.3));
+    let b = finished(
+        "the box",
+        topo::test_support::brick((lo.x, hi.x), (lo.y, hi.y), (lo.z, hi.z), tol()),
+        tol(),
+    );
+    let the_box = move |p: Point3<f64>| {
+        (p.x - lo.x)
+            .min(hi.x - p.x)
+            .min(p.y - lo.y)
+            .min(hi.y - p.y)
+            .min(p.z - lo.z)
+            .min(hi.z - p.z)
+    };
+    for alpha in [15.0f64, 30.0, 45.0] {
+        let r = alpha.to_radians().tan();
+        let t = tipped(alpha);
+        for (op, result) in [
+            ("t ∪ b", union(&t, &b, tol())),
+            ("b ∪ t", union(&b, &t, tol())),
+            ("t ∖ b", subtract(&t, &b, tol())),
+        ] {
+            assert!(
+                matches!(result, Err(BooleanError::ResultPinchedAtConeApex { .. })),
+                "{alpha}°, tipped, {op}: {result:?}"
+            );
+        }
+        let c = revolved(alpha);
+        let (vc, vb) = (PI * r * r / 3.0, 0.3 * 0.25 * 0.6);
+        let tip = PI * (r * 0.05).powi(2) * 0.05 / 6.0;
+        let lattice = (
+            Point3::new(-r - 0.25, -0.25, -r - 0.25),
+            Point3::new(r + 0.25, 1.25, r + 0.25),
+        );
+        let cone = move || the_cone(r);
+        for (op, result, want, region) in [
+            (
+                "c ∪ b",
+                union(&c, &b, tol()),
+                vc + vb - tip,
+                Box::new(move |p| cone()(p).max(the_box(p))) as Region,
+            ),
+            (
+                "b ∪ c",
+                union(&b, &c, tol()),
+                vc + vb - tip,
+                Box::new(move |p| cone()(p).max(the_box(p))),
+            ),
+            (
+                "c ∖ b",
+                subtract(&c, &b, tol()),
+                vc - tip,
+                Box::new(move |p| cone()(p).min(-the_box(p))),
+            ),
+        ] {
+            let what = format!("{alpha}°, revolved, {op}");
+            match result {
+                Ok(BooleanResult::Body(body)) => {
+                    membership::holds(&what, &body.body, want, &region, lattice, 7);
+                }
+                other => panic!("{what}: {other:?}"),
+            }
+        }
+    }
+}
+
+/// **A cylinder wall resting on the apex refuses by name**: the rod of
+/// radius `ρ` along `z`, its wall's lowest ruling through the apex, the
+/// cone wholly below it, either cone and either rod. The pierce at the
+/// apex reads the pierced face's plane, and a curved face's section of
+/// the cone there curves off the ruling its tangent plane cuts, which
+/// nothing reads: `CurvedBooleanUnsupported` on the cylinder, before the
+/// extent fallback refuses the pose unnamed.
+#[test]
+fn a_cylinder_resting_on_a_cone_apex_refuses_its_curved_wall() {
+    for alpha in [30.0, 45.0] {
+        for (form, c) in [("tipped", tipped(alpha)), ("revolved", revolved(alpha))] {
+            for rho in [0.5, 2.0] {
+                let rod = finished(
+                    "the rod",
+                    crate::common::cavity::rod(Point2::new(0.0, 1.0 + rho), rho, -1.0, 1.0),
+                    tol(),
+                );
+                for (op, r) in [
+                    ("c ∪ r", union(&c, &rod, tol())),
+                    ("c ∩ r", intersect(&c, &rod, tol())),
+                    ("c ∖ r", subtract(&c, &rod, tol())),
+                    ("r ∖ c", subtract(&rod, &c, tol())),
+                ] {
+                    assert!(
+                        matches!(
+                            r,
+                            Err(BooleanError::CurvedBooleanUnsupported {
+                                kind: geom::SurfaceKind::Cylinder,
+                                ..
+                            })
+                        ),
+                        "{alpha}°, {form}, ρ {rho}, {op}: {r:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
 /// **A plane meeting the cone at its apex alone**, from above and below
 /// and tilted: the cone lies wholly on one side.
 #[test]
@@ -387,14 +559,37 @@ fn arc_overlap((a0, a1): (f64, f64), (b0, b1): (f64, f64)) -> (f64, usize) {
         .fold((0.0, 0), |(m, n), arc| (m + arc, n + 1))
 }
 
+/// The part of the unit disc's sector of azimuths `[0, θ]` beyond the
+/// line `ρ cos(φ + β) = d`, `d ≥ 0` (azimuths in the plane
+/// `(X, Y) = (x, −z)`): its area, and how many arcs of azimuth reach it.
+/// Along azimuth `φ` the ray is beyond from `ρ = d / cos(φ + β)` to the
+/// rim, where `cos(φ + β) > d`, so each arc `[φ₀, φ₁]` of those holds
+/// `½(φ₁ − φ₀) − ½d²(tan(φ₁ + β) − tan(φ₀ + β))`.
+fn sector_beyond(theta: f64, beta: f64, d: f64) -> (f64, usize) {
+    let half = d.acos();
+    (-2..=2)
+        .map(|k| {
+            let s = f64::from(k) * 2.0 * PI;
+            (0.0f64.max(-beta - half + s), theta.min(-beta + half + s))
+        })
+        .filter(|(lo, hi)| hi > lo)
+        .fold((0.0, 0), |(area, n), (lo, hi)| {
+            let arc = 0.5 * (hi - lo) - 0.5 * d * d * ((hi + beta).tan() - (lo + beta).tan());
+            (area + arc, n + 1)
+        })
+}
+
 /// **A wedge of the cone cut through its apex holds its closed form**:
 /// the cone of radius and height 1 revolved through `θ`, a quarter turn
 /// and over a half turn, its apex a corner of the cone face and the two
 /// planar faces the revolve leaves. Against the half-space beyond a
-/// plane holding the axis, the cut keeps the base's sector overlapping
-/// the half-disc, its angle `ψ`: `ψ/6`, in one lobe per arc of the
-/// overlap. Two lobes touch along the axis, and the census cannot yet
-/// clear their curved faces (`CensusUndecidable`).
+/// plane through the apex, holding the axis or tilted off it by a lift
+/// `0.3` along it, the cut keeps the cone over the base's sector beyond
+/// the plane's trace ([`sector_beyond`]): a third of its area, in one
+/// lobe per arc of azimuth. Two lobes touch along the axis or at the
+/// apex, and the census cannot yet clear their curved faces of two
+/// shells (`CensusUndecidable`,
+/// `work/restread/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
 #[test]
 fn a_wedge_of_the_cone_cut_through_its_apex_holds_its_closed_form() {
     let band = geom_core::Band::linear(tol()).unwrap();
@@ -428,12 +623,23 @@ fn a_wedge_of_the_cone_cut_through_its_apex_holds_its_closed_form() {
             };
             (1.0 - p.y - p.x.hypot(p.z)).min(p.y).min(side)
         };
-        for beta in [0.0f64, 1.0, 2.5, 4.0] {
-            let n = Vec3::new(beta.cos(), 0.0, beta.sin());
+        for (beta, lift) in [0.0f64, 1.0, 2.5, 4.0]
+            .into_iter()
+            .flat_map(|beta| [(beta, 0.0), (beta, 0.3)])
+        {
+            let n = Vec3::new(beta.cos(), lift, beta.sin());
             let h = half_space(n);
-            // `x cos β + z sin β > 0`: azimuths within a quarter turn of `−β`.
-            let (psi, lobes) = arc_overlap((0.0, theta), (-beta - PI / 2.0, -beta + PI / 2.0));
-            let (_, lobes_left) = arc_overlap((0.0, theta), (-beta + PI / 2.0, -beta + 1.5 * PI));
+            // On the base `n·(q − NORTH) = ρ cos(φ + β) − lift`: beyond the
+            // line at `d = lift`, and short of it the rest of the sector.
+            let (area, lobes) = sector_beyond(theta, beta, lift);
+            let lobes_left = if lift == 0.0 {
+                arc_overlap((0.0, theta), (-beta + PI / 2.0, -beta + 1.5 * PI)).1
+            } else {
+                // A tilted trace leaves the sector short of it whole round
+                // the apex: one lobe.
+                1
+            };
+            let psi = 2.0 * area;
             let beyond = move |p: Point3<f64>| n.dot(p - NORTH);
             let lattice = (Point3::new(-1.2, -0.2, -1.2), Point3::new(1.2, 1.2, 1.2));
             for (op, r, want, pieces, region) in [
@@ -452,7 +658,7 @@ fn a_wedge_of_the_cone_cut_through_its_apex_holds_its_closed_form() {
                     Box::new(move |p| in_wedge(p).min(-beyond(p))),
                 ),
             ] {
-                let what = format!("θ {theta}, β {beta}, {op}");
+                let what = format!("θ {theta}, β {beta}, lift {lift}, {op}");
                 match r {
                     Ok(BooleanResult::Body(b)) => {
                         membership::holds_short_of_tier_3_prime(

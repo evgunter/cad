@@ -2651,14 +2651,9 @@ fn partners<T: Decide>(
         )?,
         None => {
             let loops = germ_section_loops((&red.a, &red.b), &rga, band)?;
-            // A cone face's straight section is rulings through its apex,
-            // which may be two lines.
-            let cone = |body: &Body<T>, face| {
-                face_surface(body, face).is_ok_and(|(_, s)| s.kind() == geom::SurfaceKind::Cone)
-            };
             let rulings = rga.a_locus.edge().is_none()
                 && rga.b_locus.edge().is_none()
-                && (cone(&red.a, rga.a_face) || cone(&red.b, rga.b_face));
+                && (is_cone(&red.a, rga.a_face)? || is_cone(&red.b, rga.b_face)?);
             facing(loops.as_ref(), rulings, &rga, &ega, p_c, p_e, band)?
         }
     };
@@ -4631,6 +4626,28 @@ fn along_facing<T: Decide>(
     }))
 }
 
+/// **Whether a germ's straight section may be two crossing lines**, the
+/// gate on [`facing`]'s on-line test: `face`, inside which the germ
+/// lies, carries a cone, whose straight section is rulings through its
+/// apex, two of them where a plane or a cone through the apex cuts it.
+///
+/// The gate is the surface kind, not the section's shape: the trigger
+/// is a straight section of two lines meeting at a point, and a germ
+/// carries no identity of the line it rides (as a conic germ carries
+/// its [`super::Branch`]). A saddle of a spline cut by its tangent plane
+/// would meet the same mismatch outside the gate
+/// (`work/splitdoor/a-straight-section-of-two-crossing-lines-off-a-cone-pairs-germs-across-the-crossing.md`).
+/// The on-line test is not applied to every straight section: a germ
+/// near a tangency, read only to the band, need not place its partner
+/// on its line.
+///
+/// # Errors
+///
+/// [`face_surface`]'s, a face the join reads that no longer resolves.
+fn is_cone<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Result<bool, BooleanError> {
+    face_surface(body, face).map(|(_, s)| s.kind() == geom::SurfaceKind::Cone)
+}
+
 /// Mutual germ facing along the germ LOCUS. Straight germ lines take
 /// the chord test: both dirs definitely point at each other along the
 /// chord (Zero = definite non-facing; in-band escalates in `decide`).
@@ -4638,9 +4655,10 @@ fn along_facing<T: Decide>(
 /// may be two lines, the partner's site must also lie on the germ's own
 /// line, its distance off it decided Zero (`bool_join_on_line`): a site
 /// on the other ruling faces the germ across the apex, but is no
-/// partner of it. Every other straight section is one line, whose
-/// germs, near a tangency read only to the band, need not place their
-/// partners on it.
+/// partner of it. Every other straight section is read as one line
+/// ([`is_cone`] says why the gate is the surface kind), whose germs,
+/// near a tangency read only to the band, need not place their partners
+/// on it.
 /// On a CONIC germ locus the chord test is structurally degenerate — a
 /// semicircle arc leaves BOTH sites exactly perpendicular to the chord
 /// — so the arc-aware test asks whether the two germs bound ONE
@@ -8164,6 +8182,63 @@ mod tests {
         assert!(
             matches!(sides.starts_up(neither), Err(BooleanError::JoinDesync { what }) if what.contains("neither")),
             "neither end"
+        );
+    }
+
+    /// **On rulings through a cone's apex, a partner off the germ's own
+    /// line faces it across the apex but is no partner**: two germs
+    /// pointing at each other's sites face along one line, rulings or
+    /// not; a site on the other ruling, its chord at a right angle off
+    /// the germ's line yet ahead of it, faces the germ by the chord test
+    /// alone, and the on-line test (`bool_join_on_line`) parts them.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn facing_on_rulings_pairs_only_along_the_germs_own_line() {
+        use geom_core::{Point3, Tol, Vec3};
+        let band = Band::linear(Tol::witness()).expect("a linear band");
+        let germ = |dir: Vec3<f64>| HalfGerm {
+            he: HalfEdgeKey::default(),
+            a_face: FaceKey::default(),
+            b_face: FaceKey::default(),
+            a_locus: super::super::Locus::InFace(FaceKey::default()),
+            b_locus: super::super::Locus::InFace(FaceKey::default()),
+            dir,
+            branch: super::super::Branch::Only,
+        };
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        // The rulings `(1, 1, 0)` and `(1, −1, 0)` through the apex. The germ
+        // at `(−1, −1, 0)` runs up its ruling toward the apex.
+        let p1 = apex + Vec3::new(-1.0, -1.0, 0.0);
+        let g1 = germ(Vec3::new(1.0, 1.0, 0.0).normalize());
+        // On its own line, beyond the apex, facing back down it.
+        let along = apex + Vec3::new(1.0, 1.0, 0.0);
+        let g_along = germ(Vec3::new(-1.0, -1.0, 0.0).normalize());
+        // On the other ruling, beyond the apex, running up it: the chord
+        // `(2, 0, 0)` is ahead of both germs, and off `g1`'s line.
+        let across = apex + Vec3::new(1.0, -1.0, 0.0);
+        let g_across = germ(Vec3::new(-1.0, 1.0, 0.0).normalize());
+        for rulings in [false, true] {
+            assert!(
+                matches!(
+                    facing(None, rulings, &g1, &g_along, p1, along, band),
+                    Ok(Faced::Straight)
+                ),
+                "rulings {rulings}: along the germ's line"
+            );
+        }
+        assert!(
+            matches!(
+                facing(None, false, &g1, &g_across, p1, across, band),
+                Ok(Faced::Straight)
+            ),
+            "one line: the chord test alone faces the site across the apex"
+        );
+        assert!(
+            matches!(
+                facing(None, true, &g1, &g_across, p1, across, band),
+                Ok(Faced::Apart)
+            ),
+            "rulings: the site on the other ruling is no partner"
         );
     }
 }

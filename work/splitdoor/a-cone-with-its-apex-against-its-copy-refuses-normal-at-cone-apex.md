@@ -35,10 +35,11 @@ The first unit moves the refusal out of `boolean::sectors::sector_face`,
 which both lanes call, into the vertex–vertex lane. Right after both
 sector arrays are built, `sectors::apex_pair_refusal` refuses a pair one
 of whose vertices is a cone's apex: `VertexPairAtConeApex { operand,
-face }`. The pierce lane reads the apex. `build_sectors` takes its
-subdividing planes as a list. The vertex–vertex lane passes none today,
-and one plane at most is read: ordering two planes' rulings round the
-axis is this unit's decision.
+face }`. The pierce lane reads the apex. `build_sectors` takes the
+plane an apex corner is subdivided against as `sectors::ApexPlane`,
+`None` or `One(normal)`. The vertex–vertex lane passes `None` today:
+ordering two planes' rulings round the axis is this unit's decision,
+and this unit widens the enum.
 
 Measured at the first unit's head (one-wrap-edge 45° cone, ε 1e-9):
 

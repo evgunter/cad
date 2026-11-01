@@ -888,13 +888,16 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         piercing,
         vertex,
         tips,
-        &[n_pierced.vec()],
+        super::sectors::ApexPlane::One(n_pierced.vec()),
         band,
     )?;
     let n = sectors.len();
     // At a cone's apex the pierce reads the pierced face's plane: a
     // curved face's section of the cone there curves off the ruling its
-    // tangent plane cuts, and nothing reads that bend.
+    // tangent plane cuts, and nothing reads that bend. A cylinder wall
+    // resting on the apex reaches it, and would otherwise refuse later,
+    // unnamed, at the extent fallback
+    // (`a_cylinder_resting_on_a_cone_apex_refuses_its_curved_wall`).
     if pierced_shape != super::sectors::FaceShape::Plane
         && sectors.iter().any(|s| s.apex().is_some())
     {
@@ -1060,8 +1063,16 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         .collect();
     // A cone face at its apex is never coplanar with a plane: its
     // directions there are rulings off every plane through the apex but
-    // two, and the walk subdivided it where the plane's side turns.
-    let flat = |k: usize| tied[k] && tied[(k + 1) % n] && sectors[k].apex().is_none();
+    // two, and the walk subdivided it where the plane's side turns, so
+    // no sub-sector there has both bounds in the plane.
+    let flat = |k: usize| {
+        let both = tied[k] && tied[(k + 1) % n];
+        debug_assert!(
+            !(both && sectors[k].apex().is_some()),
+            "a sub-sector at a cone's apex has both bounds in the pierced plane"
+        );
+        both
+    };
     let flush = (0..n).any(flat);
     let mut covered = Vec::new();
     let mut fates = super::fate::Fates::default();
@@ -1286,9 +1297,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     // ruling, and the germ the fold put there.
                     (None, (SideCode::On, _), Some(_)) => s.start.normalize(),
                     (None, (_, SideCode::On), Some(_)) => s.end.normalize(),
-                    (None, _, Some(apex)) => {
-                        pierce_apex_germ(piercing_body, (vertex, s, apex), (p, n_pierced), band)?
-                    }
+                    (None, _, Some(apex)) => pierce_apex_germ(
+                        (piercing_body, piercing),
+                        (vertex, s, apex),
+                        (p, n_pierced),
+                        band,
+                    )?,
                     _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
                 },
                 germ_branch(
@@ -3091,11 +3105,12 @@ pub(super) fn pierce_germ_dir<T: Decide>(
 ///
 /// # Errors
 ///
-/// The table's refusal, or [`BooleanError::coincidence`] where the
-/// reading escalates; [`BooleanError::ClassificationInvariant`] where the
-/// table and the walk disagree on the apex.
+/// [`BooleanError::coincidence`] where the reading escalates;
+/// [`BooleanError::ApexSection`] where the table and the walk disagree
+/// on the apex, the split's rating of the same reading
+/// ([`crate::SplitReduceError::ApexSection`]).
 fn pierce_apex_germ<T: Decide>(
-    piercing_body: &Body<T>,
+    (piercing_body, operand): (&Body<T>, Operand),
     (vertex, s, apex): (VertexKey, &BoolSector<T>, &crate::sector_face::ConeApex<T>),
     (p, n_pierced): (geom_core::Point3<T>, OutwardNormal<T>),
     band: Band,
@@ -3103,10 +3118,13 @@ fn pierce_apex_germ<T: Decide>(
     use crate::chord_join::ApexRulingFault;
     let escalated =
         |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
-    let normal = geom_core::UnitVec3::new(n_pierced.vec(), "bool_pierce_apex_plane", band)
-        .map_err(|_| BooleanError::ClassificationInvariant {
-            what: "a pierced face's outward normal is not a unit direction",
-        })?;
+    // The outward normal is a pure number: its length is levered by the
+    // sector's arm, the reach its plane is read over.
+    let normal =
+        geom_core::UnitVec3::levered(n_pierced.vec(), "bool_pierce_apex_plane", band, s.arm)
+            .map_err(|_| BooleanError::ClassificationInvariant {
+                what: "a pierced face's outward normal is not a unit direction",
+            })?;
     crate::chord_join::apex_section_ruling(
         piercing_body,
         band,
@@ -3118,15 +3136,10 @@ fn pierce_apex_germ<T: Decide>(
     )
     .map_err(|fault| match fault {
         ApexRulingFault::Escalated(diag) => escalated(diag),
-        ApexRulingFault::Refused(section) => BooleanError::from(*section),
-        ApexRulingFault::ClosedOffApex => BooleanError::ClassificationInvariant {
-            what: "a pierced plane through a cone's apex sections it in a conic off the apex",
-        },
-        ApexRulingFault::NoRulingInside => BooleanError::ClassificationInvariant {
-            what: "no section ruling lies inside a pierce transition sector at a cone's apex",
-        },
-        ApexRulingFault::BothRulingsInside => BooleanError::ClassificationInvariant {
-            what: "both section rulings lie inside one pierce sector at a cone's apex",
+        ApexRulingFault::Disagrees(reading) => BooleanError::ApexSection {
+            operand,
+            face: s.face,
+            reading,
         },
     })
 }
@@ -3608,7 +3621,7 @@ mod tests {
             start_reach: chord(along),
             end_reach: chord(end),
             face: crate::entity::FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 along.cross(end),
                 true,
             )),
@@ -3659,9 +3672,9 @@ mod tests {
                     start_reach: chord(start),
                     end,
                     end_reach: chord(end),
-                    at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
-                        n, true,
-                    )),
+                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(
+                        OutwardNormal::from_chart(n, true),
+                    ),
                     ..sector(along)
                 }],
                 ..partner_of(partner)
@@ -3879,7 +3892,7 @@ mod tests {
             },
             end_reach: Reach::Conic { extent, bend },
             face: crate::entity::FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, -1.0, 0.0),
                 true,
             )),
@@ -3934,7 +3947,7 @@ mod tests {
                 far: o + y,
             },
             face: crate::entity::FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 Vec3::new(0.0, 0.0, 1.0),
                 true,
             )),
@@ -4000,7 +4013,7 @@ mod tests {
                             far: o + a,
                         },
                         face: crate::entity::FaceKey::default(),
-                        at_vertex: crate::sector_face::VertexFace::Tangent(normal),
+                        at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                         arm: 1.0,
                     }
                 })
@@ -4171,7 +4184,7 @@ mod tests {
                 start_reach: chord(start),
                 end_reach: chord(end),
                 face: crate::entity::FaceKey::default(),
-                at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+                at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                     z, true,
                 )),
                 arm: 1.0,
@@ -4255,7 +4268,7 @@ mod tests {
             Operand::A,
             vertex,
             &crate::sector_shape::SlitTips::default(),
-            &[],
+            crate::boolean::sectors::ApexPlane::None,
             band,
         )
         .unwrap();

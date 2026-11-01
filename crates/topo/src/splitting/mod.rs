@@ -150,7 +150,10 @@ pub enum SectionGermReading {
 
 /// How the section table's reading of a plane against a cone disagrees
 /// with the walk, which read the plane crossing one of the cone's
-/// sub-sectors at its apex ([`SplitReduceError::ApexSection`]).
+/// sub-sectors at its apex: the split's
+/// ([`SplitReduceError::ApexSection`]) and the Boolean's pierce
+/// ([`crate::BooleanError::ApexSection`]) one vocabulary and one
+/// rating, a typed disagreement.
 #[derive(Debug)]
 pub enum ApexSectionReading {
     /// The table reads the plane's section of the cone as a closed
@@ -166,6 +169,33 @@ pub enum ApexSectionReading {
     /// Both of the table's section rulings lie inside one sub-sector,
     /// across which the walk read the plane's side monotone.
     BothRulingsInside,
+}
+
+impl ApexSectionReading {
+    /// The disagreement in words, completing "a plane passes through the
+    /// tip of a cone, and …": the one wording the split's and the
+    /// Boolean's refusals both read.
+    pub(crate) fn what(&self) -> &'static str {
+        match self {
+            Self::ClosedOffApex => {
+                "the section it cuts in the cone reads as a closed curve clear of the tip"
+            }
+            Self::Refused(section) => match **section {
+                SplitJoinError::OpenConicChord { .. } => {
+                    "the section it cuts in the cone reads as an open curve clear of the tip"
+                }
+                _ => "the section it cuts in the cone does not read there",
+            },
+            Self::NoRulingInside => {
+                "no line of the section it cuts in the cone leaves the tip where the plane \
+                 crosses the cone there"
+            }
+            Self::BothRulingsInside => {
+                "both lines of the section it cuts in the cone leave the tip where the plane \
+                 crosses the cone once there"
+            }
+        }
+    }
 }
 
 /// Why the germs round a vertex fix no corners of the section there
@@ -808,26 +838,7 @@ impl core::fmt::Display for SplitReduceError {
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
             }
             Self::ApexSection { reading, .. } => {
-                let what = match reading {
-                    ApexSectionReading::ClosedOffApex => {
-                        "the section it cuts in the cone reads as a closed curve clear of the tip"
-                    }
-                    ApexSectionReading::Refused(section) => match **section {
-                        SplitJoinError::OpenConicChord { .. } => {
-                            "the section it cuts in the cone reads as an open curve clear of \
-                             the tip"
-                        }
-                        _ => "the section it cuts in the cone does not read there",
-                    },
-                    ApexSectionReading::NoRulingInside => {
-                        "no line of the section it cuts in the cone leaves the tip where the \
-                         plane crosses the cone there"
-                    }
-                    ApexSectionReading::BothRulingsInside => {
-                        "both lines of the section it cuts in the cone leave the tip where the \
-                         plane crosses the cone once there"
-                    }
-                };
+                let what = reading.what();
                 write!(
                     f,
                     "the split plane passes through the tip of a cone, and {what}. Recourse: \

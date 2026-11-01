@@ -2866,7 +2866,7 @@ mod tests {
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     face: FaceKey::default(),
-                    at_vertex: crate::sector_face::VertexFace::Tangent(normal),
+                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
                 })
                 .collect();
@@ -2983,7 +2983,7 @@ mod tests {
             start_reach: Reach::Extent(1.0),
             end_reach,
             face: FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             ),
             arm: 1.0,
@@ -3337,7 +3337,7 @@ mod tests {
                     start_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     end_reach: crate::boolean::sectors::Reach::Extent(1.0),
                     face: crate::entity::FaceKey::default(),
-                    at_vertex: crate::sector_face::VertexFace::Tangent(normal),
+                    at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
                     arm: 1.0,
                 })
                 .collect();
@@ -3427,7 +3427,7 @@ mod tests {
                 far: o + y,
             },
             face: FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
             arm: 1.0,
@@ -3544,7 +3544,7 @@ mod tests {
             start_reach: Reach::Extent(1.0),
             end_reach: Reach::Extent(1.0),
             face: FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
             arm: 1.0,
@@ -3603,7 +3603,7 @@ mod tests {
             start_reach,
             end_reach,
             face: FaceKey::default(),
-            at_vertex: crate::sector_face::VertexFace::Tangent(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
             arm: 1.0,
@@ -3764,7 +3764,7 @@ mod tests {
                 far: o + end,
             },
             face,
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
             arm: 1.0,

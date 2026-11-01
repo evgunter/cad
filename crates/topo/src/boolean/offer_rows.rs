@@ -976,7 +976,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
             far: o + end,
         },
         face,
-        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(y, true)),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(y, true)),
         arm,
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
@@ -1018,7 +1018,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
@@ -1069,7 +1069,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
             far: o + y,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(0.0, 0.0, 1.0),
             true,
         )),
@@ -1127,7 +1127,7 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
             far: o + end,
         },
         face: crate::entity::FaceKey::default(),
-        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
             x.cross(end),
             true,
         )),
@@ -1155,7 +1155,7 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
                 base: o,
                 far: o + x,
             },
-            at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+            at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 up.cross(x),
                 true,
             )),
@@ -1577,7 +1577,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
             far: o + end,
         },
         face,
-        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(y, true)),
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(y, true)),
         arm,
     };
     let flank = if against { -x } else { x };
@@ -1638,7 +1638,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
             far: o + z * arm,
         },
         face,
-        at_vertex: crate::sector_face::VertexFace::Tangent(OutwardNormal::from_chart(
+        at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
             Vec3::new(1.0, 0.0, 0.0),
             true,
         )),
@@ -2257,6 +2257,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NormalAtConeApex
         | BooleanErrorKind::VertexPairAtConeApex
         | BooleanErrorKind::VertexNearConeAxis
+        | BooleanErrorKind::ResultPinchedAtConeApex
+        | BooleanErrorKind::ApexSection
         | BooleanErrorKind::NormalAtSplineCrease
         | BooleanErrorKind::PierceLeverUnread
         | BooleanErrorKind::EdgeCarrierUnsupported
