@@ -296,11 +296,15 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
         .iter()
         .filter(|r| r.starts_with("edge") && r.contains("face "))
         .collect();
-    assert_eq!(
-        in_faces,
-        [
-            "edge [\"(-1.500000, 0.000000, 0.000000)\", \"(1.500000, 0.000000, 0.000000)\"] / face Plane"
-        ],
-        "rod on puck: the seam lies in the puck's top"
+    // The seam's ends sit within the band of `y = 0`, which prints at
+    // the sixth place at a coarse ε: read their `x` only.
+    let [seam] = in_faces.as_slice() else {
+        panic!("rod on puck: one edge lies in a face: {in_faces:?}");
+    };
+    assert!(
+        seam.starts_with("edge [\"(-1.500000, ")
+            && seam.contains("\"(1.500000, ")
+            && seam.ends_with("/ face Plane"),
+        "rod on puck: the seam lies in the puck's top: {seam}"
     );
 }
