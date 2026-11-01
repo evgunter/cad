@@ -686,3 +686,291 @@ fn a_grazing_edge_far_inside_a_far_origined_face_is_read_pierced_at_both_scalars
         }
     }
 }
+
+// ---- reviewer r1 probes (PR 5900) ----
+
+/// A cap on plane (normal n, u_ref u) bounded by `carrier` over
+/// `[t0, t1]` and its chord, the arc certified as wall ∩ plane.
+fn r1_cap(
+    carrier: geom::Curve3<f64>,
+    (t0, t1): (f64, f64),
+    o: Point3<f64>,
+    n: Vec3<f64>,
+    u: Vec3<f64>,
+) -> (Body<f64>, FaceKey) {
+    use crate::construction::{FaceSurface, MefSite, MevSite};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    let tol = Tol::witness();
+    let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(geom::Surface::Plane {
+        origin: o,
+        normal: n,
+        u_ref: u,
+    });
+    let wall = body.add_surface(geom::Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: carrier.eval(0.5 * (t0 + t1)),
+                },
+                carrier,
+                param_start: t0,
+                param_end: t1,
+            },
+            tol,
+        )
+        .unwrap();
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face)
+}
+
+fn r1_read(
+    body: &Body<f64>,
+    face: FaceKey,
+    ends: [Point3<f64>; 2],
+) -> (Found, Vec<&'static str>) {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let pair = Pair::new(body, face, ends);
+    assert!(!pair.f().polygon);
+    let errors = pair.read(band);
+    let rows = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusEscalated { cause } => cause.predicate,
+            _ => None,
+        })
+        .collect();
+    (found(&errors), rows)
+}
+
+#[test]
+fn r1_probe_ellipse_equal_to_circle() {
+    let c = geom::Curve3::Ellipse {
+        center: Point3::new(0.0, 0.0, 1.0),
+        axis: Vec3::unit_z(),
+        semi_u: 1.0,
+        semi_v: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (body, face) = r1_cap(
+        c,
+        (0.0, core::f64::consts::PI),
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        Vec3::unit_x(),
+    );
+    for y in [0.5, 1.0 - 4e-7, 1.0 - 5e-12] {
+        eprintln!(
+            "R1 ellipse-circle y={y}: {:?}",
+            r1_read(&body, face, level_ends((-0.25, 0.25), y))
+        );
+    }
+}
+
+#[test]
+fn r1_probe_tilted_ellipse() {
+    let phi: f64 = 0.5;
+    let (s, c) = phi.sin_cos();
+    let n = Vec3::new(-s, 0.0, c);
+    let u = Vec3::new(c, 0.0, s);
+    let v = n.cross(u);
+    let carrier = geom::Curve3::Ellipse {
+        center: Point3::origin(),
+        axis: n,
+        semi_u: 1.0 / c,
+        semi_v: 1.0,
+        u_ref: u,
+    };
+    let (body, face) = r1_cap(carrier, (0.0, core::f64::consts::PI), Point3::origin(), n, u);
+    let off = 2f64.powi(-36);
+    for y in [0.5, 1.0 - 4e-7, 1.0 - 5e-12] {
+        let at = |x: f64, o: f64| Point3::origin() + u * x + v * y + n * o;
+        let ends = [at(-0.25, off), at(0.25, -off)];
+        eprintln!("R1 tilted ellipse y={y}: {:?}", r1_read(&body, face, ends));
+    }
+}
+
+#[test]
+fn r1_probe_nurbs_half_circle() {
+    let h = core::f64::consts::FRAC_1_SQRT_2;
+    let knots =
+        geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2)
+            .unwrap();
+    let control = vec![
+        Point3::new(1.0, 0.0, 1.0),
+        Point3::new(1.0, 1.0, 1.0),
+        Point3::new(0.0, 1.0, 1.0),
+        Point3::new(-1.0, 1.0, 1.0),
+        Point3::new(-1.0, 0.0, 1.0),
+    ];
+    let c = geom::Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(knots, control, vec![1.0, h, 1.0, h, 1.0]).unwrap(),
+    ));
+    let (body, face) = r1_cap(
+        c,
+        (0.0, 1.0),
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::unit_z(),
+        Vec3::unit_x(),
+    );
+    for y in [0.5, 1.0 - 4e-7] {
+        eprintln!(
+            "R1 nurbs y={y}: {:?}",
+            r1_read(&body, face, level_ends((-0.25, 0.25), y))
+        );
+    }
+}
+
+/// Threshold: y chosen so bound − L/2 − reach is k·Kε near the arc top.
+#[test]
+fn r1_probe_threshold() {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let (body, cap) = half_disc::<f64>();
+    let ends = level_ends((-0.25, 0.25), 1.0 - 1e-3);
+    let pair = Pair::new(&body, cap, ends);
+    let PierceSpan { t: [lo, hi], lever } = pair.span(band).unwrap();
+    let reach = span_reach(&pair.e, [lo, hi], lever, band);
+    let half = (hi - lo) * pair.e.len * 0.5;
+    eprintln!("R1 threshold: half={half:e} reach={reach:e} lo={lo} hi={hi}");
+    for k in [3.0, 2.0, 1.2, 0.8, 0.5, -1.0] {
+        let y = 1.0 - (3.145_982_733_45e-5 + reach + k * 1e-11 + 0.0 * half);
+        let got = r1_read(&body, cap, level_ends((-0.25, 0.25), y));
+        eprintln!("R1 threshold k={k} y={y}: {got:?}");
+    }
+}
+
+/// A half-disc cap of radius `r` about `(0, 0, 1)` at `T`.
+fn r1_small_cap<T: Decide + crate::props::AtRestPolicy>(r: f64) -> (Body<T>, FaceKey) {
+    use crate::construction::{FaceSurface, MefSite, MevSite};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, SurfacePair};
+    let tol = Tol::witness();
+    let lift = |x: f64, y: f64, z: f64| Point3::new(x, y, z).map(T::from_f64);
+    let (centre, axis, u_ref) = (
+        lift(0.0, 0.0, 1.0),
+        Vec3::new(T::zero(), T::zero(), T::one()),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+    );
+    let carrier = geom::Curve3::Circle {
+        center: centre,
+        axis,
+        radius: T::from_f64(r),
+        u_ref,
+    };
+    let (p0, p1) = (carrier.eval(T::zero()), carrier.eval(T::pi()));
+    let mut body = Body::<T>::new();
+    let seed = body.mvfs(p0, true).unwrap();
+    let plane = body.add_surface(geom::Surface::Plane {
+        origin: centre,
+        normal: axis,
+        u_ref,
+    });
+    let wall = body.add_surface(geom::Surface::Cylinder {
+        origin: centre,
+        axis,
+        radius: T::from_f64(r),
+        u_ref,
+    });
+    let arc = body
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            p1,
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    pair: SurfacePair::new(wall, plane),
+                    witness: lift(0.0, r, 1.0),
+                },
+                carrier,
+                param_start: T::zero(),
+                param_end: T::pi(),
+            },
+            tol,
+        )
+        .unwrap();
+    let cap = body
+        .mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared {
+                key: plane,
+                sense: true,
+            },
+            tol,
+        )
+        .unwrap();
+    (body, cap.face)
+}
+
+fn r1_grid<T: Decide + crate::props::AtRestPolicy>(scalar: &str, r: f64, far: bool) {
+    let band = Band::new(1e-12, 1e-11).unwrap();
+    let (mut body, cap) = r1_small_cap::<T>(r);
+    if far {
+        move_origin(&mut body, cap, Point3::new(30.0, 30.0, 1.0).map(T::from_f64));
+    }
+    let (mut pierce, mut nothing, mut refused, mut wrong) = (0, 0, 0, 0);
+    let n = 41;
+    for i in 0..n {
+        for j in 0..n {
+            let xc = -1.5 * r + 3.0 * r * (i as f64) / ((n - 1) as f64);
+            let y = -0.5 * r + 2.0 * r * (j as f64) / ((n - 1) as f64);
+            let ends = level_ends((xc - 0.25, xc + 0.25), y);
+            let mid = 0.5 * (ends[0].x + ends[1].x);
+            let rho = (mid * mid + y * y).sqrt();
+            let depth = (r - rho).min(y); // > 0 inside
+            let pair = Pair::new(&body, cap, ends.map(|p| p.map(T::from_f64)));
+            let got = found(&pair.read(band));
+            match got {
+                Found::Pierce => pierce += 1,
+                Found::Nothing => nothing += 1,
+                Found::Refused => refused += 1,
+            }
+            let bad = (got == Found::Pierce && depth < -1e-10)
+                || (got == Found::Nothing && depth > 1e-10);
+            if bad {
+                wrong += 1;
+                eprintln!("R1 WRONG {scalar} r={r:e} far={far} xc={xc:e} y={y:e} depth={depth:e} got={got:?}");
+            }
+        }
+    }
+    eprintln!("R1 grid {scalar} r={r:e} far={far}: pierce={pierce} nothing={nothing} refused={refused} wrong={wrong}");
+}
+
+#[test]
+fn r1_probe_small_arc_grid() {
+    for r in [1e-5, 3e-5, 6e-5, 2e-4] {
+        for far in [false, true] {
+            r1_grid::<f64>("f64", r, far);
+            r1_grid::<Interval>("Interval", r, far);
+        }
+    }
+}
