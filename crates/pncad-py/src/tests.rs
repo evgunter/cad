@@ -4473,7 +4473,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lineage_row",
             "merge",
             "mixed_seam",
-            "nesting_unread",
             "node_unbuilt",
             "non_finite_sector_chord",
             "non_manifold_result",
