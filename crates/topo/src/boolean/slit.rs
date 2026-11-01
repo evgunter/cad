@@ -167,6 +167,11 @@ pub enum EdgeInFaceGap {
     /// `work/nearpoint/a-zero-area-ring-in-a-cylinder-face-measures-degenerate.md`).
     /// It retires when both read it: the parting itself builds there.
     CurvedFace,
+    /// The face is a spline, which holds the edge where both its ends lie
+    /// on the face and its midpoint reads inside it, as far as this
+    /// reading goes: whether the chart holds the edge's carrier is not
+    /// read.
+    SplineFace,
     /// An end the parting would divide into one vertex per wedge touches
     /// an edge's interior, and the census does not read that touch at
     /// the copies.
@@ -258,6 +263,10 @@ impl EdgeInFaceGap {
             Self::CurvedFace => {
                 "the face is curved, and a slit or a zero-area ring in a curved face is neither \
                  meshed nor measured (`work/tesslie/the-walk-panics-on-a-slit-in-a-curved-face.md`)"
+            }
+            Self::SplineFace => {
+                "the face is a spline, which holds the edge's ends and its midpoint, and whether \
+                 it holds the edge's carrier is not read"
             }
             Self::DividedEndTouched => {
                 "an end the parting would divide touches an edge, which the census does not read \
@@ -1001,7 +1010,30 @@ fn holding<T: Decide>(
         read => Err(read),
     };
     let (a, b) = crate::query::edge_ends(body, e);
-    match carrier_on_surface(body, &carrier, ((t0, t1), a == b), f, band) {
+    let on = match carrier_on_surface(body, &carrier, ((t0, t1), a == b), f, band) {
+        Ok(Some(on)) => Ok(on),
+        // A spline face, on whose chart the carrier is not read: the edge
+        // is taken to lie in it where both its ends lie on it and its
+        // midpoint reads inside it, and the reading then refuses as an
+        // in-band one does.
+        Ok(None) => {
+            if !names.ends {
+                return Ok(None);
+            }
+            let mid = carrier.eval(geom::mid_param(t0, t1));
+            match piece_reading(body, f, mid, band, DoorInBand::Containment) {
+                Ok(PieceRead::In) => Err(BooleanError::EdgeInFace {
+                    edge: e,
+                    face: f,
+                    gap: EdgeInFaceGap::SplineFace,
+                }),
+                Ok(PieceRead::NotIn | PieceRead::Unread(_)) => return Ok(None),
+                Err(read) => return Err(read),
+            }
+        }
+        Err(read) => Err(read),
+    };
+    match on {
         Ok(true) => {}
         Ok(false) => return Ok(None),
         // Whether the edge lies on the surface matters only where both
@@ -1116,12 +1148,16 @@ enum Samples {
 /// (`bool_line_face_carrier_offset`); a conic in a plane by its own
 /// plane's offset from it (`bool_conic_face_plane_offset`), and on a
 /// sphere, cylinder or cone at five distinct points along it (two conics
-/// of one plane meet at four unless they are one). Each point's offset
+/// of one plane meet at four unless they are one), and on a torus at
+/// nine (a conic meets a quartic at eight unless it lies on it). Each
+/// point's offset
 /// from the surface is decided on the band ([`RIDER_ON_PLANE`],
 /// [`RIDER_ON_CURVED`]), every point before the answer: one point
 /// definitely off decides that the carrier is not on the surface,
 /// whatever the others read.
-/// Any other pair lies on nothing here.
+/// `None` on a spline face, whose chart is not read here; any other pair
+/// lies on nothing (a line on a torus or a sphere, a spline or spiric
+/// edge anywhere).
 ///
 /// # Errors
 ///
@@ -1133,9 +1169,9 @@ fn carrier_on_surface<T: Decide>(
     ((t0, t1), closed): ((T, T), bool),
     f: FaceKey,
     band: Band,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<bool>, BooleanError> {
     let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
-        return Ok(false);
+        return Ok(Some(false));
     };
     let (samples, site, coincide) = match (carrier, surface) {
         (geom::Curve3::Line { .. }, geom::Surface::Plane { .. }) => {
@@ -1155,15 +1191,15 @@ fn carrier_on_surface<T: Decide>(
                     Margin::of(offset),
                     band,
                 ) {
-                    Ok(Sign::Zero) => Ok(true),
-                    Ok(Sign::Positive | Sign::Negative) => Ok(false),
+                    Ok(Sign::Zero) => Ok(Some(true)),
+                    Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
                     Err(diag) => Err(BooleanError::coincidence(
                         Coincide::EdgeOnPlane,
                         DeclarationRead::Moot,
                         diag,
                     )),
                 },
-                _ => Ok(false),
+                _ => Ok(Some(false)),
             };
         }
         // A line on a cylinder or a cone: the one reading of it
@@ -1179,8 +1215,8 @@ fn carrier_on_surface<T: Decide>(
                 "bool_line_face_carrier_offset",
                 band,
             ) {
-                Some(Ok(on)) => Ok(on),
-                None => Ok(false),
+                Some(Ok(on)) => Ok(Some(on)),
+                None => Ok(Some(false)),
                 Some(Err(diag)) => Err(BooleanError::coincidence(
                     Coincide::EdgeOnCurvedFace,
                     DeclarationRead::Moot,
@@ -1198,20 +1234,145 @@ fn carrier_on_surface<T: Decide>(
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
-        _ => return Ok(false),
+        // A conic meets a torus at no more than eight points unless it
+        // lies on it, as a meridian, a parallel or a Villarceau circle
+        // does.
+        (
+            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
+            geom::Surface::Torus { .. },
+        ) => (
+            Samples::Spread(9),
+            RIDER_ON_CURVED,
+            Coincide::EdgeOnCurvedFace,
+        ),
+        (_, geom::Surface::Nurbs(_) | geom::Surface::Approx(_)) => return Ok(None),
+        _ => return Ok(Some(false)),
     };
-    let at: Vec<T> = match samples {
-        Samples::Ends => vec![t0, t1],
-        Samples::Spread(n) => {
-            let steps = if closed { n } else { n - 1 };
-            (0..n)
-                .map(|k| t0 + (t1 - t0) * T::from_f64(f64::from(k) / f64::from(steps)))
-                .collect()
-        }
+    let points = match samples {
+        Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
+        Samples::Spread(n) => spread(carrier, ((t0, t1), closed), n),
     };
-    let points: Vec<Point3<T>> = at.into_iter().map(|t| carrier.eval(t)).collect();
     crate::census::points_on_surface(surface, &points, site, band)
+        .map(Some)
         .map_err(|diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag))
+}
+
+/// `n` points of `carrier` evenly spaced over `(t0, t1)`, its ends among
+/// them; `n` distinct points where the span is `closed`, its ends one
+/// point.
+fn spread<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    ((t0, t1), closed): ((T, T), bool),
+    n: u32,
+) -> Vec<Point3<T>> {
+    let steps = if closed { n } else { n - 1 };
+    (0..n)
+        .map(|k| carrier.eval(t0 + (t1 - t0) * T::from_f64(f64::from(k) / f64::from(steps))))
+        .collect()
+}
+
+/// **A circle of a torus's own reads on it at the nine points
+/// [`carrier_on_surface`] takes, and the points are distinct along a
+/// closed span.**
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torus_rows {
+    use core::f64::consts::TAU;
+
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    fn torus() -> geom::Surface<f64> {
+        geom::Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: 3.0,
+            minor_radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    fn circle(
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+    ) -> geom::Curve3<f64> {
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+
+    fn reads_on(c: &geom::Curve3<f64>) -> bool {
+        let points = super::spread(c, ((0.0, TAU), true), 9);
+        for (i, p) in points.iter().enumerate() {
+            for q in &points[..i] {
+                assert!(
+                    (*p - *q).norm() > 0.1,
+                    "nine distinct points along a closed span"
+                );
+            }
+        }
+        crate::census::points_on_surface(
+            &torus(),
+            &points,
+            super::RIDER_ON_CURVED,
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_torus_circle_reads_on_it_and_another_does_not() {
+        let (s, c) = (1.0 / 3.0, (8.0f64 / 9.0).sqrt());
+        let rows = [
+            (
+                "a parallel",
+                circle(
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::unit_z(),
+                    3.0,
+                    Vec3::unit_x(),
+                ),
+                true,
+            ),
+            (
+                "a meridian",
+                circle(
+                    Point3::new(3.0, 0.0, 0.0),
+                    Vec3::unit_y(),
+                    1.0,
+                    Vec3::unit_x(),
+                ),
+                true,
+            ),
+            (
+                "a Villarceau circle",
+                circle(
+                    Point3::new(0.0, 1.0, 0.0),
+                    Vec3::new(-s, 0.0, c),
+                    3.0,
+                    Vec3::new(c, 0.0, s),
+                ),
+                true,
+            ),
+            (
+                "a circle across the tube",
+                circle(
+                    Point3::new(0.0, 0.0, 0.5),
+                    Vec3::unit_z(),
+                    3.0,
+                    Vec3::unit_x(),
+                ),
+                false,
+            ),
+        ];
+        for (what, carrier, on) in rows {
+            assert_eq!(reads_on(&carrier), on, "{what}");
+        }
+    }
 }
 
 /// Whether both faces of edge `e` leave its line on the material side of
@@ -1288,7 +1449,12 @@ fn walls_inside<T: Decide>(
     let floor = match crate::face_normal::face_outward_normal_at_foot(body, f, mid, band) {
         Ok(Some(n)) => n.vec(),
         Ok(None) => return Err(desync()),
-        Err(_) => return Err(refused(EdgeInFaceGap::NoNormal)),
+        Err(crate::face_normal::FootNormalError::Unread) => {
+            spline_floor(body, f, mid, band)?.ok_or_else(|| refused(EdgeInFaceGap::NoNormal))?
+        }
+        Err(crate::face_normal::FootNormalError::NoFoot { .. }) => {
+            return Err(refused(EdgeInFaceGap::NoNormal));
+        }
     };
     let floor_flat =
         super::sectors::FaceShape::of_face(body, f, "a face an edge lies in lost its carrier")?
@@ -1378,6 +1544,57 @@ fn walls_inside<T: Decide>(
         [true, true] => Ok(Some(flat[0] || flat[1])),
         [false, false] => Ok(None),
         _ => Err(refused(EdgeInFaceGap::Crossed)),
+    }
+}
+
+/// **A spline face `f`'s outward normal at the in-trim foot its placement
+/// reads `p` at** ([`super::spline_region::spline_face_placement`],
+/// [`crate::face_normal::spline_outward_normal_at`]): `None` where `p`
+/// reads at no in-trim foot, or the chart has no one normal there.
+///
+/// # Errors
+///
+/// [`BooleanError::Escalated`] where the placement, or `p` on the chart
+/// at its foot, is in band.
+fn spline_floor<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
+    use super::contain::ContainError;
+    use crate::face_normal::{NormalAtError, SplineNormalError};
+    let chart = body.get_face(f).and_then(|d| body.get_surface(d.surface));
+    if !chart.is_some_and(|s| s.spline_chart().is_some() && !s.is_placeholder_chart()) {
+        return Ok(None);
+    }
+    let uv = match super::spline_region::spline_face_placement(body, f, p, band) {
+        Ok((_, Some(uv))) => uv,
+        Ok((_, None)) => return Ok(None),
+        Err(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) => {
+            return Err(BooleanError::Escalated {
+                decision: BooleanDecision::Containment {
+                    decision,
+                    escalation,
+                },
+                diag,
+            });
+        }
+        Err(_) => return Ok(None),
+    };
+    match crate::face_normal::spline_outward_normal_at(body, f, uv, p, band) {
+        Ok(n) => Ok(Some(n.vec())),
+        Err(SplineNormalError::At(NormalAtError::Escalated { decision, diag })) => {
+            Err(BooleanError::Escalated {
+                decision: BooleanDecision::of_normal(decision),
+                diag,
+            })
+        }
+        Err(_) => Ok(None),
     }
 }
 
