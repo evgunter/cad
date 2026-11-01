@@ -1947,9 +1947,10 @@ impl DocSession {
     /// [`DocSession::landed_body`] — so this costs this thread nothing.
     ///
     /// `None` before anything lands, and for a landing whose gather
-    /// REFUSED ([`DocSession::product_fault`]) — a document with no
-    /// product has no size to fit a δ to, and the index build below is
-    /// about to refuse it with its own typed answer.
+    /// REFUSED ([`DocSession::product_fault`]): the budget prices the
+    /// gathered product, and there is none. The index still draws the
+    /// copies that have a value, unbudgeted
+    /// (`work/vgeom/a-document-with-one-failed-copy-opens-with-no-display-budget.md`).
     pub fn fit_request(
         &self,
         requested: crate::scene::DisplayTolerance,

@@ -2768,6 +2768,31 @@ mod tests {
         }
     }
 
+    /// **An undrawn copy says which placement is not drawn, and the
+    /// build's own refusal says why**, whatever the reason: no value or
+    /// no body alike.
+    #[test]
+    fn an_undrawn_copy_names_its_placement_and_forwards_why() {
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
+        for error in [
+            NodePickError::NotABody { node },
+            NodePickError::Standing(pncad::document::NodeStanding::Failed { node }),
+        ] {
+            let copy = UndrawnCopy {
+                node,
+                error: error.clone(),
+            };
+            assert_eq!(
+                copy.to_string(),
+                format!(
+                    "placement 000000000007 is not drawn: {}",
+                    Said(&error, Speaker::TAG.about(node))
+                ),
+                "the copy's sentence for {error:?}"
+            );
+        }
+    }
+
     /// **Each patch-name refusal says the id and what it is**: the
     /// clear value as nothing, an id the index never assigned as that,
     /// and an unnamed patch as a drawn one with the naming layer's own

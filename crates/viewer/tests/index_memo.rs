@@ -292,9 +292,8 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     // closes the picture either way, so a placement that refuses partway
     // leaves its counted patch hits alive with no tables beside them,
     // and the NEXT picture can report `face_hits > table_hits`
-    // legitimately. Every document this differential drives lands (the
-    // refusal arm is asserted in `assert_same_answer` and never
-    // reaches here), so the equality holds over every row it is
+    // legitimately. A picture holding an undrawn copy never reaches
+    // here (`whole`), so the equality holds over every row it is
     // asserted on — it is not a claim about pictures after a refusal.
     assert_eq!(
         (r.table_hits, r.table_misses),
@@ -546,6 +545,11 @@ fn assert_same_picture(
     session: &DocSession,
 ) -> usize {
     assert_eq!(
+        seam.undrawn(),
+        fresh.undrawn(),
+        "{name} after {step}: the seam leaves different copies undrawn"
+    );
+    assert_eq!(
         seam.parts().len(),
         fresh.parts().len(),
         "{name} after {step}: the seam draws a different number of bodies"
@@ -703,7 +707,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         let index = seam_index(&mut seam, &session);
         let fresh = common::index_at(&session, common::corpus_delta());
         let landed = assert_same_answer(name, step, &index, &fresh, &session);
-        if let Ok(index) = &index {
+        if let Ok(index) = whole(&index, name, step) {
             assert_memo_is_one_picture(name, step, &seam, index);
         }
         assert_hit_floor(name, step, &MemoReport::of(seam.memo()));
@@ -727,7 +731,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     let mut cold = InlineIndexer::new();
     let _ = seam_index_at(&mut cold, &session, finer);
     let finer_self_hits = reading(&cold).face_hits;
-    if let Ok(index) = &index {
+    if let Ok(index) = whole(&index, name, "the δ change") {
         let r = reading(&seam);
         assert_eq!(
             (r.node_hits, r.face_hits, r.table_hits),
@@ -740,6 +744,27 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         assert_memo_is_one_picture(name, "the δ change", &seam, index);
     }
     steps
+}
+
+/// The index when it draws every copy: the memo rows' exact counts
+/// are about such a picture. A copy whose build refused partway leaves
+/// counted hits and misses with no part beside them, and patch entries
+/// with no table, so its picture and the next are out of their reach —
+/// the plain door's agreement with the seam still holds over it
+/// (`assert_same_answer`).
+fn whole<'a>(
+    index: &'a Result<PickIndex, viewer::pickindex::PickIndexError>,
+    name: &str,
+    step: &str,
+) -> Result<&'a PickIndex, ()> {
+    match index {
+        Ok(index) if index.undrawn().is_empty() => Ok(index),
+        Ok(index) => {
+            println!("# {name} after {step}: undrawn {:?}", index.undrawn());
+            Err(())
+        }
+        Err(_) => Err(()),
+    }
 }
 
 fn faces_of(index: &PickIndex) -> usize {

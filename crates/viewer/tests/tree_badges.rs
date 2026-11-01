@@ -591,22 +591,23 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         }
         other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    // The pick index refuses on a placement with no value; its tooltip
-    // carries that placement's standing as the tree draws it.
-    let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
-        panic!("the index does not build over a placement with no value");
-    };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
-        .expect("a refusal badges");
-    let detail = badge
-        .detail()
-        .expect("the badge defers its words to the tooltip");
+    // The pick index holds post_a undrawn, with its kernel standing, and
+    // badges nothing for it: the tree's row, downstream of the refused
+    // shelf, is the notice.
+    let index = common::index_at(&session, common::asm::delta())
+        .expect("a placement with no value does not refuse the index");
     assert!(
-        detail.contains(&format!(
-            "failure at {}",
-            session.landed_pair().expect("landed").0.spoken(offender)
-        )) && !detail.contains("ancestor"),
-        "the pick index's tooltip names the refused shelf: {detail}"
+        index
+            .undrawn()
+            .iter()
+            .any(|copy| copy.node() == bench.post_a),
+        "post_a is held undrawn: {:?}",
+        index.undrawn()
+    );
+    assert_eq!(
+        viewer::frame::index_badge(None, Some(&index), session.landed_pair()),
+        None,
+        "no badge beside the tree's row"
     );
 
     // The product gather: its value is the kernel's, the tree draws the
@@ -666,7 +667,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         "standing_as_drawn(",
         "resolution_as_drawn(",
         "interrogation_as_drawn(",
-        "index_refusal_as_drawn(",
     ];
     /// `(file, door, reason)`: each admits exactly one unread call.
     const ADMITTED: &[(&str, &str, &str)] = &[
@@ -690,7 +690,8 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "NodePick::build_all",
-            "reaches the chrome only through `frame::index_badge`, which re-reads it",
+            "held as an `UndrawnCopy`; `frame::index_badge` says only a copy `tree::cause_row` \
+             names no row for, whose standing the tree draws unchanged",
         ),
         (
             "pickindex.rs",
@@ -700,12 +701,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "patch_names(",
-            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+            "a `PickIndexError::Names`, unreachable on this path: a part exists only for a \
+             node with a value",
         ),
         (
             "pickindex.rs",
             "boundary_names(",
-            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+            "a `PickIndexError::Names`, unreachable on this path: a part exists only for a \
+             node with a value",
         ),
         (
             "pickindex.rs",
