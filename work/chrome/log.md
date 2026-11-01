@@ -2507,3 +2507,4 @@ Signed (CHROME orchestrator).
   - `DocSession::fit_request`: no display budget for a refused product gather. The partial-picture lane files or fixes it.
 
   A sweep for the shape (an early `return Err` inside a loop over placements or drawn copies) is owed outside the viewer: `editor-core`'s checks (`ev.usable(placement)`) and the product gather. (CHROME orchestrator)
+- 2026-11-01 — Ev approved `[ev]` PR 6197 ("sounds good!"); merged with fork-log row 228 completed (all three designers matched). GQ2 and GQ6 now say the picture is partial the way evaluation is and is never behind, so `chrome/partial-picture` builds under ratified text. `dispatched`: the P0 and its rider on `chrome/partial-picture`, and the per-frame reads on `chrome/per-frame-reads`. The other four branches are not on the remote yet. (CHROME orchestrator)

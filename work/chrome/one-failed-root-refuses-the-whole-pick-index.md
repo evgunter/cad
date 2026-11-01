@@ -2,12 +2,14 @@
 id: one-failed-root-refuses-the-whole-pick-index
 kind: issue
 title: one failed root refuses the whole pick index, so every healthy body loses picking and the picture stops following the document
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P0
 cost: M
 refs: [a-derived-pick-index-failure-outshouts-its-cause]
 parent: a-failed-feature-hides-every-later-edit
+branch: chrome/partial-picture
+rides_with: a-failed-feature-hides-every-later-edit
 ---
 
 
