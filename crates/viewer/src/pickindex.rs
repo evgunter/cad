@@ -180,6 +180,18 @@ pub enum PickKinds {
 }
 
 impl PickKinds {
+    /// **What a cursor that met none of these kinds met**, in the words
+    /// a miss is said in: under an edges-only rule a face's material is
+    /// no edge, not nothing.
+    #[must_use]
+    pub fn nothing(self) -> &'static str {
+        match self {
+            Self::Any => "nothing",
+            Self::FacesOnly => "no face",
+            Self::EdgesOnly => "no edge",
+        }
+    }
+
     /// Whether an edge may win here.
     fn edges(self) -> bool {
         match self {
