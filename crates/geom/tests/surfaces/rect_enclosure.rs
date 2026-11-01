@@ -26,10 +26,21 @@ use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
 use test_utils::fuzz::{self, Rng};
 
+/// `x` moved `n` ulps up (`n > 0`) or down.
+fn ulps(x: f64, n: i64) -> f64 {
+    (0..n.unsigned_abs()).fold(x, |x, _| if n > 0 { x.next_up() } else { x.next_down() })
+}
+
 /// A clamped knot vector of `degree` on `[0, 1]` with up to three
-/// interior knot values, each repeated up to `degree` times.
+/// interior knot values, each repeated up to `degree` times, and
+/// sometimes a further value a few ulps past one of them: a span a few
+/// ulps wide.
 fn knots(rng: &mut Rng, degree: usize) -> (KnotVector, Vec<f64>) {
     let mut interior: Vec<f64> = (0..rng.below(4)).map(|_| rng.range(0.05, 0.95)).collect();
+    if !interior.is_empty() && rng.below(3) == 0 {
+        let k = interior[rng.below(interior.len())];
+        interior.push(ulps(k, 1 + i64::try_from(rng.below(4)).unwrap()));
+    }
     interior.sort_by(f64::total_cmp);
     interior.dedup();
     let mut all = vec![0.0; degree + 1];
@@ -70,9 +81,29 @@ fn patch(rng: &mut Rng) -> (NurbsSurface<Interval>, Vec<f64>, Vec<f64>) {
 }
 
 /// A rectangle side in `[0, 1]`: random, straddling a knot of
-/// `interior` when there is one, or tiny.
+/// `interior` when there is one, ending a few ulps to either side of
+/// one (so it meets the span past it over those ulps), or tiny.
 fn side(rng: &mut Rng, interior: &[f64]) -> (f64, f64) {
-    match rng.below(3) {
+    match rng.below(4) {
+        3 if !interior.is_empty() => {
+            let k = interior[rng.below(interior.len())];
+            // A few ulps to either side, never on a knot: a cell
+            // ending on a knot meets the span past it at one point,
+            // which `rect_jet` reads as no meet
+            // (`work/clear/rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot.md`).
+            let off = 1 + i64::try_from(rng.below(4)).unwrap();
+            let step = if rng.below(2) == 0 { 1 } else { -1 };
+            let mut end = ulps(k, step * off);
+            while interior.contains(&end) {
+                end = ulps(end, step);
+            }
+            let h = rng.log_uniform(1e-9, 0.25);
+            if rng.below(2) == 0 {
+                ((end - h).max(0.0), end)
+            } else {
+                (end, (end + h).min(1.0))
+            }
+        }
         0 if !interior.is_empty() => {
             let k = interior[rng.below(interior.len())];
             let h = rng.log_uniform(1e-9, 0.05);

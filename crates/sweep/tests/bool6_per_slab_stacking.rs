@@ -17,7 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::plane_of;
+use crate::common::{arc_spine_places, plane_of};
 use geom::NurbsCurve3;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Mat3, Point3, Tol, Vec3};
@@ -32,44 +32,13 @@ use common::{band_midpoint, quad};
 /// smaller than the spine's radius of curvature so the walls never
 /// fold through the spine's own centre and the row decides the
 /// STACKING rather than the geometry.
-pub(crate) fn spine_section() -> sweep::Section {
+fn spine_section() -> sweep::Section {
     quad([(-0.05, -0.05), (0.05, -0.05), (0.05, 0.05), (-0.05, 0.05)])
 }
 
 /// Four copies of the loft prism's square section.
 fn four_sections() -> Vec<sweep::Section> {
     vec![loft_prism_sections()[0].clone(); 4]
-}
-
-/// **The issue's executed signature, in the sweep crate's own
-/// vocabulary**: `stations` sections placed along a planar circular
-/// arc of UNIT RADIUS turning through `curl` toward `+z`, each
-/// section's plane normal the spine's own tangent there.
-///
-/// This is lily's leaf-A spine with a constant section — the same
-/// placement family (`demos/tour/src/lily.rs::lofted_blade`), reduced
-/// to the part the stacking statement reads. Station `i` sits at
-/// `θ = curl·i/(stations − 1)`, at `(sin θ, 0, 1 − cos θ)` with
-/// tangent `(cos θ, 0, sin θ)`. Two consequences the rows below use: a
-/// slab's displacement makes an angle of half the slab's turn with its
-/// base tangent, so the slab margin goes negative exactly when the
-/// SLAB turns past π; and the spine closes on itself at `curl = 2π`,
-/// past which the body passes through itself.
-pub(crate) fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
-    (0..stations)
-        .map(|i| {
-            #[allow(clippy::cast_precision_loss)]
-            let theta = curl * (i as f64) / ((stations - 1) as f64);
-            let (s, c) = theta.sin_cos();
-            // c2 is the section's plane normal — the spine tangent.
-            let linear = Mat3::from_cols(
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(-s, 0.0, c),
-                Vec3::new(c, 0.0, s),
-            );
-            plane_of(&Affine3::from_parts(linear, Vec3::new(s, 0.0, 1.0 - c)))
-        })
-        .collect()
 }
 
 /// The v-degree the skin can interpolate `stations` sections at — 3

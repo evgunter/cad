@@ -241,7 +241,7 @@ fn driver_of(
             node: doc.spoken(node),
             slot,
         })?;
-    Ok((row.driver, row.value.ok()))
+    Ok((row.driver, row.value.ok().and_then(|r| r.one())))
 }
 
 /// Whether `expr` reads any variable, by id or by name.

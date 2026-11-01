@@ -58,3 +58,11 @@ on the 3.5 rad wall at the cell `v in [0.375, 0.4375]`.
 `carve_embed_scratch_arc_pairs` with `CARVE_EMBED_CURL` (in
 `crates/sweep/tests/carve_embed_scratch.rs` on
 `carve/embedding-certificate`) prints the knots and runs each pair.
+
+## Pinned (REFINES, 2026-11-01)
+
+With the window door reading both halves
+(`clearance-refines-reads-only-the-lower-halves`), the 3.5 and 6 rad
+arc-spine lofts at 17 stations are admitted, and
+`self_intersection_proves_injectivity::an_arc_spine_short_of_a_full_turn_holds`
+asserts `Holds` at the default budget at both scalars (SLIVER, PR #6229).
