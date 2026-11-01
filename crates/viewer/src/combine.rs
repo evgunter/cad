@@ -1301,7 +1301,20 @@ pub fn duplicate_step(
     let width = width_along(&mesh.positions, heading)
         .filter(|w| w.is_finite() && *w > 0.0)
         .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
-    Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))
+    Ok(clearance(width, width, chord, tol))
+}
+
+/// **How far to step a body whose near side is `span` behind the far
+/// side of what it must clear**, measured off meshes at `chord`: `span`
+/// widened by the meshes' sag on both sides, 2(δ + ε) — the true extent
+/// is at most the mesh's plus that ([`duplicate_step`] carries the
+/// argument) — then [`DUPLICATE_GAP`] of the stepped body's own `width`,
+/// widened the same way, on top. A duplicate clears its original
+/// (`span` = `width`); an inserted part clears everything drawn
+/// ([`crate::pickindex::clear_of_drawn`]).
+pub fn clearance(span: f64, width: f64, chord: f64, tol: Tol) -> f64 {
+    let sag = 2.0 * (chord + tol.eps());
+    span + sag + (width + sag) * DUPLICATE_GAP
 }
 
 impl DuplicateFault {
@@ -1412,20 +1425,21 @@ pub fn copy_motion(
 /// exact integer, the structural/continuous split being typed rather
 /// than emergent (spec D3).
 ///
-/// Total: whether the index suits the family it reads is evaluation's
-/// question, asked of authored and hand-written documents alike.
+/// `None` for a family in no space. Whether the index suits the family
+/// it reads is evaluation's question, asked of authored and hand-written
+/// documents alike.
 pub fn part_node(
     doc: &Doc<ProfileProgram>,
     of: RecipeNodeId,
     select: PartSelectSpec,
-) -> AuthoredNode {
+) -> Option<AuthoredNode> {
     let PartSelectSpec::Instance(index) = select;
-    let target = doc.node_space(of).unwrap_or(pncad::document::VarId::WORLD);
-    Node::place(
+    let target = doc.node_space(of)?;
+    Some(Node::place(
         pncad::document::BodyRead::indexed(of, vec![Formula::count(index)]),
         Operand::Var(target),
         pncad::document::stand().bundle(),
-    )
+    ))
 }
 
 /// **Whether a node, named alone, reads as a single body** — the

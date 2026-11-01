@@ -5772,14 +5772,13 @@ mod properties_pane_tests {
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 
-    /// **An undo keeps a frame for the redo, and says nothing** (DI5):
-    /// a free-move frame is keyed by its space, and an undo past the
-    /// edit that gave the copy a space of its own takes the space, which
-    /// only a redo of that edit mints again (DI1), so the frame waits for
-    /// it and nothing was withdrawn. Drawn through the real app, frame by
-    /// frame.
+    /// **An undo's withdrawal reaches the status line** (DI5): a
+    /// free-move frame is keyed by its space, and an undo past the edit
+    /// that gave the copy a space of its own takes the space, so the
+    /// edit's own prune discards the frame and the batch says it. Drawn
+    /// through the real app, frame by frame.
     #[test]
-    fn an_undo_keeps_a_frame_for_the_redo_and_says_nothing() {
+    fn an_undos_withdrawal_reaches_the_status_line() {
         let tol = pncad::tolerance::witness();
         let (dir, part, _) = part_workspace("undo notice", tol);
         let mut driven = Driven::with(vec![
@@ -5816,33 +5815,18 @@ mod properties_pane_tests {
             status(&driven)
         );
 
-        // The undo takes the space and keeps its frame.
+        // The undo takes the space, and its own prune the frame.
         driven.app.perform_batch(vec![SessionOp::Undo]);
         assert!(
-            driven.app.session.committed_doc().var(space).is_none(),
-            "the undo took the space"
-        );
-        assert!(
-            driven.app.session.display().free_move_of(space).is_some(),
-            "the undo's prune kept the frame"
+            driven.app.session.display().free_move_of(space).is_none(),
+            "the undo's prune dropped the frame"
         );
         let said = status(&driven).unwrap_or_default();
         assert!(
-            !said.contains("free-move"),
-            "nothing was withdrawn, so nothing is said: {said:?}"
+            said.contains("which is not in the document, so that free-move is gone"),
+            "the undo's withdrawal is on the status line: {said:?}"
         );
         driven.settle();
-        driven.app.perform_batch(vec![SessionOp::Redo]);
-        driven.settle();
-        assert_eq!(
-            driven.app.session.committed_doc().node_space(instance),
-            Some(space),
-            "the redo brings the same space back"
-        );
-        assert!(
-            driven.app.session.display().free_move_of(space).is_some(),
-            "and its frame with it"
-        );
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 

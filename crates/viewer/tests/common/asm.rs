@@ -273,11 +273,7 @@ pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNo
         .doc;
     let placement = insert_into(
         &mut doc,
-        Node::place(
-            pncad::document::BodyRead::plain(pncad::document::Operand::Node(body)),
-            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
-            pncad::document::stand().bundle(),
-        ),
+        super::world_place(pncad::document::Operand::Node(body)),
         tol,
     );
     std::fs::write(

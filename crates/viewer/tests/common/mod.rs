@@ -734,23 +734,24 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
         .collect()
 }
 
-/// **The node `body` is drawn and picked on**: its one copy (A10), an
-/// instance itself, which is a placement, or — a new body lands
-/// unplaced — the body itself where nothing copies it.
+/// **The one world placement of `body`**: the node its drawn copy is
+/// picked on (A10) — an instance itself, which is a placement. A new
+/// body lands unplaced, so a row that wants a copy places one by hand
+/// ([`world_copy`]); a row that wants whatever the body is drawn under
+/// asks [`drawn_node`].
 ///
 /// # Panics
 ///
-/// Where several placements copy `body`.
+/// Unless exactly one placement places `body`.
 pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
     // An instance is a placement: its copies are drawn on it.
     if matches!(doc.node(body), Some(Node::InstantiatePart { .. })) {
         return body;
     }
-    match viewer::world::placements_of(doc, body)[..] {
-        [] => body,
-        [copy] => copy,
-        _ => panic!("{body:?} is placed more than once"),
-    }
+    let [copy] = viewer::world::placements_of(doc, body)[..] else {
+        panic!("{body:?} is placed once")
+    };
+    copy
 }
 
 /// **`body`'s one world copy, placed by hand where nothing copies it**:
@@ -764,17 +765,60 @@ pub fn world_copy(
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     match viewer::world::placements_of(doc, body)[..] {
-        [] if !matches!(doc.node(body), Some(Node::InstantiatePart { .. })) => inserted(
-            doc,
-            Node::place(
-                pncad::document::BodyRead::plain(pncad::document::Operand::Node(body)),
-                pncad::document::Operand::Var(pncad::document::VarId::WORLD),
-                pncad::document::stand().bundle(),
-            ),
-            tol,
-        ),
+        [] if !matches!(doc.node(body), Some(Node::InstantiatePart { .. })) => {
+            inserted(doc, world_place(pncad::document::Operand::Node(body)), tol)
+        }
         _ => (doc.clone(), copy_of(doc, body)),
     }
+}
+
+/// **A `Place` of `read` into the world by the identity bundle** — the
+/// placement a person writes by hand, which no gesture writes for them.
+pub fn world_place(read: pncad::document::Operand) -> pncad::document::AuthoredNode {
+    Node::place(
+        pncad::document::BodyRead::plain(read),
+        pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+        pncad::document::stand().bundle(),
+    )
+}
+
+/// **`node`'s placement re-targeted into the world** in `doc`, by hand:
+/// what the product door does to a copy nothing in its space reads.
+pub fn into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId, tol: Tol) -> Doc<ProfileProgram> {
+    edited(
+        doc,
+        DocEdit::SetParam {
+            node,
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
+            value: pncad::document::SlotValue::Read(pncad::document::Operand::Var(
+                pncad::document::VarId::WORLD,
+            )),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
+    .0
+}
+
+/// **The session's document, written by hand and reopened**: `write`
+/// over it — what a person writes where no gesture writes it for them —
+/// saved to `path` and opened through the typed door, landed. History
+/// starts again at the open.
+pub fn reopened_with(
+    session: &mut DocSession,
+    path: &std::path::Path,
+    write: impl FnOnce(&Doc<ProfileProgram>) -> Doc<ProfileProgram>,
+    tol: Tol,
+) {
+    let doc = write(session.committed_doc());
+    std::fs::write(
+        path,
+        pncad::document::save(&doc, &[], tol).expect("the document saves"),
+    )
+    .expect("the document writes");
+    let opened = session.perform(SessionOp::Open(path.to_path_buf()));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    session.pump();
 }
 
 /// [`world_copy`] in a session: a landed session over the document
@@ -889,7 +933,8 @@ pub fn member_read(
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let node =
-        viewer::combine::part_node(doc, family, viewer::session::PartSelectSpec::Instance(at));
+        viewer::combine::part_node(doc, family, viewer::session::PartSelectSpec::Instance(at))
+            .expect("the family is in a space");
     inserted(doc, node, tol)
 }
 

@@ -168,11 +168,7 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     // same two edits by hand.
     let (placed, placement) = common::inserted(
         session.committed_doc(),
-        Node::place(
-            pncad::document::BodyRead::plain(pncad::document::Operand::output(revolve, 0)),
-            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
-            pncad::document::stand().bundle(),
-        ),
+        common::world_place(pncad::document::Operand::output(revolve, 0)),
         tol,
     );
     let (placed, _) = common::edited(

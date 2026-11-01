@@ -2432,48 +2432,71 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
 }
 
 /// **Where an inserted space is drawn, clear of what is drawn**: the
-/// display frame that stands `space`'s drawn bodies one quarter of the
-/// wider width past everything else drawn, along the world's `x`
-/// ([`crate::combine::STEP_DIRECTION`]), each part as `display` draws
-/// it. `None` where nothing else is drawn or `space` draws nothing, and
-/// for a picture that does not build: the space then stands at the
-/// identity.
+/// display frame that steps `space`'s drawn bodies past everything else
+/// drawn along [`crate::combine::STEP_DIRECTION`] by
+/// [`crate::combine::clearance`] — the duplicate's rule, its own width's
+/// gap past the far side — each part as `display` draws it. The spaces
+/// in `ignored` are measured neither way: inserts still waiting for
+/// their own frame. `None` where nothing else is drawn, `space` draws
+/// nothing, it is clear already, or the picture does not build.
 ///
-/// The bodies are measured off a coarse tessellation
-/// ([`crate::scene::SCALE_PROBE_DELTA`]): its sag is a share of a
-/// body's extent well under the gap, so the step clears.
+/// Measured as [`crate::combine::duplicate_step`] measures: a probe at
+/// [`crate::scene::SCALE_PROBE_DELTA`] reads the picture's size, and the
+/// meshes it is measured off are cut at [`crate::combine::MEASURE_CHORD`]
+/// of it.
 pub fn clear_of_drawn(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
     display: &DisplayView,
     space: VarId,
+    ignored: &BTreeSet<VarId>,
     tol: Tol,
 ) -> Option<Frame> {
-    let delta = DisplayTolerance::new(crate::scene::SCALE_PROBE_DELTA).ok()?;
-    let index = PickIndex::build(doc, eval, PictureKey::of(Generation::FIRST, delta), tol).ok()?;
-    let (mut inserted, mut others) = (Vec::new(), Vec::new());
-    for part in index.parts() {
-        if display.hides(part.node(), part.body()) {
-            continue;
+    let boxes = |delta: f64| {
+        let delta = DisplayTolerance::new(delta).ok()?;
+        let index =
+            PickIndex::build(doc, eval, PictureKey::of(Generation::FIRST, delta), tol).ok()?;
+        let (mut inserted, mut others) = (Vec::new(), Vec::new());
+        for part in index.parts() {
+            let at = index.spaces.get(&part.node()).copied();
+            if display.hides(part.node(), part.body()) || at.is_some_and(|at| ignored.contains(&at))
+            {
+                continue;
+            }
+            let map = drawn(display, part);
+            let into = if at == Some(space) {
+                &mut inserted
+            } else {
+                &mut others
+            };
+            into.extend(
+                part.mesh()
+                    .positions
+                    .iter()
+                    .map(|&p| map.map_or(p, |map| map.transform_point(p))),
+            );
         }
-        let map = drawn(display, part);
-        let into = if index.spaces.get(&part.node()) == Some(&space) {
-            &mut inserted
-        } else {
-            &mut others
-        };
-        into.extend(
-            part.mesh()
-                .positions
-                .iter()
-                .map(|&p| map.map_or(p, |map| map.transform_point(p))),
-        );
-    }
-    let inserted = bvh::Aabb::from_points(inserted)?;
-    let others = bvh::Aabb::from_points(others)?;
-    let width = (inserted.max_x - inserted.min_x).max(others.max_x - others.min_x);
-    let step = others.max_x - inserted.min_x + width * crate::combine::DUPLICATE_GAP;
-    (step.is_finite() && step > 0.0).then(|| Frame::translation([step, 0.0, 0.0]))
+        Some((
+            bvh::Aabb::from_points(inserted)?,
+            bvh::Aabb::from_points(others)?,
+        ))
+    };
+    let (inserted, others) = boxes(crate::scene::SCALE_PROBE_DELTA)?;
+    let diagonal = |b: &bvh::Aabb| {
+        (b.max_x - b.min_x)
+            .hypot(b.max_y - b.min_y)
+            .hypot(b.max_z - b.min_z)
+    };
+    let chord = diagonal(&inserted).max(diagonal(&others)) * crate::combine::MEASURE_CHORD;
+    let (inserted, others) = boxes(chord)?;
+    let step = crate::combine::clearance(
+        others.max_x - inserted.min_x,
+        inserted.max_x - inserted.min_x,
+        chord,
+        tol,
+    );
+    (step.is_finite() && step > 0.0 && others.max_x > inserted.min_x)
+        .then(|| Frame::translation(crate::combine::STEP_DIRECTION.map(|d| d * step)))
 }
 
 /// **Where a drawn part's tessellation is drawn**: its body's frame

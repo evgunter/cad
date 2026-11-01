@@ -63,26 +63,12 @@ fn at_origin(session: &DocSession, node: RecipeNodeId) -> bool {
 /// saved to `path` with the instance re-targeted into the world, as the
 /// product door moves a copy nothing in its space reads, and reopened.
 fn into_world(session: &mut DocSession, instance: RecipeNodeId, path: &Path, tol: Tol) {
-    let (doc, _) = common::edited(
-        session.committed_doc(),
-        pncad::document::DocEdit::SetParam {
-            node: instance,
-            slot: SlotId::Operand(pncad::document::OperandSlot::Space),
-            value: pncad::document::SlotValue::Read(pncad::document::Operand::Var(
-                pncad::document::VarId::WORLD,
-            )),
-            fresh: Vec::new(),
-        },
+    common::reopened_with(
+        session,
+        path,
+        |doc| common::into_world(doc, instance, tol),
         tol,
     );
-    std::fs::write(
-        path,
-        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
-    )
-    .expect("the assembly writes");
-    let opened = session.perform(SessionOp::Open(path.to_path_buf()));
-    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
-    session.pump();
 }
 
 // --- the acceptance ------------------------------------------------
