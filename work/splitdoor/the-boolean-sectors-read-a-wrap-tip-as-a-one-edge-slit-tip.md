@@ -2,7 +2,8 @@
 id: the-boolean-sectors-read-a-wrap-tip-as-a-one-edge-slit-tip
 kind: issue
 title: the boolean's sector and insert stages read a wrap edge's tip (a pole reached by one wrap edge) as a one-edge slit tip
-status: open
+status: dispatched
+branch: splitdoor/wrap-tip-boolean
 opened: 2026-10-29
 priority: P1
 cost: M
