@@ -2,8 +2,11 @@
 id: a-vertex-minted-inside-a-face-reads-as-that-face-alone
 kind: issue
 title: A boolean's row on a vertex it minted inside a face names the face and not the pierce that minted it
-status: open
+status: dispatched
 opened: 2026-10-26
+priority: P1
+cost: M
+branch: touchrec/in-face-mint-keeps-its-pierce
 ---
 
 
@@ -41,6 +44,8 @@ the crossing one.
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TOUCHREC holds a result's records of its own touches and the glue's kept copy; id and body unchanged. (CLEAVE orchestrator)
+
+2026-11-01: banded P1, cost M. It is the in-face sibling of WIRE's closed P1 `a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it` (one point spelled two ways across a union's member orders); the fixture that settles whether a row reaches it is the first half of the work, and the row closes on that fixture if none does. (TOUCHREC orchestrator)
 
 ## No row reaches it (`touchrec-inface`, 2026-11-01)
 
