@@ -1381,10 +1381,15 @@ where that claim lives now that `probe_stats` is gone (#709).
 Effort M; ceiling is core count against face count.
 
 Finally, a mechanism worth recording because it strengthens finding 3:
-rustc enables `share-generics` **by default only at `opt-level = 0`**.
-At any optimizing level it is off unless `-Zshare-generics` is passed,
-which is nightly-only and therefore unavailable under the pinned stable
-toolchain (`rust-toolchain.toml:4`). In a workspace where 40% of `src`
+rustc enables `share-generics` **by default at `opt-level` 0, 1, `s`
+and `z`, and not at 2 or 3** (checked 2026-11-01 on rustc 1.97 with a
+two-crate build: at opt 0, 1, `s` and `z` the downstream object imports the
+upstream `f64` instantiation, at 2 and 3 it compiles its own; an
+`#[inline(never)]` function is shared at every level, so the check uses
+an ordinary one). This sentence used to say opt-level 0 only. At 2 and 3
+it is off unless `-Zshare-generics` is passed, which is nightly-only and
+therefore unavailable under the pinned stable toolchain
+(`rust-toolchain.toml:4`). In a workspace where 40% of `src`
 lives in files with generic-over-`Real` items, that plausibly explains
 why #449's opt-2 penalty measured 3.4–4.6× hosted rather than the ~2× a
 naive model predicts: at opt-0 downstream crates import upstream

@@ -2,9 +2,11 @@
 id: the-tree-nests-rows-under-unrelated-placements
 kind: issue
 title: the feature tree's indentation does not follow the document's structure
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
+cost: M
+branch: chrome/tree-structure
 ---
 
 

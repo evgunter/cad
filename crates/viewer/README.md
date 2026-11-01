@@ -255,7 +255,7 @@ it red rather than the nightly. Pages serves over https, which is a
 secure context, so a browser with WebGPU gets the WebGPU path there,
 where the script's plain-http LAN server only ever reaches WebGL2.
 
-Three things are known-absent by design:
+Four things are known-absent by design:
 
 - **No file I/O.** The browser build links no `rfd`, so Open…/Save As…,
   and Save for the startup document, are disabled with their reason showing — the same posture a Linux box
@@ -274,6 +274,12 @@ Three things are known-absent by design:
   horizontally at a 1280×800 design size. On a ~390 px viewport the
   four-pane dock is unusable; the panes scroll, which is not the same as
   fitting.
+- **No id-pass cross-check.** The GPU id pass reads its answer back
+  by waiting on the device, and a browser's WebGPU cannot be waited
+  on, so every query came back unanswered and its fault flickered the
+  toolbar's status line on every pointer move. The browser build asks
+  it nothing (`gpu::ID_PASS_ASKED`). Picking is the ray path's either
+  way; only the check that the GPU agrees with it is gone.
 
 **Evaluation runs on the main thread.** The seam takes
 `evalseam::InlineEvaluator` here instead of `ThreadEvaluator`, so a

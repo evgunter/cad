@@ -211,6 +211,22 @@ pub(crate) fn reflex_hole(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, vec![plate, wedge, l])
 }
 
+/// The triangle of [`edge_in_a_wall`]'s wedge, its apex on the wall's
+/// x = 1.5 side.
+const APEX_WEDGE: [(f64, f64); 3] = [(1.5, 1.0), (2.0, 0.8), (2.0, 1.2)];
+
+/// The plate, a wall through its top and a wedge through its top whose
+/// apex edge lies in the wall's x = 1.5 face: the edge pierces the
+/// plate's top at (1.5, 1, 1), inside the wall's face. Folded with the
+/// wall and the wedge first, the plate's step meets that point as a
+/// pierce held in the wall's face (`topo`'s `faces_holding_pierce`).
+pub(crate) fn edge_in_a_wall(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
+    let (doc, wall) = block_on(doc, plate, (1.0, 1.5), (0.5, 1.5), 0.5, 1.0);
+    let (doc, wedge) = prism(doc, Stand::On(plate), &APEX_WEDGE, 0.6, 0.7);
+    (doc, vec![plate, wall, wedge])
+}
+
 /// The plate's volume plus each block's part above or beside it; the
 /// blocks share only a line.
 const UNION_VOLUME: f64 = 6.0 + (1.5 - 0.25) + (1.23 - 0.265);

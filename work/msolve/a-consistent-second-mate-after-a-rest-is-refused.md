@@ -21,7 +21,7 @@ make one side flush was refused.
 and edge-collinear-with-edge (`Axis`–`Axis` on edge lines; `PoseDef::Axis`
 reads a straight edge, `crates/editor-core/src/pose.rs`). That the GUI
 cannot author them is
-`work/chrome/the-mate-tool-offers-two-of-the-five-mate-kinds.md` (P0),
+`work/placing/the-mate-tool-offers-two-of-the-five-mate-kinds.md` (P0),
 and it is what blocked Ev.
 
 What remains for the kernel is composition:
