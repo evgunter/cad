@@ -66,19 +66,19 @@ use crate::validate::decide;
 /// K name: a point's signed distance from the plane of a link's face
 /// through the touch point `p`, in metres — which side of the face's
 /// plane a piece's end, a probe or a parity arc's end lies on.
-pub(crate) const TOUCH_PLANE: &str = "census_touch_plane";
+pub(crate) const LINK_PLANE: &str = "link_plane";
 /// K name: a point's signed distance from the plane through a ray from
 /// `p` (a sector's ray, or a face vertex's while its piece is built),
 /// normal to its face, in metres — which side of the ray the point lies
 /// on, in the face's plane, read no further out than the ray's point.
-const TOUCH_WEDGE: &str = "census_touch_wedge";
+const LINK_WEDGE: &str = "link_wedge";
 /// K name: a point on a ray's line through `p` read along the ray, in
 /// metres — ahead of `p` or behind it, read no further out than the
 /// ray's point.
-const TOUCH_AHEAD: &str = "census_touch_ahead";
+const LINK_AHEAD: &str = "link_ahead";
 /// K name: a parity arc's two ends read against the plane through `p`
 /// normal to their bisector, in metres — the arc under half a turn.
-const TOUCH_ARC: &str = "census_touch_arc";
+const LINK_ARC: &str = "link_arc";
 /// K name, building a face's piece: one edge's crossing of a probe ray
 /// read against another's along the ray, in metres — which edge the ray
 /// meets first.
@@ -378,6 +378,17 @@ pub(crate) struct Cone<T: Real> {
     /// The farthest a sector's apex stands from `p`: zero but where a
     /// corner on another key of the point was decided one point with it.
     pub(crate) tie: T,
+}
+
+/// **One face's corner at a point of a cone, as a fan of rays**: rays
+/// from `apex` in the plane through it of outward unit normal `outward`,
+/// in turn counterclockwise about the normal, each two consecutive under
+/// half a turn apart, each fixed by a point at its reach — what a
+/// [`Sector`] is built from by [`Cone::gathered`].
+pub(crate) struct Fan<T: Real> {
+    pub(crate) outward: Vec3<T>,
+    pub(crate) apex: Point3<T>,
+    pub(crate) rays: Vec<Point3<T>>,
 }
 
 /// **One solid's link at a touch point `p`**: every face of the solid
@@ -787,7 +798,7 @@ fn wedge_side<T: Decide>(
         within(p, x, (r - p).norm())
     };
     metric::sign_over(
-        TOUCH_WEDGE,
+        LINK_WEDGE,
         Distance::of(x, p, m.cross((r - p).normalize())),
         rd,
     )
@@ -801,7 +812,7 @@ fn ahead<T: Decide>(p: Point3<T>, r: Point3<T>, x: Point3<T>, rd: Reading<T>) ->
     } else {
         within(p, x, (r - p).norm())
     };
-    metric::sign_over(TOUCH_AHEAD, Distance::of(x, p, (r - p).normalize()), rd)
+    metric::sign_over(LINK_AHEAD, Distance::of(x, p, (r - p).normalize()), rd)
 }
 
 /// `q` drawn in toward `p` along its ray to lie within `r` of it — on a
@@ -842,7 +853,7 @@ fn ray_meets<T: Real>(p: Point3<T>, m: Vec3<T>, r: Point3<T>, (a, b): Segment<T>
 /// bound).
 fn on_ray<T: Decide>(c: Point3<T>, m: Vec3<T>, q: Point3<T>, x: Point3<T>, rd: Reading<T>) -> bool {
     let near = within(c, x, (q - c).norm());
-    metric::sign_over(TOUCH_PLANE, Distance::of(near, c, m), rd) == Some(Sign::Zero)
+    metric::sign_over(LINK_PLANE, Distance::of(near, c, m), rd) == Some(Sign::Zero)
         && wedge_side(c, m, q, x, rd) == Some(Sign::Zero)
         && ahead(c, q, x, rd) == Some(Sign::Positive)
 }
@@ -1056,6 +1067,40 @@ impl<T: Decide> Cone<T> {
         Ok(Self { p, sectors, tie })
     }
 
+    /// **The cone of a solid at `p`, gathered across the keys the point
+    /// ties**: a sector for each face corner (`corners`), its first ray
+    /// and its last the sector's bounds, and a closed disc about `p` for
+    /// each face `p` lies inside, by its outward unit normal (`inside`),
+    /// its rays out to `radius`. Nothing is decided here: a corner on
+    /// another key of the point keeps its own apex, which the cone's
+    /// [`tie`](Cone::tie) measures, and whether the sectors pair up at
+    /// their bounds is [`Cone::held_closed`]'s to read.
+    pub(crate) fn gathered(
+        p: Point3<T>,
+        corners: impl IntoIterator<Item = Fan<T>>,
+        inside: impl IntoIterator<Item = Vec3<T>>,
+        radius: T,
+    ) -> Result<Self, TouchUnread> {
+        let fans = corners.into_iter().map(|f| Sector {
+            outward: f.outward,
+            apex: f.apex,
+            wedges: f.rays.windows(2).map(|w| (w[0], w[1])).collect(),
+            closed: false,
+        });
+        let discs = inside.into_iter().map(|m| {
+            // Four quarter wedges round the disc.
+            let (u, v) = m.orthonormal_basis();
+            let rays = [u, v, -u, -v, u].map(|d| p + d * radius);
+            Sector {
+                outward: m,
+                apex: p,
+                wedges: rays.windows(2).map(|w| (w[0], w[1])).collect(),
+                closed: true,
+            }
+        });
+        Self::of(p, fans.chain(discs).collect())
+    }
+
     /// The cone where it closes ([`Cone::closes`]): its sectors bound a
     /// region of directions, so the parity reading reads it.
     /// `Unanalysed` where they do not pair up at their bounds, `InBand`
@@ -1070,7 +1115,7 @@ impl<T: Decide> Cone<T> {
 
     /// `q`'s side of sector `s`'s plane through `p`.
     fn side(&self, s: &Sector<T>, q: Point3<T>, rd: Reading<T>) -> Option<Sign> {
-        metric::sign_over(TOUCH_PLANE, Distance::of(q, self.p, s.outward), rd)
+        metric::sign_over(LINK_PLANE, Distance::of(q, self.p, s.outward), rd)
     }
 
     /// **Whether the cone closes**: every sector bound is the bound of an
@@ -1101,7 +1146,7 @@ impl<T: Decide> Cone<T> {
                 // against a face's plane, a surface, at its own radius.
                 let readings = [
                     metric::sign_over(
-                        TOUCH_PLANE,
+                        LINK_PLANE,
                         Distance::of(within(p, x, (q - p).norm()), p, m),
                         rd,
                     )
@@ -1141,8 +1186,20 @@ impl<T: Decide> Cone<T> {
     /// is in band of the plane and not decidedly outside the sector, or
     /// its place on the plane is in band.
     fn against(&self, s: &Sector<T>, q: Point3<T>, rd: Reading<T>) -> Option<Against<T>> {
+        self.against_on(s, q, self.side(s, q, rd), rd)
+    }
+
+    /// [`Cone::against`], `q`'s side of the sector's plane read as
+    /// `side`.
+    fn against_on(
+        &self,
+        s: &Sector<T>,
+        q: Point3<T>,
+        side: Option<Sign>,
+        rd: Reading<T>,
+    ) -> Option<Against<T>> {
         let p = self.p;
-        match self.side(s, q, rd) {
+        match side {
             Some(Sign::Zero) => Some(match s.place(p, q, rd)? {
                 Place::Inside => Against::Inside,
                 Place::Bound => Against::Bound,
@@ -1183,13 +1240,59 @@ impl<T: Decide> Cone<T> {
     /// itself is in band of a plane it is not decidedly outside the
     /// sector of, or its place on a plane is in band.
     pub(crate) fn reads_over(&self, q: Point3<T>, rd: Reading<T>) -> Option<Material> {
+        self.reads_given(q, &[], rd)
+    }
+
+    /// **Where the direction to `q` lies against a gathered cone's
+    /// material** ([`Cone::gathered`]): [`Cone::reads_given`] where the
+    /// cone closes ([`Cone::held_closed`]), every reading taken over
+    /// twice the cone's tie, as [`rest::by_round`] takes its own: a
+    /// corner on another key of the point stands up to the tie off `p`.
+    /// `None` where the cone does not close on decided readings or a
+    /// reading the answer needs is in band.
+    pub(crate) fn reads_tied(
+        &self,
+        q: Point3<T>,
+        given: &[(usize, Sign)],
+        band: Band,
+    ) -> Option<Material> {
+        let rd = Reading {
+            band,
+            slack: Some(self.tie * T::from_f64(2.0)),
+            own: false,
+        };
+        self.held_closed(rd).ok()?;
+        self.reads_given(q, given, rd)
+    }
+
+    /// **[`Cone::reads_over`], `q`'s side of some sectors' faces given**:
+    /// for each `(k, side)` of `given`, `q`'s side of sector `k`'s face as
+    /// that face's own reading decided it (positive in front of the face,
+    /// zero on it) stands for `q`'s distance from the sector's plane.
+    /// That reading is a reading of the whole edge `q` stands for, and
+    /// its signs are decided at its own door, not here: a pierce's side
+    /// code against the face it touches, read to the order its curvature
+    /// needs. Every other reading is the cone's own.
+    pub(crate) fn reads_given(
+        &self,
+        q: Point3<T>,
+        given: &[(usize, Sign)],
+        rd: Reading<T>,
+    ) -> Option<Material> {
         let p = self.p;
         // Every sector is read before any answer is taken, so the answer
         // does not depend on the sectors' order.
         let against: Vec<Against<T>> = self
             .sectors
             .iter()
-            .map(|s| self.against(s, q, rd))
+            .enumerate()
+            .map(|(k, s)| {
+                let side = match given.iter().find(|&&(j, _)| j == k) {
+                    Some(&(_, side)) => Some(side),
+                    None => self.side(s, q, rd),
+                };
+                self.against_on(s, q, side, rd)
+            })
             .collect::<Option<_>>()?;
         let mut on = against
             .iter()
@@ -1221,7 +1324,7 @@ impl<T: Decide> Cone<T> {
                 let w = p + c * ((q - p).norm() / c.norm());
                 let half = ((q - p).normalize() + (w - p).normalize()).normalize();
                 for x in [q, w] {
-                    if metric::sign_over(TOUCH_ARC, Distance::of(x, p, half), rd)
+                    if metric::sign_over(LINK_ARC, Distance::of(x, p, half), rd)
                         != Some(Sign::Positive)
                     {
                         continue 'reference;
@@ -1315,7 +1418,7 @@ impl<T: Decide> Cone<T> {
         let w = p + (w - p) * ((q - p).norm() / (w - p).norm());
         let half = ((q - p).normalize() + (w - p).normalize()).normalize();
         for x in [q, w] {
-            if metric::sign_over(TOUCH_ARC, Distance::of(x, p, half), rd) != Some(Sign::Positive) {
+            if metric::sign_over(LINK_ARC, Distance::of(x, p, half), rd) != Some(Sign::Positive) {
                 return None;
             }
         }
@@ -1869,8 +1972,8 @@ impl<T: Decide> Link<T> {
                 .map(move |r| Distance::of(q, s.apex, s.outward.cross((r - s.apex).normalize())))
         });
         planes
-            .map(|d| metric::why(TOUCH_PLANE, d, rd.band))
-            .chain(bounds.map(|d| metric::why(TOUCH_WEDGE, d, rd.band)))
+            .map(|d| metric::why(LINK_PLANE, d, rd.band))
+            .chain(bounds.map(|d| metric::why(LINK_WEDGE, d, rd.band)))
             .find_map(|why| why)
             .map_or(
                 LinkRefusal::Unread(TouchUnread::InBand),
@@ -1990,7 +2093,7 @@ impl<T: Decide> Link<T> {
                         .iter()
                         .enumerate()
                         .filter(|(_, t)| {
-                            metric::sign_over(TOUCH_PLANE, Distance::of(r, t.apex, t.outward), rd)
+                            metric::sign_over(LINK_PLANE, Distance::of(r, t.apex, t.outward), rd)
                                 == Some(Sign::Zero)
                         })
                         .map(|(j, _)| j)
@@ -2120,9 +2223,9 @@ impl<T: Decide> Link<T> {
     /// right of its ray `b`, about its outward normal) its nearest point is
     /// the foot on its plane, and elsewhere a point of its two closed rays.
     /// Which side of a ray `q` stands on is read at `q`'s own distance
-    /// through the door (`TOUCH_WEDGE`). Read in band, `q` stands within
+    /// through the door (`LINK_WEDGE`). Read in band, `q` stands within
     /// the band of the ray's line; where it stands decidedly behind the
-    /// apex along the ray (`TOUCH_AHEAD`) it is beyond the wedge, which lies
+    /// apex along the ray (`LINK_AHEAD`) it is beyond the wedge, which lies
     /// under half a turn ahead, and otherwise it stands within the band of
     /// the ray itself, where the two branches differ by at most the band: a
     /// point scalar takes the plane, and an enclosure takes both
@@ -2158,7 +2261,7 @@ impl<T: Decide> Link<T> {
 
     /// **Whether `q` stands within the band of the cone's boundary**: of
     /// a wedge's plane where it stands over the wedge or within the band
-    /// of its ray (`TOUCH_PLANE`), or of one of its closed rays, read along
+    /// of its ray (`LINK_PLANE`), or of one of its closed rays, read along
     /// the line from the ray's nearest point to `q` (`LINK_TIE`; at that
     /// point itself the reading is in band). A distance, not a place: a
     /// wedge thinner than the band leaves `q`'s place in its face
@@ -2173,7 +2276,7 @@ impl<T: Decide> Link<T> {
         self.cone.sectors.iter().any(|s| {
             s.wedges.iter().any(|&(a, b)| {
                 let plane = self.wedge(s, (a, b), q, rd).1 != Some(false)
-                    && near(Distance::of(q, s.apex, s.outward), TOUCH_PLANE);
+                    && near(Distance::of(q, s.apex, s.outward), LINK_PLANE);
                 plane
                     || [a, b].into_iter().any(|r| {
                         let u = (r - s.apex).normalize();
@@ -2406,34 +2509,6 @@ impl<T: Decide> Round<T> {
     }
 }
 
-/// [`Cone::reads_over`] over a bare polygon cone at `p`, each face its
-/// outward normal and one wedge's two real points, read on `band`
-/// alone: how the boolean's sector fuzz runs the census's reader on its
-/// own cones beside `cone_side` (`boolean::sectors::cone_fuzz`).
-#[cfg(test)]
-pub(crate) fn bare_cone_reads(
-    p: Point3<f64>,
-    faces: &[(Vec3<f64>, Point3<f64>, Point3<f64>)],
-    q: Point3<f64>,
-    band: Band,
-) -> Option<Material> {
-    let sectors = faces
-        .iter()
-        .map(|&(m, a, b)| Sector {
-            outward: m,
-            apex: p,
-            wedges: vec![(a, b)],
-            closed: false,
-        })
-        .collect();
-    let rd = Reading {
-        band,
-        slack: None,
-        own: false,
-    };
-    Cone::of(p, sectors).ok()?.reads_over(q, rd)
-}
-
 /// **The one door a rest comes through.** [`Rest`](rest::Rest) has a
 /// private field and is neither `Copy` nor `Clone`, so nothing outside
 /// this module can build one or replay one: a rest exists only where
@@ -2444,7 +2519,7 @@ pub(crate) mod rest {
         Band, Cone, Decide, Link, Material, Place, Point3, Reading, Segment, Sign, TouchUnread,
         TouchVerdict,
     };
-    use super::{Distance, Germ, LINK_ROUND, Round, TOUCH_PLANE, metric};
+    use super::{Distance, Germ, LINK_PLANE, LINK_ROUND, Round, metric};
     use super::{TOUCH_NORMAL, ahead, on_plane, pairing, wedge_side, within};
 
     /// The certificate of a rest: every piece of both links read, on
@@ -2755,7 +2830,7 @@ pub(crate) mod rest {
             for r in s.wedges.iter().flat_map(|&(x, y)| [x, y]) {
                 let drawn = within(s.apex, r, near);
                 let enters = if round.convex {
-                    match metric::sign_over(TOUCH_PLANE, Distance::of(r, p, n), rd) {
+                    match metric::sign_over(LINK_PLANE, Distance::of(r, p, n), rd) {
                         Some(Sign::Positive | Sign::Zero) => continue,
                         Some(Sign::Negative) => below((s.apex, drawn)),
                         None => None,
