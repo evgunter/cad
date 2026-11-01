@@ -2,10 +2,11 @@
 id: a-vertex-minted-inside-a-face-reads-as-that-face-alone
 kind: issue
 title: A boolean's row on a vertex it minted inside a face names the face and not the pierce that minted it
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: M
+branch: touchrec/in-face-mint-keeps-its-pierce
 ---
 
 

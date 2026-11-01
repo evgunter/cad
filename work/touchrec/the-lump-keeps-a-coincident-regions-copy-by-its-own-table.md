@@ -2,10 +2,11 @@
 id: the-lump-keeps-a-coincident-regions-copy-by-its-own-table
 kind: issue
 title: The Eq. 15.3 lump keeps operand A's copy of a coincident region by its own table, not by the glue's kept-side decision
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: M
+branch: touchrec/kept-side-reads-the-glue
 ---
 
 
