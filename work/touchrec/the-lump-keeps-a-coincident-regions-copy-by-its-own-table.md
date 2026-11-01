@@ -2,7 +2,8 @@
 id: the-lump-keeps-a-coincident-regions-copy-by-its-own-table
 kind: issue
 title: The Eq. 15.3 lump keeps operand A's copy of a coincident region by its own table, not by the glue's kept-side decision
-status: review
+status: closed
+closed: 2026-11-01
 opened: 2026-10-27
 priority: P1
 cost: M
@@ -42,3 +43,16 @@ readers that assume A's (`fallback_fates`, the
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TOUCHREC holds a result's records of its own touches and the glue's kept copy; id and body unchanged. (CLEAVE orchestrator)
 
 2026-11-01: re-banded P2 → P1. This row is a remaining instance of the closed P1 `the-kept-side-of-a-glued-pair-is-chosen-in-three-places` (PR 5848), whose sweep filed it: a second place choosing which description a glued pair keeps, beside `glue::kept_first` — "two implementations of one underlying logic", P1 by `work/README.md` Priority. (TOUCHREC orchestrator)
+
+## Closed
+
+PR 6210. `boolean::glue::KEPT` is the one home of the kept side, with a
+compile-time guard that it is A (the boolean assumes it: the result
+arena is A's clone and the containment fallback cuts only B's copies).
+`tables::kept_copy` is `lump_keeps_one(..).then_some(KEPT)` and
+`eq15_3_lump` is stated from it; `eq15_3_all_rows` pins the book's table
+cell for cell. `shell_witness::on_kept` reads `kept_copy`;
+`ops::fallback_fates` names the kept side through `KEPT` in its refusal
+doc and keeps cutting B's clone. The operand/index hand conversions the
+review found are filed as
+`work/touchrec/operands-convert-to-array-indices-by-hand.md`.

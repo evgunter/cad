@@ -155,13 +155,13 @@ impl<K: Ord + Copy> Roots<K> {
 /// **The point keys the seams tie are one point**: a pinch is several
 /// vertices on one point key (Ev, PR 4057).
 ///
-/// Each seam pair's two vertices are one point, which the zips need
-/// (their scaffolding certifies only coincident pairs), and an op's
-/// copies of one vertex share its key (`Body::mev_null`). So every key
-/// the correspondence `vmap` reaches, through its pairs and through the
-/// keys its vertices share, names one point. Returns those classes of
-/// two or more keys, read before any zip; [`share_points`] reads them
-/// after. Decided by the records alone: no position is read. Copies an
+/// The correspondence `vmap` ties each seam pair's two vertices, and an
+/// op's copies of one vertex share its key (`Body::mev_null`). Every
+/// key it reaches, through its pairs and through the keys its vertices
+/// share, is one class; its keys may still hold points apart (two keys
+/// of one operand an ulp apart, in `union_flush_onto_edge_contact`).
+/// Returns those classes of two or more keys, read before any zip;
+/// [`share_points`] reads them after. Decided by the records alone: no position is read. Copies an
 /// operand held on one key, which the zips may fuse onto the other
 /// operand's key one by one, carry no vertex-vertex record, so
 /// `ops::record_classes` does not reach them.
@@ -189,12 +189,16 @@ pub(super) fn point_classes<T: geom_core::Real>(
 }
 
 /// **The vertices of each class sit on one point key**: where a
-/// class's live vertices sit on several of its keys, they move onto its
-/// smallest live key ([`Body::share_point`]); elsewhere nothing moves.
-/// The classes come from the seams, after the zips ([`point_classes`]),
-/// and from the result's vertex-vertex records, at the output stage
-/// (`ops::record_classes`). The census's same-point rung and the join
-/// then read the point from its keys.
+/// class's live vertices sit on several of its keys, they move onto
+/// the smallest live key holding the glue's kept side's point
+/// (`ops::PointOwners`, [`super::glue::KEPT`]), or the smallest live
+/// key where the class holds none of that side's ([`Body::share_point`]);
+/// elsewhere nothing moves. Either way the class keeps one of its keys'
+/// points, and those may differ inside the band, so the choice is which
+/// point the glued vertices keep. The classes come from the seams, after
+/// the zips ([`point_classes`]), and from the result's vertex-vertex
+/// records, at the output stage (`ops::record_classes`). The census's
+/// same-point rung and the join then read the point from its keys.
 ///
 /// # Errors
 ///
@@ -203,6 +207,7 @@ pub(super) fn point_classes<T: geom_core::Real>(
 pub(super) fn share_points<T: geom_core::Real>(
     body: &mut Body<T>,
     classes: &[PointClass],
+    owners: &super::ops::PointOwners,
 ) -> Result<(), BooleanError> {
     // The classes are disjoint (each caller builds them as a
     // partition), so one index serves them all.
@@ -217,9 +222,14 @@ pub(super) fn share_points<T: geom_core::Real>(
             .copied()
             .filter(|k| on_key.contains_key(k))
             .collect();
-        let [onto, _, ..] = keys[..] else {
+        let [smallest, _, ..] = keys[..] else {
             continue;
         };
+        let onto = keys
+            .iter()
+            .copied()
+            .find(|&k| owners.is_kept(k))
+            .unwrap_or(smallest);
         let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();
         #[cfg(feature = "sweep-testing")]
         {
@@ -243,7 +253,7 @@ pub(super) fn share_points<T: geom_core::Real>(
 /// The point keys one rebind of [`share_points`] puts on one key, with
 /// the margin of each decision the records tying them cite
 /// (`ops::record_classes`); none where the seams tie them
-/// ([`point_classes`]), whose pairs are bitwise coincident.
+/// ([`point_classes`]).
 pub(super) struct PointClass {
     pub(super) keys: BTreeSet<PointKey>,
     #[cfg(feature = "sweep-testing")]
@@ -298,7 +308,7 @@ thread_local! {
 /// One class [`share_points`] rebound: each key's point before the
 /// rebind, each coordinate as its `{:?}` rendering, and each margin its
 /// records cite (`ops::record_classes`), as its `{:e}` rendering; none for
-/// a class the seams tie, which holds one point bit for bit.
+/// a class the seams tie.
 #[cfg(feature = "sweep-testing")]
 pub type SharedClass = (Vec<[String; 3]>, Vec<String>);
 
@@ -306,7 +316,7 @@ pub type SharedClass = (Vec<[String; 3]>, Vec<String>);
 /// last drain ([`SharedClass`]). `share_points` reads no position, so
 /// its premise is pinned here, in test builds: a row parses the
 /// coordinates back and asserts each class lies within the margins its
-/// records' decisions read (a seam class within none: one point). At `f64` the rendering is the shortest
+/// records' decisions read. At `f64` the rendering is the shortest
 /// string that parses back to the same value, so the parse is exact.
 /// Rendered, not typed, because `T` reaches its bits only through the
 /// fenced bit-identity seam (`geom_core::bit_identity`), which a test
