@@ -1845,3 +1845,6 @@ Signed (CLEAVE orchestrator).
   - Merging main brought in PR 5793:
     - The 24 seam-ruling cells now refuse `CurvedFace` typed, so that row is closed (refs 5793).
     - 4 S7 one-segment unions went from refusing `EdgeInFace` to building with tier 3′ `CensusUndecidable`; this is noted on restread's P0. I asked the 6177 claims reviewer to check whether those bodies are right. (CLEAVE orchestrator)
+- 2026-11-01 — Dispatched two P1 M rows now that `fate.rs` is free:
+  - `a-fate-cut-touch-end-at-a-division-vertex-lies-in-no-piece`, on `cleave/fate-touch-end-at-a-division-vertex`;
+  - `the-other-orbit-readings-refuse-a-tie-the-walk-now-reads`, on `cleave/orbit-readings-read-the-beside-tie`. This one is asked to name which of the two second-order side readers its sites should ask. (CLEAVE orchestrator)

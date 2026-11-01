@@ -2,11 +2,12 @@
 id: a-fate-cut-touch-end-at-a-division-vertex-lies-in-no-piece
 kind: issue
 title: A fate cut's touching end at a vertex of the dropped face's division lies inside no one piece of its face
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: M
 refs: [a-fate-cut-end-between-two-touching-lumps-lies-in-no-piece]
+branch: cleave/fate-touch-end-at-a-division-vertex
 ---
 
 Disclosed by PR 5812 (`cleave/flush-partners-at-a-slit-build`), the
