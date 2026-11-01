@@ -46,3 +46,11 @@ It is one undo step. The door is editor-core's, beside `refactor::inline` / `ske
 
 AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
 successors on the viewer authoring files. Id and body unchanged.
+
+## Evidence: a held selection, run on main (CHROME, 2026-11-01)
+
+The everyday staleness Ev hit (CHROME's P1 `work/chrome/a-findings-face-reference-reads-as-stale.md`) is this row's sketch-on-face case, for a held pick and not a mate. Pick the startup plate's top face, then commit a sketch on it ("on the picked face", Add profile). The selection is `FaceSelection { node: <the plate's Place>, name: Extrude1·Cap(End) }`. `sketch_on_face`'s `repoint` sets that `Place`'s source to the union. `tree::pick_resolution` resolves the name at the copy's read, which now carries the union's table. That table names the same face `From { read: <Extrude 1's body var>, of: Extrude1·Cap(End) }` at the union, a unique carrier as `## Decided` describes. The old name misses, and a single-run `resolve` falls to `Diagnosis::cause_not_in_evidence` (REFS' `d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy`). Properties then reads "…(Extrude "Extrude 1"'s payload differs). Recourse: rebind it", with no offers.
+
+The add-profile form's held face (`drafts.sketch_face`) is stranded the same way: its `pick_resolution` after the commit is the same `Vanished`. So a second boss on the held face would author against the union's read with a name the union does not hold.
+
+Both are the "re-seats the viewer's held picks" clause above. The blocker, PR 5636, has merged (`29110056`). Replay: the script in the CHROME row; a unit-level reproduction is `Driven::holding_the_top_cap`, then select the top cap, click `ADD_PROFILE`, then `quiet()`, then read `session.standing()` and `pick_resolution` of `drafts.sketch_face`. The test owed above, "a selection … through the same takeover", should assert both. CHROME's row waits on this one.
