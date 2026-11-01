@@ -353,6 +353,8 @@ mod rigid_map_near_eps_plane_nurbs;
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
+#[path = "rv_vertex_touch_probe.rs"]
+mod rv_vertex_touch_probe;
 #[path = "shell_operand_gate.rs"]
 mod shell_operand_gate;
 #[path = "shell_role_reader.rs"]

@@ -1322,6 +1322,12 @@ pub(super) fn face_line_rays<T: Decide>(
     band: Band,
 ) -> Result<(bool, bool), BooleanError> {
     let m = sa.normal.vec().cross(sb.normal.vec());
+    // REVIEW PROBE: `RV_UNIT=1` restores main's unit-line reading.
+    let m = if std::env::var_os("RV_UNIT").is_some() {
+        m.normalize()
+    } else {
+        m
+    };
     let holds = |d| -> Result<bool, BooleanError> {
         Ok(within(sa, d, false, read, band)? && within(sb, d, false, read, band)?)
     };
@@ -6579,6 +6585,163 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// REVIEW PROBE (claim 2): faces through the z axis `phi` apart,
+    /// sharing the bound down the axis at reach `long`, the other bounds
+    /// horizontal at `short`; one sector moved rigidly by a turn that
+    /// carries no point within `long` more than `k·zero`. Every pose
+    /// must read as the unmoved one.
+    fn rv_pose(phi: f64, long: f64, short: f64) -> (BoolSector<f64>, BoolSector<f64>) {
+        let at = |deg: f64| {
+            let (s, c) = deg.to_radians().sin_cos();
+            Vec3::new(c, s, 0.0)
+        };
+        let down = Vec3::new(0.0, 0.0, -1.0);
+        let alpha = 20.0;
+        let a = BoolSector {
+            start: at(alpha - 90.0),
+            end: down,
+            start_reach: Reach::Extent(short),
+            end_reach: Reach::Extent(long),
+            arm: short.min(long),
+            ..sector([0.0; 3], [0.0; 3], at(alpha).to_array())
+        };
+        let b = BoolSector {
+            start: down,
+            end: at(alpha + phi + 90.0),
+            start_reach: Reach::Extent(long),
+            end_reach: Reach::Extent(short),
+            arm: short.min(long),
+            ..sector([0.0; 3], [0.0; 3], at(alpha + phi).to_array())
+        };
+        (a, b)
+    }
+
+    fn rv_turn(v: Vec3<f64>, axis: Vec3<f64>, ang: f64) -> Vec3<f64> {
+        let k = axis.normalize();
+        let (s, c) = ang.sin_cos();
+        v * c + k.cross(v) * s + k * (k.dot(v) * (1.0 - c))
+    }
+
+    fn rv_moved(s: &BoolSector<f64>, axis: Vec3<f64>, ang: f64) -> BoolSector<f64> {
+        BoolSector {
+            start: rv_turn(s.start, axis, ang),
+            end: rv_turn(s.end, axis, ang),
+            normal: OutwardNormal::from_chart(rv_turn(s.normal.vec(), axis, ang), true),
+            ..s.clone()
+        }
+    }
+
+    fn rv_tipped(s: &BoolSector<f64>, dz: f64) -> BoolSector<f64> {
+        let n = s.normal.vec() + Vec3::new(0.0, 0.0, dz);
+        BoolSector {
+            normal: OutwardNormal::from_chart(n.normalize(), true),
+            ..s.clone()
+        }
+    }
+
+    fn rv_read(a: &BoolSector<f64>, b: &BoolSector<f64>, band: Band) -> String {
+        let ps = pair_search(std::slice::from_ref(a), std::slice::from_ref(b), band).map(|f| {
+            (
+                f.records
+                    .iter()
+                    .map(|r| (r.sa, r.sb, r.intersect))
+                    .collect::<Vec<_>>(),
+                f.touching,
+            )
+        });
+        let rays = face_line_rays(a, b, DeclarationRead::Moot, band);
+        let short = |e: &BooleanError| {
+            let s = format!("{e:?}");
+            let d = s.find("decision").map_or(0, |i| i);
+            s[d..s.len().min(d + 40)].to_string()
+        };
+        format!(
+            "{:?} | {:?}",
+            ps.map_err(|e| short(&e)),
+            rays.map_err(|e| short(&e))
+        )
+    }
+
+    #[test]
+    #[ignore = "review probe"]
+    fn rv_claim2_within_zero_moves_decide_as_unmoved() {
+        let b = band();
+        let z = b.zero();
+        let mut cases = 0;
+        let mut moved_verdicts = Vec::new();
+        let mut unit_moved = 0;
+        for phi in [1.0, 2.0, 5.0, 10.0, 30.0, 60.0, 90.0, 135.0, 170.0] {
+            for (long, short) in [
+                (1.23, 0.11),
+                (100.0, 0.01),
+                (1.0, 1.0),
+                (0.01, 0.001),
+                (1e3, 1.0),
+            ] {
+                let (ua, ub) = rv_pose(phi, long, short);
+                let base = rv_read(&ua, &ub, b);
+                for k in [0.2, 0.9, -0.2, -0.9] {
+                    let ang = k * z / long;
+                    let mut poses: Vec<(String, BoolSector<f64>, BoolSector<f64>)> = Vec::new();
+                    poses.push(("tip a".into(), rv_tipped(&ua, -k * z / long), ub.clone()));
+                    poses.push(("tip b".into(), ua.clone(), rv_tipped(&ub, -k * z / long)));
+                    poses.push((
+                        "tip both opp".into(),
+                        rv_tipped(&ua, -k * z / long),
+                        rv_tipped(&ub, k * z / long),
+                    ));
+                    for (an, axis) in [
+                        ("x", Vec3::new(1.0, 0.0, 0.0)),
+                        ("y", Vec3::new(0.0, 1.0, 0.0)),
+                        ("z", Vec3::new(0.0, 0.0, 1.0)),
+                        ("na", ua.normal.vec()),
+                        ("nb", ub.normal.vec()),
+                        ("diag", Vec3::new(1.0, -2.0, 0.7)),
+                    ] {
+                        poses.push((
+                            format!("turn a about {an}"),
+                            rv_moved(&ua, axis, ang),
+                            ub.clone(),
+                        ));
+                        poses.push((
+                            format!("turn b about {an}"),
+                            ua.clone(),
+                            rv_moved(&ub, axis, ang),
+                        ));
+                    }
+                    for (what, ta, tb) in poses {
+                        cases += 1;
+                        let got = rv_read(&ta, &tb, b);
+                        if got != base {
+                            moved_verdicts.push(format!(
+                                "phi {phi} long {long} short {short} k {k} {what}:\n   upright {base}\n   moved   {got}"
+                            ));
+                        }
+                        // What main's unit line read of the same pose.
+                        let unit = ta.normal.vec().cross(tb.normal.vec()).normalize();
+                        let rd = |d| {
+                            Ok::<bool, BooleanError>(
+                                within(&ta, d, false, DeclarationRead::Moot, b)?
+                                    && within(&tb, d, false, DeclarationRead::Moot, b)?,
+                            )
+                        };
+                        if rd(unit).is_err() || rd(-unit).is_err() {
+                            unit_moved += 1;
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "eps {z:e}: {cases} poses, {} moved verdicts; main's unit line errs on {unit_moved}",
+            moved_verdicts.len()
+        );
+        for m in &moved_verdicts {
+            eprintln!("{m}");
+        }
+        assert!(moved_verdicts.is_empty(), "{} moved", moved_verdicts.len());
     }
 
     /// `within`: interior yes, exterior no, boundary graze counts
