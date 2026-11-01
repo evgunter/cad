@@ -103,6 +103,19 @@ Pinned, today's refusal:
 The helix's closure is pinned by
 `the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars`.
 
+## At eps 1e-6 the lens row already holds (HEADING, 2026-11-01)
+
+At `CAD_TOLERANCE_EPS=1e-6`,
+`a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars` fails
+on main as of `45d0f75f`, with HEADING's change and without it. The
+pair `1v1`/`3v1` reads `Holds` there: 242 splits, nothing refused,
+certified 42. The row pins a refusal, so the nightly's 1e-6 row is
+red. Its default and 1e-12 rows pass.
+
+ZEROSIDE answers this: the row now pins `Holds`
+(`a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars`),
+and CI's 1e-6 row passes on it.
+
 ## Fix (ZEROSIDE, 2026-11-01)
 
 Fix shape 1. `sign_on`'s `zero_on` reads a side through `on_side`

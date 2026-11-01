@@ -302,3 +302,25 @@ Signed: (CARVE orchestrator)
   - **Now decided rather than turned away at the door:** the arc spine past a full turn, CONTACTHOLD's closed spine and CARVETAIL's loft read `Violated`, all real crossings checked by hand. The long helix holds again. Receipts for faces already admitted are unchanged.
   - **The review.** A single FULL review at `ae2561ad94` returned APPROVE-WITH-FIXES. M5b (min-side only) and M6 (a poison half narrows) survived. The fix pass (`4dfb0439`) added max-side ribbons and the `narrows` finiteness rule with its row, built the real x = 1 bow-tie wall, and made `arc_spine_places` one shared fixture. The orchestrator read it and accepted it.
   - **Main red during the unit:** #6200's blend rewording, filed under CHROME as P0 (#6222) and fixed by #6227.
+- 2026-11-01 — **SLIVER merges (#6229)** with this commit last.
+  - **The cause.** `restricted_jet` divided by a cell's few-ulp overlap with the next knot span, so rounding became slope at every depth.
+  - **The fix.** `SpanRow::restrict_derivative` (geom-core) takes the derivative across the span's own knots, then restricts. `rect_jet` and `span_deriv` read through it. It decides nothing and adds no ε.
+  - **Rows.** The curl walls hold, and REFINES's short-of-a-turn row now holds at the default budget.
+  - **The review.** A single FULL review at `80e5fcc1eb` returned **APPROVE**. It ran 1.4M exact-oracle checks with 0 misses, and every mutant was killed. A cleanup pass (`905cfeb4`) widened the fuzzer to cells and knots a few ulps off, which now catches lax shape (a); un-skipped wall 4v1; and filed the follow-ups. The orchestrator read it and accepted it.
+  - **Filed:**
+    - `restrict-derivative-widens-on-a-few-ulp-knot-span` (P3);
+    - CLEARTAIL's `derivative-bernstein-row-over-a-sub-interval-has-three-homes` (P3);
+    - **`rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot` (P2).** It was found by the widened fuzzer and is pre-existing. At a knot of multiplicity ≥ the degree, a cell ending on the knot drops the one-point meet, so its jet misses the derivative `ders` reads from the next span. It awaits a ruling on `a <= b`, which would widen jets at every p-fold knot.
+- 2026-11-01 — **TRV merges (#6233)** with this commit last. The clearance engine refuses what does not certify.
+  - **R1, at the lift.** The lift is now a type, `lift::Lift`, minted only by `certified_lift`, and every reader takes it.
+  - **`poisoned(sep)`** gates the root, pair, witness and overflow reads. `overflow` now poisons as `pair` does, instead of flooring at 0.
+  - **`present_chart`** asks each clip line where it is placed. `present_plane`'s `[e]` arm asks `y`.
+  - **Census:** clearance 25/7, injective 70/27.
+  - **The review.** A single FULL review at `5caee7bf7e` returned APPROVE-WITH-FIXES. Six of its 19 mutants survived, all sub-asks or unpinned gates. It also found that the touch read came before the merge's ask. The fix pass (`838c6136de`) pinned every one; 18 of 18 are now killed. On the way it found that the census lane's reading of the `[e]` arm was right, and withdrew the "row is wrong" claim. The orchestrator read it and accepted it.
+  - **Class, recorded:** for the fourth unit running, the mutant table pinned one coordinate, one end or one site per class. This time it was the sub-asks inside a site.
+  - **Filed:** `injective-reads-past-the-trv-census-decide-on-clamped-enclosures` (P2). SPLICE's census drift was filed separately (#6236).
+- 2026-11-01 — **HEADING merges (#6235)** with this commit last. `bisector` gives the graph separator in `graph_of` and in `plane_through`'s `[d]` case. The twisted-loft seams hold at both scalars, and the tour's `twisted_loft` holds in 3.9 s where it used to refuse after 43 s.
+  - **Tier moved from a single review to the orchestrator's read.** `bisector` only chooses the separator, and `sign_on` still decides both signs, so a wrong separator can only refuse, never certify. The diff is two lines plus rows, and the mutants red as stated (a reverted `graph_of`, an added rather than subtracted perpendicular).
+  - **Filed:** `plane-through-line-edge-case-has-no-row-that-tells-the-bisector-from-the-weighted-normal` (P3). It was reached 1707 times across the suites, and the two separators disagree only at the wedge-0 kiss.
+  - **The nightly at ε 1e-6** reds SEAMDIAG's lens-cap row, because the pair now holds there. ZEROSIDE flips that row to holding.
+  - **The parent departure row** now waits on ZEROSIDE alone.

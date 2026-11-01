@@ -22,25 +22,34 @@ use crate::session::{
 };
 use crate::theme::Theme;
 use crate::widgets::{
-    FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker,
-    delete_button, free_move_gesture, length_picker, number_field, pick_unit, unit_field,
-    value_field_ops, value_gesture, vec3_row_ops,
+    CANCEL, FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH,
+    angle_picker, commit_row, delete_button, form_door, free_move_gesture, length_picker,
+    number_field, pick_unit, unit_field, value_field_ops, value_gesture, vec3_row_ops,
 };
+
+/// What the door that opens the add-variable form says.
+pub(crate) const NEW_VARIABLE: &str = "New variable…";
+
+/// What the add-variable form's commit button says: what it makes, so
+/// it reads apart from every other commit on screen.
+pub(crate) const NEW_VARIABLE_COMMIT: &str = "Create variable";
 
 impl ViewerBehavior<'_> {
     /// The property panel.
     pub(crate) fn properties_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Properties");
         ui.separator();
-        self.mate_tool_ui(ui);
         self.create_ui(ui);
-        self.add_part_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
             self.instance_ui(ui, node);
             self.product_ui(ui, node);
         }
+        // The forms whose op takes the selection, under its header and
+        // above its rows, where a reader who picked it looks first:
+        // nothing at all unless the selection is a profile.
+        self.extrude_ui(ui);
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");
@@ -169,17 +178,23 @@ impl ViewerBehavior<'_> {
         ui.label("variables");
         for row in crate::props::variable_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
-            if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+            if crate::widgets::message_link(ui, variable_line(&row, *self.notation)).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
             }
         }
         for row in crate::props::defined_rows(self.session.doc()) {
-            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
-                .clicked()
-            {
+            if crate::widgets::message_link(ui, defined_line(&row, *self.notation)).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
+            }
+            // Why it reads nothing, under its line — except while it is
+            // selected, when its own row above says it (`reading_notes`)
+            // and this pane says a fact once.
+            if self.session.selection() != &Selection::Variable(row.var) {
+                for line in reading_faults(&row.label.to_string(), &row.value) {
+                    crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
+                }
             }
         }
         self.add_variable_ui(ui);
@@ -214,7 +229,7 @@ impl ViewerBehavior<'_> {
     /// not here.
     ///
     /// Two deliberate frictions, both refusals-in-advance. The
-    /// dimension starts UNPICKED and Create waits for it — the offer
+    /// dimension starts UNPICKED and the commit waits for it — the offer
     /// path arrives here from an expression whose context does not
     /// determine the new variable's dimension, and a silent default
     /// would be a guess. And a name that is already declared shows the
@@ -222,6 +237,9 @@ impl ViewerBehavior<'_> {
     /// edit door offered, before the click ever reaches the declare's
     /// own refusal of a taken name (`EditError::VarNameTaken`).
     pub(crate) fn add_variable_ui(&mut self, ui: &mut egui::Ui) {
+        if !form_door(ui, NEW_VARIABLE, &mut self.drafts.new_variable_open) {
+            return;
+        }
         // The offer from an unknown-variable parse refusal, shown
         // while the name field still says the offered name.
         if let Some(offered) = self.drafts.new_variable_offer.clone() {
@@ -238,7 +256,6 @@ impl ViewerBehavior<'_> {
             }
         }
         ui.horizontal(|ui| {
-            ui.label("add");
             ui.add(
                 egui::TextEdit::singleline(&mut self.drafts.new_variable_name)
                     .hint_text("name")
@@ -270,7 +287,7 @@ impl ViewerBehavior<'_> {
             // `FieldWriting::of(dimension, Some(unit), ..)` for the
             // picked `unit`, derived rather than stated, and applying
             // the factor here as well would apply it twice. With no dimension picked yet there is no
-            // tick to derive and Create is refused anyway; a length's
+            // tick to derive and the commit is refused anyway; a length's
             // serves as the placeholder.
             let speed = self
                 .drafts
@@ -304,9 +321,10 @@ impl ViewerBehavior<'_> {
         });
         // The draft text is offered to the one door that decides what
         // a variable name is; a refused text leaves the control
-        // disabled, and the sentence the refusal carries is not yet
-        // shown beside it.
-        let name = VarName::new(self.drafts.new_variable_name.trim()).ok();
+        // disabled, and the refusal's own sentence is said under it.
+        let typed = self.drafts.new_variable_name.trim().to_owned();
+        let named = VarName::new(typed.as_str());
+        let name = named.as_ref().ok().cloned();
         // The declare door applies to `committed_doc()`, so the notice
         // ahead of the click asks it too: a notice drawn from the
         // previewed document would be answering about a document the
@@ -319,33 +337,54 @@ impl ViewerBehavior<'_> {
             if exists_notice(ui, &self.theme, name, dimension) {
                 self.ops.push(SessionOp::Select(Selection::Variable(var)));
             }
+            if ui.button(CANCEL).clicked() {
+                self.drafts.close_new_variable();
+            }
             return;
         }
-        let ready = name.is_some() && self.drafts.new_variable_dimension.is_some();
-        let create = ui.add_enabled(ready, egui::Button::new("Create"));
-        let create = if self.drafts.new_variable_dimension.is_none() {
-            create.on_disabled_hover_text("pick a dimension first")
-        } else {
-            create
+        // **The commit's gate, evaluated once**: whether the button is
+        // live, the reason said under the row while it is not, and the
+        // declaration a click pushes are all this one answer, so the
+        // form cannot offer a click that does nothing. The name first,
+        // as the form reads; then the dimension; then whether the
+        // dimension can carry the draft value — a `Count` declared
+        // from a field holding `NaN` would otherwise be created holding
+        // zero, a value nobody authored, and `SlotValue::of` is the one
+        // door that decides it. A refusal is said in its door's words.
+        let gate = match named {
+            Err(_) if typed.is_empty() => Err(("name the variable".to_owned(), Tone::Advisory)),
+            Err(fault) => Err((fault.to_string(), Tone::Actionable)),
+            Ok(name) => self
+                .drafts
+                .new_variable_dimension
+                .ok_or_else(|| ("pick a dimension first".to_owned(), Tone::Advisory))
+                .and_then(|dimension| {
+                    SlotValue::of(dimension, self.drafts.new_variable_value)
+                        .map(|value| (name, dimension, value))
+                        .map_err(|fault| (fault.to_string(), Tone::Actionable))
+                }),
         };
-        // The draft value is asked whether the dimension can carry it
-        // before a declaration is minted from it: a `Count` variable
-        // declared from a field holding `NaN` would otherwise be
-        // created holding zero, which is a value nobody authored.
-        // `SlotValue::of` is the one door that decides this.
-        if create.clicked()
-            && let Some(name) = name
-            && let Some(dimension) = self.drafts.new_variable_dimension
-            && let Ok(value) = SlotValue::of(dimension, self.drafts.new_variable_value)
+        if let Err((words, tone)) = &gate {
+            crate::widgets::message_toned(ui, words, &self.theme, *tone);
+        }
+        let closing = commit_row(
+            ui,
+            NEW_VARIABLE_COMMIT,
+            gate.as_ref().err().map(|(words, _)| words.as_str()),
+            |_| {},
+        );
+        if closing.cancel {
+            self.drafts.close_new_variable();
+        }
+        // The form closes when the document accepts the declaration
+        // (`Drafts::accepted`), so a refused one keeps what was typed.
+        if closing.commit
+            && let Ok((name, dimension, value)) = gate
         {
             self.ops.push(SessionOp::DeclareVar {
                 name,
                 value: crate::props::doc_variable(dimension, value, self.new_variable_unit()),
             });
-            self.drafts.new_variable_name.clear();
-            self.drafts.new_variable_dimension = None;
-            self.drafts.new_variable_value = 0.0;
-            self.drafts.new_variable_offer = None;
         }
     }
 
@@ -355,7 +394,7 @@ impl ViewerBehavior<'_> {
     /// dimension picked yet).
     ///
     /// One answer read by TWO places — the field beside it and the
-    /// declaration the Create button mints — so the number on screen
+    /// declaration the commit button mints — so the number on screen
     /// and the unit the document remembers cannot disagree.
     ///
     /// **The picker is a third place and does not read it**, which is
@@ -1556,6 +1595,38 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
     }
 }
 
+/// **A free variable's line in the variables list**: its name and its
+/// value, `t = 20 mm`. The value is said in the unit its own field
+/// shows it in ([`variable_showing`]): the notation it was declared in,
+/// or the working notation where it remembers none
+/// ([`props::rendering_unit`]), so the list and the row say one value
+/// in one unit. The digits are [`props::shown_text`]'s bounded readout,
+/// where the field shows the number it edits.
+pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
+    format!(
+        "{} = {}",
+        row.label,
+        props::shown_text(
+            props::rendering_unit(row.dimension, row.unit, notation),
+            row.value.as_f64()
+        )
+    )
+}
+
+/// **A defined variable's line in the variables list**: its name, its
+/// definition and what that reads, `w = 2 * t = 40 mm` — the reading
+/// as a driven slot's field says it ([`props::reading_text`]), with why
+/// it reads nothing said under the line ([`reading_faults`]).
+pub(crate) fn defined_line(row: &props::DefinedRow, notation: Notation) -> String {
+    format!(
+        "{} = {} {} {}",
+        row.label,
+        row.formula,
+        props::DRIVEN,
+        props::reading_text(&row.value, row.dimension, notation)
+    )
+}
+
 /// **A defined variable's value field**: its formula over the number
 /// it evaluates to, and the formula again as the text an edit starts
 /// from, as a driven slot's field shows its expression. A definition
@@ -1626,19 +1697,36 @@ pub(crate) fn reading_notes(
     dimension: Dimension,
     notation: Notation,
 ) -> Vec<String> {
-    match value {
-        Ok(props::Reading::One(_)) => Vec::new(),
-        Ok(props::Reading::PerMember(members)) => core::iter::once(format!(
+    let values = match value {
+        Ok(props::Reading::PerMember(members)) => Some(format!(
             "{subject} at each member: {}",
             members.spelled(dimension, notation)
-        ))
-        .chain(
-            members
-                .refusals()
-                .into_iter()
-                .map(|line| format!("{subject} {line}")),
-        )
-        .collect(),
+        )),
+        Ok(props::Reading::One(_)) | Err(_) => None,
+    };
+    values
+        .into_iter()
+        .chain(reading_faults(subject, value))
+        .collect()
+}
+
+/// **Why a reading reads nothing, wholly or at some members**, one line
+/// each and every line naming `subject`: the fault where it does not
+/// evaluate, each refusal among its members with the members it
+/// refused at. Empty for a reading that refused nowhere. The part of
+/// [`reading_notes`] a line that already says the reading's value
+/// ([`defined_line`]) has left to say.
+pub(crate) fn reading_faults(
+    subject: &str,
+    value: &Result<props::Reading, props::SlotFault>,
+) -> Vec<String> {
+    match value {
+        Ok(props::Reading::One(_)) => Vec::new(),
+        Ok(props::Reading::PerMember(members)) => members
+            .refusals()
+            .into_iter()
+            .map(|line| format!("{subject} {line}"))
+            .collect(),
         Err(error) => vec![format!("{subject}: {error}")],
     }
 }
@@ -2421,6 +2509,131 @@ mod tests {
         assert!(
             !metres.contains("no m reading"),
             "metres still name it, so the refusal is the notation's: {metres}"
+        );
+    }
+}
+
+/// **The variables list says each variable's value**, in the unit its
+/// own field shows it in.
+#[cfg(test)]
+mod variable_lines {
+    use pncad::document::{Dimension, EvalError, SpokenVar, VarId, VarName};
+
+    use super::{defined_line, reading_faults, reading_notes, variable_line};
+    use crate::props::{
+        DefinedRow, NO_VALUE, Notation, Reading, SlotFault, SlotValue, VariableRow,
+    };
+
+    fn spoken(name: &'static str) -> SpokenVar {
+        SpokenVar::new(VarId::new(0, 7), Some(VarName::from_static(name)))
+    }
+
+    fn defined(value: Result<Reading, SlotFault>) -> DefinedRow {
+        DefinedRow {
+            var: VarId::new(0, 8),
+            label: spoken("w"),
+            dimension: Dimension::Length,
+            formula: "2 * t".to_owned(),
+            value,
+        }
+    }
+
+    /// A length declared in millimetres reads in millimetres whatever
+    /// the working notation; a count reads as the number it is.
+    #[test]
+    fn a_free_variable_reads_its_value_in_its_own_unit() {
+        let row = VariableRow {
+            var: VarId::new(0, 7),
+            label: spoken("t"),
+            dimension: Dimension::Length,
+            value: SlotValue::Continuous(0.02),
+            unit: Some(pncad::quantity::MM.def()),
+        };
+        assert_eq!(variable_line(&row, Notation::DEFAULT), "t = 20 mm");
+        let count = VariableRow {
+            dimension: Dimension::Count,
+            value: SlotValue::Count(3),
+            unit: None,
+            ..row
+        };
+        assert_eq!(variable_line(&count, Notation::DEFAULT), "t = 3");
+    }
+
+    /// The working notation is the one a definition reads in, and a
+    /// free variable remembering no unit reads in it too (review of
+    /// #6242): under millimetres, `0.04 m` is `40 mm`, so a line that
+    /// kept the default notation goes red.
+    #[test]
+    fn the_working_notation_is_what_an_unwritten_value_reads_in() {
+        let millimetres = Notation {
+            length: pncad::quantity::MM,
+            ..Notation::DEFAULT
+        };
+        assert_eq!(
+            defined_line(
+                &defined(Ok(Reading::One(SlotValue::Continuous(0.04)))),
+                millimetres
+            ),
+            "w = 2 * t = 40 mm"
+        );
+        let unremembered = VariableRow {
+            var: VarId::new(0, 7),
+            label: spoken("t"),
+            dimension: Dimension::Length,
+            value: SlotValue::Continuous(0.02),
+            unit: None,
+        };
+        assert_eq!(variable_line(&unremembered, millimetres), "t = 20 mm");
+    }
+
+    /// A definition reads its value in the working notation, and one
+    /// that reads nothing says the field's `?`.
+    #[test]
+    fn a_defined_variable_reads_its_definition_and_its_value() {
+        assert_eq!(
+            defined_line(
+                &defined(Ok(Reading::One(SlotValue::Continuous(0.04)))),
+                Notation::DEFAULT
+            ),
+            format!(
+                "w = 2 * t = {}",
+                crate::props::computed_text(Dimension::Length, 0.04, Notation::DEFAULT)
+            )
+        );
+        assert_eq!(
+            defined_line(
+                &defined(Err(SlotFault::Eval(EvalError::NonFiniteResult))),
+                Notation::DEFAULT
+            ),
+            format!("w = 2 * t = {NO_VALUE}")
+        );
+    }
+
+    /// **A definition refused at some members says why, as its row
+    /// does**: the list line shows the span, and the lines under it are
+    /// the refusals the selected row's notes carry — every note but the
+    /// values line, which the span already says.
+    #[test]
+    fn a_partly_refused_definition_says_its_refusals_as_its_row_does() {
+        let members = crate::props::MemberValues::new(
+            vec![spoken("k")],
+            vec![
+                (vec![0], Ok(SlotValue::Continuous(0.01))),
+                (vec![1], Err(EvalError::NonFiniteResult)),
+            ],
+        );
+        let value = Ok(Reading::PerMember(members));
+        let faults = reading_faults("w", &value);
+        assert!(!faults.is_empty(), "the refused member is said");
+        let notes = reading_notes("w", &value, Dimension::Length, Notation::DEFAULT);
+        assert_eq!(
+            notes[1..],
+            faults[..],
+            "the row's refusal lines, and only those"
+        );
+        assert!(
+            defined_line(&defined(value), Notation::DEFAULT).contains(NO_VALUE),
+            "the span says a member refused"
         );
     }
 }

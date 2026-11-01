@@ -4998,7 +4998,9 @@ pub(crate) fn seam_region<T: Decide>(
         .collect();
     let mut boundary = Vec::new();
     let mut pinched = false;
-    for cycle in crate::surface_boundary::boundary_cycles(body, exits, half_edges.len(), inside)? {
+    for cycle in
+        crate::surface_boundary::boundary_cycles(body, exits, half_edges.len(), inside, |_, _| {})?
+    {
         let mut starts = Vec::with_capacity(cycle.len());
         for &h in &cycle {
             starts.push(half_edge(h)?.start);

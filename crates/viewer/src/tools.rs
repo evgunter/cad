@@ -227,6 +227,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
+        | SessionOp::Stage { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -294,6 +295,9 @@ pub enum ToolNotice {
         /// What it lost.
         event: SeatEvent,
     },
+    /// A viewport click aimed at the open tool met nothing of the kind
+    /// it picks ([`ToolKind::pick_kinds`]), so the tool took no pick.
+    Missed(ToolKind),
 }
 
 /// The mate and seated arms say the node their event carries
@@ -306,6 +310,10 @@ impl Say for ToolNotice {
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Mirror(event) => ToolKind::Mirror.says(event),
             Self::Seated { tool, event } => tool.says(event),
+            Self::Missed(tool) => tool.says(&format_args!(
+                "{} under the cursor — no pick taken",
+                tool.pick_kinds().nothing()
+            )),
         };
         f.write_str(&said)
     }

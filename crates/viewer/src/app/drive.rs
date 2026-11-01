@@ -304,6 +304,8 @@ pub(crate) fn quiescent(app: &ViewerApp) -> bool {
 /// ([`crate::frame::checks_badge`]). The coincidence door runs on a
 /// worker after the evaluation lands, so a driven step read only to
 /// [`quiescent`] can see the findings before the door has answered.
+/// A staged run ([`crate::session::SessionOp::Stage`]) is waited for
+/// too: the panel that asked says "checking" until it answers.
 /// The in-crate rows wait on [`quiescent`] alone: a row about the
 /// checks waits for them itself.
 fn at_rest(app: &ViewerApp) -> bool {
@@ -312,6 +314,7 @@ fn at_rest(app: &ViewerApp) -> bool {
             .session
             .checks()
             .is_none_or(|report| report.pending.is_empty())
+        && !app.session.staging()
 }
 
 /// **Paint until `until` holds of the app**, and answer the first
@@ -476,6 +479,30 @@ impl Driver {
     #[must_use]
     pub fn index(&self) -> Option<&crate::pickindex::PickIndex> {
         self.app.picks.index()
+    }
+
+    /// **The split plane the viewport draws this frame**
+    /// ([`crate::splitplane::drawn`], over the app's own tools, index and
+    /// the split panel's numbers).
+    #[must_use]
+    pub fn split_plane(&self) -> Option<crate::splitplane::PlanePreview> {
+        let tool = self.app.tools.split()?;
+        crate::splitplane::drawn(
+            &crate::splitplane::Drawing {
+                seats: tool.seats(),
+                landed: self.app.session.landed_pair()?,
+                display: &self.app.session.display_view(),
+                index: self.app.picks.index()?,
+            },
+            self.app.drafts.split_origin,
+            self.app.drafts.split_normal,
+        )
+    }
+
+    /// The split panel's plane point, as the panel holds it.
+    #[must_use]
+    pub fn split_origin(&self) -> [f64; 3] {
+        self.app.drafts.split_origin
     }
 
     /// The pick-index seam's badge, as the toolbar draws it.

@@ -101,3 +101,19 @@ unbanded until now, carries P2. Its own blocker, the D10 hold, is P0.
 (band-rule triage)
 
 **Re-read 2026-10-29 (INTENT, D10 hold):** released, flagged `design`. Its D10 ground is built: stages 4 and 5 are done, and `census::confirm_edge_face` (`crates/topo/src/census.rs:9608`) still refuses the curve touch typed (`census/point.rs:301`). The open question is the row's own: what the lane certifies for an edge, which has no normal of its own. It is weighed before a lane builds it (INTENT orchestrator, on #6051).
+
+## 2026-11-01 — the producer is the sweep now; a conic in a plane stays out (PARTING)
+
+`parting/sweep-records-edge-in-face` retires `boolean::ops::record_spans`:
+the reduction sweep records an edge-face record for each piece of a
+line edge lying in a planar face that the face holds
+(`boolean::reduce::settle_in_plane`, fed by the line lane's coplanar
+arm, `LyingIn::Plane`). The sweep also decides a conic lying in a plane
+face's plane (`ConicPlaneMeet::Parallel`, offset decided Zero in
+`reduce::sweep_direction`) and keeps only its ends; it mints no record
+there, because `census::confirm_edge_face` would refuse that record
+`CensusUnsupported` (a circle in a plane away from a conventional vertex)
+and the carry would refuse the op `CarryRefused { Unread }`. When this
+lane lands, that arm is where the conic's record is minted, beside the
+line's in `settle_in_plane`; curved faces (`LyingIn::Curved`,
+`LyingIn::Along`) likewise.

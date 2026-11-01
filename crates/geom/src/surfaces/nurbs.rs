@@ -1633,16 +1633,17 @@ impl NurbsSurface<Interval> {
     /// [`NurbsSurface::rect_enclosure`]'s restriction, one order up. On
     /// each knot cell the rectangle meets, the homogeneous net `(w·P, w)` is
     /// restricted to the meet — the Bernstein net of exactly that piece —
-    /// and its difference nets, scaled by the degrees over the meet's
-    /// spans, are the Bernstein nets of the homogeneous partials, so their
-    /// hulls enclose those partials. The partials of the point follow by
+    /// and so are its partials, each axis's derivative read off the
+    /// blossom across that knot cell's own span
+    /// ([`geom_core::spline::SpanRow::restrict_derivative`]), so a meet a
+    /// few ulps wide is enclosed as tightly as a wide one. Their hulls
+    /// enclose the homogeneous partials. The partials of the point follow by
     /// the quotient rule in interval arithmetic, `S_u = (A_u·w − A·w_u)/w²`
     /// and its `v`-derivative, with `A` and `w` enclosed by the net's own
     /// hull and every restricted weight certified positive. The hull over
     /// the cells encloses the rectangle.
     ///
-    /// `None` for a rectangle with no extent on an axis (the scaled
-    /// differences would divide by its zero span), one past the knot
+    /// `None` for a rectangle with no extent on an axis, one past the knot
     /// domain, a restriction the blossom door refuses, and a weight not
     /// certified positive: no partial is claimed there.
     #[allow(clippy::type_complexity)]
@@ -1702,6 +1703,14 @@ impl NurbsSurface<Interval> {
     }
 }
 
+/// What a restriction reads along one axis of a piece: its values, or
+/// its first derivative ([`geom_core::spline::SpanRow::restrict_derivative`]).
+#[derive(Clone, Copy)]
+enum Along {
+    Value,
+    Slope,
+}
+
 /// The restricted homogeneous net of `win`'s piece over `eu × ev`:
 /// `net[k][l]`, Bernstein in both, each `[w·x, w·y, w·z, w]`.
 fn restricted_net(
@@ -1709,38 +1718,53 @@ fn restricted_net(
     eu: (Interval, Interval),
     ev: (Interval, Interval),
 ) -> Option<Vec<Vec<[Interval; 4]>>> {
+    read_net(win, (eu, Along::Value), (ev, Along::Value))
+}
+
+/// The Bernstein net over `eu × ev` of `win`'s homogeneous piece, read
+/// along each axis as `Along` says: the values on both, or a partial.
+fn read_net(
+    win: SurfaceWindow<'_, Interval>,
+    (eu, read_u): ((Interval, Interval), Along),
+    (ev, read_v): ((Interval, Interval), Along),
+) -> Option<Vec<Vec<[Interval; 4]>>> {
     let surface = win.surface();
     let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
     let homogeneous = |idx: usize| {
         let (w, p) = (surface.weights.values()[idx], surface.control[idx]);
         [w * p.x, w * p.y, w * p.z, w]
     };
+    let read = |span: Span<'_>, row: &[Interval], ends, along| {
+        let row = span.with_window(row)?;
+        match along {
+            Along::Value => row.restrict(ends),
+            Along::Slope => row.restrict_derivative(ends),
+        }
+        .ok()
+    };
+    let channels = |span: Span<'_>, cells: &[[Interval; 4]], ends, along| {
+        let mut out: Vec<[Interval; 4]> = Vec::new();
+        for c in 0..4 {
+            let row: Vec<Interval> = cells.iter().map(|h| h[c]).collect();
+            let restricted = read(span, &row, ends, along)?;
+            out.resize(restricted.len(), [Interval::zero(); 4]);
+            for (slot, x) in out.iter_mut().zip(restricted) {
+                slot[c] = x;
+            }
+        }
+        Some(out)
+    };
     let along_u = (0..=pv)
         .map(|j| {
             let column: Vec<[Interval; 4]> =
                 (0..=pu).map(|i| homogeneous(win.row(i) + j)).collect();
-            let mut restricted = vec![[Interval::zero(); 4]; pu + 1];
-            for c in 0..4 {
-                let row: Vec<Interval> = column.iter().map(|h| h[c]).collect();
-                let bernstein = win.span_u().with_window(&row)?.restrict(eu).ok()?;
-                for (slot, x) in restricted.iter_mut().zip(bernstein) {
-                    slot[c] = x;
-                }
-            }
-            Some(restricted)
+            channels(win.span_u(), &column, eu, read_u)
         })
         .collect::<Option<Vec<_>>>()?;
-    (0..=pu)
+    (0..along_u.first()?.len())
         .map(|k| {
-            let mut piece = vec![[Interval::zero(); 4]; pv + 1];
-            for c in 0..4 {
-                let row: Vec<Interval> = along_u.iter().map(|column| column[k][c]).collect();
-                let restricted = win.span_v().with_window(&row)?.restrict(ev).ok()?;
-                for (slot, x) in piece.iter_mut().zip(restricted) {
-                    slot[c] = x;
-                }
-            }
-            Some(piece)
+            let row: Vec<[Interval; 4]> = along_u.iter().map(|column| column[k]).collect();
+            channels(win.span_v(), &row, ev, read_v)
         })
         .collect()
 }
@@ -1753,66 +1777,21 @@ fn restricted_jet(
     eu: (Interval, Interval),
     ev: (Interval, Interval),
 ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
-    let net = restricted_net(win, eu, ev)?;
-    let (pu, pv) = (net.len() - 1, net.first()?.len() - 1);
-    let hull4 =
-        |a: [Interval; 4], b: [Interval; 4]| [0, 1, 2, 3].map(|c| a[c].enclosure_hull(b[c]));
-    let fold = |cells: &mut dyn Iterator<Item = [Interval; 4]>| -> Option<[Interval; 4]> {
-        cells.reduce(hull4)
+    let hull = |u: Along, v: Along| -> Option<[Interval; 4]> {
+        read_net(win, (eu, u), (ev, v))?
+            .into_iter()
+            .flatten()
+            .reduce(|a, b| [0, 1, 2, 3].map(|c| a[c].enclosure_hull(b[c])))
     };
-    let zero = [Interval::zero(); 4];
-    let scale = |h: [Interval; 4], k: Interval| h.map(|x| x * k);
-    let sub = |a: [Interval; 4], b: [Interval; 4]| [0, 1, 2, 3].map(|c| a[c] - b[c]);
-    let at = |x: f64| Interval::from_bounds(x, x);
-    #[allow(clippy::cast_precision_loss)]
-    let (fu, fv) = (at(pu as f64), at(pv as f64));
-    let (lu, lv) = (eu.1 - eu.0, ev.1 - ev.0);
-    let h = fold(&mut net.iter().flatten().copied())?;
-    let hu = if pu == 0 {
-        zero
-    } else {
-        scale(
-            fold(
-                &mut (0..pu)
-                    .flat_map(|k| (0..=pv).map(move |l| (k, l)))
-                    .map(|(k, l)| sub(net[k + 1][l], net[k][l])),
-            )?,
-            fu / lu,
-        )
-    };
-    let hv = if pv == 0 {
-        zero
-    } else {
-        scale(
-            fold(
-                &mut (0..=pu)
-                    .flat_map(|k| (0..pv).map(move |l| (k, l)))
-                    .map(|(k, l)| sub(net[k][l + 1], net[k][l])),
-            )?,
-            fv / lv,
-        )
-    };
-    let huv = if pu == 0 || pv == 0 {
-        zero
-    } else {
-        scale(
-            fold(
-                &mut (0..pu)
-                    .flat_map(|k| (0..pv).map(move |l| (k, l)))
-                    .map(|(k, l)| {
-                        sub(
-                            sub(net[k + 1][l + 1], net[k + 1][l]),
-                            sub(net[k][l + 1], net[k][l]),
-                        )
-                    }),
-            )?,
-            (fu * fv) / (lu * lv),
-        )
-    };
+    let h = hull(Along::Value, Along::Value)?;
+    let hu = hull(Along::Slope, Along::Value)?;
+    let hv = hull(Along::Value, Along::Slope)?;
+    let huv = hull(Along::Slope, Along::Slope)?;
     let w = h[3];
     if !(w.is_certified() && w.lo() > 0.0) {
         return None;
     }
+    let at = |x: f64| Interval::from_bounds(x, x);
     let v3 = |x: [Interval; 4]| Vec3::new(x[0], x[1], x[2]);
     let (a, au, av, auv) = (v3(h), v3(hu), v3(hv), v3(huv));
     let (wu, wv, wuv) = (hu[3], hv[3], huv[3]);

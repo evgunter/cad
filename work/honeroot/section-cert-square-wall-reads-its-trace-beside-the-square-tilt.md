@@ -53,3 +53,7 @@ were green. That branch changes no torus or cylinder
 reading (the shared chart recursion gains a duty; its seeding and
 accounting duties are unchanged), so the mismatch is this fuzzer's,
 possibly this row's drift.
+
+## 2026-11-01 (SPLITDOOR, `splitdoor/prism-tilt-reach`)
+
+The seed was kept this time. At 1e-12, `CAD_FUZZ_SEED=0xa41aea6672750390` makes `section_cert::square_search::the_square_wall_arm_agrees_with_the_traced_section` disagree, at the "R-tan at Degeneracy … Tangent" case. It reproduces on main too (the SPLITDOOR review of PR 6212), so it is not that PR's.
