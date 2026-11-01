@@ -90,7 +90,9 @@ use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
 use std::collections::BTreeMap;
 
-use super::sectors::{BoolSector, PierceLever, build_sectors, pierce_side_reported};
+use super::sectors::{
+    BoolSector, Leaned, PierceLever, build_sectors, leaned_lever, pierce_side_reported,
+};
 use super::tables::eq15_3_lump;
 use super::{AlongFace, Coincide, DeclarationRead};
 use super::{
@@ -1260,8 +1262,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 // tangency locus, where its plane and the pierced face's
                 // tangent plane are one.
                 match (&tangent_reads[t], codes) {
-                    (Some(_), (SideCode::On, _)) => s.start.normalize(),
-                    (Some(_), (_, SideCode::On)) => s.end.normalize(),
+                    (Some(_), (SideCode::On, _)) => Leaned::upright(s.start.normalize()),
+                    (Some(_), (_, SideCode::On)) => Leaned::upright(s.end.normalize()),
                     _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
                 },
                 germ_branch(
@@ -1309,7 +1311,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             let [(t0, _), (t1, _)] = run_transitions(run, n);
             (
                 [(s.1, sectors[t0].arm), (e.1, sectors[t1].arm)],
-                [bend_of(t0, s.1), bend_of(t1, e.1)],
+                [bend_of(t0, s.1.dir), bend_of(t1, e.1.dir)],
             )
         })
         .collect();
@@ -1469,9 +1471,9 @@ struct PlannedRun<T: geom_core::Real> {
     edge: crate::entity::EdgeKey,
     /// Its start and end germs.
     germs: (Germ<T>, Germ<T>),
-    /// Its start and end germs' directions, each with its arm, for
-    /// [`germ_order`].
-    order: [(Vec3<T>, T); 2],
+    /// Its start and end germs' directions with their leans, each with
+    /// its arm, for [`germ_order`].
+    order: [(Leaned<T>, T); 2],
     /// Its start and end germs' bends, where [`germ_order`] reads one.
     bends: [Option<GermBend<T>>; 2],
 }
@@ -1765,7 +1767,7 @@ fn ring_struts<T: Decide>(
         let (Some(x), Some(y)) = (bends[from], bends[to]) else {
             return Ok(None);
         };
-        match geom_brep::tied_germ_turn(normal, germs[from].0, [x.bend, y.bend], arm, band) {
+        match geom_brep::tied_germ_turn(normal, germs[from].0.dir, [x.bend, y.bend], arm, band) {
             Ok(Sign::Zero) => Ok(None),
             Ok(sign) => Ok(Some(sign)),
             Err(geom_brep::TiedGermsError::Singular) => {
@@ -1902,7 +1904,7 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         }
     };
     let (g1, g2) = (toward(tangents[0])?, toward(tangents[1])?);
-    let germ = |d: Vec3<T>, branch| -> Germ<T> { (cells, d, branch) };
+    let germ = |d: Vec3<T>, branch| -> Germ<T> { (cells, Leaned::upright(d), branch) };
     let (on_e1, on_e2) = (super::Branch::Positive, super::Branch::Negative);
     // A run's start is the germ its sector is entered by, turning
     // counterclockwise about B's outward normal: `e₂`'s where `e₁`'s
@@ -2198,8 +2200,8 @@ struct HeldRead<T: geom_core::Real> {
     point: geom_core::Point3<T>,
     /// The pierced face's outward normal at the point.
     normal: Vec3<T>,
-    /// The run's start germ direction, `n × n_pierced`, normalized.
-    dir: Vec3<T>,
+    /// The run's start germ, the line `n × n_pierced` ([`Leaned`]).
+    dir: Leaned<T>,
     arm: T,
     cells: (
         (crate::entity::FaceKey, crate::entity::FaceKey),
@@ -2441,7 +2443,7 @@ fn held_reads<T: Decide + crate::props::AtRestPolicy>(
             pierced,
             point: p,
             normal: plan.normal,
-            dir: int.normalize(),
+            dir: Leaned::of_line(int),
             arm,
             cells,
             branch: germ_branch(
@@ -2475,14 +2477,14 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
         pierced,
         point,
         normal,
-        dir: d,
+        dir: line,
         arm,
         cells,
         branch,
         on,
     } = read;
     let (w, ring_loop) = ring_vertex_in(piercing_body, face, point, tol)?;
-    let germs: (Germ<T>, Germ<T>) = ((cells, d, branch), (cells, -d, branch));
+    let germs: (Germ<T>, Germ<T>) = ((cells, line, branch), (cells, line.reversed(), branch));
     let mint = piercing_body.mev_null_run(
         MevSite::Lone { r#loop: ring_loop },
         w,
@@ -2513,7 +2515,7 @@ fn mint_held<T: Decide + crate::props::AtRestPolicy>(
             runs: vec![PlannedRun {
                 edge: created.edge,
                 germs,
-                order: [(d, arm), (-d, arm)],
+                order: [(line, arm), (line.reversed(), arm)],
                 bends: [None, None],
             }],
         },
@@ -2582,10 +2584,11 @@ fn one_carrier<T: Decide>(
 ///
 /// Any other reading that does not decide refuses; nothing orders the
 /// germs otherwise. Every reading is levered at the shortest arm among
-/// the directions it reads. Beside the order it returns each tie of
+/// the directions it reads and their smaller lean
+/// (`sectors::leaned_lever`). Beside the order it returns each tie of
 /// different pierces, the germ first clockwise first.
 fn germ_order<T: Decide>(
-    germs: &[(Vec3<T>, T)],
+    germs: &[(Leaned<T>, T)],
     member: &[usize],
     normal: Vec3<T>,
     site: (Operand, crate::entity::FaceKey),
@@ -2596,16 +2599,19 @@ fn germ_order<T: Decide>(
     let refuse = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let side = |i: usize, j: usize, arm: T| -> Result<GermSide, BooleanError> {
         let (g, h) = (germs[i].0, germs[j].0);
-        let side = Margin::levered(g.cross(h).dot(normal), arm);
+        let side = Margin::levered(
+            g.dir.cross(h.dir).dot(normal),
+            leaned_lever(arm, (g.lean, h.lean)),
+        );
         match crate::validate::decide_nonzero("bool_strut_side", side, band) {
             Ok(sign) => Ok(GermSide::Apart(sign)),
-            Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => {
-                Ok(if super::sectors::direction_sense(g, h, arm, band)? {
+            Err(diag) if diag.margin.rejected_sign() == Some(Sign::Zero) => Ok(
+                if super::sectors::direction_sense(g.dir, h.dir, arm, band)? {
                     GermSide::Along(diag)
                 } else {
                     GermSide::Opposite
-                })
-            }
+                },
+            ),
             Err(diag) => Err(refuse(diag)),
         }
     };
@@ -2637,10 +2643,13 @@ fn germ_order<T: Decide>(
             Some(Sign::Zero) | None => Err(refuse(diag)),
         }
     };
-    let apart = |g: Vec3<T>, arm: T| -> Result<(), BooleanError> {
-        let side = Margin::levered(g.cross(from).dot(normal), arm);
+    let apart = |g: Leaned<T>, arm: T| -> Result<(), BooleanError> {
+        let lever = leaned_lever(arm, (g.lean, from.lean));
+        let side = Margin::levered(g.dir.cross(from.dir).dot(normal), lever);
         match crate::validate::decide_nonzero("bool_strut_side", side, band) {
-            Err(diag) if super::sectors::direction_sense(g, from, arm, band)? => Err(refuse(diag)),
+            Err(diag) if super::sectors::direction_sense(g.dir, from.dir, arm, band)? => {
+                Err(refuse(diag))
+            }
             _ => Ok(()),
         }
     };
@@ -2750,7 +2759,7 @@ struct Turn {
 /// lies nearer clockwise from the shared direction than `j`'s. Then
 /// `i`'s chord nests inside `j`'s; the other order would cross them.
 fn tie_breaks_after<T: Decide>(
-    germs: &[(Vec3<T>, T)],
+    germs: &[(Leaned<T>, T)],
     (i, j): (usize, usize),
     normal: Vec3<T>,
     band: Band,
@@ -2954,7 +2963,8 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
 /// The germ direction at a pierce-site transition: the unit
 /// intersection direction of the transition sector's face plane with
 /// the pierced face's TANGENT plane at the pierce point, signed by which
-/// of the sector's bounds the Out run holds ([`OutBound`]).
+/// of the sector's bounds the Out run holds ([`OutBound`]), with its
+/// lean `|n_s × n_p|` ([`Leaned`]).
 ///
 /// **The sign is the transition's, not a second reading.** The sector
 /// sweeps CCW about its outward normal `n_s` from `start` to `end`, and
@@ -2992,7 +3002,7 @@ pub(super) fn pierce_germ_dir<T: Decide>(
     pierced_normal: geom_core::Vec3<T>,
     out: OutBound,
     band: Band,
-) -> Result<geom_core::Vec3<T>, BooleanError> {
+) -> Result<Leaned<T>, BooleanError> {
     let int = s.normal.vec().cross(pierced_normal);
     // Levered at the sector's farther reach. A transition sector has a
     // bound read definitely off the pierced plane, beyond `K·zero`, at
@@ -3022,11 +3032,10 @@ pub(super) fn pierce_germ_dir<T: Decide>(
             ));
         }
     }
-    let line = match out {
+    let line = Leaned::of_line(match out {
         OutBound::Start => int,
         OutBound::End => -int,
-    };
-    let germ = line.normalize();
+    });
     // D9 row 5: where membership singles out one ray it is this one.
     // Where a bound reads On, membership can read both rays out, which
     // is no disagreement.
@@ -3036,14 +3045,15 @@ pub(super) fn pierce_germ_dir<T: Decide>(
     {
         debug_assert!(
             along || !against,
-            "the transition's germ {germ:?} ({out:?}) is outside the sector \
+            "the transition's germ {:?} ({out:?}) is outside the sector \
              {:?}→{:?} (normal {:?}) and its opposite inside, against {pierced_normal:?}",
+            line.dir,
             s.start,
             s.end,
             s.normal.vec(),
         );
     }
-    Ok(germ)
+    Ok(line)
 }
 
 /// Which bound of a pierce transition sector the Out run holds: the
@@ -3063,7 +3073,7 @@ type Germ<T> = (
         (crate::entity::FaceKey, crate::entity::FaceKey),
         (super::Locus, super::Locus),
     ),
-    geom_core::Vec3<T>,
+    super::sectors::Leaned<T>,
     super::Branch,
 );
 
@@ -3087,9 +3097,15 @@ fn germ_branch<T: Decide>(
     super::join::germ_branch(sections, (a, faces.0), (b, faces.1), loci, p, band)
 }
 
+/// A germ as the join reads it: its unit direction alone. Its lean
+/// stays here, since the join's readings of it (`bool_join_facing`
+/// against a chord along its own line, `rotational_sense` against its
+/// conic's radius) decide at their full magnitude, the chord's length or
+/// the radius: a face line's turn `α` (up to `δ / sin φ`) moves them by
+/// `α²/2` of it, not by `α`.
 fn half_germ<T: geom_core::Real>(
     he: HalfEdgeKey,
-    ((faces, loci), dir, branch): Germ<T>,
+    ((faces, loci), line, branch): Germ<T>,
 ) -> super::HalfGerm<T> {
     super::HalfGerm {
         he,
@@ -3097,7 +3113,7 @@ fn half_germ<T: geom_core::Real>(
         b_face: faces.1,
         a_locus: loci.0,
         b_locus: loci.1,
-        dir,
+        dir: line.dir,
         branch,
     }
 }
@@ -3148,7 +3164,7 @@ mod tests {
 
     /// [`germ_order`]'s order alone, for one pierce's germs.
     fn germ_order_only(
-        germs: &[(Vec3<f64>, f64)],
+        germs: &[(Leaned<f64>, f64)],
         member: &[usize],
         normal: Vec3<f64>,
         site: (Operand, crate::entity::FaceKey),
@@ -4112,7 +4128,7 @@ mod tests {
                         _ => continue,
                     };
                     transitions += 1;
-                    let germ = pierce_germ_dir(&s, n_p, out, band).unwrap();
+                    let germ = pierce_germ_dir(&s, n_p, out, band).unwrap().dir;
                     assert!(
                         (germ - l).norm() < 1e-12,
                         "{label}: the germ {germ:?}, not {l:?}"
@@ -4199,7 +4215,7 @@ mod tests {
                             "{label}, run {run:?}: sector {t}'s codes"
                         );
                         let s = &sectors[t];
-                        let germ = pierce_germ_dir(s, n_p, out, band).unwrap();
+                        let germ = pierce_germ_dir(s, n_p, out, band).unwrap().dir;
                         let member = |d| within(s, d, false, DeclarationRead::Moot, band).unwrap();
                         assert!(
                             member(germ) && !member(-germ),
@@ -4217,9 +4233,9 @@ mod tests {
 
     /// A germ on the unit circle of `z = 0` at `deg` clockwise about +z,
     /// with a unit arm.
-    fn germ_at(deg: f64) -> (Vec3<f64>, f64) {
+    fn germ_at(deg: f64) -> (Leaned<f64>, f64) {
         let t = -deg.to_radians();
-        (Vec3::new(t.cos(), t.sin(), 0.0), 1.0)
+        (Leaned::upright(Vec3::new(t.cos(), t.sin(), 0.0)), 1.0)
     }
 
     /// **Two pierces' germs along one ray order by their chords; a third
