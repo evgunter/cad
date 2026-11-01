@@ -5,7 +5,7 @@ title: A curved bound's tangent reads in band at the face line while its chord's
 status: open
 opened: 2026-11-01
 priority: P2
-cost: S
+cost: E
 refs: [main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach]
 ---
 
