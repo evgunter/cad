@@ -1150,13 +1150,15 @@ pub(crate) fn name_family<T: geom_core::Real>(
         // at a time seals in `upstream_name`.
         member.seal_order();
         let body = output_body(at_body)?;
-        let place = |e: &EntityRef| -> Result<EntityRef, NamingError> {
+        let place = |e: &EntityRef| -> EntityRef {
             if e.body != 0 {
-                return Err(NamingError::Emission {
-                    what: "a family's member names a body the member does not have",
-                });
+                unreachable!(
+                    "family {node:?}: member {at_body} names its body {}; {OWN_BODIES}, and a \
+                     member is one body",
+                    e.body
+                )
             }
-            Ok(ent(body, e.key))
+            ent(body, e.key)
         };
         for (name, entry) in member.iter_refs() {
             let wrapped = StableName {
@@ -1168,10 +1170,9 @@ pub(crate) fn name_family<T: geom_core::Real>(
                 }],
             };
             match entry {
-                super::table::Entry::Unique(e) => t.insert(wrapped, place(e)?)?,
+                super::table::Entry::Unique(e) => t.insert(wrapped, place(e))?,
                 super::table::Entry::Tied(es) => {
-                    let rows = es.iter().map(place).collect::<Result<Vec<_>, _>>()?;
-                    t.insert_tied(wrapped, rows)?;
+                    t.insert_tied(wrapped, es.iter().map(place).collect())?
                 }
             }
         }
@@ -1243,27 +1244,37 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
             if name.kind == EntityKind::Body {
                 continue;
             }
-            let rows: Vec<EntityRef> = match entry {
-                super::table::Entry::Unique(e) => vec![*e],
-                super::table::Entry::Tied(es) => es.clone(),
+            let rows: &[EntityRef] = match entry {
+                super::table::Entry::Unique(e) => core::slice::from_ref(e),
+                super::table::Entry::Tied(es) => es,
             };
-            let moved = rows
-                .into_iter()
-                .map(|e| {
-                    let keys = bridges.get(e.body as usize).ok_or(NamingError::Emission {
-                        what: "a member's table names a body the member does not have",
-                    })?;
-                    let key = match e.key {
-                        EntityKey::Body => None,
-                        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-                        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-                        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
-                    };
-                    key.map(|key| ent(0, key)).ok_or(NamingError::Emission {
-                        what: "a member's graft bridge is not total over its entities",
-                    })
-                })
-                .collect::<Result<Vec<_>, _>>()?;
+            let moved = rows.iter().map(|e| {
+                let Some(keys) = usize::try_from(e.body).ok().and_then(|b| bridges.get(b)) else {
+                    unreachable!(
+                        "assemble {node:?}: read {read:?} names body {} of {}; {OWN_BODIES}",
+                        e.body,
+                        bridges.len()
+                    )
+                };
+                let key = match e.key {
+                    EntityKey::Body => unreachable!(
+                        "assemble {node:?}: read {read:?} seats a body row under a {:?} name; \
+                         a table seats each row at its name's kind",
+                        name.kind
+                    ),
+                    EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+                    EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+                    EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+                };
+                let Some(key) = key else {
+                    unreachable!(
+                        "assemble {node:?}: read {read:?}'s graft bridge has no image for {:?}; \
+                         {GRAFT_TOTAL}",
+                        e.key
+                    )
+                };
+                ent(0, key)
+            });
             let keyed = StableName {
                 kind: name.kind,
                 node,
@@ -1286,6 +1297,18 @@ pub(crate) fn name_assemble<T: geom_core::Real>(
     check_total(&t, fused, 0)?;
     Ok(Arc::new(t))
 }
+
+/// Why a value's table names only the output bodies the value holds:
+/// every emitter mints one body's rows at 0 and a family's at each
+/// member's index, and every pass-through (a copy, a lone member, a
+/// projection, a pick) hands a table on beside a value of its count.
+const OWN_BODIES: &str = "a value's table names only the output bodies the value holds";
+
+/// Why an assembled member's row has an image in the fused body: a
+/// graft's bridge is total over its source's live entities, a rigid
+/// read keeps the member's keys, and a member's rows name only its live
+/// entities.
+const GRAFT_TOTAL: &str = "a graft's bridge is total over the live entities a member's rows name";
 
 /// Per-body topology walk products the emitters share: half-edge
 /// incidence (vertex → edges, edge → faces) built in ONE deterministic
