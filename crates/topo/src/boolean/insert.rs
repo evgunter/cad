@@ -2829,7 +2829,7 @@ mod tests {
             if twin {
                 let last = secs[secs.len() - 1].clone();
                 secs.push(BoolSector {
-                    end_reach: crate::boolean::sectors::Reach::Bisector(1.0),
+                    end_reach: crate::boolean::sectors::Reach::straight_bisector(1.0),
                     ..last
                 });
             }
@@ -2945,7 +2945,7 @@ mod tests {
         };
         let secs = vec![
             sector(Reach::Extent(1.0)),
-            sector(Reach::Bisector(1.0)),
+            sector(Reach::straight_bisector(1.0)),
             sector(Reach::Extent(1.0)),
             sector(Reach::Extent(1.0)),
         ];
@@ -3562,8 +3562,8 @@ mod tests {
             bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
-            sector(0.0, Reach::Extent(1.0), 90.0, Reach::Bisector(1.0)),
-            sector(90.0, Reach::Bisector(1.0), 180.0, Reach::Extent(1.0)),
+            sector(0.0, Reach::Extent(1.0), 90.0, Reach::straight_bisector(1.0)),
+            sector(90.0, Reach::straight_bisector(1.0), 180.0, Reach::Extent(1.0)),
         ];
         for inside in [10.0, 45.0, 80.0] {
             let along = Cut::apart(0, e);

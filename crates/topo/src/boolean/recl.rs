@@ -569,14 +569,14 @@ fn flank_key<T: Decide>(
     key_from_start: bool, // true: the noncoplanar bound is the START
     reference: &BoolSector<T>,
     band: Band,
-) -> Result<SideCode, BooleanError> {
+) -> Result<super::sectors::BoundRead, BooleanError> {
     let s = &own[idx];
     let (bound, reach) = if key_from_start {
         (s.start, s.start_reach)
     } else {
         (s.end, s.end_reach)
     };
-    super::sectors::sector_code(bound, reach, reference, band)
+    super::sectors::bound_read(bound, reach, reference.datum(), band)
 }
 
 /// Rewrites EVERY On code of a surviving germ record to the transition
@@ -1663,10 +1663,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         let mut halves = [Half::Off(true); 2];
         for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
-            match super::sectors::sector_code(w, reach, &other_secs[oi], band)? {
-                SideCode::In => {}
-                SideCode::Out => *inside = Half::Off(false),
-                SideCode::On => {
+            let read = super::sectors::bound_read(w, reach, other_secs[oi].datum(), band)?;
+            match (read.code, read.tie) {
+                (code, None) => *inside = Half::Off(code == SideCode::In),
+                (code, Some(tie)) => {
                     // On the flanking plane: overlap-tie or touch. No
                     // declaration the door verifies settles it: two
                     // planar flanks are conformal, and its screen refuses
@@ -1709,6 +1709,11 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     })? == NonzeroSign::Positive;
                     if !same {
                         *inside = Half::Away;
+                    } else if let super::sectors::BoundSide::Tangent(_) = tie.descent {
+                        // Tangent to the flank and leaving it one order
+                        // down: along the flank, on the side it leaves
+                        // to, which no coincidence settles.
+                        *inside = Half::Along(code == SideCode::In);
                     } else {
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
                         // Declared-`Tangent` flanking pairs (distinct
@@ -2062,8 +2067,8 @@ fn resolve_edge_sector<T: Decide>(
         )
     };
     let (mut k1, mut k2) = (
-        flank_key(own_secs, f_s, false, ref_sector, band)?,
-        flank_key(own_secs, f_e, true, ref_sector, band)?,
+        flank_key(own_secs, f_s, false, ref_sector, band)?.code,
+        flank_key(own_secs, f_e, true, ref_sector, band)?.code,
     );
     // One On flanker stays On: Table III lumps it whole and the germ
     // stays on the other (`the_stadium_answers_every_op`).
@@ -2215,8 +2220,10 @@ fn resolve_bisector_graze<T: Decide>(
     // The bisector's `On` rides a record's code, which keeps no margin
     // (a coplanar pair's codes are `On` with no bound read at all), so
     // the Zero the gate rejects is the one every `On` states: within
-    // `±zero`.
-    if k1 == k2 && k1 != SideCode::On {
+    // `±zero`. A key tied at first order leaves the bisector's Zero
+    // its sector's tangency, not the band's: the keys' sides are their
+    // second order, which the argument does not bound.
+    if k1.code == k2.code && k1.code != SideCode::On && k1.tie.is_none() && k2.tie.is_none() {
         let on = super::sectors::OnReading {
             predicate: "bool_sector_bisector_side",
             decided: geom_core::Decided {
@@ -2227,7 +2234,7 @@ fn resolve_bisector_graze<T: Decide>(
         return Err(super::sectors::bisector_zero_refusal(on, band));
     }
     let crossing = matches!(
-        (k1, k2),
+        (k1.code, k2.code),
         (SideCode::In, SideCode::Out) | (SideCode::Out, SideCode::In)
     );
     if !crossing {
@@ -2267,8 +2274,8 @@ mod tests {
             he: crate::entity::HalfEdgeKey::default(),
             start,
             end,
-            start_reach: Reach::Bisector(1.0),
-            end_reach: Reach::Bisector(1.0),
+            start_reach: Reach::straight_bisector(1.0),
+            end_reach: Reach::straight_bisector(1.0),
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(v(normal), true),
             arm: 1.0,
@@ -2283,8 +2290,8 @@ mod tests {
                 sector(v(second), axis, second_normal),
             ];
             let fl = [
-                (0, (secs[0].end, Reach::Bisector(1.0))),
-                (1, (secs[1].start, Reach::Bisector(1.0))),
+                (0, (secs[0].end, Reach::straight_bisector(1.0))),
+                (1, (secs[1].start, Reach::straight_bisector(1.0))),
             ];
             wedge_is_reflex(&secs, &fl, 1.0, band)
         };
@@ -2338,7 +2345,7 @@ mod tests {
             [
                 twin(
                     bis,
-                    Reach::Bisector(1.0),
+                    Reach::straight_bisector(1.0),
                     Vec3::from_array(far_end).normalize(),
                     chord(far_end),
                 ),
@@ -2346,13 +2353,13 @@ mod tests {
                     Vec3::from_array(far_start).normalize(),
                     chord(far_start),
                     bis,
-                    Reach::Bisector(1.0),
+                    Reach::straight_bisector(1.0),
                 ),
             ]
         };
         let reference = [BoolSector {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
-            ..twin(bis, Reach::Bisector(1.0), bis, Reach::Bisector(1.0))
+            ..twin(bis, Reach::straight_bisector(1.0), bis, Reach::straight_bisector(1.0))
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
         let bracket = geom_core::k_stats::Bracket::open();
@@ -2498,8 +2505,8 @@ mod tests {
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
         let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
-        half_turn[0].start_reach = Reach::Bisector(1.0);
-        half_turn[1].end_reach = Reach::Bisector(1.0);
+        half_turn[0].start_reach = Reach::straight_bisector(1.0);
+        half_turn[1].end_reach = Reach::straight_bisector(1.0);
         let p = prism_z::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             0.0,
@@ -3049,7 +3056,7 @@ mod tests {
         ));
         let half = |start: Vec3<f64>, end: Vec3<f64>, bisector_first: bool| BoolSector {
             start_reach: if bisector_first {
-                Reach::Bisector(1.0)
+                Reach::straight_bisector(1.0)
             } else {
                 Reach::Chord {
                     base: o,
@@ -3062,7 +3069,7 @@ mod tests {
                     far: o + end,
                 }
             } else {
-                Reach::Bisector(1.0)
+                Reach::straight_bisector(1.0)
             },
             face: plane,
             ..sector(start, end, Vec3::new(0.0, 1.0, 0.0))
@@ -3244,11 +3251,11 @@ mod tests {
             sector(ha, z, at(lo), at(lo - 90.0), none),
             sector(ha, at(hi), z, at(hi + 90.0), none),
             BoolSector {
-                start_reach: Reach::Bisector(1.0),
+                start_reach: Reach::straight_bisector(1.0),
                 ..sector(ha, z, x, y, top)
             },
             BoolSector {
-                end_reach: Reach::Bisector(1.0),
+                end_reach: Reach::straight_bisector(1.0),
                 ..sector(ha, -x, z, y, top)
             },
         ];
@@ -3410,7 +3417,7 @@ mod tests {
         let sector = |start_bisector: bool, end_bisector: bool| {
             let reach = |bisector| {
                 if bisector {
-                    Reach::Bisector(1.0)
+                    Reach::straight_bisector(1.0)
                 } else {
                     Reach::Extent(1.0)
                 }

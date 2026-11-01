@@ -628,7 +628,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: Reach::Bisector(1.0),
+        start_reach: Reach::straight_bisector(1.0),
         end_reach: Reach::Chord {
             base: o,
             far: o + d,

@@ -2893,7 +2893,10 @@ fn unglued_flat_sector<T: Decide>(
 /// reads at least `a·cos δ` (δ, the deviation from π, has `sin δ·a`
 /// inside the band). So a Zero there is the ambiguity band's (K ≤ 2),
 /// and the reflex case would read the wrong side: it refuses
-/// ([`super::sectors::bisector_zero_refusal`]) rather than resolve.
+/// ([`super::sectors::bisector_zero_refusal`]) rather than resolve. A
+/// neighbour tied at first order reads its side one order down, which
+/// the argument does not bound: the bisector's Zero is then its
+/// sector's tangency, and it folds.
 fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanError> {
     let n = entries.len();
     for k in 0..n {
@@ -2909,7 +2912,13 @@ fn resolve_on_entries(entries: &mut [Entry], band: Band) -> Result<(), BooleanEr
         }
         let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
         let (prev, next) = (before.class, after.class);
-        if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
+        if !entries[k].is_edge
+            && !before.lumped
+            && !after.lumped
+            && !before.tied
+            && !after.tied
+            && prev == next
+        {
             let Some(on) = entries[k].on else {
                 unreachable!(
                     "a bisector classed On with no Zero of its own: a bisector reads On only at \
@@ -3659,7 +3668,7 @@ mod tests {
             let dir = Vec3::new((1.0 - rise * rise).sqrt(), 0.0, rise);
             let (side, on) = pierce_side_reported(
                 dir,
-                Reach::Bisector(1.0),
+                Reach::straight_bisector(1.0),
                 up,
                 crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),

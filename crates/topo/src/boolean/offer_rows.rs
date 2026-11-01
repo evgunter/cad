@@ -540,7 +540,7 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
-    side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+    side_code(dir, Reach::straight_bisector(0.5), n, 1.0, band()).map(|_| ())
 }
 
 /// A unit-radius arc leaving a plane along it, short enough that the

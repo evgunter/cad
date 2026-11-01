@@ -80,7 +80,8 @@ use crate::sector_shape::{
 };
 use crate::validate::decide;
 
-use crate::bound_side::{BoundSide, BoundSideFault, FaceDatum, FirstOrder, Side};
+pub(super) use crate::bound_side::BoundSide;
+use crate::bound_side::{BoundSideFault, FaceDatum, FirstOrder, Side};
 pub(super) use crate::bound_side::{FaceBend, FaceShape, Reach, sagitta_charge};
 
 /// One (convex) sector of a vertex neighborhood.
@@ -137,12 +138,12 @@ impl<T: Decide> BoolSector<T> {
 impl<T: geom_core::Real> BoolSector<T> {
     /// Whether `start` is a real edge (false: a subdivision bisector).
     pub(super) fn start_edge(&self) -> bool {
-        !matches!(self.start_reach, Reach::Bisector(_))
+        !matches!(self.start_reach, Reach::Bisector(..))
     }
 
     /// Whether `end` is a real edge.
     pub(super) fn end_edge(&self) -> bool {
-        !matches!(self.end_reach, Reach::Bisector(_))
+        !matches!(self.end_reach, Reach::Bisector(..))
     }
 
     /// The two bounds, each with the length it reaches from the base
@@ -302,13 +303,14 @@ pub(super) fn build_sectors<T: Decide>(
                 arm,
             }),
             Some(b) => {
+                let bisector = Reach::bisector(arm, b.normalize(), normal.vec(), bend);
                 // Chained order (module docs): the end-sharing half
                 // first, then the start-sharing half.
                 sectors.push(BoolSector {
                     he,
                     start: b,
                     end: u_end,
-                    start_reach: Reach::Bisector(arm),
+                    start_reach: bisector,
                     end_reach: reach_end,
                     face,
                     normal,
@@ -320,7 +322,7 @@ pub(super) fn build_sectors<T: Decide>(
                     start: u_start,
                     end: b,
                     start_reach: reach_start,
-                    end_reach: Reach::Bisector(arm),
+                    end_reach: bisector,
                     face,
                     normal,
                     bend,
@@ -349,8 +351,8 @@ fn push_full_turn<T: Decide>(
 ) {
     let [q1, q2, q3] = turn.quarters(TurnOrder::FromNext);
     let bounds = [turn.unit_next, q1, q2, q3, turn.unit_own];
-    let inner = Reach::Bisector(turn.arm);
-    let reaches = [start_reach, inner, inner, inner, end_reach];
+    let inner = |q: Vec3<T>| Reach::bisector(turn.arm, q.normalize(), normal.vec(), bend);
+    let reaches = [start_reach, inner(q1), inner(q2), inner(q3), end_reach];
     for k in (0..4).rev() {
         sectors.push(BoolSector {
             he,
@@ -571,9 +573,8 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 /// **A bound's side code against a face at the vertex**: [`crate::bound_side::read`],
 /// charged for the face's curvature at its datum's lever, a first-order
 /// tie descended ([`crate::bound_side::Tie::descend`]): a bound leaving
-/// the face tangent to it reads the side it leaves to, one that rides
-/// it, or one the descent does not read (a probe or a bisector),
-/// [`SideCode::On`]. A consumer that keys on the tie itself reads
+/// the face tangent to it reads the side it leaves to, and one that
+/// rides it [`SideCode::On`]. A consumer that keys on the tie itself reads
 /// [`bound_read`].
 ///
 /// A bisector's tie is not read as a verdict where it could decide
@@ -627,10 +628,10 @@ pub(super) fn pierce_side<T: Decide>(
     pierce_side_reported(dir, reach, face_normal, bend, lever, band).map(|(side, _)| side)
 }
 
-/// [`pierce_side`], keeping the first-order Zero a bound read `On` on:
-/// what a caller that cannot use the `On` refuses through the gate
-/// ([`bisector_zero_refusal`]). `None` beside a side, and beside an `On`
-/// a bend was read for.
+/// [`pierce_side`], keeping the first-order Zero of a bound that tied:
+/// what a caller that cannot use its `On` refuses through the gate
+/// ([`bisector_zero_refusal`]). `None` beside a side decided at first
+/// order.
 pub(super) fn pierce_side_reported<T: Decide>(
     dir: Vec3<T>,
     reach: Reach<T>,
@@ -650,7 +651,7 @@ pub(super) fn pierce_side_reported<T: Decide>(
             code: read.code,
             tied: read.tie.is_some(),
         },
-        read.tie.filter(|tie| !tie.bent).map(|tie| tie.on),
+        read.tie.map(|tie| tie.on),
     ))
 }
 
@@ -660,7 +661,7 @@ pub(super) fn pierce_side_reported<T: Decide>(
 #[derive(Clone, Copy, Debug)]
 pub(super) struct BoundRead {
     /// The side: `In`/`Out` off the face or leaving it tangent, `On`
-    /// riding it (or a probe's or a bisector's tie, unread).
+    /// riding it.
     pub code: SideCode,
     /// The first-order tie, where first order tied.
     pub tie: Option<BoundTie>,
@@ -671,9 +672,6 @@ pub(super) struct BoundRead {
 pub(super) struct BoundTie {
     /// The Zero the tie was decided on.
     pub on: OnReading,
-    /// Whether the descent read a bend (a bound but a line in a plane,
-    /// a probe or a bisector).
-    pub bent: bool,
     /// What the descent read: the side the bound leaves to, tangent,
     /// or that it rides the face.
     pub descent: BoundSide,
@@ -711,7 +709,7 @@ pub(super) fn bound_read<T: Decide>(
             let descent = tie.descend(band).map_err(refused)?;
             let code = match descent {
                 BoundSide::Off(side) | BoundSide::Tangent(side) => code_of(side),
-                BoundSide::Rides | BoundSide::Unread => SideCode::On,
+                BoundSide::Rides => SideCode::On,
             };
             Ok(BoundRead {
                 code,
@@ -720,7 +718,6 @@ pub(super) fn bound_read<T: Decide>(
                         predicate: tie.predicate,
                         decided: tie.decided,
                     },
-                    bent: tie.bends(),
                     descent,
                 }),
             })
@@ -2189,7 +2186,7 @@ fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
     match reach {
         Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
         Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
-        Reach::Extent(_) | Reach::Bisector(_) => None,
+        Reach::Extent(_) | Reach::Bisector(..) => None,
     }
 }
 
@@ -2669,8 +2666,8 @@ pub(super) fn wedge_read<T: Decide>(
                     .iter()
                     .find_map(|s| match (s.face == *f0, s.start_reach, s.end_reach) {
                         (false, _, _) => None,
-                        (true, Reach::Bisector(_), _) => Some((s.start, s.start_reach)),
-                        (true, _, Reach::Bisector(_)) => Some((s.end, s.end_reach)),
+                        (true, Reach::Bisector(..), _) => Some((s.start, s.start_reach)),
+                        (true, _, Reach::Bisector(..)) => Some((s.end, s.end_reach)),
                         (true, _, _) => None,
                     });
             let Some((dir, reach)) = inside else {
@@ -2804,7 +2801,7 @@ pub(super) fn cone_read<T: Decide>(
         // An in-band `−c` labels nothing, as no side read does: the cone
         // is the material.
         Ok(Sign::Positive) => {
-            cone_side(-mean, Reach::Bisector(arm), other, band).unwrap_or_default()
+            cone_side(-mean, Reach::Extent(arm), other, band).unwrap_or_default()
         }
         Ok(Sign::Zero | Sign::Negative) | Err(_) => None,
     };
@@ -2880,7 +2877,7 @@ fn cone_side<T: Decide>(
     'reference: for (s0, base) in other.iter().zip(&codes) {
         let Some(base) = *base else { continue };
         let p = s0.middle().normalize();
-        let p_reach = Reach::Bisector(s0.arm);
+        let p_reach = Reach::bisector(s0.arm, p, s0.normal.vec(), s0.bend);
         let mut held = base == SideCode::In;
         for (s, code) in other.iter().zip(&codes) {
             if s.face == s0.face {
@@ -3291,7 +3288,7 @@ mod tests {
                 he: HalfEdgeKey::from(key(k as u64 + 21)),
                 start: Vec3::new(0.0, 0.0, 1.0),
                 end: d.normalize(),
-                start_reach: Reach::Bisector(1.0),
+                start_reach: Reach::straight_bisector(1.0),
                 end_reach: Reach::Chord {
                     base: o,
                     far: o + d,
@@ -3604,7 +3601,7 @@ mod tests {
                     far: o + d,
                 }
             } else {
-                Reach::Bisector(1.0)
+                Reach::straight_bisector(1.0)
             }
         };
         [
@@ -3754,7 +3751,7 @@ mod tests {
                             far: o + v(far),
                         }
                     } else {
-                        Reach::Bisector(f[17])
+                        Reach::straight_bisector(f[17])
                     }
                 };
                 BoolSector {
@@ -6379,7 +6376,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(0.3, 0.0, -1.0),
-                Reach::Bisector(1.0),
+                Reach::straight_bisector(1.0),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -6390,7 +6387,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(0.3, 0.0, 1.0),
-                Reach::Bisector(1.0),
+                Reach::straight_bisector(1.0),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -6401,7 +6398,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(1.0, 2.0, 0.0),
-                Reach::Bisector(1.0),
+                Reach::straight_bisector(1.0),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -6442,7 +6439,7 @@ mod tests {
             start: Vec3::new(-theta.sin(), -theta.cos(), 0.0),
             end: Vec3::new(-1.0, 0.0, 0.0),
             start_reach: Reach::Extent(reach),
-            end_reach: Reach::Bisector(arm),
+            end_reach: Reach::straight_bisector(arm),
             arm,
             ..sector([0.0; 3], [0.0; 3], [0.0, 0.0, -1.0])
         };
@@ -6655,7 +6652,7 @@ mod tests {
         };
         let d = Vec3::new(-0.1, 1.0, 0.0);
         assert_eq!(
-            side_code(d, Reach::Bisector(0.5), n, 1.0, b).unwrap(),
+            side_code(d, Reach::straight_bisector(0.5), n, 1.0, b).unwrap(),
             SideCode::Out,
             "a definite slope certifies at slope·lever/2"
         );
@@ -7146,7 +7143,7 @@ mod tests {
             };
             let code = |q: f64, reach_over_peak: f64| {
                 let (d, peak) = at(q);
-                side_code(d, Reach::Bisector(peak * reach_over_peak), n, r, b)
+                side_code(d, Reach::straight_bisector(peak * reach_over_peak), n, r, b)
             };
             // The residue: the reach is long enough that the first-order
             // reading itself is definite (`s·reach ≥ escalate`).
@@ -7183,7 +7180,7 @@ mod tests {
             (Vec3::new(-s, (1.0 - s * s).sqrt(), 0.0), s * 0.01 / 2.0)
         };
         assert_eq!(
-            side_code(d, Reach::Bisector(peak * 1e6), n, NO_CURVATURE::<f64>(), b).unwrap(),
+            side_code(d, Reach::straight_bisector(peak * 1e6), n, NO_CURVATURE::<f64>(), b).unwrap(),
             SideCode::Out,
             "against a plane the first-order reading is the truth"
         );

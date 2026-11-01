@@ -46,12 +46,12 @@ pub(crate) enum Reach<T: geom_core::Real> {
         far: Point3<T>,
     },
     /// A probe direction with no edge behind it, levered at a stated
-    /// arm (`vtxfac`'s interior probes).
+    /// arm (`vtxfac`'s interior probes): a straight ray.
     Extent(T),
     /// A curved edge — a conic, a spiric or a spline: its departure
     /// tangent at the base vertex, levered at the edge's own extent,
     /// and how it bends off that tangent ([`ConicBend`]), which
-    /// [`Tie::descend`] reads where the tangent lies in a plane face.
+    /// [`Tie::descend`] reads where the tangent ties with a face.
     Conic {
         /// The edge's extent from below ([`geom_brep::edge_extent_inf`]):
         /// no longer than its arc, so a point at that arc length lies on
@@ -61,8 +61,11 @@ pub(crate) enum Reach<T: geom_core::Real> {
         bend: ConicBend<T>,
     },
     /// A subdivision bisector: a direction with no point behind it,
-    /// levered at its sector's arm.
-    Bisector(T),
+    /// levered at its sector's arm, and how its sector's face bends
+    /// along it: the face's normal section's curvature vector
+    /// ([`FaceBend::section`] along the face's normal), `None` on a
+    /// spline face, whose bend is not certified.
+    Bisector(T, Option<Vec3<T>>),
 }
 
 impl<T: geom_core::Real> Reach<T> {
@@ -71,12 +74,24 @@ impl<T: geom_core::Real> Reach<T> {
     pub(crate) fn length(self) -> T {
         match self {
             Self::Chord { base, far } => (far - base).norm(),
-            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l) => l,
+            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l, _) => l,
         }
     }
 }
 
 impl<T: Decide> Reach<T> {
+    /// A bisector of a sector on `face` (outward unit normal `n`) along
+    /// the unit `dir`, levered at `arm`: it bends as the face's normal
+    /// section along it.
+    pub(crate) fn bisector(arm: T, dir: Vec3<T>, n: Vec3<T>, face: FaceBend<T>) -> Self {
+        Self::Bisector(arm, face.section(dir, n).map(|a| n * a))
+    }
+
+    /// A bisector of a sector on a plane, levered at `arm`.
+    pub(crate) fn straight_bisector(arm: T) -> Self {
+        Self::Bisector(arm, Some(Vec3::zero()))
+    }
+
     /// The bound's signed first-order departure from the plane through
     /// its base vertex with unit normal `n`, as [`read`] reads it: a
     /// line edge's far vertex, in metres; any other bound's direction
@@ -88,7 +103,7 @@ impl<T: Decide> Reach<T> {
     pub(crate) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
             Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
-            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l) => rise(dir, n, l),
+            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l, _) => rise(dir, n, l),
         }
     }
 }
@@ -289,11 +304,6 @@ pub(crate) enum BoundSide {
     /// face to the orders read (a line edge in a plane, a conic whose
     /// whole edge lies within the band of a plane).
     Rides,
-    /// Tied at first order where the descent reads no second order: a
-    /// bound against a curved face (which way it leaves is the two
-    /// carriers' relative curvature), or a probe or a bisector, whose
-    /// bend is its sector's face's.
-    Unread,
 }
 
 /// The first order of [`read`]: a side, or a tie [`Tie::descend`] reads
@@ -451,7 +461,7 @@ pub(crate) fn read<T: Decide>(
                 Err(diag) => return Err(BoundSideFault::Chord(diag)),
             }
         }
-        Reach::Extent(_) | Reach::Conic { .. } | Reach::Bisector(_) => {
+        Reach::Extent(_) | Reach::Conic { .. } | Reach::Bisector(..) => {
             match geom_brep::departure_side_reported(dir, face.reference, length, band) {
                 Ok((verdict, margin)) => match Side::of(verdict) {
                     Some(side) => (side, rise(dir, n, length).abs()),
@@ -577,36 +587,33 @@ impl<T: Decide> Tie<T> {
         }
     }
 
-    /// **The tied bound's side one order down.**
+    /// **The tied bound's side one order down**: the sign of
+    /// `(κ_b·n̂ − II_F(d̂, d̂))·l²/2` ([`geom_brep::parting_side`]), the
+    /// bound's bend past the face's normal section along it, at the
+    /// shorter of the bound's reach and the face's lever: a side the
+    /// bound leaves to, [`BoundSide::Tangent`], or tied there too,
+    /// [`BoundSide::Rides`]. The bound's bend is a conic's curvature, a
+    /// bisector's sector face's normal section along it, and nothing for
+    /// a line edge or a probe, which are straight; a plane's section is
+    /// nothing.
     ///
-    /// - A conic against a plane: which side it bends to
-    ///   ([`geom_brep::conic_bend_side`], certified at a point of the
-    ///   edge), [`BoundSide::Tangent`]; a whole edge within the band of
-    ///   the plane [`BoundSide::Rides`].
-    /// - A line edge against a plane: it bends by nothing, as the plane
-    ///   does, so it rides the plane to the second order too,
-    ///   [`BoundSide::Rides`].
-    /// - A line or a conic against a curved face: the sign of
-    ///   `(κ_b·n̂ − II_F(d̂, d̂))·l²/2` ([`geom_brep::parting_side`]), the
-    ///   bound's bend past the face's normal section along it, at the
-    ///   shorter of the bound's reach and the face's lever,
-    ///   [`BoundSide::Tangent`]; tied there too, [`BoundSide::Rides`].
-    /// - A probe or a bisector: a direction with no point behind it,
-    ///   whose sector's face may bend off the face at second order,
-    ///   [`BoundSide::Unread`].
+    /// A conic against a plane is read by its certified lift
+    /// ([`geom_brep::conic_bend_side`]), whose `Tangent` is the whole
+    /// edge within the band of the plane; a line edge or a probe against
+    /// a plane rides it.
     ///
     /// # Errors
     ///
-    /// [`BoundSideFault::Bend`]: a conic's bend in the band of its
-    /// first-order residue, or a spiric's or a spline's, which certify
-    /// no bend. [`BoundSideFault::Parting`]: the parting against a curved
-    /// face in the band. [`BoundSideFault::Unbent`]: a spline face, or a
-    /// spiric or spline edge against a curved face, whose bend is not
-    /// certified.
+    /// [`BoundSideFault::Bend`]: a conic's lift against a plane in the
+    /// band of its first-order residue, or a spiric's or a spline's,
+    /// which certify no bend. [`BoundSideFault::Parting`]: the parting in
+    /// the band. [`BoundSideFault::Unbent`]: a spline face, a bisector
+    /// of one, or a spiric or spline edge against a curved face, whose
+    /// bend is not certified.
     pub(crate) fn descend(self, band: Band) -> Result<BoundSide, BoundSideFault<T>> {
         let (face, reach) = (self.face, self.reach);
         let own = match (face.bend, reach) {
-            (_, Reach::Extent(_) | Reach::Bisector(_)) => return Ok(BoundSide::Unread),
+            (FaceBend::Fitted, _) | (_, Reach::Bisector(_, None)) => return Err(self.unbent()),
             (FaceBend::Plane, Reach::Conic { extent, bend }) => {
                 return match geom_brep::conic_bend_side(self.dir, extent, bend, face.reference, band)
                 {
@@ -616,9 +623,11 @@ impl<T: Decide> Tie<T> {
                     Err(diag) => Err(BoundSideFault::Bend(diag)),
                 };
             }
-            (FaceBend::Plane, Reach::Chord { .. }) => return Ok(BoundSide::Rides),
-            (FaceBend::Fitted, _) => return Err(self.unbent()),
-            (FaceBend::Implicit { .. }, Reach::Chord { .. }) => Vec3::zero(),
+            (FaceBend::Plane, Reach::Chord { .. } | Reach::Extent(_)) => {
+                return Ok(BoundSide::Rides);
+            }
+            (_, Reach::Bisector(_, Some(bend))) => bend,
+            (FaceBend::Implicit { .. }, Reach::Chord { .. } | Reach::Extent(_)) => Vec3::zero(),
             (FaceBend::Implicit { .. }, Reach::Conic { bend, .. }) => match bend.bounds {
                 geom_brep::BendBounds::Planar { .. } => bend.curvature,
                 geom_brep::BendBounds::Unbounded => return Err(self.unbent()),
@@ -637,16 +646,6 @@ impl<T: Decide> Tie<T> {
 
     fn unbent(&self) -> BoundSideFault<T> {
         BoundSideFault::Unbent(self.predicate, self.decided)
-    }
-
-    /// Whether the descent reads a bend: any bound but a line edge
-    /// against a plane, or a probe or a bisector.
-    pub(crate) fn bends(&self) -> bool {
-        match self.reach {
-            Reach::Extent(_) | Reach::Bisector(_) => false,
-            Reach::Chord { .. } => self.face.shape() == FaceShape::Curved,
-            Reach::Conic { .. } => true,
-        }
     }
 }
 
@@ -700,16 +699,15 @@ mod tests {
         };
         let x = Vec3::new(1.0, 0.0, 0.0);
         let datum = |bend| FaceDatum::of_face(OutwardNormal::from_chart(z, true), bend, 2.0);
-        for (bend, bends, want) in [
-            (FaceBend::Plane, false, BoundSide::Rides),
-            (FaceBend::ball(z, 2.0), true, BoundSide::Tangent(Side::Above)),
-            (FaceBend::ball(-z, 2.0), true, BoundSide::Tangent(Side::Below)),
+        for (bend, want) in [
+            (FaceBend::Plane, BoundSide::Rides),
+            (FaceBend::ball(z, 2.0), BoundSide::Tangent(Side::Above)),
+            (FaceBend::ball(-z, 2.0), BoundSide::Tangent(Side::Below)),
         ] {
             let FirstOrder::Tied(tie) = read(x, line, datum(bend), b).unwrap() else {
                 panic!("a line in the tangent plane ties at first order");
             };
             assert_eq!(tie.predicate, "bool_chord_side", "the chord's tie");
-            assert_eq!(tie.bends(), bends, "{bend:?}: whether the line reads a bend");
             assert_eq!(tie.descend(b).unwrap(), want, "{bend:?}");
         }
         let (dir, arc) = quarter_arc(Vec3::new(0.0, 0.0, -1.0), 0.0);
