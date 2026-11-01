@@ -243,7 +243,11 @@ impl MateReading {
 
     /// The seat the pose's one read sits at, as the kernel states it.
     fn seat(self) -> SlotKind {
-        match self.def(Operand::Var(pncad::document::VarId::WORLD)).reads().first() {
+        match self
+            .def(Operand::Var(pncad::document::VarId::WORLD))
+            .reads()
+            .first()
+        {
             Some(&(_, _, _, seat)) => seat,
             None => unreachable!("a plane, an axis and a point each read one entity"),
         }
@@ -717,7 +721,11 @@ pub(crate) fn plane_of(face: pncad::document::Operand) -> pncad::document::Opera
 /// The placement whose copy a pick at `at` is on: `at` itself when it
 /// is a `Place` or an instance, the instance A11's member walk reaches
 /// otherwise.
-fn placement_of(doc: &Doc<ProfileProgram>, at: RecipeNodeId, read: &SitedRef) -> Option<RecipeNodeId> {
+fn placement_of(
+    doc: &Doc<ProfileProgram>,
+    at: RecipeNodeId,
+    read: &SitedRef,
+) -> Option<RecipeNodeId> {
     match doc.node(at) {
         Some(Node::Place { .. } | Node::InstantiatePart { .. }) => Some(at),
         _ => member_of_ref(doc, read).map(|member| member.instance),
