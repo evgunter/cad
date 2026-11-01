@@ -449,3 +449,77 @@ fn valid_bodies_shell_at_both_certifying_scalars() {
     shells("the klein elbow", klein_elbow::<Interval>(), 0.05);
     shells("the klein elbow", klein_elbow::<Sym<Interval>>(), 0.05);
 }
+
+/// **The one-face torus cut** (`self_intersection_proves_injectivity`'s
+/// `one_face_torus_cut`): the torus `(2, 0.5)` about `y`, its profile one
+/// circle from angle 0.3, less the half-space `x < 0.3`.
+fn one_face_torus_cut() -> topo::AtRestBody<Interval> {
+    use core::f64::consts::{FRAC_PI_2, TAU};
+    use geom_core::{Affine3, Vec3};
+    let at = <Interval as geom_core::Real>::from_f64;
+    let phase = 0.3f64;
+    let lp: profile::ProfileLoop<Interval> = profile::RawLoop::new([(
+        Point2::new(2.0 + 0.5 * phase.cos(), 0.5 * phase.sin()).map(at),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: Point2::new(2.0, 0.0).map(at),
+            radius: at(0.5),
+            sweep: at(TAU),
+        }),
+    )]);
+    let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
+        .validate(tol())
+        .expect("the circle validates");
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0).map(at),
+        dir: Vec2::new(0.0, 1.0).map(at),
+    };
+    let ring = revolve(&profile, axis, Revolution::Full, tol())
+        .expect("the circle revolves")
+        .body;
+    let ring = finished("the one-face torus", ring, tol());
+    let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
+    let rigid = geom_core::test_support::rigid(&turn.map(at), tol());
+    let slab = finished(
+        "the slab",
+        brick((-50.0, 50.0), (-50.0, 50.0), (-100.0, 0.3), tol()),
+        tol(),
+    );
+    let slab = finished(
+        "the turned slab",
+        topo::transform_rigid(&slab, &rigid, tol()).expect("a rigid turn"),
+        tol(),
+    );
+    match topo::subtract(&ring, &slab, tol()) {
+        Ok(topo::BooleanResult::Body(b)) => b.body,
+        other => panic!("the cut builds: {other:?}"),
+    }
+}
+
+/// **A cavity the engine cannot certify refuses `CavityUncertified`**,
+/// never Ok: the one-face torus cut's cavity keeps its two torus faces
+/// meeting along the full meridian, and the departure certificate does
+/// not discharge that pair, the refusal the operand itself has at both
+/// scalars. The row waits on
+/// `work/clear/one-face-torus-cut-refuses-across-its-meridian.md`; when
+/// that row is fixed this cavity certifies and the row moves to a body
+/// the engine still refuses.
+#[test]
+fn a_cavity_the_engine_cannot_certify_refuses_uncertified() {
+    match topo::shell(
+        &one_face_torus_cut(),
+        Interval::from_bounds(0.1, 0.1),
+        tol(),
+    ) {
+        Err(ShellError::CavityUncertified {
+            refusal:
+                topo::clearance::EngineRefusal::Uncertified {
+                    arm: topo::clearance::CertificateArm::Departure,
+                    ..
+                },
+        }) => {}
+        other => panic!(
+            "the one-face torus cut's cavity refuses uncertified at Interval: {:?}",
+            other.map(|_| ())
+        ),
+    }
+}

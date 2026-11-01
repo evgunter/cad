@@ -796,7 +796,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "{}",
                 source.undecided(
                     "whether the thin solid's walls and rims stay clear of each other",
-                    source.ending("change the wall thickness, or move the geometry"),
+                    source.ending(WALL_OR_GEOMETRY),
                 )
             ),
             // The mint's certification refusal ends by its own ending at
@@ -811,8 +811,7 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             ),
             Self::RimSeamMixed { stations, .. } => write!(
                 f,
-                "a wall seam the rim shortens, {stations}. Recourse: change the wall \
-                 thickness, or move the geometry"
+                "a wall seam the rim shortens, {stations}. Recourse: {WALL_OR_GEOMETRY}"
             ),
             Self::Join { refusal } => write!(f, "the assembled thin solid: {refusal}"),
             Self::NotValid { errors } => write!(
@@ -837,6 +836,9 @@ struct AsShelled<'a, T: Real>(&'a ReplaceFaceError<T>);
 
 /// The lever of every refusal a thinner wall answers.
 const THINNER_WALL: &str = "use a thinner wall";
+
+/// The lever of every refusal the wall or the geometry answers.
+const WALL_OR_GEOMETRY: &str = "change the wall thickness, or move the geometry";
 
 /// A refusal of the cavity's self-intersection question in words, its
 /// faces unnamed: the payload names them, and they are keys the user
@@ -869,21 +871,21 @@ fn cavity_refusal_said(
 /// The ending of a refusal of the cavity's self-intersection question:
 /// a refinement the band or a budget stopped is the geometry's lever, a
 /// carrier or touching pair no certificate reads yet is not yet built,
-/// and a scope with no face is the op's defect.
-fn cavity_refusal_ending(refusal: &crate::clearance::EngineRefusal) -> &'static str {
+/// and a scope with no face or a chart that did not evaluate is the
+/// op's defect, since the op built every chart it hands the engine.
+fn cavity_refusal_ending(
+    refusal: &crate::clearance::EngineRefusal,
+) -> std::borrow::Cow<'static, str> {
     use crate::clearance::EngineRefusal as R;
     match refusal {
-        R::Sliver { .. }
-        | R::Budget(_)
-        | R::PoisonEnclosure { .. }
-        | R::WitnessUnverified { .. } => {
-            "Recourse: change the wall thickness, or move the geometry"
+        R::Sliver { .. } | R::Budget(_) | R::WitnessUnverified { .. } => {
+            format!("Recourse: {WALL_OR_GEOMETRY}").into()
         }
         R::Unsupported { .. }
         | R::Uncertified { .. }
         | R::CollapsedChart { .. }
-        | R::TorusNotRing { .. } => NOT_YET_ENDING,
-        R::EmptyScope { .. } => KERNEL_DEFECT_ENDING,
+        | R::TorusNotRing { .. } => NOT_YET_ENDING.into(),
+        R::PoisonEnclosure { .. } | R::EmptyScope { .. } => KERNEL_DEFECT_ENDING.into(),
     }
 }
 
@@ -4135,10 +4137,10 @@ pub(crate) fn rechart_rekeyed<T: Decide + crate::props::AtRestPolicy>(
 /// them. The CURVED residue is a documented window, not an oversight:
 /// a box-based test is unusable there because a shelled tube's
 /// concentric walls overlap boxes by construction, so a curved gate of
-/// that shape would refuse the verb's own acceptance fixtures. **A
-/// curved thin neck can still shell silently wrong** until the general
-/// clearance certificate over a parameter box lands — issue #1055,
-/// aimed at M10.
+/// that shape would refuse the verb's own acceptance fixtures. At a
+/// scalar whose clearance lane answers, [`cavity_embedded`] reads the
+/// curved pairs on the moved clone; **at `f64`, `Probe` and `Dual` a
+/// curved thin neck can still shell silently wrong** (module docs).
 ///
 /// **Conservative in the #571 direction.** Footprint overlap is tested
 /// on projected bounding boxes of each face's whole boundary, arcs
