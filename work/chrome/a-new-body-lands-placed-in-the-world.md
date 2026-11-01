@@ -54,3 +54,7 @@ by nothing: not the product, not an assertion, and nothing reads it`
 (reproduced with `examples/drive.rs`: Add profile → Extrude, and the
 toolbar reads `checks: 1 finding(s)`). Whatever an unplaced landing
 does about the product, a fresh body should not open with a finding.
+
+## Two copies of one part land on each other
+
+Second walk (2026-10-31; Ev: "put this in along with actual handling for free-move"). Two **Add part…** of the same file give two instances placed identically, one inside the other, indistinguishable in the viewport until a slide value is edited. Whatever lands a new body unplaced and free-movable should also keep a second copy from landing exactly on the first.
