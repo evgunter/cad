@@ -247,8 +247,11 @@ pub use voids::{
 /// decisions has no words here, since neither decision's words are
 /// true of it: `bool_contact_vertex` (the contact sweep's
 /// [`BooleanDecision::VertexOnVertex`], and containment's boundary
-/// pre-pass) and `bool_contact_arc` (the split point on its circle, and
-/// the same pre-pass).
+/// pre-pass), `bool_contact_arc` (the split point on its circle, and
+/// the same pre-pass) and `bool_sector_crescent` (the sectors'
+/// coincidence where its crescent reads in band, and
+/// [`BooleanDecision::ConicBend`] where a bound's bend carries no
+/// bound).
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = crate::sector_shape::rung_words(predicate) {
@@ -292,6 +295,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_rider_wall_coplanar"
         | "bool_touch_sheets_part"
         | "bool_sector_runs_into_bend"
+        | "bool_fate_corner"
+        | "bool_fate_corner_straddle"
+        | "bool_fate_corner_bend"
+        | "bool_fate_corner_bend_straddle"
         | "bool_rim_face_opposed" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
@@ -2754,6 +2761,10 @@ pub enum SectionUnbuilt {
         /// The certificate's limb-2 bound, in metres.
         hull_sup: f64,
     },
+    /// A marched loop's uniqueness tube could not be read: an empty box
+    /// chain, or a refused box or carrier point
+    /// (`geom_brep::CarryError::TubeUnread`).
+    TubeUnread,
     /// A closed loop of the section could not be opened at its first
     /// site: the knot edit refused.
     Seat(geom_core::spline::KnotAlgebraError),
@@ -2777,6 +2788,11 @@ impl core::fmt::Display for SectionUnbuilt {
                 f,
                 "a marched loop's turns about an operand's axis or core could not be read \
                  ({why:?})"
+            ),
+            Self::TubeUnread => write!(
+                f,
+                "a marched loop's uniqueness tube could not be read (an empty box chain, or a \
+                 refused box or carrier point)"
             ),
             Self::PadShort { pad, hull_sup } => write!(
                 f,
