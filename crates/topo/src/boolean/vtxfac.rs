@@ -1563,8 +1563,6 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
     // Per run: its strut's far end, and the half leaving it towards
     // the root.
     let mut nodes: BTreeMap<usize, (VertexKey, HalfEdgeKey)> = BTreeMap::new();
-    // Per run: its strut's halves facing its start and end germs.
-    let mut halves: BTreeMap<usize, [HalfEdgeKey; 2]> = BTreeMap::new();
     for strut in &ring {
         let (i, leaving_faces_start) = (strut.run, strut.plus_faces_start);
         let (_, plan, run) = runs[i];
@@ -1602,7 +1600,6 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             root_anchor.get_or_insert(created.he_plus);
         }
         nodes.insert(i, (created.vertex, created.he_minus));
-        halves.insert(i, [start_he, end_he]);
         out.edges.push(BoolNullEdgeRecord {
             operand: pierced,
             at_vertex: at,
@@ -1629,10 +1626,14 @@ pub(super) fn mint_ring<T: Decide + crate::props::AtRestPolicy>(
             site,
         });
     }
-    // A run's two germs stand at `2r` and `2r + 1` in the ring's order.
+    // Run `r`'s two germs are `2r` and `2r + 1` of the germs
+    // `germ_order` was handed, and its strut record's `germs` face them.
     for tie in ties {
-        let [first, second] = tie.map(|g| halves.get(&(g / 2)).map(|h| h[g % 2]));
-        let (Some(first), Some(second)) = (first, second) else {
+        let half = |g: usize| {
+            let at = ring.iter().position(|strut| strut.run == g / 2)?;
+            out.edges.get(at).map(|record| record.germs[g % 2].he)
+        };
+        let (Some(first), Some(second)) = (half(tie[0]), half(tie[1])) else {
             return Err(BooleanError::ClassificationInvariant {
                 what: "a tied germ's run has no strut",
             });
@@ -2617,16 +2618,17 @@ fn germ_order<T: Decide>(
     for (p, &g) in order.iter().enumerate() {
         at[g] = p;
     }
+    let next = |k: usize, l: usize| (at[k] + 1) % order.len() == at[l];
     let ties = ties
         .into_iter()
-        .map(|[i, j]| {
-            if (at[i] + 1) % order.len() == at[j] {
-                [i, j]
-            } else {
-                [j, i]
-            }
+        .map(|[i, j]| match (next(i, j), next(j, i)) {
+            (true, _) => Ok([i, j]),
+            (_, true) => Ok([j, i]),
+            _ => Err(BooleanError::ClassificationInvariant {
+                what: "a tie's two germs do not stand next to each other round the ring vertex",
+            }),
         })
-        .collect();
+        .collect::<Result<_, _>>()?;
     Ok((order, ties))
 }
 

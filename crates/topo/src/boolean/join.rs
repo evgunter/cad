@@ -4749,7 +4749,7 @@ fn loose_partners<T: Decide>(
 /// the runtime witness.
 fn choose_roles<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
-    ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<bool>),
+    ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
     segment: Option<EdgeKey>,
     closure: RingClosure<T>,
@@ -4925,7 +4925,7 @@ impl<T: crate::props::AtRestPolicy> RoleLane<T> {
     fn resolve(
         self,
         (body, operand): (&Body<T>, Operand),
-        ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<bool>),
+        ((ea, ra), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
         loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
         curve: &SegmentCurve<T>,
         band: Band,
@@ -4980,8 +4980,8 @@ fn ring_order<T: Decide>(
 /// traversal carries the other sign. `Indeterminate` escalates. Zero is
 /// a degenerate area-free run and a loud desync (the ring lane only
 /// closes full island cycles — slit-growing joins are mekr-lane
-/// merges), unless the run walls off a tie's corner of no angle, which
-/// winds as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
+/// merges), unless an end of the run faces a tied germ, where it winds
+/// as `tie` reads it ([`tie_winding`]). A spline run edge refuses first
 /// ([`BooleanError::EdgeCarrierUnsupported`], naming `operand`'s edge
 /// and `face`) on every closing but a carried chord's, whose path reads
 /// one where it is certified on the face
@@ -5002,7 +5002,7 @@ fn ring_order<T: Decide>(
 fn ring_run_ccw<T: crate::props::AtRestPolicy>(
     (body, operand): (&Body<T>, Operand),
     face: FaceKey,
-    ((h1, h2), tie): ((HalfEdgeKey, HalfEdgeKey), Option<bool>),
+    ((h1, h2), tie): ((HalfEdgeKey, HalfEdgeKey), Option<TieWinding>),
     closing: IslandClosing<'_, T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -5112,10 +5112,11 @@ fn run_spline_edge<T: Decide>(
 /// A degenerate ring-run winding ([`DEGENERATE_RING_WINDING`]) at a run
 /// of `side`'s from `h1` through `h2` that passes the point of a ring
 /// whose cones touch along a ray in its face
-/// ([`super::PierceRingRecord::ties`]) where neither end of the run faces
-/// a tied germ ([`tie_winding`]): the unbuilt shape, refused
-/// [`BooleanError::PinchRaysInAFace`] naming that ring's face; one that passes the tip of a slit or ring
-/// of either operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
+/// ([`super::PierceRingRecord::ties`]): a run [`tie_winding`] read no
+/// order for (one it reads winds, and never refuses degenerate), the
+/// unbuilt shape, refused [`BooleanError::PinchRaysInAFace`] naming that
+/// ring's face; one that passes the tip of a slit or ring of either
+/// operand's ([`crate::sector_shape::SlitTips`]): `side`'s own, or
 /// the other's, paired with the run's vertex there or piercing at its
 /// ring vertex, refused
 /// [`BooleanError::SlitFaceGlued`]. Every other error, and a degenerate
@@ -5252,22 +5253,27 @@ fn glued_slit_roles<T: Decide>(
     }
 }
 
-/// **How a ring run that walls off a tie's corner of no angle winds**
-/// (`side`'s run `h1 → h2`, closed back to `h1` by its chord): where two
-/// cones touch along a ray in a face, each cone's section runs along that
-/// ray, and the ring places their two germs apart in an order
+/// **How a ring run whose chord leaves along a tied germ winds**, where
+/// its winding reads no area (`side`'s run `h1 → h2`, closed back to `h1`
+/// by its chord; [`ring_winding_order`] reads this only at a `Zero`).
+/// Where two cones touch along a ray in a face, each cone's section runs
+/// along that ray, and the ring places their two germs apart in an order
 /// ([`super::PierceRingRecord::ties`]), the first clockwise about the
-/// face's outward normal first. A chord along one of those germs that
-/// closes against the other's copy encloses no area; it runs back along
-/// that copy beside it, on the side the order puts it, so the run winds
+/// face's outward normal first. What this checks is that an end of the
+/// run, `h1` or `h2`, is the strut half facing a tied germ, so the chord
+/// leaves the ring along one of the two. That suffices: no third germ of
+/// the ring lies on the ray (`vtxfac::germ_order` refuses one), so a
+/// cycle through that chord enclosing no area runs back along the other
+/// germ's copy, the sliver between the two cones' sections. The chord
+/// lies beside that copy on the side the order puts it, so the run winds
 /// counterclockwise where the chord leaves `start(h1)` along the first
 /// germ, or reaches `end(h2)` along the second. `None` where neither end
-/// of the run faces a tied germ.
+/// faces a tied germ, or the two ends read different ties that disagree.
 fn tie_winding<T: geom_core::Real>(
     red: &BooleanReduction<T>,
     side: Operand,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
-) -> Option<bool> {
+) -> Option<TieWinding> {
     let ties = || {
         red.pierce_rings
             .iter()
@@ -5285,7 +5291,19 @@ fn tie_winding<T: geom_core::Real>(
             }
         })
     };
-    at(h1, true).or_else(|| at(h2, false))
+    let ccw = match (at(h1, true), at(h2, false)) {
+        (Some(a), Some(b)) if a != b => None,
+        (a, b) => a.or(b),
+    }?;
+    Some(TieWinding { ccw })
+}
+
+/// The order a tie reads for a ring run that encloses no area
+/// ([`tie_winding`]): whether the run winds counterclockwise about the
+/// face's outward normal.
+#[derive(Clone, Copy, Debug)]
+struct TieWinding {
+    ccw: bool,
 }
 
 /// The ring lane's refusal of a run that encloses no area.
@@ -5293,11 +5311,11 @@ const DEGENERATE_RING_WINDING: &str = "ring-run winding is degenerate (zero encl
 
 /// The ring lane's role order from the decided winding: CCW keeps the
 /// order. A zero area is a degenerate run, so its in-band twin is the
-/// kernel's too, unless the run closes on a tie's corner of no angle,
-/// whose order `tie` reads ([`tie_winding`]).
+/// kernel's too, unless an end of the run faces a tied germ, whose
+/// order `tie` reads ([`tie_winding`]).
 fn ring_winding_order(
     wound: Result<Sign, geom_core::Indeterminate>,
-    tie: Option<bool>,
+    tie: Option<TieWinding>,
 ) -> Result<bool, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let sign = wound.map_err(|diag| BooleanError::Escalated {
@@ -5307,7 +5325,7 @@ fn ring_winding_order(
     match sign {
         Sign::Positive => Ok(true),
         Sign::Negative => Ok(false),
-        Sign::Zero => tie.ok_or(desync(DEGENERATE_RING_WINDING)),
+        Sign::Zero => tie.map(|t| t.ccw).ok_or(desync(DEGENERATE_RING_WINDING)),
     }
 }
 

@@ -2089,7 +2089,7 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             let group: BTreeSet<FaceKey> = core::iter::once(seed)
                 .chain(members.iter().copied())
                 .collect();
-            let (rep, rest) = surgery.outermost_survivor(seed, members);
+            let (rep, rest) = surgery.outermost_survivor(seed, members, &neighbors);
             let (regime, kind) = match Self::group_contract(rep, &rest, &kinds)? {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
@@ -2286,8 +2286,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     ///
     /// A member lies in another's hole when that member's ring borders
     /// it — a coplanar face plugging a hole of a group face — or when it
-    /// shares an edge with a member in that hole, the plug being several
-    /// faces, of which the ring borders some. The
+    /// meets a member in that hole across a mergeable edge (`across`, the
+    /// group adjacency the labeling read), the plug being several faces,
+    /// of which the ring borders some. The
     /// absorption keeps the survivor and kills every other member with
     /// `kef` across a shared edge, after re-homing the dying face's
     /// rings onto the survivor; a survivor inside the dying face's ring
@@ -2307,23 +2308,20 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
     /// ring walk does not close, or it meets a half-edge its
     /// edge does not claim: the staged body is tier-1-valid, since every operator
     /// the earlier groups ran keeps it so.
-    fn outermost_survivor(&self, seed: FaceKey, members: Vec<FaceKey>) -> (FaceKey, Vec<FaceKey>) {
+    fn outermost_survivor(
+        &self,
+        seed: FaceKey,
+        members: Vec<FaceKey>,
+        across: &BTreeMap<FaceKey, Vec<FaceKey>>,
+    ) -> (FaceKey, Vec<FaceKey>) {
         let group: BTreeSet<FaceKey> = core::iter::once(seed)
             .chain(members.iter().copied())
             .collect();
-        // Each member's neighbours in the group, across an edge.
-        let mut across: BTreeMap<FaceKey, BTreeSet<FaceKey>> = BTreeMap::new();
-        for (edge_key, edge) in self.edges() {
-            let (hp, hm) = self.edge_halves(edge_key, edge);
-            if hp.face != hm.face && group.contains(&hp.face) && group.contains(&hm.face) {
-                across.entry(hp.face).or_default().insert(hm.face);
-                across.entry(hm.face).or_default().insert(hp.face);
-            }
-        }
         let mut nested: BTreeSet<FaceKey> = BTreeSet::new();
         for &f in &group {
             // The members `f`'s rings border, then every member they
-            // meet but `f`: a plug lies wholly in the hole.
+            // meet across a mergeable edge but `f`: a plug lies wholly
+            // in the hole.
             let mut inside: Vec<FaceKey> = Vec::new();
             let face = proven(&self.faces, f, EntityId::Face);
             for &lk in &face.rings {
@@ -3227,11 +3225,16 @@ mod tests {
         use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
         let mut body = structural_planar_cube(Tol::witness());
         let face = body.faces().next().map(|(k, _)| k).expect("a face");
-        assert_eq!(body.outermost_survivor(face, Vec::new()).0, face, "no nest");
+        assert_eq!(
+            body.outermost_survivor(face, Vec::new(), &BTreeMap::new())
+                .0,
+            face,
+            "no nest"
+        );
         let named = crate::review_d18::tear_ring(&mut body, face);
         let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
         assert_torn_op_panics("outermost_survivor", &mut body, &premise, |b| {
-            b.outermost_survivor(face, Vec::new())
+            b.outermost_survivor(face, Vec::new(), &BTreeMap::new())
         });
     }
 
@@ -3924,7 +3927,7 @@ mod tests {
             .expect("another edge");
         body.half_edges.get_mut(first).expect("live").edge = other;
         let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
-            let _ = body.outermost_survivor(top, vec![membrane]);
+            let _ = body.outermost_survivor(top, vec![membrane], &BTreeMap::new());
         }))
         .expect("an unclaimed ring half-edge panics");
         assert!(

@@ -79,7 +79,14 @@ closed form says, with one edge along the line per creased sector of
 the result's material about it, at ε default, 1e-6 and 1e-12, at rest,
 turned and flipped and turned. Pinned by
 `a_keel_on_the_floor_subtracts_as_a_slit::a_flush_partner_over_two_lumps_touching_along_an_edge_builds`
-(the three lumps, both partners, six ops) and
+(the three lumps and a steeper wedge beside, whose sliver run captures
+cleanly both ways round so no capture rank orders it; `x` united in
+either order; both partners; six ops),
+`::a_flush_partner_over_two_lumps_touching_along_a_diagonal_builds`
+(two triangular prisms touching along a diagonal, where the merge
+refused `Merge` before the plug rule) and
 `::a_flush_partner_crossing_the_slit_intersects_it_in_either_order`;
 `union_flush_onto_edge_contact::a_face_holding_the_pinch_line_ties_the_pierces_germs`'s
-slopes 0.5 and 2, which refused `PinchRaysInAFace`, build too.
+slopes 0.5 and 2, which refused `PinchRaysInAFace`, build too. The two
+`PinchRaysInAFace` arms that remain are filed as
+`pinch-rays-in-a-face-keeps-two-refusals-one-of-unknown-reach`.

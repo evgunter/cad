@@ -1149,14 +1149,21 @@ fn a_face_closed_across_part_of_the_slit_refuses_typed() {
 /// it along the edge `x = 1, z = 1`: the box `[1, 2] × [0, 1] × [1, 2]`
 /// (an S, opposite faces across the line), or the wedge over the
 /// `(x, z)` triangle `(1, 1), (2, 1), (2, 2)` (above it, its bottom
-/// coplanar with the box's top) or `(1, 1), (2, 0), (2, 1)` (beside it,
-/// the tops coplanar). The partner `[−0.5, 2.5] × [−0.5, 1.5]` over
+/// coplanar with the box's top), or `(1, 1), (2, 0), (2, 1)` or
+/// `(1, 1), (1.3, 0), (1.3, 1)` (beside it, the tops coplanar), united
+/// in either order. The partner `[−0.5, 2.5] × [−0.5, 1.5]` over
 /// `[1, 1.5]` or `[0.5, 1]` lies flush with a face of each lump on the
 /// line's plane, so the lumps' corners pierce its face at one point and
 /// their sections run along the line from there, two cones touching
 /// along a ray in the face. Where a join closes the corner of no angle
 /// between the two, it winds as the ring's order places them apart
-/// (`join::tie_winding`); where the op keeps the partner's face over one
+/// (`join::tie_winding`). Beside the steep wedge, with the partner above,
+/// both of that run's arcs capture cleanly, so no capture rank orders it
+/// either (`join::best_arc`'s order refuses there). Where the result
+/// keeps the sliver between the two cones' sections as a face beside the
+/// kept lump's flush face, the two plug the partner face's hole together,
+/// and the merge keeps the partner's face (`outermost_survivor`); where
+/// the op keeps the partner's face over one
 /// lump, the dropped copy's corner at the lumps' shared point is held by
 /// the piece of the face whose corner there holds its direction
 /// (`fate::fragment_along`).
@@ -1170,24 +1177,6 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
     use common::meeting::posed_box;
     let tol = t();
     let poses = poses();
-    // The edges along the line a result has: one per sector of its
-    // material about the line, read in the `(x, z)` plane by angle from
-    // `+x`, that is neither empty, whole nor flat.
-    let creased = |inside: &dyn Fn(f64) -> bool| {
-        let held: Vec<bool> = (0..360).map(|k| inside(f64::from(k) + 0.5)).collect();
-        let Some(start) = (0..360).find(|&k| !held[k]) else {
-            return 0;
-        };
-        let mut runs = vec![0usize];
-        for k in 1..=360 {
-            if held[(start + k) % 360] {
-                *runs.last_mut().unwrap() += 1;
-            } else {
-                runs.push(0);
-            }
-        }
-        runs.into_iter().filter(|&n| n > 0 && n != 180).count()
-    };
     let within = |lo: f64, hi: f64| move |a: f64| (lo..hi).contains(&a);
     for pose in [&poses[0], &poses[2], &poses[4]] {
         let cube = posed_box("the box", [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], pose, tol);
@@ -1216,70 +1205,187 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
                 [0.0, 0.375],
                 within(315.0, 360.0),
             ),
+            (
+                "the steep wedge beside",
+                &[(1.0, 1.3), (0.0, 1.3), (1.0, 1.0)][..],
+                0.15,
+                [0.0, 0.3 * 0.375],
+                within(360.0 - 1.0f64.atan2(0.3).to_degrees(), 360.0),
+            ),
         ];
         for (lump, profile, whole, part, about) in lumps {
             let second = prism(pose, lump, profile, (0.0, 1.0), &|z, x, y| [x, y, z]);
-            let Ok(BooleanResult::Body(x)) = topo::union(&cube, &second, tol) else {
-                panic!("{}: the box and {lump}", pose.label);
-            };
-            let x = x.body;
-            let in_x = |a: f64| within(180.0, 270.0)(a) || about(a);
-            for (side, z, vi, in_y) in [
-                ("above", (1.0, 1.5), part[0], within(0.0, 180.0)),
-                ("below", (0.5, 1.0), 0.5 + part[1], within(180.0, 360.0)),
+            for (order, x) in [
+                ("the box first", topo::union(&cube, &second, tol)),
+                ("the lump first", topo::union(&second, &cube, tol)),
             ] {
-                let what = format!("{lump}, the partner {side}, {}", pose.label);
-                let y = posed_box("the partner", [(-0.5, 2.5), (-0.5, 1.5), z], pose, tol);
-                let (vx, vy) = (1.0 + whole, 3.0);
-                // An op, its result, its closed-form volume, and whether
-                // it keeps a point inside `x` and `y` or not.
-                type Op = (
-                    &'static str,
-                    Result<BooleanResult<f64>, topo::BooleanError>,
-                    f64,
-                    fn(bool, bool) -> bool,
-                );
-                let keeps: [Op; 6] = [
-                    ("x − y", subtract(&x, &y, tol), vx - vi, |a, b| a && !b),
-                    ("y − x", subtract(&y, &x, tol), vy - vi, |a, b| b && !a),
-                    ("x ∩ y", intersect(&x, &y, tol), vi, |a, b| a && b),
-                    ("y ∩ x", intersect(&y, &x, tol), vi, |a, b| a && b),
-                    ("x ∪ y", topo::union(&x, &y, tol), vx + vy - vi, |a, b| {
-                        a || b
-                    }),
-                    ("y ∪ x", topo::union(&y, &x, tol), vx + vy - vi, |a, b| {
-                        a || b
-                    }),
-                ];
-                for (op, r, want, kept) in keeps {
-                    let what = format!("{what}: {op}");
-                    let r = match r {
-                        Ok(BooleanResult::Body(r)) => r,
-                        Ok(BooleanResult::Empty) if want == 0.0 => continue,
-                        other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
-                    };
-                    assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
-                    assert_eq!(
-                        validate_pseudomanifold(&r.body, &r.contacts, tol),
-                        Ok(()),
-                        "{what}: tier 3′"
-                    );
-                    let v =
-                        topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
-                    assert!(
-                        (v - want).abs() < 1e-9,
-                        "{what}: volume {v}, closed form {want}"
-                    );
-                    let along = spans_along(&r.body, pose, [[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]])
-                        .into_iter()
-                        .filter(|&(a, b)| a > -1e-9 && b < 1.0 + 1e-9)
-                        .count();
-                    assert_eq!(
-                        along,
-                        creased(&|a| kept(in_x(a), in_y(a))),
-                        "{what}: an edge along the lumps' line per creased sector about it"
+                let Ok(BooleanResult::Body(x)) = x else {
+                    panic!("{}: the box and {lump}, {order}", pose.label);
+                };
+                let x = x.body;
+                let in_x = |a: f64| within(180.0, 270.0)(a) || about(a);
+                for (side, z, vi, in_y) in [
+                    ("above", (1.0, 1.5), part[0], within(0.0, 180.0)),
+                    ("below", (0.5, 1.0), 0.5 + part[1], within(180.0, 360.0)),
+                ] {
+                    let what = format!("{lump}, {order}, the partner {side}, {}", pose.label);
+                    let y = posed_box("the partner", [(-0.5, 2.5), (-0.5, 1.5), z], pose, tol);
+                    let line = [[1.0, 0.0, 1.0], [1.0, 1.0, 1.0]];
+                    every_op_builds(
+                        &what,
+                        pose,
+                        (&x, &y),
+                        (1.0 + whole, 3.0, vi),
+                        (&in_x, &in_y),
+                        (line, 1.0),
                     );
                 }
+            }
+        }
+    }
+}
+
+/// **Every op of `x` and `y` builds as the closed form says**, in both
+/// orders: tier 3 and 3′, the volume from `|x|`, `|y|` and `|x ∩ y|`
+/// (`v`), and one edge along `line` (from its first point toward its
+/// second, a unit apart, for `reach`) per sector
+/// of the result's material about it that is neither empty, whole nor
+/// flat. The material is read by angle in degrees about the line, the
+/// operands' own as `inside`; an op whose closed form is empty may
+/// return [`BooleanResult::Empty`].
+fn every_op_builds(
+    what: &str,
+    pose: &Pose,
+    (x, y): (&AtRestBody<f64>, &AtRestBody<f64>),
+    (vx, vy, vi): (f64, f64, f64),
+    inside: (&dyn Fn(f64) -> bool, &dyn Fn(f64) -> bool),
+    (line, reach): ([[f64; 3]; 2], f64),
+) {
+    let tol = t();
+    let creased = |kept: &dyn Fn(f64) -> bool| {
+        let held: Vec<bool> = (0..360).map(|k| kept(f64::from(k) + 0.5)).collect();
+        let Some(start) = (0..360).find(|&k| !held[k]) else {
+            return 0;
+        };
+        let mut runs = vec![0usize];
+        for k in 1..=360 {
+            if held[(start + k) % 360] {
+                *runs.last_mut().unwrap() += 1;
+            } else {
+                runs.push(0);
+            }
+        }
+        runs.into_iter().filter(|&n| n > 0 && n != 180).count()
+    };
+    // An op, its result, its closed-form volume, and whether it keeps a
+    // point inside `x` and `y` or not.
+    type Op = (
+        &'static str,
+        Result<BooleanResult<f64>, topo::BooleanError>,
+        f64,
+        fn(bool, bool) -> bool,
+    );
+    let ops: [Op; 6] = [
+        ("x − y", subtract(x, y, tol), vx - vi, |a, b| a && !b),
+        ("y − x", subtract(y, x, tol), vy - vi, |a, b| b && !a),
+        ("x ∩ y", intersect(x, y, tol), vi, |a, b| a && b),
+        ("y ∩ x", intersect(y, x, tol), vi, |a, b| a && b),
+        ("x ∪ y", topo::union(x, y, tol), vx + vy - vi, |a, b| {
+            a || b
+        }),
+        ("y ∪ x", topo::union(y, x, tol), vx + vy - vi, |a, b| {
+            a || b
+        }),
+    ];
+    for (op, r, want, kept) in ops {
+        let what = format!("{what}: {op}");
+        let r = match r {
+            Ok(BooleanResult::Body(r)) => r,
+            Ok(BooleanResult::Empty) if want == 0.0 => continue,
+            other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
+        };
+        assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+        assert_eq!(
+            validate_pseudomanifold(&r.body, &r.contacts, tol),
+            Ok(()),
+            "{what}: tier 3′"
+        );
+        let v = topo::test_support::pinned_volume("the measured body", &r.body, tol).volume;
+        assert!(
+            (v - want).abs() < 1e-9,
+            "{what}: volume {v}, closed form {want}"
+        );
+        let along = spans_along(&r.body, pose, line)
+            .into_iter()
+            .filter(|&(a, b)| a > -1e-9 && b < reach + 1e-9)
+            .count();
+        assert_eq!(
+            along,
+            creased(&|a| kept(inside.0(a), inside.1(a))),
+            "{what}: an edge along the lumps' line per creased sector about it"
+        );
+    }
+}
+
+/// **A flush partner over two lumps touching along a diagonal builds in
+/// every op, either order.** The prism over the `(x, y)` triangle
+/// `(0, 0), (1, 0), (1, 1)` on `z ∈ [0, 1]` ∪ the one over
+/// `(0, 0), (1, 1), (0, 1)` on `z ∈ [1, 2]`, united in either order,
+/// touch along the segment `(0, 0, 1)`–`(1, 1, 1)`, a line the two
+/// lumps' faces run along at no axis. The partner
+/// `[−0.5, 1.5]² × [1, 1.5]` or `× [0.5, 1]` lies flush with a face of
+/// each. The union keeps the sliver between the two cones' sections as a
+/// face beside the kept lump's flush face, the two together a plug in
+/// the partner face's hole, and the merge keeps the partner's face
+/// (`merge_faces::outermost_survivor`), where it refused `Merge` when it
+/// read only the face the ring borders as nested. Every op builds as the
+/// closed form says, tier 3 and 3′, at rest, turned and flipped and
+/// turned, with an edge along the line per creased sector.
+#[test]
+fn a_flush_partner_over_two_lumps_touching_along_a_diagonal_builds() {
+    use common::meeting::posed_box;
+    let tol = t();
+    let poses = poses();
+    let within = |lo: f64, hi: f64| move |a: f64| (lo..hi).contains(&a);
+    let r = std::f64::consts::FRAC_1_SQRT_2;
+    // Angles about the line from the side `y > x`, in the plane across
+    // it: the high lump holds `[0, 90]`, the low one `[180, 270]`.
+    let in_x = |a: f64| within(0.0, 90.0)(a) || within(180.0, 270.0)(a);
+    for pose in [&poses[0], &poses[2], &poses[4]] {
+        let lumps = [
+            (0.0, 1.0, &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)][..]),
+            (1.0, 2.0, &[(0.0, 0.0), (1.0, 1.0), (0.0, 1.0)][..]),
+        ]
+        .map(|(lo, hi, profile)| prism(pose, "a lump", profile, (lo, hi), &|x, y, z| [x, y, z]));
+        for (order, x) in [
+            ("the low lump first", topo::union(&lumps[0], &lumps[1], tol)),
+            (
+                "the high lump first",
+                topo::union(&lumps[1], &lumps[0], tol),
+            ),
+        ] {
+            let Ok(BooleanResult::Body(x)) = x else {
+                panic!("{}: the two lumps, {order}", pose.label);
+            };
+            let x = x.body;
+            for (side, z, in_y) in [
+                ("above", (1.0, 1.5), within(0.0, 180.0)),
+                ("below", (0.5, 1.0), within(180.0, 360.0)),
+            ] {
+                let what = format!(
+                    "the diagonal lumps, {order}, the partner {side}, {}",
+                    pose.label
+                );
+                let y = posed_box("the partner", [(-0.5, 1.5), (-0.5, 1.5), z], pose, tol);
+                let line = [[0.0, 0.0, 1.0], [r, r, 1.0]];
+                every_op_builds(
+                    &what,
+                    pose,
+                    (&x, &y),
+                    (1.0, 2.0, 0.25),
+                    (&in_x, &in_y),
+                    (line, 2.0f64.sqrt()),
+                );
             }
         }
     }
