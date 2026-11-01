@@ -1871,3 +1871,11 @@ Signed (CLEAVE orchestrator).
   - 6184: one `walks_before` reads `beside_order` at a first-order tie, and every orbit reader asks it. No outcome moves on the lane's grid. The lane skipped the mutation check, so the claims lane runs it first.
   - 6185: `AtCorners` ends the chord at the division's vertex. 70 cells per ε go from refused to valid. The lane did not re-diff after the 6170 merge. A new P1 row covers a cut end on an edge of the division.
   - Full reviews dispatched for both (claims lane and style lane, briefs in `briefs/review-618{4,5}.md`). Rows set to review. (CLEAVE orchestrator)
+
+- 2026-11-01: 6186 (tracker) merged. 6184 and 6185 reviews adjudicated, nothing blocking in either.
+  - 6185: the claims lane re-ran the outcome diff after the 6170 merge (70 cells per ε go from refused to valid, nothing else moves). Wider three-piece and near-along families build too, and every mutant refuses loudly.
+    - Should-fix: the pin misses the `last` mutant and none of it runs in the gate; the new row's op mapping is wrong for the full partner; the `Nowhere` refusal's words now also describe `AtCorners`; docs still say "no surgery".
+    - A dump at (1,1,1) shows the `End::Touch` end has a missing partner record upstream: 7v1 is neither vv'd to nor in the ring of 15v1. A row goes in for that. Fix pass sent.
+  - 6184: the claims lane ran the skipped mutation check. A sign flip at the new sites turns both pins, three existing slit tests and the unit test red. `walks_before` is an order (0 violations over 2352 pairs), and outcomes are identical over 135 more poses.
+    - Should-fix: "no ring pose reaches these sites" is false (three slit tests reach `held_cut` with a decided tie); the tie arm is spelled twice (`walks_before` and `walk_faces_first`'s closure); `tied_held`'s far-ends test changed meaning unpinned; `strut_anchor` accepts a case argued unreachable.
+    - Three readings of which side a tied cut is on are to be measured for agreement and recorded on the honeone two-homes row. Fix pass sent. (CLEAVE orchestrator)
