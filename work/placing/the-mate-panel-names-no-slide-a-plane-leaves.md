@@ -4,6 +4,8 @@ kind: issue
 title: The mate panel offers every slide and refuses by count, naming none of the two a plane leaves
 status: open
 opened: 2026-10-26
+priority: P2
+cost: M
 ---
 
 

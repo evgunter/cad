@@ -5,6 +5,7 @@ title: committing a mate floods the banner: a refused label and raw-id dropped-v
 status: open
 opened: 2026-10-31
 priority: P1
+cost: M
 ---
 
 ## Finding

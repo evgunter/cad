@@ -2,7 +2,7 @@
 id: chrome
 kind: program
 title: CHROME — viewer chrome and coverage
-status: ready
+status: active
 opened: 2026-09-03
 group: gui/viewer
 prefix: chrome/
@@ -50,6 +50,20 @@ residue, and the fault-badge attribution rows with the subset-policy
 class behind them. The creation forms' vocabulary went to FORMS, what
 the viewer offers a person to do went to OFFER, and eleven rows went
 by the re-homing rule to VGEOM, FIT, VACUITY, HELPER and BLIND.
+
+**Cut a third time on 2026-11-01**, after Ev's two GUI walks of
+2026-10-31 filed four P0s and a dozen P1s here and the slate measured
+over 100 points. Ev (in chat): three tracks, each with a full slate of
+P0s and P1s, oversize where the extra is P2 and below that will not be
+dispatched anyway. Where a new body lands, which spaces the picture
+shows and what reaches the product went to SPACES; the mate tool and
+the gestures that re-point, move or delete a placement went to
+PLACING. CHROME keeps **what the panes show and say about the
+document**: whether an edit after a failure reads as taking effect,
+which forms are drawn when, the banner and badges, the tree's
+structure and what it and the selection call a thing. Its P0 and P1
+load is 28; the rest of `load` is the P2-and-below tail, by Ev's
+sizing rule rather than an overrun.
 
 Charter and unit order: `work/chrome/plan.md`; narrative in
 `work/chrome/log.md`.
