@@ -2,11 +2,14 @@
 id: vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces
 kind: issue
 title: The vertex-vertex lane reads a bound's side against a curved sector face's tangent plane with no curvature charge, where the pierce lane charges it
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: M
 parent: the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading
+closed: 2026-11-01
+pr: 6253
+branch: tangrim/sector-passes-descend
 ---
 
 ## What
@@ -53,3 +56,11 @@ GERM and HONE). First step: build a vertex-vertex contact between a
 curved face and a bound that leaves it nearly tangent (a box corner
 touching a cylinder wall, the box's edge tilted to within a few `1e-5`
 of the wall's tangent plane) and read where it lands.
+
+## Closed
+
+2026-11-01, PR 6253 (`tangrim/sector-passes-descend`). `BoolSector`
+carries its face's lever (`PierceLever::of` at the vertex) and bend, and
+`sectors::sector_code` charges a bound's definite side against the
+other sector's face exactly as the pierce lane does. A spline sector
+face takes no charge yet (`the-edge-edge-rule-descends-a-flanks-projection-not-its-bound`, item 2).
