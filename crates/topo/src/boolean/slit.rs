@@ -1232,20 +1232,17 @@ fn carrier_on_surface<T: Decide>(
             geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. },
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Torus { .. },
         ) => (
-            Samples::Spread(5),
-            RIDER_ON_CURVED,
-            Coincide::EdgeOnCurvedFace,
-        ),
-        // A conic meets a torus at no more than eight points unless it
-        // lies on it, as a meridian, a parallel or a Villarceau circle
-        // does.
-        (
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
-            geom::Surface::Torus { .. },
-        ) => (
-            Samples::Spread(9),
+            // A conic meets a torus at no more than eight points unless
+            // it lies on it, as a meridian, a parallel or a Villarceau
+            // circle does.
+            Samples::Spread(if matches!(surface, geom::Surface::Torus { .. }) {
+                9
+            } else {
+                5
+            }),
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
@@ -1268,10 +1265,9 @@ fn spread<T: Decide>(
     ((t0, t1), closed): ((T, T), bool),
     n: u32,
 ) -> Vec<Point3<T>> {
-    let steps = if closed { n } else { n - 1 };
-    (0..n)
-        .map(|k| carrier.eval(t0 + (t1 - t0) * T::from_f64(f64::from(k) / f64::from(steps))))
-        .collect()
+    let count = |m: u32| (0..m).fold(T::zero(), |s, _| s + T::one());
+    let step = (t1 - t0) / count(if closed { n } else { n - 1 });
+    (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
 }
 
 /// **A circle of a torus's own reads on it at the nine points
