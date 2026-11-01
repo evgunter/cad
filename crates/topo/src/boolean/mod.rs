@@ -36,9 +36,11 @@
 //!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing
-//!    ON an edge (both edges split → a v-v pair); coplanar edge-face
-//!    pairs are skipped — their edge-edge events are caught when the
-//!    edge meets the face's noncoplanar NEIGHBOR faces (tested).
+//!    ON an edge (both edges split → a v-v pair); a line edge lying in
+//!    a planar face is read at its ends, its edge-edge events caught
+//!    when the edge meets the face's noncoplanar NEIGHBOR faces
+//!    (tested), and each of its pieces the face holds is recorded once
+//!    both directions have split it.
 //!    Every contact the sweep discovers or creates is emitted as a
 //!    **contact record** ([`ContactRecords`]), citing the coincidence
 //!    that decided it; nothing is ever scanned-for after the fact.
@@ -761,6 +763,11 @@ pub(crate) struct Mints {
     in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
 
+/// How many splits of one operand's clone [`Mints`] held at a moment
+/// ([`Mints::mark`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SplitMark(usize);
+
 impl Default for Mints {
     fn default() -> Self {
         let of = |operand| {
@@ -862,9 +869,26 @@ impl Mints {
         operand: Operand,
         edge: crate::entity::EdgeKey,
     ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+        self.pieces_since(operand, edge, SplitMark(0))
+    }
+
+    /// Where `operand`'s splits stand now: [`Self::pieces_since`] reads
+    /// the splits made after it.
+    pub(crate) fn mark(&self, operand: Operand) -> SplitMark {
+        SplitMark(self.vertices[usize::from(operand == Operand::B)].len())
+    }
+
+    /// [`Self::pieces`] of `edge` as it stood at `mark`: the pieces the
+    /// splits made since cut it into, and the vertices they minted on it.
+    pub(crate) fn pieces_since(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+        SplitMark(mark): SplitMark,
+    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
         let mut keys = vec![edge];
         let mut minted = Vec::new();
-        for (parent, vertex, child) in self.of(operand) {
+        for (parent, vertex, child) in self.of(operand).skip(mark) {
             if let Some(i) = keys.iter().position(|&k| k == parent) {
                 keys.insert(i + 1, child);
                 minted.push(vertex);
@@ -895,8 +919,10 @@ pub enum Cell {
 }
 
 /// **The boolean reduction's working contact set** (Mäntylä's ON-sets
-/// `sonvv`, `sonva`, `sonvb`, and the touches along a line the
-/// classification reads), each row citing the reduction's own
+/// `sonvv`, `sonva`, `sonvb`; the touches along a line the
+/// classification reads; the touches of faces the glue door verifies;
+/// and the pieces of line edges lying in planar faces), each row citing
+/// the reduction's own
 /// decisions: operand-tagged, every key in its operand clone's arena.
 /// It is the reduction's vocabulary, read by operand by the
 /// classification and the insertion, and it is not a body's record:
@@ -922,7 +948,8 @@ pub struct ReductionContacts {
     /// carry keeps a row where both faces survive.
     pub ff: Vec<Cited<FfContact>>,
     /// Pieces of line edges of A lying in planar faces of B, each citing
-    /// the decisions that put the edge's ends on the face's plane
+    /// the records that placed the piece's two ends on the face: inside
+    /// it (`a_on_b`), or one with a vertex bounding it (`vv`)
     /// (`reduce::settle_in_plane`).
     pub a_in_b: Vec<Cited<EfContact>>,
     /// Pieces of line edges of B lying in planar faces of A, likewise.
@@ -937,57 +964,30 @@ impl ReductionContacts {
     /// B's), then A's edges in B's faces and B's in A's, each edge
     /// first.
     pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
-        let vv = self.vv.iter().map(|c| {
-            (
-                [
-                    (Operand::A, Cell::Vertex(c.a)),
-                    (Operand::B, Cell::Vertex(c.b)),
-                ],
-                &c.cites,
-            )
-        });
-        fn vf(
-            side: Operand,
-            other: Operand,
-            list: &[Cited<VfContact>],
+        use Operand::{A, B};
+        fn tagged<R>(
+            [x, y]: [Operand; 2],
+            list: &[Cited<R>],
+            cells: fn(&R) -> [Cell; 2],
         ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
             list.iter().map(move |c| {
-                (
-                    [(side, Cell::Vertex(c.vertex)), (other, Cell::Face(c.face))],
-                    &c.cites,
-                )
+                let [p, q] = cells(c);
+                ([(x, p), (y, q)], &c.cites)
             })
         }
-        let ee = self.ee.iter().map(|c| {
-            (
-                [(Operand::A, Cell::Edge(c.a)), (Operand::B, Cell::Edge(c.b))],
-                &c.cites,
-            )
-        });
-        let ff = self.ff.iter().map(|c| {
-            (
-                [(Operand::A, Cell::Face(c.a)), (Operand::B, Cell::Face(c.b))],
-                &c.cites,
-            )
-        });
-        fn ef(
-            side: Operand,
-            other: Operand,
-            list: &[Cited<EfContact>],
-        ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
-            list.iter().map(move |c| {
-                (
-                    [(side, Cell::Edge(c.edge)), (other, Cell::Face(c.face))],
-                    &c.cites,
-                )
-            })
-        }
-        vv.chain(vf(Operand::A, Operand::B, &self.a_on_b))
-            .chain(vf(Operand::B, Operand::A, &self.b_on_a))
-            .chain(ee)
-            .chain(ff)
-            .chain(ef(Operand::A, Operand::B, &self.a_in_b))
-            .chain(ef(Operand::B, Operand::A, &self.b_in_a))
+        let vf = |c: &VfContact| [Cell::Vertex(c.vertex), Cell::Face(c.face)];
+        let ef = |c: &EfContact| [Cell::Edge(c.edge), Cell::Face(c.face)];
+        tagged([A, B], &self.vv, |c| [Cell::Vertex(c.a), Cell::Vertex(c.b)])
+            .chain(tagged([A, B], &self.a_on_b, vf))
+            .chain(tagged([B, A], &self.b_on_a, vf))
+            .chain(tagged([A, B], &self.ee, |c| {
+                [Cell::Edge(c.a), Cell::Edge(c.b)]
+            }))
+            .chain(tagged([A, B], &self.ff, |c| {
+                [Cell::Face(c.a), Cell::Face(c.b)]
+            }))
+            .chain(tagged([A, B], &self.a_in_b, ef))
+            .chain(tagged([B, A], &self.b_in_a, ef))
     }
 }
 

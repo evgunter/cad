@@ -34,13 +34,14 @@
 //!   crosses a plane at most once, so the split face is done with both
 //!   children); each split strictly shortens spans — termination is
 //!   structural.
-//! - **Coplanar edge-face pairs are skipped** (a line with both
-//!   endpoints ON the face plane, or a conic lying in it ⇒ endpoint
-//!   processing only): every relevant crossing inside the face is
-//!   caught when the edge is swept against the face's noncoplanar
-//!   NEIGHBOR faces, where the crossing point lands ON the shared
-//!   boundary edge (the `OnEdge` case — tested by the coplanar-overlap
-//!   acceptance fixture).
+//! - **A coplanar edge-face pair is read at the edge's ends** (a line
+//!   with both endpoints ON the face plane, or a conic lying in it):
+//!   every relevant crossing inside the face is caught when the edge is
+//!   swept against the face's noncoplanar NEIGHBOR faces, where the
+//!   crossing point lands ON the shared boundary edge (the `OnEdge`
+//!   case — tested by the coplanar-overlap acceptance fixture). Each
+//!   piece of such a line the face holds is recorded once both
+//!   directions have split it ([`settle_in_plane`]); a conic is not.
 //! - **Edge-on-edge crossings** are discovered as edge-face events
 //!   landing ON an edge of the face: BOTH edges are split at the
 //!   (bitwise-shared) intersection point — the minted vertices are a
@@ -49,7 +50,9 @@
 //!   order, faces in arena snapshot order, worklist FIFO. Then the
 //!   settle stage ([`settle_deferred`]): the covered touches a direction
 //!   deferred are read again on the fragments both directions left,
-//!   in deferral order ([`sweep_and_settle`] runs all three).
+//!   in deferral order; then the pieces of every line lying in a planar
+//!   face are recorded ([`settle_in_plane`]). [`sweep_and_settle`] runs
+//!   all four.
 //!
 //! The module also hosts the two **pre-sweep gates**, which refuse an
 //! operand pair before any edge is split: the operand gate
@@ -231,16 +234,13 @@ impl ContactAcc {
     }
     pub(super) fn vv(&mut self, c: VvContact, row: PendingRow) {
         let cites = self.decide(row);
-        match self.seen_vv.get(&(c.a, c.b)) {
-            Some(&i) => {
-                let at = &mut self.records.vv[i].cites;
-                *at = at.union(&cites);
-            }
-            None => {
-                self.seen_vv.insert((c.a, c.b), self.records.vv.len());
-                self.records.vv.push(Cited::new(c, cites));
-            }
-        }
+        record(
+            &mut self.seen_vv,
+            &mut self.records.vv,
+            (c.a, c.b),
+            c,
+            cites,
+        );
     }
     pub(super) fn vf(&mut self, piercing: Operand, c: VfContact, row: PendingRow) {
         let cites = self.decide(row);
@@ -248,16 +248,7 @@ impl ContactAcc {
             Operand::A => (&mut self.seen_ab, &mut self.records.a_on_b),
             Operand::B => (&mut self.seen_ba, &mut self.records.b_on_a),
         };
-        match seen.get(&(c.vertex, c.face)) {
-            Some(&i) => {
-                let at = &mut list[i].cites;
-                *at = at.union(&cites);
-            }
-            None => {
-                seen.insert((c.vertex, c.face), list.len());
-                list.push(Cited::new(c, cites));
-            }
-        }
+        record(seen, list, (c.vertex, c.face), c, cites);
     }
     /// Records `c`, a piece of an edge of `x_is` lying in a face of the
     /// other operand, citing `cites`.
@@ -266,16 +257,7 @@ impl ContactAcc {
             Operand::A => &mut self.records.a_in_b,
             Operand::B => &mut self.records.b_in_a,
         };
-        match self.seen_ef.get(&(x_is, c.edge, c.face)) {
-            Some(&i) => {
-                let at = &mut list[i].cites;
-                *at = at.union(&cites);
-            }
-            None => {
-                self.seen_ef.insert((x_is, c.edge, c.face), list.len());
-                list.push(Cited::new(c, cites));
-            }
-        }
+        record(&mut self.seen_ef, list, (x_is, c.edge, c.face), c, cites);
     }
     /// Whether `vertex` of `x_is` is recorded strictly inside `face` of
     /// the other operand.
@@ -285,6 +267,24 @@ impl ContactAcc {
             Operand::B => &self.seen_ba,
         }
         .contains_key(&(vertex, face))
+    }
+    /// The citations of the record placing `vertex` of `x_is` on `face`
+    /// of the other operand: strictly inside it, or one with a vertex of
+    /// the other operand (the one vertex there, which bounds `face` where
+    /// `vertex` lies in its closure).
+    fn placed_on(&self, x_is: Operand, vertex: VertexKey, face: FaceKey) -> Option<&Cites> {
+        let (seen, list) = match x_is {
+            Operand::A => (&self.seen_ab, &self.records.a_on_b),
+            Operand::B => (&self.seen_ba, &self.records.b_on_a),
+        };
+        let tied = |c: &&Cited<VvContact>| match x_is {
+            Operand::A => c.a == vertex,
+            Operand::B => c.b == vertex,
+        };
+        match seen.get(&(vertex, face)) {
+            Some(&i) => Some(&list[i].cites),
+            None => self.records.vv.iter().find(tied).map(|c| &c.cites),
+        }
     }
     /// Records the chart point `uv` of `face` that `vertex` of `x_is`
     /// was placed inside the face at ([`Self::charts`]).
@@ -315,6 +315,27 @@ impl ContactAcc {
     /// The records, each citing rows of the decisions alongside them.
     pub(super) fn finish(self) -> (ReductionContacts, Vec<PendingRow>) {
         (self.records, self.pending)
+    }
+}
+
+/// Records `c` in `list` under `key`, citing `cites`: or, where `seen`
+/// holds `key` already, adds `cites` to the record there.
+fn record<K: Ord, R>(
+    seen: &mut std::collections::BTreeMap<K, usize>,
+    list: &mut Vec<Cited<R>>,
+    key: K,
+    c: R,
+    cites: Cites,
+) {
+    match seen.get(&key) {
+        Some(&i) => {
+            let at = &mut list[i].cites;
+            *at = at.union(&cites);
+        }
+        None => {
+            seen.insert(key, list.len());
+            list.push(Cited::new(c, cites));
+        }
     }
 }
 
@@ -1647,11 +1668,13 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     }
                 }
                 // Endpoint(s) on the face plane: `dovertexonface`
-                // (steps 2–4, 7–8). A fully coplanar pair (Zero, Zero)
-                // deliberately gets endpoint treatment ONLY (module
-                // docs: interior events surface via neighbor faces),
-                // and a vertex a later split mints on the edge is read
-                // against the face as the ends are (`lying_in`).
+                // (steps 2–4, 7–8). An edge lying in the plane
+                // (Zero, Zero) is read at its ends here, its interior
+                // events surfacing via the face's neighbour faces (module
+                // docs); a vertex a later split mints on it is read
+                // against the face as the ends are (`lying_in`), and the
+                // pieces the face holds are recorded once both
+                // directions have split it ([`settle_in_plane`]).
                 (za, zb) => {
                     if (za, zb) == (Sign::Zero, Sign::Zero) {
                         lying_in.push(LyingIn::Plane(face));
@@ -1661,9 +1684,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         if !on_declared_shared_carrier(x, x_is, &edge, face, declared) {
                             contacts.in_plane.push(InPlane {
                                 x_is,
-                                edge: edge_key,
+                                fragment: edge_key,
+                                mark: contacts.splits.mark(x_is),
                                 face,
-                                ends: [(u, d1.margin), (v, d2.margin)],
                             });
                         }
                     }
@@ -1775,32 +1798,37 @@ pub(super) fn sweep_and_settle<T: Decide + Bounds + crate::props::AtRestPolicy>(
     settle_in_plane([a, b], contacts, band)
 }
 
-/// A line edge the line lane read lying in a planar face's plane, both
-/// its ends decided on the plane ([`LyingIn::Plane`]), with the margin
-/// each end was decided by.
+/// A fragment of a line edge the line lane read lying in a planar face's
+/// plane, both its ends decided on the plane ([`LyingIn::Plane`]), named
+/// as it stood when read: `fragment`, before every split from `mark` on.
+/// Its pieces are what those splits made of it ([`super::Mints::pieces_since`]),
+/// so each piece's ends are the fragment's ends or vertices those splits
+/// minted, each read against `face` where it was made.
 #[derive(Debug, Clone, Copy)]
 struct InPlane {
     x_is: Operand,
-    edge: EdgeKey,
+    fragment: EdgeKey,
+    mark: super::SplitMark,
     face: FaceKey,
-    ends: [(VertexKey, MarginDiag); 2],
 }
 
 /// **Records each piece of a line edge lying in a planar face that the
 /// face holds** (D1: every pair whose interiors meet is recorded, an
 /// edge lying in a face included), once both directions have split the
 /// edge.
-/// A piece lies in the plane as the edge's ends do, and its interior
+/// A piece lies in the plane as the fragment's ends do, and its interior
 /// meets the face's where an end is recorded inside the face or, failing
 /// that, where its midpoint is inside ([`contfp_decided`]); a piece along
 /// the face's boundary is a touch of two edges, which the classification
-/// records. Each record cites the decisions that put the edge's two ends
-/// on the plane.
+/// records. Each record cites the records that placed the piece's own
+/// two ends on the face ([`ContactAcc::placed_on`]): it states no point
+/// a second time.
 ///
 /// # Errors
 ///
 /// [`BooleanError::Escalated`] where the containment door cannot place a
-/// midpoint ([`esc`]).
+/// midpoint ([`esc`]); [`BooleanError::ClassificationInvariant`] where a
+/// piece the face holds ends at a vertex no record places on the face.
 fn settle_in_plane<T: Decide>(
     [a, b]: [&Body<T>; 2],
     contacts: &mut ContactAcc,
@@ -1814,7 +1842,11 @@ fn settle_in_plane<T: Decide>(
         let plane = face_plane(y, lie.face).ok_or(BooleanError::ClassificationInvariant {
             what: "a face an edge lies in lost its plane",
         })?;
-        for piece in contacts.splits.pieces(lie.x_is, lie.edge).0 {
+        let pieces = contacts
+            .splits
+            .pieces_since(lie.x_is, lie.fragment, lie.mark)
+            .0;
+        for piece in pieces {
             let edge = x
                 .get_edge(piece)
                 .ok_or(BooleanError::ClassificationInvariant {
@@ -1833,21 +1865,21 @@ fn settle_in_plane<T: Decide>(
             if !held {
                 continue;
             }
-            let cites = lie.ends.map(|(w, on)| {
-                contacts.decide(PendingRow::on(
-                    (lie.x_is, super::Cell::Vertex(w)),
-                    (lie.x_is.other(), super::Cell::Face(lie.face)),
-                    Some(on),
-                ))
-            });
-            let [c0, c1] = cites;
+            let placed = |w| {
+                contacts.placed_on(lie.x_is, w, lie.face).cloned().ok_or(
+                    BooleanError::ClassificationInvariant {
+                        what: "a piece a face holds ends at a vertex no record places on the face",
+                    },
+                )
+            };
+            let cites = placed(w0)?.union(&placed(w1)?);
             contacts.ef(
                 lie.x_is,
                 EfContact {
                     edge: piece,
                     face: lie.face,
                 },
-                c0.union(&c1),
+                cites,
             );
         }
     }
@@ -6257,6 +6289,10 @@ pub(super) mod factored_crossing;
 #[cfg(test)]
 #[path = "coplanar_conic_rows.rs"]
 pub(super) mod coplanar_conic_rows;
+
+#[cfg(test)]
+#[path = "in_plane_rows.rs"]
+mod in_plane_rows;
 
 #[cfg(test)]
 #[path = "curved_lane_spline_rows.rs"]
