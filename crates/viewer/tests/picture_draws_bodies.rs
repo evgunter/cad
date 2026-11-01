@@ -423,7 +423,8 @@ fn a_read_by_index_takes_the_members_its_index_names() {
     use pncad::document::{Dimension, Formula};
     let tol = Tol::witness();
     let count = |k| Formula::var(k, Dimension::Count);
-    let cases: [(&str, i64, Box<dyn Fn(VarId) -> Formula>, Vec<u32>); 3] = [
+    type At = Box<dyn Fn(VarId) -> Formula>;
+    let cases: [(&str, i64, At, Vec<u32>); 3] = [
         ("same", 2, Box::new(count), vec![2]),
         (
             "next",
