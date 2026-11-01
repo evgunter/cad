@@ -43,18 +43,18 @@ use crate::node::RecipeNodeId;
 ///    [`Self::UnsupportedTurnedCell`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
-///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
-///    [`Self::CarrierUnplaced`] and [`Self::PartnerUnread`],
-///    reached from recipes nothing is wrong with,
+///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
+///    [`Self::CarrierUnplaced`], reached from recipes nothing is wrong
+///    with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
 ///    legal document fails in the expensive direction. A variant that
 ///    several constructions reach carries a shape naming which.
 /// 5. A PRECISION LIMIT the model controls: [`Self::WayInZeroBand`],
-///    [`Self::JoinedPieceOffRoot`] and [`Self::BandVerdictsDisagree`], a
-///    verdict the tolerance band cannot give on a sound result. Each
-///    ends in the model's lever alone.
+///    [`Self::JoinedPieceOffRoot`], [`Self::BandVerdictsDisagree`] and
+///    [`Self::PartnerUnread`], a verdict the tolerance band cannot give
+///    on a sound result. Each ends in the model's lever alone.
 ///
 /// **Three of the five categories are readable off the opening
 /// words.** Three framings are written once each —
@@ -304,12 +304,12 @@ pub enum NamingError {
     },
     /// A **crossing at a vertex whose partner the boolean read nothing
     /// of** ([`topo::UnreadPartner`]): the vertex sits in one pair with
-    /// a vertex of the other operand whose neighbourhood no wedge or
-    /// corner reading classes its edges against, so the boolean holds no
-    /// class for them, and the crossing's senses cannot be read. The
-    /// boolean builds such a result soundly; what is missing is a rule
-    /// that reads the edges against the partner's neighbourhood
-    /// (`work/tang/a-lone-unread-partner-has-no-class-rule`).
+    /// a vertex of the other operand, and some edge of it reads within
+    /// the band of the partner's faces at the point, so the cone the
+    /// boolean reads the edges through classes none of them, and the
+    /// crossing's senses cannot be read. The boolean builds such a result
+    /// soundly; the band gives no verdict there, so it is a precision
+    /// limit, whose lever is moving the edge clear of the faces.
     PartnerUnread {
         /// The result-body vertex.
         vertex: VertexKey,
@@ -683,6 +683,12 @@ const JOINED_PIECE_LEVER: &str = concat!(
     " so the joined piece lies clearly on or clearly off that operand edge"
 );
 
+/// The lever of [`NamingError::PartnerUnread`].
+const PARTNER_UNREAD_LEVER: &str = concat!(
+    geom_core::coincidence_move_arm!(),
+    " so each edge at the vertex lies clearly on or off the other operand's faces"
+);
+
 /// What a shared-rim derivation found instead of the one edge it asked
 /// for — the fact a free-text sentence would have hidden.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -887,23 +893,14 @@ impl crate::spoken::Say for NamingError {
                 unread,
             } => write!(
                 f,
-                "{UNRULED_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
-                 vertex {partner:?}, which lies {} and which the boolean read nothing of, so it \
-                 classed none of the vertex's edges and the crossing has no senses to name it \
-                 by (work/tang/a-lone-unread-partner-has-no-class-rule)",
+                "{LIMIT_FRAMING}: operand {}'s vertex {vertex:?} meets the other operand's \
+                 vertex {partner:?}, and some edge of it reads within the tolerance of the \
+                 partner's faces, so no edge there is classed and the crossing has no senses to \
+                 name it by",
                 match unread.operand {
                     topo::Operand::A => "A",
                     topo::Operand::B => "B",
                 },
-                match unread.neighbourhood {
-                    topo::UnreadNeighbourhood::OneFace => "inside one smooth face",
-                    topo::UnreadNeighbourhood::NoBisector => {
-                        "on an edge whose two faces hold no bisector"
-                    }
-                    topo::UnreadNeighbourhood::ConeUnread => {
-                        "at a polygon cone, some edge of which no reference decides"
-                    }
-                }
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
@@ -995,7 +992,6 @@ impl NamingError {
             | Self::ConventionalVertex { .. }
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
-            | Self::PartnerUnread { .. }
             | Self::MemberEdgeTied { .. }
             | Self::UnsupportedCrossingSenses { .. }
             | Self::UnsupportedSeamSides { .. }
@@ -1004,7 +1000,8 @@ impl NamingError {
             | Self::UnsupportedTurnedCell { .. } => Some(Category::Unruled),
             Self::WayInZeroBand { .. }
             | Self::JoinedPieceOffRoot { .. }
-            | Self::BandVerdictsDisagree { .. } => Some(Category::Limit),
+            | Self::BandVerdictsDisagree { .. }
+            | Self::PartnerUnread { .. } => Some(Category::Limit),
             Self::Band(_) | Self::Escalated { .. } => None,
         }
     }
@@ -1027,8 +1024,9 @@ impl NamingError {
             Self::WayInZeroBand { .. } => AMBIGUITY_FACTOR_LEVER,
             Self::JoinedPieceOffRoot { .. } => JOINED_PIECE_LEVER,
             Self::BandVerdictsDisagree { shape, .. } => shape.lever(),
+            Self::PartnerUnread { .. } => PARTNER_UNREAD_LEVER,
             other => unreachable!(
-                "{other:?} has no lever: `NamingError::category` puts exactly the three \
+                "{other:?} has no lever: `NamingError::category` puts exactly the four \
                  precision-limit variants in `Category::Limit`, and only those ask for one"
             ),
         }
@@ -1889,13 +1887,12 @@ mod display_tests {
                         operand: topo::Operand::B,
                         vertex: two_vertices().0,
                         partner: two_vertices().1,
-                        neighbourhood: topo::UnreadNeighbourhood::OneFace,
                     },
                 },
                 vec![
-                    "inside one smooth face",
-                    "classed none of the vertex's edges",
-                    "work/tang/a-lone-unread-partner-has-no-class-rule",
+                    "reads within the tolerance of the partner's faces",
+                    "no edge there is classed",
+                    "clearly on or off the other operand's faces",
                 ],
             ),
             (
