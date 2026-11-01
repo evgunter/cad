@@ -87,3 +87,25 @@ fails at ε 1e-6 under `CAD_FUZZ_SEED=0x9cb9baff9ceb8aeb CAD_FUZZ_EFFORT=1`:
 not the region arm's. The test draws its seed per run, so it is red only
 on runs that draw this one. By the discipline's fuzzer rule, the
 counterexample is owed a pinned deterministic row beside its fix.
+
+## Two blend-wording rows red on main since PR 6200 (RESTCURVE, PR 6163, 2026-11-01)
+
+Not sweep-analytic rows; filed here as main-red evidence rather than as a
+new row. Both fail on bare `origin/main` at `a95036de` at the default ε,
+in a clean worktree, and both read text that PR 6200
+(`chrome/blend-recourse-words`, merge `c43600e2`) re-worded in
+`crates/sweep/src/blend/mod.rs`:
+
+- `editor-core` `refusal_concision_chains::every_node_refusal_renders_within_the_budget`
+  (`crates/editor-core/tests/refusal_concision_chains.rs:711`):
+  `Blend/UnsupportedRunOut` renders 90 words and
+  `Blend/UnsupportedCorner(mixed)` 95, both over the 75-word budget, the
+  new corner recourse carrying most of it.
+- `sweep` `m5_pr12_die_body::a_subset_of_the_edges_refuses_at_the_assembly_front_door`
+  (`crates/sweep/tests/m5_pr12_die_body.rs:185`): "the refusal names the
+  missing front door" no longer matches the re-worded curved-end-face
+  refusal ("a straight blend would have to stop against a curved face,
+  which is not supported yet; …").
+
+Neither test was touched by PR 6200, and both are outside its diff's crate
+tests, so its own CI did not run them red.
