@@ -5,6 +5,7 @@ title: clicking a face a check finding names says it no longer resolves
 status: open
 opened: 2026-10-31
 priority: P1
+cost: M
 ---
 
 
