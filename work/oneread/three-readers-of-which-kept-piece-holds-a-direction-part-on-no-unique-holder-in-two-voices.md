@@ -51,3 +51,7 @@ whatever `p` is on (vertex, edge, interior), with one answer for "no
 unique holder": a `Limit` where the reading has no rule, a broken
 invariant only where the state cannot arise. Pin N3 and N4 with a
 witness each, or show they cannot arise.
+
+## Slate triage
+
+2026-11-01: moved from `work/cleave/` by `git mv` when CLEAVE handed its track back. It is ONEREAD's story: one question ("which kept piece holds `d` at `p`") answered by three readers. Id and body unchanged. (CLEAVE orchestrator)

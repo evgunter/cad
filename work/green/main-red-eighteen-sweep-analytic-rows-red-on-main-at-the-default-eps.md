@@ -87,3 +87,12 @@ fails at ε 1e-6 under `CAD_FUZZ_SEED=0x9cb9baff9ceb8aeb CAD_FUZZ_EFFORT=1`:
 not the region arm's. The test draws its seed per run, so it is red only
 on runs that draw this one. By the discipline's fuzzer rule, the
 counterexample is owed a pinned deterministic row beside its fix.
+
+## A second seed for the same topo fuzzer at 1e-6 (RESTCURVE, PR 6244, 2026-11-01)
+
+`chord_join::wall_ring_rows::a_spline_bounded_wall_island_re_homes_its_bystanders_as_the_ball_says`
+fails at ε 1e-6 under `CAD_FUZZ_SEED=0x49504906104860f0 CAD_FUZZ_EFFORT=1`:
+"asked 12, escalated 0: centre `(0.7, 0.1, -0.2)`, cuts
+`[0.5519863698563332, 0.8011729840077771]`: `RingHomingAmbiguous { ring:
+LoopKey(3v1) }`". It reproduces with main's torus door (`torus_region.rs`
+as on main `71584a65`) swapped in. Same failure shape as the seed above.

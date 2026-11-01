@@ -5030,13 +5030,20 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             radius,
             ..
         } => match super::solid_contain::line_wall_roots(
-            origin, dir, c_origin, axis, radius, span, band,
+            origin,
+            dir,
+            c_origin,
+            axis,
+            radius,
+            span,
+            band,
+            super::solid_contain::About::Start,
         )
         .map_err(|fault| BooleanError::Escalated {
             decision: BooleanDecision::WallRoots(fault.rung),
             diag: fault.diag,
         })? {
-            WallRoots::Two(ts) => two(ts),
+            WallRoots::Two(ts, _) => two(ts),
             WallRoots::Tangent => Err(Unsettled::Tangency),
             WallRoots::AxisParallel => return Ok(Some(Err(SpanVerdict::Constant))),
             WallRoots::Miss => Ok(CircleRoots::Miss),
@@ -5067,12 +5074,19 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {
-            match super::solid_contain::line_sphere_roots(origin, dir, center, radius, band)
-                .map_err(|diag| BooleanError::Escalated {
-                    decision: BooleanDecision::SphereRoots,
-                    diag,
-                })? {
-                WallRoots::Two(ts) => two(ts),
+            match super::solid_contain::line_sphere_roots(
+                origin,
+                dir,
+                center,
+                radius,
+                band,
+                super::solid_contain::About::Start,
+            )
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::SphereRoots,
+                diag,
+            })? {
+                WallRoots::Two(ts, _) => two(ts),
                 WallRoots::Tangent => Err(Unsettled::Tangency),
                 WallRoots::AxisParallel | WallRoots::Miss => Ok(CircleRoots::Miss),
             }
@@ -5139,8 +5153,15 @@ fn line_cone_roots<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Ok(Err(Unsettled::AtApex)),
     }
-    let [a2, b2, c2] =
-        super::solid_contain::line_cone_quadratic(origin, dir, apex, axis, half_angle);
+    let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
+        origin,
+        dir,
+        apex,
+        axis,
+        half_angle,
+        super::solid_contain::About::Start,
+    )
+    .coeffs;
     let length = dir.norm() * (t1 - t0).abs();
     match decide(
         "bool_line_cone_lead",
@@ -5167,12 +5188,12 @@ fn line_cone_roots<T: Decide>(
         Sign::Negative => return Ok(Ok(CircleRoots::Miss)),
     }
     let roots = geom_brep::quartic::quadratic_roots(a2, b2, c2, disc);
-    let two = T::from_f64(2.0);
     let speed = dir.norm();
     let (lo, hi) = (t0.min(t1), t0.max(t1));
     for t in roots {
         let terms = (w0.norm() + speed * t.abs()).powi(2);
-        let slack = speed * geom_core::rounding_charge(terms) / (two * disc.sqrt());
+        let slack =
+            super::solid_contain::over_root_slope(speed * geom_core::rounding_charge(terms), disc);
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "bool_line_cone_root_slack",

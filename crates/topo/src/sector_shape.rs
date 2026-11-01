@@ -35,9 +35,13 @@
 //!    quarters ([`FullTurn`]). At a cone's apex the window between them
 //!    reads no width, and [`apex_corner_shape`] reads the whole turn round
 //!    the apex the same way. Both take the turn by one rule
-//!    ([`reads_slit_tip_turn`]). The same reading on a one-edge orbit (a
-//!    strut vertex) is the legitimate full-circle sector and takes the
-//!    90° device.
+//!    ([`reads_slit_tip_turn`]). A wrap edge's tip is the one-edge form
+//!    of the same structure: its face's loop walks the edge out and
+//!    straight back, the face wraps the full turn round it, and
+//!    [`SlitTips`] holds it beside the slits' tips (the name covers
+//!    both), so its corner reads the full turn by the same rule. Any
+//!    other one-edge orbit (a strut vertex) is the legitimate
+//!    full-circle sector and takes the 90° device.
 //!
 //! The three items above are the CONTRACT — what each rung decides and
 //! what it returns. The **derivations** — why convex subdivision beats
@@ -459,8 +463,9 @@ pub(crate) enum CornerBounds {
     /// One orbit half-edge, a strut vertex ([`sector_shape`]'s
     /// `full_circle`).
     OneEdge,
-    /// A slit's two coincident edges at its tip ([`SlitTips`]): the face
-    /// wraps a full turn round them.
+    /// A slit's two coincident edges at its tip, or a wrap edge's tip
+    /// walked out and back ([`SlitTips`]): the face wraps a full turn
+    /// round them.
     SlitTip,
 }
 
@@ -470,11 +475,12 @@ pub(crate) enum CornerBounds {
 pub(crate) enum CornerShape<T: Real> {
     /// The rungs decided the corner ([`sector_shape`]).
     Sector(SectorShape<T>),
-    /// The face's full turn round a slit's tip.
+    /// The face's full turn round a slit's tip or a wrap edge's.
     FullTurn(FullTurn<T>),
 }
 
-/// A face's full turn round a slit's tip, from the next orbit chord
+/// A face's full turn round a slit's tip or a wrap edge's ([`SlitTips`],
+/// whose name covers both), from the next orbit chord
 /// counter-clockwise (about the face's outward normal) round to the
 /// corner's own, the two along one ray.
 #[derive(Clone, Copy, Debug)]
@@ -556,11 +562,27 @@ pub(crate) fn corner_shape<T: Decide>(
 /// and `face` carries them as a slit of one of its loops or as a ring:
 /// it wraps round the tip, so its corner there between the two edges is
 /// a full turn (the Boolean's `sectors::build_sectors`, the split's
-/// [`crate::splitting::wide_entries`]). The Boolean's reduction may split
-/// the two edges apart from the tip, each at its own vertex, so each lane
-/// takes the reading before its reduction.
+/// [`crate::splitting::wide_entries`]). A wrap edge's tip
+/// (`validate::wrap_tips`, DESIGN `[topology]`'s seam clause) is the
+/// one-edge form: its face's loop walks the edge out and straight back,
+/// so the face wraps the same full turn round the one edge, at a pole or
+/// a cone's apex. The Boolean's reduction may split the two edges apart
+/// from the tip, each at its own vertex, so each lane takes the reading
+/// before its reduction.
+///
+/// **The name covers both, and the two are kept apart inside it.**
+/// Every corner reading ([`Self::holds`], [`Self::bounds`]) reads a tip
+/// of either kind alike, as the full turn they share. A reader of a
+/// slit's line, its two edges ([`Self::face_at`], for `recl::slit_line`
+/// and `join::slit_tip_on`), reads the two-edge tips alone: a wrap tip
+/// has one edge, and no line of two.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
+pub(crate) struct SlitTips {
+    /// The two-edge tips, of slits and rings.
+    slits: std::collections::BTreeSet<(VertexKey, FaceKey)>,
+    /// The one-edge tips, of wrap edges.
+    wraps: std::collections::BTreeSet<(VertexKey, FaceKey)>,
+}
 
 impl SlitTips {
     /// The tips of `body` at rest.
@@ -590,13 +612,25 @@ impl SlitTips {
                 }
             }
         }
-        Self(tips)
+        let wraps = crate::validate::wrap_tips(body)
+            .into_iter()
+            .map(|(v, he)| {
+                let face = body.face_of_half_edge(he).unwrap_or_else(|| {
+                    unreachable!(
+                        "{v:?}'s tip half {he:?} has no face: on a tier-1-valid body every \
+                         half-edge lies in a loop of a face"
+                    )
+                });
+                (v, face)
+            })
+            .collect();
+        Self { slits: tips, wraps }
     }
 
     /// Whether `face`'s corner at `vertex` lies between a slit's two
-    /// edges.
+    /// edges, or round a wrap edge's tip.
     pub(crate) fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
-        self.0.contains(&(vertex, face))
+        self.slits.contains(&(vertex, face)) || self.wraps.contains(&(vertex, face))
     }
 
     /// Both operands' tips at rest, A's first: the order the Boolean's
@@ -606,12 +640,13 @@ impl SlitTips {
     }
 
     /// What the structure says about `face`'s corner at `vertex`, whose
-    /// bounds are one orbit half-edge where `one_edge`.
+    /// bounds are one orbit half-edge where `one_edge`: a tip's, a wrap
+    /// tip's one edge among them, before a strut's.
     pub(crate) fn bounds(&self, vertex: VertexKey, face: FaceKey, one_edge: bool) -> CornerBounds {
-        if one_edge {
-            CornerBounds::OneEdge
-        } else if self.holds(vertex, face) {
+        if self.holds(vertex, face) {
             CornerBounds::SlitTip
+        } else if one_edge {
+            CornerBounds::OneEdge
         } else {
             CornerBounds::Distinct
         }
@@ -620,12 +655,20 @@ impl SlitTips {
     /// Tips named outright, for a unit row that has no body to read.
     #[cfg(test)]
     pub(crate) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
-        Self(pairs.into_iter().collect())
+        Self {
+            slits: pairs.into_iter().collect(),
+            wraps: std::collections::BTreeSet::new(),
+        }
     }
 
-    /// The face carrying a slit `vertex` is the tip of, if it is one.
+    /// The face carrying a slit `vertex` is the tip of, if it is one: a
+    /// two-edge tip, whose edges the reduction may part or glue. A wrap
+    /// edge's tip is not one.
     pub(crate) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
-        self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)
+        self.slits
+            .iter()
+            .find(|(v, _)| *v == vertex)
+            .map(|&(_, f)| f)
     }
 }
 
