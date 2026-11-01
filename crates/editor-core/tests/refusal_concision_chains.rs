@@ -1908,7 +1908,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::IndexCountOutOfRange {
                 index: editor_core::VarId::new(0, tagged(2)),
                 count: -3,
-                admits: 0..=i64::from(u32::MAX),
             },
         ),
         row(
