@@ -137,3 +137,16 @@ bracket). The widths are not re-measured. The rational lane is
 `rational_patch_face` (`props/quad/rational.rs:360`). Topo still reads
 each face about its shell's reference point (`props/quad_lane.rs`,
 `about`), so a body's translation still does not reach the lane.
+
+## The home (JETFRAME, CLEAR, 2026-11-01)
+
+A rational net's first derivative over a cell now has one home in
+`geom`: `net::rational_slope`, reading the cell's homogeneous net about
+a point of the cell (`net::cell_origin`, `net::homogeneous_about`).
+`B = A − c·w` is the homogeneous form of `S − c`, whose derivative is
+`S`'s for any constant `c`, so `c` is never certified and costs only
+width. `NurbsSurface::rect_jet` and `NurbsCurve3::span_deriv` read
+through it, and their widths no longer move with the net. This row was
+not in reach of that unit, and was not fixed in it. The home is
+`pub(crate)` in `geom`; a caller in another crate needs it exported, or
+a door in `geom` that reads through it.

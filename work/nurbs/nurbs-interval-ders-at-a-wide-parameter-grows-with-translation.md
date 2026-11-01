@@ -51,3 +51,16 @@ that it is a thin-parameter door and refuse or flag a wide one.
 ## Re-homed from FLUX to KNOT (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. KNOT collects the spline, net and fit doors in `geom-core` and `geom`: refinement inside an enclosure, the net-state reads, the NURBS derivative and projection doors, and the fit's refusals and solves. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## The home (JETFRAME, CLEAR, 2026-11-01)
+
+A rational net's first derivative over a cell now has one home in
+`geom`: `net::rational_slope`, reading the cell's homogeneous net about
+a point of the cell (`net::cell_origin`, `net::homogeneous_about`).
+`B = A − c·w` is the homogeneous form of `S − c`, whose derivative is
+`S`'s for any constant `c`, so `c` is never certified and costs only
+width. `NurbsSurface::rect_jet` and `NurbsCurve3::span_deriv` read
+through it, and their widths no longer move with the net. This row was
+not in reach of that unit, and was not fixed in it. The home is
+`pub(crate)` in `geom`; a caller in another crate needs it exported, or
+a door in `geom` that reads through it.

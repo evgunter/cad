@@ -93,21 +93,40 @@ fn class<W>(verdict: &BoundVerdict<W>) -> &'static str {
     }
 }
 
+/// At `f64`; at `Interval` the blade does not build, as the Klein
+/// loop's row below says. The `Interval` twin of its walls is
+/// `self_intersection_proves_injectivity`'s lens-loft walls row.
 #[test]
-fn the_lily_blades_walls_hold_against_themselves_at_both_scalars() {
+fn the_lily_blades_walls_hold_against_themselves() {
     each_wall_holds("lily_leaf_a", &leaf_a::<f64>(leaf_a_plan(), tol()));
-    each_wall_holds(
-        "lily_leaf_a at Interval",
-        &leaf_a::<Interval>(leaf_a_plan(), tol()),
+    assert!(
+        refuses_its_carrier_weights(|| leaf_a::<Interval>(leaf_a_plan(), tol())),
+        "lily_leaf_a at Interval refuses its arc section's carrier weights; once it builds, \
+         ask its walls here"
     );
 }
 
+/// Whether `build` panics on the arc section's non-point carrier weights.
+fn refuses_its_carrier_weights<R>(build: impl FnOnce() -> R + std::panic::UnwindSafe) -> bool {
+    std::panic::catch_unwind(build)
+        .err()
+        .and_then(|e| e.downcast::<String>().ok())
+        .is_some_and(|m| m.contains("CarrierWeightNotAPoint"))
+}
+
+/// At `f64`. At `Interval` the loop does not build: its arc section's
+/// carrier weights are not points, which
+/// `work/inlane/an-enclosure-carrier-holds-point-weights-and-knots.md`
+/// owns; the refusal is pinned, so the row goes red when that lands and
+/// the `Interval` walls can be asked.
 #[test]
-fn the_klein_loops_walls_hold_against_themselves_at_both_scalars() {
-    each_wall_holds("the Klein loop", bottle::<f64>(tol()).top.body());
-    each_wall_holds(
-        "the Klein loop at Interval",
-        bottle::<Interval>(tol()).top.body(),
+fn the_klein_loops_walls_hold_against_themselves() {
+    each_wall_holds("the Klein loop", &bottle::<f64>(tol()).top.into_body());
+    let refused = refuses_its_carrier_weights(|| bottle::<Interval>(tol()));
+    assert!(
+        refused,
+        "the Klein loop at Interval refuses its arc section's carrier weights; once it builds, \
+         ask its walls here"
     );
 }
 
@@ -185,7 +204,8 @@ fn the_lily_blade_moved_off_the_origin_reads_its_walls_alike() {
 }
 
 /// **The whole bodies**, reported: `lily_leaf_a` and the Klein loop, each
-/// against itself at the default budget, at both scalars. Their cap
+/// against itself at the default budget, at `f64` (neither builds at
+/// `Interval`, as the wall rows say). Their cap
 /// corners refuse Departure at depth (`cap_corner_departure` in `lily.rs`
 /// and `klein.rs`), so this asserts nothing; it prints the verdict, the
 /// pair count and the time.
@@ -209,13 +229,5 @@ fn whole_bodies() {
         );
     }
     report("lily_leaf_a", &leaf_a::<f64>(leaf_a_plan(), tol()));
-    report(
-        "lily_leaf_a at Interval",
-        &leaf_a::<Interval>(leaf_a_plan(), tol()),
-    );
-    report("the Klein loop", bottle::<f64>(tol()).top.body());
-    report(
-        "the Klein loop at Interval",
-        bottle::<Interval>(tol()).top.body(),
-    );
+    report("the Klein loop", &bottle::<f64>(tol()).top.into_body());
 }
