@@ -10,7 +10,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Moved, RecipeNodeId, SpokenVar, VarId};
-use pncad::prelude::{StableName, attribute};
+use pncad::prelude::StableName;
 use pncad::select::Resolution;
 
 use crate::frame::Tone;
@@ -56,7 +56,7 @@ impl FaceSelection {
 
     /// **The feature this face is**: the node whose operation minted
     /// the entity the name denotes, read off the name's own
-    /// carry-through segments (`pncad::select::attribute`).
+    /// carry-through segments (`pncad::select::role_leaf`).
     ///
     /// A fillet's `From { of: f }` face is still the target's face `f`,
     /// so clicking a flat on a filleted body reaches the feature that
@@ -68,18 +68,14 @@ impl FaceSelection {
     /// (`PickIndex::ids_of_target`, and the resolution check, which
     /// looks the name up in that body's own table).
     ///
-    /// Falls back to [`FaceSelection::node`] for a name the vocabulary
-    /// walk cannot classify, so an unclassified role degrades to the
-    /// drawn copy rather than to no feature at all.
+    /// It is the node the pick's words say made it
+    /// ([`crate::tree::PickedName::feature`]), so the tree highlights
+    /// the node the property header names and deletes. A name the walk
+    /// cannot classify is said as made by its own node, which is the
+    /// answer here too.
     pub fn feature(&self) -> RecipeNodeId {
-        feature_of(self.node, &self.name)
+        crate::tree::PickedName::face(self).feature()
     }
-}
-
-/// **The feature a pick of `name` on `node`'s drawn body is**
-/// ([`FaceSelection::feature`]), for either kind of pick.
-fn feature_of(node: RecipeNodeId, name: &StableName) -> RecipeNodeId {
-    attribute(name).minted_by().unwrap_or(node)
 }
 
 /// **The name a pick of `name` on the copy `node` holds following a
@@ -102,8 +98,13 @@ pub trait Holds {
     /// Each drawn copy a held pick names an entity of.
     fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>);
 
-    /// Every held name a takeover moved, onto where it moved.
-    fn follow(&mut self, moved: &Moved);
+    /// Every held name a takeover moved, onto where it moved, its words
+    /// spoken from `doc`, the document the takeover made.
+    fn follow(
+        &mut self,
+        moved: &Moved,
+        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    );
 }
 
 /// A holder holding nothing: what [`crate::session::DocSession::perform`]
@@ -113,7 +114,7 @@ pub struct HoldsNothing;
 impl Holds for HoldsNothing {
     fn held_on(&self, _: &mut std::collections::BTreeSet<RecipeNodeId>) {}
 
-    fn follow(&mut self, _: &Moved) {}
+    fn follow(&mut self, _: &Moved, _: &pncad::document::Doc<pncad::document::ProfileProgram>) {}
 }
 
 /// A picked edge: the stable name it is, and the node whose body
@@ -150,7 +151,7 @@ impl EdgeSelection {
     /// argument, unchanged. An edge carried through a later boolean is
     /// still the edge the earlier feature made.
     pub fn feature(&self) -> RecipeNodeId {
-        feature_of(self.node, &self.name)
+        crate::tree::PickedName::edge(self).feature()
     }
 }
 

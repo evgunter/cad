@@ -109,17 +109,13 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     (session, revolve)
 }
 
-/// **A revolve stands where it was made, as every body does, and the
-/// gesture has nothing more to say.** The revolve gesture places the
-/// ring it made by the identity bundle — no mate, and the constant `0`
-/// on the three slides and the three spins — which reads nothing of the
-/// ring, so an axis written in numbers (`0 m`, which a mate could not
-/// share) is no obstacle. Breaks if the copy is left loose, is placed by
-/// a mate read off its geometry, stands anywhere but where it was made,
-/// or the outcome carries a notice for the ordinary answer.
+/// **A revolve lands unplaced, whatever its axis reads**: the gesture
+/// inserts the revolve alone — no placement, so nothing reads the ring
+/// and it is drawn in its own space where it was made — and the outcome
+/// carries no notice. Breaks if the gesture writes a placement beside
+/// it, or says something about the ordinary answer.
 #[test]
-fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
-    use pncad::document::{Coord, TargetAxis};
+fn a_revolve_lands_unplaced_whatever_its_axis_reads() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let profile = session_insert(
@@ -138,33 +134,20 @@ fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
         angle: ang(TAU),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [_, placement] = outcome.minted[..] else {
-        panic!("the revolve and its placement: {:?}", outcome.minted)
+    let [revolve] = outcome.minted[..] else {
+        panic!("the revolve alone: {:?}", outcome.minted)
     };
+    assert_eq!(outcome.made, Some(revolve));
     assert_eq!(
         viewer::frame::outcome_notices(&outcome).count(),
         0,
         "the ordinary answer carries no notice"
     );
-    session.pump();
     let doc = session.committed_doc();
-    let bundle = crate::fixture::bundle(doc, placement);
-    let written: Vec<_> = bundle.iter().map(|c| c.value().map(|v| v.coord)).collect();
-    assert_eq!(
-        written,
-        [
-            Some(Coord::Slide(TargetAxis::X)),
-            Some(Coord::Slide(TargetAxis::Y)),
-            Some(Coord::Slide(TargetAxis::Z)),
-            Some(Coord::Spin(Some(TargetAxis::X))),
-            Some(Coord::Spin(Some(TargetAxis::Y))),
-            Some(Coord::Spin(Some(TargetAxis::Z))),
-        ],
-        "six values and no mate: {bundle:?}"
-    );
+    assert!(doc.placements().is_empty(), "nothing is placed");
     assert!(
-        common::solve(&session, doc, tol).at_identity(placement),
-        "the ring stands where it was made"
+        viewer::world::is_drawn(doc, revolve),
+        "the ring is drawn in its own space"
     );
 }
 
@@ -180,19 +163,31 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     let fixture = pncad::document::load(&common::gallery_ring_at(tol), tol)
         .expect("the gallery fixture loads at this run's ε")
         .snapshot;
+    // The demo places the ring into the world and makes it the product;
+    // a new body lands unplaced, so the ops stream's document gets the
+    // same two edits by hand.
+    let (placed, placement) = common::inserted(
+        session.committed_doc(),
+        common::world_place(pncad::document::Operand::output(revolve, 0)),
+        tol,
+    );
+    let (placed, _) = common::edited(
+        &placed,
+        pncad::document::DocEdit::SetProduct {
+            product: Some(pncad::document::Operand::Node(placement)),
+        },
+        tol,
+    );
     assert!(
-        session
-            .committed_doc()
-            .clone()
-            .under_identity(fixture.id())
-            .bit_eq(&fixture),
-        "the ops-authored ring and the demo's saved document are one \
-         document's content under D7's replay-identity comparator"
+        placed.clone().under_identity(fixture.id()).bit_eq(&fixture),
+        "the ops-authored ring, placed by hand, and the demo's saved \
+         document are one document's content under D7's replay-identity \
+         comparator"
     );
     assert_eq!(
-        common::world(session.committed_doc()),
+        common::world(&placed),
         [revolve],
-        "the revolve gesture placed what it made: the world is the revolve"
+        "placed by hand, the world is the revolve"
     );
 
     // End to end: the authored document evaluates, and the revolve's
@@ -211,80 +206,54 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
     }
 }
 
-/// **A creation gesture places what it made, in the same action**
-/// (A10): the extrude and its world placement — the identity bundle,
-/// which stands the copy where its body stands — are one recorded
-/// action: the world is `[extrude]`, the tree badges the extrude, the
-/// outcome says the copy stands by the identity bundle, and ONE undo
-/// takes both. Breaks if the gesture leaves the body unplaced (nothing
-/// is drawn), places it anywhere but where it was made, records the
-/// placement as a second action, or places something else.
+/// **A new body lands unplaced** (Ev, 2026-10-31): the extrude gesture
+/// is the extrude alone, one recorded action — no placement, so the
+/// body is drawn in its own space, outside the product — and a fresh
+/// extrude raises only `unused`: nothing reads it, and the product
+/// door is its recourse. ONE undo takes it. Breaks if the gesture
+/// writes a world placement (a second insert, a placed badge), or the
+/// fresh body opens with any other finding.
 #[test]
-fn a_creation_gesture_places_what_it_made_in_one_action() {
+fn a_fresh_extrude_lands_unplaced_and_raises_only_unused() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let profile = common::rectangle_in(&mut session, 0.02, 0.01);
     let before = session.committed_doc().clone();
-    assert!(before.placements().is_empty(), "nothing is placed yet");
     let outcome = session.perform(SessionOp::AddExtrude {
         profile,
         distance: len(0.005),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [extrude, placement] = outcome.minted[..] else {
-        panic!("two inserts: {:?}", outcome.minted);
+    let [extrude] = outcome.minted[..] else {
+        panic!("one insert: {:?}", outcome.minted);
     };
+    assert_eq!(outcome.made, Some(extrude), "the extrude is what it made");
+    assert_eq!(outcome.committed.len(), 1, "the extrude alone");
     let doc = session.committed_doc();
     assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
-    let Some(Node::Place {
-        source,
-        constraints,
-        ..
-    }) = doc.node(placement)
-    else {
-        panic!("the extrude's placement: {:?}", doc.node(placement))
-    };
+    assert!(doc.placements().is_empty(), "nothing is placed");
     assert_eq!(
-        Some(source.read),
-        doc.output(extrude, 0),
-        "the placement copies the extrude: {source:?}"
-    );
-    {
-        use pncad::document::{Coord, TargetAxis};
-        assert_eq!(
-            constraints
-                .iter()
-                .map(|c| c.value().map(|v| v.coord))
-                .collect::<Vec<_>>(),
-            vec![
-                Some(Coord::Slide(TargetAxis::X)),
-                Some(Coord::Slide(TargetAxis::Y)),
-                Some(Coord::Slide(TargetAxis::Z)),
-                Some(Coord::Spin(Some(TargetAxis::X))),
-                Some(Coord::Spin(Some(TargetAxis::Y))),
-                Some(Coord::Spin(Some(TargetAxis::Z))),
-            ],
-            "the identity bundle: every freedom, no mate"
-        );
-    }
-    assert!(
-        common::solve(&session, doc, tol).at_identity(placement),
-        "the copy stands where it was made"
-    );
-    assert_eq!(common::world(doc), [extrude], "what was made is the world");
-    let rows = session.tree_rows();
-    assert!(
-        common::row_of(&rows, extrude).placed,
-        "the extrude wears the world badge"
+        viewer::world::drawn_nodes(doc),
+        [extrude],
+        "the extrude is drawn, in its own space"
     );
     assert!(
-        !common::row_of(&rows, placement).placed,
-        "the placement's own row is an ordinary one"
+        !common::row_of(&session.tree_rows(), extrude).placed,
+        "no world badge"
+    );
+    session.pump();
+    let report = session.checks().expect("the registry ran");
+    let found: Vec<_> = report.findings.iter().map(|f| f.check).collect();
+    assert_eq!(
+        found,
+        [pncad::document::CheckId::Unused],
+        "a fresh extrude raises only `unused`: {:?}",
+        report.findings
     );
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(
         session.committed_doc().bit_eq(&before),
-        "one undo takes the body and its placement together"
+        "one undo takes the body"
     );
 }
 
@@ -753,7 +722,8 @@ fn extrude_and_revolve_require_their_node_kinds() {
     // The revolve door's one seat: a feature or a placement is not a
     // profile. The axis is no pick — two coordinate pairs in the
     // profile's own plane — so there is no second seat to refuse.
-    let copy = common::copy_of(session.committed_doc(), extrude);
+    // A copy placed into the world by hand: a new body lands unplaced.
+    let (mut session, copy) = common::world_copy_in(&session, extrude, tol);
     for wrong in [extrude, copy] {
         let refused = session.perform(SessionOp::AddRevolve {
             profile: wrong,
@@ -1172,7 +1142,7 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
     let doc = session.committed_doc().clone();
     let mut tool = DuplicateTool::new();
     tool.pick_at(&doc, revolve, Some(0));
-    let line = viewer::seats::seat_line(tool.seats(), &doc);
+    let line = viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc));
     assert!(
         !line.contains("half"),
         "a revolve is said as a split half: {line}"
@@ -1182,7 +1152,7 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
 }
 
 /// **A document made in the viewer says what it makes**: two boxes,
-/// each placed in the world by its creation gesture, are no product
+/// each placed in the world by hand, are no product
 /// until the author adds them, one by one, through the properties
 /// pane's door; the product is then their `⊔`, and taking one out
 /// leaves the other alone. The `⊔` the product read before goes with
@@ -1196,6 +1166,8 @@ fn the_product_is_what_the_author_adds_to_it() {
     );
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    let (session, _) = common::world_copy_in(&session, big, tol);
+    let (mut session, _) = common::world_copy_in(&session, small, tol);
     let [big, small] = [big, small].map(|body| {
         let doc = session.committed_doc();
         viewer::world::world_copy(doc, common::copy_of(doc, body)).expect("a world copy")

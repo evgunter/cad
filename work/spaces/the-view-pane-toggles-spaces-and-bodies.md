@@ -2,12 +2,11 @@
 id: the-view-pane-toggles-spaces-and-bodies
 kind: unit
 title: the View pane lists the shown spaces and every body, each with a show/hide toggle
-status: parked
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/view-toggles
-blocked_on: [the-picture-draws-bodies]
 refs: [6209]
 ---
 

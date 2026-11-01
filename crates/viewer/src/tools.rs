@@ -250,7 +250,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
         | SessionOp::CommitFreeMove { .. }
@@ -300,15 +301,16 @@ pub enum ToolNotice {
     Missed(ToolKind),
 }
 
-/// The mate and seated arms say the node their event carries
-/// (`SpokenNode`, kept by [`Tools::respeak`]), so the speaker reaches
-/// the blend arm alone, whose event holds bare ids.
+/// The seated arm says the node its event carries (`SpokenNode`, kept
+/// by [`Tools::respeak`]); the blend arm's event holds bare ids, and a
+/// dropped face pick is said by the speaker, a node it does not hold as
+/// the tool kept it.
 impl Say for ToolNotice {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
-            Self::Mate(event) => ToolKind::Mate.says(event),
+            Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
-            Self::Mirror(event) => ToolKind::Mirror.says(event),
+            Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
             Self::Missed(tool) => tool.says(&format_args!(
                 "{} under the cursor — no pick taken",
@@ -806,11 +808,11 @@ impl Tools {
     /// **The open tool's held picks following a takeover**: the mate
     /// tool's faces, the mirror's plane and the blend's edges; the seated
     /// tools hold bodies, whose reads a takeover keeps.
-    pub fn follow(&mut self, moved: &pncad::document::Moved) {
+    pub fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
         match &mut self.open {
-            Some(OpenTool::Mate(tool)) => tool.follow(moved),
+            Some(OpenTool::Mate(tool)) => tool.follow(moved, doc),
             Some(OpenTool::Blend(tool)) => tool.follow(moved),
-            Some(OpenTool::Mirror(tool)) => tool.follow(moved),
+            Some(OpenTool::Mirror(tool)) => tool.follow(moved, doc),
             None
             | Some(
                 OpenTool::Revolve(_)
@@ -834,10 +836,10 @@ impl Tools {
                         .picks()
                         .into_iter()
                         .flatten()
-                        .map(|face| face.node),
+                        .map(|held| held.face().node),
                 );
             }
-            Some(OpenTool::Blend(tool)) => nodes.extend(tool.target().map(|target| target.node)),
+            Some(OpenTool::Blend(tool)) => nodes.extend(tool.target().map(|target| target.node())),
             Some(OpenTool::Mirror(tool)) => nodes.extend(tool.plane().map(|face| face.node)),
             None
             | Some(

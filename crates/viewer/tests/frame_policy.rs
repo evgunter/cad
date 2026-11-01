@@ -137,24 +137,19 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 /// second necessary rather than decorative.
 #[test]
 fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::tools::ToolNotice;
+    use viewer::tree::DrawnBody;
 
     let declined = [SessionOp::Select(Selection::None)];
     // Both notices through the door the frame loop uses, so each
     // carries the answer its event arm gives rather than a second
     // spelling of it.
-    let target = BlendTarget {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let notice = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
             held: target,
-            picked: BlendTarget {
-                node: RecipeNodeId::new(0, tagged(5)),
-                body: 0,
-            },
+            picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
         }),
         None,
     );
@@ -194,7 +189,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let second = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::TargetLost {
             target,
-            node: pncad::document::SpokenNode::absent(target.node),
+            node: pncad::document::SpokenNode::absent(target.node()),
             edges: 6,
         }),
         None,
@@ -230,7 +225,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// prose written for the row: `NonRigidFrame` writes a
 /// `LIST_SEPARATOR` inside one sentence — the hazard
 /// `work/view/joined-notices-nest-their-own-separator.md` records as
-/// mechanical and present — and `FusedGeometry` writes an em-dash.
+/// mechanical and present — and `NotShown` writes an em-dash.
 /// Under the old spelling the first alone makes this split return
 /// three pieces where two went in.
 ///
@@ -246,10 +241,9 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
     );
     let dashes = frame::Message::new(
         frame::Subject::Document,
-        AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
-            others: vec![SpokenNode::absent(RecipeNodeId::new(0, tagged(5)))],
+        AdmissionFault::NotShown {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
+            space: Box::new(spoken_space(9)),
         }
         .to_string(),
         frame::Retold::Again,
@@ -349,22 +343,23 @@ fn the_boundary_mark_belongs_to_the_boundary_alone() {
 /// `ordinal` shape ported to a payload-carrying enum.
 ///
 /// **A fault added to `AdmissionFault` takes a number BEFORE
-/// `FusedGeometry`'s, and `FusedGeometry` keeps the last one.** The
-/// row below reads the vocabulary's size off `FusedGeometry` — it has
-/// no other way to know it — so a fault numbered past it would be a
-/// fault the census never renders. Renumbering the arms is free; the
-/// obligation is only that `FusedGeometry` ends them.
+/// `NotShown`'s, and `NotShown` keeps the last one.** The row below
+/// reads the vocabulary's size off `NotShown` — it has no other way to
+/// know it — so a fault numbered past it would be a fault the census
+/// never renders. Renumbering the arms is free; the obligation is only
+/// that `NotShown` ends them.
 fn cause_ordinal(cause: &AdmissionFault) -> usize {
     match cause {
         AdmissionFault::NoSuchNode { .. } => 0,
-        AdmissionFault::NotAnInstance { .. } => 1,
-        AdmissionFault::InTheWorld { .. } => 2,
-        AdmissionFault::NotEvaluated { .. } => 3,
-        AdmissionFault::NoSpace { .. } => 4,
-        AdmissionFault::MovedSpace { .. } => 5,
-        AdmissionFault::NoSuchSpace { .. } => 6,
-        AdmissionFault::NotShown { .. } => 7,
-        AdmissionFault::FusedGeometry { .. } => 8,
+        AdmissionFault::NotABody { .. } => 1,
+        AdmissionFault::NotASpace { .. } => 2,
+        AdmissionFault::NotDrawn { .. } => 3,
+        AdmissionFault::InTheWorld { .. } => 4,
+        AdmissionFault::NotEvaluated { .. } => 5,
+        AdmissionFault::NoSpace { .. } => 6,
+        AdmissionFault::MovedSpace { .. } => 7,
+        AdmissionFault::NoSuchSpace { .. } => 8,
+        AdmissionFault::NotShown { .. } => 9,
     }
 }
 
@@ -377,44 +372,41 @@ fn spoken_space(tag: u64) -> pncad::document::SpokenSpace {
     .spoken_space(pncad::document::VarId::new(0, tagged(tag)))
 }
 
-/// One of each admission fault, payloads plural where the arm renders
-/// a list — the shape most likely to reach for a separator.
+/// One of each admission fault.
 fn every_cause() -> Vec<AdmissionFault> {
     vec![
         AdmissionFault::NoSuchNode {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
         },
-        AdmissionFault::NotAnInstance {
+        AdmissionFault::NotABody {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(5))),
         },
+        AdmissionFault::NotASpace {
+            space: Box::new(spoken_space(19)),
+        },
+        AdmissionFault::NotDrawn {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(20))),
+        },
         AdmissionFault::InTheWorld {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(6))),
         },
         AdmissionFault::NotEvaluated {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(7))),
         },
         AdmissionFault::NoSpace {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(8))),
         },
         AdmissionFault::MovedSpace {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
             into: Box::new(spoken_space(10)),
         },
         AdmissionFault::NoSuchSpace {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
             space: Box::new(spoken_space(16)),
         },
         AdmissionFault::NotShown {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(17))),
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(17))),
             space: Box::new(spoken_space(18)),
-        },
-        AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(12))),
-            others: vec![
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(13))),
-                SpokenNode::absent(RecipeNodeId::new(0, tagged(14))),
-            ],
         },
     ]
 }
@@ -453,10 +445,9 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     );
     assert_eq!(
         covered.len(),
-        cause_ordinal(&AdmissionFault::FusedGeometry {
-            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
-            body: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
-            others: vec![],
+        cause_ordinal(&AdmissionFault::NotShown {
+            node: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+            space: Box::new(spoken_space(2)),
         }) + 1,
         "the vocabulary is bigger than this row covers — see `cause_ordinal`'s obligation",
     );
@@ -464,11 +455,9 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
     for cause in every_cause() {
         let sentence = cause.to_string();
         // The subject's kind is the spoken node's to say (a frame's root
-        // may be a `Place`), so no sentence writes "instance" itself —
-        // but the one whose content is that the node is not one.
+        // may be a `Place`), so no sentence writes "instance" itself.
         assert!(
-            matches!(cause, AdmissionFault::NotAnInstance { .. })
-                || !sentence.to_lowercase().contains("instance"),
+            !sentence.to_lowercase().contains("instance"),
             "a cause names its subject's kind through the spoken node, not \
              its own words: {sentence}"
         );
@@ -489,10 +478,10 @@ fn a_withdrawn_cause_never_carries_the_list_mark() {
 fn a_space_not_known_yet_ranks_below_a_space_that_refuses() {
     let admission = |fault| Refusal::Display(DisplayFault::Admission(fault));
     let waiting = admission(AdmissionFault::NotEvaluated {
-        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
+        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
     });
     let refused = admission(AdmissionFault::InTheWorld {
-        instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
+        node: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
     });
     assert!(waiting.rank() > refused.rank());
     let kept = Refusal::preferred(Some(waiting), refused);
@@ -529,7 +518,7 @@ fn a_withdrawals_cause_list_splits_back_into_its_causes() {
             .iter()
             .enumerate()
             .map(|(seat, cause)| Withdrawn {
-                instance: RecipeNodeId::new(0, tagged(seat as u64 + 20)),
+                held: viewer::display::Held::Node(RecipeNodeId::new(0, tagged(seat as u64 + 20))),
                 cause: cause.clone(),
             })
             .collect(),
@@ -1096,7 +1085,7 @@ fn a_mate_refusal_draws_every_copy_it_does_not_reach() {
         "post_b, which the refusal does not reach, is drawn and picked"
     );
     let (doc, _) = session.landed_pair().expect("landed");
-    for copy in viewer::world::drawn_copies(doc) {
+    for copy in viewer::world::drawn_nodes(doc) {
         assert_eq!(
             index.ids_of_node(copy).is_empty(),
             undrawn.contains(&copy),
@@ -1398,11 +1387,11 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
 
 /// A refusal of one of `target`'s drawn edges' names, as
 /// `PickIndex::edge_names_in` answers it.
-fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused {
+fn unnamed_on(target: viewer::tree::DrawnBody) -> pickindex::EdgeNamesRefused {
     pickindex::EdgeNamesRefused {
-        node: target.node,
-        body: target.body,
-        first: common::unnamed_edge(target.node, target.body),
+        node: target.node(),
+        body: target.body(),
+        first: common::unnamed_edge(target.node(), target.body()),
         named: 11,
         refused: 1,
     }
@@ -1415,13 +1404,11 @@ fn unnamed_on(target: viewer::blend::BlendTarget) -> pickindex::EdgeNamesRefused
 /// accepts, not another index build over the same table.
 #[test]
 fn an_unnamed_drawn_edge_wears_one_subject_on_both_channels() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::tools::ToolNotice;
+    use viewer::tree::DrawnBody;
 
-    let target = BlendTarget {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let refused = unnamed_on(target);
     let spelled = frame::Spelled {
         doc: None,
@@ -1445,10 +1432,7 @@ fn a_held_edge_refusal_is_said_from_its_own_document_and_by_tag_from_another() {
     let tol = Tol::witness();
     let (session, extrude) = plate_session(tol);
     let (landed, _) = session.landed_pair().expect("landed");
-    let refused = unnamed_on(viewer::blend::BlendTarget {
-        node: extrude,
-        body: 0,
-    });
+    let refused = unnamed_on(viewer::tree::DrawnBody::new(extrude, 0));
     let label = |spelled: &frame::Spelled<pickindex::EdgeNamesRefused>| {
         frame::held_edges_badge(Some(spelled), Some(landed))
             .expect("a refusal badges")
@@ -3464,16 +3448,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // The user places the post by hand and COMMITS it — only a
     // committed placement is ever reported superseded.
     for op in [
-        SessionOp::BeginFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::BeginFreeMove { node: bench.post_b },
         SessionOp::PreviewFreeMove {
-            instance: bench.post_b,
+            node: bench.post_b,
             frame: Frame::translation([0.04, 0.0, 0.0]),
         },
-        SessionOp::CommitFreeMove {
-            instance: bench.post_b,
-        },
+        SessionOp::CommitFreeMove { node: bench.post_b },
     ] {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -3497,12 +3477,17 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         )
     };
     assert_eq!(
-        superseded.instance, bench.post_b,
+        superseded.held,
+        viewer::display::Held::Node(bench.post_b),
         "the mate discards the hand placement, named by its instance"
     );
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies.
-    let AdmissionFault::NotShown { instance, space } = &superseded.cause else {
+    let AdmissionFault::NotShown {
+        node: instance,
+        space,
+    } = &superseded.cause
+    else {
         panic!(
             "a mate emptying the space supersedes with its own fault: {}",
             superseded.cause
@@ -3570,9 +3555,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // written out, so a rule that drops the supersession, or reorders
     // the two, cannot pass by comparing the line with another
     // rendering of itself.
-    let drag = SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    };
+    let drag = SessionOp::BeginFreeMove { node: bench.post_b };
     let refused = session.perform(drag.clone());
     let refusal = refused
         .refusal
@@ -3596,14 +3579,13 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         .expect("a `new_space()` defines the post's own space");
     let space_tag = test_utils::refusal::tag(space_node.0.digest());
     let in_the_world = format!(
-        "InstantiatePart {post} is placed into the world, the product's space, so the \
-         free-move probe refuses. Free-move moves another shown space: place the copy into \
-         a space of its own to probe it"
+        "InstantiatePart {post} is in the world, the product's space, so the free-move \
+         probe refuses. Free-move moves another shown space"
     );
     let not_shown = format!(
-        "InstantiatePart {post}'s free-move moves Space {space_tag}, which is not shown — no \
-         copy is placed into it, or its bodies are copied into another space and drawn there \
-         — so there is no picture of it to move"
+        "InstantiatePart {post}'s free-move moves Space {space_tag}, which is not shown — \
+         every body in it is read by an operation and drawn there — so there is no picture \
+         of it to move"
     );
     assert_eq!(
         line.text(),
@@ -3628,20 +3610,15 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 /// else.
 #[test]
 fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::seats::{Seat, SeatEvent};
     use viewer::tools::{ToolKind, ToolNotice};
+    use viewer::tree::DrawnBody;
 
     let declined = frame::tool_notice(
         &ToolNotice::Blend(BlendEvent::OtherTarget {
-            held: BlendTarget {
-                node: RecipeNodeId::new(0, tagged(3)),
-                body: 0,
-            },
-            picked: BlendTarget {
-                node: RecipeNodeId::new(0, tagged(5)),
-                body: 0,
-            },
+            held: DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0),
+            picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
         }),
         None,
     );
@@ -3666,7 +3643,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     };
     assert_eq!(
         all.text(),
-        "blend tool: the held edges are on node 000000000003 body 0, so the edge on node 000000000005 body 0 \
+        "blend tool: the held edges are on node 000000000003, so the edge of node 000000000005 \
          was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
          pick (node 000000000004) is no longer in the document; the tool dropped it \u{2022} mate tool: \
          no landed evaluation to derive frames from"
@@ -3838,16 +3815,14 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
 fn every_tool_event_says_whether_anything_will_say_it_again() {
     use editor_core::{Resolution, ResolveIndeterminate};
     use pncad::document::MateSide;
-    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::blend::BlendEvent;
     use viewer::matetool::MateToolEvent;
     use viewer::seats::{Seat, SeatEvent};
     use viewer::session::FaceSelection;
     use viewer::tools::{ToolKind, ToolNotice};
+    use viewer::tree::DrawnBody;
 
-    let target = BlendTarget {
-        node: RecipeNodeId::new(0, tagged(3)),
-        body: 0,
-    };
+    let target = DrawnBody::new(RecipeNodeId::new(0, tagged(3)), 0);
     let face = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId::new(0, tagged(3)),
@@ -3858,12 +3833,14 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::To,
-                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
-                pick: FaceSelection {
-                    name: face.clone(),
-                    node: RecipeNodeId::new(0, tagged(3)),
-                    body: 0,
-                },
+                pick: viewer::tree::HeldPick::new(
+                    &pncad::document::Doc::empty_derived("cases", Tol::witness()),
+                    FaceSelection {
+                        name: face.clone(),
+                        node: RecipeNodeId::new(0, tagged(3)),
+                        body: 0,
+                    },
+                ),
                 resolution: Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                     standing: NodeStanding::NotEvaluated {
                         node: RecipeNodeId::new(0, tagged(3)),
@@ -3887,7 +3864,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the target lost",
             ToolNotice::Blend(BlendEvent::TargetLost {
                 target,
-                node: pncad::document::SpokenNode::absent(target.node),
+                node: pncad::document::SpokenNode::absent(target.node()),
                 edges: 4,
             }),
             frame::Retold::Never,
@@ -3906,10 +3883,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: a pick on another body declined",
             ToolNotice::Blend(BlendEvent::OtherTarget {
                 held: target,
-                picked: BlendTarget {
-                    node: RecipeNodeId::new(0, tagged(5)),
-                    body: 0,
-                },
+                picked: an_edge_of(RecipeNodeId::new(0, tagged(5))),
             }),
             frame::Retold::Again,
         ),
@@ -3928,7 +3902,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "blend: an edge pick with no index declined",
             ToolNotice::Blend(BlendEvent::Unindexed {
-                picked: target,
+                picked: an_edge_of(target.node()),
                 why: viewer::pickcache::NotIndexed::Absent,
             }),
             frame::Retold::Again,
@@ -3937,7 +3911,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: an edge pick whose rim the index could not answer declined",
             ToolNotice::Blend(BlendEvent::RimUnanswered {
                 fault: editor_core::resolve::RimNameFault::Stale {
-                    node: target.node,
+                    node: target.node(),
                     body: 0,
                 },
             }),
@@ -3947,7 +3921,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "blend: the all-edges door's target has no value",
             ToolNotice::Blend(BlendEvent::TargetHasNoValue {
                 target,
-                standing: NodeStanding::Failed { node: target.node },
+                standing: NodeStanding::Failed {
+                    node: target.node(),
+                },
             }),
             frame::Retold::Again,
         ),
@@ -4017,7 +3993,7 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
 #[test]
 fn every_withdrawal_kind_rides_beside_a_refusal() {
     let gone = |node: u64| Withdrawn {
-        instance: RecipeNodeId::new(0, tagged(node)),
+        held: viewer::display::Held::Node(RecipeNodeId::new(0, tagged(node))),
         cause: AdmissionFault::NoSuchNode {
             node: SpokenNode::absent(RecipeNodeId::new(0, tagged(node))),
         },
@@ -4051,7 +4027,7 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     assert_eq!(
         line.text(),
         "nothing to undo \u{2022} free move: a committed placement was discarded — node 000000000004 is \
-         not in the document \u{2022} hide: a hide was dropped with the instance it was on — \
+         not in the document \u{2022} hide: a hide was dropped with what it was on — \
          node 000000000005 is not in the document \u{2022} free move: the drag in flight was ended — node \
          000000000006 is not in the document"
     );
@@ -4088,4 +4064,18 @@ fn the_delta_badge_reads_in_the_working_length_unit() {
         "{:?}",
         in_m.detail()
     );
+}
+
+/// An edge pick on `node` whose name says nothing past its kind: `the
+/// edge of <node>`.
+fn an_edge_of(node: RecipeNodeId) -> viewer::session::EdgeSelection {
+    viewer::session::EdgeSelection {
+        name: StableName {
+            kind: EntityKind::Edge,
+            node,
+            path: vec![],
+        },
+        node,
+        body: 0,
+    }
 }

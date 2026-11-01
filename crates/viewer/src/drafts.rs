@@ -15,9 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Weak};
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, Evaluation, Formula, HeldNodes, Label, LabelFault, LoopProgram,
-    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepArg, StepId,
-    VarId, VarName,
+    Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
+    StepArg, StepId, VarId, VarName,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -32,6 +32,7 @@ use crate::props::{self, Notation};
 use crate::seats::SeatError;
 use crate::session::{FaceSelection, ProfileShape, SessionOp, SketchTraceFault};
 use crate::sketch::{self, HeldLoops, HeldRefusal};
+use crate::tree::HeldPick;
 
 /// Transient text a panel is mid-edit on.
 ///
@@ -121,22 +122,20 @@ pub(crate) struct Drafts {
     /// so a stale latch would commit against a same-numbered face of
     /// the next document. A document replacement therefore drops it
     /// ([`Self::document_replaced`]).
-    pub(crate) sketch_face: Option<FaceSelection>,
-    /// The nodes [`Self::sketch_face`] names, as the last document that
-    /// held them spoke them: the selection's when the face was copied
-    /// from it (`DocSession::selection_said`), spoken again from each
-    /// later document ([`Self::respeak`]).
-    sketch_face_said: HeldNodes,
+    ///
+    /// Held as every face pick is ([`HeldPick`]), its nodes spoken again
+    /// from each later document ([`Self::respeak`]).
+    pub(crate) sketch_face: Option<HeldPick>,
     /// **Whether the path continues tangent to a face's trace** — a
     /// profile drawn on a body's plane ([`SessionOp::AddDrawnProfile`])
     /// whose chain writes [`Self::trace_gesture`] — rather than a
     /// profile on its own plane.
     pub(crate) trace_on: bool,
     /// The face whose body's plane the traced sketch is drawn on: a
-    /// latch of the viewport's face pick, as [`Self::sketch_face`] is.
-    pub(crate) trace_plane: Option<FaceSelection>,
+    /// latch of the viewport's face pick, held as [`Self::sketch_face`] is.
+    pub(crate) trace_plane: Option<HeldPick>,
     /// The face the sketch traces, latched the same way.
-    pub(crate) trace_face: Option<FaceSelection>,
+    pub(crate) trace_face: Option<HeldPick>,
     /// Where the trace steps go in the chain, and their branches.
     pub(crate) trace_gesture: sketch::TraceGesture,
     /// The trace the two latches show, as last read against the landed
@@ -910,7 +909,6 @@ impl Default for Drafts {
             profile_open: false,
             sketch_on_face: false,
             sketch_face: None,
-            sketch_face_said: HeldNodes::default(),
             trace_on: false,
             trace_plane: None,
             trace_face: None,
@@ -1082,12 +1080,16 @@ impl Drafts {
     /// **A creation landed**: the label its form held is spent, so the
     /// next creation of that kind proposes afresh. The form is found by
     /// the kind noun of the node the action made
-    /// ([`crate::world::made`]) — the noun a
+    /// ([`crate::session::OpOutcome::made`]) — the noun a
     /// form's label field is keyed by, which is that node's kind
     /// (`creation_nouns`). Called only for an op that committed, so a
     /// refused creation keeps what was typed.
-    pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
-        if let Some(node) = crate::world::made(doc, minted).and_then(|id| doc.node(id)) {
+    pub(crate) fn creation_landed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        made: Option<RecipeNodeId>,
+    ) {
+        if let Some(node) = made.and_then(|id| doc.node(id)) {
             self.creation_labels
                 .remove(pncad::document::node_kind_noun(node));
         }
@@ -1230,12 +1232,12 @@ impl Drafts {
         for latch in self.latches() {
             *latch = None;
         }
-        self.sketch_face_said = HeldNodes::default();
     }
 
     /// **The faces the forms latch**, the one list of them: what a
-    /// replaced document drops and a takeover moves.
-    fn latches(&mut self) -> [&mut Option<FaceSelection>; 3] {
+    /// replaced document drops, an operation speaks again and a takeover
+    /// moves.
+    fn latches(&mut self) -> [&mut Option<HeldPick>; 3] {
         [
             &mut self.sketch_face,
             &mut self.trace_plane,
@@ -1243,24 +1245,11 @@ impl Drafts {
         ]
     }
 
-    /// **The on-face form takes the selection's face**, with its nodes
-    /// as the session has them spoken (`DocSession::selection_said`).
-    pub(crate) fn hold_sketch_face(&mut self, face: FaceSelection, said: &HeldNodes) {
-        self.sketch_face = Some(face);
-        self.sketch_face_said = said.clone();
-    }
-
-    /// The held face's nodes as the last document that held them spoke
-    /// them; empty with no face held.
-    pub(crate) fn sketch_face_said(&self) -> &HeldNodes {
-        &self.sketch_face_said
-    }
-
     /// **The latched faces following a takeover**
-    /// ([`FaceSelection::following`]).
-    pub(crate) fn follow(&mut self, moved: &pncad::document::Moved) {
+    /// ([`HeldPick::following`]), their words spoken from `doc`.
+    pub(crate) fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
         for latch in self.latches() {
-            *latch = latch.as_ref().map(|face| face.following(moved));
+            *latch = latch.as_ref().map(|held| held.following(moved, doc));
         }
     }
 
@@ -1270,7 +1259,7 @@ impl Drafts {
             [&self.sketch_face, &self.trace_plane, &self.trace_face]
                 .into_iter()
                 .flatten()
-                .map(|face| face.node),
+                .map(|held| held.face().node),
         );
     }
 
@@ -1279,7 +1268,9 @@ impl Drafts {
     /// rule): a node `doc` holds takes its label now, and one it no
     /// longer holds keeps the last it had.
     pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        self.sketch_face_said = self.sketch_face_said.respoken(doc);
+        for held in self.latches().into_iter().flatten() {
+            *held = held.respoken(doc);
+        }
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
@@ -1288,7 +1279,7 @@ impl Drafts {
     /// Off the face the latch is kept, not held — nothing the form
     /// commits reads it — so switching off releases the pick, and
     /// switching back holds it again.
-    pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
+    pub(crate) fn held_face(&self) -> Option<&HeldPick> {
         self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
     }
 
@@ -1298,7 +1289,7 @@ impl Drafts {
     /// on screen — a form behind its door, in a folded section or in a
     /// pane not drawn holds nothing a reader can see.
     pub(crate) fn marked_face(&self, drawn: bool) -> Option<&FaceSelection> {
-        self.held_face().filter(|_| drawn)
+        self.held_face().filter(|_| drawn).map(HeldPick::face)
     }
 
     /// **The latches a trace is to be read for** — when the form was
@@ -1311,9 +1302,11 @@ impl Drafts {
         drawn: bool,
         landed: Option<&Arc<Evaluation<f64>>>,
     ) -> Option<(FaceSelection, FaceSelection)> {
-        let (true, Some(plane), Some(face)) =
-            (drawn && self.traces(), &self.trace_plane, &self.trace_face)
-        else {
+        let (true, Some(plane), Some(face)) = (
+            drawn && self.traces(),
+            self.trace_plane.as_ref().map(HeldPick::face),
+            self.trace_face.as_ref().map(HeldPick::face),
+        ) else {
             self.trace_shown = None;
             return None;
         };
@@ -1364,8 +1357,8 @@ impl Drafts {
             let chain = sketch::traced_loop(&self.profile_path, &self.trace_gesture, 0, notation)
                 .map_err(CommitFault::Traced)?;
             return Ok(Some(SessionOp::AddDrawnProfile {
-                plane: plane.clone(),
-                traced: vec![face.clone()],
+                plane: plane.face().clone(),
+                traced: vec![face.face().clone()],
                 chains: vec![chain],
             }));
         }
@@ -1377,7 +1370,7 @@ impl Drafts {
             return Ok(None);
         };
         Ok(Some(SessionOp::SketchOnFace {
-            face: face.clone(),
+            face: face.face().clone(),
             loops,
             distance: notation.length_literal(self.sketch_depth)?,
             spin: notation.angle_literal(self.sketch_spin)?,
@@ -1461,6 +1454,27 @@ impl std::fmt::Display for CommitFault {
     }
 }
 
+/// **A form's face latch takes `face`**: held as a pick is
+/// ([`HeldPick::new`]), its nodes as `doc` speaks them now. The face it already holds is kept as held, so its labels
+/// stay the ones it kept while the selection stays on it (a later edit
+/// may have taken a node `doc` no longer speaks).
+pub(crate) fn latch(slot: &mut Option<HeldPick>, doc: &Doc<ProfileProgram>, face: &FaceSelection) {
+    if slot.as_ref().is_some_and(|held| held.face() == face) {
+        return;
+    }
+    *slot = Some(HeldPick::new(doc, face.clone()));
+}
+
+/// **A form's latch row, said**: the held pick by `by` ([`HeldPick`]), a
+/// node `by` no longer holds as the latch kept it; the empty pick's one
+/// spelling ([`crate::seats::NONE_PICKED`]) while nothing is held.
+pub(crate) fn latch_said(held: Option<&HeldPick>, by: Speaker<'_>) -> String {
+    held.map_or_else(
+        || crate::seats::NONE_PICKED.to_owned(),
+        |held| pncad::document::Said(held, by).to_string(),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -1538,7 +1552,7 @@ mod tests {
             drafts.profile_shape, None,
             "the labelled add settles the form as the bare one does"
         );
-        drafts.creation_landed(&doc, &[profile]);
+        drafts.creation_landed(&doc, Some(profile));
         assert_eq!(
             drafts.creation_labels.keys().copied().collect::<Vec<_>>(),
             vec!["Extrude"],
@@ -1662,8 +1676,9 @@ mod tests {
             matches!(waiting.profile_op(notation), Ok(None)),
             "no face held: the form waits"
         );
+        let doc = Doc::<ProfileProgram>::empty_derived("sketch-face", Tol::witness());
         let drafts = Drafts {
-            sketch_face: Some(face.clone()),
+            sketch_face: Some(crate::tree::HeldPick::new(&doc, face.clone())),
             sketch_spin: core::f64::consts::FRAC_PI_2,
             ..waiting
         };
