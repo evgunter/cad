@@ -133,8 +133,16 @@ impl Rims {
                 let ia = (x - 1.0).powi(2) + y * y < 1.0;
                 let ib = x * x + y * y < 4.0;
                 // A: z in (−H, min(H, y·sa)); B: z in (max(−H, y·sb), H).
-                let a = if ia { (-H, (y * sa).min(H)) } else { (0.0, 0.0) };
-                let b = if ib { ((y * sb).max(-H), H) } else { (0.0, 0.0) };
+                let a = if ia {
+                    (-H, (y * sa).min(H))
+                } else {
+                    (0.0, 0.0)
+                };
+                let b = if ib {
+                    ((y * sb).max(-H), H)
+                } else {
+                    (0.0, 0.0)
+                };
                 let len = |(lo, hi): (f64, f64)| (hi - lo).max(0.0);
                 let both = len((a.0.max(b.0), a.1.min(b.1)));
                 let (la, lb) = (len(a), len(b));
@@ -248,7 +256,10 @@ fn check(tilts: (f64, f64), fails: &mut Vec<String>) {
                 }
             }
         }
-        eprintln!("{what}: volume {} grid {grid}; {read} probes agree", m.volume);
+        eprintln!(
+            "{what}: volume {} grid {grid}; {read} probes agree",
+            m.volume
+        );
     }
 }
 
@@ -271,5 +282,10 @@ fn review_6226_every_op_both_handednesses_against_the_analytic_solids() {
         check((ta, tb), &mut fails);
         check((-ta, -tb), &mut fails);
     }
-    assert!(fails.is_empty(), "{} failures:\n{}", fails.len(), fails.join("\n"));
+    assert!(
+        fails.is_empty(),
+        "{} failures:\n{}",
+        fails.len(),
+        fails.join("\n")
+    );
 }
