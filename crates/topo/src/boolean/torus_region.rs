@@ -20,16 +20,19 @@
 //!    parallel then a meridian (or the mirror) through a corner, aimed
 //!    at a point of the boundary. Each leg is a circle in a plane: a
 //!    parallel's is normal to the axis, a meridian's holds it.
-//! 2. Every edge meets a leg at the roots of a first harmonic, certified
-//!    by the shared first-harmonic door
+//! 2. A parallel off the top and bottom circles meets a meridian leg
+//!    once, at its point on the leg's half-plane, read off the leg's
+//!    frame. Every other edge meets a leg at the roots of a first
+//!    harmonic, certified by the shared first-harmonic door
 //!    ([`super::circle_roots::first_harmonic_roots_in_band`]): the leg's
 //!    parameter against the edge's plane, except where that plane is
 //!    tangent to the torus at the crossing (below), where a circle edge
 //!    on a meridian leg is read in its own parameter against the leg's
 //!    plane, as the sphere's arcs meet its rays. A plane meets the torus
 //!    in two curves (two parallels, two meridians, two Villarceau circles,
-//!    two ovals), so each root is then asked which one it lies on, and the
-//!    edge's parameter there whether it lies in the edge's span.
+//!    two ovals), so each root is then asked which one it lies on. The
+//!    edge's parameter at a crossing is read against the edge's span
+//!    ([`arc_place`]).
 //! 3. At the closest crossing along the path, the leg's heading against
 //!    `N × τ` says whether the path leaves the face there (so `p` is in
 //!    it) or enters it.
@@ -87,12 +90,13 @@
 //!   and bottom circles (`ρ − R`): a choice between two sound readings,
 //!   never a verdict.
 //! - `bool_torus_region_component`: which of a plane's two curves a root
-//!   lies on — a meridian plane's `(y − c)·ρ̂`, a parallel plane's
-//!   `ρ − R`, a circle edge's distance from its mirror and then from
-//!   itself, an oval's `(y − c)·m`; and
+//!   lies on — a meridian plane's `(y − c)·ρ̂`, a circle edge's distance
+//!   from its mirror and then from itself, an oval's `(y − c)·m`; and
 //!   whether an edge in a leg's plane is on the leg's own circle.
-//! - `bool_torus_region_span`: a root's parameter against its edge's span
-//!   ends, at the circle's radius or the tube's.
+//! - `bool_torus_region_span`: a crossing's parameter against its edge's
+//!   span ends, at the circle's radius or the tube's; where that is in
+//!   band, the cosine of its angle from the span's middle against the
+//!   half-span's, at the same lever.
 //! - `bool_torus_region_at`: a crossing's place along its leg, from the
 //!   leg's start, at the leg's radius.
 //! - `bool_torus_region_corner`: a first leg's crossing, or an end of an
@@ -115,11 +119,13 @@
 //!   door's slack row, metered at the speed of the circle it is a
 //!   parameter of), and the lever is the edge's speed or a lower bound on
 //!   it (the tube's radius bounds an oval's below), so a definite sign is
-//!   the true root's side of the end.
+//!   the true root's side of the end. A parallel's crossing on a
+//!   meridian leg is no root: it is the parallel's point `c + ρ·ρ̂`, off
+//!   by its rounding alone. The cosine reading is branch-free: a
+//!   definitely negative `cos Δ − cos(w/2)` puts the angle from the
+//!   span's middle past half the span on every branch.
 //! - **component**: every sign read is a separation, never a Zero: a
-//!   meridian plane's two circles are `2(R − r)` apart, a parallel
-//!   plane's `2|r·cos v|`, which `bool_torus_region_family` decided
-//!   definite before the plane was read, an oval plane's
+//!   meridian plane's two circles are `2(R − r)` apart, an oval plane's
 //!   two ovals `2√((R − r)² − o²)`; a circle edge's root definitely off
 //!   its mirror is on the edge's circle, as the plane holds no third
 //!   curve, and one in band of both is where they cross, which grazes.
@@ -210,9 +216,8 @@ enum LegKind<T: geom_core::Real> {
 #[derive(Clone, Copy)]
 enum CircleFamily {
     /// A parallel whose plane is transversal to the torus (`r·cos v`
-    /// definitely nonzero), read in the leg's parameter against its plane;
-    /// `outer` is which of the plane's two parallels it is (`ρ > R`).
-    Parallel { outer: bool },
+    /// definitely nonzero), read at its point on the leg's half-plane.
+    Parallel,
     /// A parallel on the top or bottom circle, where its plane is tangent
     /// to the torus, or one whose `r·cos v` is in band: read in its own
     /// parameter.
@@ -378,8 +383,7 @@ impl<T: Decide> TorusFaceRegion<T> {
             Margin::of(radius - self.major),
             band,
         ) {
-            Ok(Sign::Positive) => CircleFamily::Parallel { outer: true },
-            Ok(Sign::Negative) => CircleFamily::Parallel { outer: false },
+            Ok(Sign::Positive | Sign::Negative) => CircleFamily::Parallel,
             Ok(Sign::Zero) | Err(_) => CircleFamily::Rim,
         }
     }
@@ -599,46 +603,27 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     radius,
                     u_ref,
                 },
-                LegKind::Meridian { .. },
-            ) if let CircleFamily::Parallel { outer } = self.circle_family(axis, radius, band) => {
-                // A parallel off the top and bottom circles: its plane meets
-                // the meridian leg at simple roots, read in the leg's
-                // parameter (speed `r`). The plane holds two parallels at
-                // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
-                for s in found(self.plane_roots(leg, axis, center, band))? {
-                    let y = leg.course.round.at(s);
-                    let w = y - center;
-                    let theta = || {
-                        near_span(
-                            w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
-                            (edge.t0, edge.t1),
-                        )
-                    };
-                    let (rho, _, _) = self.polar(y);
-                    let side = match row("bool_torus_region_component", rho - self.major) {
-                        Ok(side) => side,
-                        // A root past the edge's span is no crossing of it,
-                        // whichever parallel it lies on, so only one within
-                        // the span sets the path aside. Where the root's
-                        // leg parameter is wide (a whole turn at the
-                        // certified scalar), its point's `ρ` is too, while
-                        // the azimuth `θ`, read off the point's own
-                        // coordinates, can still lie definitely past the
-                        // span.
-                        Err(fault) => match span(theta(), radius)? {
-                            None => continue,
-                            Some(_) => return Err(fault),
-                        },
-                    };
-                    match (side, outer) {
-                        (Sign::Zero, _) => return Err(RayFault::Graze),
-                        (Sign::Positive, true) | (Sign::Negative, false) => {}
-                        _ => continue,
-                    }
-                    let theta = theta();
-                    if let Some(sideless) = span(theta, radius)? {
-                        out.push((y, theta, sideless));
-                    }
+                LegKind::Meridian { radial },
+            ) if matches!(
+                self.circle_family(axis, radius, band),
+                CircleFamily::Parallel
+            ) =>
+            {
+                // A parallel off the top and bottom circles meets the
+                // meridian leg's circle once, at its point on the leg's
+                // half-plane, read off the leg's frame: no root of its
+                // plane, which meets the leg's circle on the plane's other
+                // parallel too, and near the top or bottom circle in a
+                // near-double root whose margin is quadratic in the two
+                // parallels' distance.
+                let w = radial * radius;
+                if let Some((theta, sideless)) = arc_place(
+                    (edge.t0, edge.t1),
+                    (w.dot(u_ref), w.dot(axis.cross(u_ref))),
+                    radius,
+                    band,
+                )? {
+                    out.push((center + w, theta, sideless));
                 }
             }
             (&geom::Curve3::Circle { center, radius, .. }, LegKind::Meridian { radial }) => {
@@ -705,11 +690,13 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 for s in roots {
                     let y = leg.course.round.at(s);
                     let w = y - center;
-                    let theta = near_span(
-                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                    let Some((theta, sideless)) = arc_place(
                         (edge.t0, edge.t1),
-                    );
-                    let Some(sideless) = span(theta, radius)? else {
+                        (w.dot(u_ref), w.dot(axis.cross(u_ref))),
+                        radius,
+                        band,
+                    )?
+                    else {
                         continue;
                     };
                     match row("bool_torus_region_component", (y - mirror).norm() - radius)? {
@@ -749,8 +736,9 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                     }
                     let h = w.dot(axis);
                     let rho = (w - axis * h).norm();
-                    let v = near_span(h.atan2(rho - major), (edge.t0, edge.t1));
-                    if let Some(sideless) = span(v, minor)? {
+                    if let Some((v, sideless)) =
+                        arc_place((edge.t0, edge.t1), (rho - major, h), minor, band)?
+                    {
                         out.push((y, v, sideless));
                     }
                 }
@@ -762,6 +750,42 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
 
     fn outward(&self, y: Point3<T>) -> Vec3<T> {
         geom_brep::OutwardNormal::from_chart(self.chart_normal(y), self.sense).vec()
+    }
+}
+
+/// **Where a point lies on an edge's arc**, from its offset `(x, y)` off
+/// the arc's centre in the arc's own frame (`x` along its angle's zero):
+/// its angle on the branch of the span's middle and, within the span,
+/// whether it is at an end ([`span`]); `None` past the span. A point at
+/// the angle opposite the span's middle lies at that branch's cut, where
+/// an enclosing scalar holds its angle as a whole turn and the span
+/// reading is in band; it is read past the span all the same where the
+/// cosine of its angle from the middle is definitely below the
+/// half-span's, `lever·(cos Δ − cos(w/2))` (no branch). Otherwise the
+/// span reading's refusal stands.
+///
+/// # Errors
+///
+/// The span reading's in-band refusal, where the cosine does not read
+/// the point past the span.
+fn arc_place<T: Decide>(
+    (t0, t1): (T, T),
+    (x, y): (T, T),
+    lever: T,
+    band: Band,
+) -> Result<Option<(T, bool)>, Fault> {
+    const ROW: &str = "bool_torus_region_span";
+    let theta = near_span(y.atan2(x), (t0, t1));
+    let fault = match span(ROW, theta, (t0, t1), lever, band) {
+        Ok(at) => return Ok(at.map(|sideless| (theta, sideless))),
+        Err(fault) => fault,
+    };
+    let two = T::from_f64(2.0);
+    let (mid, half) = ((t0 + t1) / two, (t1 - t0) / two);
+    let from_mid = (x * mid.cos() + y * mid.sin()) / (x.powi(2) + y.powi(2)).sqrt();
+    match decide(ROW, Margin::of(lever * (from_mid - half.cos())), band) {
+        Ok(Sign::Negative) => Ok(None),
+        _ => Err(fault),
     }
 }
 
@@ -1303,6 +1327,58 @@ mod tests {
                 "a definite reading at ({u}, {v})"
             );
             assert_eq!(got, plain.contains(at(u, v), b), "at ({u}, {v})");
+        }
+    }
+
+    /// **A point opposite an arc's middle is past its span**, at every
+    /// scalar: its angle lies at the cut of the span's branch, which an
+    /// enclosing scalar holds as a whole turn, so the span reading is in
+    /// band and the cosine reading places it. A point inside the arc and
+    /// one just past an end read as the span reading does.
+    #[test]
+    fn a_point_opposite_an_arcs_middle_is_past_its_span() {
+        use geom_core::{Interval, Real};
+        let b = Band::new(1e-9, 1e-8).unwrap();
+        let arc = (0.0, 1.0);
+        let at = |a: f64| (a.cos(), a.sin());
+        assert!(
+            matches!(arc_place(arc, at(0.5 + PI), 1.0, b), Ok(None)),
+            "f64, opposite"
+        );
+        let iv = |t: f64| Interval::from_f64(t);
+        let opposite = (iv(0.5 + PI).cos(), iv(0.5 + PI).sin());
+        let ispan = (iv(0.0), iv(1.0));
+        assert!(
+            span_reading(ispan, opposite).is_err(),
+            "interval: the span reading alone is in band opposite the middle"
+        );
+        assert!(
+            matches!(arc_place(ispan, opposite, iv(1.0), b), Ok(None)),
+            "interval, opposite: past the span"
+        );
+        let inside = (iv(0.3).cos(), iv(0.3).sin());
+        assert!(
+            matches!(arc_place(ispan, inside, iv(1.0), b), Ok(Some((_, false)))),
+            "interval, inside"
+        );
+        let past = (iv(1.2).cos(), iv(1.2).sin());
+        assert!(
+            matches!(arc_place(ispan, past, iv(1.0), b), Ok(None)),
+            "interval, past the end"
+        );
+
+        fn span_reading(
+            (t0, t1): (Interval, Interval),
+            (x, y): (Interval, Interval),
+        ) -> Result<Option<bool>, Fault> {
+            let theta = near_span(y.atan2(x), (t0, t1));
+            span(
+                "bool_torus_region_span",
+                theta,
+                (t0, t1),
+                Interval::from_f64(1.0),
+                Band::new(1e-9, 1e-8).unwrap(),
+            )
         }
     }
 }
