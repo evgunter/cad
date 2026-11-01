@@ -206,3 +206,13 @@ Newest entries at the bottom; the tail is the program's live status.
   is a test bent around the missing product door: the door's unit now
   lists the fixtures it retires. Fix pass dispatched to the implementer.
   (SPACES orchestrator)
+- 2026-11-01 — 6269 fix pass in, green at `4df0fe42`: the insert frame is
+  keyed by the history state its action made (undo takes it back, redo of
+  that step restores it; IDENTITY DI5 reverted to as ratified, the two
+  drops-on-undo rows restored); the `⊔` arm of the stranded-pick guard
+  follows the pick's path; one booking per insert; style taken (one home
+  for the clearance step with its sag margin, `home_space` refusing where
+  the world was a fallback, `copy_of` strict, one test helper each).
+  The projected-member double draw did not reproduce. Targeted re-check
+  by the same reviewer, including a history-tree navigation other than
+  redo. (SPACES orchestrator)
