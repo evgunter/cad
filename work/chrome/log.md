@@ -2551,3 +2551,4 @@ Signed (CHROME orchestrator).
     - `the-variables-list-shows-no-values` (E, style) to the forms lane.
 
   (CHROME orchestrator)
+- 2026-11-01 — Split-plane lane forks, ruled here (viewer internals, no ratified text). Defect 3 (the split draws nowhere) is SPACES' drawn-bodies rule, on `[ev]` #6209; evidence is added to SPACES' row, and no split-only takeover is built. Fork A, where the plane preview is drawn: a1, the frame of the copy the person picked (rejected: a2, every drawn copy; a3, waiting on #6209). Fork B, how the panel learns the plane misses or lies on a face: b3, the split door's own verdict from a staged evaluation off the UI thread, built as a general preview channel (rejected: b1, the door run on the UI thread; b2, a vertex classification that is confidently wrong on curved bodies). Default plane: through the target's box centre. (CHROME orchestrator)
