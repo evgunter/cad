@@ -1894,15 +1894,16 @@ pub(crate) use locator_seg;
 pub(crate) use name_free_seg;
 
 /// **What a rewrite of a role path does to each thing a segment
-/// carries** — the four holes in the one walk [`RoleSeg::rewrite`]
+/// carries** — the holes in the one walk [`RoleSeg::rewrite`]
 /// makes over [`RoleSeg`]'s shape.
 ///
-/// Three walks of a name's path exist: `refactor`'s re-mapping of node
-/// and step ids across a split or an inline, the union emitter's
-/// citing of whole member edges, and [`StableName::piece_steps`]'s
-/// collection of the steps a name spells. What differs between them is
-/// only what each does with a locator, a carried name and a member
-/// edge; what they share — which variant carries which, and putting
+/// Every walk of a name's path is an implementor of this trait (the
+/// implementors list is the census, and is not restated here: a
+/// re-mapping of ids across a refactoring, a citing of whole member
+/// edges, a collection of the steps a name spells and a re-seating of
+/// carries are examples). What differs between them is only what each
+/// does with a locator, a carried name, a carry with its read and a
+/// member edge; what they share — which variant carries which, and putting
 /// the rewritten path back in canonical form
 /// ([`StableName::rewrite_path`], through `names::canonical`) — is the
 /// walk, written once. This trait is the part that differs.
@@ -1949,6 +1950,21 @@ pub(crate) trait SegRewrite {
     fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
         let _ = n;
         Ok(Carry::Keep)
+    }
+
+    /// What becomes of the name a [`RoleSeg::From`] carries, asked with
+    /// the read it is carried in from, as the segment spells it (before
+    /// [`SegRewrite::read`] moves it). A rewrite whose answer depends
+    /// on which input carried the name in says so here, a function of
+    /// the pair; one that does not leaves the default, which asks
+    /// [`SegRewrite::name`] of the name alone.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn from(&mut self, read: VarId, of: &StableName) -> Result<Carry, Self::Error> {
+        let _ = read;
+        self.name(of)
     }
 
     /// A carried name this rewriter descends into, once its path has
@@ -2013,7 +2029,28 @@ struct Deep<'d, 's, W: SegRewrite> {
 impl<'s, W: SegRewrite> Deep<'_, 's, W> {
     /// `n` through the rewriter: `None` where it is kept.
     fn carried(&mut self, n: &'s StableName) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
-        match self.w.name(n).map_err(Stopped::Refused)? {
+        let carry = self.w.name(n).map_err(Stopped::Refused)?;
+        self.settled(carry, n)
+    }
+
+    /// The name a `From` carries in from `read`, through the rewriter
+    /// ([`SegRewrite::from`]): `None` where it is kept.
+    fn carried_from(
+        &mut self,
+        read: VarId,
+        n: &'s StableName,
+    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        let carry = self.w.from(read, n).map_err(Stopped::Refused)?;
+        self.settled(carry, n)
+    }
+
+    /// `n` as the rewriter's answer for it leaves it.
+    fn settled(
+        &mut self,
+        carry: Carry,
+        n: &'s StableName,
+    ) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        match carry {
             Carry::Keep => Ok(None),
             Carry::Replace(next) => Ok(Some(next)),
             Carry::Descend => match (self.kept.get(n), &mut self.listing) {
@@ -2199,9 +2236,15 @@ impl RoleSeg {
             // The carried names.
             // BOTH halves: the read is a local id like the minting node,
             // and a rewrite of the id space moves it too.
+            // The name is asked with the read it is carried in from
+            // ([`SegRewrite::from`]), so no rewriter depends on the
+            // order these two are visited in.
             R::From { read, of } => R::From {
                 read: w.read(*read)?,
-                of: rewrite_ref(of, w)?,
+                of: match w.carried_from(*read, of.name())? {
+                    Some(next) => NameRef::new(next),
+                    None => of.clone(),
+                },
             },
             R::Seam { a, b } => R::Seam {
                 a: rewrite_ref(a, w)?,
@@ -2353,10 +2396,7 @@ impl StableName {
     /// so a name that spells it is a name on that step's pieces,
     /// whichever node minted the name.
     pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
-        self.step_pieces()
-            .iter()
-            .filter_map(ProfileEdgeRef::step)
-            .collect()
+        self.piece_steps_outside(&|_| false)
     }
 
     /// **Every authored step's piece this name spells**, over the same
@@ -2369,36 +2409,73 @@ impl StableName {
     /// document holds (DM7): whether the new program still draws the
     /// piece the name spells.
     pub(crate) fn step_pieces(&self) -> std::collections::BTreeSet<ProfileEdgeRef> {
-        let mut pieces = StepPieces(std::collections::BTreeSet::new());
+        self.step_pieces_outside(&|_| false)
+    }
+
+    /// **The authored steps this name spells outside the names `part`
+    /// marks**: [`Self::piece_steps`], with the walk stopping at each
+    /// carried name `part` holds for, whose steps are not read.
+    ///
+    /// What an edit door asks of a name read where an instance is: a
+    /// level spelled in its part's ids carries the part's steps, which
+    /// the host's mint log never held and the part answers for, while
+    /// every level around it is the host's and is held to the host's
+    /// log. The outer name is the caller's: `part` is asked only of
+    /// the names it carries.
+    pub(crate) fn piece_steps_outside(
+        &self,
+        part: &dyn Fn(&StableName) -> bool,
+    ) -> std::collections::BTreeSet<StepId> {
+        self.step_pieces_outside(part)
+            .iter()
+            .filter_map(ProfileEdgeRef::step)
+            .collect()
+    }
+
+    fn step_pieces_outside(
+        &self,
+        part: &dyn Fn(&StableName) -> bool,
+    ) -> std::collections::BTreeSet<ProfileEdgeRef> {
+        let mut pieces = StepPieces {
+            pieces: std::collections::BTreeSet::new(),
+            part,
+        };
         let Ok(_) = self.clone().rewrite_path(&mut pieces);
-        pieces.0
+        pieces.pieces
     }
 }
 
-/// [`StableName::step_pieces`]'s walk: every step locator collected
-/// as the piece it names, every carried name descended, nothing
-/// rewritten.
-struct StepPieces(std::collections::BTreeSet<ProfileEdgeRef>);
+/// [`StableName::step_pieces_outside`]'s walk: every step locator
+/// collected as the piece it names, every carried name descended but
+/// those `part` marks, nothing rewritten.
+struct StepPieces<'p> {
+    pieces: std::collections::BTreeSet<ProfileEdgeRef>,
+    part: &'p dyn Fn(&StableName) -> bool,
+}
 
-impl SegRewrite for StepPieces {
+impl SegRewrite for StepPieces<'_> {
     type Error = core::convert::Infallible;
 
     fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
         if let ProfileEdgeRef::Piece { .. } = e {
-            self.0.insert(e);
+            self.pieces.insert(e);
         }
         Ok(e)
     }
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
         if let ProfileVertexRef::Piece { step, role } = v {
-            self.0.insert(ProfileEdgeRef::Piece { step, role });
+            self.pieces.insert(ProfileEdgeRef::Piece { step, role });
         }
         Ok(v)
     }
 
-    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
-        Ok(Carry::Descend)
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
+        Ok(if (self.part)(n) {
+            Carry::Keep
+        } else {
+            Carry::Descend
+        })
     }
 
     fn descended(

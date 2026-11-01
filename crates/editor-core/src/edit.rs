@@ -1603,9 +1603,7 @@ fn mint_selection<P: crate::ProfilePayload>(
                 name: doc.spoken_name(name),
             });
         }
-        if !parted {
-            check_name_steps(doc, doc, name)?;
-        }
+        check_name_steps(doc, doc, name, parted)?;
     }
     mint_anonymous(
         doc,
@@ -5844,13 +5842,29 @@ pub struct Recorded<P: crate::ProfilePayload> {
 /// of the load door's `SnapshotError::NameStepNotMinted`, so a
 /// document this door accepts is one the load door reads back. `doc`
 /// is the document being written, `before` the one the door was handed.
+///
+/// `parted` is whether the name is read where an instance is (a body
+/// that reaches one, or for a payload a document that holds one). A
+/// copy carries its part's names verbatim, so there each LEVEL of the
+/// name spelled in ids this document never minted is the part's, and
+/// its steps are the part's to answer for: the walk stops at it. The
+/// levels around it are this document's, and are held to its log (an
+/// operation of the host over an instance's copy carries the part's
+/// name inside its own, `From { read, of: <the part's name> }`). The
+/// rule follows each embedded name and not only the outer one (issue
+/// `a-takeovers-rebind-cannot-reach-part-spelled-names`).
 fn check_name_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     name: &StableName,
+    parted: bool,
 ) -> Result<(), EditError> {
+    let part = |n: &StableName| parted && !doc.has_minted(n.node);
+    if part(name) {
+        return Ok(());
+    }
     match name
-        .piece_steps()
+        .piece_steps_outside(&part)
         .into_iter()
         .find(|s| !doc.mint.has_step(*s))
     {
@@ -6226,9 +6240,7 @@ fn check_appearance_name<P: crate::ProfilePayload>(
             name: doc.spoken_name(name),
         });
     }
-    if !parted {
-        check_name_steps(doc, new, name)?;
-    }
+    check_name_steps(doc, new, name, parted)?;
     Ok(())
 }
 
@@ -6253,15 +6265,12 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     // minted: such a name is the part's, held where an instance is,
     // and its life is the part's (`work/intent/a-part-name-in-the-host-
     // is-spelled-in-the-parts-ids.md`).
-    let parted = |name: &StableName| {
-        !new.has_minted(name.node)
-            && new
-                .nodes
-                .values()
-                .any(|n| matches!(n, Node::InstantiatePart { .. }))
-    };
+    let parted = new
+        .nodes
+        .values()
+        .any(|n| matches!(n, Node::InstantiatePart { .. }));
     for name in node.payload_names() {
-        if parted(name) {
+        if parted && !new.has_minted(name.node) {
             continue;
         }
         if !new.nodes.contains_key(&name.node) {
@@ -6269,7 +6278,7 @@ fn check_payload_refs<P: crate::ProfilePayload>(
                 name: doc.spoken_name(name),
             });
         }
-        check_name_steps(doc, new, name)?;
+        check_name_steps(doc, new, name, parted)?;
     }
     for at in node.payload_read_sites() {
         if !new.nodes.contains_key(&at) {
@@ -8442,7 +8451,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         name: doc.spoken_name(to),
                     });
                 }
-                check_name_steps(doc, new, to)?;
+                check_name_steps(doc, new, to, parted)?;
             }
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the

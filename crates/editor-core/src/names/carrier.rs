@@ -63,36 +63,27 @@ pub(crate) fn reseated(
     name: &StableName,
     moved: &BTreeMap<VarId, BTreeMap<StableName, StableName>>,
 ) -> Option<StableName> {
-    let mut walk = Reseat { moved, read: None };
-    let Ok(now) = name.clone().rewrite_path(&mut walk);
+    let Ok(now) = name.clone().rewrite_path(&mut Reseat(moved));
     (now != *name).then_some(now)
 }
 
-/// [`reseated`]'s walk. The walk visits a `From`'s read and then its
-/// carried name, in that order and with nothing between, so the read
-/// last visited is the one the carried name is read in.
-struct Reseat<'m> {
-    moved: &'m BTreeMap<VarId, BTreeMap<StableName, StableName>>,
-    read: Option<VarId>,
-}
+/// [`reseated`]'s walk: a carry is answered from the pair it is, its
+/// read and its name ([`super::SegRewrite::from`]); every other carried
+/// name is descended, for the carries inside it.
+struct Reseat<'m>(&'m BTreeMap<VarId, BTreeMap<StableName, StableName>>);
 
 impl super::SegRewrite for Reseat<'_> {
     type Error = core::convert::Infallible;
 
-    fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
-        self.read = Some(r);
-        Ok(r)
+    fn from(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
+        Ok(match self.0.get(&read).and_then(|map| map.get(of)) {
+            Some(to) => super::Carry::Replace(to.clone()),
+            None => super::Carry::Descend,
+        })
     }
 
-    fn name(&mut self, n: &StableName) -> Result<super::Carry, Self::Error> {
-        let to = self
-            .read
-            .take()
-            .and_then(|read| self.moved.get(&read))
-            .and_then(|map| map.get(n));
-        Ok(to.map_or(super::Carry::Descend, |to| {
-            super::Carry::Replace(to.clone())
-        }))
+    fn name(&mut self, _: &StableName) -> Result<super::Carry, Self::Error> {
+        Ok(super::Carry::Descend)
     }
 
     fn descended(
@@ -227,6 +218,38 @@ mod a_carrier_is_one_whole_unique_row {
             reseated(&from(OTHER, own(0)), &moved),
             None,
             "another read's"
+        );
+    }
+
+    /// A carry followed, in the same path, by a set of names that are
+    /// not carries: the carry is re-seated on its own read, and the
+    /// names after it are not read as carried in by that read.
+    #[test]
+    fn a_carry_beside_a_borders_set_is_reseated_on_its_own_read() {
+        let to = name(5, vec![RoleSeg::OutputBody]);
+        let moved = BTreeMap::from([(
+            READ,
+            BTreeMap::from([
+                (own(0), to.clone()),
+                (own(9), name(6, vec![RoleSeg::OutputBody])),
+            ]),
+        )]);
+        let piece = |of: StableName| {
+            name(
+                2,
+                vec![
+                    RoleSeg::From {
+                        read: READ,
+                        of: NameRef::new(of),
+                    },
+                    RoleSeg::Fragment(Qualifier::Borders(vec![own(9)])),
+                ],
+            )
+        };
+        assert_eq!(
+            reseated(&piece(own(0)), &moved),
+            Some(piece(to)),
+            "the carry moves; the wall it borders, read in no `From`, does not"
         );
     }
 }

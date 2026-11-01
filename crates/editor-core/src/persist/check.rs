@@ -2004,29 +2004,34 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
+    let holds_instance = doc
+        .ids()
+        .into_iter()
+        .any(|id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })));
     for carrier in doc.name_carriers() {
-        // A name read in a body that reaches an instance may be its
-        // part's, spelled in ids this mint log never held: the copy
-        // carries its part's names verbatim. Only such a name is let
-        // through, and only there; one spelled wholly in this
-        // document's ids is held to every rule below.
-        let read_in = match carrier {
-            NameCarrier::Store { body, .. } => Some(body),
-            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
-            NameCarrier::Payload { .. } => None,
+        // A name read where an instance is may be its part's, or carry
+        // its part's at any depth, spelled in ids this mint log never
+        // held: the copy carries its part's names verbatim, and an
+        // operation over the copy carries them inside its own. Such a
+        // name is let through, and only there; one spelled wholly in
+        // this document's ids is held to every rule below. "Where an
+        // instance is" is the edit doors' rule: for a selection or a
+        // store key, a body that reaches one; for a payload name (an
+        // instance record's outer among them), a document that holds
+        // one. The edit doors check such a name level by level
+        // (`edit::check_name_steps`); this door lets the whole of it
+        // through, so what they admit, it reads back.
+        let parted = match carrier {
+            NameCarrier::Store { body, .. } => doc.reaches_instance(body),
+            NameCarrier::Select { var, .. } => doc
+                .selection(var)
+                .is_some_and(|select| doc.reaches_instance(select.body)),
+            NameCarrier::Payload { .. } => holds_instance,
         };
         let foreign = derivation_nodes(carrier.name())
             .into_iter()
             .any(|n| !doc.has_minted(n));
-        if foreign && read_in.is_some_and(|body| doc.reaches_instance(body)) {
-            continue;
-        }
-        // An instance record's outer may be a face of another
-        // instance's copy, so its part's name: the edit door's rule.
-        if let NameCarrier::Payload { node, name } = carrier
-            && matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
-            && !doc.mint.has_node(name.node)
-        {
+        if foreign && parted {
             continue;
         }
         for n in derivation_nodes(carrier.name()) {

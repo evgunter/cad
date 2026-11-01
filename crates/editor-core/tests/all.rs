@@ -155,6 +155,8 @@ mod docm5_subject;
 mod docm6_seam_declarations;
 #[path = "docm8_flat_merged.rs"]
 mod docm8_flat_merged;
+#[path = "takeover_door.rs"]
+mod takeover_door;
 #[path = "docm9_range.rs"]
 mod docm9_range;
 #[path = "dsc_checks.rs"]
