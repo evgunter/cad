@@ -565,3 +565,123 @@ mod tests {
         );
     }
 }
+
+/// rev6217 probe: the split's conic first order before this PR
+/// (`split_conic_departure`, `t̂·extent·n̂`, no arm gate, a Zero then
+/// `conic_bend_side`) against the one reading (`enters_material{,_arm}`).
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod rev6217_probe {
+    use super::*;
+    use geom_brep::ConicBend;
+    use geom_core::Tol;
+
+    fn old_split<T: Decide>(
+        dir: Vec3<T>,
+        bend: ConicBend<T>,
+        n: Vec3<T>,
+        band: Band,
+    ) -> Result<Option<Side>, Indeterminate> {
+        match crate::validate::decide("split_conic_departure", Margin::of(dir.dot(n)), band)? {
+            Sign::Negative => Ok(Some(Side::Below)),
+            Sign::Positive => Ok(Some(Side::Above)),
+            Sign::Zero => match geom_brep::conic_bend_side(
+                dir,
+                dir.norm(),
+                bend,
+                ReferenceNormal::of_split_plane(n),
+                band,
+            )? {
+                EntersMaterial::Enters => Ok(Some(Side::Below)),
+                EntersMaterial::Exits => Ok(Some(Side::Above)),
+                EntersMaterial::Tangent => Ok(None),
+            },
+        }
+    }
+
+    fn new_split<T: Decide>(
+        dir: Vec3<T>,
+        bend: ConicBend<T>,
+        n: Vec3<T>,
+        band: Band,
+    ) -> Result<Option<Side>, Indeterminate> {
+        let reach = Reach::Conic {
+            extent: dir.norm(),
+            bend,
+        };
+        match read_side(
+            dir,
+            reach,
+            FaceDatum::of_plane(ReferenceNormal::of_split_plane(n)),
+            band,
+        ) {
+            Ok(BoundSide::Off(s) | BoundSide::Tangent(s)) => Ok(Some(s)),
+            Ok(BoundSide::Rides | BoundSide::Unread) => Ok(None),
+            Err(f) => Err(f.diag().unwrap()),
+        }
+    }
+
+    fn arc(radius: f64, tilt: f64, bend_up: bool) -> (Vec3<f64>, ConicBend<f64>) {
+        let span = core::f64::consts::FRAC_PI_2;
+        let (c, s) = (tilt.cos(), tilt.sin());
+        let t = Vec3::new(c, 0.0, s);
+        let b0 = if bend_up {
+            Vec3::new(0.0, 0.0, 1.0)
+        } else {
+            Vec3::new(0.0, 0.0, -1.0)
+        };
+        let bend = Vec3::new(c * b0.x - s * b0.z, b0.y, s * b0.x + c * b0.z);
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin() + bend * radius,
+            axis: t.cross(bend),
+            radius,
+            u_ref: -bend,
+        };
+        let extent =
+            geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * radius * (span / 2.0).sin());
+        let tangent = carrier.deriv(0.0);
+        let cb = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
+        (tangent.normalize() * extent, cb)
+    }
+
+    #[test]
+    #[ignore = "rev6217 probe: red by design, prints the readings PR 6217 moves"]
+    fn rev6217_split_conic_old_vs_new() {
+        let b = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let mut diffs = Vec::new();
+        let mut total = 0;
+        for &r in &[
+            1e-14, 1e-12, 1e-10, 1e-9, 3e-9, 1e-8, 1e-7, 1e-6, 1e-3, 1.0, 1e3,
+        ] {
+            for k in -60i32..=60 {
+                let tilt = f64::from(k) * 1e-10 * 10f64.powi(k.abs() / 10);
+                for up in [true, false] {
+                    let (dir, cb) = arc(r, tilt, up);
+                    total += 1;
+                    let o = old_split(dir, cb, n, b);
+                    let w = new_split(dir, cb, n, b);
+                    let same = match (&o, &w) {
+                        (Ok(a), Ok(c)) => a == c,
+                        (Err(_), Err(_)) => true,
+                        _ => false,
+                    };
+                    if !same {
+                        diffs.push(format!(
+                            "r={r:e} tilt={tilt:e} up={up}: old {o:?} new {w:?}"
+                        ));
+                    }
+                }
+            }
+        }
+        eprintln!("{} of {total} differ", diffs.len());
+        for d in &diffs {
+            eprintln!("{d}");
+        }
+        assert!(
+            diffs.is_empty(),
+            "{} of {total} split conic readings differ",
+            diffs.len()
+        );
+    }
+}
