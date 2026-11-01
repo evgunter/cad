@@ -65,6 +65,7 @@ mod curves {
     pub mod meter_fixture;
     pub mod n1r2_fixtures;
 }
+mod exact_q;
 
 // ---- curves ----
 #[path = "curves/arc_window_adversarial.rs"]
