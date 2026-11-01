@@ -1009,15 +1009,19 @@ fn holding<T: Decide>(
         BooleanError::Escalated { .. } if crossed_only => Ok(None),
         read => Err(read),
     };
-    let (a, b) = crate::query::edge_ends(body, e);
-    let on = match carrier_on_surface(body, &carrier, ((t0, t1), a == b), f, band) {
+    let closed = body.edge_vertices(e).is_some_and(|(u, v)| u == v);
+    let on = match carrier_on_surface(body, &carrier, (t0, t1), closed, f, band) {
         Ok(Some(on)) => Ok(on),
         // A spline face, on whose chart the carrier is not read: the edge
         // is taken to lie in it where both its ends lie on it and its
         // midpoint reads inside it, and the reading then refuses as an
-        // in-band one does.
+        // in-band one does. Any other pair read here lies on nothing.
         Ok(None) => {
-            if !names.ends {
+            let spline = matches!(
+                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+                Some(geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
+            );
+            if !spline || !names.ends {
                 return Ok(None);
             }
             let mid = carrier.eval(geom::mid_param(t0, t1));
@@ -1141,8 +1145,8 @@ enum Samples {
     Spread(u32),
 }
 
-/// **Whether edge carrier `carrier`, over `(t0, t1)` (`closed` where the
-/// edge's ends are one vertex), lies on face `f`'s surface**: a line on
+/// **Whether edge carrier `carrier`, over `(t0, t1)` (`closed` where its
+/// two ends are one point), lies on face `f`'s surface**: a line on
 /// a plane at both its ends, and on a cylinder or cone by
 /// [`crate::census::line_on_quadric_carrier`]
 /// (`bool_line_face_carrier_offset`); a conic in a plane by its own
@@ -1155,9 +1159,8 @@ enum Samples {
 /// [`RIDER_ON_CURVED`]), every point before the answer: one point
 /// definitely off decides that the carrier is not on the surface,
 /// whatever the others read.
-/// `None` on a spline face, whose chart is not read here; any other pair
-/// lies on nothing (a line on a torus or a sphere, a spline or spiric
-/// edge anywhere).
+/// `None` for any other pair, which nothing here reads: a spline on
+/// either side, a line on a sphere or a torus.
 ///
 /// # Errors
 ///
@@ -1166,7 +1169,8 @@ enum Samples {
 fn carrier_on_surface<T: Decide>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
-    ((t0, t1), closed): ((T, T), bool),
+    (t0, t1): (T, T),
+    closed: bool,
     f: FaceKey,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
@@ -1245,8 +1249,7 @@ fn carrier_on_surface<T: Decide>(
             RIDER_ON_CURVED,
             Coincide::EdgeOnCurvedFace,
         ),
-        (_, geom::Surface::Nurbs(_) | geom::Surface::Approx(_)) => return Ok(None),
-        _ => return Ok(Some(false)),
+        _ => return Ok(None),
     };
     let points = match samples {
         Samples::Ends => vec![carrier.eval(t0), carrier.eval(t1)],
