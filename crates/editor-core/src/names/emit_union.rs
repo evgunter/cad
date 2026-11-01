@@ -135,7 +135,7 @@ use crate::names::role::{
     edge_line, is_fold_side, never_in_a_boolean_table,
 };
 use crate::names::seam_pair;
-use crate::names::table::{EntityKey, Entry, NameTable};
+use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use crate::var::VarId;
 
@@ -1786,11 +1786,10 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// the finished body, into `rec`: one per member corner, its copies,
 /// under the corner's name, as the pair boolean groups an operand
 /// corner's copies. The union qualifies no other vertex, so no other
-/// vertex forms a group of its own. A row that keeps the fold's name
-/// with the fold's fragment qualifier (one no rule here re-reads, such
-/// as a row the fold tied) is a member of the group the fold formed,
-/// and its base is left to the fold's record ([`Rederived::by_fold`]).
-#[allow(clippy::too_many_arguments)]
+/// vertex forms a group of its own. A row the fold tied at a member
+/// corner keeps the fold's corner-copy name, so it is a member of the
+/// group the fold formed, and its base is left to the fold's record
+/// ([`Rederived::by_fold`]).
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     vertex_rows: Vec<(StableName, Entry)>,
@@ -1849,6 +1848,20 @@ fn cite_member_edges<T: geom_core::Decide>(
                 flush.resensed(&name, at, whole)?
             }
         };
+        // A row the fold tied at a member corner keeps the fold's
+        // corner-copy name, so it is a member of the fold step's group,
+        // and its base reads the fold's record. That record reads alike
+        // in every member order only where every order's fold ties the
+        // corner; the suite holds no order that does not, and the
+        // corner rule taking these rows retires the exception
+        // (`work/wire/a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule.md`).
+        if let (Entry::Tied(es), [_, .., RoleSeg::Fragment(_)]) = (&entry, cited.path.as_slice())
+            && at_member_corners(flush, es)?
+        {
+            let mut base = cited.clone();
+            base.path.pop();
+            rec.by_fold.insert(base);
+        }
         if cited.kind != EntityKind::Vertex {
             put_entry(&mut out, cited, &entry)?;
             continue;
@@ -1857,11 +1870,6 @@ fn cite_member_edges<T: geom_core::Decide>(
     }
     // Vertices that share a name tie (N4).
     for (name, entries) in vertices {
-        if let [_, .., RoleSeg::Fragment(_)] = name.path.as_slice() {
-            let mut base = name.clone();
-            base.path.pop();
-            rec.by_fold.insert(base);
-        }
         if let [entry] = entries.as_slice() {
             put_entry(&mut out, name, entry)?;
             continue;
@@ -1879,6 +1887,23 @@ fn cite_member_edges<T: geom_core::Decide>(
     })?;
     tie.flush(&mut out)?;
     Ok(out)
+}
+
+/// Whether every one of `es` is a finished vertex at a member corner
+/// ([`Flush::member_vertices`]).
+fn at_member_corners<T: geom_core::Decide>(
+    flush: &Flush<'_, T>,
+    es: &[EntityRef],
+) -> Result<bool, NamingError> {
+    for e in es {
+        let EntityKey::Vertex(v) = e.key else {
+            return Ok(false);
+        };
+        if flush.member_vertices(v)?.is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// The divider walls each of `keys`, the finished vertices member

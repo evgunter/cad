@@ -46,3 +46,13 @@ finished body. The bases of these kept fold rows are the one exception:
 they are left to the fold's record (`Rederived::by_fold`). When this
 row lands, the corner rule names those copies, `by_fold` goes empty,
 and `Rederived::by_fold` can be retired.
+
+**Assumption this row retires.** `Rederived::by_fold` reads the
+fold's record for the base of a `Tied` fold row at a member corner.
+That reading is order-free only if every member order's fold ties the
+corner. Whether the fold ties it can depend on order, and then one order
+reads the fold and another the union's own corner group. The suite
+holds no such order (0 disagreeing pairs), but that is a measurement of
+the suite, not a proof. Once this row's routing lands, `by_fold`
+empties and the assumption goes with it. The site is commented in
+`emit_union`'s `cite_member_edges`.

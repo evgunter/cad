@@ -115,12 +115,10 @@ impl GroupRecord {
 /// The groups a union forms over its finished body, and the vertex
 /// bases it leaves to the fold's own groups instead.
 ///
-/// A union's end pass names every vertex, but a row no rule there
-/// re-reads (one the fold tied) keeps the fold's name, fragment
-/// qualifier and all: its group is the one
-/// the fold step formed, and which bases that leaves to the fold is the
-/// union's to say (`emit_union`'s `cite_member_edges`), here, in
-/// `by_fold`.
+/// A union's end pass names every vertex, but a row the fold tied at a
+/// member corner keeps the fold's name, fragment qualifier and all, so
+/// its group is the one the fold step formed. `emit_union`'s
+/// `cite_member_edges` lists those rows' bases in `by_fold`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Rederived {
     /// The groups whose counts are on record.

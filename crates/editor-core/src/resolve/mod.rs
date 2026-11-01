@@ -2024,7 +2024,11 @@ fn border_delta<T: Decide>(
 /// is spelled. A member passing
 /// through undivided under its upstream name counts, and so does an N3
 /// `Merged` face the parent survives in. At a UNION the output is the
-/// published body, so a group a fold step formed counts the DISTINCT
+/// published body. Its faces, seam edges and vertices are grouped over
+/// that body, each group its own members. A non-seam member edge, and a
+/// member corner whose copies keep the name a fold step tied them under
+/// (`names::groups::Rederived::by_fold`), read the fold instead: a group a fold
+/// step formed counts the DISTINCT
 /// published entities that descend from its parent within it, the
 /// descent followed by entity through every later step: a member a
 /// later step swallows counts 0, one it divides counts each piece, and

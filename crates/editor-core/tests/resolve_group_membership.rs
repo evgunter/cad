@@ -147,8 +147,10 @@ pub(crate) fn moved_to_frame(
         at,
         Tol::witness(),
     );
-    // A mate on a face plane through the frame reads the face itself; one
-    // off it, the face slid along its normal, whose slide is moved too.
+    // A mate on a face plane through the frame reads the face itself,
+    // and one off it the face slid along its normal, whose slide is moved
+    // too. Either way the placement must already read it so: values
+    // alone cannot add a slide or take one away.
     let slide = match again.mates.first().map(|mate| &mate.to) {
         Some(Operand::Pose(def)) => {
             let PoseDef::Slide { by: slide, .. } = &**def else {
@@ -159,19 +161,20 @@ pub(crate) fn moved_to_frame(
         _ => None,
     };
     let bundle = crate::fixture::bundle(&doc, placement);
+    let slide_var = bundle.iter().find_map(|c| c.mate()).and_then(|m| {
+        match doc.var(m.to).map(|v| v.def().clone()) {
+            Some(VarDef::Pose(PoseDef::Slide { by, .. })) => Some(by),
+            _ => None,
+        }
+    });
     let mut edits = Vec::new();
-    if let Some(slide) = slide {
-        let to = bundle
-            .iter()
-            .find_map(|c| c.mate())
-            .map(|m| m.to)
-            .expect("the placement's mate reads a pose");
-        let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) =
-            doc.var(to).map(|v| v.def().clone())
-        else {
-            panic!("the placement's target is a slid face")
-        };
-        edits.push((slide_var, slide));
+    match (slide, slide_var) {
+        (Some(slide), Some(var)) => edits.push((var, slide)),
+        (None, None) => {}
+        (slide, var) => panic!(
+            "the placement's mate and the one `at` needs differ in their slide: {var:?} \
+             against {slide:?}"
+        ),
     }
     for (coord, value) in &again.values {
         let var = bundle
@@ -897,12 +900,13 @@ fn tied_groups_that_resize_unequally_decline_in_every_member_order() {
 /// wall and the post close in on the corner: the wall's face y = 1
 /// runs through it, so a fold step that meets the wall before the post
 /// joins the corner away, and the post's face x = 1 makes it a vertex
-/// again. The corner is held once, by its own name. The union's group
-/// for it is formed over the finished body, so both copies' name
-/// vanishes as `GroupResized { was: 2, now: 1 }` in every member order.
-/// Read through the fold steps, it was 2 → 0 in the orders where the
-/// wall joined the corner away. The runs are read as the split row
-/// reads them.
+/// again. The corner is held once, by its own name, and both copies'
+/// name vanishes as `GroupResized { was: 2, now: 1 }` in every member
+/// order. `was` is the fold's: run 1 keeps the fold's tied copies, so
+/// their base reads the fold's record. `now` is the union's group over
+/// the finished body. Read through the fold steps instead, `now` was 0
+/// in every order but those that fold the prism after both the wall and
+/// the post. The runs are read as the split row reads them.
 #[test]
 fn a_unions_corner_held_twice_then_once_reads_two_to_one_in_every_member_order() {
     use crate::union_member_orders_decide_alike::{CUBE_NORMAL, prism_and_cube};

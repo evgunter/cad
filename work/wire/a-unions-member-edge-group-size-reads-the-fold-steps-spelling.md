@@ -23,7 +23,11 @@ but `groups.rs`'s `rederived` sends only face, seam and vertex bases to
 that record. So the answer for an edge piece's base depends on which
 fold step spelled it, and the steps run in member order.
 
-## Measured (main 181d651b93, 2026-10-28)
+## Measured (main 181d651b93, 2026-10-28, before PR 5916)
+
+Main has since merged PR 5916, which changed which groups a pair
+boolean records, so these counts are as of that commit and were not
+re-measured after it.
 
 - **582** (test, published edge piece) pairs whose base (`sizes` of
   the name with its last `Fragment` removed) read more than one value
