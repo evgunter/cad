@@ -4265,14 +4265,21 @@ impl Takeover {
                 return stranded(copy, pick);
             }
         }
-        // What a pick's placement copies, and the path to its piece.
+        // What a pick's placement copies — down the whole chain of
+        // copies, a copy of a copy (a transform's) included — and the
+        // path to its piece.
         let reads = |held: &pncad::document::Pick| -> Vec<VarId> {
-            let copied = doc
-                .operation_of(held.placement)
-                .and_then(|at| match doc.node(at) {
-                    Some(Node::Place { source, .. }) => Some(source.read),
-                    _ => None,
-                });
+            let mut copied = Vec::new();
+            let mut at = held.placement;
+            while let Some(Node::Place { source, .. }) =
+                doc.operation_of(at).and_then(|node| doc.node(node))
+            {
+                if copied.contains(&source.read) {
+                    break;
+                }
+                copied.push(source.read);
+                at = source.read;
+            }
             copied.into_iter().chain(held.of.iter().copied()).collect()
         };
         for &(union, _) in &self.operands {

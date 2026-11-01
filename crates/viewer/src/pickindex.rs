@@ -2440,10 +2440,8 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
 /// their own frame. `None` where nothing else is drawn, `space` draws
 /// nothing, it is clear already, or the picture does not build.
 ///
-/// Measured as [`crate::combine::duplicate_step`] measures: a probe at
-/// [`crate::scene::SCALE_PROBE_DELTA`] reads the picture's size, and the
-/// meshes it is measured off are cut at [`crate::combine::MEASURE_CHORD`]
-/// of it.
+/// Measured as [`crate::combine::duplicate_step`] measures
+/// ([`crate::combine::measured_at_scale`]).
 pub fn clear_of_drawn(
     doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
@@ -2452,10 +2450,11 @@ pub fn clear_of_drawn(
     ignored: &BTreeSet<VarId>,
     tol: Tol,
 ) -> Option<Frame> {
-    let boxes = |delta: f64| {
-        let delta = DisplayTolerance::new(delta).ok()?;
-        let index =
-            PickIndex::build(doc, eval, PictureKey::of(Generation::FIRST, delta), tol).ok()?;
+    // The drawn points of `space`, and of everything else, at `delta`.
+    let points = |delta: f64| -> Result<_, ()> {
+        let delta = DisplayTolerance::new(delta).map_err(drop)?;
+        let index = PickIndex::build(doc, eval, PictureKey::of(Generation::FIRST, delta), tol)
+            .map_err(drop)?;
         let (mut inserted, mut others) = (Vec::new(), Vec::new());
         for part in index.parts() {
             let at = index.spaces.get(&part.node()).copied();
@@ -2476,19 +2475,13 @@ pub fn clear_of_drawn(
                     .map(|&p| map.map_or(p, |map| map.transform_point(p))),
             );
         }
-        Some((
-            bvh::Aabb::from_points(inserted)?,
-            bvh::Aabb::from_points(others)?,
-        ))
+        Ok((inserted, others))
     };
-    let (inserted, others) = boxes(crate::scene::SCALE_PROBE_DELTA)?;
-    let diagonal = |b: &bvh::Aabb| {
-        (b.max_x - b.min_x)
-            .hypot(b.max_y - b.min_y)
-            .hypot(b.max_z - b.min_z)
-    };
-    let chord = diagonal(&inserted).max(diagonal(&others)) * crate::combine::MEASURE_CHORD;
-    let (inserted, others) = boxes(chord)?;
+    let ((inserted, others), chord) =
+        crate::combine::measured_at_scale(points, |(a, b)| a.iter().chain(b).copied().collect())
+            .ok()??;
+    let inserted = bvh::Aabb::from_points(inserted)?;
+    let others = bvh::Aabb::from_points(others)?;
     let step = crate::combine::clearance(
         others.max_x - inserted.min_x,
         inserted.max_x - inserted.min_x,

@@ -453,6 +453,15 @@ fn a_takeover_through_a_union_operand_refuses_to_strand_a_pick() {
     let (mut session, union, assemble) = a_pick_through_a_union(tol);
     let b = common::xy_box_in(&mut session, BOX);
     let with_b = session.committed_doc().clone();
+    // A real edge of `u`, so the fillet is refused for the pick alone.
+    let edge = {
+        let eval = session.evaluation().expect("landed");
+        let read = session.committed_doc().output(union, 0).expect("u's body");
+        pncad::select::all_edges(eval, read)
+            .into_iter()
+            .next()
+            .expect("u has edges")
+    };
     let mut wrong = Vec::new();
     for (what, op) in [
         ("a pattern", pattern_op(union, true)),
@@ -461,7 +470,7 @@ fn a_takeover_through_a_union_operand_refuses_to_strand_a_pick() {
             SessionOp::AddFillet {
                 target: union,
                 radius: common::len(0.001),
-                selection: Vec::new(),
+                selection: vec![edge.clone()],
             },
         ),
         (
@@ -520,4 +529,51 @@ fn a_projected_member_is_drawn_once() {
     assert!(picture.is_drawn(part), "and the read draws member 1");
     let hit = asm::pick_face(&session, &common::down_at(2.0 * BOX[0], 0.0));
     assert_eq!(hit.node, part, "a pick on member 1 is on the read, once");
+}
+
+/// **A pick one copy deeper is guarded too**: `⊔[a′, b′]` placed, that
+/// copy placed again (the shape a transform of a copy writes), and a
+/// pick of the piece `a′` through the outer copy. A fused pattern of
+/// `a′` re-points the `⊔`'s operand, which the pick's chain of copies
+/// reads, so it refuses `StrandedPick` and records nothing.
+///
+/// *Breaks if* the guard follows only the pick's own copy's source.
+#[test]
+fn a_pick_through_a_copy_of_a_copy_is_guarded() {
+    let tol = Tol::witness();
+    let (mut session, a) = fresh_box(tol);
+    let b = common::xy_box_in(&mut session, BOX);
+    let (doc, a_copy) = common::world_copy(session.committed_doc(), a, tol);
+    let (doc, b_copy) = common::world_copy(&doc, b, tol);
+    let piece = doc.output(a_copy, 0).expect("a's copy");
+    let (doc, assemble) = common::inserted(
+        &doc,
+        Node::Assemble {
+            members: Bodies::Spelled(vec![
+                BodyRead::plain(Operand::Var(piece)),
+                BodyRead::plain(Operand::Node(b_copy)),
+            ]),
+        },
+        tol,
+    );
+    let (doc, held) = common::inserted(&doc, common::world_place(Operand::Node(assemble)), tol);
+    let (doc, held2) = common::inserted(&doc, common::world_place(Operand::Node(held)), tol);
+    let (doc, _) = common::inserted(
+        &doc,
+        common::world_place(Operand::pick(Operand::Node(held2), vec![piece])),
+        tol,
+    );
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let before = session.committed_doc().clone();
+    let out = session.perform(pattern_op(a_copy, true));
+    assert!(
+        matches!(
+            &out.refusal,
+            Some(viewer::session::Refusal::StrandedPick { copy, .. }) if copy.id() == assemble
+        ),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing recorded");
 }

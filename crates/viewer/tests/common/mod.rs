@@ -838,10 +838,15 @@ pub fn world_copy_in(
 /// when the world places it once ([`copy_of`]), `node` itself
 /// otherwise — so a row can aim at a profile or an unplaced node the way
 /// it aims at a placed body.
+///
+/// # Panics
+///
+/// Where several placements copy `node`: the row has to say which.
 pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
     match viewer::world::placements_of(doc, node)[..] {
+        [] => node,
         [copy] => copy,
-        _ => node,
+        _ => panic!("{node:?} is copied more than once: say which copy"),
     }
 }
 

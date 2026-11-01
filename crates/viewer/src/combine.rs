@@ -1279,19 +1279,8 @@ pub fn duplicate_step(
             }
         })
     };
-    let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
-    // The floor mesh's box diagonal: the body's size, read before a
-    // chord can be chosen for it.
-    let scale = Vec3::from_array(
-        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-            .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0)),
-    )
-    .norm();
-    if !(scale.is_finite() && scale > 0.0) {
-        return Err(DuplicateFault::NoExtent { input: spoken() });
-    }
-    let chord = scale * MEASURE_CHORD;
-    let mesh = measured(chord)?;
+    let (mesh, chord) = measured_at_scale(measured, |mesh| mesh.positions.clone())?
+        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
     // The step is stated in the body's space; the body is measured in
     // its own frame, along that heading read into it.
     let heading = body
@@ -1302,6 +1291,34 @@ pub fn duplicate_step(
         .filter(|w| w.is_finite() && *w > 0.0)
         .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
     Ok(clearance(width, width, chord, tol))
+}
+
+/// **Something measured off meshes cut fine for its own size**: `at`
+/// at [`crate::scene::SCALE_PROBE_DELTA`] reads its size — the diagonal
+/// of the box around the probe's `points` — and `at` again at
+/// [`MEASURE_CHORD`] of that size is the measure, answered with the
+/// chord it was cut at. `Ok(None)` where the probe has no extent. The
+/// one measurement a duplicate's step ([`duplicate_step`]) and an
+/// inserted part's frame ([`crate::pickindex::clear_of_drawn`]) take.
+///
+/// # Errors
+///
+/// `at`'s.
+pub fn measured_at_scale<M, E>(
+    mut at: impl FnMut(f64) -> Result<M, E>,
+    points: impl Fn(&M) -> Vec<pncad::geom_core::Point3<f64>>,
+) -> Result<Option<(M, f64)>, E> {
+    let probe = points(&at(crate::scene::SCALE_PROBE_DELTA)?);
+    let scale = Vec3::from_array(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            .map(|axis| width_along(&probe, axis).unwrap_or(0.0)),
+    )
+    .norm();
+    if !(scale.is_finite() && scale > 0.0) {
+        return Ok(None);
+    }
+    let chord = scale * MEASURE_CHORD;
+    Ok(Some((at(chord)?, chord)))
 }
 
 /// **How far to step a body whose near side is `span` behind the far
