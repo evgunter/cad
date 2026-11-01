@@ -1641,7 +1641,7 @@ impl ViewerApp {
             // of it the button shows that refusal's own words.
             match self.drafts.new_doc_name.as_mut() {
                 None => {
-                    if ui.button("New…").clicked() {
+                    if crate::widgets::door(ui, "New…").clicked() {
                         self.drafts.new_doc_name = Some(String::new());
                     }
                 }
@@ -1652,12 +1652,19 @@ impl ViewerApp {
                             .desired_width(120.0),
                     );
                     let named = Refusal::new_document_name(name).map(str::to_owned);
-                    if refusable_button(ui, NEW_DOCUMENT_COMMIT, named.as_ref().err()) {
-                        if let Ok(name) = named {
-                            ops.push(SessionOp::NewDocument { name });
-                        }
-                        self.drafts.new_doc_name = None;
-                    } else if ui.button("Cancel").clicked() {
+                    let blocked = named.as_ref().err().map(Refusal::to_string);
+                    let closing = crate::widgets::commit_row(
+                        ui,
+                        NEW_DOCUMENT_COMMIT,
+                        blocked.as_deref(),
+                        |_| {},
+                    );
+                    if closing.commit
+                        && let Ok(name) = named
+                    {
+                        ops.push(SessionOp::NewDocument { name });
+                    }
+                    if closing.commit || closing.cancel {
                         self.drafts.new_doc_name = None;
                     }
                 }
@@ -1809,7 +1816,7 @@ impl ViewerApp {
                     ui.separator();
                     ui.spinner();
                     ui.label("evaluating…");
-                    if ui.button("Cancel").clicked() {
+                    if ui.button(crate::widgets::CANCEL).clicked() {
                         ops.push(SessionOp::CancelEvaluation);
                     }
                     // A background result is not a user event, so
@@ -5516,6 +5523,78 @@ mod properties_pane_tests {
         );
     }
 
+    /// **The add-variable form's commit is live exactly when a click
+    /// declares**: a `Count` over a field holding `NaN` is refused by
+    /// `SlotValue::of`, so the commit is disabled and the refusal is
+    /// painted under the row — a click pushes nothing and the form
+    /// stays open.
+    #[test]
+    fn the_add_variable_commit_waits_on_a_value_its_dimension_refuses() {
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        use pncad::document::Dimension;
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_name = "n".to_owned();
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Count);
+        driven.app.drafts.new_variable_value = f64::NAN;
+        let refusal = crate::props::SlotValue::of(Dimension::Count, f64::NAN)
+            .expect_err("a NaN count is refused")
+            .to_string();
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted.iter().any(|(run, _)| *run == refusal),
+            "the refusal is painted under the row: {painted:?}"
+        );
+        let vars = driven.app.session.committed_doc().var_named("n");
+        driven.click(NEW_VARIABLE_COMMIT);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.committed_doc().var_named("n"),
+            vars,
+            "nothing was declared"
+        );
+        assert!(driven.app.drafts.new_variable_open, "the form stays open");
+    }
+
+    /// **The add-variable form closes when its declaration is accepted,
+    /// and a refused one keeps what was typed**: with a drag in flight
+    /// the declare is refused (`Refusal::GestureInFlight`), so the form
+    /// is still open on the typed name; once the drag is cancelled the
+    /// same click declares and the form closes.
+    #[test]
+    fn the_add_variable_form_closes_on_acceptance_and_keeps_a_refused_draft() {
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        use pncad::document::Dimension;
+        let mut driven = Driven::with(Vec::new());
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_name = "gap".to_owned();
+        driven.app.drafts.new_variable_dimension = Some(Dimension::Length);
+        driven.app.drafts.new_variable_value = 0.002;
+        driven.app.perform_batch(vec![SessionOp::BeginGesture {
+            node: extrude(),
+            slot: pncad::document::SlotId::Distance,
+        }]);
+        driven.click(NEW_VARIABLE_COMMIT);
+        assert!(
+            driven.app.session.committed_doc().var_named("gap").is_none(),
+            "refused while the drag is in flight"
+        );
+        assert!(
+            driven.app.drafts.new_variable_open && driven.app.drafts.new_variable_name == "gap",
+            "a refused declaration keeps the form and what was typed"
+        );
+        driven.app.perform_batch(vec![SessionOp::CancelGesture]);
+        driven.click(NEW_VARIABLE_COMMIT);
+        assert!(
+            driven.app.session.committed_doc().var_named("gap").is_some(),
+            "declared"
+        );
+        assert!(
+            !driven.app.drafts.new_variable_open,
+            "the form closed with its accepted declaration"
+        );
+    }
+
     /// **A fresh directory under the temp dir holding one stored part**
     /// (`test_support::boss_on_block`), for a row that authors an
     /// assembly beside it: the directory, the part, and the file it was
@@ -5553,6 +5632,57 @@ mod properties_pane_tests {
                 )
             })
             .expect("the instance went in")
+    }
+
+    /// **The free-move cancel door is on the toolbar exactly while a
+    /// probe is in flight**: absent before it begins and after it is
+    /// cancelled, present between — and the drag's door stays off, its
+    /// own gesture not being in flight.
+    #[test]
+    fn the_free_move_cancel_door_is_on_the_toolbar_only_while_a_probe_is_in_flight() {
+        const DRAG: &str = "Cancel drag";
+        const FREE_MOVE: &str = "Cancel free-move";
+        let shown = |painted: &[(String, egui::Rect)], label: &str| {
+            painted.iter().any(|(text, _)| text == label)
+        };
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("free-move door", tol);
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "free-move-door".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
+        driven.settle();
+        let instance = the_instance(driven.app.session.committed_doc());
+        // A space of its own, which the probe moves.
+        driven.app.perform_batch(vec![SessionOp::IntoOwnSpace {
+            placement: instance,
+        }]);
+        driven.settle();
+        let rest = driven.frame(Vec::new());
+        assert!(!shown(&rest, FREE_MOVE), "no probe, no door: {rest:?}");
+        driven
+            .app
+            .perform_batch(vec![SessionOp::BeginFreeMove { instance }]);
+        assert!(
+            driven.app.session.display().probing().is_some(),
+            "the probe began: {:?}",
+            status(&driven)
+        );
+        let held = driven.frame(Vec::new());
+        assert!(
+            shown(&held, FREE_MOVE) && !shown(&held, DRAG),
+            "a probe in flight puts its own door on the toolbar and no other: {held:?}"
+        );
+        driven.click(FREE_MOVE);
+        let after = driven.frame(Vec::new());
+        assert!(
+            !shown(&after, FREE_MOVE),
+            "the door cancelled the probe and went with it: {after:?}"
+        );
+        std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 
     /// **An undo's withdrawal reaches the status line** (DI5): a

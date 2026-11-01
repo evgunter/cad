@@ -987,8 +987,9 @@ impl Drafts {
         }
     }
 
-    /// **The add-variable form closes**, at its commit or its Cancel,
-    /// and its fields go with it: the next `New variable…` starts empty.
+    /// **The add-variable form closes**, at its Cancel or once its
+    /// declaration is accepted ([`Self::accepted`]), and its fields go
+    /// with it: the next `New variable…` starts empty.
     pub(crate) fn close_new_variable(&mut self) {
         self.new_variable_open = false;
         self.new_variable_name.clear();
@@ -1000,7 +1001,7 @@ impl Drafts {
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
-    /// Only the add-profile form has anything to settle: its drafts ARE
+    /// The add-profile form settles its preview: its drafts ARE
     /// the viewport's preview (`sketch::preview` is replayed from them
     /// every frame), so a form left holding the shape it just committed
     /// would keep drawing that shape in the probe tint over the
@@ -1008,7 +1009,8 @@ impl Drafts {
     /// (`None`) is what the form means by "nothing being composed", and
     /// the form closes with its one committed edit, as a tool does; the
     /// field values stay, so a second profile starts from where the
-    /// first one left off. A sketch on a face settles the same way.
+    /// first one left off. A sketch on a face settles the same way, and
+    /// the add-variable form closes on its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -1033,6 +1035,14 @@ impl Drafts {
         ) {
             self.profile_shape = None;
             self.profile_open = false;
+        }
+        // The add-variable form's own declaration landed: the one
+        // naming the variable its field still says.
+        if let SessionOp::DeclareVar { name, .. } = op
+            && self.new_variable_open
+            && name.as_str() == self.new_variable_name.trim()
+        {
+            self.close_new_variable();
         }
     }
 
