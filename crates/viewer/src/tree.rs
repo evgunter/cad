@@ -28,8 +28,9 @@
 //!
 //! What it does write, and what the rule above does not reach, is what
 //! a node IS: the document's spoken node (`Extrude 000000000003`, its
-//! kind noun and tag, [`node_label`]), and which part an instance is
-//! ([`part_file`]). Those are readings of the node, not verdicts about a run,
+//! kind noun and tag, [`node_label`]), which part an instance is
+//! ([`part_file`]), and which face or edge a pick is ([`PickedName`]).
+//! Those are readings of the node, not verdicts about a run,
 //! and they are sited here because the tree and the creation forms'
 //! pickers have to name a node the same way.
 //!
@@ -109,17 +110,18 @@
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
     Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    node_kind_noun,
+    NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode,
+    ValuePayload, node_kind_noun,
 };
+use pncad::prelude::StableName;
 use pncad::select::{
-    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve,
+    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve, role_leaf,
 };
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
 use crate::props::{Computed, Notation};
-use crate::session::VersionOffer;
+use crate::session::{EdgeSelection, FaceSelection, VersionOffer};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -508,6 +510,66 @@ pub fn headline(spoken: &SpokenNode, which: Option<&str>) -> Headline {
             lead: named(spoken, which),
             muted: None,
         },
+    }
+}
+
+/// **A picked entity in a sentence**: its name in the leaf role's words
+/// ([`Speaker::name`]), which say the feature that minted it, then the
+/// drawn body it was picked on where the words have not already said
+/// that node, or the node draws more than one body: `the end cap of
+/// Extrude e548`, `the end cap of Extrude e548, on Place 3218`, `…, on
+/// Split 77c1, body 1`.
+///
+/// The one spelling of a face or edge pick wherever the chrome says
+/// one: a held pick's row, a tool's panel line and its drop notice, the
+/// property header and the id cross-check. Said by a speaker holding
+/// the landed evaluation ([`crate::frame::landed_speaker`]), so each
+/// name reads apart from the others in its table and a name the
+/// evaluation does not hold is said in full.
+#[derive(Clone, Copy, Debug)]
+pub struct PickedName<'a> {
+    name: &'a StableName,
+    node: RecipeNodeId,
+    body: u32,
+}
+
+impl<'a> PickedName<'a> {
+    /// `name`, picked on body `body` of `node`'s value.
+    pub fn on(name: &'a StableName, node: RecipeNodeId, body: u32) -> Self {
+        Self { name, node, body }
+    }
+
+    /// A face pick, on the body its ray met.
+    pub fn face(face: &'a FaceSelection) -> Self {
+        let FaceSelection { name, node, body } = face;
+        Self::on(name, *node, *body)
+    }
+
+    /// An edge pick, on the body its ray met.
+    pub fn edge(edge: &'a EdgeSelection) -> Self {
+        let EdgeSelection { name, node, body } = edge;
+        Self::on(name, *node, *body)
+    }
+}
+
+impl Say for PickedName<'_> {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self { name, node, body } = *self;
+        write!(f, "{}", by.name(name))?;
+        if node != role_leaf(name).node || body != 0 {
+            write!(f, ", on {}", by.node(node))?;
+        }
+        if body != 0 {
+            write!(f, ", body {body}")?;
+        }
+        Ok(())
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for PickedName<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -1236,4 +1298,61 @@ pub fn has_faults(rows: &[TreeRow]) -> bool {
         RowStatus::Unevaluated => false,
         RowStatus::Ok => false,
     })
+}
+
+#[cfg(test)]
+mod picked_name {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use pncad::document::{RecipeNodeId, Said, Speaker};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+    use super::PickedName;
+    use crate::session::DocSession;
+
+    /// **The boss-on-block scene's boss caps, said as picks**: each in
+    /// its leaf role's words with the feature that minted it, so the two
+    /// caps of one body read apart; then the body the click met — said
+    /// for a click on the boss's placed copy, unsaid for one on the
+    /// boss's own body, and said with its index for a body past the
+    /// node's first.
+    #[test]
+    fn a_pick_says_its_face_by_role_and_the_body_it_was_picked_on() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, boss) = crate::test_support::boss_on_block("picked-name", tol);
+        let place = *crate::test_support::authored_ids(&doc)
+            .last()
+            .expect("the boss's placement is the last node");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let by = crate::frame::landed_speaker(session.landed_pair());
+        let cap = |end| StableName {
+            kind: EntityKind::Face,
+            node: boss,
+            path: vec![RoleSeg::Cap(end)],
+        };
+        let said = |end, node, body| Said(&PickedName::on(&cap(end), node, body), by).to_string();
+        let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
+        let (b, p) = (tag(boss), tag(place));
+        assert_eq!(
+            [
+                said(CapEnd::Start, place, 0),
+                said(CapEnd::End, place, 0),
+                said(CapEnd::End, boss, 0),
+                said(CapEnd::End, boss, 1),
+            ],
+            [
+                format!("the start cap of Extrude {b}, on Place {p}"),
+                format!("the end cap of Extrude {b}, on Place {p}"),
+                format!("the end cap of Extrude {b}"),
+                format!("the end cap of Extrude {b}, on Extrude {b}, body 1"),
+            ],
+        );
+        assert_eq!(
+            PickedName::on(&cap(CapEnd::End), place, 0).to_string(),
+            Said(&PickedName::on(&cap(CapEnd::End), place, 0), Speaker::TAG).to_string(),
+            "with no document at hand, each node by its tag"
+        );
+    }
 }

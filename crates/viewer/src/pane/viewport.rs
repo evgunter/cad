@@ -2305,7 +2305,7 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                idpass::SaidFace(by, face).to_string()
+                pncad::document::Said(&crate::tree::PickedName::face(face), by).to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)

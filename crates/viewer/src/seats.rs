@@ -678,7 +678,7 @@ pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
 /// held-picks line**: `no picks yet` while nothing is held, else one
 /// `role: pick` item per seat, `—` for an open one, joined on `"; "`.
 /// [`seat_line`] reaches it for the seated tools and
-/// [`crate::matetool::MateToolState::line`] for the mate tool, whose
+/// [`crate::matetool::MateTool::line`] for the mate tool, whose
 /// picks are faces and whose state is not [`Seats`] (module docs) but
 /// whose line has this shape. Each caller spells its own items; the
 /// shape, the empty sentence and the mark are this function's.

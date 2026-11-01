@@ -4206,9 +4206,10 @@ mod properties_pane_tests {
         let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
             vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
-        // A pick is on the drawn copy, and says so.
+        // A pick is the face in its words, on the drawn copy.
         let line = format!(
-            "on: face of Place {}; to: —",
+            "on: the end cap of Extrude {}, on Place {}; to: —",
+            test_utils::refusal::tag(extrude().0.digest()),
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");

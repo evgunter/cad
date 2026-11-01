@@ -6,7 +6,7 @@
 use eframe::egui;
 use pncad::document::{
     Axis3, Dimension, Doc, Evaluation, Frame, HeldNodes, ProfileProgram, RecipeNodeId, Said,
-    SlotId, Speaker, VarId, VarName,
+    SlotId, VarId, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{AboutReference, Resolution};
@@ -21,6 +21,7 @@ use crate::session::{
     BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
 };
 use crate::theme::Theme;
+use crate::tree::PickedName;
 use crate::widgets::{
     CANCEL, FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH,
     angle_picker, commit_row, delete_button, form_door, free_move_gesture, length_picker,
@@ -455,10 +456,10 @@ impl ViewerBehavior<'_> {
                 return;
             }
             Standing::Face { face, .. } => {
-                self.entity_header_ui(ui, "face", face.feature(), standing);
+                self.entity_header_ui(ui, PickedName::face(face), face.feature(), standing);
             }
             Standing::Edge { edge, .. } => {
-                self.entity_header_ui(ui, "edge", edge.feature(), standing);
+                self.entity_header_ui(ui, PickedName::edge(edge), edge.feature(), standing);
             }
         }
         standing_verdict(ui, &self.theme, standing, landed, said);
@@ -501,25 +502,23 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// A picked entity's header line: which feature it belongs to, and
-    /// the delete that feature offers. Its verdict is
-    /// [`standing_verdict`]'s, on the lines under it.
-    ///
-    /// **One rendering for every kind of picked entity**, taking the
-    /// noun as an argument: a face and an edge differ in what they are
-    /// called and in nothing else this line does.
+    /// A picked entity's header line: the entity as the chrome says a
+    /// pick ([`PickedName`]), and the delete the feature that made it
+    /// offers. Its verdict is [`standing_verdict`]'s, on the lines
+    /// under it.
     fn entity_header_ui(
         &mut self,
         ui: &mut egui::Ui,
-        noun: &str,
+        picked: PickedName<'_>,
         feature: RecipeNodeId,
         standing: &Standing,
     ) {
         ui.horizontal(|ui| {
-            // The feature that MADE the entity, so the button deletes
-            // what the label names.
-            let by = Speaker::of(self.session.doc()).or_held(self.session.selection_said());
-            ui.label(format!("{noun} of {}", by.node(feature)));
+            // The words name the feature that MADE the entity first, so
+            // the button deletes what the label names.
+            let by = crate::frame::landed_speaker(self.session.landed_pair())
+                .or_held(self.session.selection_said());
+            ui.label(Said(&picked, by).to_string());
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }

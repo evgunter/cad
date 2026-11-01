@@ -3858,7 +3858,7 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
                 side: MateSide::To,
-                node: viewer::test_support::spoken(RecipeNodeId::new(0, tagged(3)), None),
+                said: pncad::document::HeldNodes::default(),
                 pick: FaceSelection {
                     name: face.clone(),
                     node: RecipeNodeId::new(0, tagged(3)),

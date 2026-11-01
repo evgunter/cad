@@ -19,7 +19,7 @@ use crate::forms::{
     UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState};
+use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateTool};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
@@ -27,7 +27,7 @@ use crate::seats::{Seat, Seats, seat_line};
 use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
-use crate::tree;
+use crate::tree::{self, PickedName};
 use crate::widgets::{
     CANCEL, angle_picker, commit_row, door, form_door, length_picker, number_field, point_fields,
     unit_field, unit_vec3_row, vec3_row,
@@ -190,16 +190,11 @@ pub(crate) fn boolean_prompt(op: BooleanOp) -> &'static str {
     }
 }
 
-/// **The mate tool's held picks, drawn** — [`MateToolState::line`],
-/// the seated tools' line over the mate's two sides, in the same voice
-/// as [`seats_row`].
-pub(crate) fn mate_picks_row(
-    ui: &mut egui::Ui,
-    state: &MateToolState,
-    doc: &Doc<ProfileProgram>,
-    theme: &Theme,
-) {
-    crate::widgets::message_toned(ui, state.line(doc), theme, Tone::Advisory);
+/// **The mate tool's held picks, drawn** — [`MateTool::line`], the
+/// seated tools' line over the mate's two sides, in the same voice as
+/// [`seats_row`].
+pub(crate) fn mate_picks_row(ui: &mut egui::Ui, tool: &MateTool, by: Speaker<'_>, theme: &Theme) {
+    crate::widgets::message_toned(ui, tool.line(by), theme, Tone::Advisory);
 }
 
 /// **The smallest pattern count the form offers.**
@@ -558,7 +553,12 @@ impl ViewerBehavior<'_> {
             return self.tool_door(ui, ToolKind::Mate);
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
-        mate_picks_row(ui, tool.state(), self.session.doc(), &self.theme);
+        mate_picks_row(
+            ui,
+            &tool,
+            frame::landed_speaker(self.session.landed_pair()),
+            &self.theme,
+        );
         ui.horizontal(|ui| {
             for (ix, (_, label)) in MATE_KINDS.iter().enumerate() {
                 ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
@@ -930,10 +930,7 @@ impl ViewerBehavior<'_> {
             Selection::Face(face) => Some(face.clone()),
             _ => None,
         };
-        let speaker = self
-            .session
-            .landed_pair()
-            .map_or(Speaker::TAG, |(landed, _)| Speaker::of(landed));
+        let speaker = frame::landed_speaker(self.session.landed_pair());
         let mut withholds = Vec::new();
         for (label, plane) in [(TRACE_PLANE, true), (TRACE_FACE, false)] {
             ui.horizontal(|ui| {
@@ -944,7 +941,7 @@ impl ViewerBehavior<'_> {
                     &mut self.drafts.trace_face
                 };
                 match held.as_ref() {
-                    Some(face) => ui.weak(Said(&BlendTarget::of_face(face), speaker).to_string()),
+                    Some(face) => ui.weak(Said(&PickedName::face(face), speaker).to_string()),
                     None => ui.weak("none picked"),
                 };
                 if ui
@@ -1039,20 +1036,12 @@ impl ViewerBehavior<'_> {
         ui.horizontal(|ui| {
             ui.label("face");
             match self.drafts.held_face() {
-                // The drawn body a pick is on, in the one sentence
-                // this crate names that scope with (`Say for
-                // BlendTarget`), its node said from the landed
-                // document the pick was read off, or as the form kept
-                // it once that document no longer holds it.
+                // Said from the landed pair the pick was read off, a
+                // node that document no longer holds as the form kept it.
                 Some(face) => {
-                    let target = BlendTarget::of_face(face);
-                    let kept = self.drafts.sketch_face_said();
-                    let by = self
-                        .session
-                        .landed_pair()
-                        .map_or(Speaker::TAG, |(landed, _)| Speaker::of(landed))
-                        .or_held(kept);
-                    ui.weak(Said(&target, by).to_string())
+                    let by = frame::landed_speaker(self.session.landed_pair())
+                        .or_held(self.drafts.sketch_face_said());
+                    ui.weak(Said(&PickedName::face(face), by).to_string())
                 }
                 None => ui.weak("none picked"),
             };
@@ -1414,7 +1403,10 @@ impl ViewerBehavior<'_> {
         );
         crate::widgets::message_toned(
             ui,
-            tool.line(self.session.doc()),
+            tool.line(
+                self.session.doc(),
+                frame::landed_speaker(self.session.landed_pair()),
+            ),
             &self.theme,
             Tone::Advisory,
         );
@@ -1999,7 +1991,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+    use pncad::document::{Doc, ProfileProgram, RecipeNodeId, Speaker};
     use pncad::geom_core::Tol;
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 
@@ -2008,49 +2000,51 @@ mod tests {
     };
     use crate::combine::BooleanTool;
     use crate::frame::Tone;
-    use crate::matetool::MateToolState;
+    use crate::matetool::MateTool;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::session::FaceSelection;
     use crate::theme::Theme;
     use pncad::select::SplitHalf;
     use pncad::topo::BooleanOp;
 
-    /// A face pick on the body of `node`.
-    fn face_on(node: u64) -> FaceSelection {
+    /// The end cap `minted` made, picked on the body of `drawn`.
+    fn cap_on(minted: u64, drawn: u64) -> FaceSelection {
         FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(minted)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(drawn)),
             body: 0,
         }
     }
 
     /// **The mate panel's picks, painted**: the seated tools' line —
     /// one `role: pick` item per side, `—` for the open one, the
-    /// seated line's empty sentence — with a pick called the face of a
-    /// FEATURE, which is what every other panel calls a node.
+    /// seated line's empty sentence — with each pick said as the chrome
+    /// says a pick: the face in its leaf role's words, and the body it
+    /// was picked on where that is not the feature the words name.
     #[test]
     fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
         // The picks' nodes are not in this document, so each is spoken
         // as a bare tag.
         let doc = Doc::<ProfileProgram>::empty_derived("mate-row", Tol::witness());
-        let painted = |state: &MateToolState| {
-            painted_text(|ui| mate_picks_row(ui, state, &doc, &Theme::DEFAULT))
+        let painted = |tool: &MateTool| {
+            painted_text(|ui| mate_picks_row(ui, tool, Speaker::of(&doc), &Theme::DEFAULT))
         };
-        assert_eq!(painted(&MateToolState::Idle), "no picks yet");
+        let mut tool = MateTool::new();
+        assert_eq!(painted(&tool), "no picks yet");
+        tool.pick(&doc, cap_on(3, 3));
         assert_eq!(
-            painted(&MateToolState::One(face_on(3))),
-            "on: face of node 000000000003; to: —"
+            painted(&tool),
+            "on: the end cap of node 000000000003; to: —"
         );
+        tool.pick(&doc, cap_on(3, 5));
         assert_eq!(
-            painted(&MateToolState::Two {
-                on: face_on(3),
-                to: face_on(5),
-            }),
-            "on: face of node 000000000003; to: face of node 000000000005"
+            painted(&tool),
+            "on: the end cap of node 000000000003; \
+             to: the end cap of node 000000000003, on node 000000000005"
         );
     }
 
@@ -2767,9 +2761,9 @@ mod tools_respeak {
                     let crate::seats::SeatEvent::PickLost { node, .. } = event;
                     node.to_string()
                 }
-                ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { node, .. }) => {
-                    node.to_string()
-                }
+                ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost {
+                    node, said, ..
+                }) => said.spoken(node).to_string(),
                 other => panic!("a mirror drop, not {other:?}"),
             })
             .collect();
@@ -2818,9 +2812,10 @@ mod tools_respeak {
             .filter_map(|notice| match notice {
                 ToolNotice::Mate(crate::matetool::MateToolEvent::PickLost {
                     side: MateSide::On,
-                    node,
+                    pick,
+                    said,
                     ..
-                }) => Some(node.to_string()),
+                }) => Some(said.spoken(pick.node).to_string()),
                 ToolNotice::Mate(_) => None,
                 other => panic!("a mate drop, not {other:?}"),
             })

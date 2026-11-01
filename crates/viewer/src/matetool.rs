@@ -74,13 +74,15 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
-    RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind, member_of, pose,
+    Coord, Doc, Evaluation, Formula, HeldNodes, Mate, MateSide, Node, NotAFaceName,
+    ProfileProgram, RecipeNodeId, Said, Say, SitedFace, Speaker, SpokenNode, TargetAxis, VarKind,
+    held_by, member_of, pose,
 };
 use pncad::select::Resolution;
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
+use crate::tree::PickedName;
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **The kinds a mate's face picks are read as**, with their labels: a
@@ -288,9 +290,8 @@ impl core::error::Error for MateToolError {}
 
 impl MateToolError {
     /// This refusal with its nodes spoken from `doc`, a later version of
-    /// the document the tool read ([`crate::session::Refusal::respoken`]):
-    /// the panel's line ([`MateToolState::line`]) speaks the session's
-    /// document, and a refusal drawn beside it speaks the same one.
+    /// the document the tool read ([`crate::session::Refusal::respoken`]),
+    /// as the panel's line ([`MateTool::line`]) keeps its own labels.
     #[must_use]
     pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
         match self {
@@ -340,45 +341,21 @@ impl MateToolState {
             Self::Two { on, to } => [Some(on), Some(to)],
         }
     }
-
-    /// **The line the mate panel shows for its held picks** — the
-    /// seated tools' line (`seats::picks_line`), with the mate's two
-    /// sides as its roles and each pick said as `face_of` says it, the
-    /// drop notice's phrase.
-    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
-        let [on, to] = self.picks();
-        crate::seats::picks_line(
-            [(MateSide::On, on), (MateSide::To, to)].map(|(side, pick)| {
-                (
-                    side.name(),
-                    pick.map(|pick| face_of(&doc.spoken(pick.node))),
-                )
-            }),
-        )
-    }
-}
-
-/// **What this tool calls a held pick**: `face of Extrude 000000000003`
-/// — the face of the node whose body the pick was taken on, as the
-/// document speaks it. The panel item ([`MateToolState::line`]) and the
-/// drop notice ([`MateToolEvent`]) both say it, and the mirror tool's
-/// plane is said in the same words (`crate::combine::MirrorTool`).
-pub(crate) fn face_of(node: &SpokenNode) -> String {
-    format!("face of {node}")
 }
 
 /// **The sentence a dropped face pick is said in**: its role, and the
-/// face as [`face_of`] says it — the mate tool's drop and the mirror
-/// tool's (`crate::combine::MirrorEvent`).
+/// face as the chrome says a pick ([`PickedName`]) — the mate tool's drop
+/// and the mirror tool's (`crate::combine::MirrorEvent`).
 pub(crate) fn face_lost(
     f: &mut core::fmt::Formatter<'_>,
     role: impl core::fmt::Display,
-    node: &SpokenNode,
+    face: PickedName<'_>,
+    by: Speaker<'_>,
 ) -> core::fmt::Result {
     write!(
         f,
-        "the {role} pick (a {}) no longer resolves; the tool dropped it",
-        face_of(node)
+        "the {role} pick ({}) no longer resolves; the tool dropped it",
+        Said(&face, by)
     )
 }
 
@@ -393,9 +370,9 @@ pub enum MateToolEvent {
         side: MateSide,
         /// The pick that was held.
         pick: FaceSelection,
-        /// The pick's node by the last label the tool kept for it
-        /// ([`MateTool::respeak`]).
-        node: SpokenNode,
+        /// The nodes the pick's sentence names, by the last labels the
+        /// tool kept for them ([`MateTool::respeak`]).
+        said: HeldNodes,
         /// The resolution machinery's own verdict, read as the feature
         /// tree reads it ([`crate::tree::resolution_as_drawn`]); boxed
         /// for the same width reason `Standing` boxes it.
@@ -403,12 +380,25 @@ pub enum MateToolEvent {
     },
 }
 
+/// A sentence for the status line — the payload stays typed and full
+/// in the value; this is what a person reads. A node `by` does not hold
+/// is said as the tool kept it.
+impl Say for MateToolEvent {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::PickLost {
+                side, pick, said, ..
+            } => face_lost(f, side.name(), PickedName::face(pick), by.or_held(said)),
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node as the tool
+/// kept it.
 impl core::fmt::Display for MateToolEvent {
-    /// A sentence for the status line — the payload stays typed and
-    /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, node, .. } => face_lost(f, side.name(), node),
+            Self::PickLost { said, .. } => self.say(f, Speaker::held(said)),
         }
     }
 }
@@ -505,10 +495,11 @@ fn placement_of(
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct MateTool {
     state: MateToolState,
-    /// Each held pick's node as the document last spoke it, `on` then
-    /// `to` ([`MateTool::respeak`]) — what a drop notice or a refusal
-    /// says once the document no longer holds the node.
-    said: [Option<SpokenNode>; 2],
+    /// The nodes each held pick's sentence names, as the document last
+    /// spoke them, `on` then `to` ([`MateTool::respeak`]) — what a drop
+    /// notice, a refusal or the panel line says once the document no
+    /// longer holds a node.
+    said: [Option<HeldNodes>; 2],
 }
 
 impl MateTool {
@@ -527,7 +518,7 @@ impl MateTool {
     /// third REPLACES `to` (the choice step is still open, and
     /// re-picking the second face is how a person corrects it).
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
-        let said = Some(doc.spoken(face.node));
+        let said = Some(held_by(&PickedName::face(&face), doc));
         self.state = match std::mem::take(&mut self.state) {
             MateToolState::Idle => {
                 self.said = [said, None];
@@ -545,7 +536,31 @@ impl MateTool {
     /// node `doc` holds takes its label now, and one it no longer holds
     /// keeps the last it had.
     pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        crate::seats::respeak_each(&mut self.said, doc);
+        for said in self.said.iter_mut().flatten() {
+            *said = said.respoken(doc);
+        }
+    }
+
+    /// **The line the mate panel shows for its held picks** — the
+    /// seated tools' line (`seats::picks_line`), with the mate's two
+    /// sides as its roles and each pick said as the chrome says one
+    /// ([`PickedName`]) by `by`, a node `by` does not hold as the tool
+    /// kept it.
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        let [on, to] = self.state.picks();
+        let [said_on, said_to] = &self.said;
+        crate::seats::picks_line(
+            [(MateSide::On, on, said_on), (MateSide::To, to, said_to)].map(|(side, pick, said)| {
+                let by = match said {
+                    Some(said) => by.or_held(said),
+                    None => by,
+                };
+                (
+                    side.name(),
+                    pick.map(|pick| Said(&PickedName::face(pick), by).to_string()),
+                )
+            }),
+        )
     }
 
     /// **`side`'s pick's node as a refusal says it**: by the label the
@@ -556,8 +571,8 @@ impl MateTool {
             MateSide::On => &self.said[0],
             MateSide::To => &self.said[1],
         };
-        match kept {
-            Some(kept) if kept.kind().is_some() => kept.clone(),
+        match kept.as_ref().map(|kept| kept.spoken(node)) {
+            Some(kept) if kept.kind().is_some() => kept,
             _ => doc.spoken(node),
         }
     }
@@ -579,11 +594,11 @@ impl MateTool {
             } else {
                 events.push(MateToolEvent::PickLost {
                     side,
-                    node: match side {
+                    said: match side {
                         MateSide::On => said_on.clone(),
                         MateSide::To => said_to.clone(),
                     }
-                    .unwrap_or_else(|| doc.spoken(pick.node)),
+                    .unwrap_or_else(|| held_by(&PickedName::face(pick), doc)),
                     pick: pick.clone(),
                     resolution: Box::new(verdict),
                 });
