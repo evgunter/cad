@@ -84,3 +84,16 @@ Signed (WIRE orchestrator).
 ## Unparked (2026-10-20, INTENT stage 3 D lane)
 
 Its trigger fired: `a-mate-relates-two-poses` (stage 3 C, PR #5267) merged on 2026-10-18, so mate-cluster blame now stands on the tree it waited for and the design question is open to weigh.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Still real, reshaped.**
+- The blame is now a placement that holds a constraint (`viewer/src/tree.rs:1134-1145`, `blamed_mates`).
+- `NodeStanding`'s "fix the node's own failure" is unchanged (`eval/mod.rs:625`), and the viewer still re-reads through `standing_as_drawn` (`tree.rs:876`).
+- `FILED_NO_RECOURSE` parks `MeasureRefUnreadable/NodeFailed` and `/NodePoisoned` on this row (`tests/refusal_concision_chains.rs:257-259`).
+- Stale citations of this row as `work/wire/…` are at `viewer/src/tree.rs:875`, `blend.rs:247`, `combine.rs:1111` and `session/select.rs:343`. Repoint them to `work/wirehold/` with the fix.
+- Sibling: `msolve/a-mate-is-poisoned-through-a-member-its-own-solve-faulted` (open).
+
+A design fork: designer pair, then `[ev]`.

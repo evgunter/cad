@@ -522,15 +522,22 @@ impl ContactRecords {
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
     ) -> Result<Self, CarryRefusal> {
-        let [out] =
-            <[Self; 1]>::try_from(self.carried_onto(input, lineage, &[result], band, region)?)
-                .unwrap_or_else(|_| unreachable!("one side carries one list"));
+        let [out] = <[Self; 1]>::try_from(self.carried_onto(
+            input,
+            lineage,
+            &[result],
+            band,
+            region,
+            None,
+        )?)
+        .unwrap_or_else(|_| unreachable!("one side carries one list"));
         Ok(out)
     }
 
     /// These records carried onto `sides`, the bodies an op made from
     /// its input `input`, one list per side, as [`Self::carried_through`]
-    /// carries them onto one ([`landings`]).
+    /// carries them onto one ([`landings`]); each record the op parts
+    /// onto different sides listed in `parted` where it is given.
     ///
     /// # Errors
     ///
@@ -543,10 +550,11 @@ impl ContactRecords {
         sides: &[&Body<T>],
         band: geom_core::Band,
         region: Option<crate::RegionLane<T>>,
+        parted: Option<&mut Vec<Parting>>,
     ) -> Result<Vec<Self>, CarryRefusal> {
         let rows: Vec<[Cell; 2]> = self.rows.iter().map(|r| r.cells()).collect();
         let mut confirms = Confirms::new(sides.len());
-        let landed = landings(&rows, lineage, sides, &mut confirms, band, region)?;
+        let landed = landings(&rows, lineage, sides, &mut confirms, band, region, parted)?;
         let mut out: Vec<Self> = sides.iter().map(|_| Self::default()).collect();
         for landing in landed {
             let record = super::reduce::index(landing.row);
@@ -667,6 +675,17 @@ impl ContactRecords {
     }
 }
 
+/// **A record an op parts** ([`CarryRefusal::Parted`]): different
+/// sides hold its two cells' images and no side holds both.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Parting {
+    /// The record's index among the rows carried.
+    pub(crate) record: u32,
+    /// Each held image of each of the record's two cells, in the
+    /// record's order, with the index of the side that holds it.
+    pub(crate) held: [Vec<(usize, Cell)>; 2],
+}
+
 /// **One record's landing** ([`landings`]): the pair of its two cells'
 /// images on side `side` whose interiors meet.
 #[derive(Clone, Copy, Debug)]
@@ -723,7 +742,8 @@ impl<T: geom_core::Decide> Confirms<'_, T> {
 /// row that lands nowhere and is not consumed, [`CarryRefusal::Stale`]
 /// where some pair was read, [`CarryRefusal::Pair`] where every pair is
 /// one cell or incident, [`CarryRefusal::Parted`] where its two cells'
-/// images are held by different sides only, and
+/// images are held by different sides only (listed in `parted` instead
+/// where it is given), and
 /// [`CarryRefusal::Unmapped`] for a cell with no image held anywhere.
 pub(crate) fn landings<'b, T: geom_core::Decide>(
     rows: &[[Cell; 2]],
@@ -732,6 +752,7 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
     confirms: &mut Confirms<'b, T>,
     band: geom_core::Band,
     region: Option<crate::RegionLane<T>>,
+    mut parted: Option<&mut Vec<Parting>>,
 ) -> Result<Vec<Landing>, CarryRefusal> {
     let mut out = Vec::new();
     for (k, &cells) in rows.iter().enumerate() {
@@ -776,6 +797,7 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
         let mut read = false;
         let mut structure: Option<ContactPairError> = None;
         let mut held_by: [bool; 2] = [false, false];
+        let mut held_at: [Vec<(usize, Cell)>; 2] = [Vec::new(), Vec::new()];
         for (s, (&body, confirm)) in sides.iter().zip(&mut confirms.0).enumerate() {
             // Each held image as the cell a record lands on, whether the
             // op minted it, and whether it is a point: read before a
@@ -799,6 +821,7 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
             let held = [held(0), held(1)];
             for i in 0..2 {
                 held_by[i] |= !held[i].is_empty();
+                held_at[i].extend(held[i].iter().map(|&(c, ..)| (s, c)));
             }
             for &(a, a_minted, a_point) in &held[0] {
                 for &(b, b_minted, b_point) in &held[1] {
@@ -854,7 +877,14 @@ pub(crate) fn landings<'b, T: geom_core::Decide>(
             return Err(CarryRefusal::Pair { record, error });
         }
         if held_by == [true, true] {
-            return Err(CarryRefusal::Parted { record });
+            let Some(parted) = parted.as_deref_mut() else {
+                return Err(CarryRefusal::Parted { record });
+            };
+            parted.push(Parting {
+                record,
+                held: held_at,
+            });
+            continue;
         }
         // A cell no side holds is covered only by its own removal.
         for i in 0..2 {
