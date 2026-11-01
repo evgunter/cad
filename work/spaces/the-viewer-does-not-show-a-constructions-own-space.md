@@ -5,8 +5,9 @@ title: viewer: a construction's own space is not shown (DI5's default set) becau
 status: open
 opened: 2026-10-22
 priority: P1
-refs: [5811]
+refs: [5811, 6209]
 cost: H
+parent: the-picture-draws-bodies
 ---
 
 

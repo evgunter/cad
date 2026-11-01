@@ -2759,7 +2759,7 @@ mod tests {
     ///
     /// No replay of the steps written holds that leg, so the chain is
     /// drawn short of it. Filed as
-    /// `work/doors/a-last-leg-no-close-can-follow-is-dropped`; this is
+    /// `work/held/a-last-leg-no-close-can-follow-is-dropped`; this is
     /// the row to re-pin when it is fixed.
     ///
     /// Red if any of those legs is drawn.
