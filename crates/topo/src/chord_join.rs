@@ -4595,8 +4595,9 @@ fn along_edge_spec<T: Decide>(
 }
 
 /// **A segment's chord along a closed edge** ([`JoinPlan`]'s `closed`):
-/// the edge's whole turn, in every lane — the segment is the edge, so no
-/// section is asked — run the way the chord's `mef` `site` needs
+/// the edge's whole turn on its own carrier, a circle or an ellipse, in
+/// every lane — the segment is the edge, so no section is asked — run
+/// the way the chord's `mef` `site` needs
 /// ([`closed_chord_runs_forward`]). It is stated in the chart of the
 /// face it divides, on which it lies: a whole-turn scaffold circle reads
 /// as a null edge's placeholder (`containment::carrier_loop`).
@@ -4613,20 +4614,17 @@ fn closed_edge_spec<T: Decide>(
     let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
         return Err(invariant("the segment's edge carries no certified curve"));
     };
-    let geom::Curve3::Circle { .. } = curve.carrier() else {
-        return Err(invariant("a closed segment edge that is not a circle"));
+    let (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }) = curve.carrier() else {
+        return Err(invariant("a closed segment edge that is not a circle or an ellipse"));
     };
     let forward = closed_chord_runs_forward(body, edge, site, face)?;
     let surface = body
         .get_face(face)
         .ok_or_else(|| corrupt_face(face))?
         .surface;
-    let (t0, t1) = curve.params();
     let turn = EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::chart(surface),
-        ..EdgeCurveSpec::arc_of_circle(curve.carrier().clone(), t0, t1).ok_or(invariant(
-            "a closed circle segment edge's turn does not state",
-        ))?
+        ..curve.restated_spec()
     };
     if forward {
         Ok(Some(turn))

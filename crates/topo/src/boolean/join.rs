@@ -1085,12 +1085,12 @@ fn one_site_segments<T: Decide>(
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face or a vertex of its boundary, or a closed circle against a
-/// pierce of a face
-/// [`RimSide::of`] sides, against a vertex on the boundary of a planar
-/// face it stands on from the other side ([`stands_on`]), or against
-/// another closed circle. At a boundary vertex the germ's
-/// cell is the face, so the loop leaves the vertex into the face and
+/// planar face or a vertex of its boundary, or a closed circle or
+/// ellipse against a pierce of a face [`RimSide::of`] sides, against a
+/// vertex on the boundary of a planar face it stands on from the other
+/// side ([`stands_on`]), or against another closed circle or ellipse.
+/// At a boundary vertex the germ's cell is the face, so the loop leaves
+/// the vertex into the face and
 /// returns to it; the joiner mints it in that face as one chord from the
 /// vertex round to itself, dividing the face
 /// (`crate::chord_join::ChordJoiner`'s null strut). A closed edge of
@@ -1201,8 +1201,8 @@ enum SiteCell {
     /// interior.
     Pierce(FaceKey),
     /// Along an edge: a closed one, both of whose ends are the site
-    /// ([`site_cell`]): the edge where it is a circle, the one closed
-    /// carrier the joiner copies (`crate::chord_join`'s
+    /// ([`site_cell`]): the edge where it is a circle or an ellipse, the
+    /// closed carriers the joiner copies (`crate::chord_join`'s
     /// `closed_edge_spec`), `None` for any other.
     Closed(Option<EdgeKey>),
     /// Inside this face, a real edge there bounding another face: the
@@ -1227,11 +1227,13 @@ fn site_cell<T: Decide>(
             let edge = body
                 .get_edge(e)
                 .ok_or(desync("a germ's closed edge no longer resolves"))?;
-            let circle = body
-                .edge_curve_linked(e, edge)
-                .certified()
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }));
-            return Ok(SiteCell::Closed(circle.then_some(e)));
+            let conic = body.edge_curve_linked(e, edge).certified().is_some_and(|c| {
+                matches!(
+                    c.carrier(),
+                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+                )
+            });
+            return Ok(SiteCell::Closed(conic.then_some(e)));
         }
     };
     let start = body

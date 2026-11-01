@@ -24,6 +24,8 @@
 //!   either side of the tip, whose union is one shell pinched along them,
 //!   and the rims swapped, a boss inside a hole touching it along them,
 //!   whose union is two solids;
+//! - the boss and the hole tilted, their rims ellipses tangent outside,
+//!   in both forms;
 //! - a plug in the bore of an annulus standing on a plate;
 //! - rods tangent inside one another along a ruling, a rim lying flush
 //!   in the partner's top or floor, at rest and turned;
@@ -56,7 +58,9 @@ use topo::{
     ValidationError,
 };
 
-use crate::common::differential::{every_op_both_orders, outcome};
+use crate::common::differential::{
+    VOLUME_CLAIM, VOLUME_PAD_BUDGET, every_op_both_orders, outcome,
+};
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
 
@@ -1041,18 +1045,33 @@ fn a_kept_rim_leaving_along_the_dropped_faces_boundary_cuts_where_it_bends() {
     }
 }
 
-/// **Ellipse rims tangent outside, one segment**: both cylinders of
+/// The widest certified volume enclosure (`volume_pad`, m³) the ellipse
+/// rims' bodies are judged through, in place of
+/// `differential::VOLUME_PAD_BUDGET`, which the tilted boss alone does
+/// not meet above ε = 1e-12 (`2.9e-5` at 1e-6 and `4.4e-7` at 1e-9 in the
+/// one-segment form, measured 2026-11-01). The results measure at most
+/// `3.0e-5`, `5.8e-7` and `1.0e-9` at 1e-6, 1e-9 and 1e-12; at 1e-12 they
+/// are held to the budget itself.
+const ELLIPSE_PAD_CEILING: f64 = 1e-4;
+
+/// **Ellipse rims tangent outside**: both cylinders of
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
-/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. Each
-/// closed rim's germ is read from its own carrier against the other's
-/// faces (`boolean::sectors`'s `closed_reach`), with both vertices at the
-/// touch or the boss's there alone; no join arm copies a closed ellipse,
-/// so the union refuses the one-site loop typed (`SingleSiteSectionLoop`)
-/// (`work/tangrim/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md`).
-/// Both orders, at rest and turned.
+/// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. One
+/// segment with both vertices at the touch, the boss's there alone or
+/// the hole's there alone, and two arcs with a vertex of each there. In
+/// the one-segment form a closed rim is copied whole on its own carrier
+/// (`chord_join`'s `closed_edge_spec`) and the loop closes at its site
+/// (`boolean::join`'s `closes_at_its_site`), as for a circle.
+///
+/// Every op in both orders, at rest and turned, builds at its closed
+/// form within [`ELLIPSE_PAD_CEILING`], tiers 1–3 and the certificate.
+/// Each passes tier 3′ but the unions, whose census reads the two rims,
+/// coplanar and tangent, through the curve-pair touch, and escalates on
+/// `curve_pair_coplanar_sub_side` (pinned red:
+/// `work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`).
 #[test]
-fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
+fn ellipse_rims_tangent_outside_build_every_op() {
     let tilt = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_x(), 0.3);
     let tilted = |body: Body<f64>| {
         topo::transform_rigid(&body, &geom_core::test_support::rigid(&tilt, tol()), tol()).unwrap()
@@ -1061,13 +1080,19 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
         "the slab",
         brick((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.0), tol()),
     );
-    for (pose, hole_az, refused) in [
-        ("vertices there", PI, "SingleSiteSectionLoop"),
-        ("the boss's there", 0.0, "SingleSiteSectionLoop"),
+    // A section by `z = const` is the rim's ellipse: its circle's area
+    // over the tilt's cosine.
+    let stretch = 1.0 / 0.3f64.cos();
+    let (va, vb) = (PI * 0.09 * stretch, 2.0 - PI * 0.01 * 0.5 * stretch);
+    for (pose, one, hole_az, boss_az) in [
+        ("vertices there", true, PI, 0.0),
+        ("the boss's there", true, 0.0, 0.0),
+        ("the hole's there", true, PI, PI),
+        ("two arcs", false, PI, 0.0),
     ] {
         let tall = fin(
             "the tall boss",
-            tilted(extruded(vec![circle(0.0, 0.0, 0.3, 0.0)], -3.0, 6.0)),
+            tilted(extruded(vec![rim(one, 0.0, 0.3, boss_az)], -3.0, 6.0)),
         );
         let boss = topo::intersect(&tall, &slab, tol())
             .unwrap()
@@ -1077,7 +1102,7 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
             .clone();
         let bore = fin(
             "the tilted bore",
-            tilted(extruded(vec![circle(0.4, 0.0, 0.1, hole_az)], -3.0, 6.0)),
+            tilted(extruded(vec![rim(one, 0.4, 0.1, hole_az)], -3.0, 6.0)),
         );
         let holed = topo::subtract(&plate(), &bore, tol())
             .unwrap()
@@ -1095,27 +1120,56 @@ fn one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed() {
                 ),
             };
             let (a, b) = (place("the boss", &boss), place("the plate", &holed));
-            for (op, r) in [
-                ("A ∪ B", topo::union(&a, &b, tol())),
-                ("B ∪ A", topo::union(&b, &a, tol())),
-            ] {
-                let got = match &r {
-                    Err(BooleanError::GermEdgeCarrierUnsupported { .. }) => {
-                        "GermEdgeCarrierUnsupported"
-                    }
-                    Err(BooleanError::Join(j))
-                        if matches!(
-                            j.error(),
-                            SplitJoinError::SingleSiteSectionLoop { count: 1 }
-                        ) =>
-                    {
-                        "SingleSiteSectionLoop"
-                    }
-                    _ => "other",
-                };
-                assert_eq!(got, refused, "{pose}, {turn}: {op}: {:?}", r.map(|_| ()));
+            for (op, r, want) in every_op_both_orders(&a, &b, (va, vb, 0.0), tol()) {
+                ellipse_rims_hold(&format!("{pose}, {turn}: {op}"), r, want, op.contains('∪'));
             }
         }
+    }
+}
+
+/// One of [`ellipse_rims_tangent_outside_build_every_op`]'s runs: empty
+/// where `want` is, else a body at `want` within its pad, the pad within
+/// [`ELLIPSE_PAD_CEILING`] (the budget at ε ≤ 1e-12), tiers 1–3 and the
+/// certificate; tier 3′ passes, or, on a `union`, escalates on the
+/// coplanar touch.
+fn ellipse_rims_hold(
+    row: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    union: bool,
+) {
+    let res = match r {
+        Ok(BooleanResult::Body(res)) => res,
+        Ok(_) if want == 0.0 => return,
+        other => panic!("{row}: {:?}", other.map(|_| ())),
+    };
+    let body = &res.body;
+    topo::validate(body).unwrap_or_else(|e| panic!("{row}: tier 1: {e:?}"));
+    topo::validate_closed(body).unwrap_or_else(|e| panic!("{row}: tier 2: {e:?}"));
+    topo::validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{row}: tier 3: {e:?}"));
+    topo::validate_geometric_certificate(body, tol())
+        .unwrap_or_else(|e| panic!("{row}: certificate: {e:?}"));
+    let m = topo::test_support::pinned_volume(row, body, tol());
+    let ceiling = if tol().eps() <= 1e-12 {
+        VOLUME_PAD_BUDGET
+    } else {
+        ELLIPSE_PAD_CEILING
+    };
+    assert!(
+        m.volume_pad <= ceiling && (m.volume - want).abs() <= m.volume_pad + VOLUME_CLAIM,
+        "{row}: volume {} ± {} against the closed form {want}, ceiling {ceiling}",
+        m.volume,
+        m.volume_pad
+    );
+    let three_prime = topo::validate_pseudomanifold(body, &res.contacts, tol());
+    if union {
+        let e = format!("{:?}", three_prime.expect_err(row));
+        assert!(
+            e.contains("CensusEscalated") && e.contains("curve_pair_coplanar_sub_side"),
+            "{row}: tier 3′ moved: {e}"
+        );
+    } else {
+        three_prime.unwrap_or_else(|e| panic!("{row}: tier 3′: {e:?}"));
     }
 }
 
