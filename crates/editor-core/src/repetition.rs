@@ -50,9 +50,64 @@ impl Reached {
     }
 }
 
-/// **One member's index values**, outermost index first, **and the
-/// environment its readers evaluate in** ([`Doc::member_envs`]).
-pub type MemberEnv<T> = (Vec<i64>, crate::VarEnv<T>);
+/// **One member of a chain of indices** ([`Doc::member_envs`]): its
+/// index values and the environment its readers evaluate in.
+#[derive(Debug, Clone)]
+pub struct MemberEnv<T> {
+    /// The member's index values, outermost index first.
+    pub at: Vec<i64>,
+    /// The document's environment with each index bound to its value
+    /// and every definition reaching one bound again.
+    pub env: crate::VarEnv<T>,
+}
+
+/// **Why a chain's members could not be listed**: an index's count,
+/// which says how many members it has, is not a count an index holds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemberCountFault {
+    /// The index's count did not evaluate.
+    Count {
+        /// The index.
+        index: VarId,
+        /// Why its count did not evaluate.
+        source: crate::EvalError,
+    },
+    /// The index's count evaluated outside [`Self::ADMITS`].
+    OutOfRange {
+        /// The index.
+        index: VarId,
+        /// The evaluated count.
+        count: i64,
+    },
+}
+
+impl MemberCountFault {
+    /// The counts an index admits, both ends included: none below zero,
+    /// none past the largest member index the evaluator reads into a
+    /// `u32`.
+    pub const ADMITS: core::ops::RangeInclusive<i64> = 0..=u32::MAX as i64;
+
+    /// The index whose count it is.
+    #[must_use]
+    pub fn index(&self) -> VarId {
+        match *self {
+            Self::Count { index, .. } | Self::OutOfRange { index, .. } => index,
+        }
+    }
+
+    /// The evaluation's refusal of a family whose members it could not
+    /// list.
+    pub(crate) fn node_error(self) -> crate::NodeErrorKind {
+        match self {
+            Self::Count { index, source } => crate::NodeErrorKind::IndexCount { index, source },
+            Self::OutOfRange { index, count } => crate::NodeErrorKind::IndexCountOutOfRange {
+                index,
+                count,
+                admits: Self::ADMITS,
+            },
+        }
+    }
+}
 
 /// **The reach of a document's variables and operations**, memoised
 /// over one walk: each variable and operation is visited once.
@@ -101,6 +156,17 @@ impl<'d, P: crate::ProfilePayload> Reach<'d, P> {
         }
         self.vars.insert(var, out.clone());
         out
+    }
+
+    /// The indices `expr` reaches, unordered: those the variables it
+    /// reads reach.
+    pub fn of_expr(&mut self, expr: &crate::ExprTree<impl crate::LeafSet>) -> BTreeSet<VarId> {
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        reads
+            .into_iter()
+            .flat_map(|(read, _)| self.of_var(read))
+            .collect()
     }
 
     /// The indices the operation `id` reaches, unordered: its slots'
@@ -236,12 +302,7 @@ impl<P: crate::ProfilePayload> Doc<P> {
             return Some(within);
         }
         let mut reach = Reach::new(self);
-        let mut reached = BTreeSet::new();
-        let mut reads = Vec::new();
-        def.count.var_reads(&mut reads);
-        for (read, _) in reads {
-            reached.extend(reach.of_var(read));
-        }
+        let mut reached = reach.of_expr(&def.count);
         reached.remove(&index);
         // The innermost: the one no other reached index is within.
         reached.iter().copied().find(|&candidate| {
@@ -272,46 +333,38 @@ impl<P: crate::ProfilePayload> Doc<P> {
         Reach::new(self).node(id)
     }
 
-    /// **The indices `expr` reaches**, ordered outermost first: those
-    /// the variables it reads reach ([`Reach`]).
+    /// **The indices `expr` reaches**, ordered outermost first
+    /// ([`Reach::of_expr`]).
     #[must_use]
     pub fn expr_reach(&self, expr: &crate::ExprTree<impl crate::LeafSet>) -> Reached {
-        let mut reads = Vec::new();
-        expr.var_reads(&mut reads);
         let mut reach = Reach::new(self);
-        let set = reads
-            .into_iter()
-            .flat_map(|(read, _)| reach.of_var(read))
-            .collect();
+        let set = reach.of_expr(expr);
         reach.order(&set)
     }
 
     /// **Each member of the indices `chain`**, ordered outermost first
-    /// as a [`Reached::Chain`] orders them: its index values, and the
-    /// environment its readers evaluate in, each index bound to its
-    /// value and every definition reaching one bound again — what an
-    /// operation reaching `chain` is evaluated over, once per member.
+    /// as a [`Reached::Chain`] orders them, over the document's own
+    /// environment: what an operation reaching `chain` is evaluated
+    /// over, once per member.
     ///
     /// # Errors
     ///
-    /// [`crate::NodeErrorKind::IndexCount`] where an index's count does
-    /// not evaluate, and [`crate::NodeErrorKind::IndexCountOutOfRange`]
-    /// where it evaluates below zero or past `u32::MAX`.
+    /// [`MemberCountFault`]: an index's count did not evaluate, or is
+    /// not a count an index admits.
     pub fn member_envs<T: geom_core::Decide>(
         &self,
         chain: &[VarId],
-    ) -> Result<Vec<MemberEnv<T>>, crate::NodeErrorKind> {
-        let outside = self.var_env::<T>();
-        let tuples = crate::eval::members::tuples(self, &outside, chain)?;
-        Ok(tuples
+    ) -> Result<Vec<MemberEnv<T>>, MemberCountFault> {
+        let listed = crate::eval::members::members(
+            self,
+            self.var_env::<T>(),
+            chain,
+            &|env| env,
+            &|env, at| self.bind_member(env, at),
+        )?;
+        Ok(listed
             .into_iter()
-            .map(|values| {
-                let at: Vec<(VarId, i64)> =
-                    chain.iter().copied().zip(values.iter().copied()).collect();
-                let mut env = outside.clone();
-                self.bind_member(&mut env, &at);
-                (values, env)
-            })
+            .map(|(at, env)| MemberEnv { at, env })
             .collect())
     }
 

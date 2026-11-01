@@ -35,6 +35,7 @@ use super::{
 use crate::doc::Doc;
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+use crate::repetition::MemberCountFault;
 use crate::var::VarId;
 
 /// **A family's members**, in index order, outermost index first.
@@ -85,42 +86,42 @@ impl<T: Decide> Members<T> {
     }
 }
 
-/// **The value tuples of `chain`**, outermost index first: each outer
-/// value with every value its inner indices' counts give at it.
+/// **Each member of `chain`**, outermost index first: its index values,
+/// and `base` at it — each index bound to its value by `bind`, outer
+/// before inner, so an inner index's count is evaluated over
+/// `counts(base)` with every outer index bound. The one place a
+/// family's members are listed: the evaluator's lanes and
+/// [`Doc::member_envs`] both read them here.
 ///
 /// # Errors
 ///
-/// [`NodeErrorKind::IndexCount`] where an index's count does not
-/// evaluate, and [`NodeErrorKind::IndexCountOutOfRange`] where it
-/// evaluates below zero or past `u32::MAX`. A count of zero gives no
-/// value.
-pub(crate) fn tuples<P: crate::ProfilePayload, T: Decide>(
+/// [`MemberCountFault::Count`] where an index's count does not
+/// evaluate, and [`MemberCountFault::OutOfRange`] where it evaluates
+/// below zero or past `u32::MAX`. A count of zero gives no member.
+pub(crate) fn members<P: crate::ProfilePayload, E: Clone, C: Decide>(
     doc: &Doc<P>,
-    env: &crate::expr::VarEnv<T>,
+    base: E,
     chain: &[VarId],
-) -> Result<Vec<Vec<i64>>, NodeErrorKind> {
+    counts: &impl Fn(&E) -> &crate::expr::VarEnv<C>,
+    bind: &impl Fn(&mut E, &[(VarId, i64)]),
+) -> Result<Vec<(Vec<i64>, E)>, MemberCountFault> {
     let Some((&index, inner)) = chain.split_first() else {
-        return Ok(vec![Vec::new()]);
+        return Ok(vec![(Vec::new(), base)]);
     };
     let Some(def) = doc.var(index).and_then(|v| v.def().index()) else {
         unreachable!("a reach chain holds indices alone")
     };
-    let count = crate::expr::eval_count(&def.count, env)
-        .map_err(|source| NodeErrorKind::IndexCount { index, source })?;
-    let admits = 0..=i64::from(u32::MAX);
-    if !admits.contains(&count) {
-        return Err(NodeErrorKind::IndexCountOutOfRange {
-            index,
-            count,
-            admits,
-        });
+    let count = crate::expr::eval_count(&def.count, counts(&base))
+        .map_err(|source| MemberCountFault::Count { index, source })?;
+    if !MemberCountFault::ADMITS.contains(&count) {
+        return Err(MemberCountFault::OutOfRange { index, count });
     }
     let mut out = Vec::new();
     for value in 0..count {
-        let mut at = env.clone();
-        doc.bind_member(&mut at, &[(index, value)]);
-        for rest in tuples(doc, &at, inner)? {
-            out.push(core::iter::once(value).chain(rest).collect());
+        let mut at = base.clone();
+        bind(&mut at, &[(index, value)]);
+        for (rest, env) in members(doc, at, inner, counts, bind)? {
+            out.push((core::iter::once(value).chain(rest).collect(), env));
         }
     }
     Ok(out)
@@ -191,29 +192,35 @@ pub(super) fn eval_family<T: Decide>(
         }),
         reused: false,
     };
-    let values = match tuples(doc, env, chain) {
+    let listed = members(
+        doc,
+        (env.clone(), op_env.lane.nominal.clone()),
+        chain,
+        &|(params, _)| params,
+        &|(params, nominal), at| {
+            doc.bind_member(params, at);
+            doc.bind_member(nominal, at);
+        },
+    );
+    let values = match listed {
         Ok(values) => values,
-        Err(kind) => return fail(kind),
+        Err(fault) => return fail(fault.node_error()),
     };
     let prior_members = prior.and_then(|p| p.members.as_ref());
     let mut members = Vec::with_capacity(values.len());
     let mut reused = true;
-    for value in values {
+    for (value, (member_env, nominal)) in values {
         let at: Vec<(VarId, i64)> = chain.iter().copied().zip(value.iter().copied()).collect();
         let narrow: Vec<u32> = value
             .iter()
             .map(|&v| {
                 u32::try_from(v).unwrap_or_else(|_| {
-                    unreachable!("an admitted count is within u32 (`IndexCountOutOfRange`)")
+                    unreachable!("an admitted count is within u32 (`MemberCountFault::OutOfRange`)")
                 })
             })
             .collect();
         let bound: BTreeMap<VarId, u32> =
             chain.iter().copied().zip(narrow.iter().copied()).collect();
-        let mut member_env = env.clone();
-        doc.bind_member(&mut member_env, &at);
-        let mut nominal = op_env.lane.nominal.clone();
-        doc.bind_member(&mut nominal, &at);
         let member_op_env = super::wire::OpEnv {
             twist: op_env.twist,
             boolean_sweep: op_env.boolean_sweep,

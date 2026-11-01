@@ -68,6 +68,7 @@ mod ratio;
 pub mod refactor;
 pub mod refusal;
 pub mod repetition;
+pub use repetition::{MemberCountFault, MemberEnv, Reached};
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
 /// leaf-mass histogram, and the one content-key cache. Every report

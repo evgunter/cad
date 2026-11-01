@@ -146,6 +146,26 @@ impl ViewerBehavior<'_> {
                         self.ops,
                         self.notices,
                     );
+                    if let Some(props::Reading::PerMember(members)) = &row.value {
+                        let notation = *self.notation;
+                        crate::widgets::message_toned(
+                            ui,
+                            format!(
+                                "at each member: {}",
+                                members.spelled(row.dimension, notation)
+                            ),
+                            &self.theme,
+                            Tone::Advisory,
+                        );
+                        if let Some(refusals) = members.refusals() {
+                            crate::widgets::message_toned(
+                                ui,
+                                format!("refused at {refusals}"),
+                                &self.theme,
+                                Tone::Advisory,
+                            );
+                        }
+                    }
                 }
                 // No row is an undeclared variable, and nothing is
                 // drawn for it here: the header above has said so
@@ -1309,7 +1329,7 @@ impl ViewerBehavior<'_> {
                 node,
                 slot: row.slot,
                 variables: variables.clone(),
-                current: row.value.as_ref().ok().copied(),
+                current: row.value.as_ref().ok().and_then(props::Reading::one),
                 notation,
             }),
         }
@@ -1492,18 +1512,19 @@ fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &VarName, dimension: Di
 /// re-type, when it holds one, and it is shown as typed.
 ///
 /// The number is in the unit the slot is WRITTEN in ([`FieldWriting`]).
-/// A slot that did not evaluate is still drawn, since its source is
-/// what there is to fix, over a zero it does not show. A literal that
+/// A slot with no one value — it did not evaluate, or it has one per
+/// member — is still drawn, over a zero it does not show. A literal that
 /// evaluated shows no fixed text: egui formats the number it is
 /// dragging, and a pinned text would freeze the field mid-gesture.
 pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, row.unit, notation);
     let number = match props::shown_value(
         writing.unit,
-        match row.value {
-            Ok(value) => value.as_f64(),
-            Err(_) => 0.0,
-        },
+        row.value
+            .as_ref()
+            .ok()
+            .and_then(props::Reading::one)
+            .map_or(0.0, SlotValue::as_f64),
     ) {
         // **A driven slot keeps its field whatever its value reads
         // as.** It shows its reading as text ([`props::field_text`],
@@ -1512,14 +1533,15 @@ pub(crate) fn slot_showing(row: &SlotRow, draft: Option<&str>, notation: Notatio
         // to the expression. The number the field holds is never
         // written: a drag or a typed number over a driven slot is
         // refused by the session's driven-slot guard, so a zero held
-        // there lands nowhere — the same zero a slot that did not
-        // evaluate holds under its text.
+        // there lands nowhere — the same zero held under the text of a
+        // slot with no one value: one that did not evaluate, or one
+        // with a value per member.
         Err(_) if row.driver.is_driven() => Ok(0.0),
         number => number,
     };
     let (text, source) = match draft {
         Some(draft) => (Some(draft.to_owned()), None),
-        None if row.driver.is_driven() || row.value.is_err() => (
+        None if row.driver.is_driven() || !row.value.as_ref().is_ok_and(|r| r.one().is_some()) => (
             Some(props::field_text(row, notation)),
             props::field_source(row),
         ),
@@ -1553,15 +1575,22 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
 /// **A defined variable's value field**: its formula over the number
 /// it evaluates to, and the formula again as the text an edit starts
 /// from, as a driven slot's field shows its expression. A definition
-/// that refuses holds a zero under its text, which no edit writes: a
-/// drag is refused by the value door.
+/// with no one value — it refuses, or it has one per member — holds a
+/// zero under its text, which no edit writes: a drag is refused by the
+/// value door.
 pub(crate) fn defined_showing(row: &props::DefinedRow, notation: Notation) -> FieldShowing {
     let writing = FieldWriting::of(row.dimension, None, notation);
     FieldShowing {
         name: None,
         writing,
         dimension: row.dimension,
-        number: props::shown_value(writing.unit, row.value.map_or(0.0, SlotValue::as_f64)),
+        number: props::shown_value(
+            writing.unit,
+            row.value
+                .as_ref()
+                .and_then(props::Reading::one)
+                .map_or(0.0, SlotValue::as_f64),
+        ),
         text: Some(row.formula.clone()),
         source: Some(row.formula.clone()),
     }
@@ -1594,11 +1623,15 @@ pub(crate) fn slot_doors(
     }
 }
 
-/// **What a slot has to SAY, under its row**: the fault a slot that
-/// did not evaluate carries or its value at each member, a driven slot's expression
-/// (`label = source`, which its field does not show — [`slot_showing`]),
-/// the expression-driven refusal's affordance and its edit doors, and
-/// the range `reading` when one has been taken for this field.
+/// **What a slot has to SAY, under its row**:
+///
+/// * why it reads nothing, where it does not evaluate;
+/// * its value at each member, where it has one per member, and every
+///   member that refused with its refusal;
+/// * a driven slot's expression, `label = source`, which its field
+///   does not show ([`slot_showing`]), and the expression-driven
+///   refusal's affordance with its edit doors;
+/// * the range `reading`, when one has been taken for this field.
 ///
 /// Every one of them is drawn under the row rather than in it. The
 /// row holds the slot's fields — three, for a vector — and a sentence
@@ -1623,28 +1656,25 @@ fn slot_notes(
     reading: Option<&str>,
     notation: Notation,
 ) -> Option<VarId> {
+    let note = |ui: &mut egui::Ui, text: String| {
+        crate::widgets::message_toned(ui, text, theme, Tone::Advisory);
+    };
     match &row.value {
-        Ok(_) => {}
-        Err(props::SlotFault::PerMember(members)) => {
-            crate::widgets::message_toned(
+        Ok(props::Reading::One(_)) => {}
+        Ok(props::Reading::PerMember(members)) => {
+            let label = row.slot.label();
+            note(
                 ui,
                 format!(
-                    "{} at each member: {}",
-                    row.slot.label(),
+                    "{label} at each member: {}",
                     members.spelled(row.dimension, notation)
                 ),
-                theme,
-                Tone::Advisory,
             );
+            if let Some(refusals) = members.refusals() {
+                note(ui, format!("{label} refused at {refusals}"));
+            }
         }
-        Err(error) => {
-            crate::widgets::message_toned(
-                ui,
-                format!("{}: {error}", row.slot.label()),
-                theme,
-                Tone::Advisory,
-            );
-        }
+        Err(error) => note(ui, format!("{}: {error}", row.slot.label())),
     }
     let mut clicked = None;
     if let SlotDriver::Expression { variables } = &row.driver {
@@ -1664,7 +1694,7 @@ fn slot_notes(
                 Refusal::affordance(
                     variables,
                     row.slot,
-                    row.value.as_ref().ok().copied(),
+                    row.value.as_ref().ok().and_then(props::Reading::one),
                     notation,
                 )
             ),
@@ -1854,7 +1884,7 @@ mod layout_tests {
             dimension: Dimension::Length,
             structural: false,
             driver,
-            value,
+            value: value.map(crate::props::Reading::One),
             unit: None,
             source: None,
         }
@@ -2044,7 +2074,7 @@ mod tests {
             dimension: Dimension::Length,
             structural: false,
             driver,
-            value,
+            value: value.map(crate::props::Reading::One),
             unit: None,
             source: None,
         }
