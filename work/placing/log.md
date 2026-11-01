@@ -14,3 +14,4 @@ Newest entries at the bottom; the tail is the program's live status.
   (banded P2 M at the cut), `instance-value-rows-do-not-say-their-axis`
   (P2 E) and the deferred `band-refusal-still-badges-every-row`. P0 and
   P1 load 25. (CHROME orchestrator)
+- 2026-11-01 — (CHROME orchestrator) From the review of CHROME's PR 6203, unverified: `MateFreedom::offered_beside(kind)` is called without the freedom in `pane/create.rs`, around the mate form's freedom rows, so every freedom may be offered or none. Read it before the mate-tool rework builds on that panel.
