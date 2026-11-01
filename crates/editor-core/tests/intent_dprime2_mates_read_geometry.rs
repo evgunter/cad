@@ -672,6 +672,18 @@ fn a_mate_reports_each_value_it_drops() {
         "the three links and the z slide go, each reported"
     );
     assert_eq!(dropped[1].1, tilt, "the x link's row names `tilt`");
+    let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        said,
+        [format!(
+            "{}'s mates now fix its spin about z, spin about x and slide along z, so this edit \
+             dropped the values written there, and it no longer reads tilt",
+            doc.spoken(copy)
+        )],
+        "the four rows are said once, each freedom once, naming only the named variable"
+    );
     assert!(
         applied.doc.var_named("tilt").is_some(),
         "the named variable stays declared"

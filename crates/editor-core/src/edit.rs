@@ -4918,6 +4918,87 @@ impl Maintenance {
             }
         )
     }
+
+    /// **The [`Self::ValueDropped`] rows among `rows`, said once per
+    /// placement**: one sentence naming the placement and every freedom
+    /// its new mates took, in the order the rows came, and the named
+    /// variables it no longer reads. A variable with no name is not
+    /// said: its id means nothing to a reader, and it goes with its
+    /// reader ([`Self::AnonymousVarRemoved`]). The rows themselves are
+    /// unchanged; this is the wording for a surface that tells a person
+    /// what one edit cost, where one line per freedom says one thing
+    /// several times.
+    pub fn values_dropped(rows: &[Self]) -> impl Iterator<Item = impl core::fmt::Display + '_> {
+        let mut said: Vec<ValuesDropped<'_>> = Vec::new();
+        for row in rows {
+            if let Self::ValueDropped {
+                placement,
+                coord,
+                by,
+            } = row
+            {
+                match said.iter_mut().find(|s| s.placement == placement) {
+                    Some(s) => s.freedoms.push((*coord, by)),
+                    None => said.push(ValuesDropped {
+                        placement,
+                        freedoms: vec![(*coord, by)],
+                    }),
+                }
+            }
+        }
+        said.into_iter()
+    }
+}
+
+/// [`Maintenance::values_dropped`]'s sentence for one placement.
+struct ValuesDropped<'a> {
+    placement: &'a SpokenNode,
+    freedoms: Vec<(crate::mate::Coord, &'a SpokenVar)>,
+}
+
+impl core::fmt::Display for ValuesDropped<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        fn joined<T: core::fmt::Display>(
+            f: &mut core::fmt::Formatter<'_>,
+            items: &[T],
+        ) -> core::fmt::Result {
+            for (i, item) in items.iter().enumerate() {
+                match i {
+                    0 => {}
+                    i if i + 1 == items.len() => f.write_str(" and ")?,
+                    _ => f.write_str(", ")?,
+                }
+                write!(f, "{item}")?;
+            }
+            Ok(())
+        }
+        let Self {
+            placement,
+            freedoms,
+        } = self;
+        // A turn chain can drop two links about one axis: each freedom
+        // is said once.
+        let mut coords: Vec<&str> = Vec::new();
+        for (coord, _) in freedoms {
+            if !coords.contains(&coord.name()) {
+                coords.push(coord.name());
+            }
+        }
+        let named: Vec<&crate::doc::VarName> =
+            freedoms.iter().filter_map(|(_, by)| by.name()).collect();
+        write!(f, "{placement}'s mates now fix its ")?;
+        joined(f, &coords)?;
+        let values = match freedoms.len() {
+            1 => "value",
+            _ => "values",
+        };
+        write!(f, ", so this edit dropped the {values} written there")?;
+        if !named.is_empty() {
+            f.write_str(", and it no longer reads ")?;
+            joined(f, &named)?;
+        }
+        Ok(())
+    }
 }
 
 /// **What an edit took from a name it stranded** ([`Maintenance::Strand`],
