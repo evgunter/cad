@@ -3820,3 +3820,87 @@ fn the_split_plane_is_drawn_under_the_picked_copy() {
         "a normal with no direction draws nothing"
     );
 }
+
+/// **A staged verdict is not carried across a document replacement**
+/// (review of PR 6240): the stage is keyed on the creation and the
+/// history state, and a history id is an arena position — every
+/// freshly opened document's root is the same id. A split staged on a
+/// file must not answer for that file re-opened after it was edited
+/// and saved elsewhere: same node ids, same root id, a flatter block.
+///
+/// *Breaks if* `Open`/`NewDocument` leave the old stage standing.
+#[test]
+fn a_staged_verdict_does_not_survive_reopening_an_edited_file() {
+    use viewer::session::{Creation, Staged};
+    use viewer::tree::{Emptiness, split_reading};
+
+    let tol = Tol::witness();
+    let path = common::tempdir("staged-across-open").join("block.pncad");
+    let mut writer = session(tol);
+    let body = common::xy_box_in(&mut writer, A);
+    writer.pump();
+    let saved = writer.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "the tall block saves: {saved:?}");
+
+    let creation = Creation::of(SessionOp::AddSplit {
+        target: body.into(),
+        origin: len3([0.0, 0.0, 0.5 * A[2]]),
+        normal: scl3([0.0, 0.0, 1.0]),
+    })
+    .expect("a split creates a node");
+    let verdict = |session: &DocSession| match session.staged_for(&creation) {
+        Some(Staged::Evaluated {
+            node, evaluation, ..
+        }) => Some(split_reading(evaluation, node).expect("the staged split evaluates")),
+        None => None,
+        other => panic!("the staged run landed inline: {other:?}"),
+    };
+
+    let mut reader = session(tol);
+    assert!(
+        reader
+            .perform(SessionOp::Open(path.clone()))
+            .refusal
+            .is_none()
+    );
+    reader.pump();
+    reader.perform(SessionOp::Stage {
+        creation: creation.clone(),
+    });
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        Some(None),
+        "mid-height cuts the tall block"
+    );
+
+    // The writer flattens the block and saves over the file.
+    let flattened = writer.perform(SessionOp::SetSlot {
+        node: body,
+        slot: SlotId::Distance,
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.2 * A[2])
+            .expect("a finite length is a value"),
+    });
+    assert!(flattened.refusal.is_none(), "{flattened:?}");
+    writer.pump();
+    let saved = writer.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "the flat block saves: {saved:?}");
+
+    assert!(reader.perform(SessionOp::Open(path)).refusal.is_none());
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        None,
+        "nothing is staged on the re-opened (flat) block yet; the tall block's \
+         verdict would say the plane cuts it"
+    );
+    reader.perform(SessionOp::Stage {
+        creation: creation.clone(),
+    });
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        Some(Some(Emptiness::Half(SplitHalf::Above))),
+        "staged afresh, the plane passes over the flat block"
+    );
+}
