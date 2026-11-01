@@ -2,10 +2,11 @@
 id: a-box-along-a-fillets-line-arc-junction-reaches-classification-invariants
 kind: issue
 title: A box along a fillet's line–arc junction reaches ClassificationInvariant (odd surviving crossing records; a germ sector with both edge bounds on the partner face)
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: M
+branch: tangrim/fillet-line-arc-junction
 ---
 
 Found by PR 5808's re-review (probe `rev5808r`, scene S9), on `main`

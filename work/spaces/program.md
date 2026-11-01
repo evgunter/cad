@@ -2,7 +2,7 @@
 id: spaces
 kind: program
 title: SPACES — where a new body lands, which spaces the picture shows, and what reaches the product
-status: ready
+status: active
 opened: 2026-11-01
 group: gui/viewer
 prefix: spaces/

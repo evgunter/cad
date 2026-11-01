@@ -71,7 +71,10 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
         .expect("an extrude carries a distance");
     assert_eq!(distance.driver, SlotDriver::Literal);
     assert!(!distance.structural);
-    assert_eq!(distance.value, Ok(SlotValue::Continuous(0.008)));
+    assert_eq!(
+        distance.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
+    );
 
     let before = session
         .committed_doc()
@@ -103,7 +106,7 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.012))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.012)))
     );
 }
 
@@ -350,7 +353,7 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
     assert!(distance.driver.is_driven());
     assert_eq!(
         distance.value,
-        Ok(SlotValue::Continuous(0.004)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.004))),
         "thickness / 2, evaluated under the document's variables"
     );
 
@@ -421,7 +424,7 @@ fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() 
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.010)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.010))),
         "the driven slot followed its variable"
     );
 }
@@ -444,7 +447,7 @@ fn a_driven_slot_still_accepts_an_expression_through_the_text_door() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.016))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.016)))
     );
 
     // And unparseable text refuses typed, committing nothing.
@@ -510,7 +513,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.012))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.012)))
     );
     assert_eq!(
         props::slot_rows(session.committed_doc(), extrude)
@@ -518,7 +521,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.008))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
     );
 
     let outcome = session.perform(SessionOp::CommitGesture {
@@ -536,7 +539,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.008))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
     );
 }
 
@@ -587,7 +590,7 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(last / 2.0)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(last / 2.0))),
         "the LAST previewed value is what the commit recorded"
     );
 
@@ -599,7 +602,7 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.004)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.004))),
         "one undo returns the whole gesture"
     );
 }
@@ -895,7 +898,7 @@ fn an_abandoned_gesture_leaves_no_trace() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.008)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008))),
         "the panels are back on the committed document"
     );
 }
@@ -1021,7 +1024,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.010))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.010)))
     );
 
     // Undo the expression edit, then ONE undo removes the variable.
@@ -1439,7 +1442,10 @@ fn a_defined_parameters_field_redefines_or_frees_it() {
     text(&mut session, "rim * 2.0");
     let row = &props::defined_rows(session.doc())[0];
     assert_eq!(row.formula, "rim * 2.0");
-    assert_eq!(row.value, Some(SlotValue::Continuous(0.04)));
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.04)))
+    );
 
     let begun = session.perform(SessionOp::BeginVariableGesture { var: base_r });
     assert!(begun.refusal.is_none(), "{:?}", begun.refusal);

@@ -1687,10 +1687,9 @@ pub enum NodeErrorKind {
     IndexCountOutOfRange {
         /// The index.
         index: crate::VarId,
-        /// The evaluated count.
+        /// The evaluated count; the counts it is outside are
+        /// [`crate::MemberCountFault::ADMITS`].
         count: i64,
-        /// The counts an index admits, both ends included.
-        admits: core::ops::RangeInclusive<i64>,
     },
     /// A pick ([`crate::VarDef::Pick`]) whose path names no piece of
     /// its copy: the source no longer holds that piece, or never did.
@@ -2246,17 +2245,13 @@ impl crate::spoken::Say for NodeErrorKind {
                     by.read(*index)
                 )
             }
-            Self::IndexCountOutOfRange {
-                index,
-                count,
-                admits,
-            } => write!(
+            Self::IndexCountOutOfRange { index, count } => write!(
                 f,
                 "the count of index {} evaluated to {count}, and an index holds {} to {} \
                  members. Recourse: make it evaluate within that range",
                 by.read(*index),
-                admits.start(),
-                admits.end()
+                crate::MemberCountFault::ADMITS.start(),
+                crate::MemberCountFault::ADMITS.end()
             ),
             // Every role word is already a complete noun phrase for
             // the vector (the `*_ROLE` constants are where they are
