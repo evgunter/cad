@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-01
 priority: P3
 cost: M
+parent: the-split-walk-and-the-boolean-sector-pass-read-a-bounds-side-two-ways
 ---
 
 ## What
