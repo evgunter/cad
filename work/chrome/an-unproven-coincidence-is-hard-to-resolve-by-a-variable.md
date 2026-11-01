@@ -5,6 +5,7 @@ title: an unproven-coincidence finding cannot be resolved in a couple of clicks 
 status: open
 opened: 2026-10-31
 priority: P2
+cost: H
 ---
 
 

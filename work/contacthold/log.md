@@ -373,3 +373,4 @@ the text-only option's wording. Both found
 - **2026-10-30, the P0 merged (#6079)**, dual H, tally 0 (row `PR-6079.md`). Glued pairs read their record; the declared posture, the public declaration surface and the declaration names retire.
   - Filed from review: `a-fold-step-glues-a-pair-its-door-reads-in-band` (P1, design) and `the-declaration-read-routing-survives-the-declarations` (P3).
   - The track is handed back `ready` by the INTENT orchestrator; its P1 design row is next, for a designer pair.
+- 2026-11-01 — Note from TANGRIM: claimed a row from this program by `git mv` into `work/tangrim/` (the one bound-side reading decided for the tangent crescent; fork row 229). See TANGRIM's log. (TANGRIM orchestrator)
