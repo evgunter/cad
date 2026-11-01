@@ -133,3 +133,65 @@ crescent's tip that main builds valid. The measurement and what it
 needs are on `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector-faces`,
 which stays open. PR 6253's body lists what of items 1–13 landed and
 where the rest is filed.
+
+## Lane finding (2026-11-01, stage 2, PR 6253): the descent moves seven built rows to refusals
+
+Stage 2 built items 1, 2, 6, 7, 9 (bar `split_bisector_side`), 10, 11
+(the sector callers), 12 and 13 (PR 6253 lists them), and the
+outcome diff at the default ε (`cargo nextest run -p sweep -p topo`,
+slow set included, main `e669a2f8` against the branch at `1ceb3cf6`)
+stopped the lane at two points where the design, as specified, moves
+bodies main builds valid to refusals.
+
+**1. An in-band second-order tie escalates (the design's item 2, fourth
+bullet).** Six rows that build on main refuse
+`Escalated { Coincidence(TangentSide, Moot), "tangent_sector_order2" }`,
+the parting of a bound main read `On` at first order landing in the
+ambiguity band at its reach:
+
+| row | the parting's margin |
+|---|---|
+| `germ_plane_torus_frame::a_band_pose_under_the_tubes_top_reaches_the_donuts_door` (δ = 1e-6, the one-face torus, T ∪ P) | −2.0e-9 |
+| `near_circular_sections::a_near_square_rod_minus_a_box_builds` (r 1e-2, sin θ 4e-6) | −5.0e-9 |
+| `near_circular_sections::a_turned_near_square_rod_minus_a_box_builds` (r 1, sin θ 6e-8) | −7.5e-9 |
+| `pi_seam_and_kiss_through_the_boolean::a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` (k = 0.5) | −1.0e-9 |
+| `spheres_crossing_off_every_edge::a_trimmed_face_cut_beside_its_pole_builds` (δ 1e-5, a ∪ b) | 5.0e-9 |
+| `tilted_sphere_pair::a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed` (δ 1e-4) | 9.6e-9 |
+
+Each bound's first order already tied (`|d̂·n̂·l| ≤ zero`), and its
+second-order separation at its reach is a few bands: it lies within the
+escalation band of the face over its whole reach, which main read as
+riding it, and built from. Measured, not landed: reading an in-band
+parting (the reading rung of `parting_side`'s escalation) as `Rides`
+builds all six again, every one passing its own checks. So the rule
+"an in-band second-order tie escalates" is not landable with the
+descent: either an in-band parting rides (the bound stays within the
+band of the face to the orders read, which is `Rides`' own definition),
+or these six move to refusals by design. That is a decision on the
+design, not the lane's.
+
+**2. A tangent flanker in the edge-on-sector rule.**
+`pi_seam_and_kiss_through_the_boolean::the_stadium_answers_every_op`
+moves from building to `Join(SectionInvariant { "tangent plane×wall germ
+pair in the boolean join" })` on slab ∪ rod. The rule's Table II keys
+(`recl::flank_key`) now descend, so a flanker tangent to the reference
+keys by the side it leaves to, where main keyed it `On` and Table III
+lumped it whole (`"One On flanker stays On"`). Measured: keying the
+flankers at first order again builds the stadium. The design says the
+edge-on-sector rule keys germ attribution on the tangent side; what
+Table II/III do with a flanker that is tangent, rather than on, is not
+specified, and the germ the join then receives is not one it pairs.
+
+Also moved, refused to refused:
+`a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
+now stops earlier, `Escalated { ConicBend, "enters_material" }`, a rim
+arc tied with the other lens's spline wall it lies in
+(`ReadFault::Unbent`: a spline face's bend is not certified, the
+design's item 2, fourth bullet), where main read it `On` and reached
+the rim's description (`EdgeUndescribed`). That row's tripwire (the rim
+certifying) can no longer fire.
+
+And one refusal now builds:
+`a_minted_vertex_on_a_curved_face` (two wedges sharing the wall's
+tangent-plane face), every op in both orders at its closed form, tier 3
+clean (TANG's `two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends`).
