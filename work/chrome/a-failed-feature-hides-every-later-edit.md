@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-31
 priority: P0
 cost: H
-design: true
+refs: [one-failed-root-refuses-the-whole-pick-index, 6197]
 ---
 
 ## Finding
