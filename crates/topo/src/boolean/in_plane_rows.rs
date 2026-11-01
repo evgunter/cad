@@ -1,11 +1,10 @@
 //! **The pieces of a line edge lying in a planar face, at the sweep**
 //! ([`super::settle_in_plane`]).
 //!
-//! The pose is an edge in a wall: a triangular prism over
-//! `z ∈ [0.6, 1.3]` whose apex edge runs up `x = 0, y = 0.5`, beside a
-//! brick over `y ∈ [0.5, 1.5]`, `z ∈ [1, 2]` whose face `y = 0.5` holds
-//! the apex from `z = 1` up. The brick's bottom face splits the apex at
-//! `z = 1`, on the face's bottom edge.
+//! The poses are an edge in a wall: a triangular prism's apex edge on
+//! `y = 0.5`, beside a brick over `y ∈ [0.5, 1.5]` whose face `y = 0.5`
+//! holds part of the apex, a face of the brick crossing the apex on that
+//! face's edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -75,65 +74,94 @@ fn sweep(a: &Body<f64>, b: &Body<f64>) -> ([Body<f64>; 2], ReductionContacts, Ve
 }
 
 /// **Each edge-face record cites the decisions at its own piece's two
-/// ends, and no others.** The apex is recorded once, its piece from
-/// `z = 1` to `z = 1.3` in the wall face; the decisions behind that
-/// record are the apex top's resting inside the face and the split
-/// vertex's tie with the brick's, never one at the apex foot
-/// `z = 0.6`, which lies off the face, in either operand order.
+/// ends, and no others**, in either operand order. The apex is
+/// recorded once, the piece the wall face holds; every decision behind
+/// that record names an end of that piece, never the apex's end off the
+/// face. Upright, the brick's bottom face splits the apex before the
+/// wall face reads it; laid along `x`, the wall face reads the whole
+/// apex before the brick's end face splits it.
 ///
-/// Mutant: citing the decisions at the ends of the fragment the arm
-/// read (the foot and the top) names the foot.
+/// Mutant: citing the decisions at the ends of the fragment the wall
+/// face read names the laid apex's far end.
 #[test]
 fn each_edge_face_record_cites_its_own_pieces_ends() {
-    let apex: Body<f64> = prism_z(
-        &[(0.5, 0.0), (0.0, 0.5), (-0.5, 0.0)],
-        0.6,
-        1.3,
-        Tol::witness(),
-    )
-    .body;
-    let wall: Body<f64> = brick((-1.0, 1.0), (0.5, 1.5), (1.0, 2.0), Tol::witness());
-    for (x_is, a, b) in [(Operand::A, &apex, &wall), (Operand::B, &wall, &apex)] {
-        let ([sa, sb], records, pending) = sweep(a, b);
-        let (x, y, list, other) = match x_is {
-            Operand::A => (&sa, &sb, &records.a_in_b, &records.b_in_a),
-            Operand::B => (&sb, &sa, &records.b_in_a, &records.a_in_b),
-        };
-        assert!(
-            other.is_empty(),
-            "{x_is:?}: the wall lies in no face of the apex: {other:?}"
+    let tol = Tol::witness();
+    let tri = [(0.5, 0.0), (0.0, 0.5), (-0.5, 0.0)];
+    let laid = |z0, z1| {
+        let along_x = geom_core::Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            geom_core::Vec3::unit_y(),
+            core::f64::consts::FRAC_PI_2,
         );
-        let face = face_along(y, [0.0, -1.0, 0.0]);
-        let [c] = list.as_slice() else {
-            panic!("{x_is:?}: one piece of the apex is recorded: {list:?}");
-        };
-        assert_eq!(c.face, face, "{x_is:?}: the piece lies in the wall face");
-        let (u, v) = x.edge_vertices(c.edge).unwrap();
-        let mut zs = [point(x, u).z, point(x, v).z];
-        zs.sort_by(f64::total_cmp);
-        assert!(
-            (zs[0] - 1.0).abs() < 1e-12 && (zs[1] - 1.3).abs() < 1e-12,
-            "{x_is:?}: the piece runs from the split to the apex top: {zs:?}"
-        );
-        for backing in c.cites.iter() {
-            let Backing::Decided(i) = backing else {
-                panic!("{x_is:?}: the sweep cites its own decisions: {backing:?}");
+        crate::transform::transform_rigid(
+            &prism_z::<f64>(&tri, z0, z1, tol).body,
+            &geom_core::test_support::rigid(&along_x, tol),
+            tol,
+        )
+        .unwrap()
+    };
+    let p = Point3::new;
+    let poses = [
+        (
+            "upright",
+            prism_z::<f64>(&tri, 0.6, 1.3, tol).body,
+            brick((-1.0, 1.0), (0.5, 1.5), (1.0, 2.0), tol),
+            [p(0.0, 0.5, 1.0), p(0.0, 0.5, 1.3)],
+        ),
+        (
+            "laid out past x = 1",
+            laid(0.5, 1.5),
+            brick((-1.0, 1.0), (0.5, 1.5), (-1.0, 1.0), tol),
+            [p(0.5, 0.5, 0.0), p(1.0, 0.5, 0.0)],
+        ),
+        (
+            "laid out past x = -1",
+            laid(-1.5, -0.5),
+            brick((-1.0, 1.0), (0.5, 1.5), (-1.0, 1.0), tol),
+            [p(-1.0, 0.5, 0.0), p(-0.5, 0.5, 0.0)],
+        ),
+    ];
+    for (pose, apex, wall, ends) in &poses {
+        for (x_is, a, b) in [(Operand::A, apex, wall), (Operand::B, wall, apex)] {
+            let what = format!("{pose}, apex {x_is:?}");
+            let ([sa, sb], records, pending) = sweep(a, b);
+            let (x, y, list, other) = match x_is {
+                Operand::A => (&sa, &sb, &records.a_in_b, &records.b_in_a),
+                Operand::B => (&sb, &sa, &records.b_in_a, &records.a_in_b),
             };
-            let row = pending[usize::try_from(i).unwrap()];
             assert!(
-                row.cells
-                    .iter()
-                    .any(|&(o, cell)| o == x_is
-                        && (cell == Cell::Vertex(u) || cell == Cell::Vertex(v))),
-                "{x_is:?}: cited row {i} names an end of the piece: {row:?}"
+                other.is_empty(),
+                "{what}: the wall lies in no face of the apex: {other:?}"
             );
-            for &(o, cell) in &row.cells {
-                if o == x_is {
-                    assert!(
-                        cell == Cell::Vertex(u) || cell == Cell::Vertex(v),
-                        "{x_is:?}: cited row {i} names nothing of the apex but the piece's ends: {row:?}"
-                    );
-                }
+            let face = face_along(y, [0.0, -1.0, 0.0]);
+            let [c] = list.as_slice() else {
+                panic!("{what}: one piece of the apex is recorded: {list:?}");
+            };
+            assert_eq!(c.face, face, "{what}: the piece lies in the wall face");
+            let (u, v) = x.edge_vertices(c.edge).unwrap();
+            let near = |a: Point3<f64>, b: Point3<f64>| (a - b).norm() < 1e-12;
+            let (pu, pv) = (point(x, u), point(x, v));
+            assert!(
+                (near(pu, ends[0]) && near(pv, ends[1]))
+                    || (near(pu, ends[1]) && near(pv, ends[0])),
+                "{what}: the piece runs {ends:?}: {pu:?} {pv:?}"
+            );
+            let piece_end = |cell| cell == Cell::Vertex(u) || cell == Cell::Vertex(v);
+            for backing in c.cites.iter() {
+                let Backing::Decided(i) = backing else {
+                    panic!("{what}: the sweep cites its own decisions: {backing:?}");
+                };
+                let row = pending[usize::try_from(i).unwrap()];
+                let mine: Vec<Cell> = row
+                    .cells
+                    .iter()
+                    .filter(|&&(o, _)| o == x_is)
+                    .map(|&(_, cell)| cell)
+                    .collect();
+                assert!(
+                    !mine.is_empty() && mine.into_iter().all(piece_end),
+                    "{what}: cited row {i} names the apex at the piece's ends only: {row:?}"
+                );
             }
         }
     }
