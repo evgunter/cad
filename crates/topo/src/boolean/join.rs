@@ -1662,6 +1662,10 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             sa.plan(&red.a, a_halves, seg_a)?,
             sb.plan(&red.b, b_halves, seg_b)?,
         );
+        let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
+            matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
+        });
+        let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (
                 sa.curve(&mut red.a, &plan_a, JoinLane::AlongEdge, leave_a)?,
@@ -1699,15 +1703,23 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     )?,
                 )
             }
+            // A germ along a line edge of the wall's solid lies on that
+            // line, a ruling the plane holds, so the plane's chord is
+            // straight: where the plane is tangent to the wall along the
+            // ruling, no section of the pair names it.
             Some(GermLane::PlaneWall(plane)) => (
-                sa.bool_planar_curve(
-                    &mut red.a,
-                    &plan_a,
-                    (gb.clone(), cone_window(&red.b, germ.b_face, &gb, band)),
-                    germ.b_face,
-                    germ.branch,
-                    leave_a,
-                )?,
+                if along_line(Operand::B) {
+                    sa.curve(&mut red.a, &plan_a, JoinLane::Planar, leave_a)?
+                } else {
+                    sa.bool_planar_curve(
+                        &mut red.a,
+                        &plan_a,
+                        (gb.clone(), cone_window(&red.b, germ.b_face, &gb, band)),
+                        germ.b_face,
+                        germ.branch,
+                        leave_a,
+                    )?
+                },
                 sb.split_curve(
                     &mut red.b,
                     &plan_b,
@@ -1726,15 +1738,19 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     germ.branch,
                     leave_a,
                 )?;
-                let window = cone_window(&red.a, germ.a_face, &ga, band);
-                let curve_b = sb.bool_planar_curve(
-                    &mut red.b,
-                    &plan_b,
-                    (ga.clone(), window),
-                    germ.a_face,
-                    germ.branch,
-                    leave_b,
-                )?;
+                let curve_b = if along_line(Operand::A) {
+                    sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?
+                } else {
+                    let window = cone_window(&red.a, germ.a_face, &ga, band);
+                    sb.bool_planar_curve(
+                        &mut red.b,
+                        &plan_b,
+                        (ga.clone(), window),
+                        germ.a_face,
+                        germ.branch,
+                        leave_b,
+                    )?
+                };
                 (curve_a, curve_b)
             }
             Some(GermLane::Radical(radical)) => {
@@ -2224,20 +2240,8 @@ fn nearer_or_scan<T: Decide>(
 ) -> Result<bool, BooleanError> {
     match nearest_sign(cand, best, band) {
         Ok(sign) => Ok(sign == Sign::Negative),
-        Err(diag) if in_band(&diag) => Ok(false),
+        Err(diag) if crate::validate::in_band(&diag) => Ok(false),
         Err(diag) => Err(join_escalate(diag)),
-    }
-}
-
-/// Whether an undecided reading lies inside the band: a point margin,
-/// or an enclosure wholly inside one sliver band.
-fn in_band(diag: &geom_core::Indeterminate) -> bool {
-    match diag.margin.kind() {
-        geom_core::MarginKind::Value => true,
-        // An interval-lane reading; one straddling the band's edge is
-        // not in band.
-        geom_core::MarginKind::Enclosure => diag.terminal_sliver,
-        geom_core::MarginKind::Invalid => false,
     }
 }
 

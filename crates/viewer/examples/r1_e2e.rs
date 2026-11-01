@@ -28,18 +28,13 @@ fn banner(text: &str) {
 
 fn show_tree(session: &DocSession) {
     for row in session.tree_rows() {
-        let indent = "  ".repeat(row.depth);
         let world = if row.placed { " ▸world" } else { "" };
         let message = row
             .status
             .message()
             .map(|m| format!("  [{m}]"))
             .unwrap_or_default();
-        println!(
-            "   {indent}{} {}{world}{message}",
-            row.status.badge(),
-            row.spoken
-        );
+        println!("   {} {}{world}{message}", row.status.badge(), row.spoken);
     }
 }
 
