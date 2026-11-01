@@ -7083,7 +7083,7 @@ mod presentation_rows {
     /// **A spline side reads `ψ` off its own restricted iso net**
     /// ([`on_side`]). The iso lies in `z = 0`, so that plane reads zero
     /// on a wide cell, where the centred form reads the patch's first
-    /// order; a plane the iso crosses between its ends reads mixed; a
+    /// order, and [`sign_on`] certifies the cell off that side; a plane the iso crosses between its ends reads mixed; a
     /// plane the cell's piece of the iso lies strictly beside reads that
     /// sign though the whole iso crosses it; and every enclosure holds
     /// the iso's own points inside the cell, a plane through the iso's
@@ -7111,6 +7111,11 @@ mod presentation_rows {
         assert!(
             !is_zero(first_order, band()),
             "the centred form does not read the side zero on this cell: {first_order:?}"
+        );
+        assert_eq!(
+            sign_on(&flat, &p, None, band()),
+            Some(Sign::Positive),
+            "the side zero, the wall departs z = 0 upward across it"
         );
         let chord = plane_psi((1.0, 1.0, 0.0), (0.6, 0.6, 0.0));
         let crossed = on_iso(&chord, &wall, (0.0, 1.0));
