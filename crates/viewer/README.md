@@ -66,12 +66,22 @@ slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
 
-In the Properties panel, the document-variables list ends with an
-add-variable row (name + dimension + value, written in the working
-notation's unit, one undoable edit); an
+In the Properties panel, the document-variables list ends with
+**New variable…**, which opens the add-variable row (name + dimension
++ value, written in the working notation's unit, one undoable edit),
+saying under it what **Create variable** still waits for; an
 expression that names an undeclared variable refuses typed, and the
-refusal offers to create it — prefilled into that row, with the
+refusal offers to create it — the row opened and prefilled, with the
 dimension left as your pick.
+
+The Properties panel at rest is its doors: the creation sections
+(**Add feature**, **Combine bodies**, **Blend edges**, **Assemble
+parts**) fold, and inside each every tool and form is a button that
+opens it. A form whose operation takes the selection is drawn beside
+the selection instead, while its operation would accept it — the
+extrude form while a profile is selected. The toolbar's **Cancel
+drag** and **Cancel free-move** are there only while their gesture is
+in flight.
 
 In the Features pane, an instance whose part file has changed since it
 was placed fails on its pin, and its row offers **Accept updated
@@ -155,8 +165,10 @@ cargo run --release -p viewer --features app --example drive -- script.txt
 ```
 
 ```text
-click "Create"
-click "Box"
+click "Add feature"
+click "Add profile…"
+click "rectangle"
+click "Add profile"
 dump
 picture shot.png
 ```
@@ -335,7 +347,7 @@ that decision's members of it, not the file's whole inventory (so
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/g1.rs` (`Slot`, the preview/commit rules both gestures obey), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (all three seams and all three workers) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (every seam and every worker) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `compose` with the `Held` picks and `drawn_patch`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs`, `src/platform.rs` and `src/idpass.rs` are vocabularies and are built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
@@ -1197,7 +1209,8 @@ is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
 `frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
-stranded or rewritten in place) — are
+stranded or rewritten in place; a placement's dropped values, said once
+per placement by `Maintenance::values_dropped`) — are
 typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
@@ -1921,35 +1934,29 @@ draws the button.
 **The doors are in the toolbar and not on the field**, which is the one
 siting that answers the defect: the field is what can stop being drawn,
 so a cancel beside it would vanish with the exit it replaces. And **a
-door that cannot act says so rather than vanishing** — the posture the
-two file-dialog controls take: each door is drawn whatever the
-selection, the standing and the evaluation are, and enabled exactly
-while its own gesture is in flight. **And reachable at every window
-width**, which is a second claim and has its own holds: the toolbar is
-laid out `horizontal_wrapped`, so a window narrower than the row gets a
-second line rather than a clipped one — a clipped control is not
-small, it is gone, and for these two that would mean no exit from the
-gesture at all. `ViewerApp::toolbar_ui`'s two rows hold both halves: that the
-row does not fit a narrow window, so the wrapping is answering
-something, and that it stays inside one.
-
-**How it says so is a different precedent from where it is drawn**, and
-citing one for both is wrong: a dialog control's refusal is the
-environment's and comes before the operation — with no chooser backend
-no path is chosen, so the `SessionOp::Open` or `Save` a click would push
-is never built — and the dialog controls hand
-`platform::ChooserBackend::unusable`, the sentence this crate composes on
-the probe's value and answers with the gate, to `on_disabled_hover_text`.
-A cancel door's refusal is its operation's own, and it follows
-`pane::create`'s catalogue entry
-instead — *carrying the op's own refusal, read off the entry, not
-minted here* — so `CancelDoor::blocked` is a `Refusal` and the disabled
-control's words are the refused operation's own. **That the two cannot
-come to say different things is held by a test, not by the type**:
-`gesture_table.rs`'s `a_closed_door_says_what_its_own_operation_refuses`
+door is drawn exactly while its own gesture is in flight**, whatever the
+selection, the standing and the evaluation are: a cancel belongs where
+its gesture is in flight, and one standing on the toolbar at rest is a
+control with nothing to do that a reader has to read past. Whether it
+is in flight is `CancelDoor::blocked` — the refusal the door's own
+operation gives with no gesture open, a `Refusal` read off the
+operation rather than a second test beside it, following
+`pane::create`'s catalogue entry (*carrying the op's own refusal, read
+off the entry, not minted here*). That the two cannot come to disagree
+is held by `gesture_table.rs`'s
+`a_door_is_closed_exactly_when_its_own_operation_refuses`, which
 performs each door's operation with no gesture open and compares both
-the rendering and the variant. Nothing structural stops a future door
-composing its own sentence; that row is what would red.
+the rendering and the variant. **The controls that stand at rest keep
+the other posture** — disabled rather than absent, saying their
+refusal: Undo and Redo (`Refusal::nothing_to_step`), Open…, Save and
+Save As… with no chooser backend, and a part-chooser entry that cannot
+be picked (the open document's own file). **And reachable at every window width**:
+the toolbar is laid out `horizontal_wrapped`, so a window narrower than
+the row gets a second line rather than a clipped one — a clipped
+control is not small, it is gone, and for these two that would mean no
+exit from the gesture at all. `ViewerApp::toolbar_ui`'s two rows hold
+both halves: that the row does not fit a narrow window, so the wrapping
+is answering something, and that it stays inside one.
 
 **The door cannot be reached during a live pointer drag**, which is the
 half of the defect it does not answer: it is a toolbar control, and
@@ -2298,7 +2305,7 @@ rather than an exception:
   match to borrow, and its doc already argues it is the single list.
 - **A deliberately partial list** claims no completeness, so forcing it
   would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
-  two of five `Subject`s, each tool's seat list names its own seats,
+  three of six `Subject`s, each tool's seat list names its own seats,
   and `MATE_KINDS` offers the two pose kinds one face pick reads. Each
   says why in its own doc.
 

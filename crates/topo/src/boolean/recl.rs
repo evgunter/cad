@@ -326,25 +326,17 @@ pub(super) fn recl_sectors<T: Decide>(
         // the locus honestly stays `On` (the recl edge engine
         // adjudicates it, exactly as a first-order On), other bounds
         // take the side their carrier curves to over the bound's own
-        // reach, the first-order code's lever. No Eq. 15.3 lump and
-        // no neighbor propagation: nothing here is a coincident-
-        // sector identity.
+        // reach, the first-order code's lever. No Eq. 15.3 lump:
+        // nothing here is a coincident-sector identity. Neighbours
+        // take each shared bound's own code below.
         let read = declared.read(
             &[(super::Operand::A, sa.face, super::Operand::B, sb.face)],
             Coincide::TangentSide,
             &[],
         );
         if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let surface_of = |body: &Body<T>, face| {
-                body.get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .cloned()
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "declared-Tangent face lost its surface",
-                    })
-            };
-            let s_a = surface_of(a_body, sa.face)?;
-            let s_b = surface_of(b_body, sb.face)?;
+            let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
+            let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
             let p = a_body.half_edge_start_point(sa.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
@@ -1749,59 +1741,53 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                             Coincide::TangentSide,
                             &[],
                         );
-                        let lump =
-                            if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-                                let surface_of = |body: &Body<T>, face| {
-                                    body.get_face(face)
-                                        .and_then(|f| body.get_surface(f.surface))
-                                        .cloned()
-                                        .ok_or(BooleanError::ClassificationInvariant {
-                                            what: "declared-Tangent face lost its surface",
-                                        })
-                                };
-                                let s_own = surface_of(own_body, own_sec.face)?;
-                                let s_other = surface_of(other_body, other_sec.face)?;
-                                let p = own_body.half_edge_start_point(own_sec.he).ok_or(
-                                    BooleanError::ClassificationInvariant {
-                                        what: "edge-edge site lost its point",
-                                    },
-                                )?;
-                                let reach = declared.reach_of(
-                                    own_op,
-                                    own_sec.face,
-                                    other_op,
-                                    other_sec.face,
-                                )?;
-                                super::sectors::tangent_lump(
-                                    &s_own,
-                                    &s_other,
-                                    reach,
-                                    other_sec.normal,
-                                    own_sec.normal,
-                                    p,
-                                    op,
-                                    comparison,
-                                    own_sec.face,
-                                    own_sec.reached_bounds(),
-                                    arm,
-                                    read,
-                                    band,
-                                )?
-                            } else {
-                                let rel = require_same(
-                                    own_body,
-                                    own_op,
-                                    own_sec,
-                                    other_body,
-                                    other_op,
-                                    other_sec,
-                                    declared,
-                                    ReadOn::FirstBounds,
-                                    arm,
-                                    band,
-                                )?;
-                                eq15_3_lump(op, comparison, rel)
-                            };
+                        let lump = if read
+                            == DeclarationRead::Spent(crate::contact::GlueClass::Tangent)
+                        {
+                            let s_own = super::sectors::tangent_carrier(own_body, own_sec.face)?;
+                            let s_other =
+                                super::sectors::tangent_carrier(other_body, other_sec.face)?;
+                            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
+                                BooleanError::ClassificationInvariant {
+                                    what: "edge-edge site lost its point",
+                                },
+                            )?;
+                            let reach = declared.reach_of(
+                                own_op,
+                                own_sec.face,
+                                other_op,
+                                other_sec.face,
+                            )?;
+                            super::sectors::tangent_lump(
+                                &s_own,
+                                &s_other,
+                                reach,
+                                other_sec.normal,
+                                own_sec.normal,
+                                p,
+                                op,
+                                comparison,
+                                own_sec.face,
+                                own_sec.reached_bounds(),
+                                arm,
+                                read,
+                                band,
+                            )?
+                        } else {
+                            let rel = require_same(
+                                own_body,
+                                own_op,
+                                own_sec,
+                                other_body,
+                                other_op,
+                                other_sec,
+                                declared,
+                                ReadOn::FirstBounds,
+                                arm,
+                                band,
+                            )?;
+                            eq15_3_lump(op, comparison, rel)
+                        };
                         *inside = Half::Along(lump == SideCode::In);
                     }
                 }
@@ -2044,8 +2030,63 @@ fn resolve_edge_sector<T: Decide>(
         )?,
     };
     let ref_sector = &ref_secs[ref_idx];
-    let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
+        (a_body, b_body)
+    } else {
+        (b_body, a_body)
+    };
+    let (own_op, ref_op) = if a_side {
+        (super::Operand::A, super::Operand::B)
+    } else {
+        (super::Operand::B, super::Operand::A)
+    };
+    let tangent_read = |face| {
+        declared.read(
+            &[(own_op, face, ref_op, ref_sector.face)],
+            Coincide::TangentSide,
+            &[],
+        )
+    };
+    let site_point = |sec: &BoolSector<T>| {
+        own_body
+            .half_edge_start_point(sec.he)
+            .ok_or(BooleanError::ClassificationInvariant {
+                what: "edge-sector site lost its point",
+            })
+    };
+    // A flanker glued tangent to the reference reads On at first order
+    // though it meets the reference only along the tangency locus. Keyed
+    // by the side its carrier curves to along its key bound, it holds the
+    // transition beside a coplanar flanker that lumps the other way.
+    let curving = |idx: usize, key_from_start: bool| -> Result<SideCode, BooleanError> {
+        let own_sec = &own_secs[idx];
+        if !declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
+            return Ok(SideCode::On);
+        }
+        let read = tangent_read(own_sec.face);
+        let p = site_point(own_sec)?;
+        let [start, end] = own_sec.reached_bounds();
+        let (d, reached) = if key_from_start { start } else { end };
+        super::sectors::tangent_relative_side(
+            &super::sectors::tangent_carrier(own_body, own_sec.face)?,
+            &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
+            ref_sector.normal,
+            p,
+            d,
+            reached,
+            read,
+            band,
+        )
+    };
+    let (mut k1, mut k2) = (
+        flank_key(own_secs, f_s, false, ref_sector.normal, band)?,
+        flank_key(own_secs, f_e, true, ref_sector.normal, band)?,
+    );
+    // One On flanker stays On: Table III lumps it whole and the germ
+    // stays on the other (`the_stadium_answers_every_op`).
+    if (k1, k2) == (SideCode::On, SideCode::On) {
+        (k1, k2) = (curving(f_s, false)?, curving(f_e, true)?);
+    }
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued
@@ -2060,39 +2101,13 @@ fn resolve_edge_sector<T: Decide>(
     ) {
         let on_flanker = if k1 == SideCode::On { f_s } else { f_e };
         let own_sec = &own_secs[on_flanker];
-        let (own_body, ref_body): (&Body<T>, &Body<T>) = if a_side {
-            (a_body, b_body)
-        } else {
-            (b_body, a_body)
-        };
-        let (own_op, ref_op) = if a_side {
-            (super::Operand::A, super::Operand::B)
-        } else {
-            (super::Operand::B, super::Operand::A)
-        };
         let arm = own_sec.arm.min(ref_sector.arm);
         lumps_out = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
-            let read = declared.read(
-                &[(own_op, own_sec.face, ref_op, ref_sector.face)],
-                Coincide::TangentSide,
-                &[],
-            );
-            let surface_of = |body: &Body<T>, face| {
-                body.get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .cloned()
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "a glued tangency's face lost its surface",
-                    })
-            };
-            let p = own_body.half_edge_start_point(own_sec.he).ok_or(
-                BooleanError::ClassificationInvariant {
-                    what: "edge-sector site lost its point",
-                },
-            )?;
+            let read = tangent_read(own_sec.face);
+            let p = site_point(own_sec)?;
             super::sectors::tangent_lump(
-                &surface_of(own_body, own_sec.face)?,
-                &surface_of(ref_body, ref_sector.face)?,
+                &super::sectors::tangent_carrier(own_body, own_sec.face)?,
+                &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
                 ref_sector.normal,
                 own_sec.normal,

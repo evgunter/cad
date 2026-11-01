@@ -34,8 +34,8 @@
 //! pickers have to name a node the same way.
 //!
 //! Because that is the other thing this module owns: the *shape* —
-//! which rows exist, in which order, at what indentation, which of
-//! them the selection is on, and which row a failure sends the eye to.
+//! which rows exist, in which order, which of them the selection is
+//! on, and which row a failure sends the eye to.
 //!
 //! One thing a run said that is no failure rides the row as well: what
 //! an `Ok` value says ([`Readout`]) — a measure's value, spelled when
@@ -89,34 +89,22 @@
 //! refused nothing and gets no link; its number is in the words, and it
 //! is the failing node's own input, so its row is beside this one.
 //!
-//! # Order and depth
+//! # Order and columns
 //!
 //! Rows follow `Evaluation::order` — the evaluation's own
 //! deterministic topological order, which is a pure function of the
 //! DAG — so the tree a user reads is the order the kernel evaluated
 //! in.
 //!
-//! Depth is the number of BRANCHES a node sits under, not the length
-//! of its input chain. A node continues the line of its PRIMARY input
-//! — the first entry of `Doc::upstream`, which is the operand the
-//! kernel accumulates into: a boolean's `a`, the body a fillet's
-//! selection reads, a transform's `input`. Every other input is a
-//! branch that indents:
-//!
-//! ```text
-//! depth(n) = 0                                     if n has no inputs
-//! depth(n) = max(depth(primary),
-//!                max over the other inputs s of depth(s) + 1)
-//! ```
-//!
-//! So a chain of twenty booleans cutting features out of one solid
-//! draws as one column with its tools one level in, rather than a
-//! staircase twenty levels wide.
+//! **Every node row stands in one column.** In an indented list a row
+//! reads as belonging to the less-indented row above it, and in
+//! topological order the row above a node is whatever evaluated just
+//! before it, which the node need not read. So no node row indents:
+//! what does is what belongs to one row — a placement's constraints
+//! ([`ConstraintRow`]) and the lines its result writes under it.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
-
-use std::collections::BTreeMap;
 
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
@@ -273,8 +261,6 @@ pub struct TreeRow {
     /// `None` is a node kind that has no such sentence, not a sentence
     /// that came out empty.
     pub which: Option<String>,
-    /// How far the node sits below the document's sources.
-    pub depth: usize,
     /// Whether a world placement places a body this node defines — the
     /// world badge (A10). A placement's own row is an ordinary row.
     pub placed: bool,
@@ -568,7 +554,6 @@ pub fn rows(
         Some(ev) => ev.order.clone(),
         None => doc.ids().to_vec(),
     };
-    let mut depths: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut rows = Vec::with_capacity(order.len());
     for id in order {
         // The world is no feature: it is in every document, is never
@@ -577,8 +562,6 @@ pub fn rows(
         let Some(node) = doc.node(id).filter(|node| !matches!(node, Node::World)) else {
             continue;
         };
-        let depth = depth_of(&doc.upstream(id), &depths);
-        depths.insert(id, depth);
         let status = status_of(doc, id, evaluation, files);
         let (repair_at, readout, version_offer) = match status {
             RowStatus::Failed { .. } => (
@@ -599,7 +582,6 @@ pub fn rows(
             id,
             spoken: doc.spoken(id),
             which: part_file(node, files),
-            depth,
             placed: crate::world::is_placed(doc, id),
             status,
             repair_at,
@@ -609,24 +591,6 @@ pub fn rows(
         });
     }
     rows
-}
-
-/// A node's indentation, under the module's branch rule: the primary
-/// input's own depth, and one level deeper than every other input.
-///
-/// The order is topological, so every input already has its depth; an
-/// input that does not (a node the order omits) reads as depth 0,
-/// which under-indents rather than inventing a parent.
-fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> usize {
-    let Some((primary, branches)) = inputs.split_first() else {
-        return 0;
-    };
-    let on_the_line = depths.get(primary).copied().unwrap_or(0);
-    branches
-        .iter()
-        .filter_map(|input| depths.get(input))
-        .map(|d| d + 1)
-        .fold(on_the_line, usize::max)
 }
 
 /// **What `id`'s value says in `evaluation`** — asked only of a row
@@ -649,21 +613,65 @@ fn readout_of(
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
-        ValuePayload::Split { above, below } => match (above, below) {
-            (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
-            (SplitSide::Empty, SplitSide::Body(_)) => {
-                Some(Readout::Empty(Emptiness::Half(SplitHalf::Above)))
-            }
-            (SplitSide::Body(_), SplitSide::Empty) => {
-                Some(Readout::Empty(Emptiness::Half(SplitHalf::Below)))
-            }
-            (SplitSide::Body(_), SplitSide::Body(_)) => None,
-        },
+        ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
         | ValuePayload::Family => None,
+    }
+}
+
+/// **Which part of a split's value holds no material**, if any: the
+/// row's readout ([`Emptiness`]).
+fn split_emptiness(above: &SplitSide<f64>, below: &SplitSide<f64>) -> Option<Emptiness> {
+    match (above, below) {
+        (SplitSide::Empty, SplitSide::Empty) => Some(Emptiness::Whole),
+        (SplitSide::Empty, SplitSide::Body(_)) => Some(Emptiness::Half(SplitHalf::Above)),
+        (SplitSide::Body(_), SplitSide::Empty) => Some(Emptiness::Half(SplitHalf::Below)),
+        (SplitSide::Body(_), SplitSide::Body(_)) => None,
+    }
+}
+
+/// **What a split's value comes to**, as its tree row reads it: the
+/// part holding no material ([`Emptiness`]), or `Ok(None)` for a split
+/// with material on both sides. For a reader asking before the split is
+/// committed, of a staged evaluation
+/// ([`crate::session::DocSession::staged_for`]).
+///
+/// # Errors
+///
+/// [`SplitUnread`]: the node's standing when it has no value, or a node
+/// whose value is not a split's.
+pub fn split_reading(
+    evaluation: &Evaluation<f64>,
+    id: RecipeNodeId,
+) -> Result<Option<Emptiness>, SplitUnread> {
+    match &evaluation
+        .usable(id)
+        .map_err(SplitUnread::Standing)?
+        .payload
+    {
+        ValuePayload::Split { above, below } => Ok(split_emptiness(above, below)),
+        _ => Err(SplitUnread::NotASplit),
+    }
+}
+
+/// **Why [`split_reading`] has no reading.**
+#[derive(Clone, Debug)]
+pub enum SplitUnread {
+    /// The node has no value: its standing.
+    Standing(pncad::document::NodeStanding),
+    /// The node's value is not a split's.
+    NotASplit,
+}
+
+impl std::fmt::Display for SplitUnread {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Standing(standing) => write!(f, "{standing}"),
+            Self::NotASplit => f.write_str("the node read is not a split"),
+        }
     }
 }
 

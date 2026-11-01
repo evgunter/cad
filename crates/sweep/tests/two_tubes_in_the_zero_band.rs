@@ -107,13 +107,13 @@ struct Want {
 }
 
 /// Every op in both orders: ∪ two solids of volume `vx + vy` carrying
-/// `want`; ∖ the first operand; ∩ empty.
+/// `want`; ∖ the first operand; ∩ empty. Returns the union's records.
 fn every_op_in_both_orders(
     pose: &str,
     (x, vx): (topo::Body<f64>, f64),
     (y, vy): (topo::Body<f64>, f64),
     want: &Want,
-) {
+) -> Vec<String> {
     let (x, y) = (at_rest(x), at_rest(y));
     let mut unions = Vec::new();
     for (order, p, q, vp) in [("x, y", &x, &y, vx), ("y, x", &y, &x, vy)] {
@@ -166,6 +166,7 @@ fn every_op_in_both_orders(
         unions[0], unions[1],
         "{pose}: ∪ records alike in both orders"
     );
+    unions.swap_remove(0)
 }
 
 /// Two walls tangent along the seam: the rims' two touches on it are
@@ -254,9 +255,9 @@ fn a_quarter_rod_in_the_bore() {
 /// top face `y = 0` (the puck `y ∈ [−0.3, 0]`, spun 1 rad), its axis
 /// `0.5·ε` above the tangency and its seam on the contact ruling, which
 /// the puck's rim circle crosses at `x = ±1`. ∪ records the rim's two
-/// touches on the seam and not the seam's span in the top face between
-/// them (`a-line-edges-span-bounded-by-a-conic-crossing-is-not-recorded`),
-/// which 3′ does not flag.
+/// touches on the seam and the seam lying in the top face between them
+/// (the sweep's record of a line in a plane face), which the result
+/// carries on its seam edge, the rod's whole length.
 #[test]
 fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
     let gap = 0.5 * band().zero();
@@ -271,7 +272,7 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
         tol(),
     )
     .unwrap();
-    every_op_in_both_orders(
+    let records = every_op_in_both_orders(
         "rod on puck",
         (
             about_y(tol(), (0.0, 1.0), (-0.3, 0.0), None, 1.0, 0.0),
@@ -279,7 +280,7 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
         ),
         (rod, PI * r * r * 3.0),
         &Want {
-            records: 2,
+            records: 3,
             findings: &[
                 "undecided Cylinder / Cylinder",
                 "undecided Cylinder / Cylinder",
@@ -290,5 +291,20 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
                 "undecided Solid / Solid",
             ],
         },
+    );
+    let in_faces: Vec<&String> = records
+        .iter()
+        .filter(|r| r.starts_with("edge") && r.contains("face "))
+        .collect();
+    // The seam's ends sit within the band of `y = 0`, which prints at
+    // the sixth place at a coarse ε: read their `x` only.
+    let [seam] = in_faces.as_slice() else {
+        panic!("rod on puck: one edge lies in a face: {in_faces:?}");
+    };
+    assert!(
+        seam.starts_with("edge [\"(-1.500000, ")
+            && seam.contains("\"(1.500000, ")
+            && seam.ends_with("/ face Plane"),
+        "rod on puck: the seam lies in the puck's top: {seam}"
     );
 }

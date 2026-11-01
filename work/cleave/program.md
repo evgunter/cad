@@ -2,7 +2,7 @@
 id: cleave
 kind: program
 title: CLEAVE — split and boolean results where solids meet along a line: slits, rings, line wedges, fate cuts and the orbit's ties
-status: active
+status: ready
 opened: 2026-10-01
 group: kernel/boolean/split
 prefix: cleave/

@@ -101,3 +101,30 @@
     - `main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach`, from PR 6053, on `splitdoor/prism-tilt-reach`, tier FULL.
   - **Ruled, prism tilt:** at the two face–face sites (`pair_search`, the `insert.rs` membership tests), the face–face line is read un-normalized, i.e. as the bound's far end's offset from the other face's plane. This makes the module's contract ("a line beside a long bound is decided as its code is") true, reads the same quantity as `side_code`, and drops a 1/sin φ conditioning that the tolerance model never charges. Bisector and edge directions keep their angle reading.
   - **Decided, cone-apex fork:** the designer pair converged in round 2. The record is on the row. No `[ev]` PR: unanimous, and no ratified text changes. The vertex–vertex row is widened to P1/H as the owed second unit. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `a-flat-and-a-slanted-rim-on-tangent-walls-escalate-tier-3-prime-or-refuse-seam-orientation` (PR 6226). Review tier was FULL, APPROVE-WITH-FIXES with wording only; the fix pass got the orchestrator's read.
+  - Root cause: `insert::walk_faces_first` anchored the strut order on the arrival edge's chord instead of its tangent. The fix anchors on the corner's first sector `end`.
+  - The review's independent oracle (18 poses × 4 ops) agrees on head; main fails exactly the 36 ops with tan t_a > tan t_b.
+  - **Class:** the docs called the bound a "chord" where the field holds the departure tangent. They are corrected, the bound lookup now lives in one home (`sectors::corner_edge_bound`), and the closed-edge NaN anchor is repaired, though no fixture reads it.
+  - The tier-3′ escalation on A∪B and B∖A remains honest: two coplanar ellipses internally tangent. Evidence is on the cpair rows.
+  - Filed P3 `a-strut-order-within-one-entry-is-the-walk-order-under-a-second-name`, plus a GREEN main-red row for `coincidence_door`. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Landed the 6070 review residue** (PR 6230). Review tier: STYLE plus one correctness claim; the review found it mergeable with no MAJOR, then I did the orchestrator's read of the fix pass.
+  - `OnDeferred::sided`'s condition 3 is reachable (a rod on a step), but there it only refused correct answers, so it is removed. The argument now sits in `answered`'s doc. The review held 16 poses × every op × both orders × three ε with zero membership mismatches.
+  - The `keeps` gate is narrowed to the pair's own two shells. The old any-shell test made ∩ refuse in one operand order only.
+  - vtxfac's lump site points back to `answered`.
+  - `reachhold/rounded-stack-…` is closed, and its residue is split into a P3 puck row. Notes are on seven rows owned by other programs.
+  - The spline blind spot is filed: `the-side-certificate-has-no-row-or-argument-on-a-spline-carrier` (P2). (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach` (PR 6212; review tier: FULL, APPROVE-WITH-FIXES with no MAJOR, then the orchestrator's read of the fix pass).
+  - **The fix.** The face–face line is read un-normalized, in one home, `sectors::rays_within`. Each reading is the bound's far end's offset from the other face's plane, plus `cos φ` times the bound's own departure. That removes the 1/sin φ amplification PR 6053's reach reading exposed.
+  - **The review.** The identity holds to 5.6e-16. A within-zero move decides as the unmoved pose over 2700 poses at each ε. No planar body that main built is now refused: reduce's `bool_vertex_face_side` refuses first.
+  - **Class (filed P1):** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt`. The same amplification survives where the unit germ is read in the strut and walk orders. Germ-against-germ readings need a lever choice; the row proposes `min(lean₀, lean₁)`.
+  - **Filed P2:** `a-curved-bounds-tangent-read-in-band-at-the-line-while-its-chord-reads-definite`. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap` (PR 6256, test-only; review tier was the orchestrator's read).
+  - **An honest refusal, not a kernel defect.** Since my PR 6212, the 0.5ε pose decides as upright, as the row's contract asks. So it refuses `LineWedges` exactly as the on-top scene does: that scene is already pinned in the file's `REFUSING` table, where it waits on the unbuilt re-pairing in `topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.
+  - **Why the row went red.** `builds_or_refuses` looked its pins up by the tipped label, which never matched, so its pin calls were dead.
+  - **The fix.** A cell within the zero now inherits the on-top scene's pins, enforced in both directions. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `the-boolean-sectors-read-a-wrap-tip-as-a-one-edge-slit-tip` (PR 6221). Review tier: FULL, REQUEST CHANGES, then a delta review, APPROVE-WITH-FIXES, then the orchestrator's read of the final pass.
+  - `SlitTips` reads `validate::wrap_tips`, and the tip's corner reads the full turn. `strut_faces_first` faces a germ along a wrap tip's edge by the same rule.
+  - The FULL review's MAJOR (CLASS) was a two-tip sphere edge regressing from a build to `SectionLoopUndecided`. Root cause: `seam_germ_side` skipped curved chords, which is HONESPLIT's frontier.
+  - **Ruled:** fix it at the cause, in this PR. `seam_germ_side` now reads every chord at first order. The delta review found 59 ops main refuses now build correctly, and none builds wrong over 254 ops at three ε.
+  - Seam note left on `work/honesplit/log.md`.
+  - **Found while driving it:** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap`, a main red bisected to my PR 6212. Banded P1 here. (SPLITDOOR orchestrator)

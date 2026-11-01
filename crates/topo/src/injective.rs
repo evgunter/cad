@@ -676,6 +676,14 @@ fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
     v - t * v.dot(t)
 }
 
+/// The unit bisector across two headings' parts perpendicular to `t`:
+/// `m·hx⊥ > 0 > m·hy⊥` at any dihedral between them off 0, whatever
+/// the headings' along-`t` parts. Only a separator: [`sign_on`] decides
+/// both faces' signs against it.
+fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
+    unit(unit(perp(hx, t))? - unit(perp(hy, t))?)
+}
+
 fn sign_of(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
@@ -1021,6 +1029,9 @@ impl<'a> Presented<'a> {
 fn forward(u: &Use, iso: Iso) -> Option<f64> {
     let [p, q] = u.image?;
     let delta = iso.moving(q) - iso.moving(p);
+    if !delta.is_certified() {
+        return None;
+    }
     match (delta.lo() > 0.0, delta.hi() < 0.0) {
         (true, _) => Some(1.0),
         (_, true) => Some(-1.0),
@@ -1041,10 +1052,14 @@ fn face_side(u: &Use, iso: Iso, sense: bool) -> Option<f64> {
     Some(if sense { side } else { -side })
 }
 
-/// The moving coordinate's range along a use, outer hull of its ends.
+/// The moving coordinate's range along a use, outer hull of its ends;
+/// `None` where an end does not certify.
 fn along(u: &Use, iso: Iso) -> Option<Interval> {
     let [p, q] = u.image?;
     let (a, b) = (iso.moving(p), iso.moving(q));
+    if !(a.is_certified() && b.is_certified()) {
+        return None;
+    }
     Some(Interval::from_bounds(
         a.lo().min(b.lo()),
         a.hi().max(b.hi()),
@@ -1555,6 +1570,11 @@ fn present_chart<'a>(
             let Some(line) = placed(piece.surface, iso, sheet, (lo, hi)) else {
                 return Err(Unpresented::Structural);
             };
+            // Every read below, and the merge's folds, see only a
+            // certified line.
+            if !line.is_certified() {
+                return Err(Unpresented::Local);
+            }
             let side = Side::of(iso.held, sigma > 0.0);
             // A cell past the line on its face side by no more than
             // [`few_ulps`] lies outside it: the touch's ε concession.
@@ -1703,7 +1723,7 @@ fn present_chart<'a>(
             Axis::U => (x.1 - x.0, rect_jet(piece.surface, x, y).0),
             Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
         };
-        let width = at(across) * at(lever.norm().hi());
+        let width = at(across) * lever.norm();
         if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
             return Ok(Presentation::Vacuous);
         }
@@ -1956,8 +1976,9 @@ fn present_plane<'a>(
             // ball, so the plane's disk inside the ball meets the
             // boundary only in a whole chord of this edge, and the
             // disk's half off the face side is all outside the face. The
-            // cell lies in that half.
-            if y.hi() <= 0.0 {
+            // cell lies in that half. A `len2` holding zero leaves `y`
+            // uncertified, and a zero-length edge bounds no half.
+            if y.is_certified() && y.hi() <= 0.0 {
                 return Ok(Presentation::Vacuous);
             }
             let len = len2.sqrt();
@@ -2211,10 +2232,8 @@ impl Trig {
         };
         // `|ψ| ≤ |Q| / d` for `Q = ψ·D`, `D ≥ d > 0`.
         let over = |q: Interval, d: Interval| {
-            (d.lo() > 0.0).then(|| {
-                let m = q.abs() / d;
-                Interval::from_bounds(-m.hi(), m.hi())
-            })
+            let m = q.abs() / d;
+            (m.is_certified() && d.lo() > 0.0).then(|| Interval::from_bounds(-m.hi(), m.hi()))
         };
         match *psi {
             Psi::Linear { n, q } => Some(linear(n, q)),
@@ -2321,8 +2340,11 @@ impl Curved {
             );
             let lip = m.norm() + slope.abs() * axis.norm();
             let speed = edge.a.norm() + edge.b.norm();
-            let bound = (lip * (at(d.hi().max(0.0)).sqrt() + speed * at(overhang))).hi();
-            return Some(Interval::from_bounds(-bound, bound));
+            let bound = lip * (at(d.hi().max(0.0)).sqrt() + speed * at(overhang));
+            if !(d.is_certified() && bound.is_certified()) {
+                return None;
+            }
+            return Some(Interval::from_bounds(-bound.hi(), bound.hi()));
         }
         image.psi(psi, t)
     }
@@ -4239,6 +4261,27 @@ fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
     Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
 }
 
+/// `ψ∘Φ` over a side `x × y` of the presentation. A linear `ψ` on a
+/// spline chart is the hull of its values at the side's restricted
+/// control points ([`geom::NurbsSurface::rect_net`]): `ψ` is affine and
+/// the side's points are convex combinations of those, so the hull
+/// encloses it, and an iso lying in `ψ`'s zero set reads zero at any
+/// width. Anywhere else, and where the net door refuses (a restricted
+/// weight not certified positive), the centred form.
+fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
+    let net = match (&p.map, p.surface) {
+        (Map::Chart, Surface::Nurbs(net)) if psi.linear().is_some() => net.rect_net(x, y),
+        _ => None,
+    };
+    match net {
+        Some(points) => {
+            let values = points.into_iter().map(|q| psi.value(q));
+            values.collect::<Option<Vec<_>>>()?.into_iter().reduce(hull)
+        }
+        None => centred(psi, p, x, y),
+    }
+}
+
 /// **The sign `ψ∘Φ` takes on the presentation's rectangle less its zero
 /// sides**, decided, or `None`.
 ///
@@ -4286,7 +4329,7 @@ fn sign_on(
     };
     let zero_on = |s: Side| {
         let (x, y) = side_of(s);
-        !checked || centred(psi, p, x, y).is_some_and(|v| is_zero(v, band))
+        !checked || on_side(psi, p, x, y).is_some_and(|v| is_zero(v, band))
     };
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
@@ -4535,7 +4578,7 @@ fn plane_through(
         .collect::<Option<_>>()?;
     let n = match lines.as_slice() {
         [] => unit(hx - hy)?,
-        [d] => unit(perp(hx, *d) - perp(hy, *d))?,
+        [d] => bisector(hx, hy, *d)?,
         [d, e] if !near.vertices.is_empty() => unit(d.cross(*e))?,
         _ => return None,
     };
@@ -4621,8 +4664,9 @@ fn edge_piece(
 
 /// **The shared edge's graph**: one shared edge, projected onto the
 /// plane of `t`, its direction over the piece both images can reach,
-/// and `m`, across the faces' headings. Where `t·c′` is decided positive
-/// over the piece, the projected piece is the graph of `γ` over `s`.
+/// and `m`, bisecting the faces' headings about `t` ([`bisector`]).
+/// Where `t·c′` is decided positive over the piece, the projected piece
+/// is the graph of `γ` over `s`.
 fn graph_of(
     x: &Piece<'_>,
     near: &Near,
@@ -4645,7 +4689,7 @@ fn graph_of(
     let t = unit(vmid(carrier.deriv(middle)))?;
     let q0 = pmid(carrier.eval(middle));
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
-    let m = unit(perp(hx, t) - perp(hy, t))?;
+    let m = bisector(hx, hy, t)?;
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
@@ -4766,6 +4810,7 @@ mod rows {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod presentation_rows {
     use super::*;
+    use crate::test_support_fixtures::trv;
     use geom_core::Tol;
 
     const ALPHA: f64 = 0.2;
@@ -7008,6 +7053,191 @@ mod presentation_rows {
         );
     }
 
+    // ------------------------------------- a spline side off its iso net
+
+    /// The rational patch `S(u, v) = (a(u), v)`: `a` the quadratic arc on
+    /// `(1, 0), (1, 1), (0, 1)` with middle weight `w`, in `z = 0` and
+    /// `z = 1`. Its `v = 0` iso lies in the plane `z = 0`.
+    fn arc_wall(w: Interval) -> Surface<Interval> {
+        use geom_core::spline::{KnotVector, Knots};
+        let knots = |p: usize, k: Vec<f64>| {
+            Knots::from(KnotVector::clamped(k, p).unwrap()).lift(Interval::from_f64)
+        };
+        let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(
+                knots(2, vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
+                knots(1, vec![0.0, 0.0, 1.0, 1.0]),
+                vec![
+                    p(1.0, 0.0, 0.0),
+                    p(1.0, 0.0, 1.0),
+                    p(1.0, 1.0, 0.0),
+                    p(1.0, 1.0, 1.0),
+                    p(0.0, 1.0, 0.0),
+                    p(0.0, 1.0, 1.0),
+                ],
+                vec![iv0(1.0), iv0(1.0), w, w, iv0(1.0), iv0(1.0)],
+            )
+            .unwrap(),
+        ))
+    }
+
+    /// `ψ = n·(p − q)`.
+    fn plane_psi(n: (f64, f64, f64), q: (f64, f64, f64)) -> Psi {
+        Psi::Linear {
+            n: Vec3::new(iv0(n.0), iv0(n.1), iv0(n.2)),
+            q: Point3::new(iv0(q.0), iv0(q.1), iv0(q.2)),
+        }
+    }
+
+    /// `ψ` over the `v = 0` side of `wall`'s cell `x × (0, 0.5)`.
+    fn on_iso(psi: &Psi, wall: &Surface<Interval>, x: (f64, f64)) -> Interval {
+        let p = Presented {
+            surface: wall,
+            map: Map::Chart,
+            x,
+            y: (0.0, 0.5),
+            zero: Zero::Side(Side::YLo),
+            corner: false,
+            cache: Cache::default(),
+        };
+        on_side(psi, &p, x, (0.0, 0.0)).expect("a linear separator has a value")
+    }
+
+    /// **A spline side reads `ψ` off its own restricted iso net**
+    /// ([`on_side`]). The iso lies in `z = 0`, so that plane reads zero
+    /// on a wide cell, where the centred form reads the patch's first
+    /// order, and [`sign_on`] certifies the cell off that side; a plane the iso crosses between its ends reads mixed; a
+    /// plane the cell's piece of the iso lies strictly beside reads that
+    /// sign though the whole iso crosses it; and every enclosure holds
+    /// the iso's own points inside the cell, a plane through the iso's
+    /// end that it only approaches included.
+    #[test]
+    fn a_spline_side_reads_a_plane_off_its_restricted_iso_net() {
+        let wall = arc_wall(iv0(std::f64::consts::FRAC_1_SQRT_2));
+        let cell = (0.2, 0.3);
+        let flat = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, 0.0));
+        let zero = on_iso(&flat, &wall, cell);
+        assert!(
+            is_zero(zero, band()),
+            "the iso in z = 0 reads zero: {zero:?}"
+        );
+        let p = Presented {
+            surface: &wall,
+            map: Map::Chart,
+            x: cell,
+            y: (0.0, 0.5),
+            zero: Zero::Side(Side::YLo),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let first_order = centred(&flat, &p, cell, (0.0, 0.0)).unwrap();
+        assert!(
+            !is_zero(first_order, band()),
+            "the centred form does not read the side zero on this cell: {first_order:?}"
+        );
+        assert_eq!(
+            sign_on(&flat, &p, None, band()),
+            Some(Sign::Positive),
+            "the side zero, the wall departs z = 0 upward across it"
+        );
+        let chord = plane_psi((1.0, 1.0, 0.0), (0.6, 0.6, 0.0));
+        let crossed = on_iso(&chord, &wall, (0.0, 1.0));
+        assert!(
+            crossed.lo() < 0.0 && crossed.hi() > 0.0 && !is_zero(crossed, band()),
+            "x + y = 1.2 crosses the iso between its ends, which read -0.2: {crossed:?}"
+        );
+        assert_eq!(sign_of(crossed, DEPARTURE, band()), None, "mixed");
+        let half = plane_psi((1.0, 0.0, 0.0), (0.5, 0.0, 0.0));
+        let beside = on_iso(&half, &wall, (0.0, 0.1));
+        assert_eq!(
+            sign_of(beside, DEPARTURE, band()),
+            Some(Sign::Positive),
+            "the cell's piece of the iso is beyond x = 0.5, which the whole iso crosses: \
+             {beside:?}"
+        );
+        let below = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, -0.01));
+        assert_eq!(
+            sign_of(on_iso(&below, &wall, cell), DEPARTURE, band()),
+            Some(Sign::Positive),
+            "the iso 0.01 above z = -0.01"
+        );
+        let Surface::Nurbs(net) = &wall else {
+            panic!("a spline wall")
+        };
+        let grazing = (0.0, 1e-3, 1.0);
+        for (n, q, x) in [
+            ((0.0, 0.0, 1.0), (0.0, 0.0, 0.0), cell),
+            ((1.0, 1.0, 0.0), (0.6, 0.6, 0.0), (0.0, 1.0)),
+            ((1.0, 0.0, 0.0), (0.5, 0.0, 0.0), (0.0, 0.1)),
+            (grazing, (1.0, 0.0, 0.0), (0.0, 0.1)),
+        ] {
+            let psi = plane_psi(n, q);
+            let v = on_iso(&psi, &wall, x);
+            for k in 1..16 {
+                let u = x.0 + (x.1 - x.0) * f64::from(k) / 16.0;
+                let at = psi.value(net.eval(iv0(u), iv0(0.0))).unwrap();
+                assert!(
+                    v.lo() <= at.lo() && at.hi() <= v.hi(),
+                    "{n:?} through {q:?} on {x:?}: {v:?} holds the iso at u = {u}: {at:?}"
+                );
+            }
+        }
+    }
+
+    /// **A weight the net cannot certify positive falls back to the
+    /// centred form** ([`on_side`]), which reads nothing on such a net:
+    /// the net door refuses it, and so does the centred form's jet.
+    /// A weight that is positive but not certified reaches the door as
+    /// NaI, since the restriction refuses an uncertified coefficient. A
+    /// zero or a negative weight, which [`geom::NurbsSurface::new`]
+    /// refuses but `map_scalar` carries, reaches it as itself over the
+    /// whole span, where the restriction is the net. The guard is on the
+    /// restricted weights, so a cell whose restricted weights are all
+    /// positive reads the hull, which is sound there.
+    #[test]
+    fn a_weight_the_net_cannot_certify_falls_back_off_the_iso_net() {
+        let unproven = Interval::from_bounds(-1.0, 1.0).sqrt() * iv0(0.0) + iv0(1.0);
+        assert!(
+            !unproven.is_certified() && unproven.lo() == 1.0 && unproven.hi() == 1.0,
+            "a weight of 1 not certified: {unproven:?}"
+        );
+        let middle = std::f64::consts::FRAC_1_SQRT_2;
+        let lifted = |to: f64| {
+            let Surface::Nurbs(net) = arc_wall(iv0(middle)) else {
+                panic!("a spline wall")
+            };
+            let mapped = net.map_scalar(|x| {
+                if x.lo() == middle && x.hi() == middle {
+                    iv0(to)
+                } else {
+                    x
+                }
+            });
+            assert!(
+                mapped.weights().iter().any(|w| w.lo() == to),
+                "the middle weight is {to}"
+            );
+            Surface::Nurbs(std::sync::Arc::new(mapped))
+        };
+        let flat = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, 0.0));
+        for (what, wall, cell) in [
+            ("not certified", arc_wall(unproven), (0.2, 0.3)),
+            ("zero", lifted(0.0), (0.0, 1.0)),
+            ("negative", lifted(-0.5), (0.0, 1.0)),
+        ] {
+            let Surface::Nurbs(net) = &wall else {
+                panic!("a spline wall")
+            };
+            assert!(
+                net.rect_net(cell, (0.0, 0.0)).is_none(),
+                "{what}: the net door refuses the weight"
+            );
+            let v = on_iso(&flat, &wall, cell);
+            assert!(!is_zero(v, band()), "{what}: nothing is read zero: {v:?}");
+        }
+    }
+
     // ------------------------------------------------- the spiric wall
 
     const OFF: f64 = 0.3;
@@ -7900,5 +8130,205 @@ mod presentation_rows {
             ),
             "{got:?}"
         );
+    }
+
+    /// **An iso use's ends that do not certify decide neither its
+    /// direction nor its range** ([`forward`], [`along`]). The image runs
+    /// `v` from `0` to a refused `1`: certified, it runs forward over
+    /// `[0, 1]`. Red if either read takes the refused end's bracket.
+    #[test]
+    fn an_iso_use_with_a_refused_end_reads_no_direction_or_range() {
+        let iso = Iso {
+            held: Axis::U,
+            at: iv0(1.0),
+            full: false,
+        };
+        let image = |start: Interval, end: Interval| Use {
+            plus: true,
+            image: Some([Point2::new(iv0(1.0), start), Point2::new(iv0(1.0), end)]),
+            iso: Some(iso),
+            wall: None,
+            harmonic: None,
+        };
+        let certified = image(iv0(0.0), iv0(1.0));
+        assert_eq!(forward(&certified, iso), Some(1.0), "the certified control");
+        assert!(along(&certified, iso).is_some(), "the certified control");
+        for (what, refused) in [
+            ("start", image(trv(0.0), iv0(1.0))),
+            ("end", image(iv0(0.0), trv(1.0))),
+        ] {
+            assert_eq!(
+                forward(&refused, iso),
+                None,
+                "direction off a refused {what}"
+            );
+            assert!(along(&refused, iso).is_none(), "range off a refused {what}");
+        }
+    }
+
+    /// **A line that does not certify places nothing** in
+    /// [`present_chart`]: [`slot`]'s right line at a refused `1.5`. The
+    /// cell beside it on its face side is presented from it when it
+    /// certifies; the cell inside the hole, touching the line from its
+    /// other side, reads vacuous off it when it certifies. Refused,
+    /// neither is decided. Red if any read of a placed line precedes
+    /// its ask.
+    #[test]
+    fn a_refused_line_bounds_no_rectangle() {
+        let s = cylinder();
+        let mut b = slot();
+        let cell = ((1.6, 2.0), (0.3, 0.7));
+        assert_eq!(
+            chart(&s, &b, &[0, 1], cell.0, cell.1),
+            Read::Of((1.5, 2.0), (0.3, 0.7)),
+            "the certified control"
+        );
+        let Some(iso) = b.edges[1].uses[0].iso.as_mut() else {
+            panic!("the slot's right edge is an iso");
+        };
+        iso.at = trv(1.5);
+        assert_eq!(chart(&s, &b, &[0, 1], cell.0, cell.1), Read::Local);
+        let hole = ((1.1, 1.5), (0.3, 0.7));
+        assert_eq!(
+            chart(&s, &slot(), &[0, 1], hole.0, hole.1),
+            Read::Vacuous,
+            "the certified control inside the hole"
+        );
+        assert_eq!(chart(&s, &b, &[0, 1], hole.0, hole.1), Read::Local);
+    }
+
+    /// **A lever that does not certify measures no sliver** (the sliver in
+    /// [`present_chart`]): a cell `1e-13` wide beside [`slot`]'s shared
+    /// right line on a cylinder whose radius is a refused `1`. Certified,
+    /// the strip is within the band and vacuous; refused, the width is
+    /// not decided. Red if the width is minted from the lever's upper
+    /// end.
+    #[test]
+    fn a_refused_lever_measures_no_sliver() {
+        let b = slot();
+        let cell = ((1.5, 1.5 + 1e-13), (0.3, 0.7));
+        let on = |radius| {
+            let s = Surface::Cylinder {
+                origin: origin(),
+                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                radius,
+                u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            };
+            chart_near(&s, &b, &[0, 1], &[1], cell)
+        };
+        assert_eq!(on(iv0(1.0)), Read::Vacuous, "the certified control");
+        assert_ne!(on(trv(1.0)), Read::Vacuous);
+    }
+
+    /// **A separator whose coefficients do not certify bounds nothing
+    /// along a curve** ([`Trig::psi`]'s quotient bound, [`Curved::psi`]'s
+    /// graph bound): the rim's cylinder with a refused radius, and the
+    /// graph separator with a refused gradient. Each reads with the
+    /// same values certified. Red if either bound is minted from a
+    /// refused one's upper end.
+    #[test]
+    fn a_refused_separator_bounds_nothing_along_a_curve() {
+        let s = floor();
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let (c, _) = rim_cell(&disk(0.7, x, true, true), &s);
+        let cylinder = |r| {
+            Psi::Carrier(Implicit::Cylinder {
+                o: origin(),
+                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                r,
+            })
+        };
+        assert!(
+            c.psi(&cylinder(iv0(0.7))).is_some(),
+            "the certified control"
+        );
+        assert!(c.psi(&cylinder(trv(0.7))).is_none(), "a refused radius");
+        let graph = |m0| Psi::Graph {
+            m: Vec3::new(m0, iv0(0.0), iv0(0.0)),
+            t: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            slope: iv0(0.0),
+            piece: (c.t.0 - 0.1, c.t.1 + 0.1),
+        };
+        assert!(c.psi(&graph(iv0(1.0))).is_some(), "the certified control");
+        assert!(c.psi(&graph(trv(1.0))).is_none(), "a refused gradient");
+        // The distance to the edge's carrier refused alone: the bound
+        // reads only its upper end.
+        let mut off = *c;
+        let Form::Harmonic {
+            edge: Some(edge), ..
+        } = &mut off.form
+        else {
+            panic!("a harmonic side on a conic");
+        };
+        edge.c.x = edge.c.x + trv(0.0);
+        assert!(off.psi(&graph(iv0(1.0))).is_none(), "a refused distance");
+    }
+
+    /// **An edge whose chart line does not certify bounds no half
+    /// plane** ([`present_plane`]'s one-edge arm): a zero-length edge,
+    /// whose `len2` is `[0, 0]`, and an edge whose span ends at a
+    /// refused `4`. Neither `y` certifies, so a cell on either side is
+    /// not read vacuous off it; the certified edge reads the cell below
+    /// it vacuous. Red if the arm reads `y`'s upper end unasked.
+    #[test]
+    fn an_edge_that_does_not_certify_bounds_no_half_plane() {
+        let plane = Surface::Plane {
+            origin: origin(),
+            normal: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+        };
+        let along = |end: Interval| Boundary {
+            sense: true,
+            edges: vec![Rim {
+                key: edge(1),
+                arc: Some((
+                    Curve3::Line {
+                        origin: origin(),
+                        dir: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                    },
+                    (iv0(0.0), end),
+                )),
+                ends: [vertex(1), vertex(2)],
+                uses: vec![Use {
+                    plus: true,
+                    image: None,
+                    iso: None,
+                    wall: None,
+                    harmonic: None,
+                }],
+            }],
+            vertices: BTreeMap::new(),
+            extent: None,
+        };
+        let local = Local {
+            edges: vec![0],
+            vertices: Vec::new(),
+        };
+        let vacuous = |b: &Boundary, v| {
+            let piece = Piece {
+                face: FaceKey::default(),
+                surface: &plane,
+                whole: false,
+                boundary: b,
+                u: (1.0, 2.0),
+                v,
+                local: &local,
+                ball: Ball::holding(origin(), origin()),
+            };
+            matches!(
+                present_plane(&piece, &[0], &[], band()),
+                Ok(Presentation::Vacuous)
+            )
+        };
+        let below = (-0.5, -0.1);
+        assert!(vacuous(&along(iv0(4.0)), below), "the certified control");
+        for (what, end) in [("zero-length", iv0(0.0)), ("refused", trv(4.0))] {
+            for v in [below, (0.1, 0.5)] {
+                assert!(
+                    !vacuous(&along(end), v),
+                    "the {what} edge, the cell at v = {v:?}"
+                );
+            }
+        }
     }
 }

@@ -128,6 +128,7 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub(crate) mod bound_side;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -232,6 +233,7 @@ mod row_walk_proofs;
 // `///` here would merge into the module's own `//!` docs and make
 // rustdoc resolve their intra-doc links in THIS module's scope instead
 // of that one's.
+pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
@@ -486,6 +488,12 @@ pub mod test_support {
                 n
             })
             .collect()
+    }
+
+    /// How far each solid's aimed rays start from `aim`, over two
+    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
+    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim)
     }
 
     /// What each solid's aimed rays read before the volume, as text

@@ -196,3 +196,43 @@ mod r1_mesh2_review_probes {
         }
     }
 }
+
+/// **The Klein loop's caps hold against its walls where a wall seam
+/// meets them.** The loop's section circle is split into four arcs,
+/// one per wall, so each cap is a plane bounded by four arcs of one
+/// circle. A cap cell holding a vertex where two arcs meet is read by
+/// no presentation; the wall's departure from the cap's plane certifies
+/// it, the wall's side on the shared edge read off its own restricted
+/// iso net. The tour builds at `f64` only; the `Interval` twin of this
+/// locus is `self_intersection_proves_injectivity`'s lens-loft row.
+mod cap_corner_departure {
+    use crate::common::cap_corner::{assert_holds, cap_wall_pairs};
+    use demo_tour::klein::bottle;
+    use pncad::geom_core::Tol;
+
+    #[test]
+    fn each_cap_of_the_loop_holds_against_its_walls_at_its_arc_vertices() {
+        let tol = Tol::witness();
+        let float = bottle::<f64>(tol).top;
+        let pairs = cap_wall_pairs(&float);
+        assert_eq!(pairs.len(), 8, "two caps against four walls: {pairs:?}");
+        let receipts: Vec<(usize, u32)> = pairs
+            .iter()
+            .map(|&pair| assert_holds("klein loop", &float, pair))
+            .collect();
+        assert_eq!(
+            receipts,
+            [
+                (1, 1),
+                (1, 1),
+                (1, 1),
+                (1, 1),
+                (4, 3),
+                (4, 3),
+                (4, 3),
+                (4, 3)
+            ],
+            "each pair's (splits, deepest cell)"
+        );
+    }
+}

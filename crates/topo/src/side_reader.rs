@@ -39,6 +39,7 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
     edge_span: "side_at_infinity_edge_span",
     winding: "side_at_infinity_winding",
     represents: "side_at_infinity_met_edge_represents",
+    reaches: "side_at_infinity_met_edge_reaches",
 };
 
 /// **Two crossings of an aimed ray in band of each other along it** —
@@ -759,6 +760,18 @@ fn aimed_ray<T: Decide>(
         },
     )
 }
+/// **How far each solid's aimed rays start from `aim`, over two**
+/// ([`beyond`]): the probes read the reach's scale off it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn beyond_report(body: &Body<f64>, aim: Point3<f64>) -> Vec<Result<f64, String>> {
+    body.solids()
+        .map(|(solid, _)| {
+            let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
+            beyond(body, sel.faces(), aim).map_err(|e| format!("{e:?}"))
+        })
+        .collect()
+}
+
 /// **What each solid's aimed rays read**, before the volume, as text:
 /// the probe surface `test_support::aimed_rays` renders.
 #[cfg(any(test, feature = "test-support"))]

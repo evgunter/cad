@@ -1104,9 +1104,9 @@ for its boundary pre-pass:
 
 | name | carrier |
 |---|---|
-| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a parallel plane's `ρ − R` against the edge's decided side, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
+| `bool_torus_region_component` | a bare literal: which of a plane's two curves a root lies on, in metres (a meridian plane's `(y − c)·ρ̂`, a circle's distance from its mirror and from itself, an oval's `(y − c)·m`); and whether an edge in a leg's plane is on the leg's own circle (a meridian's centre against the leg's `ρ̂`, a parallel's radius less the leg's) |
 | `bool_torus_region_family` | a bare literal: whether a circle edge is a parallel (the sine between its axis and the torus's, at its radius) off the top and bottom circles (`ρ − R`, metres): a class selection between two readings, each sound |
-| `bool_torus_region_span` | a bare literal: a root's parameter against its edge's span ends, at the circle's radius or the tube's |
+| `bool_torus_region_span` | a bare literal: a crossing's parameter against its edge's span ends, at the circle's radius or the tube's; where that is in band, the cosine of its angle from the span's middle against the half-span's, at the same lever |
 | `bool_torus_region_at` | a bare literal: a crossing's place along its leg from the leg's start, at the leg's radius |
 | `bool_torus_region_corner` | a bare literal: a first leg's crossing, or an end of an edge on its circle, against its corner |
 | `bool_torus_region_order` | a bare literal: two crossings' places along the path |
@@ -1649,7 +1649,7 @@ cc_axes_coplanar  cc_axes_parallel  cc_coaxial
 cc_declared_radius_equality  cc_parallel_gap  pc_parallel_gap
 pn_apex_on_plane  pn_apex_section  pn_axis_normal
 nurbs_span_meter  fillet3_chain_arm  fillet3_chain_g1
-split_conic_departure  split_conic_inplane_mid
+split_conic_inplane_mid
 split_tangent_chord_forward
 tangent_sector_order2  tangent_sector_order2_arm
 tangent_sector_osculation

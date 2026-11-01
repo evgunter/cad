@@ -1133,8 +1133,8 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
     );
 }
 
-/// **∖ and ∩ refuse where ∪ does, both orders.** With the torus on the
-/// revert roster, a subtract or an intersect over the fixtures above
+/// **∖ and ∩ reach the doors ∪ does, both orders.** With the torus on
+/// the revert roster, a subtract or an intersect over the fixtures above
 /// reaches the same doors as their unions:
 ///
 /// - the near-perpendicular bar's tilted faces cut general spiric
@@ -1154,9 +1154,10 @@ fn a_cube_in_the_donuts_hole_answers_subtract_and_intersect() {
 ///   sides (each `Out` the other) answer it, so each difference is its
 ///   minuend and the intersection nothing.
 ///
-/// None of the others is a body.
+/// The near-perpendicular bar, the slab, the two tori and the grazing
+/// cylinder refuse.
 #[test]
-fn subtract_and_intersect_refuse_where_union_does() {
+fn subtract_and_intersect_reach_the_doors_union_does() {
     use geom_core::{Affine3, Mat3, Vec3};
     let d = donut();
     let near = framed_bar(

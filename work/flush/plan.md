@@ -16,11 +16,7 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 |---|---|---|---|
 | P3 | `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` | H | PR 5706's residue |
 
-In flight, both P1, each with one FULL review:
-- `main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond` (M);
-- `an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side` (M; INSIDE's duplicate is closed into it).
-
-Once both close, the sitting ends (`memories/orchestration-model.md`): the P0s are parked on REACHHOLD and the rest is tail.
+Nothing in flight. Both P1s closed on 2026-11-01: the partial-torus rim ray with PR 6168, and the aimed ray's reach with PR 6174. FLUSH is handed back `ready`. The P0s are parked on REACHHOLD, and the rest is tail for a successor.
 
 Parked, and not counted:
 
