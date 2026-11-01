@@ -188,15 +188,11 @@ impl ViewerBehavior<'_> {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
             }
-            // Why it reads nothing, under its line, as the selected
-            // variable's row says it.
-            if row.value.is_err() {
-                for line in reading_notes(
-                    &row.label.to_string(),
-                    &row.value,
-                    row.dimension,
-                    *self.notation,
-                ) {
+            // Why it reads nothing, under its line — except while it is
+            // selected, when its own row above says it (`reading_notes`)
+            // and this pane says a fact once.
+            if self.session.selection() != &Selection::Variable(row.var) {
+                for line in reading_faults(&row.label.to_string(), &row.value) {
                     crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
                 }
             }
@@ -1603,8 +1599,9 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
 /// value, `t = 20 mm`. The value is said in the unit its own field
 /// shows it in ([`variable_showing`]): the notation it was declared in,
 /// or the working notation where it remembers none
-/// ([`props::rendering_unit`]), through [`props::shown_text`] — so the
-/// list and the variable's row never read one value two ways.
+/// ([`props::rendering_unit`]), so the list and the row say one value
+/// in one unit. The digits are [`props::shown_text`]'s bounded readout,
+/// where the field shows the number it edits.
 pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
     format!(
         "{} = {}",
@@ -1617,20 +1614,17 @@ pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
 }
 
 /// **A defined variable's line in the variables list**: its name, its
-/// definition and what that reads, `w = 2 * t = 40 mm`. A value nobody
-/// wrote, so said in the working notation ([`props::computed_text`]);
-/// one per member, their span ([`props::MemberValues::span`]); a
-/// definition that reads nothing, [`props::NO_VALUE`], with why said
-/// under the line ([`reading_notes`]), as a driven slot's field does.
+/// definition and what that reads, `w = 2 * t = 40 mm` — the reading
+/// as a driven slot's field says it ([`props::reading_text`]), with why
+/// it reads nothing said under the line ([`reading_faults`]).
 pub(crate) fn defined_line(row: &props::DefinedRow, notation: Notation) -> String {
-    let value = match &row.value {
-        Ok(props::Reading::One(value)) => {
-            props::computed_text(row.dimension, value.as_f64(), notation)
-        }
-        Ok(props::Reading::PerMember(members)) => members.span(row.dimension, notation),
-        Err(_) => props::NO_VALUE.to_owned(),
-    };
-    format!("{} = {} = {value}", row.label, row.formula)
+    format!(
+        "{} = {} {} {}",
+        row.label,
+        row.formula,
+        props::DRIVEN,
+        props::reading_text(&row.value, row.dimension, notation)
+    )
 }
 
 /// **A defined variable's value field**: its formula over the number
@@ -1703,19 +1697,36 @@ pub(crate) fn reading_notes(
     dimension: Dimension,
     notation: Notation,
 ) -> Vec<String> {
-    match value {
-        Ok(props::Reading::One(_)) => Vec::new(),
-        Ok(props::Reading::PerMember(members)) => core::iter::once(format!(
+    let values = match value {
+        Ok(props::Reading::PerMember(members)) => Some(format!(
             "{subject} at each member: {}",
             members.spelled(dimension, notation)
-        ))
-        .chain(
-            members
-                .refusals()
-                .into_iter()
-                .map(|line| format!("{subject} {line}")),
-        )
-        .collect(),
+        )),
+        Ok(props::Reading::One(_)) | Err(_) => None,
+    };
+    values
+        .into_iter()
+        .chain(reading_faults(subject, value))
+        .collect()
+}
+
+/// **Why a reading reads nothing, wholly or at some members**, one line
+/// each and every line naming `subject`: the fault where it does not
+/// evaluate, each refusal among its members with the members it
+/// refused at. Empty for a reading that refused nowhere. The part of
+/// [`reading_notes`] a line that already says the reading's value
+/// ([`defined_line`]) has left to say.
+pub(crate) fn reading_faults(
+    subject: &str,
+    value: &Result<props::Reading, props::SlotFault>,
+) -> Vec<String> {
+    match value {
+        Ok(props::Reading::One(_)) => Vec::new(),
+        Ok(props::Reading::PerMember(members)) => members
+            .refusals()
+            .into_iter()
+            .map(|line| format!("{subject} {line}"))
+            .collect(),
         Err(error) => vec![format!("{subject}: {error}")],
     }
 }
@@ -2502,18 +2513,13 @@ mod tests {
     }
 }
 
-/// **How loud the selection's verdict is drawn**, read off the paint
-/// and held against fixed colours ([`crate::pane::headless::Voices`]),
-/// through [`standing_verdict`] — the function the header calls — so
-/// a literal tone put back at any of its arms, or a swapped mapping
-/// anywhere between [`Standing::tone`] and the glyphs, turns a row red.
 /// **The variables list says each variable's value**, in the unit its
 /// own field shows it in.
 #[cfg(test)]
 mod variable_lines {
     use pncad::document::{Dimension, EvalError, SpokenVar, VarId, VarName};
 
-    use super::{defined_line, variable_line};
+    use super::{defined_line, reading_faults, reading_notes, variable_line};
     use crate::props::{
         DefinedRow, NO_VALUE, Notation, Reading, SlotFault, SlotValue, VariableRow,
     };
@@ -2602,8 +2608,41 @@ mod variable_lines {
             format!("w = 2 * t = {NO_VALUE}")
         );
     }
+
+    /// **A definition refused at some members says why, as its row
+    /// does**: the list line shows the span, and the lines under it are
+    /// the refusals the selected row's notes carry — every note but the
+    /// values line, which the span already says.
+    #[test]
+    fn a_partly_refused_definition_says_its_refusals_as_its_row_does() {
+        let members = crate::props::MemberValues::new(
+            vec![spoken("k")],
+            vec![
+                (vec![0], Ok(SlotValue::Continuous(0.01))),
+                (vec![1], Err(EvalError::NonFiniteResult)),
+            ],
+        );
+        let value = Ok(Reading::PerMember(members));
+        let faults = reading_faults("w", &value);
+        assert!(!faults.is_empty(), "the refused member is said");
+        let notes = reading_notes("w", &value, Dimension::Length, Notation::DEFAULT);
+        assert_eq!(
+            notes[1..],
+            faults[..],
+            "the row's refusal lines, and only those"
+        );
+        assert!(
+            defined_line(&defined(value), Notation::DEFAULT).contains(NO_VALUE),
+            "the span says a member refused"
+        );
+    }
 }
 
+/// **How loud the selection's verdict is drawn**, read off the paint
+/// and held against fixed colours ([`crate::pane::headless::Voices`]),
+/// through [`standing_verdict`] — the function the header calls — so
+/// a literal tone put back at any of its arms, or a swapped mapping
+/// anywhere between [`Standing::tone`] and the glyphs, turns a row red.
 #[cfg(test)]
 mod verdict_tests {
     // Panicking is a test's failure mechanism (workspace lint note).

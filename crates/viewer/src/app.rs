@@ -5629,6 +5629,14 @@ mod properties_pane_tests {
             painted.iter().any(|(run, _)| run == &format!("w: {fault}")),
             "and why, under its line: {painted:?}"
         );
+        // Selected, its own row says why, and the pane says it once.
+        driven.select(Selection::Variable(w));
+        let painted = driven.frame(Vec::new());
+        let said = painted
+            .iter()
+            .filter(|(run, _)| run == &format!("w: {fault}"))
+            .count();
+        assert_eq!(said, 1, "the reason is said once: {painted:?}");
     }
 
     /// **The add-variable form's commit is live exactly when a click
