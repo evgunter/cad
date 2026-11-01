@@ -2116,6 +2116,75 @@ fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
         .collect()
 }
 
+/// Two unit lens sections, two arcs on one chord, stacked one apart three
+/// times: `lily_leaf_a`'s section, lofted straight.
+fn lens_loft<T: Scalar>() -> Body<T> {
+    let lens = vec![profile::test_support::bulge_loop(vec![
+        (Point2::new(0.5, 0.0), -0.3),
+        (Point2::new(-0.5, 0.0), -0.3),
+    ])];
+    let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
+    let places = sweep::test_support::lift_places::<T>(
+        &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
+        tol(),
+    );
+    loft_body::<T>(&sections, &places, 2, tol())
+        .expect("the lens loft lofts")
+        .body
+}
+
+/// **A lens loft's rational walls hold against themselves, at both
+/// scalars and moved off the origin**: each wall alone at the default
+/// budget, at the origin and moved by `(10, 10, 10)`, certifying a
+/// cell-pair count within 1% of its unmoved twin's. The lens arcs are
+/// rational, so the monotone arm reads each wall through a rational
+/// net's derivative over a cell; read in the absolute frame, the moved
+/// walls' derivative carries the distance times the weight's slope.
+/// The `Interval` twin of the tour's `lily_leaf_a` wall rows, which
+/// build at `f64` only.
+#[test]
+fn a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars() {
+    fn row<T: Scalar>(what: &str) {
+        let home = lens_loft::<T>();
+        let by = geom_core::Vec3::new(10.0, 10.0, 10.0).map(T::from_f64);
+        let motion = geom_core::RigidMotion::translation(by).expect("a translation");
+        let away = topo::transform_rigid(&home, &motion, tol()).expect("the loft moves");
+        let walls: Vec<FaceKey> = home
+            .faces()
+            .map(|(k, _)| k)
+            .filter(|&f| matches!(surface(&home, f), Surface::Nurbs(_)))
+            .collect();
+        assert_eq!(walls.len(), 2, "{what}: two lens walls");
+        for wall in walls {
+            let (a, b) = (
+                injective(&home, Some(vec![wall]), BUDGET),
+                injective(&away, Some(vec![wall]), BUDGET),
+            );
+            println!(
+                "[jet frame] {what}: {wall:?} {} {:?}; moved {} {:?}",
+                class(&a.verdict),
+                a.receipt,
+                class(&b.verdict),
+                b.receipt
+            );
+            for (at, r) in [("at the origin", &a), ("moved", &b)] {
+                assert!(
+                    matches!(r.verdict, BoundVerdict::Holds),
+                    "{what}: {wall:?} {at} holds against itself, got {} {:?}",
+                    class(&r.verdict),
+                    r.receipt
+                );
+            }
+            let (x, y) = (a.receipt.certified, b.receipt.certified);
+            #[allow(clippy::cast_precision_loss)]
+            let close = (x as f64 - y as f64).abs() <= 0.01 * (x.max(y) as f64);
+            assert!(close, "{what}: {wall:?} certifies {y} moved against {x}");
+        }
+    }
+    row::<f64>("the lens loft");
+    row::<Interval>("the lens loft at Interval");
+}
+
 /// **A lens loft's caps hold against its walls at the lens tip, at both
 /// scalars.** Two unit lens sections, two arcs on one chord, one above
 /// the other: each cap is a plane bounded by two circles meeting at the
@@ -2127,20 +2196,6 @@ fn adjacent<T: Real>(body: &Body<T>, caps: bool) -> Vec<(FaceKey, FaceKey)> {
 /// (`demos/tour/tests/lily.rs`), built here at both scalars.
 #[test]
 fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
-    fn lens_loft<T: Scalar>() -> Body<T> {
-        let lens = vec![profile::test_support::bulge_loop(vec![
-            (Point2::new(0.5, 0.0), -0.3),
-            (Point2::new(-0.5, 0.0), -0.3),
-        ])];
-        let sections = sweep::test_support::lift_sections::<T>(&[lens.clone(), lens.clone(), lens]);
-        let places = sweep::test_support::lift_places::<T>(
-            &sweep::test_support::stacked_at(&[0.0, 1.0, 2.0]),
-            tol(),
-        );
-        loft_body::<T>(&sections, &places, 2, tol())
-            .expect("the lens loft lofts")
-            .body
-    }
     fn receipts<T: Scalar>(what: &str, body: &Body<T>) -> Vec<(usize, u32)> {
         adjacent(body, true)
             .into_iter()

@@ -260,3 +260,14 @@ P3:
 - Read the notification queue before merging, then merge on green.
 - Reviewers share `CARGO_TARGET_DIR=/home/user/inlane-target`. A run can execute another worktree's binary, so a reviewer must confirm its probes are in the binary it ran.
 - Disk is tight: keep the target dir clean and check `df` before dispatching.
+
+## Evidence (JETFRAME, CLEAR, 2026-11-01)
+
+Neither of the tour's rational walls builds at `Interval`. Both
+`demo_tour::lily::leaf_a::<Interval>` and
+`demo_tour::klein::bottle::<Interval>` refuse
+`Skin(Structure(CarrierWeightNotAPoint { index: 1 }))`, so the
+injectivity rows on their walls run at `f64` only.
+`demos/tour/tests/wall_jets.rs` pins both refusals, and its rows go red
+when this lands. The `Interval` twin there is the sweep crate's lens
+loft (`a_lens_lofts_walls_hold_against_themselves_moved_off_the_origin_at_both_scalars`).

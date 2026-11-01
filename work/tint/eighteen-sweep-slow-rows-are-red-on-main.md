@@ -87,3 +87,7 @@ first, and they leave it on opposite sides (`Crossed`), so the edge
 does not lie in the wall and the reading is not raised.
 `conic_edge_curved_face::a_rim_crossing_reaches_the_join` and the ten
 below are not this PR's ground.
+
+## 2026-11-01 (SPLITDOOR, `splitdoor/face-line-germ-lean`)
+
+`germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs` is still red on main `367ff259` at ε 1e-9. Run alone, it takes 1514 s and gives the same table: each β 0.5 spin stops at `"ring volume"` / `"quadrature volume"`. Replay: `cargo nextest run -p sweep --test all --run-ignored all -E 'test(=germ_tilted_rod::other_spins_and_steeper_tilts_refuse_at_their_germs)'`. PR 6238 leaves its panic table byte-identical.

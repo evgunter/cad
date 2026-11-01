@@ -62,3 +62,7 @@ collect `Drafts`' document-derived fields (the held faces, the
 expression and naming drafts, the rename text, the profile edit) into
 one value that the replacement door rebuilds from nothing, so that a
 field is reset by being declared there.
+
+## Moved (2026-11-01)
+
+Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
