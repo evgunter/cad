@@ -1172,7 +1172,7 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
     let doc = session.committed_doc().clone();
     let mut tool = DuplicateTool::new();
     tool.pick_at(&doc, revolve, Some(0));
-    let line = viewer::seats::seat_line(tool.seats(), &doc);
+    let line = viewer::seats::seat_line(tool.seats(), pncad::document::Speaker::of(&doc));
     assert!(
         !line.contains("half"),
         "a revolve is said as a split half: {line}"

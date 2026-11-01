@@ -6,7 +6,7 @@ Opened 2026-10-20 by WIRE's cut. Nothing dispatched.
 
 ## The slate
 
-**26 budget points** against 30 (re-weighted tiers, 2026-10-28).
+**29 budget points** against 30 (re-weighted tiers, 2026-10-28).
 
 | pri | item | cost |
 |---|---|---|
@@ -17,6 +17,7 @@ Opened 2026-10-20 by WIRE's cut. Nothing dispatched.
 | P3 | `a-union-folding-a-bridging-prism-last-refuses-its-fold-step` | H |
 | P3 | `a-zip-listed-chord-between-merged-faces-along-a-rim-has-no-end-to-end-witness` | M |
 | P3 | `three-names-tests-fail-at-ambiguity-k-1-5` | M |
+| P3 | `a-unions-member-edge-group-size-reads-the-fold-steps-spelling` | M |
 | P3 | `identical-twin-coincidence-rows-arise-on-coincident-lines` | E |
 | P4 | `the-judgement-naming-fault-seam-refuses-other-tests-unions` | E |
 

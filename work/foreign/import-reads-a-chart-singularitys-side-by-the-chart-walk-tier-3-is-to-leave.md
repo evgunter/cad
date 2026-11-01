@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-31
 priority: P2
 cost: M
-refs: [the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt]
+refs: [the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band, a-loop-the-chart-singularity-walk-cannot-certify-is-exempt]
 ---
 
 ## What
@@ -14,7 +14,7 @@ refs: [the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar, a-loop-the-
 DESIGN `[topology.tiers]` gives a point's place in a face one reading,
 the point-in-face doors'. Tier 3's chart-singularity arm is to read a
 sphere pole's or cone apex's side through them
-(`work/restcurve/the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar.md`,
+(`work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`,
 which retires tier 3's use of `geom_brep::chart_singularity::walk_loop`).
 Today tier 3 and import share `locate` (whose boundary placement is now
 `place_on_boundary`, split out by RESTCURVE's region-arm PR), so they

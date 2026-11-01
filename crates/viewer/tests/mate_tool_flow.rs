@@ -11,7 +11,7 @@ use pncad::document::{Dimension, Formula};
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{MateSide, RecipeNodeId};
+use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState};
@@ -216,8 +216,8 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
-    tool.pick(session.doc(), shelf_bottom);
-    let held_line = tool.state().line(session.doc());
+    tool.pick(session.doc(), shelf_bottom.clone());
+    let held_line = tool.line(viewer::frame::landed_speaker(session.landed_pair()));
 
     // The SECOND pick's instance is deleted out from under the tool.
     session.perform(SessionOp::DeleteNode {
@@ -239,17 +239,21 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // The notice says the pick in the panel's words on the frame
     // before — the copy as the document spoke it when it was picked —
     // though the document that dropped it no longer holds it.
+    let tag = |node: RecipeNodeId| test_utils::refusal::tag(node.0.digest());
+    // The shelf's underside is the start cap of the part's own extrude,
+    // a node the assembly does not hold, picked on the shelf's instance.
     let said = format!(
-        "face of InstantiatePart {}",
-        test_utils::refusal::tag(bench.shelf_i.0.digest())
+        "the start cap of node {}, on InstantiatePart {}",
+        tag(shelf_bottom.name.node),
+        tag(bench.shelf_i),
     );
     assert!(held_line.ends_with(&format!("to: {said}")), "{held_line:?}");
     assert_eq!(
-        events[0].to_string(),
-        format!("the to pick (a {said}) no longer resolves; the tool dropped it")
+        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval)))).to_string(),
+        format!("the to pick ({said}) no longer resolves; the tool dropped it")
     );
     match tool.state() {
-        MateToolState::One(held) => assert_eq!(held, &post_top),
+        MateToolState::One(held) => assert_eq!(held.face(), &post_top),
         other => panic!("the tool degrades to its previous step, got {other:?}"),
     }
 
@@ -901,13 +905,13 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
 }
 
 /// **A refusal about a pick names its node as the panel does**, after
-/// a rename that has not landed. The mate panel says a held pick is the
-/// face of the node as the session's document speaks it; the tool reads
-/// the landed pair, so its refusal is spoken again from that same
-/// document where the panel draws it (`MateToolError::respoken`), and
-/// the two say one label. Driven through `MateTool::proposal`: both
-/// picks on one instance refuse `SamePick`. Red if the refusal says the
-/// label from before the rename, or the instance by its tag alone.
+/// a rename that has not landed. The chrome speaks the landed document:
+/// the mate panel says a held pick's node as it holds it, and the tool's
+/// refusal is spoken again from that same document where the panel
+/// draws it (`MateToolError::respoken`), so the two say one label — the
+/// landed one, which the rename has not reached. Driven through
+/// `MateTool::proposal`: both picks on one instance refuse `SamePick`.
+/// Red if either says the rename before it lands.
 #[test]
 fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let tol = Tol::witness();
@@ -935,9 +939,11 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let refused = tool
         .proposal(doc, asm::seat_choice())
         .expect_err("one instance is no pair");
-    let said = refused.respoken(session.doc()).to_string();
+    // The chrome speaks the landed document, so both say the label it
+    // holds — none yet — and neither says the rename before it lands.
+    let said = refused.respoken(doc).to_string();
     let spoken = format!(
-        "InstantiatePart \"post\" ({})",
+        "InstantiatePart {}",
         test_utils::refusal::tag(bench.post_b.0.digest())
     );
     assert_eq!(
@@ -947,10 +953,10 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
              something else"
         )
     );
-    let panel = tool.state().line(session.doc());
+    let panel = tool.line(viewer::frame::landed_speaker(session.landed_pair()));
     assert!(
-        panel.contains(&spoken),
-        "the panel says the same node: {panel}"
+        panel.contains(&spoken) && !panel.contains("\"post\""),
+        "the panel says the same node, by the landed label: {panel}"
     );
 }
 

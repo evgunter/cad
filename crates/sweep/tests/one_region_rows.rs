@@ -1073,6 +1073,35 @@ fn a_point_beside_one_torus_window_reads_in_the_face_at_the_certified_scalar() {
     }
 }
 
+/// **Two windows at opposite azimuths on the donut's face validate at
+/// `f64` and at the certified scalar**: `((-1.2, -0.2), (-0.4, 0.4))` and
+/// the same window turned a half turn about the axis. A parallel leg from
+/// a corner of one window meets the other window's meridian edges exactly
+/// opposite its start, where a place read by `atan2` sat on its branch
+/// cut and enclosed `[0, π·ρ]` at `Interval`, refusing the face
+/// `CycleSideUndecided`; the swept angle read by the half-angle form has
+/// no cut.
+fn antipodal_windows<T: Scalar>(scalar: &str) {
+    let pi = core::f64::consts::PI;
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let mut body = donut::<T>();
+    let face = same_face(&at_f64, face64, &body);
+    plant(&mut body, face, frame, (-1.2, -0.2), (-0.4, 0.4));
+    plant(&mut body, face, frame, (pi - 1.2, pi - 0.2), (-0.4, 0.4));
+    assert_eq!(
+        region_findings(&body),
+        Vec::new(),
+        "two windows at opposite azimuths, at {scalar}"
+    );
+}
+
+#[test]
+fn two_windows_at_opposite_azimuths_validate() {
+    antipodal_windows::<f64>("f64");
+    antipodal_windows::<geom_core::Interval>("Interval");
+}
+
 /// **Points of the donut's other half read off the face holding a
 /// window, at the certified scalar**: one window centred on the upper
 /// face's middle, and points of the lower face at the seam's azimuth,
@@ -1098,5 +1127,68 @@ fn points_of_the_other_half_read_off_a_face_holding_a_window_at_the_certified_sc
             Ok(Some(topo::FaceContainment::Out)),
             "the point {q:?} of the lower face, read against the upper"
         );
+    }
+}
+
+/// **A point a band's width off a lune's pole vertex reads as it did
+/// before the sphere door read roots as directions**: on the 90° lune of
+/// a revolved ball (poles on `y`) and its 270° complement, at the band
+/// `(1e-12, 1e-11)`, points `1e-11` off the north pole decide out of the
+/// one face and in the other. A root's place against its arc's end read
+/// as the half-width less its angle from the middle loses the end's
+/// relative precision there, and `(0, 1, 1e-11)` escalated on
+/// `bool_sphere_region_span` at `9.99956e-12`.
+#[test]
+fn points_a_band_off_a_lunes_pole_vertex_read_at_the_ends_precision() {
+    let disc = [(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)];
+    let meridian = bulge_loop(
+        disc.iter()
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
+        .validate(tol())
+        .unwrap();
+    let band = geom_core::Band::new(1e-12, 1e-11).unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let (out, inside) = (
+        Some(topo::FaceContainment::Out),
+        Some(topo::FaceContainment::In),
+    );
+    for (deg, rows) in [
+        (
+            90.0_f64,
+            vec![
+                (Point3::new(0.0, 1.0, 1e-11), out),
+                (Point3::new(0.0, -1.0, 1e-11), out),
+                (Point3::new(-1e-11, 1.0, 0.0), out),
+            ],
+        ),
+        (
+            270.0,
+            vec![
+                (Point3::new(-1e-11, 1.0, 0.0), inside),
+                (Point3::new(0.0, 1.0, -1e-11), inside),
+            ],
+        ),
+    ] {
+        let lune: Body<f64> = revolve(&profile, axis, Revolution::Partial(deg.to_radians()), tol())
+            .unwrap()
+            .body;
+        let face = lune
+            .faces()
+            .find(|(_, f)| matches!(lune.get_surface(f.surface), Some(Surface::Sphere { .. })))
+            .unwrap()
+            .0;
+        for (q, want) in rows {
+            assert_eq!(
+                topo::curved_face_containment(&lune, face, q, band),
+                Ok(want),
+                "{q:?} on the {deg}° lune"
+            );
+        }
     }
 }
