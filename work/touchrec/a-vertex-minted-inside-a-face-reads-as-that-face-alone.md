@@ -2,11 +2,13 @@
 id: a-vertex-minted-inside-a-face-reads-as-that-face-alone
 kind: issue
 title: A boolean's row on a vertex it minted inside a face names the face and not the pierce that minted it
-status: dispatched
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
 branch: touchrec/in-face-mint-keeps-its-pierce
+closed: 2026-11-01
+pr: 6211
 ---
 
 
@@ -91,3 +93,7 @@ statement, `Meet {Edge@wedge, Face@plate, Face@wall}`, in all six
 member orders, two of which hold the pierce in the wall's face. With
 the ring tie's `through` dropped, the test stays green: the tie's
 partner is the edge split, whose `by` names the plate's top.
+
+## Closed
+
+2026-11-01, PR 6211. No row on a vertex minted inside a face drops the cell that minted it: the ring tie's `through` names the pierced face, and the only other writer (`carried`'s minted meeting) pairs it with an edge split whose `by` is that face. The argument and the measurement are above. `union_member_orders_decide_alike::a_pierce_held_in_a_face_is_one_statement_in_every_member_order` pins the point as one statement in all six member orders. `push_in_face` is unchanged. The sweep found two mint sites `Mints` does not record at all, filed as `a-ring-vertex-minted-in-the-pierced-face-has-no-mints-row` (P3).

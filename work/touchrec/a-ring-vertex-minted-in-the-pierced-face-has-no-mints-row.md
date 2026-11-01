@@ -4,6 +4,9 @@ kind: issue
 title: The ring vertices a boolean mints in a pierced face and at a node are not in Mints, so a row naming one would publish a clone key as an input vertex
 status: open
 opened: 2026-11-01
+priority: P3
+cost: M
+refs: [a-vertex-minted-inside-a-face-reads-as-that-face-alone]
 ---
 
 
@@ -49,3 +52,5 @@ an argument that no carried record lands there. If a row reaches it,
 `Mints` keeps the ring vertex with its face, the way `push_in_face`
 keeps a held one's, and with the piercing cell, the way `EdgeSplit::by`
 keeps a split's crossing one.
+
+2026-11-01: banded P3, cost M (TOUCHREC orchestrator). This is latent: no fixture is known to reach it, and reaching it needs the pierced operand to touch itself at the pierce point. If a fixture does, the row takes its sibling's P1.
