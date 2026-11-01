@@ -651,7 +651,7 @@ impl<C: SweepCell> SweepFloor<C> {
     }
 
     /// The floor, in the lane's units.
-    fn width(self) -> f64 {
+    pub(crate) fn width(self) -> f64 {
         self.width
     }
 }
@@ -735,7 +735,7 @@ impl<C: SweepCell> SweepDuty<'_, C> {
                     Some(Accounted::Clear)
                 } else if tubes.iter().any(|t| cell.contained_in(*t)) {
                     Some(Accounted::Tube)
-                } else if regions.iter().any(|r| cell.contained_in(*r)) {
+                } else if cell.covered_by(regions) {
                     Some(Accounted::Contact)
                 } else {
                     None
@@ -761,6 +761,11 @@ pub(crate) trait SweepCell: Copy {
     fn split(self) -> (Self, Self);
     /// Containment, for the accounting test against a tube.
     fn contained_in(self, other: Self) -> bool;
+    /// Containment in the contact regions: inside one of them, unless
+    /// the lane's regions hold a cell together.
+    fn covered_by(self, regions: &[Self]) -> bool {
+        regions.iter().any(|r| self.contained_in(*r))
+    }
     /// The largest coordinate magnitude over the cell's sides (`NaN`
     /// when a side has none).
     fn reach(self) -> f64;
@@ -1337,6 +1342,14 @@ impl SweepCell for PairCell {
     fn contained_in(self, o: Self) -> bool {
         self.b.contained_in(o.b)
     }
+    /// A handed-in row's cover is a chain of boxes, so a cell beside it
+    /// may straddle two: the regions hold it together
+    /// ([`super::four::covered`]), each region's section certified
+    /// pointwise.
+    fn covered_by(self, regions: &[Self]) -> bool {
+        let boxes: Vec<Box4> = regions.iter().map(|r| r.b).collect();
+        super::four::covered(self.b, &boxes)
+    }
     fn reach(self) -> f64 {
         self.b
             .0
@@ -1385,8 +1398,10 @@ pub(crate) fn seed_pair(
 
 /// **The accounting proof**, pair lane: every leaf of the product of the
 /// two knot rectangles is excluded — the two charts' boxes over it
-/// certified apart — or lies inside one of `tubes`; a cell that is
-/// neither, at the floor, is the typed refusal, `tubes` empty included.
+/// certified apart — or lies inside one of `tubes`, or inside `regions`
+/// together (the handed-in rows' covers and corners' cells, whose boxes
+/// a cell may straddle); a cell that is none of these, at the floor, is
+/// the typed refusal, `tubes` empty included.
 ///
 /// # Errors
 ///
@@ -1394,11 +1409,12 @@ pub(crate) fn seed_pair(
 pub(crate) fn account_pair(
     pair: &PairBoxes<'_, f64>,
     tubes: &[PairCell],
+    regions: &[PairCell],
     floor: SweepFloor<PairCell>,
 ) -> Result<Exhaustiveness, SsiError> {
     let duty = SweepDuty::Account {
         tubes,
-        regions: &[],
+        regions,
         clear: &[],
     };
     let (tally, _) = sweep_pair(pair, floor, duty)?;

@@ -1081,8 +1081,8 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// they stand clearly apart), and one alone. "Whatever is requested"
 /// covers a vertex that mixes convexity: it ends no chain whether the
 /// request names one of its edges, two, or all three, because its
-/// configuration is read before the count. Its last clause, "in the
-/// same operation", answers the four-edge vertex a mitre leaves where the third
+/// configuration is read before the count. Its last clause, "in one
+/// operation", answers the four-edge vertex a mitre leaves where the third
 /// edge ends: that edge blended in a later call ends at a valence-4
 /// vertex, and requested in the mitre's own call it builds the corner
 /// patch instead. The run-outs' own details name their shapes.
@@ -1096,10 +1096,9 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// being the shared arm both doors render. Held to it by
 /// `blend_recourse_followability::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`
 /// and `band_planar_cut_off`, which build each end it names.
-pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a corner where three flat faces \
-     meet, all convex or all concave, and blend there either all three of its edges, or two \
-     whose blends meet at one point on the third edge or stay clearly apart, or one that stops \
-     against a flat face; pick every edge the blend needs in the same operation";
+pub const FILLET3_CORNER_RECOURSE: &str = "end the blend at a flat-faced corner, \
+     uniformly convex or concave, blending all three edges, two meeting on the third or clearly \
+     apart, or one ending at a flat face, in one operation";
 /// The lever of a turn's two readings (`fillet3_turn_feet_gap`,
 /// `fillet3_turn_overrun_chord`, and their straddle
 /// `fillet3_turn_feet`): in band, the two bands' feet on the third
