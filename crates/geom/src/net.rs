@@ -311,7 +311,7 @@ pub(crate) fn homogeneous_about(
     p: Point3<Interval>,
     origin: Point3<f64>,
 ) -> [Interval; 4] {
-    let o = origin.map(Interval::from_f64);
+    let o = origin.map(|x| Interval::from_bounds(x, x));
     [w * (p.x - o.x), w * (p.y - o.y), w * (p.z - o.z), w]
 }
 

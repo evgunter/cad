@@ -1784,7 +1784,8 @@ impl NurbsCurve3<Interval> {
     /// restriction the blossom door refuses, and a weight not certified
     /// positive.
     pub fn span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
-        let mid = Interval::from_f64(0.5 * lo.max(self.domain().0) + 0.5 * hi.min(self.domain().1));
+        let m = 0.5 * lo.max(self.domain().0) + 0.5 * hi.min(self.domain().1);
+        let mid = Interval::from_bounds(m, m);
         let c = net::cell_origin(self.eval(mid));
         let mut acc: Option<Vec3<Interval>> = None;
         for (net, slope) in self.restricted(lo, hi, c)? {

@@ -1772,7 +1772,10 @@ fn restricted_jet(
     eu: (Interval, Interval),
     ev: (Interval, Interval),
 ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
-    let mid = |(a, b): (Interval, Interval)| Interval::from_f64(0.5 * a.lo() + 0.5 * b.hi());
+    let mid = |(a, b): (Interval, Interval)| {
+        let m = 0.5 * a.lo() + 0.5 * b.hi();
+        Interval::from_bounds(m, m)
+    };
     let c = net::cell_origin(win.eval_in_span(mid(eu), mid(ev)));
     let hull = |u: Along, v: Along| -> Option<[Interval; 4]> {
         read_net(win, c, (eu, u), (ev, v))?
