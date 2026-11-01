@@ -73,3 +73,10 @@ AUTHOR's narrative is recoverable from
     - **Minors:** `reseated`'s read-order dependence is unguarded and silent, and the door evaluates on the UI thread at every stage preview, which the background run then repeats (379 ms on the die union, debug build).
 
   **Class, recorded here as its home:** name-step and liveness checks that walk embedded names are exempted only on the outer node (`Rebind`, appearance, insert liveness, `InterfaceRecord` outers). The fix pass, sent to the same lane, takes everything and sweeps that class.
+- 2026-11-01 — (DOORS orchestrator) PR 6262 re-verify (head `6552f7d174`): no MAJOR, not mergeable. **Class repeated: the fix pass minted new two-way spellings while closing old ones.** The new pairs:
+  - `DrawnBody::of` and `in_doc`;
+  - `Seats::said` and `said_by`;
+  - two `feature()` methods;
+  - three shapes of "a pick plus its kept labels".
+
+  **Unilateral ruling:** the viewer's chrome speaks the landed document everywhere: panels, refusals, tree, header and notices. `shown_speaker` is removed. It moved the panel/refusal split rather than closing it, and its join wording could describe a carry the landed run did not do. Fix pass 2 was sent to the same lane with a self-check for new duplicates.
