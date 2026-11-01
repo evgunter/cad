@@ -111,6 +111,7 @@ pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
 mod section_table;
+mod spline_known;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use ops::{ChartCache, section_report};
 pub(crate) use ops::{boundary_edges, describe_edges};
@@ -508,7 +509,7 @@ impl BooleanOp {
     /// A list cannot be derived from a match in safe Rust, so SOMEONE
     /// writes it by hand; the only question is where. Written here, it
     /// sits in the crate whose exhaustive matches over `BooleanOp`
-    /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
+    /// (`finish::kept_side`, `tables::lump_keeps_one`) fail to compile on
     /// a fourth operation — so the author adding one is already in this
     /// module with the list in front of them, and the
     /// `all_is_every_operation` census below puts a second visit right

@@ -619,13 +619,13 @@ mod composed {
 /// # Why a read of the index can need this and not the evaluation
 ///
 /// `ViewerBehavior::index` is the index for the document the session
-/// has landed. `ViewerBehavior::scene` is the mesh of whatever picture
-/// last succeeded in being built, which is the same thing on almost
-/// every frame and is NOT the same thing whenever a scene rebuild
-/// refused: `ViewerApp::sync_scene` marks the pair current only on
-/// success, so a landed index over a refused rebuild leaves a new index
-/// beside an older picture, and nothing retries while the display and
-/// the focus hold still.
+/// has landed. `ViewerBehavior::scene` is the mesh on screen, which is
+/// that index's picture on almost every frame and is NOT whenever a
+/// scene rebuild refused: `ViewerApp::sync_scene` then draws nothing
+/// and keys the scene to no index, so a landed index over a refused
+/// rebuild stands beside a picture no index minted, and nothing retries
+/// while the display and the focus hold still. The startup mesh is the
+/// same shape: no index minted its corners.
 ///
 /// Three reads care. Two of them have a pick **id** for their
 /// currency:
@@ -1207,7 +1207,7 @@ impl ViewerBehavior<'_> {
             self.profile_was_drawn.create,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
-        *self.held_edges_refused = composed
+        self.viewport_reads.held_edges_refused = composed
             .edges()
             .held_refused
             .clone()
@@ -1364,7 +1364,7 @@ impl ViewerBehavior<'_> {
     fn committed_lane(&mut self) -> marks::LegLane {
         let mut profiles = marks::LegLane::default();
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            *self.profiles_undrawn = push_committed(
+            self.viewport_reads.profiles_undrawn = push_committed(
                 &mut profiles,
                 doc,
                 evaluation,

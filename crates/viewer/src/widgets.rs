@@ -161,7 +161,7 @@ pub(crate) fn commit_row(
 /// still be broken where epaint's own rule breaks it.
 ///
 /// A message that reaches the floor is a finding about the layout that
-/// put it there; `crate::pane::features`'s `message_indent` is one this
+/// put it there; `crate::pane::features`'s `nested_indent` is one this
 /// chrome answered. The toolbar's status line is another: the panel it
 /// is in does not scroll, so the line has a row of its own that does
 /// (`crate::app`'s `toolbar_ui`).

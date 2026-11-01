@@ -2,10 +2,11 @@
 id: a-findings-face-reference-reads-as-stale
 kind: issue
 title: clicking a face a check finding names says it no longer resolves
-status: open
+status: parked
 opened: 2026-10-31
 priority: P1
 cost: M
+blocked_on: [a-mate-on-a-taken-over-copys-face-goes-stale]
 ---
 
 
@@ -96,3 +97,13 @@ click "Add profile…"
 tree
 dump
 ```
+
+## Traced (2026-11-01)
+
+**Extrude 1's payload does not change.** "payload differs" is the no-prior fallback, `Diagnosis::cause_not_in_evidence`, which names the minting node as a site and not as an edit. The viewer's resolve (`tree::pick_resolution`) is single-run, so it has no prior to diff. The sentence's falsehood is REFS' row `d-prime3-fallback-diagnosis-blames-the-sources-minting-node-for-a-re-pointed-copy`, with evidence added.
+
+**What changed is the copy the face was picked on.** The pick is `(Place, Extrude1·Cap(End))`. Sketch-on-face's `repoint` sets that `Place`'s source to the union, and the union carries the same face as `From { read: <Extrude 1's body var>, of: Extrude1·Cap(End) }`. The held name is looked up in the copy's new table and misses. The add-profile form's held face is stranded identically.
+
+**What a held selection does across this edit is decided on DOORS' ground.** In `work/doors/a-mate-on-a-taken-over-copys-face-goes-stale.md` `## Decided`, the takeover writes a re-seat through each name's unique carrier in one action, and "the same rebind map re-seats the viewer's held picks". Following descent automatically at resolve time is excluded (`[identity]`). Dropping the selection is excluded by the ratified state rule (`session::select::Standing`; SELECT-DESIGN §4). That row is P0 and its blocker, PR 5636, has merged. Evidence has been added there. This row closes when that one lands, plus a viewer row asserting both held picks stay resolved.
+
+**Finding links (still open).** The bracket's finding links selected cleanly, and every staleness found here came from a takeover re-pointing the copy a pick reads. A finding's references are minted by the check run against the landed evaluation. A link should only go stale if the link outlives a landing after such an edit. The original report's `Assemble … payload differs` is the same no-prior fallback naming the Assemble as the minting node, so it says nothing about the cause either. That case was not reproduced.

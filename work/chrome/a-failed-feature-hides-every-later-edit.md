@@ -2,11 +2,14 @@
 id: a-failed-feature-hides-every-later-edit
 kind: issue
 title: after one feature fails, later edits commit and read Ok but nothing is drawn or picked
-status: open
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: H
-design: true
+refs: [one-failed-root-refuses-the-whole-pick-index, 6197]
+branch: chrome/partial-picture
+pr: 6205
+closed: 2026-11-01
 ---
 
 ## Finding
@@ -58,3 +61,7 @@ picture after.png
 ```
 
 The first revolve uses the default axis heading (½π, the profile's y axis) on a semicircle along x, which refuses; the second, at heading 0, is the sphere, and is not drawn.
+
+## Closed (2026-11-01, PR 6205)
+
+The pick index is per copy. Every drawn copy is either drawn, or undrawn with its typed reason. A copy with no value is noticed by its FAILED or POISONED tree row alone. A copy that has a value and cannot be drawn gets an Actionable badge naming it. The index refuses as a whole only for its own layout faults, and a refused index draws nothing instead of the older picture. In the sphere replay, the second revolve is drawn and pickable while the first stays FAILED. GQ2 and GQ6 in `crates/viewer/GUI-DESIGN.md` state the rule (Ev, PR 6197; the two sentences were corrected in 6205 to cover the undrawable copy and the canceled evaluation). Filed from the unit: `work/vgeom/a-document-with-one-failed-copy-opens-with-no-display-budget.md` and `work/doctail/a-picture-with-no-build-reports-the-previous-pictures-memo-counts.md`.

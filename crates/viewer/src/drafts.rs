@@ -597,14 +597,15 @@ impl ProfileEdit {
     /// expression's reading, and it moves when what the expression
     /// reads moves (a variable set, dragged, undone), which is what the
     /// preview draws. A reading that does not evaluate leaves the
-    /// number as it was; the door says why it waits
+    /// number as it was, and so does one with a value per member; the
+    /// door says why it waits
     /// ([`Self::unread_drivers`]).
     pub(crate) fn read_drivers(&mut self, landed: &Doc<ProfileProgram>, tol: Tol) {
         let rows = props::slot_rows(landed, self.node);
         let reading = |slot: SlotId| {
             let row = rows.iter().find(|row| row.slot == slot)?;
             row.driver.is_driven().then_some(())?;
-            row.value.as_ref().ok().map(|value| value.as_f64())
+            row.value.as_ref().ok()?.one().map(|value| value.as_f64())
         };
         let kept = self.kept();
         for (loop_, rows) in kept.iter().enumerate() {
@@ -636,10 +637,11 @@ impl ProfileEdit {
         }
     }
 
-    /// **Every driven argument of a kept step whose expression does not
-    /// evaluate in `landed`**, with the fault: Apply waits on them (a
-    /// variable they read deleted, say), since the number beside them
-    /// reads nothing.
+    /// **Every driven argument of a kept step that reads no one value
+    /// in `landed`**, with why: Apply waits on them, since the number
+    /// beside them reads nothing. Its expression did not evaluate (a
+    /// variable it reads deleted, say), or it reads an index and has a
+    /// value per member where a step holds one.
     pub(crate) fn unread_drivers(&self, landed: &Doc<ProfileProgram>) -> Vec<(SlotId, String)> {
         let rows = props::slot_rows(landed, self.node);
         self.kept()
@@ -659,8 +661,19 @@ impl ProfileEdit {
             })
             .filter_map(|slot| {
                 let row = rows.iter().find(|row| row.slot == slot)?;
-                let fault = row.value.as_ref().err()?;
-                Some((slot, fault.to_string()))
+                let why = match &row.value {
+                    Ok(props::Reading::One(_)) => return None,
+                    Ok(props::Reading::PerMember(members)) => {
+                        let indices: Vec<String> =
+                            members.over().iter().map(ToString::to_string).collect();
+                        format!(
+                            "it reads index {}, so it has a value per member and the editor holds one",
+                            indices.join(", ")
+                        )
+                    }
+                    Err(fault) => fault.to_string(),
+                };
+                Some((slot, why))
             })
             .collect()
     }
