@@ -1362,3 +1362,5 @@ mod review_6002_needle_join;
 mod review_6020_seam_probes;
 #[path = "review_r1_roots_split.rs"]
 mod review_r1_roots_split;
+#[path = "rv2_curved_seam_germ_probe.rs"]
+mod rv2_curved_seam_germ_probe;
