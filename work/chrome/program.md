@@ -2,7 +2,7 @@
 id: chrome
 kind: program
 title: CHROME — viewer chrome and coverage
-status: active
+status: ready
 opened: 2026-09-03
 group: gui/viewer
 prefix: chrome/

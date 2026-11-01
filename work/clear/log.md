@@ -311,3 +311,11 @@ Signed: (CARVE orchestrator)
     - `restrict-derivative-widens-on-a-few-ulp-knot-span` (P3);
     - CLEARTAIL's `derivative-bernstein-row-over-a-sub-interval-has-three-homes` (P3);
     - **`rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot` (P2).** It was found by the widened fuzzer and is pre-existing. At a knot of multiplicity ≥ the degree, a cell ending on the knot drops the one-point meet, so its jet misses the derivative `ders` reads from the next span. It awaits a ruling on `a <= b`, which would widen jets at every p-fold knot.
+- 2026-11-01 — **TRV merges (#6233)** with this commit last. The clearance engine refuses what does not certify.
+  - **R1, at the lift.** The lift is now a type, `lift::Lift`, minted only by `certified_lift`, and every reader takes it.
+  - **`poisoned(sep)`** gates the root, pair, witness and overflow reads. `overflow` now poisons as `pair` does, instead of flooring at 0.
+  - **`present_chart`** asks each clip line where it is placed. `present_plane`'s `[e]` arm asks `y`.
+  - **Census:** clearance 25/7, injective 70/27.
+  - **The review.** A single FULL review at `5caee7bf7e` returned APPROVE-WITH-FIXES. Six of its 19 mutants survived, all sub-asks or unpinned gates. It also found that the touch read came before the merge's ask. The fix pass (`838c6136de`) pinned every one; 18 of 18 are now killed. On the way it found that the census lane's reading of the `[e]` arm was right, and withdrew the "row is wrong" claim. The orchestrator read it and accepted it.
+  - **Class, recorded:** for the fourth unit running, the mutant table pinned one coordinate, one end or one site per class. This time it was the sub-asks inside a site.
+  - **Filed:** `injective-reads-past-the-trv-census-decide-on-clamped-enclosures` (P2). SPLICE's census drift was filed separately (#6236).
