@@ -150,12 +150,12 @@ the end of the session (the badge paragraph above).
   no edges for, and those rows draw as downstream of the mate the
   fault names (`crate::tree`).
   The picture is partial the same way. The pick index and the scene
-  draw every drawn copy whose node has a value, and hold a copy
+  draw every drawn body whose node has a value, and hold a body
   without one as undrawn, with its reason: a failure takes away its
-  own copies' picture and no other. A copy that has a value and still
-  cannot be drawn (not a body, or a tessellation the kernel refused) is
-  held undrawn the same way, and said loudly, naming the copy, because
-  no row of the tree reports it. The index refuses as a whole only
+  own picture and no other. A body that has a value and still cannot
+  be drawn (not a body, or a tessellation the kernel refused) is held
+  undrawn the same way, and said loudly, naming its node, because no
+  row of the tree reports it. The index refuses as a whole only
   for a fault of the index itself (an id map that is not one-to-one, a
   body drawn twice, names from another document).
   Progress reporting and in-op yield points are absent; v1 shows a busy

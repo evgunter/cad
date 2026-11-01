@@ -11,10 +11,11 @@
 //!
 //! - the open succeeds and every tree row evaluates `Ok` (the
 //!   resolver, on the real store);
-//! - per instance, hide either takes visible effect (the drawn
-//!   triangle count moves) or refuses typed — never
+//! - per instance the picture draws, hide takes visible effect (the
+//!   drawn triangle count moves) or refuses typed — never
 //!   accepted-and-inert (the M1 class, measured on exactly this
-//!   directory when it shipped);
+//!   directory when it shipped); an instance an operation reads as a
+//!   body is not drawn, and its hide is the state of its toggle;
 //! - per eligible instance, a committed probe marks at least one
 //!   drawn part distinct — same rule, other op.
 //!
@@ -139,9 +140,9 @@ fn main() {
                 row.id, row.status
             ));
         }
-        // The G3 items, per instance: hide takes effect or refuses
-        // typed; a committed probe marks something. Never a silent
-        // no-op. (The baseline tessellation is paid only for
+        // The G3 items, per instance: a drawn instance's hide takes
+        // effect or refuses typed; a committed probe marks something.
+        // Never a silent no-op. (The baseline tessellation is paid only for
         // documents that HAVE instances — the part documents' cost
         // here is the open and the tree.)
         if instances.is_empty() {
@@ -162,9 +163,16 @@ fn main() {
                         "      node {}: hide accepted, drawn triangles {baseline:?} -> {after:?}",
                         row.id
                     );
-                    if after == baseline {
+                    let drawn = viewer::world::is_drawn(session.committed_doc(), row.id);
+                    if drawn && after == baseline {
                         violations.push(format!(
                             "{name}: node {} hide ACCEPTED BUT DREW NOTHING DIFFERENT",
+                            row.id
+                        ));
+                    }
+                    if !drawn && after != baseline {
+                        violations.push(format!(
+                            "{name}: node {} is not drawn, yet its hide CHANGED THE PICTURE",
                             row.id
                         ));
                     }
