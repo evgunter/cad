@@ -184,3 +184,10 @@ Newest entries at the bottom; the tail is the program's live status.
   test bent around the missing product door). Filed
   `the-projection-tool-writes-a-member-read-a-pick-already-seats`.
   Review: single FULL, on 6269 and the pair. (SPACES orchestrator)
+- 2026-11-01 — `the-view-pane-toggles-spaces-and-bodies` dispatched as
+  its own cloud session (`session_01EdpJs7QuXgMqdBE8FoVvUa`, branch
+  `spaces/view-toggles`, stacked on 6269 → 6265): this box has ~12 GB
+  free beside the 6269 reviewer's build. It also takes
+  `the-feature-trees-hide-toggles-an-undrawn-instance-silently`. The
+  product door waits on 6269's review (both rewrite the session's
+  gestures). (SPACES orchestrator)
