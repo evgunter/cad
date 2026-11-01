@@ -63,3 +63,7 @@ Second walk (2026-10-31; Ev: "put this in along with actual handling for free-mo
 ## A duplicate or a projected copy gets two placements
 
 Third walk (2026-11-01; Ev: add here unless covered). The duplicate tool's copy is a `Place "Part 1"`, and the automatic world placement then places that Place again, so the tree shows the copy with twelve free values: its own six and the automatic six. The projection tool's copy does the same. Landing bodies unplaced removes the automatic half; the row's fix should check these two gestures.
+
+## A split commits and the picture does not change
+
+From CHROME's `work/chrome/the-split-tools-plane-is-typed-blind.md` (Ev's third walk, 2026-11-01). A real split commits as `Split "Split 1" … Ok`, and the picture does not change. `DocSession::add_split` (`crates/viewer/src/session.rs`) inserts the `Node::Split` alone: there is no world placement and no takeover of the input's world copy (compare `add_mirror`'s `repoint`). So the plate's world copy still draws whole, and the halves draw nowhere. PR 6209's drawn-bodies rule covers this case as it stands: a split is a one-input operation that reads the plate as a body, so the plate stops being drawn and the split's halves are drawn. CHROME is therefore building no split-only placement; the split's picture is this row's.
