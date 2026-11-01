@@ -567,7 +567,7 @@ fn flank_key<T: Decide>(
     own: &[BoolSector<T>],
     idx: usize,
     key_from_start: bool, // true: the noncoplanar bound is the START
-    ref_normal: geom_brep::OutwardNormal<T>,
+    reference: &BoolSector<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let s = &own[idx];
@@ -576,13 +576,7 @@ fn flank_key<T: Decide>(
     } else {
         (s.end, s.end_reach)
     };
-    side_code(
-        bound,
-        reach,
-        ref_normal,
-        super::sectors::NO_CURVATURE(),
-        band,
-    )
+    super::sectors::sector_code(bound, reach, reference, band)
 }
 
 /// Rewrites EVERY On code of a surviving germ record to the transition
@@ -1485,16 +1479,11 @@ impl<T: Decide> Folded<T> {
     /// invariant, as it is to the touch's partners.
     fn of(secs: &[BoolSector<T>], body: &Body<T>, w: Wedge) -> Result<Option<Self>, BooleanError> {
         let sector = &secs[w.flankers[0]];
-        let shape = super::sectors::FaceShape::of_face(
-            body,
-            sector.face,
-            "a face holding a contact line has no carrier",
-        )?;
-        Ok((shape == super::sectors::FaceShape::Plane).then(|| Self {
+        Ok((sector.bend.shape() == super::sectors::FaceShape::Plane).then(|| Self {
             wedge: w,
             datum: super::vtxfac::PierceDatum {
                 normal: sector.normal,
-                shape,
+                bend: sector.bend,
                 lever: super::sectors::PierceLever::Everywhere(super::sectors::NO_CURVATURE()),
             },
         }))
@@ -1674,13 +1663,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         let mut halves = [Half::Off(true); 2];
         for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
-            match side_code(
-                w,
-                reach,
-                other_secs[oi].normal,
-                super::sectors::NO_CURVATURE(),
-                band,
-            )? {
+            match super::sectors::sector_code(w, reach, &other_secs[oi], band)? {
                 SideCode::In => {}
                 SideCode::Out => *inside = Half::Off(false),
                 SideCode::On => {
@@ -2079,8 +2062,8 @@ fn resolve_edge_sector<T: Decide>(
         )
     };
     let (mut k1, mut k2) = (
-        flank_key(own_secs, f_s, false, ref_sector.normal, band)?,
-        flank_key(own_secs, f_e, true, ref_sector.normal, band)?,
+        flank_key(own_secs, f_s, false, ref_sector, band)?,
+        flank_key(own_secs, f_e, true, ref_sector, band)?,
     );
     // One On flanker stays On: Table III lumps it whole and the germ
     // stays on the other (`the_stadium_answers_every_op`).
@@ -2220,8 +2203,8 @@ fn resolve_bisector_graze<T: Decide>(
     } else {
         &a_sectors[ref_idx]
     };
-    let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
-    let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    let k1 = flank_key(own_secs, f_s, false, ref_sector, band)?;
+    let k2 = flank_key(own_secs, f_e, true, ref_sector, band)?;
     // Both outer keys definitely on one side: the grazing bisector
     // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
     // resolution — the keys are the physical sector's own bounds, read
@@ -2289,6 +2272,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(v(normal), true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         // Material lies off the first plane's +y side; `second` and its
         // outward normal bound the wedge's other side.
@@ -2347,6 +2331,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 1.0, 0.0), true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let bis = Vec3::new(0.0, 0.0, -1.0);
         let twins = |far_end: [f64; 3], far_start: [f64; 3]| {
@@ -2509,6 +2494,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
         let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
@@ -2650,6 +2636,7 @@ mod tests {
             face,
             normal: OutwardNormal::from_chart(y, true),
             arm,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let run = |a: (&crate::body::Body<f64>, FaceKey),
                    b: (&crate::body::Body<f64>, FaceKey),
@@ -2837,6 +2824,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(y, true),
             arm,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let corner = [sector(z, x), sector(x, z)];
         let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
@@ -2929,6 +2917,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         // Each corner's two faces through the line, the wedge between
         // `p` and `q` its material.
@@ -2969,7 +2958,7 @@ mod tests {
         let face = |n: Vec3<f64>| HeldFace {
             datum: PierceDatum {
                 normal: OutwardNormal::from_chart(n, true),
-                shape: FaceShape::Plane,
+                bend: crate::bound_side::FaceBend::Plane,
                 lever: PierceLever::Everywhere(super::super::sectors::NO_CURVATURE()),
             },
             operand: Operand::B,
@@ -3041,7 +3030,7 @@ mod tests {
             assert_eq!(along(err), super::super::AlongFace::Flush, "{op:?}");
             let curved = HeldFace {
                 datum: PierceDatum {
-                    shape: FaceShape::Curved,
+                    bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
                     ..flat.datum
                 },
                 ..flat
@@ -3241,6 +3230,7 @@ mod tests {
             face,
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let at = |deg: f64| {
             let (s, c) = deg.to_radians().sin_cos();
@@ -3434,6 +3424,7 @@ mod tests {
                 face: crate::entity::FaceKey::default(),
                 normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
                 arm: 1.0,
+                bend: crate::bound_side::FaceBend::Plane,
             }
         };
         // Two halved sectors, one split across the wrap.

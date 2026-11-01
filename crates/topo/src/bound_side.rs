@@ -31,7 +31,7 @@
 
 use geom_brep::recourse::Refused;
 use geom_brep::{ConicBend, EntersMaterial, LeverEscalation, OutwardNormal, ReferenceNormal};
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Mat3, Point3, Sign, Vec3};
 
 /// What stands behind a sector bound, which decides how its side of a
 /// face is read ([`read`]). A bound is its edge's departure from the
@@ -128,17 +128,103 @@ impl FaceShape {
     }
 }
 
+/// **How a face bends at the vertex**, as a bound tied with its tangent
+/// plane is read against it one order down ([`Tie::descend`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum FaceBend<T: geom_core::Real> {
+    /// A plane: it does not bend.
+    Plane,
+    /// A carrier with an implicit form `F`: its gradient and Hessian at
+    /// the vertex, which give its normal section along any tangent.
+    Implicit {
+        /// `∇F` at the vertex.
+        gradient: Vec3<T>,
+        /// `∇²F` at the vertex.
+        hessian: Mat3<T>,
+    },
+    /// A spline face: no implicit form, so no certified bend.
+    Fitted,
+}
+
+impl<T: geom_core::Real> FaceBend<T> {
+    /// How `surface` bends at its point `p`.
+    pub(crate) fn at(surface: &geom::Surface<T>, p: Point3<T>) -> Self {
+        match surface {
+            geom::Surface::Plane { .. } => Self::Plane,
+            geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Self::Fitted,
+            _ => {
+                // `dᵀ∇²F d` polarized on the axes: the form's matrix.
+                let form = |d| geom_brep::implicit_hessian_form(surface, p, d);
+                let axes = [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()];
+                let diag = axes.map(form);
+                let half = T::from_f64(0.5);
+                let off = |i: usize, j: usize| (form(axes[i] + axes[j]) - diag[i] - diag[j]) * half;
+                let (xy, xz, yz) = (off(0, 1), off(0, 2), off(1, 2));
+                Self::Implicit {
+                    gradient: geom_brep::implicit_gradient(surface, p),
+                    hessian: Mat3::from_cols(
+                        Vec3::new(diag[0], xy, xz),
+                        Vec3::new(xy, diag[1], yz),
+                        Vec3::new(xz, yz, diag[2]),
+                    ),
+                }
+            }
+        }
+    }
+
+    /// Whether the face is a plane.
+    pub(crate) fn shape(self) -> FaceShape {
+        match self {
+            Self::Plane => FaceShape::Plane,
+            Self::Implicit { .. } | Self::Fitted => FaceShape::Curved,
+        }
+    }
+
+    /// The face's normal section's acceleration along the unit tangent
+    /// `d`, toward the unit normal `n`, per arc length squared:
+    /// `−dᵀ(∇²F)d / (∇F·n)` (differentiate `F(c(s)) = 0` twice), zero
+    /// on a plane, `None` on a spline face.
+    pub(crate) fn section(self, d: Vec3<T>, n: Vec3<T>) -> Option<T> {
+        match self {
+            Self::Plane => Some(T::zero()),
+            Self::Implicit { gradient, hessian } => {
+                Some(T::zero() - d.dot(hessian * d) / gradient.dot(n))
+            }
+            Self::Fitted => None,
+        }
+    }
+}
+
+#[cfg(test)]
+impl FaceBend<f64> {
+    /// A sphere of `radius` whose implicit gradient at the vertex is the
+    /// unit `gradient`: read against an outward normal along the
+    /// gradient, a ball, which bends off its tangent plane against the
+    /// normal; against it, a hollow, which bends toward it.
+    pub(crate) fn ball(gradient: Vec3<f64>, radius: f64) -> Self {
+        let k = 1.0 / radius;
+        Self::Implicit {
+            gradient,
+            hessian: Mat3::from_cols(
+                Vec3::new(k, 0.0, 0.0),
+                Vec3::new(0.0, k, 0.0),
+                Vec3::new(0.0, 0.0, k),
+            ),
+        }
+    }
+}
+
 /// **A face at the vertex, as a bound's side is read against it**: the
-/// normal naming its sides, its shape, and the lever its curvature is
-/// charged at (`None`: a splitting plane, which has no curvature and
+/// normal naming its sides, how it bends, and the lever its curvature
+/// is charged at (`None`: a splitting plane, which has no curvature and
 /// takes no charge).
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FaceDatum<T: geom_core::Real> {
     /// The normal: against it is [`Side::Below`] (into a face's
     /// material), along it [`Side::Above`].
     pub reference: ReferenceNormal<T>,
-    /// Whether the face is a plane.
-    pub shape: FaceShape,
+    /// How the face bends at the vertex.
+    pub bend: FaceBend<T>,
     /// The face's smallest radius of curvature within the bound's reach
     /// (`boolean::sectors::PierceLever`), where a definite first-order
     /// verdict is charged for it.
@@ -146,12 +232,12 @@ pub(crate) struct FaceDatum<T: geom_core::Real> {
 }
 
 impl<T: geom_core::Real> FaceDatum<T> {
-    /// A face's datum: its outward normal at the vertex, its shape, and
+    /// A face's datum: its outward normal at the vertex, its bend, and
     /// its curvature lever.
-    pub(crate) fn of_face(normal: OutwardNormal<T>, shape: FaceShape, lever: T) -> Self {
+    pub(crate) fn of_face(normal: OutwardNormal<T>, bend: FaceBend<T>, lever: T) -> Self {
         Self {
             reference: ReferenceNormal::of_face_outward(normal),
-            shape,
+            bend,
             lever: Some(lever),
         }
     }
@@ -161,9 +247,14 @@ impl<T: geom_core::Real> FaceDatum<T> {
     pub(crate) fn of_plane(reference: ReferenceNormal<T>) -> Self {
         Self {
             reference,
-            shape: FaceShape::Plane,
+            bend: FaceBend::Plane,
             lever: None,
         }
+    }
+
+    /// Whether the face is a plane.
+    pub(crate) fn shape(&self) -> FaceShape {
+        self.bend.shape()
     }
 }
 
@@ -252,6 +343,13 @@ pub(crate) enum BoundSideFault<T: geom_core::Real> {
     /// A conic's bend lies in the band of its first-order residue, or
     /// is not certified (a spiric or a spline).
     Bend(Indeterminate),
+    /// The bound's parting from a curved face it is tied with lies in
+    /// the band.
+    Parting(LeverEscalation),
+    /// A tie against a curved face where the bend is not certified on
+    /// one side (a spline face, or a spiric or spline edge), with the
+    /// first-order Zero it stands on and that Zero's predicate.
+    Unbent(&'static str, Decided),
 }
 
 impl<T: geom_core::Real> BoundSideFault<T> {
@@ -259,8 +357,10 @@ impl<T: geom_core::Real> BoundSideFault<T> {
     pub(crate) fn diag(self) -> Option<Indeterminate> {
         match self {
             Self::Chord(diag) | Self::ChargeEscalated(diag) | Self::Bend(diag) => Some(diag),
-            Self::Departure { escalation, .. } => Some(escalation.diag()),
-            Self::Charge(_) => None,
+            Self::Departure { escalation, .. } | Self::Parting(escalation) => {
+                Some(escalation.diag())
+            }
+            Self::Charge(_) | Self::Unbent(..) => None,
         }
     }
 }
@@ -486,36 +586,67 @@ impl<T: Decide> Tie<T> {
     /// - A line edge against a plane: it bends by nothing, as the plane
     ///   does, so it rides the plane to the second order too,
     ///   [`BoundSide::Rides`].
-    /// - A probe or a bisector against a plane: a direction with no
-    ///   point behind it, whose sector's face may bend off the plane at
-    ///   second order, [`BoundSide::Unread`].
-    /// - Any bound against a curved face: [`BoundSide::Unread`].
+    /// - A line or a conic against a curved face: the sign of
+    ///   `(κ_b·n̂ − II_F(d̂, d̂))·l²/2` ([`geom_brep::parting_side`]), the
+    ///   bound's bend past the face's normal section along it, at the
+    ///   shorter of the bound's reach and the face's lever,
+    ///   [`BoundSide::Tangent`]; tied there too, [`BoundSide::Rides`].
+    /// - A probe or a bisector: a direction with no point behind it,
+    ///   whose sector's face may bend off the face at second order,
+    ///   [`BoundSide::Unread`].
     ///
     /// # Errors
     ///
     /// [`BoundSideFault::Bend`]: a conic's bend in the band of its
     /// first-order residue, or a spiric's or a spline's, which certify
-    /// no bend.
+    /// no bend. [`BoundSideFault::Parting`]: the parting against a curved
+    /// face in the band. [`BoundSideFault::Unbent`]: a spline face, or a
+    /// spiric or spline edge against a curved face, whose bend is not
+    /// certified.
     pub(crate) fn descend(self, band: Band) -> Result<BoundSide, BoundSideFault<T>> {
-        match (self.face.shape, self.reach) {
-            (FaceShape::Curved, _) => Ok(BoundSide::Unread),
-            (FaceShape::Plane, Reach::Conic { extent, bend }) => {
-                match geom_brep::conic_bend_side(self.dir, extent, bend, self.face.reference, band)
+        let (face, reach) = (self.face, self.reach);
+        let own = match (face.bend, reach) {
+            (_, Reach::Extent(_) | Reach::Bisector(_)) => return Ok(BoundSide::Unread),
+            (FaceBend::Plane, Reach::Conic { extent, bend }) => {
+                return match geom_brep::conic_bend_side(self.dir, extent, bend, face.reference, band)
                 {
                     Ok(verdict) => {
                         Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Tangent))
                     }
                     Err(diag) => Err(BoundSideFault::Bend(diag)),
-                }
+                };
             }
-            (FaceShape::Plane, Reach::Chord { .. }) => Ok(BoundSide::Rides),
-            (FaceShape::Plane, Reach::Extent(_) | Reach::Bisector(_)) => Ok(BoundSide::Unread),
+            (FaceBend::Plane, Reach::Chord { .. }) => return Ok(BoundSide::Rides),
+            (FaceBend::Fitted, _) => return Err(self.unbent()),
+            (FaceBend::Implicit { .. }, Reach::Chord { .. }) => Vec3::zero(),
+            (FaceBend::Implicit { .. }, Reach::Conic { bend, .. }) => match bend.bounds {
+                geom_brep::BendBounds::Planar { .. } => bend.curvature,
+                geom_brep::BendBounds::Unbounded => return Err(self.unbent()),
+            },
+        };
+        let n = face.reference.vec();
+        let Some(section) = face.bend.section(self.dir.normalize(), n) else {
+            return Err(self.unbent());
+        };
+        let arm = face.lever.map_or(reach.length(), |lever| reach.length().min(lever));
+        match geom_brep::parting_side(own - n * section, face.reference, arm, band) {
+            Ok(verdict) => Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Tangent)),
+            Err(escalation) => Err(BoundSideFault::Parting(escalation)),
         }
     }
 
-    /// Whether the descent reads a bend: a conic against a plane.
+    fn unbent(&self) -> BoundSideFault<T> {
+        BoundSideFault::Unbent(self.predicate, self.decided)
+    }
+
+    /// Whether the descent reads a bend: any bound but a line edge
+    /// against a plane, or a probe or a bisector.
     pub(crate) fn bends(&self) -> bool {
-        self.face.shape == FaceShape::Plane && matches!(self.reach, Reach::Conic { .. })
+        match self.reach {
+            Reach::Extent(_) | Reach::Bisector(_) => false,
+            Reach::Chord { .. } => self.face.shape() == FaceShape::Curved,
+            Reach::Conic { .. } => true,
+        }
     }
 }
 
@@ -555,8 +686,10 @@ mod tests {
     }
 
     /// **A tie is kept whole at first order and descended on asking**: a
-    /// line in the plane rides it, and a tie against a curved face is
-    /// not read one order down.
+    /// line in a plane rides it, and against a curved face a bound reads
+    /// its bend past the face's normal section along it: a line leaves a
+    /// ball outward and a hollow inward, an arc bending down leaves a
+    /// plane and a ball inward and rides a ball of its own radius.
     #[test]
     fn a_tie_descends_by_the_face_and_the_bound() {
         let b = band();
@@ -566,24 +699,38 @@ mod tests {
             far: Point3::new(1.0, 0.0, 0.0),
         };
         let x = Vec3::new(1.0, 0.0, 0.0);
-        for (shape, want) in [
-            (FaceShape::Plane, BoundSide::Rides),
-            (FaceShape::Curved, BoundSide::Unread),
+        let datum = |bend| FaceDatum::of_face(OutwardNormal::from_chart(z, true), bend, 2.0);
+        for (bend, bends, want) in [
+            (FaceBend::Plane, false, BoundSide::Rides),
+            (FaceBend::ball(z, 2.0), true, BoundSide::Tangent(Side::Above)),
+            (FaceBend::ball(-z, 2.0), true, BoundSide::Tangent(Side::Below)),
         ] {
-            let face = FaceDatum::of_face(OutwardNormal::from_chart(z, true), shape, 1.0);
-            let FirstOrder::Tied(tie) = read(x, line, face, b).unwrap() else {
+            let FirstOrder::Tied(tie) = read(x, line, datum(bend), b).unwrap() else {
                 panic!("a line in the tangent plane ties at first order");
             };
             assert_eq!(tie.predicate, "bool_chord_side", "the chord's tie");
-            assert!(!tie.bends(), "a line reads no bend");
-            assert_eq!(tie.descend(b).unwrap(), want, "{shape:?}");
+            assert_eq!(tie.bends(), bends, "{bend:?}: whether the line reads a bend");
+            assert_eq!(tie.descend(b).unwrap(), want, "{bend:?}");
         }
         let (dir, arc) = quarter_arc(Vec3::new(0.0, 0.0, -1.0), 0.0);
-        let curved = FaceDatum::of_face(OutwardNormal::from_chart(z, true), FaceShape::Curved, 1.0);
-        assert_eq!(
-            read_side(dir, arc, curved, b).unwrap(),
-            BoundSide::Unread,
-            "a conic tied with a curved face is not descended"
+        for (bend, want) in [
+            (FaceBend::Plane, BoundSide::Tangent(Side::Below)),
+            (FaceBend::ball(z, 2.0), BoundSide::Tangent(Side::Below)),
+            (FaceBend::ball(z, 1.0), BoundSide::Rides),
+            (FaceBend::ball(z, 0.5), BoundSide::Tangent(Side::Above)),
+        ] {
+            assert_eq!(
+                read_side(dir, arc, datum(bend), b).unwrap(),
+                want,
+                "a unit arc bending down against {bend:?}"
+            );
+        }
+        let FirstOrder::Tied(tie) = read(x, line, datum(FaceBend::Fitted), b).unwrap() else {
+            panic!("a line in the tangent plane ties at first order");
+        };
+        assert!(
+            matches!(tie.descend(b), Err(BoundSideFault::Unbent(..))),
+            "a spline face's bend is not read"
         );
     }
 }

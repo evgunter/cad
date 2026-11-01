@@ -565,7 +565,7 @@ fn conic_bend(margin: f64) -> Result<(), BooleanError> {
         Vec3::new(1.0, 0.0, 0.0),
         Reach::Conic { extent, bend },
         n,
-        FaceShape::Plane,
+        crate::bound_side::FaceBend::Plane,
         NO_CURVATURE(),
         band(),
     )
@@ -977,6 +977,7 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         face,
         normal: OutwardNormal::from_chart(y, true),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
@@ -1019,6 +1020,7 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         face: crate::entity::FaceKey::default(),
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::vtxfac::pierce_germ_dir(
         &s,
@@ -1067,6 +1069,7 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
         face: crate::entity::FaceKey::default(),
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
@@ -1122,6 +1125,7 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
         face: crate::entity::FaceKey::default(),
         normal: OutwardNormal::from_chart(x.cross(end), true),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let partner = |end| PairRead {
         partner: VertexKey::default(),
@@ -1566,6 +1570,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         face,
         normal: OutwardNormal::from_chart(y, true),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let flank = if against { -x } else { x };
     let decls = Glue {
@@ -1627,6 +1632,7 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         face,
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
+        bend: crate::bound_side::FaceBend::Plane,
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(

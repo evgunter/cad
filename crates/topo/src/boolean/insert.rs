@@ -2823,6 +2823,7 @@ mod tests {
                     face: FaceKey::default(),
                     normal,
                     arm: 1.0,
+                    bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             if twin {
@@ -2940,6 +2941,7 @@ mod tests {
             face: FaceKey::default(),
             normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = vec![
             sector(Reach::Extent(1.0)),
@@ -3292,6 +3294,7 @@ mod tests {
                     face: crate::entity::FaceKey::default(),
                     normal,
                     arm: 1.0,
+                    bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
             (vk, secs)
@@ -3382,6 +3385,7 @@ mod tests {
             face: FaceKey::default(),
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let (sa, sb) = (
             sector(Vec3::new(0.0, 0.0, 1.0)),
@@ -3497,6 +3501,7 @@ mod tests {
             face: FaceKey::default(),
             normal: geom_brep::OutwardNormal::from_chart(n, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let mut pairs = 0;
         for alpha in [60.0, 179.0, 181.0, 270.0, 350.0] {
@@ -3554,6 +3559,7 @@ mod tests {
             face: FaceKey::default(),
             normal: geom_brep::OutwardNormal::from_chart(n, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
             sector(0.0, Reach::Extent(1.0), 90.0, Reach::Bisector(1.0)),
@@ -3713,6 +3719,7 @@ mod tests {
             face,
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let a = [
             sector(x, y, -z, faces[0]),

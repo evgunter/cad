@@ -155,7 +155,7 @@ pub(super) fn pierced_and_paired(
 #[derive(Clone, Copy, Debug)]
 pub(super) struct PierceDatum<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
-    pub shape: super::sectors::FaceShape,
+    pub bend: super::sectors::FaceBend<T>,
     pub lever: PierceLever<T>,
 }
 
@@ -170,7 +170,7 @@ impl<T: Decide> PierceDatum<T> {
         band: Band,
     ) -> Result<SideCode, BooleanError> {
         let lever = self.lever.within(reach.length());
-        super::sectors::pierce_side(dir, reach, self.normal, self.shape, lever, band)
+        super::sectors::pierce_side(dir, reach, self.normal, self.bend, lever, band)
             .map(|read| read.code)
     }
 
@@ -190,7 +190,7 @@ impl<T: Decide> PierceDatum<T> {
     /// second order: on a curved face, a bound in the tangent plane
     /// leaves it by the two carriers' relative curvature.
     pub(super) fn curved_along(self, on: bool) -> Option<AlongFace> {
-        (on && self.shape == super::sectors::FaceShape::Curved).then_some(AlongFace::Curved)
+        (on && self.bend.shape() == super::sectors::FaceShape::Curved).then_some(AlongFace::Curved)
     }
 }
 
@@ -618,7 +618,7 @@ fn interior<T: Decide>(
             let off = s.normal.vec() * (step * middle.norm());
             for dir in [middle - off, middle + off] {
                 clear |= matches!(
-                    super::sectors::plane_side_code(dir, reach, s.normal, band),
+                    super::sectors::sector_code(dir, reach, s, band),
                     Ok(SideCode::In | SideCode::Out)
                 );
                 if let Some(candidate) = holds(dir)? {
@@ -878,7 +878,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             }
             Err(refusal) => return Err(refused(refusal)),
         };
-    let pierced_shape = super::sectors::FaceShape::of(pierced_surface);
+    let pierced_bend = super::sectors::FaceBend::at(pierced_surface, p);
     let sectors = build_sectors(piercing_body, piercing, vertex, tips, band)?;
     let n = sectors.len();
     // The pierced face's smallest radius of curvature within each
@@ -968,7 +968,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.end,
                 s.end_reach,
                 plane,
-                super::sectors::FaceShape::Plane,
+                super::sectors::FaceBend::Plane,
                 super::sectors::NO_CURVATURE(),
                 band,
             ),
@@ -976,7 +976,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.end,
                 s.end_reach,
                 n_pierced,
-                pierced_shape,
+                pierced_bend,
                 pierced_lever.within(s.end_reach.length()),
                 band,
             ),
@@ -1172,7 +1172,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         classes,
         datum: PierceDatum {
             normal: n_pierced,
-            shape: pierced_shape,
+            bend: pierced_bend,
             lever: pierced_lever,
         },
         flush,
@@ -3498,6 +3498,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(along.cross(end), true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let partner_of = |partner| PairRead {
             partner,
@@ -3660,7 +3661,7 @@ mod tests {
                 dir,
                 Reach::Bisector(1.0),
                 up,
-                FaceShape::Plane,
+                crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),
                 band,
             )
@@ -3731,12 +3732,13 @@ mod tests {
     /// **A touching partner's side reads its conic bound by its bend.**
     /// The partner's corner lies in `y = 0` over the face `z = 0`: a line
     /// edge up `+z`, and a unit arc leaving along `+x`, tangent to the
-    /// face, bending up. To first order the arc ties and the partner's
-    /// side is unread (`Along`, which refuses); read by its bend it is
-    /// `Out`, as the line is, and the partner lies outside.
+    /// face, bending up. To first order the arc ties; read by its bend it
+    /// is `Out`, as the line is, and the partner lies outside, on a ball
+    /// as on a plane. On a hollow of its own radius the arc rides the
+    /// face, and the partner's side is unread (`Along`, which refuses).
     #[test]
     fn a_touching_partner_reads_its_tangent_arc_by_its_bend() {
-        use super::super::sectors::{BoolSector, FaceShape, NO_CURVATURE, PierceLever, Reach};
+        use super::super::sectors::{BoolSector, FaceBend, NO_CURVATURE, PierceLever, Reach};
         use geom_brep::ConicBend;
         use geom_brep::OutwardNormal;
         use geom_core::{Point3, Vec3};
@@ -3764,25 +3766,32 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(Vec3::new(0.0, -1.0, 0.0), true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         }];
-        let datum = |shape| PierceDatum {
+        let datum = |bend| PierceDatum {
             normal: OutwardNormal::from_chart(z, true),
-            shape,
+            bend,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
-        let side = |shape| partner_side(&partner, datum(shape), false, band).unwrap();
+        let side = |bend| partner_side(&partner, datum(bend), false, band).unwrap();
+        let out = PartnerRead::Side {
+            side: SideCode::Out,
+            along: false,
+        };
         assert_eq!(
-            side(FaceShape::Plane),
-            PartnerRead::Side {
-                side: SideCode::Out,
-                along: false
-            },
+            side(FaceBend::Plane),
+            out,
             "against a plane the arc reads its bend"
         );
         assert_eq!(
-            side(FaceShape::Curved),
+            side(FaceBend::ball(z, 1.0)),
+            out,
+            "against a ball the arc reads its bend past the ball's"
+        );
+        assert_eq!(
+            side(FaceBend::ball(-z, 1.0)),
             PartnerRead::Along(AlongFace::Curved),
-            "to first order the arc ties"
+            "the arc rides a hollow of its own radius"
         );
     }
 
@@ -3816,6 +3825,7 @@ mod tests {
             face: crate::entity::FaceKey::default(),
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
+            bend: crate::bound_side::FaceBend::Plane,
         };
         let err = pierce_germ_dir(
             &s,
@@ -3879,13 +3889,14 @@ mod tests {
                         face: crate::entity::FaceKey::default(),
                         normal,
                         arm: 1.0,
+                        bend: crate::bound_side::FaceBend::Plane,
                     }
                 })
                 .collect()
         };
         let plane = PierceDatum {
             normal,
-            shape: FaceShape::Plane,
+            bend: crate::bound_side::FaceBend::Plane,
             lever: PierceLever::Everywhere(NO_CURVATURE()),
         };
         // Every rotation of the sector order reads alike.
@@ -3909,7 +3920,7 @@ mod tests {
         let lying = [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]];
         let across = [[1.0, 0.0, 1.0], [0.0, 1.0, -1.0], [-1.0, -1.0, 1.0]];
         let curved = PierceDatum {
-            shape: FaceShape::Curved,
+            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
             ..plane
         };
         for (what, rays, datum, flush, want) in [
@@ -4003,7 +4014,7 @@ mod tests {
         );
         let bent = PierceDatum {
             normal,
-            shape: FaceShape::Curved,
+            bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
             lever: PierceLever::Everywhere(1.0),
         };
         assert!(
@@ -4050,6 +4061,7 @@ mod tests {
                 face: crate::entity::FaceKey::default(),
                 normal: OutwardNormal::from_chart(z, true),
                 arm: 1.0,
+                bend: crate::bound_side::FaceBend::Plane,
             };
             // `(ψ, the tilt's cosine, a graze)`.
             let lines = [
