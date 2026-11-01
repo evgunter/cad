@@ -101,6 +101,11 @@ in a clean worktree, and both read text that PR 6200
   `Blend/UnsupportedRunOut` renders 90 words and
   `Blend/UnsupportedCorner(mixed)` 95, both over the 75-word budget, the
   new corner recourse carrying most of it.
+- `editor-core` `refusal_concision_chains::every_carried_refusal_draws_within_the_budget_at_every_line`
+  (`:1523`) and `refusal_concision_chains::every_blend_detail_renders_within_the_budget`
+  (`:6394`), the same 88–95-word renders. These two were seen red in PR
+  6163's CI (run 41276664783) on the merge with `a95036de` and not re-run
+  on bare main; they share the cause.
 - `sweep` `m5_pr12_die_body::a_subset_of_the_edges_refuses_at_the_assembly_front_door`
   (`crates/sweep/tests/m5_pr12_die_body.rs:185`): "the refusal names the
   missing front door" no longer matches the re-worded curved-end-face
