@@ -21,7 +21,7 @@
 //! - **A first-order tie** is a [`Tie`], which [`Tie::descend`] reads
 //!   one order down, the bound's bend past the face's normal section
 //!   along it: decided, the bound leaves the face tangent to it,
-//!   [`BoundSide::Tangent`]; tied there too, it rides the face,
+//!   [`BoundSide::Leaves`]; tied there too, it rides the face,
 //!   [`BoundSide::Rides`]; where a bend is not certified (a spline face,
 //!   a spiric or spline edge against a curved face), it refuses.
 //!
@@ -112,7 +112,7 @@ impl<T: Decide> Reach<T> {
 /// A direction's first-order rise off the plane with unit normal `n`,
 /// levered at `arm`: `d̂·n̂·arm`, in metres.
 pub(crate) fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: T) -> T {
-    Margin::levered(dir.normalize().dot(n), arm).value()
+    geom_brep::rise(dir, n, arm).value()
 }
 
 /// **Whether a face is a plane** ([`FaceBend::shape`]): on a plane a
@@ -302,8 +302,9 @@ pub(crate) enum BoundSide {
     /// Decided at first order.
     Off(Side),
     /// Tied at first order, decided one order down: the bound leaves the
-    /// face tangent to it, toward this side.
-    Tangent(Side),
+    /// face tangent to it, toward this side. (A first-order tie, which
+    /// [`EntersMaterial::Tangent`] names, is undecided; this is decided.)
+    Leaves(Side),
     /// Tied at first order and at the order below: the bound rides the
     /// face to the orders read (a line edge in a plane, a conic whose
     /// whole edge lies within the band of a plane).
@@ -618,7 +619,7 @@ impl<T: Decide> Tie<T> {
     /// `(κ_b·n̂ − II_F(d̂, d̂))·l²/2` ([`geom_brep::parting_side`]), the
     /// bound's bend past the face's normal section along it, at the
     /// shorter of the bound's reach and the face's lever: a side the
-    /// bound leaves to, [`BoundSide::Tangent`], or tied there too,
+    /// bound leaves to, [`BoundSide::Leaves`], or tied there too,
     /// [`BoundSide::Rides`]. The bound's bend is a conic's curvature, a
     /// bisector's sector face's normal section along it, and nothing for
     /// a line edge or a probe, which are straight; a plane's section is
@@ -645,7 +646,7 @@ impl<T: Decide> Tie<T> {
                 return match geom_brep::conic_bend_side(self.dir, extent, bend, face.reference, band)
                 {
                     Ok(verdict) => {
-                        Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Tangent))
+                        Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Leaves))
                     }
                     Err(diag) => Err(ReadFault::Bend(diag)),
                 };
@@ -666,7 +667,7 @@ impl<T: Decide> Tie<T> {
         };
         let arm = face.lever.map_or(reach.length(), |lever| reach.length().min(lever));
         match geom_brep::parting_side(own - n * section, face.reference, arm, band) {
-            Ok(verdict) => Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Tangent)),
+            Ok(verdict) => Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Leaves)),
             Err(escalation) => Err(ReadFault::Parting(escalation)),
         }
     }
@@ -733,8 +734,8 @@ mod tests {
         let datum = |bend| FaceDatum::of_face(OutwardNormal::from_chart(z, true), bend, 2.0);
         for (bend, want) in [
             (FaceBend::Plane, BoundSide::Rides),
-            (FaceBend::ball(z, 2.0), BoundSide::Tangent(Side::Above)),
-            (FaceBend::ball(-z, 2.0), BoundSide::Tangent(Side::Below)),
+            (FaceBend::ball(z, 2.0), BoundSide::Leaves(Side::Above)),
+            (FaceBend::ball(-z, 2.0), BoundSide::Leaves(Side::Below)),
         ] {
             let FirstOrder::Tied(tie) = read(x, line, datum(bend), b).unwrap() else {
                 panic!("a line in the tangent plane ties at first order");
@@ -744,10 +745,10 @@ mod tests {
         }
         let (dir, arc) = quarter_arc(Vec3::new(0.0, 0.0, -1.0), 0.0);
         for (bend, want) in [
-            (FaceBend::Plane, BoundSide::Tangent(Side::Below)),
-            (FaceBend::ball(z, 2.0), BoundSide::Tangent(Side::Below)),
+            (FaceBend::Plane, BoundSide::Leaves(Side::Below)),
+            (FaceBend::ball(z, 2.0), BoundSide::Leaves(Side::Below)),
             (FaceBend::ball(z, 1.0), BoundSide::Rides),
-            (FaceBend::ball(z, 0.5), BoundSide::Tangent(Side::Above)),
+            (FaceBend::ball(z, 0.5), BoundSide::Leaves(Side::Above)),
         ] {
             assert_eq!(
                 read_side(dir, arc, datum(bend), b).unwrap(),

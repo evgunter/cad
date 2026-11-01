@@ -1708,7 +1708,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
                     })? == NonzeroSign::Positive;
                     if !same {
                         *inside = Half::Away;
-                    } else if let super::sectors::BoundSide::Tangent(_) = tie.descent {
+                    } else if let super::sectors::BoundSide::Leaves(_) = tie.descent {
                         // Tangent to the flank and leaving it one order
                         // down: along the flank, on the side it leaves
                         // to, which no coincidence settles.
