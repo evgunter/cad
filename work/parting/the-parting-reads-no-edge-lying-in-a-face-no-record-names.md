@@ -2,10 +2,11 @@
 id: the-parting-reads-no-edge-lying-in-a-face-no-record-names
 kind: issue
 title: The Boolean's parting reads an edge lying in a face only where a record or its ends name the pair, so an unrecorded rider keeps one edge
-status: open
+status: parked
 opened: 2026-10-26
 priority: P1
 cost: H
+blocked_on: [an-edge-lying-in-its-own-operands-face-reaches-the-parting-unrecorded]
 ---
 
 
@@ -89,3 +90,16 @@ touch while `parting/closed-and-torus-riders` held it.
 ## Opened (2026-11-01)
 
 Its blocker closed with PR 6225: the sweep now records every line piece lying in a plane face. Dispatchable for plane faces: the parting asks a plane face of an edge exactly where an edge-face record names the pair, and `Names`, `crossed_faces` and the geometric reading in `holding` go for that case; curved faces keep their geometric reading until the curve-touch lane lands. (PARTING orchestrator)
+
+## Parked again (2026-11-01)
+
+The lane's measurement before rewiring found 10 result cells
+(`a_vertex_read_again_classes_every_edge`, `tipped_b`) where a line
+lying in a plane face of its own operand reaches the parting with no
+record and both walls go into the face's material: the geometric
+reading parts it, a records-only reading would ship one edge that tier 3
+passes. Parked on `an-edge-lying-in-its-own-operands-face-reaches-the-parting-unrecorded`. The rewiring is built and kept on
+`parting/parting-reads-records-wip` (`28a969c583`, clippy clean, suites
+not run): plane faces read records only; `divide` carries the edge's
+edge-face record to each piece the face holds (it dropped it before: 31
+reads); `ops::DoorInBand` and `PieceRead::Unread`'s payload go. (PARTING orchestrator)

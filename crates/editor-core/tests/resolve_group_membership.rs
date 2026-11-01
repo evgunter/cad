@@ -121,33 +121,61 @@ pub(crate) fn moved_to(
     placement: RecipeNodeId,
     at: [f64; 3],
 ) -> ProfileDoc {
+    moved_to_frame(
+        doc,
+        target,
+        body,
+        placement,
+        &editor_core::Frame::translation(at),
+    )
+}
+
+/// [`moved_to`] with the copy's frame `at` turned as well as moved.
+pub(crate) fn moved_to_frame(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    placement: RecipeNodeId,
+    at: &editor_core::Frame,
+) -> ProfileDoc {
     use editor_core::pose::PoseDef;
     use editor_core::{FreeValue, Operand, VarDef};
     let again = editor_core::test_support::placed_against(
         &doc,
         &target.into(),
         &body.into(),
-        &editor_core::Frame::translation(at),
+        at,
         Tol::witness(),
     );
-    let Some(Operand::Pose(def)) = again.mates.first().map(|mate| &mate.to) else {
-        panic!("a pose target")
-    };
-    let PoseDef::Slide { by: slide, .. } = &**def else {
-        panic!("the target face slid along its normal: {def:?}")
+    // A mate on a face plane through the frame reads the face itself,
+    // and one off it the face slid along its normal, whose slide is moved
+    // too. Either way the placement must already read it so: values
+    // alone cannot add a slide or take one away.
+    let slide = match again.mates.first().map(|mate| &mate.to) {
+        Some(Operand::Pose(def)) => {
+            let PoseDef::Slide { by: slide, .. } = &**def else {
+                panic!("the target face slid along its normal: {def:?}")
+            };
+            Some(slide.clone())
+        }
+        _ => None,
     };
     let bundle = crate::fixture::bundle(&doc, placement);
-    let to = bundle
-        .iter()
-        .find_map(|c| c.mate())
-        .map(|m| m.to)
-        .expect("the placement's mate reads a pose");
-    let Some(VarDef::Pose(PoseDef::Slide { by: slide_var, .. })) =
-        doc.var(to).map(|v| v.def().clone())
-    else {
-        panic!("the placement's target is a slid face")
-    };
-    let mut edits = vec![(slide_var, slide.clone())];
+    let slide_var = bundle.iter().find_map(|c| c.mate()).and_then(|m| {
+        match doc.var(m.to).map(|v| v.def().clone()) {
+            Some(VarDef::Pose(PoseDef::Slide { by, .. })) => Some(by),
+            _ => None,
+        }
+    });
+    let mut edits = Vec::new();
+    match (slide, slide_var) {
+        (Some(slide), Some(var)) => edits.push((var, slide)),
+        (None, None) => {}
+        (slide, var) => panic!(
+            "the placement's mate and the one `at` needs differ in their slide: {var:?} \
+             against {slide:?}"
+        ),
+    }
     for (coord, value) in &again.values {
         let var = bundle
             .iter()
@@ -858,6 +886,115 @@ fn tied_groups_that_resize_unequally_decline_in_every_member_order() {
             assert!(
                 matches!(d, Diagnosis::RecipeEdit { .. }),
                 "swap {swap}: unequal tied groups decline to the edit, not a count: {n:?}: {d:?}"
+            );
+        }
+    }
+}
+
+/// **A union's corner held as two copies, then once, reads 2 → 1 in
+/// every member order.**
+///
+/// [`prism_and_cube`]'s L-prism, whose reflex top corner the tilted
+/// cube pinches into two copies, each a fragment of that corner, with
+/// a wall and a post standing apart. Then the cube stands away and the
+/// wall and the post close in on the corner: the wall's face y = 1
+/// runs through it, so a fold step that meets the wall before the post
+/// joins the corner away, and the post's face x = 1 makes it a vertex
+/// again. The corner is held once, by its own name, and both copies'
+/// name vanishes as `GroupResized { was: 2, now: 1 }` in every member
+/// order. `was` is the fold's: run 1 keeps the fold's tied copies, so
+/// their base reads the fold's record. `now` is the union's group over
+/// the finished body. Read through the fold steps instead, `now` was 0
+/// in every order but those that fold the prism after both the wall and
+/// the post. The runs are read as the split row reads them.
+#[test]
+fn a_unions_corner_held_twice_then_once_reads_two_to_one_in_every_member_order() {
+    use crate::union_member_orders_decide_alike::{CUBE_NORMAL, prism_and_cube};
+    // The cube's frame in `prism_and_cube_along`, moved off the prism's
+    // top to stand away from it.
+    let unit = |m: [f64; 3]| {
+        let n = m.iter().map(|c| c * c).sum::<f64>().sqrt();
+        m.map(|c| c / n)
+    };
+    let n = unit(CUBE_NORMAL);
+    let u = unit([-n[2] * n[0], -n[2] * n[1], 1.0 - n[2] * n[2]]);
+    let v = [
+        n[1] * u[2] - n[2] * u[1],
+        n[2] * u[0] - n[0] * u[2],
+        n[0] * u[1] - n[1] * u[0],
+    ];
+    let away = crate::fixture::axes_at([-6.0, -6.0, 1.0], u, v);
+    let mut orders = vec![vec![0usize]];
+    for k in 1..4 {
+        orders = orders
+            .into_iter()
+            .flat_map(|o| {
+                (0..=o.len()).map(move |i| {
+                    let mut o = o.clone();
+                    o.insert(i, k);
+                    o
+                })
+            })
+            .collect();
+    }
+    for order in orders {
+        let doc = ProfileDoc::empty_derived("group-membership-union-corner", Tol::witness());
+        let (doc, m) = prism_and_cube(doc);
+        let (ell, cube) = (m[0], m[1]);
+        let Some(Node::Place { source, .. }) = doc.node(cube) else {
+            panic!("the cube is a copy")
+        };
+        let cube_body = doc
+            .operation_of(source.read)
+            .expect("a copy reads a construction");
+        let (doc, wall) = block(doc, (-1.0, 2.0), (1.0, 3.0), 1.0);
+        let (doc, wall) = placed(doc, ell, wall, 0.5);
+        let (doc, post) = block(doc, (1.0, 1.2), (-1.0, 1.1), 1.06);
+        let (doc, post) = placed(doc, ell, post, 0.47);
+        let apart = [10.0, 0.0, 0.0];
+        let doc = moved(moved(doc, &wall, apart), &post, apart);
+        let members = [ell, cube, wall.placement, post.placement];
+        let (doc, un) = insert(
+            doc,
+            Node::Union {
+                members: editor_core::Bodies::Spelled(
+                    order.iter().map(|&i| members[i].into()).collect(),
+                ),
+            },
+        );
+        let ev1 = run(&doc, None);
+        let back = [-10.0, 0.0, 0.0];
+        let doc2 = moved_to_frame(doc.clone(), ell, cube_body, cube, &away);
+        let doc2 = moved(
+            doc2,
+            &Placed {
+                at: [10.0, 0.0, 0.5],
+                ..wall
+            },
+            back,
+        );
+        let doc2 = moved(
+            doc2,
+            &Placed {
+                at: [10.0, 0.0, 0.47],
+                ..post
+            },
+            back,
+        );
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), un, |n, _| {
+            n.kind == EntityKind::Vertex
+        });
+        assert_eq!(
+            rows.len(),
+            1,
+            "{order:?}: the copies' name vanishes: {rows:#?}"
+        );
+        for (name, d) in rows {
+            assert!(
+                matches!(d, Diagnosis::GroupResized { node, was: 2, now: 1, .. } if node == un),
+                "{order:?}: {name:?}: {d:?}"
             );
         }
     }

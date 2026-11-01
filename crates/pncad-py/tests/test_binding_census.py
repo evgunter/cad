@@ -1380,6 +1380,10 @@ BOUND_AS = {
     # Why an index is refused as declared crosses at the carrier's
     # second word (`count_not_count`, `within_no_index`).
     "IndexFault": "EditError.inner_variant",
+    # Why a family's members could not be listed: the evaluator turns
+    # it into its node refusal (`MemberCountFault::node_error`), so it
+    # crosses as the tags `index_count` / `index_count_out_of_range`.
+    "MemberCountFault": "EvaluationError.kind",
     "all_bodies": "Evaluation.all_bodies",
     "all_edges": "Evaluation.all_edges",
     "all_faces": "Evaluation.all_faces",
@@ -2667,6 +2671,15 @@ NOT_BOUND = {
     # document a carried finding is spoken over (`CarriedCoincidence.finding`).
     "PinnedDoc": INTERIOR,
     "Route": INTERIOR,
+    # The answers of `Doc::expr_reach` and `Doc::member_envs` (D10
+    # `[repetition]`), the reads a reader that evaluates an expression
+    # itself makes. Python evaluates through `evaluate`, which makes both
+    # reads inside: the members they list cross as `Value.members` (each
+    # member's index values beside its value), two unrelated indices as
+    # the `indices_unrelated` tag, and a member's `env` is a `VarEnv`,
+    # itself behind a door.
+    "Reached": INTERIOR,
+    "MemberEnv": INTERIOR,
     "Chamfered": INTERIOR,
     # A lane trait, one registry over: a trait naming
     # WHICH decision lanes carry a chart-coherence examination, written
