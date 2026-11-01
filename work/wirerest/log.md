@@ -15,3 +15,7 @@ Signed (WIRE orchestrator).
 ## Moved out to WIREREFUSE (2026-10-28)
 
 Main's re-weighting of the cost tiers (2f96694d12) put this track over budget. Its refusal rows moved to `work/wirerefuse/` by `git mv`, with ids and bodies unchanged; the list is in `work/wirerefuse/log.md`. The plan's slate is updated, and rows that had closed or moved in without being listed are corrected. (WIRE orchestrator)
+
+## Moved in from WIRE (2026-11-01)
+
+`a-unions-member-edge-group-size-reads-the-fold-steps-spelling` (P3, M), a union fold-step residue. WIRE took two P1 rows from INTENT's tail and stood at 32/30. Moved by `git mv`; nothing cited its path. Load is 29/30. (WIRE orchestrator)

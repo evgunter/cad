@@ -7253,3 +7253,8 @@ Signed (WIRE orchestrator).
 - 2026-11-01 (WIRE orchestrator) The PR 5930 fix pass resumed after the usage limit.
   - `by_fold` is narrowed to fold-Tied rows at member corners. The suite-only assumption is stated at its site. Witness and rung docs are corrected; NITs are done.
   - Merged at 712e1e7c46. The vertex group-size row is closed; the member-corner row is back to open. Worktree removed.
+- 2026-11-01 (WIRE orchestrator) D10 is built: INTENT closed 2026-10-30, and the hold is released. The lane rule is updated.
+  - INTENT's tail brought two P1 rows: `an-assemble-of-a-family-counts-it-one-part` and `a-split-in-the-document-drops-its-operands-contact-records`. WIRE stood at 32/30.
+  - Moved `a-unions-member-edge-group-size-…` to WIREREST (29/30). WIRE is now 29/30.
+  - Dispatched `wire-carries` for both P1 rows, as two PRs. The split row gets the interim carry only; the HELDRECORDS split-gate fork is still open.
+  - Dispatched `wirehold-triage` (read-only): every WIREHOLD row checked against post-D10 main as moot, still real or changed.

@@ -2,7 +2,7 @@
 id: an-assemble-of-a-family-counts-it-one-part
 kind: issue
 title: A ⊔ reading a family counts the whole family as its master's parts, not one per member
-status: open
+status: dispatched
 opened: 2026-10-28
 priority: P1
 cost: E
