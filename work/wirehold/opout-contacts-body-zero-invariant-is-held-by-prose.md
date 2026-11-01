@@ -1,7 +1,7 @@
 ---
 id: opout-contacts-body-zero-invariant-is-held-by-prose
 kind: issue
-title: OpOut's 'a multi-output op never fills contacts' is held by a doc comment, not by the type
+title: A carry's record invariants are held by prose: a family has no records of its own by construction only, and the split sentence goes with the split carry
 status: open
 opened: 2026-09-28
 priority: P4
@@ -39,3 +39,12 @@ convention. Then the invariant paragraph can go.
 Read against the tree at `fd218851f9`. The doc is already wrong (it says only `wire_instantiate_part` fills `contacts`; `wire_place` does too, when `bodies.len() == 1`). Stage 4 I rebuilds that channel and stage 3's index variables reshape the multi-output case; re-read after both. Parked on `mates-declare-no-contact`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Changed.**
+- `OpOut.contacts` is now `carry: Carry<T>` (`eval/carry.rs:39`).
+- A family is structural: each member has its own carry (`Carry::of_family`, `carry.rs:217`). The multi-output pattern case is gone.
+- Left is prose only: "A split never fills them" (`eval/wire.rs:51-52`). `wire/a-split-in-the-document-drops-its-operands-contact-records` (in flight) makes that sentence false, so that PR rewrites it, and this row narrows to whatever invariant remains after it.

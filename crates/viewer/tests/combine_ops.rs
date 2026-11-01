@@ -32,6 +32,7 @@ use common::{
     ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape, translation,
 };
 use pncad::document::BooleanValue;
+use pncad::document::Speaker;
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram, Node,
@@ -1923,18 +1924,18 @@ fn the_seat_line_names_the_roles() {
     let doc = Doc::empty_derived("seat-line", Tol::witness());
     let mut boolean = BooleanTool::new();
     boolean.set_operation(BooleanOp::Subtract);
-    assert_eq!(boolean.line(&doc), "no picks yet");
+    assert_eq!(boolean.line(Speaker::of(&doc)), "none picked");
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     // The empty document holds neither pick, so each is spoken by its
     // tag alone.
     assert_eq!(
-        boolean.line(&doc),
-        "body kept: node 000000000003; body removed: —"
+        boolean.line(Speaker::of(&doc)),
+        "body kept: node 000000000003; body removed: none picked"
     );
     let mut transform = TransformTool::new();
     transform.pick(&doc, RecipeNodeId::new(0, tagged(7)));
     assert_eq!(
-        seat_line(transform.seats(), &doc),
+        seat_line(transform.seats(), Speaker::of(&doc)),
         "transformed body: node 000000000007"
     );
 }
@@ -1952,7 +1953,7 @@ fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
     boolean.set_operation(BooleanOp::Subtract);
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(3)));
     boolean.pick(&doc, RecipeNodeId::new(0, tagged(4)));
-    let line = boolean.line(&doc);
+    let line = boolean.line(Speaker::of(&doc));
     let events = boolean.reconcile(&doc);
     assert_eq!(events.len(), 2, "neither node is in the empty document");
     for event in &events {
@@ -2898,9 +2899,9 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
         Ok(SessionOp::AddTransform { input, .. }) if input == below
     ));
     assert!(
-        seat_line(tool.seats(), &doc).ends_with("below half"),
+        seat_line(tool.seats(), Speaker::of(&doc)).ends_with("below half"),
         "{}",
-        seat_line(tool.seats(), &doc)
+        seat_line(tool.seats(), Speaker::of(&doc))
     );
 }
 

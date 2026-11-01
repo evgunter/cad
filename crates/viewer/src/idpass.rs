@@ -47,6 +47,7 @@ use crate::frame::{Message, Retold, Subject};
 use crate::generation::Generation;
 use crate::pickindex::{PatchNameFault, PickError, PickIndex};
 use crate::session::FaceSelection;
+use crate::tree::PickedName;
 
 /// What the viewport should do about the GPU id query this frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -285,7 +286,7 @@ impl Say for IdAnswer {
     /// buffer, whatever it turns out to denote.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Named(face) => say_face(f, by, face),
+            Self::Named(face) => PickedName::face(face).say(f, by),
             Self::Refused(fault) => fault.say(f, by),
             Self::Hidden { id } => write!(f, "id {id}, which no patch of this picture draws"),
         }
@@ -352,8 +353,8 @@ pub struct Disagreement {
 
 impl Say for Disagreement {
     /// The id side is [`IdAnswer`]'s own sentence. Every face on
-    /// either side is said by its name in its words, which tell two
-    /// names of one table apart, and by the copy it is on. The sentence reaches the user's status line
+    /// either side is said as the chrome says a pick, whose words tell
+    /// two names of one table apart. The sentence reaches the user's status line
     /// ([`Disagreement::notice`]), so it carries no role path: the path
     /// a bug report replays is this value's `Debug`, for a log, and no
     /// surface of the viewer prints it.
@@ -370,44 +371,19 @@ impl Say for Disagreement {
         )?;
         match &from_ray[..] {
             [] => f.write_str("nothing"),
-            [face] => say_face(f, by, face),
+            [face] => PickedName::face(face).say(f, by),
             tied => {
                 f.write_str("tied between ")?;
                 for (i, face) in tied.iter().enumerate() {
                     if i > 0 {
                         f.write_str(" and ")?;
                     }
-                    say_face(f, by, face)?;
+                    PickedName::face(face).say(f, by)?;
                 }
                 Ok(())
             }
         }
     }
-}
-
-/// A face as the cross-check compares it, in words: its name, and the
-/// copy it is drawn on, by the copy's node, which is what tells two
-/// copies of one body apart. A body past a node's first is said by its
-/// index, the one word the picture has for it.
-pub(crate) struct SaidFace<'a>(pub(crate) Speaker<'a>, pub(crate) &'a FaceSelection);
-
-impl core::fmt::Display for SaidFace<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self(by, FaceSelection { name, node, body }) = *self;
-        write!(f, "{} on {}", by.name(name), by.node(*node))?;
-        if *body != 0 {
-            write!(f, ", body {body}")?;
-        }
-        Ok(())
-    }
-}
-
-fn say_face(
-    f: &mut core::fmt::Formatter<'_>,
-    by: Speaker<'_>,
-    face: &FaceSelection,
-) -> core::fmt::Result {
-    write!(f, "{}", SaidFace(by, face))
 }
 
 /// The sentence where no document is at hand: each node by its tag.

@@ -4590,10 +4590,12 @@ impl core::fmt::Display for SketchTraceFault {
 impl core::error::Error for SketchTraceFault {}
 
 /// **The body a face pick is read on, and the face's name there**
-/// (`crate::world::on_body`): the node's output by its port where it
-/// holds several, its body output otherwise.
+/// (`crate::world::body_of`; a copy carries its body's names, so the
+/// name is the pick's): the node's output by its port where it holds
+/// several, its body output otherwise.
 fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
-    let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
+    let (at, port) = crate::world::body_of(doc, face.node, face.body);
+    let name = face.name.clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),

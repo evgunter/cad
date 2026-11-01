@@ -810,7 +810,7 @@ Fourteen censuses, none of them a dump:
 | `frame::outcome_notices` | a field of `OpOutcome` reaches the chrome and is never worded — an edit's consequence the door reported and the one client never shows, which is what DM7's report exists to end |
 | `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
 | `Say for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
-| `Say for BlendTarget` | a refusal names a scope narrower than the target it refused on |
+| `Say for DrawnBody` | a refusal names a scope narrower than the target it refused on |
 | `PruneReport::is_empty` | a fourth kind of withdrawal leaves the revision where it was, which is the chrome not rebuilding a picture that changed |
 | `PickCache::forget` | a fourth thing describing the picture outlives the picture — a missed `attempt` is what lets a late build install an index of a document nobody is looking at |
 | `Display for Unusable` | the one sentence a refused preferences store shows says less than the value holds |
@@ -1003,7 +1003,7 @@ that say a node is not live, and `AdmissionFault::NoSuchNode`.
 drawn.** The pick index, its edge names, the id pass and the blend
 tool's loads are built from the landed run alone, so `PickIndexError`,
 `UndrawnBody`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
-`BlendTarget`, `BlendEvent`, `PatchNameFault`, `idpass::IdAnswer` and
+`DrawnBody`, `BlendEvent`, `PatchNameFault`, `idpass::IdAnswer` and
 `idpass::Disagreement` carry no document and implement `Say`; their
 `Display` says each node by its tag. The frame that draws one speaks
 it from the landed document (`DocSession::landed_pair`), the one whose
@@ -1028,14 +1028,23 @@ spoke it (`DocSession::selection_said`, through `Speaker::or_held`),
 and so is a selected node deleted since, in the pane's heading: the
 selection speaks its nodes when it is made and again from the shown
 document after every operation, so a deleted node keeps the last label
-it had. The add-profile form's held face keeps its own
-(`Drafts::sketch_face_said`), since it outlives the selection, and so
+it had. The add-profile form's face and trace latches keep their own
+(each a `tree::HeldPick`), since they outlive the selection, and so
 does the open tool for each node it holds (`ViewerApp::respeak_held`
 after every operation): a seat's drop, the blend tool's lost target,
 and the mate tool's drop say a node the document no longer holds by the
-last label it had. The mate tool's same-copy refusal says the label
-the tool kept even while the landed document it is judged against
-still holds the node, since what the tool kept is never older. A
+last label it had. A label the tool kept is used only for a node the
+landed document no longer holds: the mate tool's same-copy refusal,
+like its panel line, says a node the landed document still holds by
+that document's label, even while a rename has not landed.
+
+**Which text speaks the landed document.** Text that names a node the
+picture shows — the feature tree, the viewport's readouts, the
+property pane's headings, a tool's panel line and its refusals and
+drops, a form's held picks — speaks the landed document, the one the
+picture is drawn from; text about what is being authored — a form's
+create button, the profile pane's own heading, a batch's refusal —
+speaks the shown or committed document it acts on. A
 document that replaces this one drops what both hold
 (`ViewerApp::document_replaced`): their ids are the old document's.
 So is the Checks window: its report is the landed run's, and
@@ -1289,7 +1298,7 @@ reaches no `frame::Message` and nothing counts or introduces its items:
 `seats::picks_line`, which composes the seated panels' and the mate
 panel's held-picks line — every seated panel reaches it through
 `seats::seat_line`, the boolean panel's member list through
-`BooleanTool::line` and the mate panel through `MateToolState::line`;
+`BooleanTool::line` and the mate panel through `MateTool::line`;
 the blend panel's held-picks line is drawn in its own panel and lists
 nothing. Its doc comment carries
 the argument, and why the mark earns no constant of its own either.

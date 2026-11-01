@@ -604,9 +604,9 @@ impl ProductError {
 /// reading a `Part` of a pattern is that one copy.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     // The records and findings a body carries are keyed in its arena:
-    // each member of a family brings its own ([`crate::Carry::member`]).
+    // each member of a family, and each half of a split, brings its own
+    // ([`crate::Carry::member`]).
     let carried = || Arc::clone(&value.carry.contacts);
-    let none = || Arc::new(ContactRecords::default());
     let rows = || Arc::clone(&value.carry.findings);
     let norows = || Arc::new(crate::checks::at_rest::CarriedFindings::default());
     match &value.payload {
@@ -646,7 +646,9 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 .into_iter()
                 .filter_map(|(half, side)| match side {
                     SplitSide::Body(body) => {
-                        Some((half.output_body(), body.clone(), none(), norows()))
+                        let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+                        let records = Arc::clone(&value.carry.member(at).contacts);
+                        Some((half.output_body(), body.clone(), records, norows()))
                     }
                     SplitSide::Empty => None,
                 })

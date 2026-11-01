@@ -57,6 +57,8 @@ pub enum NodeErrorClass {
     Tube,
     /// [`NodeErrorKind::Split`].
     Split,
+    /// [`NodeErrorKind::ContactCarry`].
+    ContactCarry,
     /// [`NodeErrorKind::Blend`] refused by a fillet.
     Fillet,
     /// [`NodeErrorKind::Blend`] refused by a chamfer.
@@ -227,6 +229,7 @@ impl NodeErrorKind {
             Self::Revolve(_) => C::Revolve,
             Self::Tube(_) => C::Tube,
             Self::Split(_) => C::Split,
+            Self::ContactCarry { .. } => C::ContactCarry,
             Self::Blend { verb, .. } => by_verb(*verb, C::Fillet, C::Chamfer),
             Self::Boolean(_) => C::Boolean,
             Self::Transform(_) => C::Transform,
@@ -366,6 +369,7 @@ mod tests {
         Revolve,
         Tube,
         Split,
+        ContactCarry,
         Fillet,
         Chamfer,
         Boolean,
@@ -540,6 +544,9 @@ mod tests {
             C::Revolve => K::Revolve(sweep::RevolveError::DegenerateAxis),
             C::Tube => K::Tube(Box::new(sweep::TubeError::DegenerateWindow)),
             C::Split => K::Split(topo::SplitError::Finish(topo::SplitFinishError::Corrupt)),
+            C::ContactCarry => K::ContactCarry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
+            },
             C::Fillet | C::Chamfer => K::Blend {
                 verb: if class == C::Fillet {
                     BlendKind::Fillet

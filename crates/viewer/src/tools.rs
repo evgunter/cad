@@ -301,15 +301,16 @@ pub enum ToolNotice {
     Missed(ToolKind),
 }
 
-/// The mate and seated arms say the node their event carries
-/// (`SpokenNode`, kept by [`Tools::respeak`]), so the speaker reaches
-/// the blend arm alone, whose event holds bare ids.
+/// The seated arm says the node its event carries (`SpokenNode`, kept
+/// by [`Tools::respeak`]); the blend arm's event holds bare ids, and a
+/// dropped face pick is said by the speaker, a node it does not hold as
+/// the tool kept it.
 impl Say for ToolNotice {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let said = match self {
-            Self::Mate(event) => ToolKind::Mate.says(event),
+            Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
-            Self::Mirror(event) => ToolKind::Mirror.says(event),
+            Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
             Self::Missed(tool) => tool.says(&format_args!(
                 "{} under the cursor — no pick taken",
