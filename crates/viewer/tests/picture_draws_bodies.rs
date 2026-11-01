@@ -364,3 +364,282 @@ fn free_move_opens_on_a_constructions_space_and_refuses_the_world() {
         "a variable that is no space refuses"
     );
 }
+
+/// A row of `count` copies of `body` in its own space over a fresh index
+/// `name`, stepped clear along `x`: the document and the family.
+fn row_of(
+    doc: Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    name: &str,
+    count: i64,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, k) = crate::fixture::index(doc, name, count);
+    crate::fixture::family_of(
+        doc,
+        body,
+        crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 2.0 * SIDE),
+    )
+}
+
+/// A family over a fresh index `name` of `count` members, each reading
+/// one member of `family` by `at(index)`, standing where it stands.
+fn reads_by_index(
+    doc: Doc<ProfileProgram>,
+    family: RecipeNodeId,
+    name: &str,
+    count: i64,
+    at: impl Fn(VarId) -> pncad::document::Formula,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, k) = crate::fixture::index(doc, name, count);
+    let space = crate::fixture::space(&doc, family);
+    crate::fixture::insert(
+        doc,
+        Node::place(
+            pncad::document::BodyRead::indexed(family, vec![at(k)]),
+            pncad::document::Operand::Var(space),
+            pncad::document::stand().bundle(),
+        ),
+    )
+}
+
+/// The members of `node` the picture draws, as the index holds them.
+fn members_drawn(index: &PickIndex, node: RecipeNodeId, count: u32) -> Vec<u32> {
+    (0..count)
+        .filter(|&member| !index.ids_in(node, member).is_empty())
+        .collect()
+}
+
+/// **A read of members by an index takes the members its index ranges
+/// over, and no other**: `ys[k] = xs[k]` over two takes members 0 and 1
+/// of three, `ys[k] = xs[k + 1]` takes 1 and 2, and a family of one
+/// reading `xs[j]` takes member 0; each time the members no read names
+/// stay drawn.
+///
+/// *Breaks if* an indexed read whose member only an evaluation knows
+/// takes the whole family (nothing of `xs` drawn), or the index is
+/// evaluated once rather than per member of the reader.
+#[test]
+fn a_read_by_index_takes_the_members_its_index_names() {
+    use pncad::document::{Dimension, Formula};
+    let tol = Tol::witness();
+    let count = |k| Formula::var(k, Dimension::Count);
+    let cases: [(&str, i64, Box<dyn Fn(VarId) -> Formula>, Vec<u32>); 3] = [
+        ("same", 2, Box::new(count), vec![2]),
+        (
+            "next",
+            2,
+            Box::new(move |k| Formula::add(count(k), Formula::count(1)).expect("a count")),
+            vec![0],
+        ),
+        ("one", 1, Box::new(count), vec![1, 2]),
+    ];
+    for (label, readers, at, left) in cases {
+        let (doc, body) = extrude(
+            &Doc::empty_derived(&format!("picture-index-{label}"), tol),
+            0.0,
+            tol,
+        );
+        let (doc, xs) = row_of(doc, body, "k", 3);
+        let (doc, ys) = reads_by_index(doc, xs, "j", readers, at);
+        let session = landed(doc, tol);
+        let index = common::plate_index(&session);
+        assert_eq!(
+            members_drawn(&index, xs, 3),
+            left,
+            "{label}: xs less what ys reads"
+        );
+        assert_eq!(
+            members_drawn(&index, ys, 3),
+            (0..u32::try_from(readers).expect("a count")).collect::<Vec<_>>(),
+            "{label}: every member of ys is drawn"
+        );
+    }
+}
+
+/// **A split read at one port takes that half alone**: a copy of the
+/// lower half placed into the world leaves the upper half drawn in the
+/// body's own space.
+///
+/// *Breaks if* a port read takes the whole split.
+#[test]
+fn a_split_half_read_alone_leaves_the_other_half_drawn() {
+    use pncad::select::SplitHalf;
+    let tol = Tol::witness();
+    let (doc, body) = extrude(&Doc::empty_derived("picture-split", tol), 0.0, tol);
+    let mut session = landed(doc, tol);
+    let split = common::session_insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body.into(),
+            origin: common::len3([0.0, 0.0, DEPTH / 2.0]),
+            normal: common::scl3([0.0, 0.0, 1.0]),
+        },
+    );
+    let (doc, _) = common::placed_read(
+        session.committed_doc(),
+        pncad::document::Operand::output(split, SplitHalf::Below.port()),
+        tol,
+    );
+    let session = landed(doc, tol);
+    let index = common::plate_index(&session);
+    assert_eq!(
+        members_drawn(&index, split, 2),
+        vec![SplitHalf::Above.output_body()],
+        "the half nothing reads stays drawn"
+    );
+}
+
+/// **A piece two `⊔`s draw stays drawn until both are hidden**: the
+/// product's `⊔` reads two copies, a second `⊔` the first copy again.
+/// Hiding the product's `⊔` takes the second copy off and leaves the
+/// first, which the other `⊔` still draws; hiding both takes it off.
+///
+/// *Breaks if* a drawing is keyed by the body alone, so one `⊔`'s hide
+/// takes a piece another still draws.
+#[test]
+fn a_piece_two_unions_draw_stays_until_both_are_hidden() {
+    use pncad::document::{Bodies, BodyRead};
+    let tol = Tol::witness();
+    let (doc, a) = extrude(&Doc::empty_derived("picture-shared-piece", tol), 0.0, tol);
+    let (doc, b) = extrude(&doc, 2.0 * SIDE, tol);
+    let (doc, a_copy) = common::placed(&doc, a, tol);
+    let (doc, b_copy) = common::placed(&doc, b, tol);
+    let product = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the product reads the world's copies");
+    let (doc, other) = common::inserted(
+        &doc,
+        Node::Assemble {
+            members: Bodies::Spelled(vec![BodyRead::plain(pncad::document::Operand::Node(
+                a_copy,
+            ))]),
+        },
+        tol,
+    );
+    let mut session = landed(doc, tol);
+    let hide = |session: &mut DocSession, node| {
+        let outcome = session.perform(SessionOp::SetBodyHidden { node, hidden: true });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    };
+    hide(&mut session, product);
+    let view = session.display_view();
+    assert!(view.hides(b_copy, 0), "the product's own piece goes");
+    assert!(
+        !view.hides(a_copy, 0),
+        "the other ⊔ still draws the shared piece"
+    );
+    hide(&mut session, other);
+    assert!(
+        session.display_view().hides(a_copy, 0),
+        "with both hidden, the piece goes"
+    );
+}
+
+/// **The product slot's body is always drawn**, whatever reads it: with
+/// the product one copy that a union also reads, the copy and the union
+/// are both drawn, coincident — a pick there is `Ambiguous`, which is a
+/// truthful picture of two bodies in one place — and the other operand,
+/// which only the union reads, is not drawn.
+///
+/// *Breaks if* the product's body is hidden by an operation reading it,
+/// or the picture stops drawing the union beside it.
+#[test]
+fn the_products_body_is_drawn_whatever_reads_it() {
+    use pncad::document::{Bodies, BodyRead};
+    use pncad::select::HitTestError;
+    let tol = Tol::witness();
+    let (doc, a) = extrude(&Doc::empty_derived("picture-product-read", tol), 0.0, tol);
+    let (doc, b) = extrude(&doc, SIDE / 2.0, tol);
+    let (doc, a_copy) = common::placed(&doc, a, tol);
+    let (doc, b_copy) = common::placed(&doc, b, tol);
+    let (doc, union) = common::inserted(
+        &doc,
+        Node::Union {
+            members: Bodies::Spelled(vec![
+                BodyRead::plain(pncad::document::Operand::Node(a_copy)),
+                BodyRead::plain(pncad::document::Operand::Node(b_copy)),
+            ]),
+        },
+        tol,
+    );
+    let mut session = landed(doc, tol);
+    let outcome = session.perform(SessionOp::SetProduct {
+        bodies: vec![a_copy.into()],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert_eq!(
+        world::drawn_nodes(session.committed_doc())
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        BTreeSet::from([a_copy, union]),
+        "the product's copy and the union; not the copy only the union reads"
+    );
+    let index = common::plate_index(&session);
+    let (_, eval) = session.landed_pair().expect("landed");
+    assert!(
+        matches!(
+            index.face_at(eval, &common::down_at(SIDE / 4.0, SIDE / 2.0)),
+            Err(HitTestError::Ambiguous { .. })
+        ),
+        "the copy and the union coincide there"
+    );
+}
+
+/// **The copy-to-body door**, as a gesture reads it:
+/// - a row `P` of a world copy `W` is a copy of `W`: a pick on it seats
+///   `W`, and `W`'s copies are `[P]`;
+/// - a copy of member 1 of a family names member 1, and seats itself
+///   (the variable it reads is the family);
+/// - a copy of a body into that body's own space is no gesture's copy:
+///   the body's copies are its world copy alone.
+///
+/// *Breaks if* families are excluded from the copies (the row seats
+/// itself), the door drops a copy's member (it reads member 0), or a
+/// copy into its body's own space is taken over with the world's.
+#[test]
+fn a_gesture_reads_a_copy_through_one_door() {
+    let tol = Tol::witness();
+    let (doc, body) = extrude(&Doc::empty_derived("picture-door", tol), 0.0, tol);
+    let (doc, w) = common::placed(&doc, body, tol);
+    let (doc, row) = row_of(doc, w, "k", 2);
+    let w_out = doc.output(w, 0).expect("a copy");
+    assert_eq!(world::seat_of(&doc, row), w, "a pick on the row seats W");
+    assert_eq!(world::placed_var(&doc, row), Some(w_out));
+    assert_eq!(world::placements_of_var(&doc, w_out), vec![row]);
+
+    // A copy of member 1 of a family, placed into the world.
+    let (doc, xs) = row_of(doc, body, "j", 3);
+    let (doc, member) = common::inserted(
+        &doc,
+        Node::place(
+            pncad::document::BodyRead::indexed(xs, vec![pncad::document::Formula::count(1)]),
+            pncad::document::Operand::Var(VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    assert_eq!(world::body_of(&doc, member, 0), (xs, 1), "member 1, not 0");
+    assert_eq!(world::seat_of(&doc, member), member);
+    assert_eq!(world::placed_var(&doc, member), None);
+
+    // A copy of the body into its own space.
+    let own = doc.node_space(body).expect("its own space");
+    let (doc, inside) = common::inserted(
+        &doc,
+        Node::place(
+            pncad::document::BodyRead::plain(pncad::document::Operand::Node(body)),
+            pncad::document::Operand::Var(own),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    let body_out = doc.output(body, 0).expect("a body");
+    assert_eq!(
+        world::placements_of_var(&doc, body_out),
+        vec![w],
+        "the copy into the body's own space is not a gesture's copy"
+    );
+    assert_eq!(world::seat_of(&doc, inside), inside);
+}

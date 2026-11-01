@@ -591,6 +591,7 @@ impl Refusal {
                     AdmissionFault::NotEvaluated { .. } => 2,
                     AdmissionFault::NoSuchNode { .. }
                     | AdmissionFault::NotABody { .. }
+                    | AdmissionFault::NotDrawn { .. }
                     | AdmissionFault::NotASpace { .. }
                     | AdmissionFault::InTheWorld { .. }
                     | AdmissionFault::NoSpace { .. }

@@ -444,10 +444,13 @@ fn a_feature_re_points_each_placement_of_its_target() {
         outcome.committed
     );
     // Nothing reads the second transform's copy, so it is drawn, in the
-    // body's own space, beside the two copies it did not touch.
+    // body's own space, beside the two copies it did not touch. A copy
+    // into the space of what it copies is no gesture's copy, so a pick on
+    // it is on the transform itself.
+    let second = outcome.minted[0];
     assert_eq!(
         common::world(session.committed_doc()),
-        [world, vec![body]].concat()
+        [world, vec![second]].concat()
     );
 }
 
@@ -2351,12 +2354,13 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
 
-/// The whole document's drawn volume — the world's copies the
-/// viewport draws, gathered as one `⊔`, as one number.
+/// The world's volume — the copies placed into the world, gathered as
+/// one `⊔`, as one number.
 ///
 /// **The world and not a node**, because every row below this line
-/// is about WHAT IS DRAWN rather than about what one node evaluates
-/// to, and the two differ as soon as a body is authored and not placed.
+/// is about what the world holds rather than about what one node
+/// evaluates to, and the two differ as soon as a body is authored and
+/// not placed.
 /// The gather is of the landed document with its product set to the
 /// world's copies, so the session's own document is not edited.
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
@@ -2537,7 +2541,10 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
         "the pattern took nothing out of the world, and is drawn itself",
     );
     let drawn = drawn_volume(&mut session, tol);
-    assert!(near(drawn, one), "one body drawn {drawn}");
+    assert!(
+        near(drawn, one),
+        "the world's copies gather one body: {drawn}"
+    );
 
     let second = session_insert(
         &mut session,
@@ -2552,7 +2559,7 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
         "the member read is placed after the body",
     );
     let both = drawn_volume(&mut session, tol);
-    assert!(near(both, one * 2.0), "both copies drawn {both}");
+    assert!(near(both, one * 2.0), "both world copies gather: {both}");
     assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
 }
 

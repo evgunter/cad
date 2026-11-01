@@ -28,8 +28,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use pncad::document::{
-    Doc, FreeVar, Node, Operand, OperandSlot, PortKind, ProfileProgram, RecipeNodeId, VarDef,
-    VarId, VarKind,
+    Doc, Node, Operand, OperandSlot, PortKind, ProfileProgram, RecipeNodeId, VarDef, VarId,
+    VarKind, eval_var_count,
 };
 use pncad::prelude::StableName;
 
@@ -40,8 +40,8 @@ use pncad::prelude::StableName;
 pub enum Covers {
     /// Every body of the value but these.
     AllBut(BTreeSet<u32>),
-    /// The one body at this index.
-    One(u32),
+    /// These bodies alone.
+    Only(BTreeSet<u32>),
 }
 
 impl Covers {
@@ -54,14 +54,17 @@ impl Covers {
     pub fn covers(&self, body: u32) -> bool {
         match self {
             Self::AllBut(taken) => !taken.contains(&body),
-            Self::One(at) => *at == body,
+            Self::Only(bodies) => bodies.contains(&body),
         }
     }
 }
 
-/// **One body the picture draws**: the bodies of `node`'s value it
-/// covers, and the `⊔`s it is drawn as a piece of, outermost first
-/// (empty for a body drawn on its own).
+/// **One drawing of a body**: the bodies of `node`'s value it covers,
+/// and the `⊔`s it is drawn as a piece of, outermost first (empty for a
+/// body drawn on its own). A body two drawings cover — a piece two `⊔`s
+/// draw, the product's piece an operator also reads — is drawn once,
+/// and is out of the picture only once every drawing of it is
+/// ([`crate::display::DisplayView::hides`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Drawn {
     /// The node whose value is drawn.
@@ -88,59 +91,93 @@ impl Drawn {
     }
 }
 
-/// **What `var`, read as a body, takes**: the operation defining it and
-/// which of its bodies. `at` is the read's indices (`xs[i]`), empty for
-/// a plain read. A selection takes the body it is read in; a pick of a
-/// piece of a copy takes the copy, which is drawn as one body. `None`
-/// for a variable that is no body's.
-fn taken_by(doc: &Doc<ProfileProgram>, var: VarId, at: &[VarId]) -> Option<(RecipeNodeId, Covers)> {
+/// **What `var`, read as a body by `reader` with the indices `at`,
+/// takes**: the operation defining it and which of its bodies. A read
+/// of a split's port takes that half; an indexed read (`xs[i]`) the
+/// members its indices name, over every member of `reader`
+/// ([`members_read`]); a plain read the whole value. A selection takes
+/// the body it is read in; a pick of a piece of a copy takes the copy,
+/// which is drawn as one body. `None` for a variable that is no body's.
+fn taken_by(
+    doc: &Doc<ProfileProgram>,
+    reader: RecipeNodeId,
+    var: VarId,
+    at: &[VarId],
+) -> Option<(RecipeNodeId, Covers)> {
     match doc.var(var)?.def() {
         VarDef::Output { node, port } => {
             let covers = if matches!(doc.node(*node)?, Node::Split { .. }) {
-                Covers::One(u32::from(*port))
+                Covers::Only(BTreeSet::from([u32::from(*port)]))
+            } else if at.is_empty() {
+                Covers::all()
             } else {
-                member_at(doc, at).map_or_else(Covers::all, Covers::One)
+                members_read(doc, reader, *node, at).map_or_else(Covers::all, |members| {
+                    Covers::Only(members.into_iter().collect())
+                })
             };
             Some((*node, covers))
         }
-        VarDef::Select(select) => taken_by(doc, select.body, &[]),
-        VarDef::Pick(pick) => taken_by(doc, pick.placement, &[]),
+        VarDef::Select(select) => taken_by(doc, reader, select.body, &[]),
+        VarDef::Pick(pick) => taken_by(doc, reader, pick.placement, &[]),
         _ => None,
     }
 }
 
-/// **The member a read's indices name**, where the recipe writes it: one
-/// index, a count written as a constant. `None` for a plain read, and
-/// for a read whose member only an evaluation knows (an index read at
-/// another index, a family of several indices): that read is taken to
-/// read the family whole.
-fn member_at(doc: &Doc<ProfileProgram>, at: &[VarId]) -> Option<u32> {
-    let [index] = at else {
-        return None;
+/// **The members of the family `family` an indexed read by `reader`
+/// names**, one per member of `reader` in its member order (one for a
+/// reader evaluated once): each member's index values, the read's
+/// indices evaluated in that member's environment, found among the
+/// family's own ([`Doc::member_envs`], the evaluator's enumeration).
+/// `None` where a count, an index or a member does not evaluate: that
+/// read refuses at evaluation, and is taken to read the family whole.
+fn members_read(
+    doc: &Doc<ProfileProgram>,
+    reader: RecipeNodeId,
+    family: RecipeNodeId,
+    at: &[VarId],
+) -> Option<Vec<u32>> {
+    let family_reach = doc.node_reach(family);
+    let members: Vec<Vec<i64>> = doc
+        .member_envs::<f64>(family_reach.chain()?)
+        .map(|member| member.map(|member| member.at))
+        .collect::<Result<_, _>>()
+        .ok()?;
+    let reader_reach = doc.node_reach(reader);
+    let chain = reader_reach.chain()?;
+    let envs = if chain.is_empty() {
+        vec![doc.var_env::<f64>()]
+    } else {
+        doc.member_envs::<f64>(chain)
+            .map(|member| member.map(|member| member.env))
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?
     };
-    let value = match doc.var(*index)?.def() {
-        VarDef::Free(FreeVar::Count { value }) => *value,
-        VarDef::Defined(expr) => expr.as_integer()?,
-        _ => return None,
-    };
-    u32::try_from(value).ok()
+    envs.iter()
+        .map(|env| {
+            let values = at
+                .iter()
+                .map(|&index| eval_var_count(index, env).ok())
+                .collect::<Option<Vec<i64>>>()?;
+            let position = members.iter().position(|member| *member == values)?;
+            u32::try_from(position).ok()
+        })
+        .collect()
 }
 
-/// **How many bodies `node` builds**, where the recipe says: a split's
-/// two halves, or a family's members over one index whose count is
-/// written as a constant. `None` otherwise, and then a node whose
-/// bodies are each read alone is still drawn, with no body, in its
-/// space.
+/// **How many bodies `node` builds**, read off the recipe: a split's
+/// two halves, a family's members ([`Doc::member_envs`]), one body
+/// otherwise. `None` where a count does not evaluate, which refuses the
+/// node at evaluation.
 fn body_count(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<u32> {
     if matches!(doc.node(node)?, Node::Split { .. }) {
         return Some(2);
     }
     let reach = doc.node_reach(node);
-    let [index] = reach.chain()? else {
-        return None;
-    };
-    let count = &doc.var(*index)?.def().index()?.count;
-    u32::try_from(doc.written(count).as_integer()?).ok()
+    let chain = reach.chain()?;
+    if chain.is_empty() {
+        return Some(1);
+    }
+    u32::try_from(doc.member_envs::<f64>(chain).count()).ok()
 }
 
 /// **Whether a read at `seat` reads a body as a body**: an operand of
@@ -177,9 +214,12 @@ fn reads_as_body(seat: OperandSlot) -> bool {
     }
 }
 
-/// **The reads `node` takes bodies by**, each resolved to what it takes
-/// ([`taken_by`]), in field order.
-fn takes(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Vec<(RecipeNodeId, Covers)> {
+/// **The reads the node `id` takes bodies by**, each resolved to what
+/// it takes ([`taken_by`]), in field order.
+fn takes(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<(RecipeNodeId, Covers)> {
+    let Some(node) = doc.node(id) else {
+        return Vec::new();
+    };
     node.operand_rows()
         .into_iter()
         .filter(|&(seat, _)| reads_as_body(seat))
@@ -188,7 +228,7 @@ fn takes(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Vec<(RecipeN
                 .body_read(seat)
                 .map(|read| read.at.clone())
                 .unwrap_or_default();
-            taken_by(doc, var, &at)
+            taken_by(doc, id, var, &at)
         })
         .collect()
 }
@@ -202,46 +242,130 @@ pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
     })
 }
 
-/// **The bodies the picture draws**, in document order (module docs):
-/// every body no operation reads as a body, a family less the members
-/// read alone, and a `⊔` as its pieces.
-pub fn drawn_bodies(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
-    // Per node: `None` where some read takes it whole, else the bodies
-    // read alone.
-    let mut taken: BTreeMap<RecipeNodeId, Option<BTreeSet<u32>>> = BTreeMap::new();
-    for id in doc.ids() {
-        let Some(node) = doc.node(id) else { continue };
-        for (at, covers) in takes(doc, node) {
-            let entry = taken.entry(at).or_insert_with(|| Some(BTreeSet::new()));
-            match (covers, entry.as_mut()) {
-                (Covers::One(body), Some(bodies)) => {
-                    bodies.insert(body);
+/// **The picture a document draws**, computed once (module docs): every
+/// drawing of a body, and the product's pieces among them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Picture {
+    /// Every drawing: in document order, each body no operation reads
+    /// as a body (a family less the members read alone), a `⊔` as its
+    /// pieces; then the product's pieces no such drawing is, since the
+    /// product slot's body is always drawn.
+    pub drawn: Vec<Drawn>,
+    /// What the product slot reaches, a `⊔` as its pieces: a drawn
+    /// body none of these covers is outside the product, and the
+    /// picture tints it so.
+    pub product: Vec<Drawn>,
+}
+
+impl Picture {
+    /// The picture `doc` draws.
+    pub fn of(doc: &Doc<ProfileProgram>) -> Self {
+        // Per node: `None` where some read takes it whole, else the
+        // bodies read alone.
+        let mut taken: BTreeMap<RecipeNodeId, Option<BTreeSet<u32>>> = BTreeMap::new();
+        for id in doc.ids() {
+            for (at, covers) in takes(doc, id) {
+                let entry = taken.entry(at).or_insert_with(|| Some(BTreeSet::new()));
+                match (covers, entry.as_mut()) {
+                    (Covers::Only(bodies), Some(held)) => held.extend(bodies),
+                    _ => *entry = None,
                 }
-                _ => *entry = None,
             }
         }
-    }
-    let mut drawn = Vec::new();
-    for id in doc.ids() {
-        let Some(node) = doc.node(id) else { continue };
-        if !builds_a_body(node) {
-            continue;
-        }
-        let covers = match taken.get(&id) {
-            None => Covers::all(),
-            // Every body read alone is the node read whole.
-            Some(Some(bodies))
-                if body_count(doc, id)
-                    .is_some_and(|count| (0..count).all(|k| bodies.contains(&k))) =>
-            {
+        let mut drawn = Vec::new();
+        for id in doc.ids() {
+            if !doc.node(id).is_some_and(builds_a_body) {
                 continue;
             }
-            Some(Some(bodies)) => Covers::AllBut(bodies.clone()),
-            Some(None) => continue,
-        };
-        pieces(doc, id, covers, &mut Vec::new(), &mut drawn);
+            let covers = match taken.get(&id) {
+                None => Covers::all(),
+                Some(None) => continue,
+                // Every body read alone is the node read whole.
+                Some(Some(bodies))
+                    if body_count(doc, id)
+                        .is_some_and(|count| (0..count).all(|body| bodies.contains(&body))) =>
+                {
+                    continue;
+                }
+                Some(Some(bodies)) => Covers::AllBut(bodies.clone()),
+            };
+            pieces(doc, id, covers, &mut Vec::new(), &mut drawn);
+        }
+        let mut product = Vec::new();
+        if let Some(var) = doc.product()
+            && let Some((node, covers)) = taken_by(doc, RecipeNodeId::WORLD, var, &[])
+        {
+            pieces(doc, node, covers, &mut Vec::new(), &mut product);
+        }
+        // The product slot's body is in the picture whatever reads it.
+        for piece in &product {
+            if !drawn.contains(piece) {
+                drawn.push(piece.clone());
+            }
+        }
+        Self { drawn, product }
     }
-    drawn
+
+    /// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):
+    /// the world, and every space that holds a drawn body, read off the
+    /// recipe ([`Doc::node_space`]).
+    pub fn shown_spaces(&self, doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
+        self.drawn
+            .iter()
+            .filter_map(|drawn| doc.node_space(drawn.node))
+            .chain([VarId::WORLD])
+            .collect()
+    }
+
+    /// The nodes some body of which is drawn, in document order, each
+    /// once.
+    pub fn nodes(&self) -> Vec<RecipeNodeId> {
+        let mut seen = BTreeSet::new();
+        self.drawn
+            .iter()
+            .map(|drawn| drawn.node)
+            .filter(|&node| seen.insert(node))
+            .collect()
+    }
+
+    /// Whether some body of `node` is drawn.
+    pub fn is_drawn(&self, node: RecipeNodeId) -> bool {
+        self.drawn.iter().any(|drawn| drawn.node == node)
+    }
+
+    /// Whether body `body` of `node` is drawn and the product does not
+    /// reach it.
+    pub fn is_outside(&self, node: RecipeNodeId, body: u32) -> bool {
+        !self.product.iter().any(|piece| piece.draws(node, body))
+    }
+
+    /// **Which bodies of `node` the drawings cover**, by body index, or
+    /// `None` for every body of its value: a node drawn whole, or one
+    /// whose bodies the recipe does not count ([`body_count`]), which
+    /// is then built whole and narrowed by [`Drawn::draws`].
+    pub fn indices(&self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<Vec<u32>> {
+        let mut indices = BTreeSet::new();
+        for covers in self
+            .drawn
+            .iter()
+            .filter(|d| d.node == node)
+            .map(|d| &d.covers)
+        {
+            match covers {
+                Covers::Only(bodies) => indices.extend(bodies),
+                Covers::AllBut(taken) if taken.is_empty() => return None,
+                Covers::AllBut(taken) => {
+                    indices.extend((0..body_count(doc, node)?).filter(|k| !taken.contains(k)));
+                }
+            }
+        }
+        Some(indices.into_iter().collect())
+    }
+}
+
+/// **The bodies the picture draws** ([`Picture::of`]'s drawings).
+pub fn drawn_bodies(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
+    Picture::of(doc).drawn
 }
 
 /// **`node`'s `covers`, drawn**: as itself, or for a `⊔` as each operand
@@ -254,68 +378,24 @@ fn pieces(
     within: &mut Vec<RecipeNodeId>,
     out: &mut Vec<Drawn>,
 ) {
-    match doc.node(node) {
-        Some(assemble @ Node::Assemble { .. }) if !within.contains(&node) => {
-            within.push(node);
-            for (operand, taken) in takes(doc, assemble) {
-                pieces(doc, operand, taken, within, out);
-            }
-            within.pop();
+    if matches!(doc.node(node), Some(Node::Assemble { .. })) && !within.contains(&node) {
+        within.push(node);
+        for (operand, taken) in takes(doc, node) {
+            pieces(doc, operand, taken, within, out);
         }
-        _ => out.push(Drawn {
+        within.pop();
+    } else {
+        out.push(Drawn {
             node,
             covers,
             within: within.clone(),
-        }),
+        });
     }
 }
 
-/// **Which bodies of `node` the drawings in `drawn` cover**, by body
-/// index, or `None` for every body of its value: a node drawn whole, or
-/// a family less members read alone whose count the recipe does not
-/// write, which is then built whole and narrowed by
-/// [`Drawn::draws`].
-pub fn drawn_indices(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-    drawn: &[Drawn],
-) -> Option<Vec<u32>> {
-    let mut indices = BTreeSet::new();
-    for covers in drawn.iter().filter(|d| d.node == node).map(|d| &d.covers) {
-        match covers {
-            Covers::One(body) => {
-                indices.insert(*body);
-            }
-            Covers::AllBut(taken) if taken.is_empty() => return None,
-            Covers::AllBut(taken) => {
-                indices.extend((0..body_count(doc, node)?).filter(|k| !taken.contains(k)));
-            }
-        }
-    }
-    Some(indices.into_iter().collect())
-}
-
-/// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):
-/// the world, and every space that holds a drawn body
-/// ([`drawn_bodies`]), read off the recipe ([`Doc::node_space`]).
+/// **The spaces the picture shows** ([`Picture::shown_spaces`]).
 pub fn shown_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
-    drawn_bodies(doc)
-        .iter()
-        .filter_map(|drawn| doc.node_space(drawn.node))
-        .chain([VarId::WORLD])
-        .collect()
-}
-
-/// **What the product slot reaches**, as the picture draws it: the body
-/// it reads, a `⊔` as its pieces ([`drawn_bodies`]' rule). Empty where
-/// it reads nothing. A drawn body none of these covers is outside the
-/// product, and the picture tints it so.
-pub fn product_pieces(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
-    let mut out = Vec::new();
-    if let Some((node, covers)) = doc.product().and_then(|var| taken_by(doc, var, &[])) {
-        pieces(doc, node, covers, &mut Vec::new(), &mut out);
-    }
-    out
+    Picture::of(doc).shown_spaces(doc)
 }
 
 /// **The construction whose own space `node`'s value lives in**, read
@@ -332,20 +412,46 @@ pub fn construction_of_space(
     (!matches!(doc.node(construction)?, Node::World | Node::Space)).then_some(construction)
 }
 
-/// **The nodes the picture draws some body of** ([`drawn_bodies`]), in
-/// document order, each once.
+/// **The nodes the picture draws some body of** ([`Picture::nodes`]).
 pub fn drawn_nodes(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    let mut seen = BTreeSet::new();
-    drawn_bodies(doc)
-        .into_iter()
-        .map(|drawn| drawn.node)
-        .filter(|&node| seen.insert(node))
-        .collect()
+    Picture::of(doc).nodes()
 }
 
-/// **Whether the picture draws some body of `node`** ([`drawn_bodies`]).
+/// **Whether the picture draws some body of `node`** ([`Picture::is_drawn`]).
 pub fn is_drawn(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    drawn_bodies(doc).iter().any(|drawn| drawn.node == node)
+    Picture::of(doc).is_drawn(node)
+}
+
+/// **The spaces a gesture's copies stand in**: the world, and every
+/// `new_space()` no placement reads a source body of. A placement into
+/// one of them is a copy a gesture authors through and takes over
+/// ([`copy_source`], [`placements_of_var`]); one into a space whose
+/// bodies a placement copies out — a body moved against its own
+/// geometry, a pattern in its body's own space — is a relation inside
+/// that space, and a gesture reads it as the node it is.
+///
+/// This is the gesture vocabulary's own rule, not the picture's: what a
+/// takeover re-points is the takeover's to decide
+/// (`work/doors/`), and the picture draws by [`Picture::of`].
+fn copy_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
+    let placements = doc.placements();
+    let read: BTreeSet<VarId> = placements
+        .iter()
+        .filter_map(|&placement| copied_var(doc, placement))
+        .filter_map(|var| doc.space_of(var))
+        .collect();
+    placements
+        .iter()
+        .filter_map(|&placement| doc.node_space(placement))
+        .chain([VarId::WORLD])
+        .filter(|&space| {
+            space == VarId::WORLD
+                || (!read.contains(&space)
+                    && doc
+                        .defined_by(space)
+                        .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))))
+        })
+        .collect()
 }
 
 /// **The body a copy copies**: a `Place`'s source's read; `None` for
@@ -358,62 +464,109 @@ pub fn copied_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId
     }
 }
 
-/// **The body the drawn copy `node` places** ([`copied_var`] of a
-/// `Place` the picture draws), or `None` for any other node: a pick
-/// lands on a drawn copy only, and a copy the picture does not draw is
-/// a body some operation reads, which a seat takes as itself. A family
-/// of copies (a placement evaluated once per member) answers `None`
-/// too: a pick on one of its members is on the family, which is what
-/// a seat over it takes.
+/// **What a copy's body copies**: the variable the placement reads, the
+/// operation defining it and the port, and the body of that
+/// operation's value its body `body` is a copy of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Source {
+    /// The variable read: a body, or a family for an indexed read.
+    pub var: VarId,
+    /// The operation defining it.
+    pub operation: RecipeNodeId,
+    /// Its port.
+    pub port: u8,
+    /// The body of the operation's value copied: the member an indexed
+    /// read names, the member of a family copied whole, the port's
+    /// body otherwise.
+    pub body: u32,
+    /// Whether the read names members of a family (`xs[i]`).
+    pub member: bool,
+}
+
+/// **The one copy-to-body door**: what body `body` of `node` copies,
+/// where `node` is a `Place` into a space a gesture's copies stand in
+/// ([`copy_spaces`]); `None` for any other node, which a pick and a
+/// seat take as itself.
+pub fn copy_source(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> Option<Source> {
+    let Some(Node::Place { source, .. }) = doc.node(node) else {
+        return None;
+    };
+    if !copy_spaces(doc).contains(&doc.node_space(node)?) {
+        return None;
+    }
+    let (operation, port) = doc.defined_by(source.read)?;
+    let member = source.is_indexed();
+    let body = if member {
+        let members = members_read(doc, node, operation, &source.at)?;
+        *members
+            .get(usize::try_from(body).ok()?)
+            .or(members.first())?
+    } else if doc.node_reach(operation).is_none() {
+        u32::from(port)
+    } else {
+        body
+    };
+    Some(Source {
+        var: source.read,
+        operation,
+        port,
+        body,
+        member,
+    })
+}
+
+/// **The body the copy `node` places**, a gesture's copy of one body
+/// ([`copy_source`]): `None` for any other node, and for a copy of
+/// members read by index, which a seat takes as the copy itself — the
+/// variable it reads is the family, and a seat over it would read every
+/// member.
 pub fn placed_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    copied_var(doc, node).filter(|_| is_copy(doc, node) && is_drawn(doc, node))
+    copy_source(doc, node, 0)
+        .filter(|source| !source.member)
+        .map(|source| source.var)
 }
 
-/// **Whether `node` is one copy**: a `Place` evaluated once, not a
-/// family of copies (a placement whose reads reach an index).
-fn is_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
-    matches!(doc.node(node), Some(Node::Place { .. })) && doc.node_reach(node).is_none()
-}
-
-/// **The drawn copies of `var`**, in document order: the placements
-/// whose source reads it and whose copy the picture draws, each one
-/// copy ([`placed_var`]'s reading).
+/// **The copies of `var`**, in document order: the gesture's copies
+/// ([`copy_source`]) whose placement reads it.
 pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
-    drawn_copies_where(doc, |copied| copied == var)
+    copies_where(doc, |copied| copied == var)
 }
 
-/// **The drawn copies of any output of `node`**, in document order.
+/// **The copies of any output of `node`**, in document order.
 pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
     let outputs = doc.outputs(node);
-    drawn_copies_where(doc, |copied| outputs.contains(&copied))
+    copies_where(doc, |copied| outputs.contains(&copied))
 }
 
-/// The drawn copies ([`placed_var`]) whose source's read `copies`
-/// accepts, in document order, each once.
-fn drawn_copies_where(
-    doc: &Doc<ProfileProgram>,
-    copies: impl Fn(VarId) -> bool,
-) -> Vec<RecipeNodeId> {
-    drawn_nodes(doc)
+/// The placements into the spaces a gesture's copies stand in whose
+/// source's read `copies` accepts, in document order.
+fn copies_where(doc: &Doc<ProfileProgram>, copies: impl Fn(VarId) -> bool) -> Vec<RecipeNodeId> {
+    let spaces = copy_spaces(doc);
+    doc.placements()
         .into_iter()
-        .filter(|&node| is_copy(doc, node))
-        .filter(|&node| copied_var(doc, node).is_some_and(&copies))
+        .filter(|&placement| {
+            doc.node_space(placement)
+                .is_some_and(|s| spaces.contains(&s))
+        })
+        .filter(|&placement| copied_var(doc, placement).is_some_and(&copies))
         .collect()
 }
 
-/// **Whether a drawn copy copies an output of `node`** — what the
-/// feature tree's placed badge marks.
+/// **Whether a copy copies an output of `node`** — what the feature
+/// tree's placed badge marks.
 pub fn is_placed(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     !placements_of(doc, node).is_empty()
 }
 
 /// **A pick on a copy, read on its body**: the operation defining the
-/// body `node` places, that body's index within the operation's value,
-/// and `name`, which a copy carries as its body does.
+/// body `node` places, that body's index within the operation's value —
+/// the member an indexed copy names — and `name`, which a copy carries
+/// as its body does.
 ///
-/// A pick whose node is not a drawn copy is already on a body — a
-/// construction, an operator's result — and comes back as it was. A placement whose body is gone keeps its own
-/// node: there is no body to read the pick on.
+/// A pick on anything else is already on a body — a construction, an
+/// operator's result, a relation inside a space — and comes back as it
+/// was. A placement whose body is gone keeps its own node: there is no
+/// body to read the pick on.
 pub fn on_body(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
@@ -424,38 +577,31 @@ pub fn on_body(
     (operation, body, name.clone())
 }
 
-/// **The body a drawn copy is**: for a placement's copy, the
-/// operation defining the body it places and that body's index in the
-/// operation's value; any other drawn body as it is.
+/// **The body a picked body is**: through [`copy_source`] for a copy,
+/// as it is otherwise.
 pub fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: u32) -> (RecipeNodeId, u32) {
-    placed_var(doc, node)
-        .and_then(|var| doc.defined_by(var))
-        .map_or((node, body), |(operation, port)| {
-            (operation, u32::from(port))
-        })
+    copy_source(doc, node, body).map_or((node, body), |source| (source.operation, source.body))
 }
 
 /// **The node a seat takes for a pick on `node`**: the operation whose
-/// body a placement places, so a tool authors against the body
-/// and not against its copy; any other node as it is.
+/// body a copy places ([`placed_var`]), so a tool authors against the
+/// body and not against its copy; any other node as it is.
 pub fn seat_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
-    placed_var(doc, node)
-        .and_then(|var| doc.operation_of(var))
-        .unwrap_or(node)
+    seat_read(doc, node, None).0
 }
 
 /// **The read a seat takes for a pick on `node`**: the operation and
-/// port whose body a placement places, or `node` itself with the
-/// output a viewport pick hit (`body`). The port is kept only for an
-/// operation that defines several outputs (a split's halves); one with
-/// a single output is read by naming it alone.
+/// port whose body a copy places ([`placed_var`]), or `node` itself
+/// with the output a viewport pick hit (`body`). The port is kept only
+/// for an operation that defines several outputs (a split's halves);
+/// one with a single output is read by naming it alone.
 pub fn seat_read(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     body: Option<u32>,
 ) -> (RecipeNodeId, Option<u8>) {
-    let (node, port) = match placed_var(doc, node).and_then(|var| doc.defined_by(var)) {
-        Some((operation, port)) => (operation, Some(port)),
+    let (node, port) = match copy_source(doc, node, 0).filter(|source| !source.member) {
+        Some(source) => (source.operation, Some(source.port)),
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
     // A port is named only where the node holds several outputs: the
@@ -532,21 +678,30 @@ pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<Recipe
         .or_else(|| minted.first().copied())
 }
 
-/// **The bodies the product reads** (D10 `[operations]`): the operands
-/// of the `⊔` the product slot reads, in order, or the one body it
-/// reads; empty where it reads nothing or a body that is gone.
+/// **The bodies the product reads** (D10 `[operations]`): the
+/// operands of the `⊔` the product slot reads, in order, or the one
+/// body it reads; empty where it reads nothing or a body that is gone.
+/// The pieces of the same reading, one `⊔` deep — [`Picture::product`]
+/// is the whole of it, every `⊔` as its pieces.
 pub fn product_reads(doc: &Doc<ProfileProgram>) -> Vec<VarId> {
-    let Some(var) = doc.product().filter(|&var| doc.operation_of(var).is_some()) else {
+    let Some(var) = doc.product() else {
         return Vec::new();
     };
     match doc.operation_of(var).and_then(|at| doc.node(at)) {
+        None => Vec::new(),
         Some(Node::Assemble { members }) => members
             .rows()
             .into_iter()
             .map(|(_, read)| read.read)
             .collect(),
-        _ => vec![var],
+        Some(_) => vec![var],
     }
+}
+
+/// **What the product slot reaches**, as the picture draws it
+/// ([`Picture::product`]).
+pub fn product_pieces(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
+    Picture::of(doc).product
 }
 
 /// **The copy a world placement defines**, the body a product can read:

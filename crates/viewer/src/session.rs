@@ -1259,7 +1259,7 @@ impl DocSession {
 
     /// The display snapshot the scene and pick paths consume.
     pub fn display_view(&self) -> DisplayView {
-        self.display.view(self.doc(), self.evaluation())
+        self.display.view(self.doc())
     }
 
     /// The directory this session resolves part references against —
@@ -1824,15 +1824,20 @@ impl DocSession {
                 }
             }
             SessionOp::PreviewFreeMove { node, frame } => {
-                match self.display.preview_free_move(node, frame, self.tol()) {
+                match self
+                    .display
+                    .preview_free_move(self.history.doc(), node, frame, self.tol())
+                {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
             }
-            SessionOp::CommitFreeMove { node } => match self.display.commit_free_move(node) {
-                Ok(()) => OpOutcome::default(),
-                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
-            },
+            SessionOp::CommitFreeMove { node } => {
+                match self.display.commit_free_move(self.history.doc(), node) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
             SessionOp::CancelFreeMove => match self.display.cancel_free_move() {
                 Ok(()) => OpOutcome::default(),
                 Err(fault) => OpOutcome::refused(Refusal::Display(fault)),

@@ -371,6 +371,15 @@ impl Theme {
     }
 }
 
+/// **The neutral palettes' body outside the product**: a cool slate,
+/// so material the product does not reach reads as set aside rather than
+/// as a state of the material. One value, because both palettes mix it
+/// over the same body.
+const NEUTRAL_OUTSIDE: Mark = Mark {
+    tint: Rgba8::opaque(70, 110, 140),
+    strength: MixFraction::new(0.45).unwrap(),
+};
+
 /// The palette this viewer has always drawn, re-expressed in sRGB.
 ///
 /// It claims nothing about colourblind legibility — selection-orange
@@ -402,12 +411,7 @@ const DARK_NEUTRAL: Theme = Theme {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
     },
-    // A cool slate: material the product does not reach reads as
-    // set aside, not as a state of the material.
-    outside: Mark {
-        tint: Rgba8::opaque(70, 110, 140),
-        strength: MixFraction::new(0.45).unwrap(),
-    },
+    outside: NEUTRAL_OUTSIDE,
     actionable: Rgba8::opaque(210, 90, 70),
     // A mid green, away from the selection amber, the hover blue and
     // the probe violet the preview is drawn in.
@@ -453,10 +457,7 @@ const LIGHT_NEUTRAL: Theme = Theme {
         tint: Rgba8::opaque(255, 229, 173),
         strength: MixFraction::new(0.24).unwrap(),
     },
-    outside: Mark {
-        tint: Rgba8::opaque(70, 110, 140),
-        strength: MixFraction::new(0.45).unwrap(),
-    },
+    outside: NEUTRAL_OUTSIDE,
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
     // the one chrome colour that stops being readable.

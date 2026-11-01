@@ -1025,7 +1025,7 @@ impl PictureKey {
 
 /// The pick index for one evaluation generation.
 ///
-/// Built from the document's drawn bodies ([`crate::world::drawn_bodies`]),
+/// Built from the document's picture ([`crate::world::Picture`]),
 /// one [`NodePick`] per drawn body of each node that builds, in document
 /// order then payload order — the order the ids and the drawn parts both
 /// follow, so a reader of either can predict the other. A node whose
@@ -1056,14 +1056,14 @@ pub struct PickIndex {
     /// faces within one space only.
     spaces: BTreeMap<RecipeNodeId, VarId>,
     /// The drawn bodies the product slot does not reach
-    /// ([`crate::world::product_pieces`]), by node and body: drawn
+    /// ([`crate::world::Picture::product`]), by node and body: drawn
     /// tinted as outside the product.
     outside: BTreeSet<(RecipeNodeId, u32)>,
 }
 
 impl PickIndex {
     /// Build the index for `generation` from the document's drawn
-    /// bodies ([`crate::world::drawn_bodies`]), one drawn part per body
+    /// bodies ([`crate::world::Picture`]), one drawn part per body
     /// each covers.
     ///
     /// **Per node, not all or nothing**: a node whose build refuses (no
@@ -1127,7 +1127,7 @@ impl PickIndex {
 
     /// The walk both doors share: every drawn node through `parts`,
     /// the bodies it draws named where they are not all of them
-    /// ([`crate::world::drawn_indices`]), then the id windows over the
+    /// ([`crate::world::Picture::indices`]), then the id windows over the
     /// ones that built.
     fn assemble(
         doc: &Doc<ProfileProgram>,
@@ -1141,28 +1141,24 @@ impl PickIndex {
         let mut parts: Vec<NodePick> = Vec::new();
         let mut undrawn = Vec::new();
         let mut spaces = BTreeMap::new();
-        // The drawn bodies ([`crate::world::drawn_bodies`]), each node
-        // built once and kept for the bodies some drawing of it covers:
-        // a family less the members read alone, a `⊔`'s piece alone.
-        let drawn = crate::world::drawn_bodies(doc);
-        let inside = crate::world::product_pieces(doc);
+        // The picture ([`crate::world::Picture`]), read once: each node
+        // built once, for the bodies some drawing of it covers — a family
+        // less the members read alone, a `⊔`'s piece alone. A body two
+        // drawings cover is one part.
+        let picture = crate::world::Picture::of(doc);
         let mut outside = BTreeSet::new();
-        let mut built_nodes = BTreeSet::new();
-        for node in drawn.iter().map(|d| d.node) {
-            if !built_nodes.insert(node) {
-                continue;
-            }
+        for node in picture.nodes() {
             if let Some(space) = doc.node_space(node) {
                 spaces.insert(node, space);
             }
-            match build_parts(node, crate::world::drawn_indices(doc, node, &drawn)) {
+            match build_parts(node, picture.indices(doc, node)) {
                 Ok(built) => {
                     for part in built {
                         let body = part.body();
-                        if !drawn.iter().any(|d| d.draws(node, body)) {
+                        if !picture.drawn.iter().any(|d| d.draws(node, body)) {
                             continue;
                         }
-                        if !inside.iter().any(|d| d.draws(node, body)) {
+                        if picture.is_outside(node, body) {
                             outside.insert((node, body));
                         }
                         parts.push(part);

@@ -851,22 +851,26 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
         "unhiding restores the copy"
     );
 
-    // FREE-MOVE: the instance's own space is read by the pattern's
-    // copies, which are drawn in the world, so that space is not shown
-    // and the probe has nothing of its own to move — it refuses, typed,
-    // naming the space.
+    // FREE-MOVE: the instance is read by the pattern, and every member
+    // by a world copy, so nothing in the instance's own space is drawn:
+    // the space is not shown, and the instance, which the picture does
+    // not draw, is no handle on it — the probe refuses, typed.
     let space = session
         .doc()
         .node_space(instance)
         .expect("the instance is placed");
     assert!(
+        !viewer::world::shown_spaces(session.doc()).contains(&space),
+        "the patterned instance's space is not shown"
+    );
+    assert!(
         matches!(
             session.perform(SessionOp::BeginFreeMove { node: instance }).refusal,
             Some(Refusal::Display(DisplayFault::Admission(
-                AdmissionFault::NotShown { space: said, .. }
-            ))) if said.id() == space
+                AdmissionFault::NotDrawn { node }
+            ))) if node.id() == instance
         ),
-        "the patterned instance's space is shown through the pattern's copies"
+        "the instance is not drawn, so a free-move on it refuses"
     );
 
     // The family's placement builds bodies, so its hide is accepted.
