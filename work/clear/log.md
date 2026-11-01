@@ -311,3 +311,14 @@ Signed: (CARVE orchestrator)
     - `restrict-derivative-widens-on-a-few-ulp-knot-span` (P3);
     - CLEARTAIL's `derivative-bernstein-row-over-a-sub-interval-has-three-homes` (P3);
     - **`rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot` (P2).** It was found by the widened fuzzer and is pre-existing. At a knot of multiplicity ≥ the degree, a cell ending on the knot drops the one-point meet, so its jet misses the derivative `ders` reads from the next span. It awaits a ruling on `a <= b`, which would widen jets at every p-fold knot.
+- 2026-11-01 — **The price row weighed; JETFRAME dispatched.** The fork drew three designers (byte 42): one Fable and two Opus, labelled A, B and C. The bytes and the mapping are on `analysis/design-fork/injectivity-price`.
+  - **All three, independently, rejected the premise.** Tour lofts are expensive mostly because `rect_jet` builds a rational net's derivative in world coordinates, so its width carries the body's distance from the origin and never shrinks with the cell. It is not the geometry, and not the pricing.
+  - **They converged on:** fix the enclosure, add an oriented distance test, and keep one fixed pair budget per question (Ev's PR 6102 shape for measurement). They rejected a per-body budget and a coarser arm.
+  - **Not an `[ev]` PR,** since there is no split. The one open question is whether loft and sweep doors run the check on every rebuild. That is CARVE's door; the designers advise putting it to Ev with numbers after the fixes land.
+  - **Filed:**
+    - `rect-jet-forms-the-rational-derivative-in-the-absolute-frame` (P0, dispatched as JETFRAME, `clear/jetframe`, single FULL review with an oracle);
+    - `distance-test-separates-boxes-not-directions` (P0, since it blocks the P0 price row);
+    - `budget-refusal-names-no-pair` (P2);
+    - `monotone-halves-retest-the-hull-that-just-failed` (P3).
+  - The price row is parked on the first two.
+  - **Class, recorded:** CLEAR has four filed rows whose enclosure width grows with translation. One home for a rational derivative over a cell is the fix; JETFRAME sweeps for it.
