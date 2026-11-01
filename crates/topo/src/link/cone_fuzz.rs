@@ -1541,7 +1541,13 @@ fn notch(rng: &mut Rng) -> Vec<Corner> {
     let mid = dir(a0 + theta + (tau - theta) / 2.0);
     let r = rng.range(0.2, 2.0);
     let d = norm3([mid[0] * r, mid[1] * r, -1.0]);
-    let len = |rng: &mut Rng, u: [f64; 3]| u.map(|x| x * rng.range(0.5, 2.0));
+    // One length per ray: a length drawn per coordinate turns the ray
+    // off its direction, and the walls oriented by the directions then
+    // bound no one material.
+    let len = |rng: &mut Rng, u: [f64; 3]| {
+        let l = rng.range(0.5, 2.0);
+        u.map(|x| x * l)
+    };
     let (f0, f1, fd) = (len(rng, u0), len(rng, u1), len(rng, d));
     let rays: Vec<[f64; 3]> = (0..4)
         .map(|k| {
@@ -1592,6 +1598,52 @@ fn notch(rng: &mut Rng) -> Vec<Corner> {
     vec![top, wall(f0, u1, 2), wall(f1, u0, 3)]
 }
 
+/// **Whether `faces` bound one material**, as the exact oracle reads
+/// it: just behind each piece's middle (against its outward normal) the
+/// material, just in front of it not. A cone whose outward normals do
+/// not agree with one material is no solid's corner, and the reader
+/// and the oracle would read two materials.
+fn one_material(faces: &[Vec<Sector>], oracle: &Oracle, rng: &mut Rng) -> bool {
+    faces.iter().flatten().all(|s| {
+        let (a, b) = (norm3(s.start_far), norm3(s.end_far));
+        let at = |h: f64| [0, 1, 2].map(|i| (a[i] + b[i]) / 2.0 + h * s.normal[i]);
+        oracle.class(at(-1e-4), rng) == SideCode::In && oracle.class(at(1e-4), rng) == SideCode::Out
+    })
+}
+
+/// **Every notch drawn is one solid's corner**: its top face reflex,
+/// its walls' outward normals into the notch, so the exact oracle reads
+/// one material behind every face. The draw at `0x0a62fa00d8d51732`'s
+/// fourteenth notch scaled its rays per coordinate: the top turned
+/// 174.6° rather than the 203.3° drawn, its walls were oriented by the
+/// directions as drawn, and the reader and the oracle read two
+/// materials (CI, PR 6247).
+#[test]
+fn every_notch_drawn_is_one_solid() {
+    let mut rng = Rng::from_seed(0x0a62_fa00_d8d5_1732);
+    let band = Band::linear_at(Tol::witness(), 1e-9).unwrap();
+    for k in 0..60 {
+        let (_, faces) = drawn(&notch(&mut rng), Bounds::Chord);
+        let pieces: Vec<Sector> = faces.iter().flatten().cloned().collect();
+        let oracle = cone_oracle(&pieces, band).expect("a notch is a cone at 1e-9");
+        let turn: f64 = faces[0]
+            .iter()
+            .map(|s| {
+                let (a, b) = (norm3(s.start_far), norm3(s.end_far));
+                cross3(a, b)[2].atan2(a[0] * b[0] + a[1] * b[1])
+            })
+            .sum();
+        assert!(
+            turn > std::f64::consts::PI,
+            "notch {k}: its top turns {turn} rad"
+        );
+        assert!(
+            one_material(&faces, &oracle, &mut rng),
+            "notch {k}: one material"
+        );
+    }
+}
+
 /// The probe edge to `far` drawn as `bounds` draws a corner's bound,
 /// and the point the reader fixes it at.
 fn drawn_probe(far: [f64; 3], bounds: Bounds) -> (BoolSector<f64>, [f64; 3]) {
@@ -1635,6 +1687,11 @@ fn check_corners(
     let Some(oracle) = cone_oracle(&pieces, band) else {
         return Vec::new();
     };
+    if !one_material(&faces, &oracle, rng) {
+        return vec![format!(
+            "{what}: the drawn cone bounds no one material (a fixture defect)"
+        )];
+    }
     let mut wrong = Vec::new();
     for (k, &far) in probes.iter().enumerate() {
         let (probe, at) = drawn_probe(far, bounds);
