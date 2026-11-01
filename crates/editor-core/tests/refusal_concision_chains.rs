@@ -792,7 +792,7 @@ test_utils::f6_variants! {
     /// census rows are checked against, so an arm with no row reds and
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
-        Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, Blend,
+        Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
         UnfinishedOperand, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
@@ -1261,6 +1261,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
+        | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::MemberOutOfRange { .. }
         | NodeErrorKind::IndicesUnrelated { .. }
         | NodeErrorKind::NoSuchPiece { .. }
@@ -1770,6 +1771,12 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::EmptyHalf {
                 input: RecipeNodeId::new(0, tagged(3)),
                 half: editor_core::SplitHalf::Above,
+            },
+        ),
+        row(
+            "ContactCarry",
+            NodeErrorKind::ContactCarry {
+                refusal: topo::CarryRefusal::Stale { record: 0 },
             },
         ),
         row(
@@ -4764,7 +4771,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
                     operand: topo::Operand::B,
                     vertex: topo::VertexKey::default(),
                     partner: topo::VertexKey::default(),
-                    neighbourhood: topo::UnreadNeighbourhood::OneFace,
                 },
             },
         ),
