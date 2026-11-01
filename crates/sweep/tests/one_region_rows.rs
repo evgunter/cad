@@ -668,9 +668,9 @@ type Window = ((f64, f64), (f64, f64));
 /// (its band between two parallels), a window in the face validates; the
 /// same window moved half a tube turn, off the face, is refused, as is a
 /// window nested inside another; two windows side by side validate. Each
-/// contractible cycle is read against the other with the essential pair
-/// kept in the cut (`topo::one_region`), and the essential pair against
-/// each window alone.
+/// contractible cycle is read against the other alone and against the
+/// essential pair, and the essential pair against each window alone
+/// (`topo::one_region`).
 fn torus_rings<T: Scalar>(scalar: &str) {
     let at_f64 = donut::<f64>();
     let (face64, frame) = wall(&at_f64, is_torus);
@@ -730,13 +730,11 @@ fn a_torus_face_refuses_a_ring_off_it_or_inside_another() {
 
 /// **The same at the certified scalar.** Two windows apart on the torus
 /// face were refused here once (`CycleSideUndecided`,
-/// `bool_torus_region_component` over `[-1.38, 2.37]`) while the uncut
-/// door placed the same points: a contractible cycle read against the
-/// other alone. Two things settle it, and the row goes red without
-/// either: the essential pair kept in the cut (so a meridian leg from the
-/// window meets a parallel of the band), and the torus door reading a
-/// meridian leg's root on a parallel against the parallel's span before
-/// an in-band component read of it sets the path aside.
+/// `bool_torus_region_component` over `[-1.38, 2.37]`): a meridian leg
+/// from one window's corner has a root at its own start on the plane of
+/// the other's parallel, and the torus door unwound it onto the branch of
+/// a whole turn about `π`, whose cut that root straddles
+/// ([`windows_on_an_azimuth_grid`] states the cause and the fix).
 #[test]
 fn a_torus_face_refuses_a_ring_off_it_or_inside_another_at_the_certified_scalar() {
     torus_rings::<geom_core::Interval>("interval");
@@ -789,4 +787,79 @@ fn a_sense_flipped_wall_is_refused_by_check_6_alone() {
         Vec::new(),
         "the region arm does not read the face check 6 refused"
     );
+}
+
+/// **A torus cycle with no stored joint element has no winding**: the
+/// donut's face with one parallel's element taken away reads that cycle's
+/// winding as `None`, and the region arm exempts the face (check 8
+/// reports the missing element), never reading the gap as the identity.
+/// Read as the identity, the parallel would be contractible, and the face
+/// would hold one essential cycle, refused `EssentialCyclesUnpaired`.
+#[test]
+fn a_torus_cycle_missing_a_joint_element_is_not_read_as_contractible() {
+    let mut donut = donut::<f64>();
+    let (face, _) = wall(&donut, is_torus);
+    let cycles = topo::surface_boundary::surface_cycle_windings(&donut, face).unwrap();
+    let h = cycles[0].0[0];
+    donut.detach_joint(h).expect("a minted joint");
+    let cycles = topo::surface_boundary::surface_cycle_windings(&donut, face).unwrap();
+    assert_eq!(
+        cycles[0].1, None,
+        "the cycle missing an element has no winding"
+    );
+    assert!(
+        cycles[1].1.is_some(),
+        "the other parallel keeps its winding"
+    );
+    assert_eq!(
+        region_findings(&donut),
+        Vec::new(),
+        "the region arm exempts the face, refusing nothing"
+    );
+}
+
+/// **Windows on an azimuth grid, at `T`**: two windows over one azimuth
+/// span and disjoint tube spans, `(-1, -0.1)` and `(0.1, 1)` about the
+/// donut face's middle, validate; so does every point of the face on a
+/// window's meridian line off the window, which the uncut door places in
+/// the face. At `Interval` both were once unread: a parallel leg from a
+/// point on a meridian edge's plane has a root at its own start, and the
+/// torus door unwound its roots onto the branch of a whole turn about
+/// `π`, whose cut that root straddles, so the root's enclosure was the
+/// whole turn and every parallel path from the point was set aside
+/// (`bool_torus_region_span` over about `[-1.5, 1.4]`). The leg's roots
+/// are now unwound onto no branch (`first_harmonic_roots_unwound`).
+fn windows_on_an_azimuth_grid<T: Scalar>(scalar: &str) {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let donut = donut::<T>();
+    let face = same_face(&at_f64, face64, &donut);
+    let mut stacked = donut.clone();
+    plant(&mut stacked, face, frame, (-0.5, 0.5), (-1.0, -0.1));
+    plant(&mut stacked, face, frame, (-0.5, 0.5), (0.1, 1.0));
+    assert_eq!(
+        topo::validate_geometric_structural(&stacked, tol()),
+        Ok(()),
+        "[{scalar}] two windows stacked in tube angle validate"
+    );
+    let mut one = donut;
+    plant(&mut one, face, frame, (-0.3, 0.3), (-0.4, 0.4));
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for (u, s) in [(-0.3, -1.0), (-0.3, -0.45), (-0.3, 0.6), (0.3, -1.0)] {
+        assert_eq!(
+            topo::curved_face_containment(&one, face, pt(frame.at(u, s)), band),
+            Ok(Some(topo::FaceContainment::In)),
+            "[{scalar}] the point ({u}, {s}) on the window's meridian line, off it"
+        );
+    }
+}
+
+#[test]
+fn windows_on_an_azimuth_grid_validate() {
+    windows_on_an_azimuth_grid::<f64>("f64");
+}
+
+#[test]
+fn windows_on_an_azimuth_grid_validate_at_the_certified_scalar() {
+    windows_on_an_azimuth_grid::<geom_core::Interval>("interval");
 }

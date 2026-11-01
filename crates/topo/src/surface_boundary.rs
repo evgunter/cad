@@ -133,6 +133,11 @@ pub fn surface_cycles<T: Real>(
         .collect())
 }
 
+/// **A surface cycle and its winding** ([`surface_cycle_windings`]): its
+/// half-edges in walk order, and the composed joint elements of every
+/// half-edge its walk enters, `None` where one stores no element.
+pub type WoundCycle = (Vec<HalfEdgeKey>, Option<crate::joint::Winding>);
+
 /// **[`surface_cycles`] with each cycle's winding in the face's chart**
 /// ([`crate::joint::Winding`]), read off the same walk: the joint
 /// elements of every half-edge the walk enters, the cycle's members and
@@ -148,11 +153,10 @@ pub fn surface_cycles<T: Real>(
 /// # Errors
 ///
 /// As [`surface_cycles`].
-#[allow(clippy::type_complexity)] // each cycle and its winding
 pub fn surface_cycle_windings<T: Real>(
     body: &Body<T>,
     face: FaceKey,
-) -> Result<Vec<(Vec<HalfEdgeKey>, Option<crate::joint::Winding>)>, &'static str> {
+) -> Result<Vec<WoundCycle>, &'static str> {
     let unresolved = "a surface boundary walked a key that does not resolve";
     let f = body.get_face(face).ok_or(unresolved)?;
     let mut members = Vec::new();

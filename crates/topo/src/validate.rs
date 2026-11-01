@@ -5839,7 +5839,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     element to read its winding from; and a cycle no vertex of which
 ///     its door places (no path settled, an arc the door reads as wound
 ///     past a turn, or an edge whose carrier's reading cannot cross it;
-///     a face check 6 refused for its sense is reported there and not
+///     a face check 6 refused for its orientation is reported there and not
 ///     read again)
 ///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
 ///   - a ring inside another ring on a plane
@@ -8728,17 +8728,12 @@ pub(crate) fn tier3_local_checks_marked<
     // surface cycle of a curved face lies on the face's side of every
     // other, read by the face's point-in-face door cut to that cycle
     // (`crate::one_region`, which states the cuts, the readings and the
-    // exemptions), past the faces check 6 refused for their sense. On a
-    // plane the nesting arm above is that statement's reading.
+    // exemptions), past the faces check 6 refused for their orientation
+    // (`orientation_refused`). On a plane the nesting arm above is that
+    // statement's reading.
     // ------------------------------------------------------------------
-    let sense_refused: Vec<FaceKey> = errors
-        .iter()
-        .filter_map(|e| match e {
-            ValidationError::CurvedSenseInverted { face } => Some(*face),
-            _ => None,
-        })
-        .collect();
-    errors.extend(crate::one_region::region_errors(body, band, &sense_refused));
+    let inverted: Vec<FaceKey> = orientation_refused(&errors).collect();
+    errors.extend(crate::one_region::region_errors(body, band, &inverted));
 
     // ------------------------------------------------------------------
     // Tier 3, check 10: a solid's shells bound winding 0 or 1
@@ -8843,6 +8838,19 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
     pairs
 }
 
+/// **The faces check 6 refused for their orientation**
+/// (`LoopRoleInverted`, `CurvedSenseInverted`), in report order: a face
+/// whose loops or sense say its region is the other side, which a reading
+/// of its region would refuse again under another name. Pinch corners and
+/// the region arm read past them.
+fn orientation_refused(errors: &[ValidationError]) -> impl Iterator<Item = FaceKey> + '_ {
+    errors.iter().filter_map(|e| match e {
+        ValidationError::LoopRoleInverted { face, .. }
+        | ValidationError::CurvedSenseInverted { face } => Some(*face),
+        _ => None,
+    })
+}
+
 /// Check 9's corner half on one face: where one of its loops passes a
 /// point key at two or more corners, each corner's wedge
 /// ([`wedge_holds`]) holds none of that loop's other sides at the
@@ -8882,12 +8890,7 @@ fn pinch_corner_errors<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    let inverted = errors.iter().any(|e| {
-        matches!(e,
-            ValidationError::LoopRoleInverted { face, .. }
-            | ValidationError::CurvedSenseInverted { face } if *face == face_key)
-    });
-    if inverted {
+    if orientation_refused(errors).any(|face| face == face_key) {
         return;
     }
     for (cycle, group) in loop_point_groups(body, face) {

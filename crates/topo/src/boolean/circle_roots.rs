@@ -306,6 +306,40 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     rows: &FirstHarmonicRows,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    harmonic_roots(h, speed, Some((t0, t1)), rows, band)
+}
+
+/// **[`first_harmonic_roots_in_band`] with the roots unwound onto no
+/// branch**: `φ ± acos(−c₀/A₁)` as computed, a representative of each
+/// root modulo a turn, for a reader that reads a root only through the
+/// point it gives (a leg's own parameter, read as `cos s` and `sin s`).
+/// Unwinding onto a span's branch moves a root near the branch's cut by a
+/// turn either way, which at an enclosing scalar is a whole turn's hull
+/// (`Real::periodic_branch`'s tie): a leg whose start lies on the plane
+/// has a root there, at the cut of a whole-turn span's branch.
+///
+/// # Errors
+///
+/// As [`first_harmonic_roots_in_band`].
+pub(super) fn first_harmonic_roots_unwound<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    harmonic_roots(h, speed, None, rows, band)
+}
+
+/// The one body of [`first_harmonic_roots_in_band`] and
+/// [`first_harmonic_roots_unwound`]: the roots on the branch of
+/// `window`'s middle, or unwound where there is none.
+fn harmonic_roots<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    window: Option<(T, T)>,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -364,10 +398,11 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // either end. None reads
     // a root as an identity, which is why the floor stays: a structural
     // pick would decide nothing a reader uses.
-    Ok(Roots::all([
-        near_span(phi - half_chord, (t0, t1)),
-        near_span(phi + half_chord, (t0, t1)),
-    ]))
+    let (a, b) = (phi - half_chord, phi + half_chord);
+    Ok(Roots::all(match window {
+        Some(span) => [near_span(a, span), near_span(b, span)],
+        None => [a, b],
+    }))
 }
 
 /// **An angle on the branch of a span's middle**: `raw` moved by whole

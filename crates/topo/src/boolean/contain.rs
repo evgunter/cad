@@ -896,8 +896,9 @@ pub(crate) fn curved_face_placement_decided<T: Decide>(
 /// [`curved_face_placement`] past the boundary pre-pass, with a spline
 /// face's in-trim foot ([`curved_face_placement_decided`]). With `cut`,
 /// the face's region is the one its surface cycles `cut` bound alone
-/// ([`super::region::Region::keep_cycles`]); a spline face has no such
-/// region and answers `Trim(None)`.
+/// ([`super::region::Region::keep_cycles`]), read with no carrier
+/// decision ([`cycle_side`]); a spline face has no such region and
+/// answers `Trim(None)`.
 fn curved_interior_placement<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -986,14 +987,16 @@ fn sphere_face_containment<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
-    match decide(
-        "bool_curved_contain_carrier",
-        Margin::of((q - center).norm() - radius),
-        band,
-    ) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
+    if cut.is_none() {
+        match decide(
+            "bool_curved_contain_carrier",
+            Margin::of((q - center).norm() - radius),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
+            Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
+        }
     }
     let region = match super::sphere_region::sphere_face_region(body, face, center, radius) {
         Ok(Some(region)) => region,
@@ -1066,10 +1069,12 @@ fn torus_face_containment<T: Decide>(
     } = carrier;
     let elevation =
         super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
-    match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
+    if cut.is_none() {
+        match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
+            Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
+        }
     }
     let region = match super::torus_region::torus_face_region(body, face) {
         Ok(Some(region)) => region,
@@ -1101,10 +1106,12 @@ fn ruled_face_containment<T: Decide>(
     band: Band,
     cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
-    match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
-        Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
+    if cut.is_none() {
+        match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
+            Ok(Sign::Zero) => {}
+            Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
+            Err(diag) => return Err(ContainError::on(ContainDecision::Carrier, diag)),
+        }
     }
     let region = match super::ruled_region::ruled_face_region(body, face) {
         Ok(Some(region)) => region,
@@ -1117,18 +1124,19 @@ fn ruled_face_containment<T: Decide>(
 /// **Where `q` lies against `face`'s surface cycles `keep` alone**: the
 /// face's region reading for its kind ([`curved_interior_placement`],
 /// the one dispatch), its boundary cut to those cycles
-/// ([`super::region::Region::keep_cycles`]), so a cycle is read alone,
-/// or a torus's cycle with the face's essential pair. `Trim(Some(In))`
-/// on the face's side of them, `Trim(Some(Out))` off it, `Trim(None)`
-/// on one of them or where no door reads the face (a plane, a spline
-/// chart, an edge of a kind its door does not admit), and `OffCarrier`
-/// for a `q` definitely off the face's surface.
+/// ([`super::region::Region::keep_cycles`]), so a cycle is read alone or
+/// against a torus's essential pair. `q` is a vertex of the body, which
+/// tier 3's check 3 holds to the face's carrier, so the cut reading reads
+/// no carrier decision and never answers `OffCarrier`.
+/// `Trim(Some(In))` on the face's side of the cycles, `Trim(Some(Out))`
+/// off it, `Trim(None)` on one of them or where no door reads the face (a
+/// plane, a spline chart, an edge of a kind its door does not admit).
 ///
 /// # Errors
 ///
-/// As [`curved_face_containment`]: a door's builder refusing, `q` in the
-/// band of an edge kept or of the carrier, no path decided, or an arc
-/// wound past a turn.
+/// As [`curved_face_containment`]'s doors': a builder refusing, `q` in
+/// the band of an edge kept, no path decided, or an arc wound past a
+/// turn.
 pub(crate) fn cycle_side<T: Decide>(
     body: &Body<T>,
     face: FaceKey,

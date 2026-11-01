@@ -45,7 +45,13 @@ face is exempt, silently, as validate's not-yet-checked list says
   carrier's reading cannot cross it (`RegionRefusal::Unreadable`, carried
   as `EdgeCarrierUnsupported`). `one_region::read_cycle` sets each aside
   vertex by vertex. Refusing `WoundPastPeriod` typed is the stronger
-  form, and owed here.
+  form, and owed here. It is not distinguished today because it reaches
+  the arm as `ContainError::Curved(PointInSolidError::CorruptFace)`, the
+  same value a door builder's unresolved key gives (one tiers 1 and 2
+  refuse before tier 3 runs). Telling them apart needs a variant of the
+  public `ContainError` or `PointInSolidError`, whose every match across
+  the workspace would move with it: a change for its own unit, not a
+  side effect of this arm.
 
 ## Owed
 

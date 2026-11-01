@@ -132,7 +132,8 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
+    first_harmonic_roots_unwound, near_span,
 };
 use super::region::{
     self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
@@ -429,7 +430,10 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     /// `leg`'s crossings with the plane through `on` of unit normal `n`,
-    /// in the leg's parameter over its whole turn (module docs, step 2).
+    /// in the leg's parameter, each a representative modulo a turn
+    /// ([`first_harmonic_roots_unwound`]): every reader takes a root as
+    /// the point of the leg it gives (module docs, step 2). A start on
+    /// the plane is a root no branch of a whole turn holds narrowly.
     fn plane_roots(
         &self,
         leg: &Leg<T>,
@@ -437,7 +441,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         on: Point3<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        first_harmonic_roots_in_band(
+        first_harmonic_roots_unwound(
             &FirstHarmonic::circle_off_plane(
                 (
                     leg.course.round.center,
@@ -448,8 +452,6 @@ impl<T: Decide> TorusFaceRegion<T> {
                 (on, n),
             ),
             leg.course.round.radius,
-            T::zero(),
-            T::tau(),
             &ROOT_ROWS,
             band,
         )
@@ -605,30 +607,18 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
                 for s in found(self.plane_roots(leg, axis, center, band))? {
                     let y = leg.course.round.at(s);
-                    let w = y - center;
-                    let theta = || {
-                        near_span(
-                            w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
-                            (edge.t0, edge.t1),
-                        )
-                    };
                     let (rho, _, _) = self.polar(y);
-                    let side = match row("bool_torus_region_component", rho - self.major) {
-                        Ok(side) => side,
-                        // A root past the edge's span is no crossing of it,
-                        // whichever parallel it lies on, so only one within
-                        // the span sets the path aside.
-                        Err(fault) => match span(theta(), radius)? {
-                            None => continue,
-                            Some(_) => return Err(fault),
-                        },
-                    };
+                    let side = row("bool_torus_region_component", rho - self.major)?;
                     match (side, outer) {
                         (Sign::Zero, _) => return Err(RayFault::Graze),
                         (Sign::Positive, true) | (Sign::Negative, false) => {}
                         _ => continue,
                     }
-                    let theta = theta();
+                    let w = y - center;
+                    let theta = near_span(
+                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                        (edge.t0, edge.t1),
+                    );
                     if let Some(sideless) = span(theta, radius)? {
                         out.push((y, theta, sideless));
                     }
