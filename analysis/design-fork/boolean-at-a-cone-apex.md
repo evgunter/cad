@@ -28,3 +28,11 @@ The full text of each report is in its session's final result. Keep both session
 - **Next:** round 2. Hand each designer the other's report and ask whether the vertex–vertex fan algebra is owed in this row's final state, or is a separate unit.
 - **If they still split,** the fork goes to Ev as an `[ev]` PR. Its body carries the two `For Ev` sections verbatim, labelled A and B.
 - **Before dispatching an implementer,** B asks for these to be measured on main at all three ε: a cone tip on a box edge or corner, an hourglass union, and an apex on a curved face.
+
+## Round 2 (2026-11-01): converged
+
+On 2026-11-01 each designer was handed the other's round-1 report. Their positions moved as follows:
+- A had held "pierce only; vertex–vertex is a separate unit (sure)". It now holds that the final state is C (arcs on the direction sphere), with A as a strict prefix landed first. The fan algebra becomes its own row. A also contributed a union-of-extrema cut that keeps bound-coded sectors.
+- B had held "C in this row". It now holds that this row is A, with the vertex–vertex fan algebra as an owed P1 follow-up row.
+
+This is the same position for both, so it is not a crossover. It was decided without Ev: the designers agree and no ratified text changes, following the 2026-10-28 precedent. The record is on the row, in PR 6216. Because the fork never went to Ev, it is not a design-fork-log row.
