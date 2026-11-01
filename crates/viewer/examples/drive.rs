@@ -279,8 +279,7 @@ fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), S
         "tree" => {
             for row in driver.session().tree_rows() {
                 println!(
-                    "{}{} {:?}{}{}",
-                    "  ".repeat(row.depth),
+                    "{} {:?}{}{}",
                     row.spoken,
                     row.status,
                     if row.placed { " placed" } else { "" },
