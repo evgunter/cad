@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-26
 priority: P1
 cost: M
+parent: a-new-body-lands-unplaced
 ---
 
 Filed by D′3 (PR 5636) on the INTENT orchestrator's 2026-10-26 ruling. `docs/INTENT-STAGE3-SPEC.md` §5′.3 ("The viewer's contract after D′3") states two sentences that this row builds, and AUTHTAIL's mirror arrival fork rests on them (`work/intent/log.md`, 2026-10-25):
@@ -20,3 +21,10 @@ Filed by D′3 (PR 5636) on the INTENT orchestrator's 2026-10-26 ruling. `docs/I
 - a body read directly by the product slot is re-pointed in the slot;
 - each creation gesture leaves its copy in the product, and one undo takes the gesture and the product's change back together;
 - the viewer rows that set the product by hand (`crates/viewer/tests/common/mod.rs:807`, `product_is`) are re-read.
+
+## Claimed by SPACES (2026-11-01)
+
+Moved from `work/doors/` by `git mv`, id kept. Half (b) is superseded by
+Ev's ruling on PR 6209 (nothing joins the product unasked; §5′.3 (b)
+retired). Half (a) is load-bearing for the pattern landing, so
+`a-new-body-lands-unplaced` carries it.

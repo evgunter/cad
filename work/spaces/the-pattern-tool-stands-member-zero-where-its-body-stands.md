@@ -6,8 +6,8 @@ status: open
 opened: 2026-10-28
 priority: P1
 cost: M
-design: true
 refs: [6209]
+parent: a-new-body-lands-unplaced
 ---
 
 Found in INTENT stage 3 G (PR 5954), disclosed there for review.

@@ -7,7 +7,7 @@ opened: 2026-10-22
 priority: P1
 refs: [5811, 6209]
 cost: H
-design: true
+parent: the-picture-draws-bodies
 ---
 
 
