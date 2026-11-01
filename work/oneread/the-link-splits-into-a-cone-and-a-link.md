@@ -2,21 +2,13 @@
 id: the-link-splits-into-a-cone-and-a-link
 kind: unit
 title: topo::link splits into a Cone (sectors, closes, reads) and a Link (a Cone of real face points, plus ball, offset, lowest_on, judge), and the parity reads On on a shared bound and wide past an in-band plane outside its sector
-<<<<<<< HEAD
-status: review
-=======
 status: closed
->>>>>>> origin/main
 opened: 2026-11-01
 priority: P1
 cost: H
 parent: the-booleans-cone-reader-is-a-second-link
 branch: oneread/link-cone
-<<<<<<< HEAD
-pr: 6228
-=======
 closed: 2026-11-01
->>>>>>> origin/main
 ---
 
 
