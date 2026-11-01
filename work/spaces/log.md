@@ -135,3 +135,28 @@ Newest entries at the bottom; the tail is the program's live status.
   discloses: `⊔` read as operands drawn as themselves; five fixtures
   hide or delete a coinciding extra body; the corpus pick tally
   re-pinned. (SPACES orchestrator)
+- 2026-11-01 — PR 6265 dual review delivered (concurrent arm, frozen
+  `2fee5472`). R1 (local, ~40 min): NOT-MERGEABLE-AS-IS, 1 MAJOR / 5
+  MINOR / 2 NIT / 10 style. R2 (cloud session, ~26 min):
+  APPROVE-WITH-FIXES, 1 MAJOR / 5 MINOR / 2 NIT / 11 style. Neither
+  disclosed a glimpse. **Correspondence pre-note** (the blinded coding
+  confirms): BILATERAL — the non-constant member read hides members
+  nothing reads (R1 MINOR / R2 MAJOR: severity divergence); a `⊔` piece
+  keyed without `within`; the `∪` + product-`⊔` overlap; a `Pick` read
+  takes the whole copy; style: two readings of what the product reads,
+  `drawn_bodies` recomputed per helper, `view`'s ignored `eval`.
+  UNILATERAL R1→ — MAJOR (executed): a split or pattern of a fresh box
+  makes the box unpickable, masked by `frame_policy.rs`'s split hide
+  (R2 read the other five fixture edits, not that one); MINOR the
+  copy→body doors drop `source.at`; the product's single body undrawn
+  when a `∪` reads it. UNILATERAL R2→ — MINOR (executed base vs head)
+  "families excluded, as before" false, gesture seats changed; a copy
+  into its body's own space now counted; no row for split-half
+  granularity. **Tally candidate:** R1's MAJOR (unilateral, code,
+  executed). Adjudication: it is real and an interim of U1 without U2
+  (split/pattern leave their target's world `Place`, ruled 2026-10-08,
+  `chrome/a-split-or-pattern-gesture-leaves-its-target-placed`), so the
+  fix is sequencing — `a-new-body-lands-unplaced` is built on 6265's
+  branch and the two merge back to back, with the row and the fixture
+  un-hide in that unit's done-when. Every other finding goes to one fix
+  pass off the union (the implementer, resumed). (SPACES orchestrator)
