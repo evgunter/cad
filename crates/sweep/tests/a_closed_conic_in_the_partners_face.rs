@@ -37,11 +37,11 @@
 //! a mesh along the short arcs' pinch holds four triangles at an edge.
 //! The ∩ of two solids meeting only in a face is empty. One row pins
 //! what is not built yet, refused typed: the union of a boss over a hole
-//! whose rim is tangent inside the boss's (a crescent). The coaxial
-//! stack and the puck run their unions alone: their ∩ and differences
-//! refuse `FallbackExtentUnsupported` at the coincident walls, as the
-//! two-arc forms do
-//! (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+//! whose rim is tangent inside the boss's (a crescent). The puck runs
+//! its unions alone: its ∩ and differences refuse
+//! `FallbackExtentUnsupported` on the ring's torus, tangent to the puck's
+//! top along its rim
+//! (`work/reachhold/a-puck-and-its-rounding-ring-refuse-intersect-and-difference-on-the-tangent-top.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -1430,9 +1430,10 @@ fn a_closed_edge_in_a_cylinder_or_cone_face_holds_every_op() {
 /// `z ∈ [0, 1]` and `[1, 2]`, both vertices at azimuth 0, so the rims
 /// are one closed edge of each through one site; and with the upper
 /// vertex turned 2 rad, where each vertex lies inside the other's rim
-/// and the loop has two sites. `2π`.
+/// and the loop has two sites. `∪` is `2π`, `∩` empty, and each
+/// difference its minuend, `π`.
 #[test]
-fn coaxial_equal_cylinders_unite() {
+fn coaxial_equal_cylinders_build_every_op() {
     let lo = fin(
         "the lower",
         extruded(vec![circle(0.0, 0.0, 1.0, 0.0)], 0.0, 1.0),
@@ -1442,7 +1443,12 @@ fn coaxial_equal_cylinders_unite() {
             "the upper",
             extruded(vec![circle(0.0, 0.0, 1.0, az)], 1.0, 1.0),
         );
-        both_unions(&format!("the stack, upper vertex at {az}"), &lo, &hi, TAU);
+        every_op(
+            &format!("the stack, upper vertex at {az}"),
+            &lo,
+            &hi,
+            (PI, PI, 0.0),
+        );
     }
 }
 
