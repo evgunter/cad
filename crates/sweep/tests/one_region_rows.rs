@@ -827,8 +827,9 @@ fn a_torus_cycle_missing_a_joint_element_is_not_read_as_contractible() {
 /// torus door unwound its roots onto the branch of a whole turn about
 /// `π`, whose cut that root straddles, so the root's enclosure was the
 /// whole turn and every parallel path from the point was set aside
-/// (`bool_torus_region_span` over about `[-1.5, 1.4]`). The leg's roots
-/// are now unwound onto no branch (`first_harmonic_roots_unwound`).
+/// (`bool_torus_region_span` over about `[-1.5, 1.4]`). A leg whose start
+/// lies on the plane now has its roots unwound onto no branch
+/// (`first_harmonic_leg_roots`); every other leg reads them as before.
 fn windows_on_an_azimuth_grid<T: Scalar>(scalar: &str) {
     let at_f64 = donut::<f64>();
     let (face64, frame) = wall(&at_f64, is_torus);

@@ -132,8 +132,8 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use super::BooleanDecision;
 use super::circle_roots::{
-    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
-    first_harmonic_roots_unwound, near_span,
+    FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_leg_roots,
+    first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
     self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
@@ -430,10 +430,10 @@ impl<T: Decide> TorusFaceRegion<T> {
     }
 
     /// `leg`'s crossings with the plane through `on` of unit normal `n`,
-    /// in the leg's parameter, each a representative modulo a turn
-    /// ([`first_harmonic_roots_unwound`]): every reader takes a root as
-    /// the point of the leg it gives (module docs, step 2). A start on
-    /// the plane is a root no branch of a whole turn holds narrowly.
+    /// in the leg's parameter over its whole turn, unwound where the leg's
+    /// start lies on the plane ([`first_harmonic_leg_roots`]): every
+    /// reader takes a root as the point of the leg it gives (module docs,
+    /// step 2).
     fn plane_roots(
         &self,
         leg: &Leg<T>,
@@ -441,7 +441,7 @@ impl<T: Decide> TorusFaceRegion<T> {
         on: Point3<T>,
         band: Band,
     ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
-        first_harmonic_roots_unwound(
+        first_harmonic_leg_roots(
             &FirstHarmonic::circle_off_plane(
                 (
                     leg.course.round.center,
