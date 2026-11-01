@@ -2525,22 +2525,24 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // The operand's records, as its door kept them ([`super::Carry::kept`]),
     // ride each side through the split's lineage, each citing the
-    // operand's record it is. Caller-side, until a
-    // finished body holds its own records (`AtRestBody`, heldrecords'
-    // `a-finished-body-holds-its-contact-records-at-every-door`) and the
-    // split's door carries them itself.
+    // operand's record it is; a record the cut parts across the cut
+    // retires, a touch between the two sides. Caller-side, until the
+    // split's door carries them itself onto a finished body that holds
+    // its records (heldrecords' ratified unit
+    // `a-finished-body-holds-its-contact-records-at-every-door`).
     let split = topo::SplitResult {
         above: out.above,
         below: out.below,
         naming,
         coincidences: out.coincidences,
     };
-    let carried = sides_carry(
-        &split,
-        &value_of(results, target)?.carry.kept(doc, tol).contacts,
-        band(tol)?,
-    )
-    .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
+    let (carried, _) = split
+        .carry_contacts_across(
+            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            band(tol)?,
+            T::region_lane(),
+        )
+        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
     let topo::SplitResult {
         above,
         below,
@@ -2610,81 +2612,6 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 tool: Some(tool_read),
             },
         )
-}
-
-/// **The operand's records `records` carried onto `split`'s sides**
-/// ([`topo::SplitResult::carry_contacts`]), each citing the operand's
-/// record it is. A record whose two cells the cut puts on different
-/// sides ([`topo::CarryRefusal::Parted`]) is a touch between the two
-/// sides, as their meeting across the cut is, and neither side's
-/// records state one: it retires, and whatever reads both sides decides
-/// it. Every other refusal is the carry's, citing the operand's record.
-fn sides_carry<T: Decide + topo::AtRestPolicy>(
-    split: &topo::SplitResult<T>,
-    records: &topo::ContactRecords,
-    band: Band,
-) -> Result<topo::SplitContacts, topo::CarryRefusal> {
-    use topo::CarryRefusal as R;
-    // The operand's index of each record still carried.
-    let mut kept: Vec<u32> = (0..u32::try_from(records.len()).unwrap_or(u32::MAX)).collect();
-    let mut held = records.clone();
-    let carried = loop {
-        match split.carry_contacts(&held, band, T::region_lane()) {
-            Err(R::Parted { record }) if (record as usize) < kept.len() => {
-                let at = record as usize;
-                kept.remove(at);
-                held = held
-                    .rows()
-                    .iter()
-                    .enumerate()
-                    .filter(|&(i, _)| i != at)
-                    .map(|(_, row)| row.clone())
-                    .collect();
-            }
-            done => break done,
-        }
-    };
-    let operands = |record: u32| kept.get(record as usize).copied().unwrap_or(record);
-    let carried = carried.map_err(|refusal| match refusal {
-        R::Unmapped { record, cell } => R::Unmapped {
-            record: operands(record),
-            cell,
-        },
-        R::Pair { record, error } => R::Pair {
-            record: operands(record),
-            error,
-        },
-        R::Parted { record } => R::Parted {
-            record: operands(record),
-        },
-        R::Unread { record, cells } => R::Unread {
-            record: operands(record),
-            cells,
-        },
-        R::Stale { record } => R::Stale {
-            record: operands(record),
-        },
-        R::MintedMeeting { record, cells } => R::MintedMeeting {
-            record: operands(record),
-            cells,
-        },
-    })?;
-    let recite = |side: topo::ContactRecords| {
-        side.recited(|backing| {
-            vec![match backing {
-                topo::Backing::Carried { input, record } => topo::Backing::Carried {
-                    input,
-                    record: operands(record),
-                },
-                decided @ topo::Backing::Decided(_) => decided,
-            }]
-        })
-        .unwrap_or_else(|_| unreachable!("a citation recited one for one is never empty"))
-    };
-    Ok(topo::SplitContacts {
-        above: recite(carried.above),
-        below: recite(carried.below),
-    })
 }
 
 /// **A mirror** (D10 `[repetition]`): the body `source` defines,

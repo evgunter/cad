@@ -223,3 +223,58 @@ fn a_record_the_cut_parts_retires() {
     assert_eq!(held(&ev, above, "the above side"), 0, "both records retire");
     assert_eq!(held(&ev, below, "the below side"), 0, "both records retire");
 }
+
+/// **A side's records cite the operand's records across a retired
+/// one**: [`a_record_the_cut_parts_retires`]'s pinch with a third block
+/// standing against the second's far corner, `(2, 3)`, holds five
+/// records. The cut along `y = 1` parts records 2 and 4, the plate's
+/// pinch; records 0, 1 and 3, the third block's touch, land above, and
+/// the one after the retired record still cites operand record 3.
+#[test]
+fn a_sides_records_cite_the_operands_across_a_retired_one() {
+    let doc = ProfileDoc::empty_derived("split-cites-across-a-retirement", Tol::witness());
+    let (doc, mut members) = crate::union_pinch_member_order::pinch(doc);
+    let (doc, third) =
+        crate::blocks::block_on_of(doc, members[0], ((2.0, 2.5), (3.0, 4.0), 0.6, 1.0));
+    members.push(third);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: Bodies::Spelled(members.iter().map(|&m| m.into()).collect()),
+        },
+    );
+    let tool = plane_on(&doc, union, [1.5, 1.0, 0.5], [0.0, 1.0, 0.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: union.into(),
+            tool,
+        },
+    );
+    let ev = run(&doc);
+    assert_eq!(held(&ev, union, "the union"), 5, "the union's five records");
+    let sides = ev
+        .value(split)
+        .unwrap_or_else(|| panic!("the split: {:?}", failure(&ev, split)))
+        .carry
+        .members
+        .clone()
+        .expect("a split carries each side's own");
+    let cited = |side: usize| -> Vec<u32> {
+        sides[side]
+            .contacts
+            .cites()
+            .flat_map(|cites| cites.iter().collect::<Vec<_>>())
+            .map(|backing| match backing {
+                topo::Backing::Carried { input: 0, record } => record,
+                other => panic!("a side's record cites the operand's: {other:?}"),
+            })
+            .collect()
+    };
+    assert_eq!(
+        cited(0),
+        [0, 1, 3],
+        "the above side cites operand records 0, 1 and 3"
+    );
+    assert!(cited(1).is_empty(), "the below side holds none");
+}

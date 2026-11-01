@@ -85,10 +85,14 @@ pub struct Carry<T: Decide> {
     /// inside it.
     pub censused: bool,
     /// **Each body's own carry, on a value of several bodies**: a
-    /// family's members in member order, each member's records keyed in
-    /// its own arena, its findings, parts, pieces and census; a split's
-    /// two sides at their halves' output bodies, each side's records
-    /// keyed in its arena. `None` on a value of one body.
+    /// family's members, or a split's two sides.
+    ///
+    /// - A family's: in member order, each member's records keyed in its
+    ///   own arena, its findings, parts, pieces and census.
+    /// - A split's: at its halves' output bodies, each side's records
+    ///   keyed in its arena.
+    ///
+    /// `None` on a value of one body.
     pub members: Option<Arc<[Carry<T>]>>,
 }
 
