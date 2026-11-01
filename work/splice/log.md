@@ -1146,3 +1146,17 @@ general regularity sweep. SECTARMS's cylinder × cylinder unit adopts
   - **Filed:**
     - `sectarms/a-nurbs-wall-against-a-plane-has-no-germ-frame` (P2), the lens-wall kernel row's stop;
     - `cleave/a-fate-cut-into-a-complete-spline-face-refuses-spline-chart` (P2).
+- 2026-11-01 — **The interior-loop guard reads two spline faces through the pair lane's whole reading** (PR 6171, closing `no-certificate-excludes-a-closed-loop-interior-to-two-spline-faces`, with SSIEDGE's `the-nurbs-pair-boundary-pass-reports-no-side-or-corner-region` claimed and closed). The design is `[ev]` PR 5990's (fork row 217). Review tier: DUAL, letter H, concurrent pair (row `PR-6171`).
+  - **Phase 0:** the pair lane's Side and Corner hand-in was ratified in C3 but never built, so this unit built it on SSI ground. The topo side recovers shared rows through `side_row_certifies`, factored out of `IntersectionDraft::shared_row` so that the guard and the seam read one test, and shared corners through a named `decide_magnitude`.
+  - **Dispatch slip:** the first dual dispatch, at 01:15Z, was withdrawn about a minute in, because the lane had read my 19:22Z phase-0 additions only about 6 h late, and a push was pending. **Class (friction):** a lane's inbox can lag behind a long build by hours. Before freezing a head for review, have the lane confirm it has read every message since its last report.
+  - **The pair** (frozen at `6ea83b58`): both APPROVE-WITH-FIXES, no MAJOR. Every class-a attack refused rather than cleared, at all three ε.
+    - Bilateral headline: no row guarded the cover's zero-free proof. Each reviewer had a surviving mutant.
+    - Unilateral (R1): `four::covered` was unbounded in total work (a stall of over 20 min under a mutant), and the corner prose overclaimed.
+    - Tally 0.
+  - **The corner and side prose went to Ev:** `[ev]` PR 6188. Ev asked whether the weaker claim is a problem. The answer: not for soundness, since the guard needs only "no loop hides in the cell or cover", and a gap costs a refusal at worst; the text matters to builders who would rely on it. Ev approved ("the re-wording sounds good!"), merged `a3b01e33`.
+  - **Fix pass** (`99d18281`): a claim-1 row red under both mutants; `covered` given a total budget; one refusal classification with incapacity named apart from tangency; one row-piece reader; one `KnownPair`; known rows taken at construction; the guard refuses a held spline pair; an NN pole row.
+  - **Main reds found on the way**, all already filed:
+    - `quad/lofted-concave-prism-pad-pin-moved-at-1e-6`;
+    - SPLICESEAM's 1e-12 lofted-cylinder pin, which now passes (evidence added there);
+    - a 1e-12 fuzz seed of `ssi::certify` torus limb 2, reproduced on main and added to `ssiarith/a-torus-limb-twos-sampled-residual-overshoots-its-span-bound-by-rounding`.
+  - **Filed:** `the-interior-loop-guard-has-no-spline-by-curved-analytic-arm`.
