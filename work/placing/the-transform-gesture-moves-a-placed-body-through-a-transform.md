@@ -2,11 +2,11 @@
 id: the-transform-gesture-moves-a-placed-body-through-a-transform
 kind: issue
 title: The viewer's Transform gesture moves a placed body through a Transform; under D10 moving a placed body edits its placement
-status: parked
+status: dispatched
 opened: 2026-10-09
 priority: P1
 cost: M
-blocked_on: [a-new-body-lands-unplaced]
+branch: placing/gesture-placements
 ---
 
 
@@ -44,3 +44,7 @@ B built placements: `Place { shapes, constraints }`, with a world pin as the con
 ## Parked (2026-11-01, PLACING orchestrator)
 
 Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; the reason is in `work/placing/log.md` (2026-11-01, track claimed).
+
+## Unparked and dispatched (2026-11-01, PLACING orchestrator)
+
+`a-new-body-lands-unplaced` closed in PR 6269: no gesture writes a world `Place` on the person's behalf, and one `Takeover` re-points a copy's source. The lane `placing/gesture-placements` re-reads this row against that code first.

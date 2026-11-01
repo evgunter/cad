@@ -2,11 +2,11 @@
 id: deleting-a-placed-feature-unplaces-its-target
 kind: issue
 title: Add a fillet then delete it and the body leaves the world: the add gesture re-points the target's placement, the delete cascades it
-status: parked
+status: dispatched
 opened: 2026-10-08
 priority: P1
 cost: M
-blocked_on: [a-new-body-lands-unplaced]
+branch: placing/gesture-placements
 ---
 
 Found by the review of INTENT stage 2 C (PR #4359, MINOR-4); filed on
@@ -37,3 +37,7 @@ P1 M. A GUI defect Ev would meet in ordinary use (add a feature, delete it, the 
 ## Parked (2026-11-01, PLACING orchestrator)
 
 Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; the reason is in `work/placing/log.md` (2026-11-01, track claimed).
+
+## Unparked and dispatched (2026-11-01, PLACING orchestrator)
+
+`a-new-body-lands-unplaced` closed in PR 6269: no gesture writes a world `Place` on the person's behalf, and one `Takeover` re-points a copy's source. The lane `placing/gesture-placements` re-reads this row against that code first.
