@@ -135,7 +135,6 @@ crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the 
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
-crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
