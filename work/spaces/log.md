@@ -46,3 +46,15 @@ Newest entries at the bottom; the tail is the program's live status.
   `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product`
   is coupled: (b) is superseded by this, (a) is load-bearing here and
   SPACES will claim it. (SPACES orchestrator)
+- 2026-11-01 — `a-patterns-value-rows-read-the-member-index-outside-a-member`:
+  PR 6208 opened (per-member slot readings in the Properties pane; new
+  kernel doors `Doc::expr_reach` / `Doc::member_envs` over the
+  evaluator's own member tuples). CI red only on three
+  `refusal_concision_chains` rows, reproduced on main's own tree at
+  `fbfebd92`: PR 6200's blend recourse puts blend refusals over the
+  75-word budget. Filed on CHROME's slate
+  (`blend-recourse-words-overrun-the-refusal-concision-budget`, riding
+  6208) and annotated on 6208; CHROME owes the fix. Review dispatched
+  (single, style + correctness arm). The lane also filed
+  `doctail/a-profile-reshaping-replays-a-member-indexed-step-outside-a-member`
+  and `chrome/selecting-an-index-variable-shows-no-row`. (SPACES orchestrator)

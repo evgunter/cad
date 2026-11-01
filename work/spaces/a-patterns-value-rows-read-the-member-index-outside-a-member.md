@@ -2,12 +2,13 @@
 id: a-patterns-value-rows-read-the-member-index-outside-a-member
 kind: unit
 title: a pattern's Properties value rows evaluate a member-indexed slot outside any member and show = ?
-status: dispatched
+status: review
 opened: 2026-11-01
 priority: P1
 cost: M
 parent: an-instances-pattern-draws-nothing
 branch: spaces/pattern-value-rows
+pr: 6208
 ---
 
 
