@@ -4,3 +4,5 @@ arm byte: 24 (< 86: three designers)
 label byte: 136 (mod 3 = 1)
 mapping: Fable = B; Opus = A and C
 protocol: 2126b860b6
+dispatch order: A = first Opus dispatched, B = Fable, C = second Opus
+tokens (first report = total, no reconciliation): A 114996, B 132841, C 113621
