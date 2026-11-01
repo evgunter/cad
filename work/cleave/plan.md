@@ -5,6 +5,30 @@ item files beside this plan.
 
 Branch prefix **`cleave/`**; away-channel tag `(CLEAVE orchestrator)`.
 
+## The 2026-11-01 split
+
+CLEAVE measured 114 budget points against 30, and Ev suggested (in
+chat, 2026-11-01) splitting it into tracks of a session's work each,
+run in parallel in cloud sessions. It was cut on its semantic seams;
+every row moved by `git mv`, id and body unchanged, with a dated
+`## Slate triage` note:
+
+- **TANGRIM** (`work/tangrim/`): tangent curved rims and crescents.
+- **PARTING** (`work/parting/`): the parting's reading of edges lying
+  in faces, and cuts on spline faces.
+- **TOUCHREC** (`work/touchrec/`): a result's records of its own
+  touches, and the glue's kept copy.
+- **ONEREAD** (`work/oneread/`): one question with two readers.
+- **SEAL** (`work/seal/`): the Indeterminate seal and the
+  declared-contact rows in its way.
+- `a-built-sliver-is-not-a-legal-operand` to HELDRECORDS and
+  `main-red-the-corner-boss-row-labels-a-node-no-member-is` to BORDERS.
+
+CLEAVE keeps where solids meet along a line, and every row in flight
+(PRs 6177, 6184, 6185). The rows those PRs file move on landing: the
+cylinder-tangent rows to TANGRIM, the missing fate-touch record to
+TOUCHREC.
+
 ## Charter
 
 A split or boolean on an ordinary body hands back a valid body with
