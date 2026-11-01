@@ -565,7 +565,12 @@ pub(crate) fn corner_shape<T: Decide>(
 /// edges apart from the tip, each at its own vertex, so each lane takes
 /// the reading before its reduction.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct SlitTips(std::collections::BTreeSet<(VertexKey, FaceKey)>);
+pub(crate) struct SlitTips {
+    /// The two-edge tips, of slits and rings.
+    slits: std::collections::BTreeSet<(VertexKey, FaceKey)>,
+    /// The one-edge tips, of wrap edges.
+    wraps: std::collections::BTreeSet<(VertexKey, FaceKey)>,
+}
 
 impl SlitTips {
     /// The tips of `body` at rest.
@@ -595,6 +600,7 @@ impl SlitTips {
                 }
             }
         }
+        let mut wraps = std::collections::BTreeSet::new();
         for (f, face) in body.faces() {
             for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
                 let crate::entity::LoopBoundary::Cycle { first } =
@@ -607,16 +613,16 @@ impl SlitTips {
                     .unwrap_or_else(|| unreachable!("{lk:?}: an at-rest loop walks"));
                 let wrap = crate::surface_boundary::tips(body, &cycle)
                     .unwrap_or_else(|| unreachable!("{lk:?}: an at-rest loop's mates resolve"));
-                tips.extend(wrap.into_iter().map(|v| (v, f)));
+                wraps.extend(wrap.into_iter().map(|v| (v, f)));
             }
         }
-        Self(tips)
+        Self { slits: tips, wraps }
     }
 
     /// Whether `face`'s corner at `vertex` lies between a slit's two
     /// edges, or round a wrap edge's tip.
     pub(crate) fn holds(&self, vertex: VertexKey, face: FaceKey) -> bool {
-        self.0.contains(&(vertex, face))
+        self.slits.contains(&(vertex, face)) || self.wraps.contains(&(vertex, face))
     }
 
     /// Both operands' tips at rest, A's first: the order the Boolean's
@@ -641,12 +647,20 @@ impl SlitTips {
     /// Tips named outright, for a unit row that has no body to read.
     #[cfg(test)]
     pub(crate) fn of_pairs(pairs: impl IntoIterator<Item = (VertexKey, FaceKey)>) -> Self {
-        Self(pairs.into_iter().collect())
+        Self {
+            slits: pairs.into_iter().collect(),
+            wraps: std::collections::BTreeSet::new(),
+        }
     }
 
-    /// The face carrying a slit `vertex` is the tip of, if it is one.
+    /// The face carrying a slit `vertex` is the tip of, if it is one: a
+    /// two-edge tip, whose edges the reduction may part or glue. A wrap
+    /// edge's tip is not one.
     pub(crate) fn face_at(&self, vertex: VertexKey) -> Option<FaceKey> {
-        self.0.iter().find(|(v, _)| *v == vertex).map(|&(_, f)| f)
+        self.slits
+            .iter()
+            .find(|(v, _)| *v == vertex)
+            .map(|&(_, f)| f)
     }
 }
 
