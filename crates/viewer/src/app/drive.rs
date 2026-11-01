@@ -268,7 +268,7 @@ pub(crate) fn settle<T>(
 #[derive(Debug)]
 pub enum DriveError {
     /// The app could not start.
-    Startup(StartupError),
+    Startup(Box<StartupError>),
     /// The label asked for is not on screen as often as asked.
     NotOnScreen {
         /// The label.
@@ -337,7 +337,7 @@ impl Driver {
         let ctx = egui::Context::default();
         let mut app =
             ViewerApp::assemble_with(&ctx, pncad::tolerance::witness(), FileStore::at(prefs))
-                .map_err(DriveError::Startup)?;
+                .map_err(|error| DriveError::Startup(Box::new(error)))?;
         app.chooser = ChooserBackend::Absent;
         let mut driver = Self {
             ctx,
