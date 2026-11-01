@@ -58,3 +58,7 @@ does about the product, a fresh body should not open with a finding.
 ## Two copies of one part land on each other
 
 Second walk (2026-10-31; Ev: "put this in along with actual handling for free-move"). Two **Add part…** of the same file give two instances placed identically, one inside the other, indistinguishable in the viewport until a slide value is edited. Whatever lands a new body unplaced and free-movable should also keep a second copy from landing exactly on the first.
+
+## A duplicate or a projected copy gets two placements
+
+Third walk (2026-11-01; Ev: add here unless covered). The duplicate tool's copy is a `Place "Part 1"`, and the automatic world placement then places that Place again, so the tree shows the copy with twelve free values: its own six and the automatic six. The projection tool's copy does the same. Landing bodies unplaced removes the automatic half; the row's fix should check these two gestures.
