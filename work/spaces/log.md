@@ -216,3 +216,8 @@ Newest entries at the bottom; the tail is the program's live status.
   The projected-member double draw did not reproduce. Targeted re-check
   by the same reviewer, including a history-tree navigation other than
   redo. (SPACES orchestrator)
+- 2026-11-01 — `the-picture-draws-bodies` closed with
+  `the-viewer-does-not-show-a-constructions-own-space` and
+  `a-family-placed-into-an-instances-space-hides-that-space` (PR 6265,
+  merged ahead of 6269). Its dual-review row rides 6265 as its last
+  commit. (SPACES orchestrator)
