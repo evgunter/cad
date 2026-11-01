@@ -113,10 +113,10 @@
 //! clears `scene_fault` where a rebuild lands and [`crate::pane::viewport`]
 //! clears `projection_fault` where a matrix forms, which is the same
 //! work spelled as an assignment about the SEAM instead of a verdict
-//! about the chrome. [`index_badge`] needs none for its refusal,
-//! because the pick cache was already holding it; what it reads beside
-//! that — the landed evaluation, through the tree's blame — is held by
-//! the session and ends with the same landing. What the split buys is that
+//! about the chrome. [`index_badge`] needs none, because the
+//! pick cache was already holding its refusal and its index; what it
+//! reads beside them — the landed evaluation, through the tree's blame —
+//! is held by the session and ends with the same landing. What the split buys is that
 //! no writer has to decide the fate of anyone else's sentence.
 //!
 //! So [`projection_badge`] is a badge — a read of the camera and the
@@ -229,8 +229,8 @@ use std::path::Path;
 
 use pncad::document::{
     CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
-    Maintenance, NamedCell, NodeErrorKind, NodeStanding, ParseError, PartFault, ProductError,
-    ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
+    Maintenance, NamedCell, NodeErrorKind, ParseError, PartFault, ProductError, ProductErrorKind,
+    ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -243,7 +243,7 @@ use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
 use crate::parts::PartFiles;
 use crate::pickcache::{IndexSeam, NotIndexed};
-use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnCopy};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -1854,8 +1854,8 @@ trait SeamSubject {
     const SUBJECT: Subject;
 }
 
-/// **The pick-index seam's subject**, named by both of the types its
-/// build refusals arrive as. One edit here moves both channels; that is
+/// **The pick-index seam's subject**, named by every type its build
+/// answers arrive as. One edit here moves both channels; that is
 /// the "by construction" the trait's argument rests on, and it is written
 /// as a constant because a seam whose two impls each spelled a literal
 /// would be back to the convention. A built index's refusal to NAME an
@@ -1882,6 +1882,12 @@ impl SeamSubject for SceneError {
 
 /// The pick index seam, on the badge channel.
 impl SeamSubject for PickIndexError {
+    const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
+/// The pick index seam, on the badge channel: a copy a built index
+/// holds undrawn.
+impl SeamSubject for UndrawnCopy {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
 }
 
@@ -2598,8 +2604,9 @@ pub fn product_badge(fault: Option<&ProductError>, doc: &Doc<ProfileProgram>) ->
 /// from**, and `None` while the last rebuild stands.
 ///
 /// A read of held state: `ViewerApp` keeps the refusal until a rebuild
-/// succeeds, and it keeps drawing the mesh it already has — so the
-/// picture on screen is stale for exactly as long as this is `Some`.
+/// succeeds, and draws nothing meanwhile — never the picture from before
+/// the refusal — so the viewport is empty for exactly as long as this is
+/// `Some`.
 /// It was a line message, where an accepted act's
 /// [`RankedVerdict::Clear`] swept it off a picture that had not been
 /// rebuilt and the line then said nothing about a scene it still could
@@ -2618,116 +2625,75 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
     })
 }
 
-/// **What the chrome badges about the pick-index seam**, and `None`
-/// when the cache holds no refusal.
+/// **What the chrome badges about the pick-index seam**: a refusal of
+/// the whole index the cache holds, or the drawn copies the index it
+/// holds could not draw that nothing else reports; `None` when there is
+/// neither.
 ///
-/// The refusal is held by [`crate::pickcache::PickCache`] under its
-/// one-attempt-per (generation, δ) policy, so the badge stands for
-/// exactly as long as the policy holds the refusal. The only other
-/// thing it reads is the landed evaluation, and only to ask the tree
-/// which row a refusal that follows from a failed node defers to (the
-/// section below); the cache clears its refusal on the landing that
-/// replaces that evaluation, so the two describe one run.
+/// Both are [`Tone::Actionable`], in their own words. The cache holds
+/// its refusal under its one-attempt-per (generation, δ) policy and its
+/// index until the next attempt, so the badge stands for exactly as
+/// long as what it reads. Nodes are said from the landed document, the
+/// one the index was built against.
 ///
-/// It says the SEAM refused. What a pick against the missing index
-/// gets is [`unindexed_refusal`], on the line, because that is an
-/// outcome — the two carry one subject and neither states it
-/// ([`SeamSubject`]).
+/// It says the SEAM refused. What a pick against a missing index gets
+/// is [`unindexed_refusal`], on the line, because that is an outcome —
+/// the two carry one subject and neither states it ([`SeamSubject`]).
 ///
-/// # A refusal that is a consequence, drawn under its cause
+/// **A whole refusal is a fault of the index itself** (its id map, a
+/// body drawn twice, names of another document): nothing is drawn or
+/// picked until an index builds, and the label says so.
 ///
-/// The index is built over every world placement, and a placement
-/// whose row the feature tree badges `Failed` or `Poisoned` has no
-/// value to index, so the build refuses on it ([`downstream_node`]). That refusal is
-/// DERIVED: the failure it follows from is already on screen, as the
-/// one [`Tone::Actionable`] row the tree draws for it. So it takes the
-/// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], as the
-/// document speaks it) — and the index's own words move to
-/// the tooltip, unaltered.
-///
-/// **It is placed under the cause, not dropped**, because it carries
-/// two facts the cause does not. The refusal stops EVERY pick, on the
-/// healthy copies too, and it stops the picture: the scene is
-/// drawn from the index, so the viewport keeps its last picture until
-/// the index builds. Both are in the label, and nowhere else: a pick
-/// aimed at the missing index is refused on the line
-/// ([`unindexed_refusal`]), whose sentence says only that the last
-/// build refused or nothing has been evaluated yet — it gives no reason
-/// and names no node, so without this badge the reader would not learn
-/// why.
-///
-/// **The label names where the index stopped, not everything in its
-/// way.** The build returns at the FIRST placement that refuses, in
-/// `doc.placements()` order, so a later placement with a refusal of its
-/// own is not reached; the label says the index waits on this row and does
-/// not promise it builds once the row is fixed.
-///
-/// **The tooltip is the index's own words with the tree's row in
-/// them.** It names the placement the build refused on, and the
-/// standing it carries is read as the tree reads it
-/// ([`index_refusal_as_drawn`]), so for a placement a mate refusal
-/// reached it names the mate the label names rather than the placement
-/// or its DAG ancestor. Its nodes
-/// are said from the landed document, the one the index was built
-/// against; the label's row, from `doc`, as the tree draws it.
-///
-/// Every other refusal is the index's own and stays
-/// [`Tone::Actionable`] in its own words — and so does a standing
-/// refusal the tree names no failed row for (a placement that never ran,
-/// or no evaluation to read), because quieting news is only right
-/// where the louder news it defers to is actually drawn.
+/// **An undrawn copy is badged only when no tree row reports it.** A
+/// copy whose node the feature tree draws `Failed` or `Poisoned`
+/// ([`crate::tree::cause_row`]) has no value, so nothing of it can be
+/// drawn, and that row is the notice; this badge adds nothing to it. A
+/// copy with a value that could not be drawn — not a body, no such
+/// body, a tessellation or indexing refusal — and a copy with no value
+/// whose standing the tree names no failed row for (a run that never
+/// reached it) are on screen nowhere else, so each is said here, naming
+/// the copy. The label carries the first; the tooltip carries every one.
 pub fn index_badge(
     error: Option<&PickIndexError>,
-    doc: &Doc<ProfileProgram>,
+    index: Option<&PickIndex>,
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Option<Badge> {
-    let error = error?;
-    let cause = downstream_node(error)
-        .zip(landed)
-        .and_then(|(node, (_, evaluation))| crate::tree::cause_row(node, evaluation));
-    let said = match landed {
-        Some((landed, evaluation)) => format!(
-            "pick index: {}",
-            Said(
-                &index_refusal_as_drawn(error, evaluation),
-                Speaker::of(landed).within(evaluation)
-            )
-        ),
-        None => format!("pick index: {error}"),
-    };
-    Some(match cause {
-        Some(cause) => Badge::read(
+    let by = landed_speaker(landed);
+    if let Some(error) = error {
+        let said = Said(error, by);
+        return Some(Badge::read(
             PickIndexError::SUBJECT,
-            format!(
-                "pick index: waits on {}, which failed — until the index builds, no pick is \
-                 answered and the picture is not redrawn",
-                doc.spoken(cause)
-            ),
-            Tone::Advisory,
-        )
-        .detailed(said),
-        None => Badge::read(PickIndexError::SUBJECT, said, Tone::Actionable),
+            format!("pick index: {said} — nothing is drawn or picked until the index builds"),
+            Tone::Actionable,
+        ));
+    }
+    let unreported: Vec<String> = index?
+        .undrawn()
+        .iter()
+        .filter(|copy| {
+            landed.is_none_or(|(_, evaluation)| {
+                crate::tree::cause_row(copy.node(), evaluation).is_none()
+            })
+        })
+        .map(|copy| Said(copy, by).to_string())
+        .collect();
+    let first = unreported.first()?;
+    let label = match unreported.len() {
+        1 => format!("picture: {first}"),
+        n => format!("picture: {first} (and {} more copies not drawn)", n - 1),
+    };
+    Some(Badge::read(UndrawnCopy::SUBJECT, label, Tone::Actionable).detailed(unreported.join("\n")))
+}
+
+/// **The speaker for a value built from the landed run**: each node as
+/// the landed document holds it, each name within its evaluation's
+/// tables — and each node by its tag where nothing has landed.
+pub fn landed_speaker<'a>(
+    landed: Option<(&'a Doc<ProfileProgram>, &'a Evaluation<f64>)>,
+) -> Speaker<'a> {
+    landed.map_or(Speaker::TAG, |(doc, evaluation)| {
+        Speaker::of(doc).within(evaluation)
     })
-}
-
-/// A pick-index refusal, its standing ([`PickIndexError::standing`])
-/// re-read by [`crate::tree::standing_as_drawn`]; every other refusal
-/// is the index's, unchanged.
-fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) -> PickIndexError {
-    error
-        .restated(|standing| crate::tree::standing_as_drawn(standing, evaluation))
-        .map_or_else(|| error.clone(), |(_, drawn)| drawn)
-}
-
-/// **The node a pick-index refusal is a consequence of**, when the
-/// refusal is one a node with no value produces
-/// ([`PickIndexError::standing`]) — `None` for a refusal that is the
-/// index's own. Whether the node failed, was poisoned, or never ran
-/// is the tree's to read, and [`index_badge`] asks it rather than
-/// reading the standing here.
-fn downstream_node(error: &PickIndexError) -> Option<RecipeNodeId> {
-    error.standing().map(NodeStanding::node)
 }
 
 /// **What the chrome badges about a camera that cannot be

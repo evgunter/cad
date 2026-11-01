@@ -1,6 +1,6 @@
 # TANGRIM — the plan
 
-No orchestrator yet. Live state is `work/tangrim/log.md`'s tail and the
+Orchestrator: a TANGRIM cloud session opened 2026-11-01. Live state is `work/tangrim/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`tangrim/`**; away-channel tag `(TANGRIM orchestrator)`.
