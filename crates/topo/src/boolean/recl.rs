@@ -2041,39 +2041,13 @@ fn resolve_edge_sector<T: Decide>(
                 what: "edge-sector site lost its point",
             })
     };
-    // A flanker glued tangent to the reference reads On at first order
-    // though it meets the reference only along the tangency locus. Keyed
-    // by the side its carrier curves to along its key bound, it holds the
-    // transition beside a coplanar flanker that lumps the other way.
-    let curving = |idx: usize, key_from_start: bool| -> Result<SideCode, BooleanError> {
-        let own_sec = &own_secs[idx];
-        if !declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
-            return Ok(SideCode::On);
-        }
-        let read = tangent_read(own_sec.face);
-        let p = site_point(own_sec)?;
-        let [start, end] = own_sec.reached_bounds();
-        let (d, reached) = if key_from_start { start } else { end };
-        super::sectors::tangent_relative_side(
-            &super::sectors::tangent_carrier(own_body, own_sec.face)?,
-            &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
-            ref_sector.normal,
-            p,
-            d,
-            reached,
-            read,
-            band,
-        )
-    };
-    let (mut k1, mut k2) = (
+    // A flanker tangent to the reference keys by the side it leaves it
+    // to, one order down ([`flank_key`]): it holds the transition beside
+    // a coplanar flanker that lumps the other way.
+    let (k1, k2) = (
         flank_key(own_secs, f_s, false, ref_sector, band)?.code,
         flank_key(own_secs, f_e, true, ref_sector, band)?.code,
     );
-    // One On flanker stays On: Table III lumps it whole and the germ
-    // stays on the other (`the_stadium_answers_every_op`).
-    if (k1, k2) == (SideCode::On, SideCode::On) {
-        (k1, k2) = (curving(f_s, false)?, curving(f_e, true)?);
-    }
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued

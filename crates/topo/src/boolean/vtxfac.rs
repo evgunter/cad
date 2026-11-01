@@ -758,37 +758,6 @@ struct Entry {
     lumped: bool,
 }
 
-/// A tangent sector's carriers, which read its bounds' sides at second
-/// order ([`super::sectors::tangent_relative_side`]): a bound along the
-/// tangency locus `On`, any other the side its carrier curves to.
-#[derive(Clone)]
-struct TangentRead<T: geom_core::Real> {
-    sector: geom::Surface<T>,
-    pierced: geom::Surface<T>,
-    read: DeclarationRead,
-}
-
-impl<T: Decide> TangentRead<T> {
-    fn side(
-        &self,
-        n_pierced: OutwardNormal<T>,
-        p: geom_core::Point3<T>,
-        (d, reached): (geom_core::Vec3<T>, T),
-        band: Band,
-    ) -> Result<SideCode, BooleanError> {
-        super::sectors::tangent_relative_side(
-            &self.sector,
-            &self.pierced,
-            n_pierced,
-            p,
-            d,
-            reached,
-            self.read,
-            band,
-        )
-    }
-}
-
 /// Classifies `contact.vertex` (in the piercing body) against
 /// `contact.face` (in the pierced body) and performs the piercing
 /// side's insertion (module docs), returning its half of the ring for
@@ -1046,9 +1015,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // so a bound it shares with a one-carrier sector, which lies in the
     // face, takes that sector's lump, and the tangent sector holds any
     // transition between the two along the bound; its germ reads its
-    // bounds at second order ([`TangentRead`]).
+    // bounds' own sides, one order down where they tie.
     let mut tangent_lumps = Vec::new();
-    let mut tangent_reads: Vec<Option<TangentRead<T>>> = vec![None; n];
+    let mut tangent = vec![false; n];
     for (k, s) in sectors.iter().enumerate() {
         if !flat(k) {
             continue;
@@ -1082,11 +1051,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 band,
             )?;
             tangent_lumps.push((k, lump));
-            tangent_reads[k] = Some(TangentRead {
-                sector: s_sector,
-                pierced: s_pierced,
-                read,
-            });
+            tangent[k] = true;
             continue;
         }
         let rel = match declared.glued_relation(piercing, s.face, pierced_op, contact.face) {
@@ -1200,16 +1165,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the orbit the germ loci are read from.
     let germ_of = |t: usize, out: OutBound| -> Result<Germ<T>, BooleanError> {
         let s = &sectors[t];
-        let codes = match &tangent_reads[t] {
-            Some(tangent) => {
-                let [start, end] = s.reached_bounds();
-                (
-                    tangent.side(n_pierced, p, start, band)?,
-                    tangent.side(n_pierced, p, end, band)?,
-                )
-            }
-            None => (read[(t + 1) % n], read[t]),
-        };
+        let codes = (read[(t + 1) % n], read[t]);
         let own = super::sectors::germ_locus(
             super::sectors::GermSide {
                 body: piercing_body,
@@ -1233,9 +1189,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 // A tangent sector's germ runs along its bound on the
                 // tangency locus, where its plane and the pierced face's
                 // tangent plane are one.
-                match (&tangent_reads[t], codes) {
-                    (Some(_), (SideCode::On, _)) => s.start.normalize(),
-                    (Some(_), (_, SideCode::On)) => s.end.normalize(),
+                match (tangent[t], codes) {
+                    (true, (SideCode::On, _)) => s.start.normalize(),
+                    (true, (_, SideCode::On)) => s.end.normalize(),
                     _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
                 },
                 germ_branch(
