@@ -32,7 +32,8 @@
 //! roots, and a cylinder face of rulings and circles clear of its edges
 //! holds a root where the turn of its loops on an image of its wall
 //! says. Each crossing counts `+1` leaving material
-//! (`d·n > 0`) and `−1` entering it, crossings in band of each other are
+//! (`d·n > 0`) and `−1` entering it, crossings in band of each other,
+//! or within each other's rounding slack ([`RayHit::slack`]), are
 //! summed, and the sign of the first nonzero running count is the side
 //! of `q`: rising ⇒ the ray *exits* material first ⇒ `In`; falling ⇒
 //! `Out`.
@@ -2401,8 +2402,11 @@ pub(super) enum WallRoots<T> {
 pub(super) enum About {
     /// The line's own origin, for a line given at the body's own scale
     /// (an edge's carrier line): its residual there is already of that
-    /// scale, and moving it would only widen an enclosure by the
-    /// shift's own.
+    /// scale, and the move buys nothing. It costs: at `Interval` the
+    /// shift is itself an enclosure, and the moved offset `w₀ + d·shift`
+    /// and the root `s + shift` each carry its width, so a root read
+    /// about the shift is wider than one read where the line starts. It
+    /// is also the reading every edge-sweep margin was measured on.
     Start,
     /// The line's closest approach to the quadric's axis or centre, for
     /// a ray started far from the body.
@@ -2476,18 +2480,16 @@ pub(super) fn line_wall_roots<T: Decide>(
             .min(span),
     };
     let w = w0p + dp * shift;
-    let centred = Centred {
-        shift,
-        coeffs: [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
-        far: w0.norm() + d.norm() * shift.abs(),
-        near: w.norm() + radius,
-        gradient: T::one(),
-        speed: d.norm(),
-    };
+    let centred = Centred::new(
+        (w0, d, shift, w),
+        [a2, w.dot(dp), w.norm_squared() - radius.powi(2)],
+        radius,
+        T::one(),
+    );
     let disc = centred.disc();
     match decide(
         "bool_ray_cylinder_disc",
-        Margin::over_lever(disc / a2, two_r),
+        Margin::over_lever(centred.charged(disc, about) / a2, two_r),
         band,
     )
     .map_err(|diag| WallRootFault {
@@ -2504,16 +2506,16 @@ pub(super) fn line_wall_roots<T: Decide>(
 
 /// **A line × quadric quadratic read where the line passes the
 /// quadric**: `a·s² + 2b·s + c` in `s = t − shift`, the line's parameter
-/// moved to `shift`, its closest approach to the quadric's centre, apex
-/// or axis. Read about the line's start instead, `c` is the residual
-/// there, the square of the start's distance less the body's own
-/// squares: a start `D` out loses `u·D²` of it, which moves a root by
+/// moved to `shift` ([`About`]). Read about the line's start, `c` is the
+/// residual there, the square of the start's distance less the body's
+/// own squares: a start `D` out loses `u·D²` of it, which moves a root by
 /// about `u·D²/(2√disc)`, the body's scale squared over a root's
 /// sensitivity (`D = 4·10⁵` m and a unit wall: `10⁻⁵` m). About the
 /// closest approach, `c` is read at the body's own scale, and what the
 /// start's distance leaves is the rounding of the shift itself, linear
-/// in `D` ([`Self::roots`]). The discriminant and the lead are the same
-/// quantities either way, so each margin metered on them is.
+/// in `D` ([`Self::roots`], [`Self::charged`]). The discriminant and the
+/// lead are the same quantities either way, so each margin metered on
+/// them is.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Centred<T> {
     /// Where the parameter is read from.
@@ -2522,22 +2524,60 @@ pub(super) struct Centred<T> {
     pub(super) coeffs: [T; 3],
     /// A bound on the lengths the moved residual was formed from:
     /// `|w₀| + |d|·|shift|`, `w₀` the start's offset from the quadric.
-    pub(super) far: T,
+    far: T,
     /// The moved offset's length, with the quadric's radius where it
     /// has one.
-    pub(super) near: T,
+    near: T,
     /// The residual's gradient against the offset, over `2|w|`: `1` for
     /// a wall or a sphere, `2` for a cone.
-    pub(super) gradient: T,
+    gradient: T,
     /// `|d|`.
-    pub(super) speed: T,
+    speed: T,
 }
 
 impl<T: Decide> Centred<T> {
+    /// The quadratic `coeffs`, read `shift` along `d` from a start
+    /// offset `w0` from the quadric, at the moved offset `w` (across the
+    /// axis, for a wall), of a quadric of `radius` (`0` for a cone) whose
+    /// residual's gradient is `gradient·2|w|`.
+    fn new(
+        (w0, d, shift, w): (Vec3<T>, Vec3<T>, T, Vec3<T>),
+        coeffs: [T; 3],
+        radius: T,
+        gradient: T,
+    ) -> Self {
+        Self {
+            shift,
+            coeffs,
+            far: w0.norm() + d.norm() * shift.abs(),
+            near: w.norm() + radius,
+            gradient,
+            speed: d.norm(),
+        }
+    }
+
     /// `b² − a·c`.
     pub(super) fn disc(&self) -> T {
         let [a, b, c] = self.coeffs;
         b.powi(2) - a * c
+    }
+
+    /// **`disc` held to its rounding from the shift**, for a decision
+    /// on it: moved toward zero by that rounding, and zero within it,
+    /// where the line passes too near tangency for its sign to be read.
+    /// The residual `c` read about the shift is off by
+    /// [`geom_core::rounding_charge`] of `far·gradient·near` (as at a
+    /// root, [`Self::roots`]), and `b` by that of `far·|d|`, so `disc` by
+    /// `|a|` and `2|b|` times them. Read about the start
+    /// ([`About::Start`]) it is the plain `disc`, as it always was.
+    pub(super) fn charged(&self, disc: T, about: About) -> T {
+        if about == About::Start {
+            return disc;
+        }
+        let [a, b, _] = self.coeffs;
+        let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
+            + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
+        disc.select_le_zero((disc + e).min(T::zero()), (disc - e).max(T::zero()))
     }
 
     /// **Both roots in the line's own parameter, and a bound on either's
@@ -2546,8 +2586,8 @@ impl<T: Decide> Centred<T> {
     /// (each rounded by `u` of that), against a gradient of at most
     /// `2·gradient·(near + |d|·|s|)`: so it is off by at most
     /// [`geom_core::rounding_charge`] of their product, and the root by
-    /// that over the residual's slope there, `2√disc`. Moving the root
-    /// back by `shift` rounds it once more.
+    /// that over the residual's slope there ([`over_root_slope`]).
+    /// Moving the root back by `shift` rounds it once more.
     pub(super) fn roots(&self, disc: T) -> ([T; 2], T) {
         let [a, b, c] = self.coeffs;
         let roots = quadratic_roots(a, b, c, disc);
@@ -2555,10 +2595,18 @@ impl<T: Decide> Centred<T> {
         let run = self.speed * s;
         let residual =
             geom_core::rounding_charge((self.far + run) * (self.gradient * (self.near + run)));
-        let slack = residual / (T::from_f64(2.0) * disc.sqrt())
-            + geom_core::rounding_charge(self.shift.abs() + s);
+        let slack =
+            over_root_slope(residual, disc) + geom_core::rounding_charge(self.shift.abs() + s);
         (roots.map(|r| r + self.shift), slack)
     }
+}
+
+/// **A quadratic's root moved by a residual's error**: `error` over the
+/// residual's slope at the root, `2√disc` for `a·s² + 2b·s + c`. The one
+/// home of a line × quadric root's sensitivity, the ray's
+/// ([`Centred::roots`]) and the edge sweep's cone arm's.
+pub(super) fn over_root_slope<T: Decide>(error: T, disc: T) -> T {
+    error / (T::from_f64(2.0) * disc.sqrt())
 }
 
 /// **Which rung of [`line_wall_roots`] escalated**: the two questions
@@ -2589,52 +2637,34 @@ pub struct WallRootFault {
 /// **The line × cone quadratic**: the cone's quadric form along the
 /// line `q + d·t`, negated, `(w·â)² − |w|²·cos²α = A t² + 2B t + C` with
 /// `w = q + d·t − apex` — `A` in `d`'s units squared, `B` in metres
-/// times them, `C` in m². Its zero set is the DOUBLE cone; which nappe
-/// a root lands on is the caller's question. `A = (d·â)² − |d|²cos²α`
-/// vanishes exactly when the line runs parallel to a generator. Each
-/// square straddling zero is a `powi(2)`, the tight square.
+/// times them, `C` in m² — read `about` the line's start or its closest
+/// approach to the apex ([`Centred`]). Its zero set is the DOUBLE cone;
+/// which nappe a root lands on is the caller's question.
+/// `A = (d·â)² − |d|²cos²α` vanishes exactly when the line runs parallel
+/// to a generator. Each square straddling zero is a `powi(2)`, the tight
+/// square.
 pub(super) fn line_cone_quadratic<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
     apex: Point3<T>,
     axis: Vec3<T>,
     half_angle: T,
-) -> [T; 3] {
-    cone_coeffs(q - apex, d, axis, half_angle)
-}
-
-/// [`line_cone_quadratic`] off the offset `w0` of the line's start from
-/// the apex.
-fn cone_coeffs<T: Decide>(w0: Vec3<T>, d: Vec3<T>, axis: Vec3<T>, half_angle: T) -> [T; 3] {
-    let cos2 = half_angle.cos().powi(2);
-    let (da, wa) = (d.dot(axis), w0.dot(axis));
-    [
-        da.powi(2) - d.norm_squared() * cos2,
-        da * wa - w0.dot(d) * cos2,
-        wa.powi(2) - w0.norm_squared() * cos2,
-    ]
-}
-
-/// [`line_cone_quadratic`] about the line's closest approach to the
-/// apex ([`Centred`]).
-pub(super) fn line_cone_centred<T: Decide>(
-    q: Point3<T>,
-    d: Vec3<T>,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
+    about: About,
 ) -> Centred<T> {
     let w0 = q - apex;
-    let shift = (T::zero() - w0.dot(d)) / d.norm_squared();
+    let shift = match about {
+        About::Start => T::zero(),
+        About::Nearest => (T::zero() - w0.dot(d)) / d.norm_squared(),
+    };
     let w = w0 + d * shift;
-    Centred {
-        shift,
-        coeffs: cone_coeffs(w, d, axis, half_angle),
-        far: w0.norm() + d.norm() * shift.abs(),
-        near: w.norm(),
-        gradient: T::from_f64(2.0),
-        speed: d.norm(),
-    }
+    let cos2 = half_angle.cos().powi(2);
+    let (da, wa) = (d.dot(axis), w.dot(axis));
+    let coeffs = [
+        da.powi(2) - d.norm_squared() * cos2,
+        da * wa - w.dot(d) * cos2,
+        wa.powi(2) - w.norm_squared() * cos2,
+    ];
+    Centred::new((w0, d, shift, w), coeffs, T::zero(), T::from_f64(2.0))
 }
 
 /// The certified roots of the LINE `q + d·t` against the sphere
@@ -2670,19 +2700,17 @@ pub(super) fn line_sphere_roots<T: Decide>(
         About::Nearest => (T::zero() - w0.dot(d)) / a2,
     };
     let w = w0 + d * shift;
-    let centred = Centred {
-        shift,
-        coeffs: [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
-        far: w0.norm() + d.norm() * shift.abs(),
-        near: w.norm() + radius,
-        gradient: T::one(),
-        speed: d.norm(),
-    };
+    let centred = Centred::new(
+        (w0, d, shift, w),
+        [a2, w.dot(d), w.norm_squared() - radius.powi(2)],
+        radius,
+        T::one(),
+    );
     let disc = centred.disc();
     let two_r = T::from_f64(2.0) * radius;
     match decide(
         "bool_ray_sphere_disc",
-        Margin::over_lever(disc / a2, two_r),
+        Margin::over_lever(centred.charged(disc, about) / a2, two_r),
         band,
     )? {
         Sign::Positive => {}
@@ -2980,10 +3008,13 @@ pub(crate) struct RayHit<T> {
     /// crossing, or where the ray passes an edge, within the band of
     /// both its faces.
     pub(crate) at: T,
-    /// A bound on `at`'s rounding, for a face's crossing read off its
-    /// carrier ([`Centred::roots`], [`PlaneCross`]): `pair` orders two
-    /// crossings only past both. Zero for an edge's passage, which its
-    /// span holds, and for a mark.
+    /// The rounding a face's crossing read off its carrier is charged:
+    /// `pair` orders two crossings only past both. For a plane's
+    /// ([`PlaneCross`]) and a wall's, sphere's or cone's root
+    /// ([`Centred::roots`]) it bounds `at`'s rounding to first order. For
+    /// a torus's root it is the moving back of the depressed quartic's
+    /// root alone: the quartic's own root error is not in it. Zero for an
+    /// edge's passage, which its span holds, and for a mark.
     pub(crate) slack: T,
     /// What the ray reads nothing at here ([`edge_meets`]), if anything:
     /// a mark counts nothing and is sideless, so it matters only where
@@ -3052,9 +3083,11 @@ impl<T: Copy> RayHit<T> {
     /// along it. Not so where the ray crosses their carriers: on a ray
     /// shallow to a face, its carrier crossing lands far off the face,
     /// beside another face (PR 5422's review R2). Two
-    /// parties met in band of each other along the ray (decided on
-    /// `order` as a magnitude) are a pair, or a tie that grazes, on any
-    /// two of their faces that do not meet ([`crate::side_reader::meet`]).
+    /// parties whose gap along the ray, less both their slacks, is not
+    /// definitely positive (decided on `order`, signed: within each
+    /// other's rounding it is negative) are a pair, or a tie that grazes,
+    /// on any two of their faces that do not meet
+    /// ([`crate::side_reader::meet`]).
     ///
     /// # Errors
     ///
@@ -3073,12 +3106,14 @@ impl<T: Copy> RayHit<T> {
         if self.count == 0 || other.count == 0 {
             return Ok(());
         }
-        let along = geom_core::k_stats::decide_magnitude(
+        // Signed: the gap less both slacks is negative where the two lie
+        // within each other's rounding, which is no gap at all.
+        let along = decide(
             order,
             Margin::of((self.at - other.at).abs() - self.slack - other.slack),
             band,
         );
-        if along == Ok(geom_core::k_stats::Magnitude::Positive) {
+        if along == Ok(Sign::Positive) {
             return Ok(());
         }
         for a in self.faces() {
@@ -3212,7 +3247,7 @@ enum Cross {
 struct RootCross<T> {
     face: FaceKey,
     t: T,
-    /// A bound on `t`'s rounding ([`Centred::roots`]).
+    /// The rounding `t` is charged ([`RayHit::slack`]).
     slack: T,
     side: RootSide,
     /// Its place among its face's roots: two faces on one carrier read
@@ -3905,7 +3940,7 @@ fn carrier_roots<T: Decide>(
                     ref region,
                     ..
                 } => {
-                    let centred = line_cone_centred(q, d, apex, axis, half_angle);
+                    let centred = line_cone_quadratic(q, d, apex, axis, half_angle, About::Nearest);
                     let a2 = centred.coeffs[0];
                     // A bound on the face's reach from its apex, never under
                     // it — the lever both margins below are metered by.
@@ -3917,8 +3952,12 @@ fn carrier_roots<T: Decide>(
                         return Err(RayFault::Graze); // generator-parallel
                     }
                     let disc = centred.disc();
-                    match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
-                        .map_err(escalate)?
+                    match decide(
+                        "bool_ray_cone_disc",
+                        Margin::over_lever(centred.charged(disc, About::Nearest), v_ext),
+                        band,
+                    )
+                    .map_err(escalate)?
                     {
                         Sign::Positive => {
                             // Unordered: `A` may be negative, and the count
@@ -4620,7 +4659,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 // ball holding the face blocks the ray; a `Zero` on any
                 // of these rows grazes, as on the trimmable arm, since a
                 // tighter tolerance could decide it either way.
-                let centred = line_cone_centred(q, d, apex, axis, half_angle);
+                let centred = line_cone_quadratic(q, d, apex, axis, half_angle, About::Nearest);
                 if decide(
                     "bool_ray_cone_lead",
                     Margin::levered(centred.coeffs[0], reach),
@@ -4632,8 +4671,12 @@ pub(crate) fn ray_crossings<T: Decide>(
                     return Err(RayFault::Graze); // generator-parallel
                 }
                 let disc = centred.disc();
-                match decide("bool_ray_cone_disc", Margin::over_lever(disc, reach), band)
-                    .map_err(escalate)?
+                match decide(
+                    "bool_ray_cone_disc",
+                    Margin::over_lever(centred.charged(disc, About::Nearest), reach),
+                    band,
+                )
+                .map_err(escalate)?
                 {
                     Sign::Negative => continue,
                     Sign::Zero => return Err(RayFault::Graze), // tangent ray
@@ -5471,6 +5514,53 @@ mod per_solid_entry_tests {
 }
 
 #[cfg(test)]
+#[allow(clippy::panic, clippy::unwrap_used)]
+mod pair_margin_rows {
+    //! [`RayHit::pair`]'s margin is a gap less two slacks, so it is
+    //! signed: two crossings closer than their rounding put it below
+    //! zero.
+
+    use super::*;
+    use crate::splitting::reassembly::quad_prism;
+    use geom_core::Tol;
+
+    /// **Two crossings within each other's slack are no gap**: `1e-8`
+    /// apart with `1e-7` of slack each, at ε `1e-9`, the margin is
+    /// `−1.9e-7`, definitely negative. On two faces that do not meet
+    /// they tie and the ray grazes; on one face they are summed. A
+    /// magnitude door panicked here.
+    #[test]
+    fn crossings_within_each_others_slack_tie() {
+        let tol = Tol::witness();
+        let band = Band::linear_at(tol, 1e-9).unwrap();
+        let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
+        crate::instance::graft_disjoint(&mut body, &other).unwrap();
+        let faces: Vec<FaceKey> = body.faces().map(|(f, _)| f).collect();
+        let (a, b) = (faces[0], faces[faces.len() - 1]);
+        assert!(
+            !crate::side_reader::meet(&body, a, b),
+            "faces of two cubes do not meet"
+        );
+        let near = RayHit::crossing(a, 5.0, 1e-7, 1);
+        let far = RayHit::crossing(b, 5.0 + 1e-8, 1e-7, -1);
+        assert!(
+            matches!(
+                near.pair(&body, &far, "bool_point_in_solid_order", band),
+                Err(RayFault::Graze)
+            ),
+            "two faces that do not meet, within each other's slack, tie"
+        );
+        let same = RayHit::crossing(a, 5.0 + 1e-8, 1e-7, -1);
+        assert!(
+            near.pair(&body, &same, "bool_point_in_solid_order", band)
+                .is_ok(),
+            "one face's two crossings within each other's slack are summed"
+        );
+    }
+}
+
+#[cfg(test)]
 #[allow(clippy::panic)]
 mod wall_root_rows {
     //! [`line_wall_roots`]' two rungs are lengths: the axis-parallel
@@ -5643,12 +5733,13 @@ mod wall_root_rows {
         );
         let big = 4e5;
         let half = (1.0 - 0.36_f64).sqrt();
-        let cone = line_cone_centred(
+        let cone = line_cone_quadratic(
             Point3::new(0.6, -big, 1.0),
             d,
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             core::f64::consts::FRAC_PI_4,
+            About::Nearest,
         );
         let (ts, slack) = cone.roots(cone.disc());
         let (t0, t1) = (ts[0].min(ts[1]), ts[0].max(ts[1]));

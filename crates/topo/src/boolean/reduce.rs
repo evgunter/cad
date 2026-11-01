@@ -4947,8 +4947,15 @@ fn line_cone_roots<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Ok(Err(Unsettled::AtApex)),
     }
-    let [a2, b2, c2] =
-        super::solid_contain::line_cone_quadratic(origin, dir, apex, axis, half_angle);
+    let [a2, b2, c2] = super::solid_contain::line_cone_quadratic(
+        origin,
+        dir,
+        apex,
+        axis,
+        half_angle,
+        super::solid_contain::About::Start,
+    )
+    .coeffs;
     let length = dir.norm() * (t1 - t0).abs();
     match decide(
         "bool_line_cone_lead",
@@ -4975,12 +4982,12 @@ fn line_cone_roots<T: Decide>(
         Sign::Negative => return Ok(Ok(CircleRoots::Miss)),
     }
     let roots = geom_brep::quartic::quadratic_roots(a2, b2, c2, disc);
-    let two = T::from_f64(2.0);
     let speed = dir.norm();
     let (lo, hi) = (t0.min(t1), t0.max(t1));
     for t in roots {
         let terms = (w0.norm() + speed * t.abs()).powi(2);
-        let slack = speed * geom_core::rounding_charge(terms) / (two * disc.sqrt());
+        let slack =
+            super::solid_contain::over_root_slope(speed * geom_core::rounding_charge(terms), disc);
         let outside = speed * (lo - t).max(t - hi).max(T::zero());
         match decide(
             "bool_line_cone_root_slack",
