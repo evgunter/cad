@@ -38,9 +38,8 @@ from pncad import (
     NamePat,
     Node,
     Open,
+    VarDecl,
     VarName,
-    PartSelect,
-    PatternKind,
     PoseDef,
     Radius,
     RoleRead,
@@ -270,16 +269,13 @@ class TestHeatsinkFins(unittest.TestCase):
     """The structural half of `heatsink5/7/9`, said structurally —
     the Python twin of corpus document `heat_sink_fins`.
 
-    ONE `PlacedUnion(Linear)` node carries the whole fin family, its
-    count bound to the document parameter `fins`, and 5 -> 7 -> 9 is
-    ONE `define_var` edit each. That is what G8 said could not be
-    said: no pattern node, no structural-param edit.
+    ONE row carries the whole fin family — a placement under the index
+    `k = index(fins)`, `fins` the document parameter — fused by one
+    union, and 5 -> 7 -> 9 is ONE `define_var` edit each. That is what
+    G8 said could not be said: no pattern, no structural-param edit.
 
-    The BASE deliberately stays out. Fusing the group into it is the
-    kernel's single-solid combine wall (`JoinDesync`: "operand A/B is
-    not a single-solid body"), a kernel door that does not exist —
-    reported, never worked around, so this document says exactly what
-    the group node buys and no more.
+    The BASE deliberately stays out, so this document says exactly what
+    the row buys and no more.
     """
 
     #: `heat_sink`'s own constants: footprint 0.1875 x 0.75, extruded
@@ -303,20 +299,17 @@ class TestHeatsinkFins(unittest.TestCase):
             )
         )
         fin = doc.insert(Node.extrude(profile, Formula.length_in(0.8125, m)))
-        fins = doc.insert(
-            Node.placed_union(
-                fin, Formula.count(5), PatternKind.linear((
-                    Formula.literal(1.0),
-                    Formula.literal(0.0),
-                    Formula.literal(0.0),
-                ), Formula.length_in(0.3125, m))
+        doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(doc.parse_formula("fins"))))
+        row = doc.insert(
+            Node.linear_pattern(
+                VarName("k"), fin, doc.space(fin), [("x", Formula.length_in(0.3125, m))]
             )
         )
-        doc.apply(DocEdit.bind_count_param(fins, VarName("fins")))
-        return doc, fins
+        fins = doc.insert(Node.union(row), label="fins")
+        return doc, row, fins
 
     def test_one_param_edit_recounts_the_whole_fin_family(self):
-        doc, fins = self.build()
+        doc, _row, fins = self.build()
         for count in (5, 7, 9):
             with self.subTest(fins=count):
                 doc.apply(DocEdit.define_var(VarName("fins"), FreeVar.count(count)))
@@ -330,11 +323,14 @@ class TestHeatsinkFins(unittest.TestCase):
                 self.assertEqual(mass.volume, count * self.FIN_VOLUME)
                 self.assertEqual(mass.surface_area, count * self.FIN_AREA)
 
-    def test_the_fin_family_is_one_node_and_one_body(self):
-        doc, fins = self.build()
-        # A pattern node would answer `instances` here, which is
-        # exactly what no boolean can consume.
-        self.assertEqual(evaluate(doc).value(fins).kind, "body")
+    def test_the_fin_family_is_one_row_fused_into_one_body(self):
+        doc, row, fins = self.build()
+        ev = evaluate(doc)
+        # The row answers the plural family, and its union one body.
+        self.assertEqual(ev.value(row).kind, "instances")
+        self.assertEqual(len(ev.value(row).bodies()), 5)
+        self.assertEqual(ev.value(fins).kind, "boolean")
+        self.assertEqual(len(ev.value(fins).bodies()), 1)
 
 
 class TestPlateParam(unittest.TestCase):
@@ -1055,18 +1051,10 @@ class TestTheVDegreeParamBinding(unittest.TestCase):
         self.assertFalse(evaluate(doc).succeeded(prism))
 
     def test_the_door_names_its_own_slot(self):
-        """One door per structural slot: a loft has no count and no
-        instance, and the count door aimed at one says which slot it
-        went looking for."""
+        """The v-degree door aimed at a node that has no skin says
+        which slot it went looking for."""
         doc = Doc()
-        prism = prism_loft(doc, [0.0, 1.0, 2.0])
         doc.apply(DocEdit.declare_var(VarName("skin"), FreeVar.count(2)))
-        with self.assertRaises(EditError) as caught:
-            doc.apply(DocEdit.bind_count_param(prism, VarName("skin")))
-        self.assertEqual(caught.exception.variant, "unknown_slot")
-        self.assertEqual(caught.exception.slot, "count")
-
-        # And the v-degree door aimed at a node that has no skin.
         box = doc.insert(
             Node.extrude(
                 doc.insert(
@@ -3288,19 +3276,19 @@ class TestTeapot(unittest.TestCase):
         # handle union vessel: PAST the operand gate, because the
         # handle's torus is on the union's kind roster, and PAST the
         # maximal-faces precondition, since a full revolve sweeps the
-        # vessel's planar walls whole — and dead where the vessel's
-        # sphere face meets the handle's torus, a meeting the Boolean
-        # cannot yet trace.
+        # vessel's planar walls whole, and PAST the section: the
+        # sphere x torus pair's loops are carried, its germs matched on
+        # them and its closed loops seated, so the union builds. Dead at
+        # the result's validation: its volume is not computed, the
+        # vessel's sphere face trimmed by a conic loop no sphere-chart
+        # quadrature reads yet. Pinned by the refusal's arm, not a
+        # sentence of its text.
         self.assertFalse(ev.succeeded(handle_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(handle_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
-        text = str(refusal)
-        self.assertRegex(
-            text,
-            r"cannot yet trace where the first operand's sphere face meets the second operand's torus face",
-        )
+        self.assertEqual(refusal.inner_kind, "result_invalid")
 
         # spout union vessel: PAST the pair rung, because a loft's
         # walls are Nurbs and that arm exists — and dead where the
@@ -3940,13 +3928,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
     YES."""
 
     def test_the_bound_vocabulary_is_exactly_this(self):
-        # `part` and `pattern` JOINED it at LIB-B-PART, which closed
-        # B-PART, and `bind_instance_param` with them — the Part's
-        # index is a STRUCTURAL slot of its own, so it gets a door of
-        # its own beside the count's. `pattern` is the one of the
-        # three that moves an audit row's prose: it was absent because
-        # a plural payload fed nothing, and `part` is what it feeds.
-        # The positive form is `tests/test_part_select.py`.
+        # `linear_pattern`, `grid`, `circular_pattern` and
+        # `bolt_circle` are the pattern writers over an index (D10
+        # `[repetition]`), each a `Node.place`; the positive form is
+        # `tests/test_pattern.py`.
         #
         # `union` JOINED this list with `DocEdit.set_members` and
         # `DocEdit.bind_v_degree_param`, and the three are why this
@@ -3992,13 +3977,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `assemble` JOINED it at D′3: the `⊔`, the fourth operator,
         # whose result the product slot reads (`Doc.set_product`). The
         # positive form is `tests/test_assembly_author.py`.
+        #
+        # `drawn_profile` JOINED it at INTENT stage 6 C: a profile drawn
+        # on a frame of a body's space, tracing its faces. The positive
+        # form is `tests/test_traced_profile.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "assemble", "assertion", "chamfer",
-                "extrude", "fillet", "hollow_tube", "instantiate_part",
-                "intersect", "loft", "measure", "mirror", "part", "pattern",
-                "place", "placed_union", "placed_union_at",
+                "assemble", "assertion", "bolt_circle", "chamfer",
+                "circular_pattern", "drawn_profile", "extrude", "fillet", "grid",
+                "hollow_tube", "instantiate_part", "intersect",
+                "linear_pattern", "loft", "measure", "mirror", "place",
                 "polygon", "profile", "revolve", "shell", "space",
                 "split", "subtract", "tube", "union",
             ],
@@ -4018,8 +4007,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
-                "add_constraint", "bind_count_param",
-                "bind_instance_param",
+                "add_constraint",
                 "bind_v_degree_param", "declare_var", "define_var",
                 "delete_node", "delete_var",
                 "insert_node", "rebind", "remove_constraint",
@@ -4188,19 +4176,9 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `sweep` STAYS: `wire_sweep` refuses unconditionally
         # (SWEEP_FRONTIER, the path-composition lane banked past M6).
         # `tube` LEFT this list at LIB-TUBE — see the paragraph two
-        # below. `pattern` LEFT it at LIB-B-PART, and note what is
-        # also NOT in this list: `placed_union`/`placed_union_at` left
-        # it when LIB-PYPU bound the group boolean, whose value is an
-        # ordinary body.
-        #
-        # What let `pattern` go was its CONSUMER. The reason it was
-        # here — a plural `instances` payload that no downstream door
-        # takes — was true of the whole surface until `Node.part`
-        # bound, and a Part projects one body back out of a plural
-        # value, which every single-body seat then consumes. So the
-        # measurement below stands unchanged (a boolean still refuses
-        # a plural payload) and the absence it used to justify does
-        # not.
+        # below. A pattern is not in it: a row is a placement under an
+        # index (`Node.linear_pattern`), its plural value read one
+        # member at a time (`row[i]`) or whole (`Node.union(row)`).
         #
         # `chamfer` LEFT this list at LIB-G16: `Node::Chamfer` is a
         # recipe node now (schema v16), so `Node.chamfer` binds it —
@@ -4442,38 +4420,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         )
         self.assertEqual(loop.vertex_count, 4)
 
-    def test_a_plural_payload_cannot_feed_a_boolean(self):
+    def test_a_family_feeds_a_boolean_member_by_member(self):
         """The operand rule, measured rather than assumed — and the
-        two nodes that live on either side of it.
+        reads that live on either side of it.
 
         A subtract's operand reads one body, and the door refuses a
-        plural read: a split named alone is either of its two halves,
-        and a `Node.pattern`'s `instances` are a list of bodies (a
-        union or an intersect reads a family only WHOLE, as its one
-        members argument). That was the argument for leaving
-        `Node.pattern` unbound, and it stopped being one when
-        `Node.part` bound (LIB-B-PART): a Part PROJECTS one body out
-        of a plural value, so the pattern's family reaches every
-        single-body seat one copy at a time.
-
-        What closes the replication half of G8 is still the node whose
-        value is SINGULAR: `PlacedUnion` fuses its placements and
-        answers an ordinary `body`, which every downstream door
-        consumes with no new arms. The three assertions below are that
-        whole shape — the group a boolean takes, the pattern it
-        refuses, and the Part of that pattern it takes."""
+        read that is either of two: a split named alone is either of
+        its two halves. A row is not that: its members are a family
+        (D10 `[repetition]`), and a reader of the family is evaluated
+        once per member, so the subtract over it is a family too. One
+        member, `row[i]`, is one body at any seat, and the row's union
+        is the family fused into one."""
         doc = Doc()
-        grouped = doc.insert(
-            Node.placed_union_at(
-                slab(doc, (0, 1), (0, 1), (0, 1)),
-                [
-                    Frame.translation((0 * m, 0 * m, 0 * m)),
-                    Frame.translation((4 * m, 0 * m, 0 * m)),
-                ],
-            )
-        )
-        self.assertEqual(evaluate(doc).value(grouped).kind, "body")
-
         box = slab(doc, (0, 1), (0, 1), (0, 1))
         other = slab(doc, (2, 3), (0, 1), (0, 1), on=box)
         plane = plane_on(doc, box, (0.0, 0.0, 0.5), (0.0, 0.0, 1.0))
@@ -4482,27 +4440,24 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             doc.insert(Node.subtract(halves, other))
         self.assertEqual(caught.exception.variant, "ambiguous_output")
 
-        # The pattern refuses at the same seat for the same reason...
+        doc.apply(DocEdit.declare_var(VarName("k"), VarDecl.index(3)))
         family = doc.insert(
-            Node.pattern(box, Formula.count(3), PatternKind.linear((
-                Formula.literal(1.0),
-                Formula.literal(0.0),
-                Formula.literal(0.0),
-            ), Formula.length_in(4, m)))
+            Node.linear_pattern(VarName("k"), box, doc.space(box), [("x", Formula.length_in(4, m))])
         )
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
-        with self.assertRaises(EditError) as plural_caught:
-            doc.insert(Node.subtract(family, other))
-        self.assertEqual(plural_caught.exception.variant, "slot_var_kind")
+        grouped = doc.insert(Node.union(family))
+        self.assertEqual(evaluate(doc).value(grouped).kind, "boolean")
 
-        # ...and a Part of it does not: one instance, one body, one
-        # ordinary operand. The middle copy stands at x in [4, 5], and
-        # the box it fuses with runs INTO it — a real union, and one
-        # with no flush wall to glue.
-        copy = doc.insert(Node.part(family, PartSelect.instance(Formula.count(1))))
-        self.assertEqual(evaluate(doc).value(copy).kind, "body")
+        # The subtract over the row is evaluated once per member...
+        cut = doc.insert(Node.subtract(family, other))
+        value = evaluate(doc).value(cut)
+        self.assertEqual([at for at, _ in value.members()], [[0], [1], [2]])
+
+        # ...and one member is one ordinary operand. The middle copy
+        # stands at x in [4, 5], and the box it fuses with runs INTO it
+        # — a real union, and one with no flush wall to glue.
         joined = doc.insert(
-            Node.union([copy, slab(doc, (4.5, 5.5), (0.25, 0.75), (0.25, 0.75), on=box)])
+            Node.union([family[1], slab(doc, (4.5, 5.5), (0.25, 0.75), (0.25, 0.75), on=box)])
         )
         self.assertTrue(evaluate(doc).succeeded(joined))
 

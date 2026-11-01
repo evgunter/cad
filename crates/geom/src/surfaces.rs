@@ -890,7 +890,27 @@ impl<T: SpanLocate> Surface<T> {
             Surface::Approx(a) => a.fit().eval(u, v),
         }
     }
+}
 
+impl Surface<geom_core::Interval> {
+    /// **An enclosure of the surface over the parameter rectangle
+    /// `u × v`** that narrows as the rectangle does. A spline chart
+    /// reads its restricted control net
+    /// ([`NurbsSurface::rect_enclosure`]); an analytic carrier is
+    /// [`Surface::eval`] at the rectangle's two intervals, whose closed
+    /// forms already narrow with their arguments.
+    pub fn rect_enclosure(&self, u: (f64, f64), v: (f64, f64)) -> Point3<geom_core::Interval> {
+        match self.spline_chart() {
+            Some(net) => net.rect_enclosure(u, v),
+            None => self.eval(
+                geom_core::Interval::from_bounds(u.0, u.1),
+                geom_core::Interval::from_bounds(v.0, v.1),
+            ),
+        }
+    }
+}
+
+impl<T: SpanLocate> Surface<T> {
     /// The whole second-order jet at `(u, v)` in **one** evaluation:
     /// the point and every partial with `k + l ≤ 2`.
     ///

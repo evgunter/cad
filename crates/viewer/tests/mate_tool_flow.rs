@@ -7,6 +7,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::{Dimension, Formula};
 
 use common::asm;
 use common::{ang, len, scl};
@@ -277,34 +278,33 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
 /// reaches exactly one of them.
 const PATTERN_STEP: f64 = 0.04;
 
-/// **`pattern`'s copies placed in the world beside post_b** (A10): post_b
-/// is its own placement and draws copy 0, which the pattern repeats in
-/// place, so each later copy is projected and placed through the
-/// session's part door. Answers post_b, then the projections, in
-/// instance order.
+/// **What draws each of `pattern`'s members** (A10): the family stands
+/// in post_b's space, the world, so it draws its own members, member 0
+/// where post_b itself stands. Answers post_b, then the family once per
+/// later member, in member order.
 fn place_copies(
     session: &mut DocSession,
     bench: &asm::Bench,
     pattern: RecipeNodeId,
-    count: i64,
+    count: usize,
 ) -> Vec<RecipeNodeId> {
-    let parts = std::iter::once(bench.post_b)
-        .chain((1..count).map(|index| {
-            common::session_insert(
-                session,
-                SessionOp::AddPart {
-                    of: pattern,
-                    select: viewer::session::PartSelectSpec::Instance(index),
-                },
-            )
-        }))
-        .collect();
     session.pump();
-    parts
+    std::iter::once(bench.post_b)
+        .chain(std::iter::repeat_n(pattern, count - 1))
+        .collect()
 }
 
-/// Pattern post_b twice along +x, each copy placed ([`place_copies`]),
-/// and answer the pattern node and the copies' projections.
+/// **The member indices a name's head is qualified by**, outermost
+/// first — `None` for a head that is no family member.
+fn member_at(seg: Option<&RoleSeg>) -> Option<Vec<u32>> {
+    match seg {
+        Some(RoleSeg::Member { at, .. }) => Some(at.iter().map(|&(_, i)| i).collect()),
+        _ => None,
+    }
+}
+
+/// Pattern post_b twice along +x ([`place_copies`]), and answer the
+/// family's placement and what draws each member.
 fn patterned_post(
     session: &mut DocSession,
     bench: &asm::Bench,
@@ -362,7 +362,7 @@ fn own_name(side: &pncad::document::SitedFace) -> pncad::prelude::StableName {
 
 /// **A pattern-placed copy is a target, and the shelf rests on it.** The
 /// tool reads the target where it was picked — the copy's placement,
-/// under the pattern's `Instance(i)`-headed name — and the solve reads
+/// under the family's `Member`-headed name — and the solve reads
 /// that face as the copy carries it.
 #[test]
 fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
@@ -374,7 +374,7 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     let copy_one = copy_pick(&session, 1);
     assert_eq!(
         copy_one.node,
-        common::copy_of(session.committed_doc(), parts[1]),
+        common::drawn_node(session.committed_doc(), parts[1]),
         "the ray met copy 1's placement"
     );
     let shelf_bottom = asm::shelf_underside(&session);
@@ -384,13 +384,13 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
         "the mate places the shelf"
     );
 
-    // The target is read at the copy's placement, `Instance(i)`-headed
-    // on the pattern node under the placement's wrap.
+    // The target is read where the ray met it, `Member`-headed on the
+    // family's placement.
     assert_eq!(proposal.to.at, copy_one.node);
     let own = own_name(&proposal.to);
     assert_eq!(own.node, pattern);
     assert!(
-        matches!(own.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
+        member_at(own.path.first()) == Some(vec![1]),
         "the copy rides in the head: {:?}",
         own.path.first()
     );
@@ -439,9 +439,13 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b.into(),
-            translation: [len(0.0), len(0.0), len(0.0)],
+            translation: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     session.pump();
@@ -461,7 +465,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let copy_one = copy_pick(&session, 1);
     assert_eq!(
         copy_one.node,
-        common::copy_of(session.committed_doc(), parts[1])
+        common::drawn_node(session.committed_doc(), parts[1])
     );
     let shelf_bottom = asm::shelf_underside(&session);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
@@ -472,7 +476,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let own = own_name(&proposal.to);
     assert_eq!(own.node, pattern, "and names that copy");
     assert!(
-        matches!(own.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
+        member_at(own.path.first()) == Some(vec![1]),
         "the copy the ray hit: {:?}",
         own.path.first()
     );
@@ -561,7 +565,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
 const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 
 /// Pattern post_b twice about the world +y axis and answer the
-/// pattern node.
+/// family's placement.
 ///
 /// A quarter turn about +y carries the post's top cap from `z =
 /// POST_HEIGHT` facing +z to `x = POST_HEIGHT` facing +x, standing
@@ -587,12 +591,12 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
     pattern
 }
 
-/// The master entity a pattern copy's pick names, from the
-/// `Instance(i)` qualifier its head carries.
+/// The master entity a family member's pick names, from the `Member`
+/// qualifier its head carries; a pick on no member names it itself.
 fn master_face(pick: &FaceSelection) -> pncad::prelude::StableName {
     match pick.name.path.first() {
-        Some(RoleSeg::Instance { of, .. }) => (**of).clone(),
-        other => panic!("an Instance-qualified head: {other:?}"),
+        Some(RoleSeg::Member { of, .. }) => (**of).clone(),
+        _ => pick.name.clone(),
     }
 }
 
@@ -607,41 +611,29 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     let mut session = asm::open_bench(&bench, tol);
     let pattern = spun_post(&mut session, &bench);
 
-    // Copy 0 stands where post_b does (the rule's identity step), and
-    // post_b draws it: its cap faces +z and is picked from above.
+    // Member 0 stands where post_b does (the rule's identity step), so
+    // a ray onto that cap meets two coincident copies; copy 1's cap
+    // faces +x, under the ground plane, and is picked along -x.
     let half = asm::POST_SECTION / 2.0;
-    let copy_zero = asm::pick_face(
-        &session,
-        &asm::down_at(asm::POST_B_AT[0] + half, asm::POST_B_AT[1] + half),
-    );
-    // Copy 1's cap faces +x, under the ground plane: picked along -x.
     let copy_one = asm::pick_face(
         &session,
         &common::along_x(-1.0, asm::POST_B_AT[1] + half, -(asm::POST_B_AT[0] + half)),
     );
-    let doc = session.committed_doc();
-    assert_eq!(copy_zero.node, bench.post_b, "post_b draws copy 0");
-    assert!(
-        matches!(
-            doc.node(viewer::world::seat_of(doc, copy_one.node)),
-            Some(pncad::document::Node::Part { of, .. })
-                if doc.operation_of(*of) == Some(pattern)
-        ),
-        "the ray met a placed copy of the pattern: {copy_one:?}"
+    assert_eq!(
+        copy_one.node, pattern,
+        "the ray met the family's member: {copy_one:?}"
     );
-    assert!(
-        matches!(
-            copy_one.name.path.first(),
-            Some(RoleSeg::Instance { i: 1, .. })
-        ),
+    assert_eq!(
+        member_at(copy_one.name.path.first()),
+        Some(vec![1]),
         "the copy rides in the head: {:?}",
         copy_one.name
     );
-    // The two rays met ONE part-local face on two copies.
+    // The ray met the post's own top cap, on the spun member.
     assert_eq!(
         master_face(&copy_one),
-        copy_zero.name,
-        "one part-local face, two copies"
+        bench.post_top,
+        "one part-local face, on the member"
     );
 
     let shelf_bottom = asm::shelf_underside(&session);
@@ -671,7 +663,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     );
 }
 
-// ---- the member chain: a nested copy, and a `Part`-selected one ----
+// ---- the member chain: a nested copy, and a read member ----
 
 /// The step the nested assembly's two rules take, metres.
 const NEST_STEP: f64 = 0.04;
@@ -680,82 +672,82 @@ const NEST_STEP: f64 = 0.04;
 /// opened through the ordinary `Open` door** — which is what wires
 /// the resolver, so the picks below are real rays onto real bodies.
 ///
-/// `Pattern` over `Part { Instance(1) }` over `Pattern` over the
-/// post: the `Part` between the two patterns chooses one inner copy
-/// for the outer pattern to replicate, which is the shape the picks
-/// below want (a pattern directly over a pattern evaluates too; this
-/// fixture is not the only road to a nested copy). A second `Part` selecting inner copy 0 is placed beside it, so the
-/// same document offers both picks this pair of rows wants: one on a
-/// nested copy, one on a `Part` over a pattern. The world (A10) is the
-/// shelf, the outer pattern's two copies (a `Part` each) and the loose
-/// `Part`.
+/// A family over a read of member 1 of a family over the post: the
+/// read between the two families chooses one inner member for the
+/// outer family to replicate, which is the shape the picks below want.
+/// A second read selecting inner member 0 stands beside it, so the same
+/// document offers both picks this pair of rows wants: one on a nested
+/// member, one on a member read. The families and the reads stand in a
+/// space of their own, which no placement but the two below reaches the
+/// world from: the world (A10) is the shelf, the post, the read of inner
+/// member 1 and the read of outer member 1, each copied in at the
+/// identity.
 ///
 /// Returns the session and `(post instance, shelf instance, inner,
-/// part, outer, loose part, outer copy 1's projection)`; the loose part
-/// is authored but not placed.
+/// part, outer, loose part, outer member 1's read)`; the loose read is
+/// authored but not placed.
 fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [RecipeNodeId; 7]) {
     use pncad::document::{
-        Doc, DocumentId, Formula, Node, PartSelect, PatternKind, ProfileProgram,
+        BodyRead, Doc, DocumentId, Formula, Node, Operand, Placed, ProfileProgram, VarId, stand,
     };
     let mut doc: Doc<ProfileProgram> = Doc::empty(DocumentId::derive(tag), tol);
     let shelf_i = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, &bench.opts(), tol);
     let post_i = asm::instance_at(&mut doc, bench.post, asm::POST_B_AT, &bench.opts(), tol);
-    let rule = |dir: [f64; 3]| PatternKind::Linear {
-        direction: dir.map(scl),
-        spacing: len(NEST_STEP),
-    };
-    let inner = common::insert_into(
-        &mut doc,
-        Node::Pattern {
-            input: post_i.into(),
-            count: Formula::count(2),
-            kind: rule([1.0, 0.0, 0.0]),
-        },
-        tol,
-    );
-    let part = common::insert_into(
-        &mut doc,
-        Node::Part {
-            of: inner.into(),
-            select: PartSelect::Instance(Formula::count(1)),
-        },
-        tol,
-    );
-    let outer = common::insert_into(
-        &mut doc,
-        Node::Pattern {
-            input: part.into(),
-            count: Formula::count(2),
-            kind: rule([0.0, 1.0, 0.0]),
-        },
-        tol,
-    );
-    let loose = common::insert_into(
-        &mut doc,
-        Node::Part {
-            of: inner.into(),
-            select: PartSelect::Instance(Formula::count(0)),
-        },
-        tol,
-    );
-    let outer_copies = [0, 1].map(|index| {
-        common::insert_into(
-            &mut doc,
-            Node::Part {
-                of: outer.into(),
-                select: PartSelect::Instance(Formula::count(index)),
-            },
-            tol,
+    let room = common::insert_into(&mut doc, Node::Space, tol);
+    let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
+    let family = |doc: Doc<ProfileProgram>, name: &str, of: RecipeNodeId, dir: [f64; 3]| {
+        let (doc, k) = crate::fixture::index(doc, name, 2);
+        let placed = Placed::of(
+            &doc,
+            Vec::new(),
+            crate::fixture::slides_along(k, dir, NEST_STEP),
+        );
+        crate::fixture::insert(
+            doc,
+            Node::place(
+                BodyRead::plain(Operand::Node(of)),
+                room.clone(),
+                placed.bundle(),
+            ),
         )
-    });
-    // The instances stand on their own world mates; of the copies, only
-    // those no other drawn copy coincides with are placed: `part` (inner
-    // copy 1, which outer copy 0 repeats) and outer copy 1. Inner copy 0
-    // is where post_i itself is drawn.
-    let _ = loose;
-    for body in [part, outer_copies[1]] {
-        doc = common::placed_read(&doc, body.into(), tol).0;
-    }
+    };
+    let read = |doc: Doc<ProfileProgram>, of: RecipeNodeId, at: i64, into: Operand| {
+        crate::fixture::insert(
+            doc,
+            Node::place(
+                BodyRead::indexed(of, vec![Formula::count(at)]),
+                into,
+                stand().bundle(),
+            ),
+        )
+    };
+    let (doc, inner) = family(doc, "i", post_i, [1.0, 0.0, 0.0]);
+    let (doc, part) = read(doc, inner, 1, room.clone());
+    let (doc, outer) = family(doc, "j", part, [0.0, 1.0, 0.0]);
+    let (doc, loose) = read(doc, inner, 0, room.clone());
+    let (doc, outer_one) = read(doc, outer, 1, room.clone());
+    // The instances stand on their own world mates; of the members, only
+    // those no other drawn copy coincides with are copied into the
+    // world: `part` (inner member 1, which outer member 0 repeats) and
+    // outer member 1. Inner member 0 is where post_i itself is drawn.
+    let world = Operand::Var(VarId::WORLD);
+    let (doc, _) = crate::fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::Node(part)),
+            world.clone(),
+            stand().bundle(),
+        ),
+    );
+    let (doc, _) = crate::fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::Node(outer_one)),
+            world,
+            stand().bundle(),
+        ),
+    );
+    let doc = editor_core::test_support::assemble_world_copies(doc, tol);
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
     let path = ws.create(&doc, tol).expect("the nested assembly stores");
     let mut session = DocSession::inline(Doc::empty_derived("nested-boot", tol), tol);
@@ -764,7 +756,7 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     session.pump();
     (
         session,
-        [post_i, shelf_i, inner, part, outer, loose, outer_copies[1]],
+        [post_i, shelf_i, inner, part, outer, loose, outer_one],
     )
 }
 
@@ -789,8 +781,8 @@ fn assert_faces_rest(session: &DocSession, a: &FaceSelection, b: &FaceSelection,
 }
 
 /// **A pick on a NESTED copy is a target, and the shelf rests on it.**
-/// The target wears one `Instance(i)` per level, and the composed
-/// offset `M₂(1) ∘ M₁(1)` is the solve's to apply.
+/// The target wears one `Member` per level, and the composed offset
+/// `M₂(1) ∘ M₁(1)` is the solve's to apply.
 #[test]
 fn a_nested_copy_pick_is_a_target_and_seats() {
     let tol = Tol::witness();
@@ -808,23 +800,29 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
     assert_eq!(
         nested.node,
         common::copy_of(session.committed_doc(), outer_one),
-        "the ray met the outer pattern's copy 1, placed"
+        "the ray met the outer family's member 1, placed"
     );
     let shelf_bottom = asm::shelf_underside(&session);
     let proposal = shelf_on(&session, &shelf_bottom, &nested);
 
-    // The target wears one `Instance(i)` per level, outermost first,
-    // and is read at the copy the ray met.
+    // The target wears one `Member` per level, outermost first, and is
+    // read at the copy the ray met.
     assert_eq!(proposal.to.at, nested.node);
     let own = own_name(&proposal.to);
     assert_eq!(own.node, outer);
-    let Some(RoleSeg::Instance { i: 1, of }) = own.path.first() else {
-        panic!("the outer copy rides in the head: {own:?}");
+    assert_eq!(
+        member_at(own.path.first()),
+        Some(vec![1]),
+        "the outer member rides in the head: {own:?}"
+    );
+    let Some(RoleSeg::Member { of, .. }) = own.path.first() else {
+        panic!("the outer member rides in the head: {own:?}");
     };
     assert_eq!(of.node, inner, "and the inner name under it");
-    assert!(
-        matches!(of.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
-        "the inner copy rides in the inner head: {of:?}"
+    assert_eq!(
+        member_at(of.path.first()),
+        Some(vec![1]),
+        "the inner member rides in the inner head: {of:?}"
     );
 
     // The shelf's world mate off, so the mate places the shelf against
@@ -846,9 +844,10 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
     }
 }
 
-/// **A pick on a `Part` over a pattern is a target, and the shelf rests
-/// on it.** The `Part` is pose-neutral and renames nothing, so the
-/// target's name is the pattern's copy's, read at the copy the ray met.
+/// **A pick on a read of a family's member is a target, and the shelf
+/// rests on it.** The read stands at the identity and renames nothing,
+/// so the target's name is the family member's, read at the copy the
+/// ray met.
 #[test]
 fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
     let tol = Tol::witness();
@@ -866,24 +865,24 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
     assert_eq!(
         picked.node,
         common::copy_of(session.committed_doc(), part),
-        "the ray met the Part's copy"
+        "the ray met the read's copy"
     );
     let shelf_bottom = asm::shelf_underside(&session);
     let proposal = shelf_on(&session, &shelf_bottom, &picked);
 
-    // Read at the `Part`'s copy, under the PATTERN's own name: the Part
-    // carries every name verbatim, so the target's head is the pattern
-    // node the copy was minted by.
+    // Read at the read's copy, under the FAMILY's own name: the read
+    // carries every name verbatim, so the target's head is the family's
+    // placement the member was minted by.
     assert_eq!(proposal.to.at, picked.node, "the copy the ray met");
     let own = own_name(&proposal.to);
     assert_eq!(own.node, inner);
     assert!(
-        matches!(own.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
+        member_at(own.path.first()) == Some(vec![1]),
         "the copy rides in the head: {own:?}"
     );
 
     // The shelf's world mate off, so the mate places the shelf against
-    // the Part's copy.
+    // the read's copy.
     asm::unpin(&mut session, shelf);
     let mate = common::commit_mate(&mut session, proposal.op_into_target_space());
     assert_eq!(mate.placement, shelf);
@@ -892,10 +891,10 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
         common::solve(&session, doc, tol)
             .fault(mate.placement)
             .is_none(),
-        "the Part-selected member solves: {:?}",
+        "the read member solves: {:?}",
         common::solve(&session, doc, tol).fault(mate.placement)
     );
-    assert_faces_rest(&session, &picked, &shelf_bottom, "a Part-selected copy");
+    assert_faces_rest(&session, &picked, &shelf_bottom, "a read member");
     for row in session.tree_rows() {
         assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
     }

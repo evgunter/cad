@@ -134,9 +134,16 @@
 //!    the gate. It then stopped at the maximal-faces precondition on
 //!    the POT, whose full revolve split its planar walls in two; a full
 //!    revolve sweeps them whole now (BAND, one wall per run), and the
-//!    join reaches the pot's sphere face meeting the handle's torus, a
-//!    meeting the Boolean cannot yet trace: `GermFrameUnsupported`,
-//!    pinned in wall 2.
+//!    join reaches the pot's sphere face meeting the handle's torus. The
+//!    section value builds that pair now: its pose decided once, its two
+//!    loops about the handle's tube marched and fitted, each germ matched
+//!    to its loop by foot, and each closed loop seated at its first site,
+//!    so the segment lays them off the edges and the union builds. The
+//!    result then fails its own validation: its volume is not computed,
+//!    the vessel's sphere face now trimmed by a conic loop that no
+//!    sphere-chart quadrature reads yet (`ResultInvalid` with
+//!    `VolumeUncomputable` from `QuadratureUnsupported`), pinned in wall
+//!    2.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -156,9 +163,10 @@
 //!    pair the model does not care about and onto the meeting itself.
 //!    Wall 3 pins it and the note carries the payload.
 //!
-//!    Wall 2 is past the operand gate and past the maximal-faces
-//!    precondition, and stops where the vessel's sphere face meets the
-//!    handle's torus, which the Boolean cannot yet trace. **Both refusals arrive through the
+//!    Wall 2 is past the operand gate, the maximal-faces precondition
+//!    and the section, and stops at the segment the join cannot yet
+//!    lay along the vessel's sphere face where it meets the handle's
+//!    torus. **Both refusals arrive through the
 //!    DOCUMENT**: each join is a `Node::Union` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
@@ -297,7 +305,7 @@ const R_FOOT: f64 = 4.0 / 64.0;
 /// The belly's sphere radius — the pot's widest wall, at `Y_BELLY_C`.
 const R_BELLY: f64 = 5.0 / 64.0;
 /// The mouth's radius, which the lid's rim reads.
-const R_NECK: f64 = 3.0 / 64.0;
+pub const R_NECK: f64 = 3.0 / 64.0;
 /// Where the foot ends and the belly's arc begins.
 const Y_FOOT: f64 = 1.0 / 64.0;
 /// The belly sphere's centre, on the axis. The two junction stations
@@ -305,7 +313,7 @@ const Y_FOOT: f64 = 1.0 / 64.0;
 /// `(3/64, 8/64)` at the mouth, both with an exactly zero residual.
 const Y_BELLY_C: f64 = 4.0 / 64.0;
 /// The mouth's plane.
-const Y_MOUTH: f64 = 8.0 / 64.0;
+pub const Y_MOUTH: f64 = 8.0 / 64.0;
 
 /// The wall thickness. A tenth of the belly's radius, and an eighth of
 /// the narrowest wall the shell has to survive (the neck's), so every
@@ -319,9 +327,9 @@ const WALL: f64 = 1.0 / 128.0;
 
 /// How far above the mouth the lid renders — the exploded-view gap.
 /// No mate is authored and none is implied; see the module docs.
-const LIFT: f64 = 1.0 / 32.0;
+pub const LIFT: f64 = 1.0 / 32.0;
 /// The lid's underside plane.
-const LID_BASE: f64 = Y_MOUTH + LIFT;
+pub const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// The flange's outer radius — the lid overhangs its mouth. With the
 /// dome's foot at [`R_NECK`], the skirt between them is a cone of
 /// `Δr = −2/256` over `Δy = +6/256`.
@@ -337,9 +345,9 @@ const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// the variant that keeps the dome's 5-12-13 junctions exact puts
 /// `DOME_C` at `LID_BASE − 1/256`, and against THIS centre it refuses
 /// one door earlier, at the arc's own equidistance check.)
-const R_FLANGE: f64 = 14.0 / 256.0;
+pub const R_FLANGE: f64 = 14.0 / 256.0;
 /// Where the conical flange ends and the dome's sphere begins.
-const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
+pub const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
 /// The dome's sphere radius, and its centre's station: the 5-12-13
 /// triple. What that buys is not that any of these decimals is a
 /// binary-exact float — 3/64 and 13/256 are, 0.6 and 0.8 would not be
@@ -349,16 +357,16 @@ const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
 const DOME_R: f64 = 13.0 / 256.0;
 /// The dome sphere's centre, one unit ABOVE the lid's underside —
 /// the flange lifts the dome's foot, and the centre with it.
-const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
+pub const DOME_C: f64 = LID_BASE + 1.0 / 256.0;
 /// The knob's radius — the 5-12-13 point of the dome circle.
-const R_KNOB: f64 = 5.0 / 256.0;
+pub const R_KNOB: f64 = 5.0 / 256.0;
 /// Where the dome ends and the knob's wall begins.
-const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
+pub const Y_KNOB: f64 = LID_BASE + 13.0 / 256.0;
 /// The knob's top.
-const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
+pub const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// The roll, one radius for all three of the lid's rims — per
 /// REQUEST rather than per edge, and the lid rolls in one request.
-const ROLL: f64 = 2.0 / 256.0;
+pub const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------
 // The spout and the handle.
@@ -697,6 +705,7 @@ fn spout_loft(
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );
@@ -767,8 +776,8 @@ fn spout_turn() -> f64 {
 
 /// The scene's recipe: one document, and the node each body is read
 /// out of.
-struct Recipe {
-    doc: Doc<ProfileProgram>,
+pub struct Recipe {
+    pub doc: Doc<ProfileProgram>,
     /// The pot's revolve — the OPERAND both hollows are taken of, and
     /// the node whose bands name the mouth.
     bellied: RecipeNodeId,
@@ -820,6 +829,7 @@ fn revolved(doc: &mut Doc<ProfileProgram>, loop_: LoopProgram<Formula>, tol: Tol
         Node::Profile(ProfileProgram {
             loops: vec![loop_],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -1043,9 +1053,11 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// The product is the four bodies the montage shows — the handle, the
 /// lid, the cup and the spout — each placed in the world once. Nothing
 /// places the SEALED hollow, the same operand and wall as the cup, so
-/// it is not in the product. It and the two refusing unions, which
-/// produce no body, are deleted as well, so the file holds what the
-/// montage shows and no refusal.
+/// it is not in the product. It, the two refusing unions, which
+/// produce no body, and the placements of the handle and the spout
+/// against the pot that only the unions read are deleted as well, so
+/// the file holds what the montage shows, no refusal and nothing
+/// unused.
 ///
 /// They interpenetrate, and the file says so: the handle's roots are
 /// driven through the belly wall and the spout's root disc sits inside
@@ -1054,7 +1066,7 @@ fn wall_one_pot(tol: Tol) -> Body<f64> {
 /// through the checks registry.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
-    let tidied = [r.handle_union, r.spout_union, r.pot]
+    let tidied = [r.handle_union, r.spout_union, r.pot, r.handle, r.spout]
         .into_iter()
         .fold(r.doc, |doc, id| {
             apply(&doc, &DocEdit::DeleteNode { id }, tol)
@@ -1492,22 +1504,38 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
 /// this one takes an evaluation where `torusvessel::wall_probes` takes
 /// only a tolerance and builds its own operands: nothing outside that
 /// scene's probe reads what it makes.
-fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
+pub fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
     // WALL 2 — the handle joined to the pot. The handle's torus is on
     // the union's KIND roster, so the gate has nothing to say about
     // it. The join used to stop one door on, at the maximal-faces
     // precondition, on the VESSEL, whose full revolve minted split
     // planar walls; it sweeps them whole now (BAND, one wall per run),
     // so the request reaches the vessel's sphere face meeting the
-    // handle's torus and refuses there: the germ frame has no arm for
-    // that pair of kinds.
+    // handle's torus. The section value carries that pair's loops, the
+    // segment lays them, and the union builds; its result's volume is not
+    // computed (a conic trim on the sphere's chart has no quadrature yet),
+    // so the result is invalid.
     crate::walls::wall(
         "teapot",
         2,
         "join the handle to the vessel (union; both roots driven 11.2 mm past the \
          belly's inner wall — a real overlap, not a tangency)",
         join_outcome(ev, r.handle_union),
-        |e| matches!(e, BooleanError::GermFrameUnsupported { .. }),
+        |e| {
+            matches!(
+                e,
+                BooleanError::ResultInvalid { errors } if matches!(
+                    errors.as_slice(),
+                    [pncad::topo::ValidationError::VolumeUncomputable {
+                        source: pncad::topo::MassPropsError::Face {
+                            source: pncad::geom_brep::PropsError::QuadratureUnsupported { what },
+                            ..
+                        },
+                        ..
+                    }] if what.starts_with("conic trim on a cone/sphere/torus chart")
+                )
+            )
+        },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
          walls 2 and 3, re-state the montage caption (which currently says four solids), \
          and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
@@ -1557,10 +1585,10 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
 }
 
 /// The scene's recipe, built and evaluated. Both the render walk and
-/// the wall-probe test below go through here, so the probes are pinned
+/// the wall-probe test (`tests/teapot.rs`) go through here, so the probes are pinned
 /// against the evaluation the scene actually draws from rather than a
 /// second one configured by hand.
-fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
+pub fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
     let r = build_doc(tol);
     let ev = evaluate::<f64>(
         &r.doc,
@@ -2642,41 +2670,4 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle).named(&ev, r.handle),
         ],
     }]
-}
-
-#[cfg(test)]
-mod wall_probes_run_here {
-    //! The scene's wall pair, driven by the TEST SUITE.
-    //!
-    //! [`wall_probes`] is where the two unions are attempted for real;
-    //! until this test existed its only caller was [`stops`], whose
-    //! only caller is `main.rs`'s render walk. So the frontier the
-    //! scene pins was exercised when somebody RENDERED the tour and
-    //! never under `cd demos/tour && cargo test --release` — the
-    //! command the spec-level local acceptance runs and the one CI's
-    //! "demos tour suite" row names. A union could start succeeding,
-    //! or start refusing for a different reason, with the suite green.
-    //!
-    //! It has to be an in-bin test: `demo-tour` is bin-only (no
-    //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
-    //! can name `teapot::wall_probes` at all.
-    //!
-    //! There is nothing here to assert that the probes do not already
-    //! assert: `crate::walls::wall` panics on BOTH off-nominal
-    //! outcomes — a different refusal, and no refusal at all. Running
-    //! it IS the check, which is why the missing caller was the whole
-    //! defect.
-    //!
-    //! What it costs is the document and one evaluation of it —
-    //! [`evaluated`], the same pair `stops` opens with — and not the
-    //! stop list, whose census, mass properties and tessellations are
-    //! about the bodies rather than about the frontier.
-
-    use super::*;
-
-    #[test]
-    fn every_teapot_wall_is_attempted_by_the_suite() {
-        let (r, ev) = evaluated(Tol::witness());
-        wall_probes(&ev, &r);
-    }
 }

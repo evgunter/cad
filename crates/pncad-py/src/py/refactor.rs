@@ -487,6 +487,14 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::VarNameConflict { name: p } => {
             (none(), none(), text(p.as_str()), none(), none(), none())
         }
+        E::UnreadPose { var } => (
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+            none(),
+        ),
         E::UnresolvedVarCrossesCut { var, node: n } => (
             id(n),
             none(),

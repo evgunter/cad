@@ -228,6 +228,8 @@ This row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites` and 
 
 ## Measured on two spline charts: lily wall 8 (SPLICE, 2026-10-27)
 
+That wall 8 was the leaf's sheath grafted on its blade; since 2026-10-29 the scene builds the leaf as one loft, and the sweep row `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs` builds the same graft.
+
 From `work/splice/the-results-seam-between-two-spline-walls-is-read-by-no-dihedral`.
 
 Once the result's seam between two spline walls reads its dihedral
@@ -239,7 +241,7 @@ between a rational loft wall of each body, refuses
 `CertifyError::PlaneNurbs(Limb { limb: ImageMiss, margin: 9.007e-6 })`
 at `Tol::witness`, in both operand orders. Fixture:
 `crates/sweep/tests/a_sheath_grafted_on_its_blade.rs`
-`a_sheath_on_its_blade_unions_past_the_shared_rim` (5 stations); the
+`a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim` (5 stations); the
 tour's `lily.rs` wall 8 (9 stations) stops at the same refusal, its
 margin 4.527e-6.
 

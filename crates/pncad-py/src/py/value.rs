@@ -33,7 +33,7 @@ use crate::py::{
 };
 use crate::tags::{
     export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
-    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, singularity_found_tag, step_import_error_tag,
 };
 use crate::validation;
 use pncad::document as d;
@@ -96,8 +96,8 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// refusal has no arms. Two enums, two discriminants, each projected
 /// where it lives.
 ///
-/// A refusal that CARRIES another node's (a part whose root failed or
-/// was poisoned, a mate whose placer's row cannot state its refusal)
+/// A refusal that CARRIES another node's (a part whose product reads a
+/// node that failed or was poisoned, a mate whose placer's row cannot state its refusal)
 /// never quotes it in its message; the carried refusal crosses typed, as this exception's
 /// `__cause__` ([`with_carried`]).
 ///
@@ -1057,21 +1057,41 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 }
 
 /// A node's successful value.
-#[pyclass(frozen, module = "pncad")]
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
-    /// The value's OWN contact-record channel (ASM-R2b D-1): what
-    /// `instantiate` carried in from a part. A boolean's records ride
-    /// its payload instead, and the two homes reconcile at
-    /// [`Value::recorded_body`] — deliberately the same reconciliation
-    /// `editor_core::product::sources_of` makes, because a Python
-    /// caller reading a body off a value and the gather reading the
-    /// same body must not disagree about the contacts it carries.
+    /// The value's contact records (ASM-R2b D-1), as its carry holds
+    /// them: a boolean's surviving contacts, or what a copy carries
+    /// from its source. [`Value::recorded_body`] reads them as
+    /// `editor_core::product::sources_of` does, because a Python caller
+    /// reading a body off a value and the gather reading the same body
+    /// must not disagree about the contacts it carries.
     contacts: Arc<topo::ContactRecords>,
     node: NodeId,
+    /// A family's members (D10 `[repetition]`), in index order: each
+    /// member's index values, outermost first, and its value. Empty for
+    /// a node evaluated once.
+    members: Vec<(Vec<u32>, Value)>,
 }
 
 impl Value {
+    /// `node`'s value as the evaluation holds it, its members with it.
+    pub(crate) fn of(node_value: &d::NodeValue<f64>, node: NodeId) -> Self {
+        Self {
+            payload: node_value.payload.clone(),
+            contacts: Arc::clone(&node_value.carry.contacts),
+            node,
+            members: node_value.members.as_ref().map_or_else(Vec::new, |family| {
+                family
+                    .members
+                    .iter()
+                    .map(|(at, member)| (at.clone(), Self::of(member, node)))
+                    .collect()
+            }),
+        }
+    }
+
     /// One of this value's bodies with the contact records that body
     /// carries — `sources_of`'s rule, restated at the boundary.
     ///
@@ -1088,9 +1108,8 @@ impl Value {
         let body = pncad::export::body_in_space(body, Tol::witness())
             .map_err(|err| compose_err(py, self.node, &err))?;
         Ok(match &self.payload {
-            d::ValuePayload::Body(_) => Body::recorded(body, Arc::clone(&self.contacts)),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
-                Body::recorded(body, Arc::clone(contacts))
+            d::ValuePayload::Body(_) | d::ValuePayload::Boolean(d::BooleanValue::Body { .. }) => {
+                Body::recorded(body, Arc::clone(&self.contacts))
             }
             _ => Body::plain(body),
         })
@@ -1105,6 +1124,15 @@ impl Value {
     #[getter]
     fn kind(&self) -> &'static str {
         self.payload.kind_name()
+    }
+
+    /// **A family's members** (D10 `[repetition]`), in index order: each
+    /// member's index values (one per index the family reaches,
+    /// outermost first) and its value. Empty for a node evaluated once.
+    /// A family of bodies also answers them flat (`bodies`); a family
+    /// of anything else (`kind == "family"`) answers them here only.
+    fn members(&self) -> Vec<(Vec<u32>, Value)> {
+        self.members.clone()
     }
 
     /// The single body this value denotes.
@@ -1386,11 +1414,7 @@ impl Evaluation {
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
         let standing = match self.inner.usable(node.0) {
             Ok(node_value) => {
-                return Ok(Value {
-                    payload: node_value.payload.clone(),
-                    contacts: Arc::clone(&node_value.contacts),
-                    node: *node,
-                });
+                return Ok(Value::of(node_value, *node));
             }
             Err(standing) => standing,
         };
@@ -1601,6 +1625,40 @@ impl Evaluation {
         pncad::select::face_frame(&self.inner, node.at(), &name)
             .map(super::readback::Pose)
             .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
+    }
+
+    /// **The frame a sketch tracing a face stands on** — `Through` the
+    /// traced face's own axis and a vertex of the plane face `plane`,
+    /// square to it, its origin that vertex's foot on the axis
+    /// (`pncad::trace::traced_frame`). Each is a `(body, name)` of this
+    /// evaluation's document; pass the answer as `Node.drawn_profile`'s
+    /// `frame`. A boss swept up the axis from a piece leaving the traced
+    /// wall's trace along its tangent is tangent to the wall by
+    /// construction.
+    ///
+    /// Raises `ValueError` naming why no frame reads off the two: the
+    /// traced face has no axis, the plane face is no plane square to it,
+    /// or has no vertex off the axis.
+    fn traced_frame(
+        &self,
+        plane: (super::doc::OperandArg, String),
+        traced: (super::doc::OperandArg, String),
+    ) -> PyResult<super::pose::PoseDef> {
+        let face = |(body, name): (super::doc::OperandArg, String)| {
+            Ok::<_, PyErr>(d::Operand::select(
+                body.read(),
+                vec![super::doc::name_from_text(&name)?],
+            ))
+        };
+        pncad::trace::traced_frame(
+            &self.doc,
+            &self.inner,
+            &face(plane)?,
+            &face(traced)?,
+            Tol::witness(),
+        )
+        .map(|inner| super::pose::PoseDef { inner })
+        .map_err(|fault| pyo3::exceptions::PyValueError::new_err(fault.to_string()))
     }
 
     /// **Where is the edge I selected?** — the named edge's certified
@@ -2030,11 +2088,13 @@ impl FaceCensus {
 /// cut. `file_census` and `kernel_census` are that change, counted.
 ///
 /// `kind` is the stable word for what was re-minted, and the payload
-/// of the one arm that carries one arrives beside it, `None` on the
-/// other four: `promoted_to` is which analytic surface kind certified
-/// and `residual` is the certified deviation that let it. Present on
-/// every row, so a read never raises and a caller never has to branch
-/// on `kind` first.
+/// of each arm that carries one arrives beside it, `None` on the
+/// others: `promoted_to` is which analytic surface kind certified and
+/// `residual` is the certified deviation that let it
+/// (`surface_promotion`), and `singularity` is where the file put the
+/// pole or apex import made a vertex (`chart_singularity_vertex`).
+/// Present on every row, so a read never raises and a caller never has
+/// to branch on `kind` first.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct StructureNormalization(pncad::step_import::StructureNormalization);
@@ -2073,6 +2133,18 @@ impl StructureNormalization {
         match &self.0.kind {
             pncad::step_import::NormalizationKind::SurfacePromotion { residual, .. } => {
                 Some(*residual)
+            }
+            _ => None,
+        }
+    }
+
+    /// Where the file put the chart singularity import made a vertex —
+    /// on `chart_singularity_vertex` alone.
+    #[getter]
+    fn singularity(&self) -> Option<&'static str> {
+        match &self.0.kind {
+            pncad::step_import::NormalizationKind::ChartSingularityVertex { found } => {
+                Some(singularity_found_tag(found))
             }
             _ => None,
         }
@@ -2459,11 +2531,12 @@ pub(crate) fn import_step(
 /// token that had to be borrowed mutably could not be held by a
 /// running evaluation at all.
 ///
-/// **Cooperative, at NODE granularity.** The kernel reads the flag
-/// between nodes (or between levels on the parallel schedule) and
-/// never inside a kernel op, so `cancel()` does not abort the boolean
-/// or the tessellation already in flight; it stops the run before the
-/// next node starts. The token is one-way — there is no `reset`,
+/// **Cooperative, between nodes and between a family's members.** The
+/// kernel reads the flag between nodes (or between levels on the
+/// parallel schedule) and before each member of a family, and never
+/// inside a kernel op, so `cancel()` does not abort the boolean or the
+/// tessellation already in flight; it stops the run before the next
+/// node or member starts. The token is one-way — there is no `reset`,
 /// because the flag a canceled run observed cannot be un-observed and
 /// a reusable token would let two runs disagree about what it meant.
 /// Mint a new one per launch, which is what `evaluate` does when no
@@ -2578,10 +2651,11 @@ impl CancelToken {
 /// resolve against the store as it stands".
 ///
 /// `cancel` is the COOPERATIVE STOP: a [`CancelToken`] the caller
-/// keeps a handle on, checked between nodes, so a run already under
-/// way can be abandoned. Omitted, this door mints a fresh token
-/// nobody holds — which is exactly what it did before the keyword
-/// existed, and is why an evaluation without one is never canceled.
+/// keeps a handle on, checked between nodes and a family's members,
+/// so a run already under way can be abandoned. Omitted, this door
+/// mints a fresh token nobody holds — which is exactly what it did
+/// before the keyword existed, and is why an evaluation without one is
+/// never canceled.
 /// A canceled run is a PARTIAL ANSWER and not a raise: it returns
 /// normally with `Evaluation.canceled` true, the full `order()`, and
 /// results for the completed prefix only.
@@ -2767,7 +2841,8 @@ impl Coincidence {
     }
 
     /// Where it was decided: `plane_ladder`, `carrier_ladder`,
-    /// `tangent_witness`, `coaxial_sphere`, `crossing_cylinders`,
+    /// `tangent_witness`, `coaxial_sphere`, `sphere_on_torus_axis`,
+    /// `coaxial_cylinder_torus`, `coaxial_tori`, `crossing_cylinders`,
     /// `split_on`, `battery_turn`, `battery_joint`, `battery_support_axis`,
     /// `profile_junction`, `vertex_fusion` or `census_at_rest`.
     #[getter]

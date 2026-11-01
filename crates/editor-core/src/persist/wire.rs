@@ -132,6 +132,8 @@ macro_rules! wire_tree {
             Max(Child<$wire>, Child<$wire>),
             /// Explicit Count→Scalar promotion.
             CountToScalar(Child<$wire>),
+            /// A count's remainder by a positive count.
+            Mod(Child<$wire>, Child<$wire>),
         }
 
         impl From<&$form> for $wire {
@@ -165,6 +167,7 @@ macro_rules! wire_tree {
                     ExprKind::Min(x, y) => $wire::Min(b(x), b(y)),
                     ExprKind::Max(x, y) => $wire::Max(b(x), b(y)),
                     ExprKind::CountToScalar(x) => $wire::CountToScalar(b(x)),
+                    ExprKind::Mod(x, y) => $wire::Mod(b(x), b(y)),
                 }
             }
         }
@@ -196,6 +199,7 @@ macro_rules! wire_tree {
                     $wire::Min(x, y) => <$form>::min(b(x)?, b(y)?),
                     $wire::Max(x, y) => <$form>::max(b(x)?, b(y)?),
                     $wire::CountToScalar(x) => <$form>::count_to_scalar(b(x)?),
+                    $wire::Mod(x, y) => <$form>::modulo(b(x)?, b(y)?),
                 }
             }
         }

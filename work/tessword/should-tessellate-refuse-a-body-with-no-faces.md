@@ -34,7 +34,7 @@ empty body. Answering `Ok` with nothing means every consumer that does
 not call the validator — and `tessellate`'s contract says it does not
 run one — carries an empty mesh onward silently; the STL writers then
 turn it into a file whose keyword is `solid`
-(`work/exch/stl-writes-a-solid-for-a-mesh-with-no-triangles.md`).
+(`work/reimport/stl-writes-a-solid-for-a-mesh-with-no-triangles.md`).
 
 **Against.** F8 ratified that ∅ is a value and not an error, which is
 why `topo::BooleanResult::Empty` is a typed empty SUCCESS; a mesh lane

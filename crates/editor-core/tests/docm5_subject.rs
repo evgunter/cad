@@ -152,7 +152,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     assert!(
         matches!(
             refusal,
-            ProductError::Root(NodeStanding::Poisoned { through, .. }) if through == placement
+            ProductError::Read(NodeStanding::Poisoned { through, .. }) if through == placement
         ),
         "the premise: the gather refuses the product's `⊔`, poisoned through the failed \
          placement: {refusal:?}"
@@ -199,7 +199,7 @@ fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_resident
     // Where connectedness runs, it reads the evaluation and answers
     // first, through either spelling: its own refusal of the failed
     // placement comes before the subject's.
-    let standing = ChecksError::Root(NodeStanding::Failed { node: placement });
+    let standing = ChecksError::Placement(NodeStanding::Failed { node: placement });
     assert_eq!(
         run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses"),
         standing
@@ -403,20 +403,20 @@ fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
 /// placement, rather
 /// than forwarding the gather's account of the same state.
 #[test]
-fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
+fn a_placement_without_a_value_refuses_as_the_registrys_own_precondition() {
     let tol = Tol::witness();
-    let (doc, root) = failing_root("docm5-precedence");
+    let (doc, placement) = failing_placement("docm5-precedence");
     let ev: Evaluation<f64> = corpus::eval(&doc);
     assert!(
-        ev.value(root).is_none(),
-        "the premise: the root produced no value"
+        ev.value(placement).is_none(),
+        "the premise: the placement produced no value"
     );
     assert!(
         product_recorded(&doc, &ev, tol).is_err(),
         "and the gather refuses this pair too, so the two arms compete"
     );
     match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("refuses") {
-        ChecksError::Root(standing) => assert_eq!(standing.node(), root),
+        ChecksError::Placement(standing) => assert_eq!(standing.node(), placement),
         other => panic!("expected the registry's own precondition, got {other}"),
     }
 }
@@ -580,7 +580,7 @@ fn twin(id: &str) -> ProfileDoc {
 /// placed. The boolean refuses the in-band pair, so the placement is
 /// live and valueless — the state both the registry's precondition and
 /// the gather have something to say about. Answers the placement.
-fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
+fn failing_placement(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let tol = Tol::witness();
     let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
     // The lower slab half as tall at first, so the union evaluates and
@@ -598,7 +598,7 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
         },
     );
-    let (doc, root) = crate::fixture::place(doc, fused);
+    let (doc, placement) = crate::fixture::place(doc, fused);
     // Then the lower slab raised to a unit height, its top `gap` under
     // the upper slab's bottom.
     let (doc, _) = crate::fixture::step(
@@ -610,7 +610,7 @@ fn failing_root(id: &str) -> (ProfileDoc, RecipeNodeId) {
             fresh: Vec::new(),
         },
     );
-    (doc, root)
+    (doc, placement)
 }
 
 /// A unit-footprint slab on its own xy, up by `dz`.
@@ -644,28 +644,13 @@ fn slab(doc: ProfileDoc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn the_registry_split_is_measured_at_a_pinned_point() {
     let tol = Tol::witness();
-    let entry = corpus::documents()
-        .into_iter()
-        .find(|d| d.name == "heat_sink")
-        .expect("the corpus carries the heat sink");
-    let doc = editor_core::apply(
-        &entry.doc,
-        &editor_core::DocEdit::DefineVar {
-            var: editor_core::VarName::from_static("fins").into(),
-            def: editor_core::VarDecl::Free(editor_core::FreeVar::Count { value: 160 }),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .expect("the fin count is a document parameter")
-    .doc;
-    let doc = corpus::place_pattern_to(doc, 160);
+    let doc = corpus::heatsink::placed_fins(160);
     let ev: Evaluation<f64> = corpus::eval(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
     assert_eq!(
         (product.body.solids().count(), product.body.faces().count()),
-        (161, 991),
-        "the point the registry split is measured at"
+        (161, 966),
+        "the point the registry split is measured at: the base and 160 fins, six faces each"
     );
 }
 

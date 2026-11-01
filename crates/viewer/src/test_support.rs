@@ -56,6 +56,25 @@ pub fn len3(v: [f64; 3]) -> [Formula; 3] {
     [len(v[0]), len(v[1]), len(v[2])]
 }
 
+/// The constant zero translation: three lengths no one wrote, so they
+/// mint no variables (`[variables.literals]`).
+pub fn no_translation() -> [Formula; 3] {
+    std::array::from_fn(|_| Formula::zero(Dimension::Length))
+}
+
+/// A translation from its three components: each zero is the constant
+/// `0` and each other component a literal, so only the components
+/// written mint variables (`[variables.literals]`).
+pub fn translation(v: [f64; 3]) -> [Formula; 3] {
+    v.map(|c| {
+        if c == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(c)
+        }
+    })
+}
+
 /// Three dimensionless literals — a normal, a direction, an axis.
 pub fn scl3(v: [f64; 3]) -> [Formula; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]
@@ -177,6 +196,7 @@ pub fn rectangle(origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
+        on: None,
     })
 }
 
@@ -487,6 +507,7 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -634,6 +655,51 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
         panic!("the plate is placed once")
     };
     (eval, index, placement)
+}
+
+/// **An index seam that refuses the whole index on demand**: it answers
+/// what `inner` answers, except that while its switch is on every build
+/// is [`crate::pickindex::PickIndexError::DrawnTwice`]. A refusal of the
+/// index as a whole is a fault of the index itself, which no document
+/// produces, so a row about one injects it here.
+pub struct RefusingIndexer<S> {
+    inner: S,
+    refusing: std::sync::Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl<S> RefusingIndexer<S> {
+    /// A seam over `inner` that refuses from the start, and the switch.
+    pub fn new(inner: S) -> (Self, std::sync::Arc<std::sync::atomic::AtomicBool>) {
+        let refusing = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+        (
+            Self {
+                inner,
+                refusing: std::sync::Arc::clone(&refusing),
+            },
+            refusing,
+        )
+    }
+}
+
+impl<S: crate::evalseam::IndexService> crate::evalseam::IndexService for RefusingIndexer<S> {
+    fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+        self.inner.submit(request);
+    }
+
+    fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
+        let mut done = self.inner.poll()?;
+        if self.refusing.load(std::sync::atomic::Ordering::Relaxed) {
+            done.index = Err(crate::pickindex::PickIndexError::DrawnTwice {
+                node: RecipeNodeId::new(0, 3),
+                body: 0,
+            });
+        }
+        Some(done)
+    }
+
+    fn busy(&self) -> bool {
+        self.inner.busy()
+    }
 }
 
 /// **The naming layer's refusal for a drawn edge of `node`'s output

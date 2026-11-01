@@ -2,7 +2,7 @@
 //!
 //! The product is gated once, as the aggregate; a refusal re-gates each
 //! source body on its own and lists every one that fails, by placement and
-//! output index (`ProductError::RootInvalid`). These rows hold the
+//! output index (`ProductError::PieceInvalid`). These rows hold the
 //! attribution, over the shapes a document can hand the gather: one
 //! source of one solid, two sources, one source of several solids, and
 //! two sources whose defects the aggregate's own findings cannot both
@@ -181,7 +181,7 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
         let NodeResult::Ok(value) = result else {
             continue;
         };
-        let Some(pieces) = value.pieces.as_mut() else {
+        let Some(pieces) = value.carry.pieces.as_mut() else {
             continue;
         };
         for piece in &mut Arc::make_mut(pieces).pieces {
@@ -192,11 +192,12 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
             }
         }
         if value
+            .carry
             .census
             .as_ref()
             .is_some_and(|census| census.node == id)
         {
-            value.census = Some(Arc::new(editor_core::product::Census::new(
+            value.carry.census = Some(Arc::new(editor_core::product::Census::new(
                 id,
                 Arc::clone(pieces),
             )));
@@ -206,7 +207,7 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
 
 /// The refusal's findings, as (placement, output) pairs, in list order.
 fn named(err: &ProductError) -> Vec<(RecipeNodeId, u32)> {
-    let ProductError::RootInvalid { findings } = err else {
+    let ProductError::PieceInvalid { findings } = err else {
         panic!("want the per-placement refusal, got {err:?}");
     };
     assert!(
@@ -327,7 +328,7 @@ fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body(
 
     let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("invalid placements refuse");
     assert_eq!(named(&err), [(a, 0), (b, 0)], "both placements are named");
-    let ProductError::RootInvalid { findings } = &err else {
+    let ProductError::PieceInvalid { findings } = &err else {
         unreachable!("`named` read this arm");
     };
     let [
@@ -345,13 +346,13 @@ fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body(
     let text = err.to_string();
     assert!(
         text.contains(&format!(
-            "placement {} output 0",
+            "piece {} output 0",
             test_utils::refusal::tag(a.0.digest())
         )) && text.contains(&format!(
-            "placement {} output 0",
+            "piece {} output 0",
             test_utils::refusal::tag(b.0.digest())
         )),
-        "the message names both placements: {text}"
+        "the message names both pieces: {text}"
     );
 }
 

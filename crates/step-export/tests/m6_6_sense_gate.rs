@@ -450,7 +450,9 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
 /// does `cut_cylinder`'s. No second wall shares either cylinder, so the
 /// wedge arm has no lamina to see; the lone flip refuses all the same,
 /// by check 7 (`NegativeVolume`) on the outer wall and at the bore's
-/// pinch corners (`PinchCornerCrossed`).
+/// pinch corners (`PinchCornerCrossed`), and on either wall by the region
+/// arm (`CycleOffFaceSide`): a flipped face's two rims each lie off its
+/// side of the other.
 #[test]
 fn a_one_face_conic_trimmed_wall_flip_refuses() {
     use topo::splitting::{SplitPart, split};
@@ -482,10 +484,12 @@ fn a_one_face_conic_trimmed_wall_flip_refuses() {
             let errs = validate_geometric(&flipped, tol)
                 .expect_err("a lone one-face conic-trimmed wall flip refuses");
             assert!(
-                errs.iter().all(|e| if sense {
-                    matches!(e, ValidationError::NegativeVolume { .. })
-                } else {
-                    matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == k)
+                errs.iter().all(|e| match e {
+                    ValidationError::CycleOffFaceSide { face, .. } => *face == k,
+                    _ if sense => matches!(e, ValidationError::NegativeVolume { .. }),
+                    _ => {
+                        matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == k)
+                    }
                 }),
                 "{name}: the wall of sense {sense}: {errs:?}"
             );

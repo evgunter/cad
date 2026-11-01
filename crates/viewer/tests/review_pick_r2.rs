@@ -29,7 +29,7 @@
 //!    can have. Asserted rather than pinned — the count is derivable
 //!    from the acceptance and a pinned `0` would read as a baseline —
 //!    and asserted HERE as well as in `index_memo` because this is
-//!    the aim that walks 441 126 rays.
+//!    the aim that walks every corpus landing's rays.
 //!
 //! What is NOT pinned here, and why: the answers that moved against
 //! `main`'s kernel before this unit. That predicate is the copy the
@@ -65,186 +65,16 @@ struct Tally {
     worst_refused_conditioning: f64,
 }
 
-/// The pinned tally over the aim below (docs: re-derive with
-/// `--nocapture`).
-///
-/// Last moved when a chord's director came to be its components (PR
-/// 5370, `profile`'s `path::chord_director`): from
-/// `(441198, 141805, 13524, 6936)`, through `declared_tangency` alone,
-/// 15 fewer rays answered at the aimed vertex at each of its two
-/// landings. Its bracket's tangent arc now leaves the exact ray
-/// `(−1, 0)`, so the bracket's vertices land on the nominal bits (the
-/// leg's top at `(1.0, 3.0)`, not `(0.9999999999999997, 3.0)`), and
-/// the lost rays — eleven along −z through vertices under the arc and
-/// the leg's top, four along
-/// −y through `(1, 1.5)` at the bracket's two planes — run along the
-/// bracket's boundary and now touch it first (at `t` = 13.25, 1.5 and
-/// 15.5) where they slipped past it by an ulp. The rays and the
-/// refusals are unchanged.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when the sketch plane came to be its frame (PR 5068: a
-/// placed profile's plane is a rigid motion minted at the lane, a
-/// revolve's placed axis the frame's turn of the sketch axis, a path's
-/// stations turned by the quaternion) and was merged with the world pin
-/// below: from `(441198, 141763, 12306, 6534)`. The rays are unchanged;
-/// 42 more are answered at the aimed vertex, and 1218 more candidates
-/// over 402 more rays refuse at the determinant. The placements re-round
-/// at the ulp, which moves only which near-degenerate candidates the
-/// certification refuses.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when every corpus placement came to be written by the
-/// named interim's world pin (INTENT stage 3 C), from the gesture's
-/// mates' `(441198, 141310, 13536, 7224)`, which had moved from
-/// `(441198, 141261, 14088, 7230)`. The rays are unchanged; against the
-/// mates' tally, 453 more are answered at the aimed vertex, and 1230
-/// more candidates over 690 more rays refuse at the determinant. The
-/// gallery ring's bumped landing was re-placed after the bump, whose
-/// partial revolve dropped the seam its pin read; its placement now
-/// reads no geometry, so it stands where it stood.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when a revolve's point-axis carriers came to be anchored
-/// on the axis (PR 4518): from `(441198, 141249, 14088, 7230)`. The
-/// rays and the refusals are unchanged; 12 more rays are answered at
-/// the aimed vertex.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when the blend began ending with the join
-/// (3881 step 3, PR C): from `(441198, 141273, 14124, 7254)`. The rays are unchanged;
-/// 24 fewer are answered at the aimed vertex, and 36 fewer candidates
-/// over 24 fewer rays refuse at the determinant. The join reaches only
-/// the two rim-filleting documents (`die_composed`,
-/// `die_composed_tour`, the only rows of `lib_g16_corpus_name_digests`
-/// it moved): each band's host foot is joined away, so their landings
-/// aim from fewer vertices.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when every boolean output came to have maximal edges
-/// (`boolean/edge_join.rs::join_stage`): from
-/// `(442782, 141885, 14124, 7254)`. A collinear valence-two vertex a
-/// flush union or cut left is joined away, so the landings that had one
-/// (`corner_table`, `part_select` and `kitchen_sink` among them) aim
-/// from fewer vertices: 1584 fewer rays, 612 fewer answered at the aimed
-/// vertex. The refusals are unchanged.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when each construction began storing the arc it builds
-/// (`store-constructed-carriers`): from `(442782, 141890, 13932, 7110)`.
-/// The rays are unchanged. Per document:
-/// - `boss_union` (its `circle_split` rims on the authored carrier)
-///   takes 192 determinant refusals over 144 rays and 12 fewer grazes;
-/// - `declared_tangency` gains 10 grazes;
-/// - `gallery_ring` loses 3 grazes.
-///
-/// No genuine crossing is refused either way.
-///
-/// Before that, it moved when a boolean match came to mint both its chords on one
-/// computed curve (`chord_join::SegmentCurve`): the die's pip rims, the
-/// subtracted pips' edges on its top face, shift by 1 ulp, and only
-/// `die_composed_tour`'s aim crosses candidates whose determinant
-/// certification flips with it — 6 fewer refused candidates and 6 fewer
-/// rays with a refusal at each of its two landings, the rays and grazes
-/// unchanged.
-///
-/// No genuine crossing is refused either way.
-///
-/// It moved again under INTENT stage 3 D, merged over main, from
-/// `(441198, 141775, 13524, 6936)`: the corpus is re-spelled, each
-/// construction built in its own coordinates and placed, a body
-/// combined into another drawn through that combine rather than as a
-/// copy of its own, `face_sketch`'s boss unioned with its box, and the
-/// tour die regenerated with its pips placed by quarter-turn frames;
-/// and every parametric document is walked through its bump, a
-/// variable's value as well as a slot's (`cut_cylinder` and
-/// `part_select` bump their cut's variable). 738 fewer rays, 1503 more
-/// grazes, 36 fewer refused candidates, 96 more rays with a refusal.
-/// No genuine crossing is refused.
-///
-/// It moved for the identity bundle (FORK-REST), from `(440460, 143278,
-/// 13488, 7032)`, measured landing by landing against D's head before
-/// the change (`434139ef1c`): every landing reads what it read there
-/// but one, `tube_arc` after its first edit, 887 fewer grazes, 186 more
-/// refused candidates, 60 more rays with a refusal. There the tube's
-/// copy stood by a mate read off its own geometry, so after the edit it
-/// was placed by that mate's solved map; it now stands by the identity
-/// bundle, its source's geometry at every value. The gallery ring is
-/// regenerated with it (`common::GALLERY_RING`) and reads what it read;
-/// the old ring, an `Axis` mate the snap placed by no map, would now
-/// run its quarter-turn map (738 more refused candidates). No genuine
-/// crossing is refused.
-///
-/// It moved when a turn by a rational fraction of a turn became exact
-/// (INTENT stage 3 D, `geom_core::Turns`), from `(440460, 142391,
-/// 13674, 7092)`, the rays unchanged. Measured landing by landing
-/// against the same tree with the turn form switched off, the exact
-/// turns alone move four documents:
-/// - `kitchen_sink`: its revolve stands exactly upright, and the 1044
-///   candidates over 396 rays its two landings refused at the
-///   determinant are gone, with 452 fewer grazes;
-/// - `gallery_ring`: its quarter-turn heading has a `y` of exactly 0
-///   (it was `2.7e-19`), so 171 fewer grazes, 24 more refused
-///   candidates and 6 more rays with a refusal;
-/// - `die_composed_tour`: 153 fewer grazes;
-/// - `die_tool`: 18 fewer grazes.
-///
-/// The rest is the writers that now state an axis-aligned frame
-/// (`corner_frame`, `moved_frame`, an unmated `turn/4`) in `kitchen_sink`,
-/// `die_pips`, `die_tool`, `die_composed` and the tour die. With the
-/// turns still rounding, they come to 154 fewer grazes, 828 more refused
-/// candidates and 180 more rays with a refusal. That share was
-/// measured in aggregate only, at that intermediate state.
-///
-/// No genuine crossing is refused.
-///
-/// It moved when the corpus die's pips came to stand on frames stated by
-/// exact turns (a frame mate each), from `(440460, 141443, 13482, 6882)`:
-/// 280 fewer grazes, the rays and the refusals unchanged. The die is
-/// the only document that moved; its vertices are now the merge base's
-/// bit for bit.
-///
-/// It moved when the mesher began sizing each lane at its own
-/// worst-triangle theorem (`crates/mesh/README.md` `[mesh.sizing]`),
-/// from `(440460, 141163, 13482, 6882)`: the corpus's curved faces
-/// coarsen, so 42 948 fewer rays, 8 551 fewer
-/// grazes, and 12 576 more candidates refused at the determinant on
-/// 1 410 more rays — larger triangles put more of them edge-on to an
-/// aimed ray. No genuine crossing is refused.
-///
-/// It moved again when the cone stopped taking interior rows and the
-/// sphere sized its azimuth at each face's widest latitude, from
-/// `(397512, 132612, 26058, 8292)`: 5 400 fewer rays and 900 fewer
-/// grazes, the refusals unchanged.
-///
-/// It moved when a mate's slides came to run along the target's axes as
-/// the least turn carries them (`docs/DESIGN.md` `[placement.values]`),
-/// from `(392112, 131712, 26058, 8292)`: 21 fewer rays answered at the
-/// aimed vertex, all at `kitchen_sink` after its first edit, every
-/// other landing as it was. That edit sets the moved
-/// copy's `Slide(Y)` to 5 on a mate to the union's underside, which the
-/// retired chart ran along `d × x = −y` and now runs along `+y`, so the
-/// copy and its pattern stand at `y ∈ [5, 6.8]` where they stood at
-/// `[−5, −3.2]`. Rays aimed at the copy's 24 vertices answer one fewer;
-/// the other 20 are far-reach rays at the fixed vertices, whose reach
-/// (four times the scene's extent) grew with the copy, from 27 to
-/// 27.196. The rays and the refusals are unchanged; no genuine crossing
-/// is refused.
-///
-/// It moved for INTENT stage 3 E (a copy's mesh is its body's in its own
-/// coordinates, and the door reads each ray into the part's frame), from
-/// `(392112, 131691, 26058, 8292)`: each aim is fired at a vertex where
-/// its part stands, and a ray read into a turned copy's frame rounds
-/// its grazes differently, so 348 fewer grazes (347 before main's
-/// slides moved `kitchen_sink`'s copy); the rays and the refusals
-/// unchanged. No genuine crossing is refused.
-const PINNED: (usize, usize, usize, usize) = (392_112, 131_343, 26_058, 8_292);
+/// **The pinned tally over the aim below**: the rays aimed, the rays
+/// that graze an edge or vertex, the candidates refused at the
+/// determinant, and the rays with a refusal (re-derive with
+/// `--nocapture`). It counts every landing of every corpus document, so
+/// it moves with the corpus, with every change to a mesh the rays are
+/// aimed through (sizing, carriers, placements, joins), and with every
+/// change to which near-degenerate candidates the certification
+/// refuses. The PR that moves it says which documents' landings moved
+/// and why; what it never moves is the empty `genuine_refused` above.
+const PINNED: (usize, usize, usize, usize) = (431_064, 143_483, 14_556, 7_266);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

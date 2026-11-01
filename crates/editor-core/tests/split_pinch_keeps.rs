@@ -1185,6 +1185,15 @@ fn moat_split(
     pin: Vec<(f64, f64)>,
     moat: Vec<(f64, f64)>,
 ) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
+    moat_split_in(square(0.5, 3.5), pin, moat)
+}
+
+/// [`moat_split`] with the pocket of outline `pocket`.
+fn moat_split_in(
+    pocket: Vec<(f64, f64)>,
+    pin: Vec<(f64, f64)>,
+    moat: Vec<(f64, f64)>,
+) -> (Evaluation<f64>, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("split_section_moat", Tol::witness());
     let (doc, p) = on_frame(
         doc,
@@ -1217,7 +1226,7 @@ fn moat_split(
             &axes_at([0.0, floor, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
         )
     };
-    let (doc, pocket) = tool(doc, 1.0, square(0.5, 3.5));
+    let (doc, pocket) = tool(doc, 1.0, pocket);
     let (doc, moat) = tool(doc, 0.5, moat);
     let (doc, cut) = insert(
         doc,
@@ -1508,4 +1517,79 @@ fn a_diamond_moat_reaching_the_block_wall_holds_its_touches_on_the_pocket_wall_a
         &block,
         Some(&rim),
     );
+}
+
+/// The diamond of half-diagonal `r` about `(2, 2)`, counter-clockwise.
+fn diamond(r: f64) -> Vec<(f64, f64)> {
+    vec![
+        (2.0, 2.0 - r),
+        (2.0 + r, 2.0),
+        (2.0, 2.0 + r),
+        (2.0 - r, 2.0),
+    ]
+}
+
+/// [`moat_split_in`] with the pocket the diamond whose corners touch
+/// the block's four walls, round the pin `[1.5, 2.5]²`, and the moat
+/// `moat` of area `area`: each half builds at its closed-form volume and
+/// passes tier 3′ with no contact records. At each pocket corner the rim
+/// above the floor is two wedges meeting along a line, two coincident
+/// edges in the block's wall; the wall wraps round their foot on the
+/// plane, a full turn.
+fn assert_diamond_pocket_split(moat: Vec<(f64, f64)>, union_area: f64, moat_area: f64) {
+    let (ev, _, sp) = moat_split_in(diamond(2.0), square(1.5, 2.5), moat.clone());
+    assert!(ev.value(sp).is_some(), "{moat:?}: {:?}", ev.node_error(sp));
+    // Above, the block's section less the pocket and moat round the
+    // pin, over `y ∈ [1, 3]`; below, the block less the moat round the
+    // pin, over `y ∈ [0.5, 1]`.
+    for (side, want) in [
+        (SplitHalf::Above, 2.0 * (16.0 - (union_area - 1.0))),
+        (SplitHalf::Below, 16.0 - 0.5 * (moat_area - 1.0)),
+    ] {
+        let body = ev
+            .value(sp)
+            .unwrap()
+            .payload
+            .output_body(side.output_body())
+            .unwrap()
+            .body();
+        let finished = topo::test_support::finished(
+            "the split's half",
+            topo::Body::clone(body),
+            Tol::witness(),
+        );
+        let got =
+            topo::test_support::pinned_volume("the split's half", &finished, Tol::witness()).volume;
+        assert!(
+            (got - want).abs() < 1e-9,
+            "{moat:?} {side:?}: volume {got}, want {want}"
+        );
+        assert_eq!(
+            topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness()),
+            Ok(()),
+            "{moat:?} {side:?}: tier 3′"
+        );
+    }
+}
+
+/// **A split along a pocket floor holds the wall's full turn round a
+/// pinch line's foot.** The issue's first moat, the square
+/// `[1.2, 2.8]²` inside the pocket.
+#[test]
+fn a_split_along_a_diamond_pocket_floor_touching_the_block_walls_builds() {
+    assert_diamond_pocket_split(square(1.2, 2.8), 8.0, 2.56);
+}
+
+/// [`a_split_along_a_diamond_pocket_floor_touching_the_block_walls_builds`]
+/// over the other moats: a square crossing the pocket's walls, diamonds
+/// inside it, and the square that takes the whole rim.
+#[test]
+fn every_moat_round_a_diamond_pocket_touching_the_block_walls_splits_along_its_floor() {
+    // The pocket and `[0.5, 3.5]²` overlap in the pocket less its four
+    // tips beyond the square, each a quarter: 8 + 9 − 7.
+    assert_diamond_pocket_split(square(0.5, 3.5), 10.0, 9.0);
+    for r in [1.2, 1.5, 1.75] {
+        assert_diamond_pocket_split(diamond(r), 8.0, 2.0 * r * r);
+    }
+    assert_diamond_pocket_split(square(0.0, 4.0), 16.0, 16.0);
 }

@@ -60,3 +60,16 @@ the same way: a path from a ring vertex on the run lands
 in the zero band and says nothing, so a ring every vertex of which is
 on the run (a pierce strut at a pinch included) reads `Undecided` and
 refuses. No row reaches it on a sphere either.
+
+## Evidence (2026-10-29, SECT `sect/rehome-by-path`)
+
+The chart lane is gone: a cylinder face re-homes its rings by the
+path (`chord_join::path_ring_side`), as the sphere, cone and torus
+faces do. So the degenerate-ray half above retires: a vertex at a run
+vertex's azimuth but off the run reads its side
+(`chord_join::wall_ring_rows::a_vertex_at_a_run_vertexs_azimuth_reads_its_side`).
+What remains is this row's first half on every curved face: a ring
+every vertex of which is on the run reads `Undecided` and refuses
+(`a_ring_vertex_on_the_run_says_nothing`), since `path_ring_side`
+asks only vertices; a chord edge's midpoint would decide.
+

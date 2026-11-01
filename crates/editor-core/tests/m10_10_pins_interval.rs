@@ -104,6 +104,10 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     // root over `N/D` with `D | N` minted over the polynomial quotient
     // — read as a conjunction with `canonical_root` for the same reason.
     //
+    // **`angle_sum` is the twelfth**: rule H, the canonical `sin`/`cos`
+    // argument and the product rewrite over it, form-level algebra in
+    // the early walk like rule D.
+    //
     // **Both sets are written out WHOLE, field by field**, with no
     // rest pattern: a dial added to `SymRules` is then a compile error
     // here until this row says which side it is on, and a dial left
@@ -118,6 +122,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             early: true,
             early_ab: false,
             trig_of_atan: false,
+            angle_sum: false,
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
@@ -139,6 +144,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             early: true,
             early_ab: true,
             trig_of_atan: true,
+            angle_sum: true,
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
@@ -148,7 +154,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             decision_read: true,
             registered: true,
         },
-        "`shipped` is `without_the_algebra` with the eleven algebra dials on, and nothing else"
+        "`shipped` is `without_the_algebra` with the twelve algebra dials on, and nothing else"
     );
 }
 

@@ -70,8 +70,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use editor_core::resolve::RimNameFault;
 use pncad::document::{
-    Doc, Evaluation, Frame, NodeStanding, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
+    Doc, Evaluation, Frame, ProfileProgram, RecipeNodeId, Said, Say, Speaker, VarId,
 };
 use pncad::geom_core::{Affine3, Point3, Tol};
 use pncad::prelude::StableName;
@@ -179,6 +180,18 @@ pub enum PickKinds {
 }
 
 impl PickKinds {
+    /// **What a cursor that met none of these kinds met**, in the words
+    /// a miss is said in: under an edges-only rule a face's material is
+    /// no edge, not nothing.
+    #[must_use]
+    pub fn nothing(self) -> &'static str {
+        match self {
+            Self::Any => "nothing",
+            Self::FacesOnly => "no face",
+            Self::EdgesOnly => "no edge",
+        }
+    }
+
     /// Whether an edge may win here.
     fn edges(self) -> bool {
         match self {
@@ -328,20 +341,12 @@ pub enum IdMapError {
     },
 }
 
-/// Why a pick index could not be built (closed enum, D4 ¶3).
+/// Why a pick index could not be built as a whole (closed enum, D4
+/// ¶3): a fault of the index itself, never an editing state. A drawn
+/// copy that cannot be drawn is not here — the index holds it as an
+/// [`UndrawnCopy`] and draws the rest.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PickIndexError {
-    /// A world placement could not be built into a part: it has no
-    /// value, its value is not a body or lacks the body asked for, or
-    /// its body could not be tessellated or indexed. The node rides
-    /// along because the payload names the body and not the placement
-    /// that owns it.
-    Node {
-        /// The placement that refused.
-        node: RecipeNodeId,
-        /// The service's own refusal, unaltered.
-        error: NodePickError,
-    },
     /// The patch ids did not form a bijection.
     Ids(IdMapError),
     /// Two parts claimed one (node, body). Each drawn body owns one
@@ -400,68 +405,13 @@ impl core::fmt::Display for IdMapError {
 
 impl core::error::Error for IdMapError {}
 
-impl PickIndexError {
-    /// **The standing of the node this refusal found with no value**
-    /// — `None` for every refusal of a node that has one.
-    ///
-    /// The build's [`NodePickError::Standing`] and the name doors'
-    /// [`NameLookupError::Standing`] are that: nothing of the node was
-    /// tessellated, indexed or read, because there is no value to take
-    /// a body or a table from. [`NodeStanding::node`] names the node.
-    pub fn standing(&self) -> Option<NodeStanding> {
-        self.restated(|standing| standing)
-            .map(|(standing, _)| standing)
-    }
-
-    /// **This refusal with its standing read by `read`**, beside the
-    /// standing it held — `None` where [`Self::standing`] is.
-    pub fn restated(
-        &self,
-        read: impl FnOnce(NodeStanding) -> NodeStanding,
-    ) -> Option<(NodeStanding, Self)> {
-        match self {
-            Self::Node { node, error } => match error {
-                NodePickError::Standing(standing) => Some((
-                    *standing,
-                    Self::Node {
-                        node: *node,
-                        error: NodePickError::Standing(read(*standing)),
-                    },
-                )),
-                NodePickError::NotABody { .. }
-                | NodePickError::NoSuchBody { .. }
-                | NodePickError::Tessellate(_)
-                | NodePickError::Index(_) => None,
-            },
-            Self::Names(error) => match error {
-                NameLookupError::Standing(standing) => Some((
-                    *standing,
-                    Self::Names(NameLookupError::Standing(read(*standing))),
-                )),
-                NameLookupError::EvaluationOfAnotherDocument(_) => None,
-            },
-            Self::Ids(_) | Self::DrawnTwice { .. } => None,
-        }
-    }
-}
-
 impl Say for PickIndexError {
     /// The arms that carry somebody else's refusal forward to its own
     /// `Display`: the layer that raised a failure names it, and this
-    /// one does not restate it. The placement the
-    /// [`PickIndexError::Node`] arm reports is this layer's own
-    /// contribution — the payload names the body, not the placement
-    /// that owns it, and claims only that the placement was not indexed: why — no value, no body, or a
-    /// tessellation or indexing refusal — is the payload's to say. The
-    /// layout arm is this layer's own finding and says so itself.
+    /// one does not restate it. The layout arm is this layer's own
+    /// finding and says so itself.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Node { node, error } => write!(
-                f,
-                "{} could not be indexed: {}",
-                by.node_as(*node, "placement"),
-                Said(error, by.about(*node))
-            ),
             Self::Ids(error) => error.say(f, by),
             Self::DrawnTwice { node, body } => write!(
                 f,
@@ -481,6 +431,53 @@ impl core::fmt::Display for PickIndexError {
 }
 
 impl core::error::Error for PickIndexError {}
+
+/// **A drawn copy the index holds without a picture**, and why: the
+/// placement and its own build's refusal, unaltered.
+///
+/// One copy's refusal takes away that copy's picture and picks and no
+/// other's, so it is data on the index rather than a refusal of it
+/// ([`PickIndex::undrawn`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct UndrawnCopy {
+    node: RecipeNodeId,
+    error: NodePickError,
+}
+
+impl UndrawnCopy {
+    /// The placement that is not drawn.
+    #[must_use]
+    pub fn node(&self) -> RecipeNodeId {
+        self.node
+    }
+
+    /// Why: no value, no body, or a tessellation or indexing refusal.
+    #[must_use]
+    pub fn error(&self) -> &NodePickError {
+        &self.error
+    }
+}
+
+impl Say for UndrawnCopy {
+    /// The placement is this layer's contribution — the payload names
+    /// the body, not the placement that owns it; why is the payload's
+    /// to say.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} is not drawn: {}",
+            by.node_as(self.node, "placement"),
+            Said(&self.error, by.about(self.node))
+        )
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for UndrawnCopy {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
 
 /// One kind of drawn entity, for [`PartWindows`]: where a part's names
 /// of that kind come from, and how one of them is addressed.
@@ -864,6 +861,102 @@ impl PartWindows<Patches> {
     }
 }
 
+/// **The drawn edges that are one circle**: each closed rim of two or
+/// more arcs among a drawn body's edges, by (node, body), as the names
+/// of its arcs in rim order.
+///
+/// A rim is `NodePick::boundary_rims`' answer, `topo::query::rim_of`
+/// spoken in names: the closed chain of circle arcs between one pair of
+/// surfaces. The picture draws such a chain as one circle, and a full
+/// revolve of a profile touching the axis splits every latitude circle
+/// into its `BandRim` and `BandRimPi` halves, so without this table one
+/// click on the circle means half of it.
+///
+/// An edge on no rim of two or more is absent, and stands for itself.
+/// An edge whose rim the door could not answer holds its
+/// [`RimNameFault`], which [`PickIndex::whole_edge`] answers in place of
+/// a guess: a half pick taken silently is the defect this table exists
+/// to remove.
+///
+/// **What it costs, measured** (debug, PR 6129's review): the corpus's
+/// index builds moved within noise, and a memo-hit rebuild of a
+/// rim-dense full revolve went from 3.1 ms to 6.2 ms, because the walk
+/// runs on every build and is not memoised with the `NodePick`.
+#[derive(Debug, Default)]
+struct Rims {
+    rims: Vec<Vec<StableName>>,
+    of: BTreeMap<(RecipeNodeId, u32), BTreeMap<StableName, Result<usize, RimNameFault>>>,
+}
+
+impl Rims {
+    /// One drawn part's rims, read beside its window's names: the two
+    /// doors walk the same boundary polylines in the same order.
+    fn push(
+        &mut self,
+        part: &NodePick,
+        eval: &Evaluation<f64>,
+        names: &[Result<StableName, UnnamedEntity>],
+    ) -> Result<(), PickIndexError> {
+        let rims = part.boundary_rims(eval).map_err(PickIndexError::Names)?;
+        let mut found: BTreeMap<StableName, Result<usize, RimNameFault>> = BTreeMap::new();
+        assert_eq!(
+            names.len(),
+            rims.len(),
+            "body {} of {:?}: `boundary_names` answered {} polylines and `boundary_rims` {}; \
+             both walk the same boundaries",
+            part.body(),
+            part.node(),
+            names.len(),
+            rims.len()
+        );
+        for (name, rim) in names.iter().zip(rims) {
+            // An unnamed edge is the window's loud arm already
+            // (`PickIndex::edge_names_in`), and no pick can name it.
+            let Ok(name) = name else {
+                continue;
+            };
+            match rim {
+                Ok(None) => {}
+                Ok(Some(_)) if found.contains_key(name) => {}
+                Ok(Some(arcs)) => {
+                    for arc in &arcs {
+                        found.insert(arc.clone(), Ok(self.rims.len()));
+                    }
+                    self.rims.push(arcs);
+                }
+                Err(fault) => {
+                    found.insert(name.clone(), Err(fault));
+                }
+            }
+        }
+        if !found.is_empty() {
+            self.of.insert((part.node(), part.body()), found);
+        }
+        Ok(())
+    }
+
+    fn rim_holding(&self, edge: &EdgeSelection) -> Option<Result<&[StableName], RimNameFault>> {
+        let held = self.of.get(&(edge.node, edge.body))?.get(&edge.name)?;
+        Some(match held {
+            // Every id in `of` was minted by `push` as the index of the
+            // rim it pushed next, so one past the end is a broken table,
+            // and an empty whole would fix a blend target holding nothing.
+            Ok(rim) => Ok(self.rims.get(*rim).map_or_else(
+                || {
+                    unreachable!(
+                        "rim id {rim} of {:?} body {} is past the {} rims recorded",
+                        edge.node,
+                        edge.body,
+                        self.rims.len()
+                    )
+                },
+                Vec::as_slice,
+            )),
+            Err(fault) => Err(*fault),
+        })
+    }
+}
+
 /// **What a picture IS**: the landed generation an index describes and
 /// the δ its copies were tessellated at.
 ///
@@ -933,13 +1026,18 @@ impl PictureKey {
 
 /// The pick index for one evaluation generation.
 ///
-/// Built from the document's world placements, one [`NodePick`] per
-/// copy, in placement order then payload order — the order the ids and the drawn
-/// parts both follow, so a reader of either can predict the other.
+/// Built from the document's drawn copies, one [`NodePick`] per body
+/// of each copy that builds, in placement order then payload order —
+/// the order the ids and the drawn parts both follow, so a reader of
+/// either can predict the other. A copy whose build refuses is held in
+/// [`PickIndex::undrawn`] with its reason, and has no part, no ids and
+/// no windows.
 #[derive(Debug)]
 pub struct PickIndex {
     key: PictureKey,
     parts: Vec<NodePick>,
+    /// The drawn copies with no part, in placement order.
+    undrawn: Vec<UndrawnCopy>,
     ids: IdMap,
     /// The drawn face patches, part by part — the ids, their names,
     /// and the windows the narrowing reads.
@@ -952,6 +1050,8 @@ pub struct PickIndex {
     /// The drawn edge polylines, part by part — the same layout over
     /// the same parts, in the same order, built in the same walk.
     edges: PartWindows<Edges>,
+    /// The drawn edges that are one circle ([`Rims`]).
+    rims: Rims,
     /// Each drawn placement's space, the one its copy is placed into
     /// ([`Doc::node_space`]): the pick orders faces within one space
     /// only.
@@ -961,16 +1061,17 @@ pub struct PickIndex {
 impl PickIndex {
     /// Build the index for `generation` from the document's drawn
     /// placements — those into each shown space — one drawn part per
-    /// copy (A10).
+    /// body of each copy (A10).
     ///
-    /// Every refusal is returned — a placement that failed or
-    /// would not tessellate is a picture the viewport cannot draw
-    /// either, and swallowing it here would leave a viewport that
-    /// silently picks nothing over part of the model.
+    /// **Per copy, not all or nothing**: a copy whose build refuses (no
+    /// value, no body, a tessellation or indexing refusal) is held in
+    /// [`PickIndex::undrawn`] with its reason, and every other copy is
+    /// drawn and picked. Nothing is swallowed — the reason is on the
+    /// index for the chrome to say ([`crate::frame::index_badge`]).
     ///
     /// # Errors
     ///
-    /// [`PickIndexError`], per arm.
+    /// [`PickIndexError`], per arm: faults of the index itself only.
     pub fn build(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
@@ -989,12 +1090,12 @@ impl PickIndex {
     /// not change ([`PickMemo`]).
     ///
     /// The picture is closed on the memo whether or not it was built:
-    /// a refused index (a placement that failed or would not
-    /// tessellate) evicts what it did not reach, and the placements
-    /// after the refusal
-    /// are rebuilt once the document is fixed. That keeps the memo one
-    /// picture's size through any sequence of answers — the node
-    /// map, the patch memo and the per-patch pick-table map alike.
+    /// what this picture did not use — an undrawn copy's bodies, a copy
+    /// the document no longer holds — is evicted. The walk reaches every
+    /// copy, so fixing one copy rebuilds that copy and reuses the rest,
+    /// and the memo stays one picture's size through any sequence of
+    /// answers — the node map, the patch memo and the per-patch
+    /// pick-table map alike.
     ///
     /// # Errors
     ///
@@ -1013,8 +1114,8 @@ impl PickIndex {
         index
     }
 
-    /// The walk both doors share: every world copy through `parts`,
-    /// then the id windows over them.
+    /// The walk both doors share: every drawn copy through `parts`,
+    /// then the id windows over the ones that built.
     fn assemble(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
@@ -1022,6 +1123,7 @@ impl PickIndex {
         mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
+        let mut undrawn = Vec::new();
         let mut spaces = BTreeMap::new();
         // The drawn copies: the placements into each shown space (DI5),
         // the world's as the product gathers them and every other one's
@@ -1034,7 +1136,7 @@ impl PickIndex {
             }
             match build_parts(node) {
                 Ok(built) => parts.extend(built),
-                Err(error) => return Err(PickIndexError::Node { node, error }),
+                Err(error) => undrawn.push(UndrawnCopy { node, error }),
             }
         }
         // ONE walk over the parts, appending to both kinds' windows.
@@ -1043,17 +1145,21 @@ impl PickIndex {
         // written the same way.
         let mut patches = PartWindows::<Patches>::new();
         let mut edges = PartWindows::<Edges>::new();
+        let mut rims = Rims::default();
         for part in &parts {
             patches.push(part, eval)?;
             edges.push(part, eval)?;
+            rims.push(part, eval, edges.laid_out(part.node(), part.body()).1)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
             key,
             parts,
+            undrawn,
             ids,
             patches,
             edges,
+            rims,
             spaces,
         })
     }
@@ -1088,6 +1194,28 @@ impl PickIndex {
         &self.parts
     }
 
+    /// **Where `placement`'s copy is drawn**: the map from its body's
+    /// coordinates into the picture, as the picture draws it
+    /// ([`drawn`]), `None` where no part of that placement is drawn —
+    /// none indexed, or its copy hidden.
+    pub(crate) fn drawn_map(
+        &self,
+        display: &DisplayView,
+        placement: RecipeNodeId,
+    ) -> Option<Affine3<f64>> {
+        if display.hidden_placements.contains(&placement) {
+            return None;
+        }
+        let part = self.parts.iter().find(|part| part.node() == placement)?;
+        Some(drawn(display, part).unwrap_or_else(Affine3::identity))
+    }
+
+    /// The drawn copies this index holds without a picture, each with
+    /// its reason, in placement order.
+    pub fn undrawn(&self) -> &[UndrawnCopy] {
+        &self.undrawn
+    }
+
     /// The id↔patch mapping.
     pub fn ids(&self) -> &IdMap {
         &self.ids
@@ -1117,6 +1245,28 @@ impl PickIndex {
             Some(Ok(name)) => Ok(name),
             Some(Err(error)) => Err(PatchNameFault::Unnamed { id, error: *error }),
         }
+    }
+
+    /// The face the patch `id` denotes: its name and the (node, body)
+    /// it is drawn on, which tells two copies of one body apart where
+    /// the name alone does not.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::name_of`]. The id map is derived from the same
+    /// windows as the name table, so a name with no patch would be an
+    /// id no patch draws, and is said as one.
+    pub fn face_of(&self, id: u32) -> Result<FaceSelection, PatchNameFault> {
+        let name = self.name_of(id)?;
+        let patch = self
+            .ids
+            .key_of(id)
+            .ok_or(PatchNameFault::Unassigned { id })?;
+        Ok(FaceSelection {
+            name: name.clone(),
+            node: patch.node,
+            body: patch.body,
+        })
     }
 
     /// The ids a name is drawn as — **the id map's inverse**, across
@@ -1497,6 +1647,27 @@ impl PickIndex {
     /// wider answer instead of a silently chosen one.
     pub fn edges_of_target(&self, edge: &EdgeSelection) -> Vec<EdgeId> {
         self.edges.of_target(edge.node, edge.body, &edge.name)
+    }
+
+    /// **The whole drawn edge an edge pick is part of**: every arc of
+    /// its rim, in rim order, when the picked edge is one arc of a
+    /// closed rim of two or more (`NodePick::boundary_rims` on the body
+    /// this index drew); the pick's own name otherwise.
+    ///
+    /// The picture draws a rim as one circle, so this is what a click
+    /// on that circle means, and a consumer that takes edge picks asks
+    /// here rather than reading the half the cursor happened to be
+    /// nearest.
+    ///
+    /// # Errors
+    ///
+    /// The [`RimNameFault`] the rim door answered for this edge: a
+    /// naming or pairing bug, and the pick's meaning is unknown.
+    pub fn whole_edge(&self, edge: &EdgeSelection) -> Result<Vec<StableName>, RimNameFault> {
+        match self.rims.rim_holding(edge) {
+            None => Ok(vec![edge.name.clone()]),
+            Some(rim) => rim.map(<[StableName]>::to_vec),
+        }
     }
 
     /// The tessellated part drawing one (node, body).
@@ -2623,6 +2794,87 @@ mod tests {
             node: RecipeNodeId::new(0, tag),
             path: Vec::new(),
         }
+    }
+
+    /// **An undrawn copy says which placement is not drawn, and the
+    /// build's own refusal says why**, whatever the reason: no value or
+    /// no body alike.
+    #[test]
+    fn an_undrawn_copy_names_its_placement_and_forwards_why() {
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
+        for error in [
+            NodePickError::NotABody { node },
+            NodePickError::Standing(pncad::document::NodeStanding::Failed { node }),
+        ] {
+            let copy = UndrawnCopy {
+                node,
+                error: error.clone(),
+            };
+            assert_eq!(
+                copy.to_string(),
+                format!(
+                    "placement 000000000007 is not drawn: {}",
+                    Said(&error, Speaker::TAG.about(node))
+                ),
+                "the copy's sentence for {error:?}"
+            );
+        }
+    }
+
+    /// **A copy that has a value and cannot be drawn is said loudly**:
+    /// no tree row reports it, so the badge names the copy, in the
+    /// build's own words, `Actionable`. No document reaches such a
+    /// refusal today, so the plate's one copy is built through the
+    /// index's own walk with its build answering a tessellation refusal.
+    #[test]
+    fn a_copy_with_a_value_that_cannot_be_drawn_is_said_loudly() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+        let eval = pncad::document::evaluate(
+            &doc,
+            None,
+            &pncad::document::CancelToken::default(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        let copy = *doc.placements().first().expect("the plate is placed");
+        let refusal =
+            NodePickError::Tessellate(pncad::mesh::TessellateError::InvalidChordalTolerance {
+                value: 0.0,
+            });
+        let index = PickIndex::assemble(
+            &doc,
+            &eval,
+            PictureKey::of(
+                crate::generation::Generation::FIRST,
+                crate::test_support::plate_delta(),
+            ),
+            |_| Err(refusal.clone()),
+        )
+        .expect("a copy that cannot be drawn does not refuse the index");
+        assert!(index.parts().is_empty(), "the copy is not drawn");
+        let badge = crate::frame::index_badge(None, Some(&index), Some((&doc, &eval)))
+            .expect("the copy has a value, so no tree row reports it: the badge does");
+        assert_eq!(badge.tone(), crate::frame::Tone::Actionable);
+        assert_eq!(
+            badge.label(),
+            format!(
+                "picture: {}",
+                Said(
+                    &UndrawnCopy {
+                        node: copy,
+                        error: refusal
+                    },
+                    Speaker::of(&doc).within(&eval)
+                )
+            ),
+            "the copy, by name, in the build's own words"
+        );
+        assert!(
+            badge.label().contains(&doc.spoken(copy).to_string()),
+            "the label names the copy: {}",
+            badge.label()
+        );
     }
 
     /// **Each patch-name refusal says the id and what it is**: the

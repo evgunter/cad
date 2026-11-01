@@ -11,20 +11,22 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::RecipeNodeId;
+use pncad::document::{RecipeNodeId, SlotId, StepArg};
 use pncad::geom_core::Tol;
 use pncad::profile::{Step, TipState, Verb};
-use pncad::quantity::{AngleUnit, LengthUnit, UnitDef};
+use pncad::quantity::{AngleUnit, LengthUnit};
 
 use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP, ViewerBehavior};
 use crate::drafts::{ProfileEdit, RowEdit};
 use crate::frame;
-use crate::props::Notation;
+use crate::props::{self, Notation, SlotRow};
 use crate::session::{DocSession, SessionOp};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::Theme;
 use crate::tools::FormKind;
-use crate::widgets::{angle_picker, length_picker, new_row_step, path_step_fields};
+use crate::widgets::{
+    ArgDoors, WrittenIn, angle_picker, length_picker, new_row_step, path_step_fields,
+};
 
 impl ViewerBehavior<'_> {
     /// **The add-profile form's editor, opened on a committed
@@ -38,13 +40,17 @@ impl ViewerBehavior<'_> {
     /// [`crate::sketch::held_loops`], committed whole by
     /// [`SessionOp::EditProfile`] ([`edit_door_ui`]).
     ///
+    /// **Each argument's field is its slot's field** ([`HeldArgs`]):
+    /// a kept step's number is held by the draft, shown in the unit its
+    /// slot is written in, with the slot row's own doors beside it —
+    /// the expression, the unit, the range probe, the name — so the
+    /// node has no second set of rows for its arguments. An argument
+    /// an expression drives shows that expression, its number locked.
+    ///
     /// Returns `false`, having said why in the actionable colour, when
-    /// the editor cannot hold this profile (an argument an expression
-    /// drives): the caller shows the slot rows instead, which can. When
-    /// it returns `true` the caller still offers the slot rows, folded
-    /// beneath the editor — they are where an argument is driven by an
-    /// expression, re-noted in a unit, or probed for its range, which
-    /// the editor's number fields do not do.
+    /// the editor cannot hold this profile (a program reading a face's
+    /// trace, an expression that does not resolve): the caller shows
+    /// the slot rows instead.
     pub(crate) fn edit_profile_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) -> bool {
         let session = self.session;
         let doc = session.committed_doc();
@@ -64,23 +70,164 @@ impl ViewerBehavior<'_> {
             &mut self.notation.length,
             &mut self.notation.angle,
         );
-        let notation = *self.notation;
-        let Some(edit) = self.drafts.profile_edit.as_mut() else {
+        let (notation, theme, previews) = (*self.notation, self.theme, self.profile_previews);
+        // Held apart from the drafts for the frame, so the slot doors
+        // below can borrow the pane whole.
+        let Some(mut edit) = self.drafts.profile_edit.take() else {
             unreachable!("`Drafts::profile_edit` answered Ok, so the draft is held")
         };
-        match edit_door_ui(
+        let untouched = !edit.differs_from_base();
+        // The rows the panel reads: the landed document's, so a driven
+        // field's reading follows a drag of what it reads.
+        let mut slots = PaneSlots {
+            rows: props::slot_rows(session.doc(), node),
+            pane: self,
+            node,
+            untouched,
+        };
+        let formed = edit_door_ui(
             ui,
             session,
-            self.theme,
+            theme,
             notation,
-            edit,
-            self.profile_previews.edit.as_ref(),
-        ) {
+            &mut edit,
+            previews.edit.as_ref(),
+            Some(&mut slots),
+        );
+        self.drafts.profile_edit = Some(edit);
+        match formed {
             Ok(Some(op)) => self.ops.push(op),
             Ok(None) => {}
             Err(notice) => self.notices.push(notice),
         }
         true
+    }
+}
+
+/// **The pane's doors over one node's slots** — [`SlotDoors`] drawn by
+/// the slot row's own methods (`pane::properties`): the held field
+/// ([`ViewerBehavior::held_slot_field_ui`]), the unit picker
+/// ([`ViewerBehavior::slot_unit_ui`]), and the probe, naming and notes
+/// under a row ([`ViewerBehavior::held_slot_doors_ui`]).
+struct PaneSlots<'p, 'a> {
+    pane: &'p mut ViewerBehavior<'a>,
+    node: RecipeNodeId,
+    /// The node's slot rows, as the committed document holds them.
+    rows: Vec<SlotRow>,
+    /// Whether the draft holds nothing the document does not
+    /// ([`ViewerBehavior::held_slot_field_ui`]'s gate).
+    untouched: bool,
+}
+
+impl PaneSlots<'_, '_> {
+    fn rows_of(&self, slots: &[SlotId]) -> Vec<SlotRow> {
+        slots
+            .iter()
+            .filter_map(|slot| self.rows.iter().find(|row| row.slot == *slot).cloned())
+            .collect()
+    }
+}
+
+impl SlotDoors for PaneSlots<'_, '_> {
+    fn field(&mut self, ui: &mut egui::Ui, slot: SlotId, name: &str, value: &mut f64) -> bool {
+        let Some(row) = self.rows_of(&[slot]).pop() else {
+            return false;
+        };
+        self.pane
+            .held_slot_field_ui(ui, self.node, &row, name, value, self.untouched);
+        true
+    }
+
+    fn unit(&mut self, ui: &mut egui::Ui, slots: &[SlotId]) {
+        let rows = self.rows_of(slots);
+        self.pane.slot_unit_ui(ui, self.node, &rows);
+    }
+
+    fn under(&mut self, ui: &mut egui::Ui, slots: &[(SlotId, String)]) {
+        let named: Vec<(SlotRow, String)> = slots
+            .iter()
+            .filter_map(|(slot, name)| Some((self.rows_of(&[*slot]).pop()?, name.clone())))
+            .collect();
+        self.pane
+            .held_slot_doors_ui(ui, self.node, &named, self.untouched);
+    }
+}
+
+/// **What a committed slot's field is drawn with** at the edit door:
+/// the doors an argument of a kept step has because it is a slot.
+/// Behind a trait so a row can drive [`edit_door_ui`] with no pane.
+pub(crate) trait SlotDoors {
+    /// The field over `slot`, named `name`, holding the draft's
+    /// canonical `value`; `false`, having drawn nothing, where the node
+    /// lists no such slot.
+    fn field(&mut self, ui: &mut egui::Ui, slot: SlotId, name: &str, value: &mut f64) -> bool;
+    /// The written-unit picker `slots` share, after their fields.
+    fn unit(&mut self, ui: &mut egui::Ui, slots: &[SlotId]);
+    /// The doors and notes of `slots`, each with its field's name,
+    /// under the row that drew them.
+    fn under(&mut self, ui: &mut egui::Ui, slots: &[(SlotId, String)]);
+}
+
+/// **The edit door's arguments**, for one held loop. A row the draft
+/// keeps as a committed step draws each argument through the slot
+/// doors as the committed slot it is — its committed position
+/// ([`ProfileEdit::kept_at`]) and its role. A row that is no committed
+/// step, a role its committed step does not have, or a door drawn with
+/// no slot doors, draws the plain field in the editor's notation.
+struct HeldArgs<'d, 'o> {
+    slots: Option<&'d mut (dyn SlotDoors + 'o)>,
+    plain: WrittenIn,
+    /// Per held row, the committed `(loop, step)` it is kept as.
+    kept: Vec<Option<(u32, u32)>>,
+    /// The slot fields drawn in the row being drawn, with their names.
+    drawn: Vec<(usize, SlotId, String)>,
+}
+
+impl ArgDoors for HeldArgs<'_, '_> {
+    fn field(&mut self, ui: &mut egui::Ui, row: usize, arg: StepArg, name: &str, value: &mut f64) {
+        let slot = self
+            .kept
+            .get(row)
+            .copied()
+            .flatten()
+            .map(|(loop_, step)| SlotId::Profile { loop_, step, arg });
+        if let (Some(doors), Some(slot)) = (self.slots.as_deref_mut(), slot)
+            && doors.field(ui, slot, name, value)
+        {
+            self.drawn.push((row, slot, name.to_owned()));
+            return;
+        }
+        self.plain.field(ui, row, arg, name, value);
+    }
+
+    fn unit(&mut self, ui: &mut egui::Ui, row: usize, args: &[StepArg]) {
+        let slots: Vec<SlotId> = self
+            .drawn
+            .iter()
+            .filter(|(at, slot, _)| {
+                *at == row && matches!(slot, SlotId::Profile { arg, .. } if args.contains(arg))
+            })
+            .map(|(_, slot, _)| *slot)
+            .collect();
+        if let Some(doors) = self.slots.as_deref_mut()
+            && !slots.is_empty()
+        {
+            doors.unit(ui, &slots);
+        }
+    }
+
+    fn under(&mut self, ui: &mut egui::Ui, row: usize) {
+        let slots: Vec<(SlotId, String)> = self
+            .drawn
+            .drain(..)
+            .filter(|(at, _, _)| *at == row)
+            .map(|(_, slot, name)| (slot, name))
+            .collect();
+        if let Some(doors) = self.slots.as_deref_mut()
+            && !slots.is_empty()
+        {
+            doors.under(ui, &slots);
+        }
     }
 }
 
@@ -100,6 +247,12 @@ impl ViewerBehavior<'_> {
 /// ([`apply_and_revert`], from [`DocSession::edit_profile_report`]),
 /// and the op's outcome reports each after.
 ///
+/// Each argument of a kept step is drawn through `slots`, the doors
+/// its committed slot has ([`HeldArgs`]); `None` draws every field
+/// plain, in `notation`. Apply writes a kept argument in the unit its
+/// slot is written in, so the number a slot field shows is the number
+/// that lands.
+///
 /// Answers the op Apply formed, or the notice for what could not form
 /// one (a field that does not lower, a revert that could not reload).
 pub(crate) fn edit_door_ui(
@@ -109,11 +262,11 @@ pub(crate) fn edit_door_ui(
     notation: Notation,
     edit: &mut ProfileEdit,
     preview: Option<&Result<ProfilePreview, PreviewError>>,
+    mut slots: Option<&mut dyn SlotDoors>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
     ui.label(format!("profile {}", session.doc().spoken(node)));
     let loops = edit.loops().len();
-    let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
     for index in 0..loops {
         // A loop label only where there is more than one: "loop 0"
@@ -122,7 +275,14 @@ pub(crate) fn edit_door_ui(
             ui.label(format!("loop {index}"));
         }
         let salt = format!("edit_{}_{index}", node.full());
-        if let Some(row) = path_steps_ui(ui, &salt, session.tol(), units, edit.steps_mut(index)) {
+        let mut args = HeldArgs {
+            slots: slots.as_deref_mut(),
+            plain: WrittenIn::of(notation),
+            kept: edit.kept_at(index),
+            drawn: Vec::new(),
+        };
+        if let Some(row) = path_steps_ui(ui, &salt, session.tol(), &mut args, edit.steps_mut(index))
+        {
             rows.push((index, row));
         }
     }
@@ -130,20 +290,24 @@ pub(crate) fn edit_door_ui(
         edit.edit_row(index, row);
     }
     let refused = preview_verdict(ui, theme, preview);
+    let held_up = drivers_hold(edit, session.doc());
+    if let Some(sentence) = &held_up {
+        crate::widgets::message_toned(ui, sentence, &theme, frame::Tone::Actionable);
+    }
+    let refused = refused || held_up.is_some();
     let differs = edit.differs_from_base();
     let stranded = if differs {
         let base = edit.base().clone();
-        edit.report(session.history().current(), |loops, ids| {
+        let report = edit.report(session.history().current(), |loops, ids| {
             // A program the door refuses strands nothing yet; its
             // refusal is the preview's to show, or Apply's to get.
             session
                 .edit_profile_report(node, &base, loops, ids)
                 .unwrap_or_default()
-        })
-        .iter()
-        .filter_map(frame::maintenance_notice)
-        .map(|notice| notice.text().to_owned())
-        .collect()
+        });
+        frame::maintenance_notices(report)
+            .map(|notice| notice.text().to_owned())
+            .collect()
     } else {
         Vec::new()
     };
@@ -151,7 +315,9 @@ pub(crate) fn edit_door_ui(
         .horizontal(|ui| apply_and_revert(ui, differs, refused, &stranded))
         .inner;
     if apply {
-        return match edit.programs(notation) {
+        let rows = props::slot_rows(session.committed_doc(), node);
+        let noted = |slot: SlotId| rows.iter().find(|row| row.slot == slot)?.unit;
+        return match edit.programs_noted(notation, &noted) {
             Ok(loops) => Ok(Some(SessionOp::EditProfile {
                 node,
                 base: edit.base().clone(),
@@ -165,6 +331,48 @@ pub(crate) fn edit_door_ui(
         return Err(frame::tool_news(&FormKind::RevertProfile.refuses(&error)));
     }
     Ok(None)
+}
+
+/// **Why a driven argument holds Apply**, if one does — said under the
+/// step list, and Apply waits on it.
+///
+/// - A kept step that no longer has the role an expression drives (an
+///   arc re-moded) would write over the expression, and the field is
+///   locked: the way through is to un-drive it first, by writing a
+///   number over its expression in the step as it was.
+/// - An expression that does not evaluate on `landed` (a variable it
+///   reads deleted) leaves the number beside it reading nothing.
+fn drivers_hold(
+    edit: &ProfileEdit,
+    landed: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) -> Option<String> {
+    let labels = |slots: &[SlotId]| {
+        slots
+            .iter()
+            .map(|slot| slot.label())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let dropped = edit.dropped_drivers();
+    if !dropped.is_empty() {
+        return Some(format!(
+            "{} is driven by an expression, and the step no longer has that argument — revert, \
+             write a number over the expression, then change the step",
+            labels(&dropped)
+        ));
+    }
+    let unread = edit.unread_drivers(landed);
+    if unread.is_empty() {
+        return None;
+    }
+    let said: Vec<String> = unread
+        .iter()
+        .map(|(slot, fault)| format!("{}: {fault}", slot.label()))
+        .collect();
+    Some(format!(
+        "an expression driving this profile does not evaluate, so Apply waits for it — {}",
+        said.join("; ")
+    ))
 }
 
 /// **What the editor's preview says about its loops**, said under the
@@ -273,7 +481,7 @@ pub(crate) fn path_steps_ui(
     ui: &mut egui::Ui,
     salt: &str,
     tol: Tol,
-    (length_unit, angle_unit): (UnitDef, UnitDef),
+    args: &mut dyn ArgDoors,
     steps: &mut [Step<f64>],
 ) -> Option<RowEdit> {
     // The row edits are COLLECTED during the loop and answered after
@@ -352,8 +560,9 @@ pub(crate) fn path_steps_ui(
                     }
                 });
             let step = &mut steps[index];
-            path_step_fields(ui, &row_salt, length_unit, angle_unit, state, step);
+            path_step_fields(ui, &row_salt, (&mut *args, index), state, step);
         });
+        args.under(ui, index);
     }
     let whole = ui
         .horizontal(|ui| {
@@ -433,7 +642,7 @@ const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
 /// **Apply says what it strands before it is clicked** — a fillet on a
 /// dropped step's edge is the fillet the person is about to lose — so
 /// the count is on the button, as a delete's cascade is, and each
-/// `stranded` row's own sentence ([`frame::maintenance_notice`]) is on
+/// `stranded` row's own sentence ([`frame::maintenance_notices`]) is on
 /// its hover.
 ///
 /// Answers whether each was clicked — Apply, then Revert — which a
@@ -608,6 +817,7 @@ mod tests {
         let node = Node::Profile(ProfileProgram {
             loops,
             ids: Vec::new(),
+            on: None,
         });
         let (doc, profile) = try_inserted(&doc, node, Tol::witness())
             .expect("the document admits a split circle above the form's cap");
@@ -620,7 +830,7 @@ mod tests {
                 ui,
                 "probe",
                 Tol::witness(),
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                &mut crate::widgets::WrittenIn::of(Notation::CANONICAL),
                 edit.steps_mut(0),
             );
             assert!(row.is_none(), "nothing was clicked");
@@ -643,7 +853,7 @@ mod tests {
                 ui,
                 "probe",
                 Tol::witness(),
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                &mut crate::widgets::WrittenIn::of(Notation::CANONICAL),
                 &mut steps,
             );
         })
@@ -657,7 +867,7 @@ mod tests {
                 ui,
                 "probe",
                 Tol::witness(),
-                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                &mut crate::widgets::WrittenIn::of(Notation::CANONICAL),
                 &mut steps,
             );
         })
@@ -1144,6 +1354,7 @@ mod tests {
             Node::Profile(ProfileProgram {
                 loops,
                 ids: Vec::new(),
+                on: None,
             }),
             tol,
         );
@@ -1201,8 +1412,15 @@ mod tests {
             let edit = drafts
                 .profile_edit(session.committed_doc(), profile)
                 .expect("the editor holds the profile");
-            match super::edit_door_ui(ui, session, Theme::DEFAULT, Notation::CANONICAL, edit, None)
-            {
+            match super::edit_door_ui(
+                ui,
+                session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
+                None,
+            ) {
                 Ok(Some(op)) => formed = Some(op),
                 Ok(None) => {}
                 Err(notice) => panic!("the door could not form its op: {notice:?}"),
@@ -1321,6 +1539,7 @@ mod tests {
                 Notation::CANONICAL,
                 edit,
                 None,
+                None,
             );
         });
         let committed = session.committed_doc();
@@ -1362,6 +1581,7 @@ mod tests {
                 Notation::CANONICAL,
                 edit,
                 None,
+                None,
             );
         });
         assert!(painted.contains(label), "{painted}");
@@ -1395,7 +1615,7 @@ mod tests {
         }];
         // Beside the strand, the outcome carries the anonymous
         // variables the rewritten arguments were written in, which the
-        // status line does not say (`frame::maintenance_notice`).
+        // status line does not say (`frame::maintenance_notices`).
         let (anonymous, named): (Vec<_>, Vec<_>) = out
             .maintenance
             .iter()
@@ -1413,6 +1633,502 @@ mod tests {
             line,
             vec![expected[0].to_string()],
             "the status line carries it in its own words"
+        );
+    }
+
+    /// A session over the form's default 10 mm square as a committed
+    /// profile, and the profile.
+    fn square_session() -> (crate::session::DocSession, pncad::document::RecipeNodeId) {
+        let tol = Tol::witness();
+        let doc = Doc::empty_derived("held-slots", tol);
+        let loops = vec![
+            sketch::loop_program(
+                &ProfileShape::Path {
+                    steps: Drafts::default().profile_path,
+                },
+                Notation::CANONICAL,
+            )
+            .expect("the form's default chain lowers"),
+        ];
+        let (doc, profile) = inserted(
+            &doc,
+            Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+                on: None,
+            }),
+            tol,
+        );
+        (crate::session::DocSession::inline(doc, tol), profile)
+    }
+
+    /// Argument `arg` of the square's step `step`.
+    fn corner(step: u32, arg: pncad::document::StepArg) -> pncad::document::SlotId {
+        pncad::document::SlotId::Profile {
+            loop_: 0,
+            step,
+            arg,
+        }
+    }
+
+    /// One slot's row, as `session` now holds it.
+    fn row_of(
+        session: &crate::session::DocSession,
+        profile: pncad::document::RecipeNodeId,
+        slot: pncad::document::SlotId,
+    ) -> crate::props::SlotRow {
+        crate::props::slot_rows(session.committed_doc(), profile)
+            .into_iter()
+            .find(|row| row.slot == slot)
+            .expect("the profile lists the slot")
+    }
+
+    /// **Editing another argument of a driven profile commits one
+    /// `SetProgram`, and the expression stays.** The far corner's x
+    /// reads a variable; the editor holds the profile, the next
+    /// corner's x is moved in the draft, and Apply forms one op that
+    /// lands as one whole-program edit: the moved number is written
+    /// and the driven argument still reads its variable.
+    #[test]
+    fn editing_another_argument_keeps_the_expression() {
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, DocEdit, FreeVar, StepArg, VarName};
+
+        let (mut session, profile) = square_session();
+        let driven = corner(2, StepArg::TargetX);
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.013),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot: driven,
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let mut drafts = Drafts::default();
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("the editor holds a driven profile");
+        assert!(!edit.differs_from_base(), "a fresh load is untouched");
+        edit.steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, 0.02)));
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "one whole-program edit: {:?}",
+            out.committed
+        );
+        let row = row_of(&session, profile, driven);
+        assert!(
+            row.driver.is_driven(),
+            "the driven argument is still driven"
+        );
+        assert_eq!(row.source.as_deref(), Some("w"), "by the same expression");
+        let moved = row_of(&session, profile, corner(3, StepArg::TargetY));
+        assert_eq!(
+            moved
+                .value
+                .map(|value| value.one().expect("one value").as_f64())
+                .ok(),
+            Some(0.02),
+            "the moved number landed"
+        );
+    }
+
+    /// **A kept argument lands in the unit its slot is written in.**
+    /// The slot field shows a kept argument in its slot's unit, so
+    /// Apply writes a moved one in that unit too, not the editor's: a
+    /// corner written in millimetres, moved in a door working in
+    /// metres, is still written in millimetres.
+    #[test]
+    fn a_moved_kept_argument_keeps_its_slots_unit() {
+        use crate::session::SessionOp;
+        use pncad::document::StepArg;
+
+        let (mut session, profile) = square_session();
+        let slot = corner(1, StepArg::TargetX);
+        let out = session.perform(SessionOp::SetSlotUnit {
+            node: profile,
+            slot,
+            unit: pncad::quantity::MM.def(),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .steps_mut(0)[1] = Step::LineTo(Target::Point(Point2::new(0.012, 0.0)));
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let row = row_of(&session, profile, slot);
+        assert_eq!(
+            row.value
+                .map(|value| value.one().expect("one value").as_f64())
+                .ok(),
+            Some(0.012)
+        );
+        assert_eq!(
+            row.unit,
+            Some(pncad::quantity::MM.def()),
+            "written in the slot's unit, not the door's metres"
+        );
+    }
+
+    /// The arguments a step's fields drew, in order.
+    #[derive(Default)]
+    struct Drawn(Vec<pncad::document::StepArg>);
+
+    impl crate::widgets::ArgDoors for Drawn {
+        fn field(
+            &mut self,
+            _: &mut egui::Ui,
+            _: usize,
+            arg: pncad::document::StepArg,
+            _: &str,
+            _: &mut f64,
+        ) {
+            self.0.push(arg);
+        }
+
+        fn unit(&mut self, _: &mut egui::Ui, _: usize, _: &[pncad::document::StepArg]) {}
+
+        fn under(&mut self, _: &mut egui::Ui, _: usize) {}
+    }
+
+    /// **Each field names the argument the document's slot walk names
+    /// there**, in the walk's order: for a step of every verb and every
+    /// arc mode in every arc position, the roles the step's fields hand
+    /// their doors are the roles its lowered program enumerates
+    /// (`LoopProgram::step_args`). A field naming another role would
+    /// put a slot's expression, unit and range beside the wrong number.
+    #[test]
+    fn every_field_names_the_argument_the_slot_walk_names() {
+        use pncad::document::LoopProgram;
+        use pncad::profile::{ArcMode, Verb};
+
+        let mut steps: Vec<Step<f64>> = Verb::ALL
+            .iter()
+            .map(|&verb| sketch::fresh_step(verb))
+            .collect();
+        for &mode in ArcMode::ALL {
+            let arc = sketch::fresh_arc(mode);
+            steps.push(Step::ArcTo(arc));
+            steps.push(Step::FilletArc {
+                radius: 0.001,
+                spec: arc,
+            });
+            steps.push(Step::ArcFillet {
+                spec: arc,
+                radius: 0.001,
+            });
+            steps.push(Step::ArcFilletArc {
+                spec: arc,
+                radius: 0.001,
+                spec2: arc,
+            });
+        }
+        for mut step in steps {
+            let mut drawn = Drawn::default();
+            let ctx = egui::Context::default();
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                crate::widgets::path_step_fields(ui, "roles", (&mut drawn, 0), None, &mut step);
+            });
+            output.textures_delta.clear();
+            let walked: Vec<pncad::document::StepArg> = LoopProgram::from_recorded(&[step])
+                .unwrap_or_else(|error| panic!("{step:?} lifts alone: {error}"))
+                .step_args()
+                .into_iter()
+                .map(|(_, arg)| arg)
+                .collect();
+            assert_eq!(
+                drawn.0, walked,
+                "{step:?}: the fields' roles are the walk's"
+            );
+        }
+    }
+
+    /// The far corner's x of the outline the edit door previews — what
+    /// the viewport draws in place of the committed profile — once the
+    /// draft is brought up to `session` as a frame brings it.
+    fn drawn_corner_x(
+        session: &crate::session::DocSession,
+        drafts: &mut Drafts,
+        profile: pncad::document::RecipeNodeId,
+    ) -> f64 {
+        drafts.sync_profile_edit(
+            session.committed_doc(),
+            session.doc(),
+            session.tol(),
+            Some(profile),
+        );
+        let held = drafts.door_loops().edit.expect("the edit door holds loops");
+        let ProfileShape::Path { steps } = &held.loops[0] else {
+            panic!("a held loop is a path")
+        };
+        match steps[2] {
+            Step::LineTo(Target::Point(corner)) => corner.x,
+            other => panic!("the far corner is a point leg: {other:?}"),
+        }
+    }
+
+    /// **The drawn outline follows what a driven argument reads**, set,
+    /// undone, dragged and released, over an untouched draft and over
+    /// one holding edits. The far corner's x reads `w`: a committed
+    /// value of `w` and its undo move the previewed corner; a drag of
+    /// `w` moves it while the pointer is down and it stays where the
+    /// release left it; and a draft holding another edit follows the
+    /// same drag, its edit kept.
+    #[test]
+    fn the_drawn_outline_follows_what_a_driven_argument_reads() {
+        use crate::props::SlotValue;
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, StepArg, VarName};
+
+        let (mut session, profile) = square_session();
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.013),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot: corner(2, StepArg::TargetX),
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let var = session.committed_doc().var_named("w").expect("w declared");
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        assert_eq!(drawn_corner_x(&session, &mut drafts, profile), 0.013);
+        let perform = |session: &mut crate::session::DocSession, op| {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        };
+        perform(
+            &mut session,
+            SessionOp::SetVariable {
+                var,
+                value: SlotValue::Continuous(0.02),
+            },
+        );
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.02,
+            "a committed value of w moves the drawn corner"
+        );
+        perform(&mut session, SessionOp::Undo);
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.013,
+            "and its undo moves it back"
+        );
+        perform(&mut session, SessionOp::BeginVariableGesture { var });
+        perform(
+            &mut session,
+            SessionOp::PreviewVariableGesture { var, value: 0.03 },
+        );
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.03,
+            "mid-drag the drawn corner follows the scratch"
+        );
+        perform(&mut session, SessionOp::CommitVariableGesture { var });
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.03,
+            "after the release it stays where the drag left it"
+        );
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, 0.02)));
+        perform(&mut session, SessionOp::BeginVariableGesture { var });
+        perform(
+            &mut session,
+            SessionOp::PreviewVariableGesture { var, value: 0.04 },
+        );
+        assert_eq!(
+            drawn_corner_x(&session, &mut drafts, profile),
+            0.04,
+            "a draft holding edits follows the drag too"
+        );
+        perform(&mut session, SessionOp::CommitVariableGesture { var });
+        assert_eq!(drawn_corner_x(&session, &mut drafts, profile), 0.04);
+        let edit = drafts.profile_edit.as_ref().expect("still held");
+        assert!(
+            matches!(edit.loops()[0][3], Step::LineTo(Target::Point(p)) if p.y == 0.02),
+            "the held edit is kept"
+        );
+    }
+
+    /// The edit door painted over the draft `drafts` holds of
+    /// `profile`, and whether its Apply formed an op when clicked.
+    fn door_says(
+        session: &crate::session::DocSession,
+        drafts: &mut Drafts,
+        profile: pncad::document::RecipeNodeId,
+    ) -> (String, bool) {
+        drafts.sync_profile_edit(
+            session.committed_doc(),
+            session.doc(),
+            session.tol(),
+            Some(profile),
+        );
+        let painted = crate::pane::headless::painted_text(|ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held");
+            let _read_only = super::edit_door_ui(
+                ui,
+                session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
+                None,
+            );
+        });
+        let (_, formed) = click_door(session, drafts, profile, "Apply", 0);
+        (painted, formed.is_some())
+    }
+
+    /// **An arc re-moded off the argument an expression drives says
+    /// what to do, and Apply waits.** The first leg is an arc to a
+    /// point whose x reads `w`; re-moded to a radius arc, which has no
+    /// target, the door says the argument is driven and how through,
+    /// and Apply forms nothing. The way it names lands: reverted, the
+    /// expression written over by a number, the same re-mode applies.
+    #[test]
+    fn an_arc_re_moded_off_its_driven_argument_says_what_to_do() {
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, StepArg, VarName};
+        use pncad::profile::{ArcData, ArcMode};
+
+        let tol = Tol::witness();
+        let mut steps = Drafts::default().profile_path;
+        steps[1] = Step::ArcTo(ArcData::Bulge {
+            target: Target::Point(Point2::new(0.01, 0.0)),
+            b: 0.3,
+        });
+        let loops = vec![
+            sketch::loop_program(&ProfileShape::Path { steps }, Notation::CANONICAL)
+                .expect("lowers"),
+        ];
+        let (doc, profile) = inserted(
+            &Doc::empty_derived("remode", tol),
+            Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+                on: None,
+            }),
+            tol,
+        );
+        let mut session = crate::session::DocSession::inline(doc, tol);
+        let slot = corner(1, StepArg::TargetX);
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.01),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot,
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let remode = |drafts: &mut Drafts, session: &crate::session::DocSession| {
+            drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("held")
+                .steps_mut(0)[1] = Step::ArcTo(sketch::fresh_arc(ArcMode::Radius));
+        };
+        let mut drafts = Drafts::default();
+        remode(&mut drafts, &session);
+        let (painted, formed) = door_says(&session, &mut drafts, profile);
+        assert!(
+            painted.contains(&format!(
+                "{} is driven by an expression, and the step no longer has that argument",
+                slot.label()
+            )),
+            "{painted}"
+        );
+        assert!(!formed, "Apply waits on the driven argument");
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Revert", 0);
+        assert!(formed.is_none());
+        let out = session.perform(SessionOp::SetSlotExpression {
+            node: profile,
+            slot,
+            text: "0.01 m".to_owned(),
+        });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            !row_of(&session, profile, slot).driver.is_driven(),
+            "a number written over the expression un-drives it"
+        );
+        remode(&mut drafts, &session);
+        let (_, formed) = door_says(&session, &mut drafts, profile);
+        assert!(formed, "the re-mode now applies");
+    }
+
+    /// **A driving variable deleted under held edits holds Apply, and
+    /// says why.** The far corner's x reads `w`; with another corner
+    /// moved in the draft, `w` is deleted: the door says the
+    /// expression does not evaluate, naming the argument, and Apply
+    /// forms nothing rather than writing a reader of nothing.
+    #[test]
+    fn a_deleted_driving_variable_holds_apply_and_says_why() {
+        use crate::session::SessionOp;
+        use pncad::document::{Dimension, FreeVar, StepArg, VarName};
+
+        let (mut session, profile) = square_session();
+        let slot = corner(2, StepArg::TargetX);
+        for op in [
+            SessionOp::DeclareVar {
+                name: VarName::from_static("w"),
+                value: FreeVar::continuous(Dimension::Length, 0.013),
+            },
+            SessionOp::SetSlotExpression {
+                node: profile,
+                slot,
+                text: "w".to_owned(),
+            },
+        ] {
+            let out = session.perform(op);
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        }
+        let var = session.committed_doc().var_named("w").expect("w declared");
+        let mut drafts = Drafts::default();
+        drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held")
+            .steps_mut(0)[3] = Step::LineTo(Target::Point(Point2::new(0.0, 0.02)));
+        let out = session.perform(SessionOp::DeleteVar { var });
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let (painted, formed) = door_says(&session, &mut drafts, profile);
+        assert!(
+            painted.contains("does not evaluate, so Apply waits for it")
+                && painted.contains(slot.label().as_str()),
+            "{painted}"
+        );
+        assert!(!formed, "Apply forms nothing over an unread expression");
+        assert!(
+            drafts.profile_edit.is_some(),
+            "the held edits are kept for the person to revert or repair"
         );
     }
 }

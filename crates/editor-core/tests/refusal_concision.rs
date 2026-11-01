@@ -24,6 +24,7 @@ fn cone_block_union_refusal() -> String {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let cone = r.insert(revolve_about(
         cone_p,
@@ -36,6 +37,7 @@ fn cone_block_union_refusal() -> String {
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: block_p.into(),
@@ -156,7 +158,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
-        BooleanError, BooleanOp, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
+        BooleanError, BooleanOp, ContactPair, EdgeKey, FaceKey, LoopKey, Operand,
         PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
@@ -181,7 +183,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     };
     let face = FaceKey::default();
     let edge = EdgeKey::default();
-    let declaration = DeclaredContact {
+    let declaration = ContactPair {
         a: face,
         b: face,
         class: topo::GlueClass::Rest,
@@ -310,6 +312,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermEdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                closed: false,
+            },
+        ),
+        (
+            "GermEdgeCarrierUnsupported (closed)",
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+                closed: true,
             },
         ),
         (

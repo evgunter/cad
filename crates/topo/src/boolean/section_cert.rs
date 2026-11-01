@@ -34,8 +34,31 @@
 //!
 //! # The witnesses, per component
 //!
-//! - **W0, apart**: the classification returns no component.
+//! - **W0, apart**: the section has no component: a closed form counts
+//!   none, or the march, whose exhaustiveness receipt accounts every
+//!   cell of the pose's ball, finds no branch.
 //! - **W1, unbounded**: faces are compact, so `γ ⊄ F`.
+//! - **W1′, reaching a chart's boundary**: `γ` reaches a side of the
+//!   parameter rectangle of `X`'s surface in a channel the chart does
+//!   not close. `X` is a region of its one rectangle chart bounded by its
+//!   loops' pcurves (C4), and in an open channel no pcurve wraps past the
+//!   side, so a point of that side lying in `X` lies on a pcurve, an edge
+//!   of `X`, and one lying outside `X` puts `γ` partly outside it. Either
+//!   way `γ ⊄ int X`. A side in a closed channel is a seam the face may
+//!   lie across with no edge on it (a seamless band, or a patch across
+//!   the seam whose loops lift closed), so reaching it clears nothing:
+//!   this is read per surface from the chart the loop walk reads
+//!   (`pcurves::chart_closed_channels`), never assumed of a kind. Nor
+//!   does a collapsed side clear, one the chart maps to a point (a
+//!   revolved dome's pole): no pcurve need run along it, so `X` may hold
+//!   the point with no edge there and `γ` pass through it inside `X`. A
+//!   side clears only where its net row is decided to span more than a
+//!   point (`pcurves::chart_side_bounds`), whatever else refuses the
+//!   pose first. A `Side` region is certified only to lie within its reach of the
+//!   side; it is reported where the side lies within the band of the
+//!   other face's plane, so the side's points in `X` lie on an edge of
+//!   `X` within the band of that face, a contact the sweep records or
+//!   refuses (S).
 //! - **W2, essential**: `γ` is essential on the carrier of `X` (it winds
 //!   about the axis, or around the tube) and `X` reads [`Sheet::One`]:
 //!   every closed curve in `int X` lifts to a closed curve with zero
@@ -49,13 +72,25 @@
 //!   loops that each wind, and loses W2. A face whose walk refuses
 //!   reads [`Sheet::Unread`], and a component nothing else clears
 //!   refuses R-unread rather than R-undec.
-//! - **W3, a witness point `Out`**: one closed-form point of `γ`,
-//!   certified outside `F` or outside `G` (by the face's region on a
-//!   curved face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
+//! - **W3, a witness point `Out`**: one point of `γ`, certified outside
+//!   `F` or outside `G` (by the face's region on a curved face, by
+//!   `contfp` on a plane), so `γ ⊄ F ∩ G`. A closed form names the point
+//!   on `γ`; a marched loop names its carrier's middle point, within the
+//!   loop's pad of `γ` ([`Component::pad`]), and is read out of a face
+//!   only past the band padded by twice that.
 //! - **W4, a lone evented component**: `Σ` has exactly one component and
 //!   the pair has an event. The event's vertex lies on `Σ` within the
 //!   band, hence on `γ`, and on an edge of `F` or `G`, so
-//!   `γ ⊄ int F ∩ int G`.
+//!   `γ ⊄ int F ∩ int G`. That is all the crossings path needs, since
+//!   the join cuts along every crossing. The no-crossings path needs
+//!   more, `γ ∩ int F ∩ int G = ∅`, and it follows there: were `γ` to
+//!   meet `int F ∩ int G` and not lie in it, a walk along `γ` from such
+//!   a point would leave `F` (or `G`) at a point of an edge of `F` lying
+//!   on `G`'s carrier inside `G`. Where the carriers are transverse that
+//!   edge crosses `G`, a crossing the sweep records or refuses (S), and
+//!   the path would not be the no-crossings one; where they are tangent
+//!   along `γ` the classification reads the pinch first and refuses
+//!   R-tan, before any witness.
 //! - **The no-event decision**: with no event on the pair,
 //!   `γ ∩ F ∩ G` has no relative boundary point, so it is empty or all
 //!   of `γ`, and one point decides. A witness strictly inside both faces
@@ -65,8 +100,11 @@
 //! One witness point per component is complete on the arms below: a
 //! lone component is cleared by W4 or decided by its point, and a
 //! component essential or unbounded on a carrier is cleared by W1 or W2.
-//! A section with a null component beside others clears each null loop
-//! by its witness or, with an event on the pair, refuses R-undec, since
+//! A component's essentiality is the arm's claim, and an arm that does
+//! not read it claims none: such a component, like a null one, is
+//! cleared only by its witness. A section with a component no claim
+//! clears beside others clears each by its witness or, with an event on
+//! the pair, refuses R-undec, since
 //! the event may lie on another component: cone × sphere, where a ball
 //! beside the apex can meet each nappe in one null loop (with the apex
 //! outside the ball no nappe can carry essential curves while the other
@@ -84,11 +122,16 @@
 //! - **R-reach**: a kind pair or pose with no arm (torus against a
 //!   cylinder neither parallel nor square to its axis, a torus tilted
 //!   to it; a cone against a non-coaxial torus; a NURBS or approximated
-//!   face paired with anything but a plane, and a NURBS face whose
-//!   control net a plane cuts). Every pair with a face that is not a
+//!   face paired with anything but a plane or another spline face, and a
+//!   spline pair the whole reading refused short of a tangency). Every
+//!   pair with a face that is not a
 //!   plane is examined; two planes meet in a line, which W1 clears.
 //! - **R-tan**: a classification margin `Zero` or undecided — a
-//!   tangency, where components pinch and the count is not certified.
+//!   tangency, where components pinch and the count is not certified;
+//!   on a spline section, a tangency the march meets, or the section
+//!   grazing or running along a side of the wall's rectangle (on two
+//!   spline faces, one no shared row or corner handed in covers, or a
+//!   handed-in row the walls are tangent along at a point).
 //!   A margin decided `Zero` where the carriers touch at one point is a
 //!   touch instead (below), and refuses R-tan only when it is not
 //!   certified out of either face.
@@ -101,6 +144,11 @@
 //! - **R-loop** and **R-undec**: the no-event decision, above.
 //! - **R-unread**: as R-undec, on a component W2 would have cleared had
 //!   the face's walk read.
+//! - **R-lane** and **R-march**: a pair whose components no closed form
+//!   counts (a general cylinder × torus or torus × torus pose) is read
+//!   from its march; at a scalar with no march it refuses R-lane, naming
+//!   the scalar, and where the march or the reading of its loops refuses,
+//!   R-march.
 //! - **Lone-vertex loops** refuse per pair (below).
 //!
 //! # A touch
@@ -155,6 +203,11 @@
 //!   own distance from each carrier's anchor, not of a form that squares
 //!   it — and enclosures of it on the interval lane; containment is
 //!   decided on the band, and a point it cannot decide is not a witness.
+//!   A spline section's witness is the wall's point at the middle of
+//!   the branch's pcurve, with a point of the section bracketed within a
+//!   certified metre bound of it inside the branch's own tube window
+//!   (`geom_brep::pair_section::plane_spline`), so the bracketed point
+//!   is `γ`'s; that bound is its pad ([`Component::pad`]).
 //! - **Lone-vertex loops.** The sweep is edge-driven, so a vertex of a
 //!   `LoopBoundary::Empty` loop is never examined. That does not break
 //!   L1 on its own: `F` surrounds its lone vertex on every side, so the
@@ -218,7 +271,9 @@
 //!
 //! # What the arms say (component structure per kind pair)
 //!
-//! - **Torus × plane, torus × sphere** (one classification). In the
+//! - **Torus × plane, torus × sphere** (one classification, the
+//!   sphere's read in the section value, [`geom_brep::SphereTorusPose`],
+//!   the plane's here). In the
 //!   meridian plane `Π` holding the axis and the plane's normal (or the
 //!   sphere's centre), let `T₊`, `T₋` be the tube circles at the near
 //!   and far core points. The section has roots at `u' = 0` iff the
@@ -229,14 +284,21 @@
 //!   when the partner separates `T₊` from `T₋`, else none. A
 //!   two-component section is therefore always essential.
 //! - **Torus × coaxial {cylinder, torus}**: parallels, essential on both.
+//!
+//! Every torus pair but the plane and the cone is the section value's
+//! ([`geom_brep::pair_section()`]): its pose decided once, the critical
+//! gap read before any count, and its components classified by these
+//! arms there, read here by [`of_pair_section`]. The parallel- and
+//! square-axis cylinder, the parallel-axis torus and the sphere below
+//! are those arms.
 //! - **Torus × parallel-axis torus** (axis offset `e`): mirror-symmetric
 //!   across the plane `Π` of the axes. Each loop of the curve matching
 //!   the two meridian circles' heights meets `Π` in `2k` points, the
 //!   crossings of the tori's meridian circles there, and carries `k`
 //!   components, each witnessed at one of them; a loop meeting `Π`
 //!   nowhere carries two mirror components or none, read at one height
-//!   ([`torus_parallel_torus`]). Tube tops or bottoms level with each
-//!   other are R-tan.
+//!   (the section value's arm, read through [`geom_brep::TorusTorusPose`]).
+//!   Tube tops or bottoms level with each other are R-tan.
 //! - **Torus × parallel-axis cylinder** (axis offset `e`): with
 //!   `ρ ∈ [|e − ρc|, e + ρc]` against `[R − r, R + r]`, inside gives two
 //!   loops encircling the cylinder, across one bound a single null loop
@@ -252,7 +314,8 @@
 //!   tube circles. Or it is one of a mirror pair over a run with no such
 //!   point: essential on the wall for `K` inside the strip, else null
 //!   there and winding about the tube iff the run crosses the strip.
-//!   Every component carries a witness ([`torus_square_cylinder`]).
+//!   Every component carries a witness (the section value's arm, read
+//!   through [`geom_brep::CylinderTorusPose`]).
 //! - **Cylinder × cylinder** (common-perpendicular offset `δ₀`):
 //!   `|δ₀| + r_min < r_max` gives two loops encircling the thinner
 //!   axis; `|r₁ − r₂| < |δ₀| < r₁ + r₂` a single null saddle loop,
@@ -268,10 +331,25 @@
 //!   (axis offset `e`): one loop when `|e − ρc| < ρs < e + ρc`,
 //!   witnessed on the nearest ruling; two loops encircling the cylinder
 //!   when `e + ρc < ρs`.
-//! - **NURBS × plane**: W0 when the control net's every point is
-//!   certified strictly on one side of the plane — the patch lies in the
-//!   net's convex hull, its weights being positive. Any other pose has
-//!   no arm: nothing counts the section's components on a spline.
+//! - **NURBS × plane** (an approximated face read as its fit): the
+//!   pair's classification in the section value
+//!   ([`geom_brep::pair_section()`], C5), read and never re-decided. Its
+//!   hull is W0: the control net's every point decided strictly on one
+//!   side of the plane, the patch lying in the net's convex hull (its
+//!   weights are positive); a net within the zero band everywhere is
+//!   coincident (R-tan, named) and one in band escalates (R-tan). A
+//!   collapsed side not decided clear of the plane refuses at the door
+//!   (R-reach). Through the march door the boundary pass refuses a graze
+//!   or a side held tangent (R-tan, named), and the regularity sweep is
+//!   the guard's loop-free stage: the wall's normal bounded off the
+//!   plane's, so no component closes in the wall's chart, each ending
+//!   on a side the pass found an end on; it clears by W1′ where every
+//!   such side bounds the wall, and is otherwise read whole. Any other
+//!   pose is the whole reading (C3's `all()`, at `f64`; with no door,
+//!   R-lane): a closed branch is a loop, read by W3, W4 or the no-event
+//!   decision; an open branch, a `Side` region and a `Corner` region
+//!   reach the wall's chart boundary (W1′). The reading accounts every
+//!   cell of the wall's rectangle, so the count is certified.
 //! - **Cone × plane**: an ellipse on one nappe (essential, one
 //!   component), a hyperbola or two lines through the apex (unbounded),
 //!   or near the parabola either (essential, no witness), decided on
@@ -315,13 +393,13 @@
 //! blanket gate could only refuse. The conservative refusal they were
 //! known for — a cube standing in a donut's hole — is W0 or W2 here.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
-use super::carrier_eq::line_tilt;
 use super::contain::FaceContainment;
 use crate::validate::decide;
-use geom_brep::ExtentBall;
 use geom_brep::intersect::decide_across;
+use geom_brep::pair_section::{Pinch, signs, signs_across};
+use geom_brep::{AxisPose, ExtentBall, Turn, axis_pose};
 
 /// Which face of the pair a statement is about.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -363,8 +441,45 @@ pub(crate) struct Component<T: Real> {
     pub essential_f: bool,
     /// The same for `G`.
     pub essential_g: bool,
-    /// One point of the component, in closed form.
+    /// One point of the component, in closed form, on a marched loop's
+    /// carrier, or a spline section's wall point, within `pad` of the
+    /// component.
     pub witness: Option<Point3<T>>,
+    /// It reaches a side of the named face's chart rectangle in a
+    /// channel that chart does not close, and no collapsed side (W1′);
+    /// `F` where it reaches both faces' (one is enough).
+    pub reaches: Option<Side>,
+    /// **How far the witness may stand from the component**, in metres:
+    /// a marched loop's reach ([`geom_brep::CarriedComponent::reach`]:
+    /// a box of its uniqueness tube holds both the witness and a piece of
+    /// the component), zero for a closed form. W3
+    /// reads the witness `w` against the band padded by twice it
+    /// (`certify`): a face's placement margins are lengths read at a
+    /// point's foot on the face's surface, and for the point `c` of the
+    /// component nearest `w`, which lies on the surface (its own foot),
+    /// `|foot(w) − c| ≤ |foot(w) − w| + |w − c| ≤ 2·|w − c| ≤ 2·pad`:
+    /// `foot(w)` is the surface point nearest `w`, no farther than `c`.
+    /// So a margin at `c` is within twice `pad` of the one read at `w`.
+    pub pad: f64,
+}
+
+impl<T: Real> Component<T> {
+    /// A component a closed form reads: unbounded or not, essential on
+    /// `[F, G]` or not, its witness on it, reaching no chart boundary.
+    pub(crate) fn closed_form(
+        unbounded: bool,
+        [essential_f, essential_g]: [bool; 2],
+        witness: Option<Point3<T>>,
+    ) -> Self {
+        Self {
+            unbounded,
+            essential_f,
+            essential_g,
+            witness,
+            reaches: None,
+            pad: 0.0,
+        }
+    }
 }
 
 /// A pair's section, classified.
@@ -391,6 +506,12 @@ pub(crate) enum Section<T: Real> {
     Touch(Touch<T>),
     /// No arm for the kind pair or the pose: R-reach.
     Intractable,
+    /// The components are the march's, and the scalar, named, has no
+    /// march: R-lane.
+    NoLane(&'static str),
+    /// The components are the march's, and the march, or the reading of
+    /// a marched loop, refused: R-march.
+    Unmarched,
 }
 
 /// **A touch of two carriers**: a margin decided `Zero` on an arm whose
@@ -413,6 +534,8 @@ pub(crate) struct Touch<T: Real> {
 pub(crate) enum Cleared {
     /// W1.
     Unbounded,
+    /// W1′: the component reaches the named face's chart boundary.
+    Reaches(Side),
     /// W2, on the named face.
     Essential(Side),
     /// W3, on the named face.
@@ -446,6 +569,12 @@ pub(crate) enum Refusal {
     /// refused for a numerical or unbuilt reason ([`Sheet::Unread`]),
     /// and no other witness cleared it.
     Unread,
+    /// R-lane: the pair's components are the march's, and the scalar,
+    /// named, has none.
+    NoLane(&'static str),
+    /// R-march: the pair's components are the march's, and the march or
+    /// the reading of its loops refused.
+    Unmarched,
 }
 
 /// **W2's answer about one face**: whether every closed curve in its
@@ -507,6 +636,16 @@ impl Refusal {
                  most often because a vertex of it stands too near the surface's axis or apex \
                  (moving that vertex away lets it be read)"
             }
+            Self::NoLane(_) => {
+                "a curved face's section with a face of the other solid has components no \
+                 closed form counts, and the march that lists them is written at f64, not at \
+                 this scalar; run the operation at f64"
+            }
+            Self::Unmarched => {
+                "a curved face's section with a face of the other solid has components no \
+                 closed form counts, and the march that lists them refused, so no crossing \
+                 layer's silence can be read against them"
+            }
         }
     }
 }
@@ -531,87 +670,25 @@ fn sign<T: Decide>(name: &'static str, m: Margin<T>, band: Band) -> Option<Sign>
     decide(name, m, band).ok()
 }
 
-/// A margin [`signs`] could not read as a side: decided `Zero`, or
-/// undecided.
-#[derive(Clone, Copy, Debug)]
-struct Pinch {
-    name: &'static str,
-    /// The margin's place in the list [`signs`] decided.
-    index: usize,
-    /// `None` where the margin decided `Zero`; its diagnostics where it
-    /// was undecided.
-    undecided: Option<geom_core::Indeterminate>,
-}
-
 impl<T: Real> From<Pinch> for Section<T> {
     fn from(p: Pinch) -> Self {
         Section::Tangent(p.name)
     }
 }
 
-impl Pinch {
-    /// A [`Touch`] at `at()` when the pinch is one of `names` decided
-    /// `Zero`, the one reading under which the carriers share at most one
-    /// loop about it, bounding a connected region where they stand within
-    /// the margin; R-tan otherwise.
-    fn touch<T: Real>(self, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
-        if self.undecided.is_none() && names.contains(&self.name) {
-            Section::Touch(Touch {
-                name: self.name,
-                at: at(),
-            })
-        } else {
-            self.into()
-        }
+/// A [`Touch`] at `at()` when the pinch `p` is one of `names` decided
+/// `Zero`, the one reading under which the carriers share at most one
+/// loop about it, bounding a connected region where they stand within
+/// the margin; R-tan otherwise.
+fn touch<T: Real>(p: Pinch, names: &[&'static str], at: impl FnOnce() -> Point3<T>) -> Section<T> {
+    if p.undecided.is_none() && names.contains(&p.name) {
+        Section::Touch(Touch {
+            name: p.name,
+            at: at(),
+        })
+    } else {
+        p.into()
     }
-}
-
-/// Reads every row by `read`, which names it and gives its verdict; the
-/// first `Zero` or undecided one is the pair's tangency, named by the row
-/// left undecided where one was.
-fn first_pinch<R, const N: usize>(
-    rows: [R; N],
-    read: impl Fn(R) -> (&'static str, Result<Sign, Indeterminate>),
-) -> Result<[bool; N], Pinch> {
-    let mut out = [false; N];
-    for (index, (slot, row)) in out.iter_mut().zip(rows).enumerate() {
-        let (name, verdict) = read(row);
-        let (name, undecided) = match verdict {
-            Ok(Sign::Positive) => {
-                *slot = true;
-                continue;
-            }
-            Ok(Sign::Negative) => continue,
-            Ok(Sign::Zero) => (name, None),
-            Err(diag) => (diag.predicate.unwrap_or(name), Some(diag)),
-        };
-        return Err(Pinch {
-            name,
-            index,
-            undecided,
-        });
-    }
-    Ok(out)
-}
-
-/// Decides every margin in `ms` ([`first_pinch`]).
-fn signs<T: Decide, const N: usize>(
-    ms: [(&'static str, T); N],
-    band: Band,
-) -> Result<[bool; N], Pinch> {
-    first_pinch(ms, |(name, m)| (name, decide(name, Margin::of(m), band)))
-}
-
-/// [`signs`], each row `(far, floor, datum)` read across the reach beside
-/// `slack` (module docs, the sum; [`decide_across`]).
-fn signs_across<T: Decide, const N: usize>(
-    rows: [(&'static str, &'static str, T); N],
-    slack: T,
-    band: Band,
-) -> Result<[bool; N], Pinch> {
-    first_pinch(rows, |(far, floor, m)| {
-        (far, decide_across([far, floor], m, slack, band))
-    })
 }
 
 fn none<T: Real>() -> Section<T> {
@@ -623,23 +700,13 @@ fn none<T: Real>() -> Section<T> {
 
 fn lone<T: Real>(witness: Point3<T>) -> Section<T> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: false,
-            essential_g: false,
-            witness: Some(witness),
-        }],
+        parts: vec![Component::closed_form(false, [false, false], Some(witness))],
         single: true,
     }
 }
 
 fn essential_pair<T: Real>(on_f: bool, on_g: bool) -> Section<T> {
-    let c = Component {
-        unbounded: false,
-        essential_f: on_f,
-        essential_g: on_g,
-        witness: None,
-    };
+    let c = Component::closed_form(false, [on_f, on_g], None);
     Section::Components {
         parts: vec![c, c],
         single: false,
@@ -666,26 +733,46 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 
 /// **The classifier: two carriers in, the section's components out.**
 /// Pure: surfaces, the pair's reach (module docs) and the band.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
     reach: Reach<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
+    classify_known(f, g, reach, lane, band, geom_brep::KnownPair::default())
+}
+
+/// [`classify`] with what the boolean knows of a spline pair handed in
+/// (`known`, read by the spline pair's arm alone).
+pub(crate) fn classify_known<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    reach: Reach<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+    known: geom_brep::KnownPair<T>,
+) -> Section<T> {
     use geom::Surface as S;
+    let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
     match (f, g) {
-        (
-            S::Torus { .. },
-            S::Plane { .. }
-            | S::Sphere { .. }
-            | S::Cylinder { .. }
-            | S::Cone { .. }
-            | S::Torus { .. },
-        ) => torus_pair(f, g, reach, band),
-        (
-            S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
-            S::Torus { .. },
-        ) => swapped(torus_pair(g, f, reach, band)),
+        (S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. }, S::Torus { .. })
+        | (S::Torus { .. }, S::Sphere { .. } | S::Cylinder { .. })
+        | (S::Sphere { .. }, S::Cylinder { .. })
+        | (S::Cylinder { .. }, S::Sphere { .. }) => {
+            match geom_brep::pair_section(f, g, None, None, band) {
+                Ok(geom_brep::SectionRead::Built(section)) => {
+                    of_pair_section(&Ok(section), band, marched)
+                }
+                Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
+                Err(e) => of_pair_section(&Err(e), band, marched),
+            }
+        }
+        (S::Torus { .. }, S::Plane { .. } | S::Cone { .. }) => torus_pair(f, g, reach, band),
+        (S::Plane { .. } | S::Cone { .. }, S::Torus { .. }) => {
+            swapped(torus_pair(g, f, reach, band))
+        }
         (
             S::Cone { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. },
@@ -727,53 +814,59 @@ pub(crate) fn classify<T: Decide>(
                 ..
             },
         ) => sphere_sphere(c1, r1, c2, r2, band),
-        (S::Sphere { .. }, S::Cylinder { .. }) | (S::Cylinder { .. }, S::Sphere { .. }) => {
-            match geom_brep::pair_section(f, g, band) {
-                Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section)),
-                Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
-                Err(e) => of_pair_section(&Err(e)),
-            }
-        }
-        (S::Nurbs(patch), &S::Plane { origin, normal, .. })
-        | (&S::Plane { origin, normal, .. }, S::Nurbs(patch)) => {
-            nurbs_plane(patch, origin, unit(normal), band)
+        (S::Nurbs(_) | S::Approx(_), S::Plane { .. })
+        | (S::Plane { .. }, S::Nurbs(_) | S::Approx(_)) => spline_plane(f, g, lane, band),
+        (S::Nurbs(_) | S::Approx(_), S::Nurbs(_) | S::Approx(_)) => {
+            spline_pair(f, g, known, lane, band)
         }
         _ => Section::Intractable,
     }
 }
 
-/// **NURBS × plane: W0 or no arm.** A patch lies in the convex hull of
-/// its control net (the weights are strictly positive), so a net whose
-/// every point is certified strictly on one side of the plane meets it
-/// nowhere. A net the plane cuts, touches or cannot place has no arm:
-/// the section's components are not classified, and the pair refuses on
-/// reach.
-fn nurbs_plane<T: Decide>(
-    patch: &geom::NurbsSurface<T>,
-    origin: Point3<T>,
-    n: Vec3<T>,
+/// **Two spline faces, read whole** ([`geom_brep::spline_pair_section`]
+/// through `lane`, module docs): C3's reading of the pair with the rows
+/// and corners the faces share handed in, its components listed (a closed
+/// branch a loop with its witness; an open branch, a `Side` region and a
+/// `Corner` region reaching the sides they end on, cleared by W1′ where
+/// one bounds its face), its refusals mapped by name. With no lane it is
+/// R-lane.
+fn spline_pair<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    known: geom_brep::KnownPair<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
-    let sides: Vec<_> = patch
-        .control()
-        .iter()
-        .map(|&c| {
-            sign(
-                "section_nurbs_plane_hull",
-                Margin::of((c - origin).dot(n)),
-                band,
-            )
-        })
-        .collect();
-    let apart = |s| !sides.is_empty() && sides.iter().all(|&t| t == Some(s));
-    if apart(Sign::Positive) || apart(Sign::Negative) {
-        none()
-    } else {
-        Section::Intractable
+    let read = geom_brep::spline_pair_section(f, g, known, lane, band);
+    of_pair_section(&read, band, |_| Section::Unmarched)
+}
+
+/// **A spline face against a plane, read off the pair's
+/// classification** ([`geom_brep::pair_section()`] through `lane`, module
+/// docs): the hull's apart is W0 and its coincidence R-tan; the
+/// door's and the boundary pass's refusals map by name; the regularity
+/// sweep's loop-free verdict ([`geom_brep::Components::Reaching`])
+/// clears by W1′ where every side it names bounds the wall, and is
+/// otherwise read whole; any other pose is C3's whole reading. With no
+/// lane a pose the hull does not decide is R-lane.
+fn spline_plane<T: Decide>(
+    f: &geom::Surface<T>,
+    g: &geom::Surface<T>,
+    lane: Option<geom_brep::SsiLane<T>>,
+    band: Band,
+) -> Section<T> {
+    let listed = move |s: &geom_brep::PairSection<T>| {
+        of_pair_section(&s.read_whole(lane, band), band, |_| Section::Unmarched)
+    };
+    match geom_brep::pair_section(f, g, None, lane, band) {
+        Ok(geom_brep::SectionRead::Built(section)) => of_pair_section(&Ok(section), band, listed),
+        Ok(geom_brep::SectionRead::Elsewhere(_)) => Section::Intractable,
+        Err(e) => of_pair_section(&Err(e), band, listed),
     }
 }
 
-/// The torus arms: `t` is a torus, `p` its partner.
+/// The torus arms the section value does not build: `t` is a torus, `p`
+/// a plane or a cone.
 fn torus_pair<T: Decide>(
     t: &geom::Surface<T>,
     p: &geom::Surface<T>,
@@ -798,94 +891,6 @@ fn torus_pair<T: Decide>(
         geom::Surface::Plane { origin, normal, .. } => {
             torus_plane(c, a, big_r, r, origin, unit(normal), band)
         }
-        geom::Surface::Sphere { center, radius, .. } => {
-            torus_sphere(c, a, big_r, r, center, radius, band)
-        }
-        geom::Surface::Cylinder {
-            origin,
-            axis: d,
-            radius: rc,
-            ..
-        } => match axis_pose(c, a, origin, unit(d), |_| T::zero(), reach, band) {
-            Pose::Coaxial { slack } => {
-                // The cylinder's meridian is the line ρ = ρc against the
-                // tube circle.
-                match signs_across(
-                    [(
-                        "section_torus_coaxial_wall",
-                        "section_torus_coaxial_wall_floor",
-                        r - (rc - big_r).abs(),
-                    )],
-                    slack,
-                    band,
-                ) {
-                    Ok([true]) => essential_pair(true, true),
-                    Ok([false]) => none(),
-                    Err(tan) => tan.into(),
-                }
-            }
-            Pose::Parallel { e, toward, slack } => {
-                torus_parallel_cylinder(c, a, big_r, r, (e, slack), toward, rc, band)
-            }
-            Pose::Undecided(name) => Section::Tangent(name),
-            Pose::Other => match square_pose(c, a, origin, unit(d), reach, band) {
-                Some(wall) => torus_square_cylinder(c, a, big_r, r, &wall, rc, band),
-                None => Section::Intractable,
-            },
-        },
-        geom::Surface::Torus {
-            center: c2,
-            axis: a2,
-            major_radius: big_r2,
-            minor_radius: r2,
-            ..
-        } => {
-            if geom::require_ring_torus(big_r2, r2, band).is_err() {
-                return Section::Intractable;
-            }
-            let a2 = unit(a2);
-            // The centre's height is read off `c2` itself, which the turn
-            // onto the torus axis lifts by its station from the pivot
-            // times `1 − cos`, at most `sin²`.
-            let turn = |t: &Turn<T>| (c2 - t.at).dot(a2).abs() * t.tilt.powi(2);
-            match axis_pose(c, a, c2, a2, turn, reach, band) {
-                Pose::Coaxial { slack } => {
-                    let z2 = (c2 - c).dot(a);
-                    let d = hypot(big_r2 - big_r, z2);
-                    match signs_across(
-                        [
-                            (
-                                "section_torus_coaxial_tube_reach",
-                                "section_torus_coaxial_tube_reach_floor",
-                                r + r2 - d,
-                            ),
-                            (
-                                "section_torus_coaxial_tube_nest",
-                                "section_torus_coaxial_tube_nest_floor",
-                                d - (r - r2).abs(),
-                            ),
-                        ],
-                        slack,
-                        band,
-                    ) {
-                        Ok([true, true]) => essential_pair(true, true),
-                        Ok(_) => none(),
-                        Err(tan) => tan.into(),
-                    }
-                }
-                Pose::Parallel { e, toward, slack } => torus_parallel_torus(
-                    c,
-                    a,
-                    [[big_r, r], [big_r2, r2]],
-                    (c2 - c).dot(a),
-                    (e, slack),
-                    toward,
-                    band,
-                ),
-                Pose::Undecided(name) => Section::Tangent(name),
-                Pose::Other => Section::Intractable,
-            }
-        }
         geom::Surface::Cone {
             apex,
             axis: d,
@@ -898,8 +903,8 @@ fn torus_pair<T: Decide>(
             // station from the pivot times `1 − cos` (at most `sin²`),
             // and by the offset's part along the tilted axis.
             let turn = |t: &Turn<T>| (c - t.at).dot(a).abs() * t.tilt.powi(2) + t.offset * t.tilt;
-            match axis_pose(c, a, apex, d, turn, reach, band) {
-                Pose::Coaxial { slack } => {
+            match axis_pose((c, a), (apex, d), turn, reach.ball(), band) {
+                AxisPose::Coaxial { slack, .. } => {
                     // In the meridian half-plane about the apex, each
                     // nappe's generator is a line through it at `α` from
                     // the axis; the tube circle, centred `(R, z)`, lies in
@@ -928,94 +933,13 @@ fn torus_pair<T: Decide>(
                         Err(tan) => tan.into(),
                     }
                 }
-                Pose::Undecided(name) => Section::Tangent(name),
-                Pose::Parallel { .. } | Pose::Other => Section::Intractable,
+                AxisPose::Undecided(diag) => {
+                    Section::Tangent(diag.predicate.unwrap_or("section_axes_offset"))
+                }
+                AxisPose::Parallel { .. } | AxisPose::Other => Section::Intractable,
             }
         }
         _ => Section::Intractable,
-    }
-}
-
-/// How a partner's axis stands to the torus axis.
-enum Pose<T: Real> {
-    /// One axis line: the arm's coaxial reading stands at most `slack` off
-    /// the partner anywhere the section can matter.
-    Coaxial { slack: T },
-    /// Parallel, at offset `e` read at the pivot, with `toward` the unit
-    /// direction from the torus axis to the partner's: the parallel
-    /// reading stands at most `slack` off the partner anywhere the section
-    /// can matter.
-    Parallel { e: T, toward: Vec3<T>, slack: T },
-    /// The tilt routes the axes parallel, and the offset reads neither
-    /// coaxial nor parallel across the reach: the row left undecided.
-    Undecided(&'static str),
-    /// Tilted, or the tilt undecided.
-    Other,
-}
-
-/// The lever of a tilt read about the pivot `at` (module docs, the lever
-/// and its pivot): the reach's farthest distance from it, doubled.
-fn lever<T: Real>(at: Point3<T>, reach: Reach<T>) -> T {
-    reach.ball().lever_from(at) * T::from_f64(2.0)
-}
-
-/// Where the turn onto the torus axis is read: the pivot, the axes' tilt
-/// (the sine between them), and the partner axis's offset at the pivot.
-struct Turn<T: Real> {
-    at: Point3<T>,
-    tilt: T,
-    offset: T,
-}
-
-/// Decides the axis pose (module docs, the lever and its pivot, the sum).
-/// The tilt, levered from the pivot `at`, only routes. Below it the
-/// partner is read as its image under the turn about `at` that takes its
-/// axis onto `a`'s direction, which moves it by at most the chord between
-/// the axes ([`line_tilt`]) times the reach's farthest distance from `at`
-/// anywhere the section can matter: the swing, plus `turn`, how far the
-/// arm's own reading moves with the image where it reads a point other
-/// than the pivot (zero for a reading that is the image). The offset at
-/// the pivot is decided across the reach beside that swing: coaxial on
-/// the far row, parallel on the floor.
-fn axis_pose<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    o: Point3<T>,
-    d: Vec3<T>,
-    turn: impl FnOnce(&Turn<T>) -> T,
-    reach: Reach<T>,
-    band: Band,
-) -> Pose<T> {
-    let at = reach.ball().foot_on(o, d);
-    let tilt = a.cross(d).norm();
-    if sign(
-        "section_axes_tilt",
-        Margin::levered(tilt, lever(at, reach)),
-        band,
-    ) != Some(Sign::Zero)
-    {
-        return Pose::Other;
-    }
-    let (perp, e) = perp_to(at - c, a);
-    let swing = line_tilt(a, d) * reach.ball().lever_from(at)
-        + turn(&Turn {
-            at,
-            tilt,
-            offset: e,
-        });
-    const OFFSET: &str = "section_axes_offset";
-    match decide_across([OFFSET, "section_axes_offset_floor"], e, swing, band) {
-        Ok(Sign::Zero) => Pose::Coaxial { slack: e + swing },
-        Ok(Sign::Positive) => Pose::Parallel {
-            e,
-            toward: perp / e,
-            slack: swing,
-        },
-        Ok(Sign::Negative) => unreachable!(
-            "`{OFFSET}` read a distance's floor Negative: the offset is a norm, and its floor \
-             is shrunk toward zero, never past it"
-        ),
-        Err(diag) => Pose::Undecided(diag.predicate.unwrap_or(OFFSET)),
     }
 }
 
@@ -1057,7 +981,7 @@ fn torus_plane<T: Decide>(
             {
                 return tan.into();
             }
-            tan.touch(&[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na))
+            touch(tan, &[NEAR, FAR], || in_pi(sigma * big_r + d * s, d * na))
         }
         PlaneCut::Pinch(tan) => tan.into(),
         PlaneCut::AroundAxis | PlaneCut::AroundTube => essential_pair(true, false),
@@ -1144,938 +1068,6 @@ pub(super) fn torus_plane_loops<T: Decide>(
     }
 }
 
-/// **Torus × sphere**, the ball `(cs, rho)`.
-fn torus_sphere<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    big_r: T,
-    r: T,
-    cs: Point3<T>,
-    rho: T,
-    band: Band,
-) -> Section<T> {
-    const NEAR: &str = "section_torus_sphere_near_tube";
-    const FAR: &str = "section_torus_sphere_far_tube";
-    let w = cs - c;
-    let ca = w.dot(a);
-    let (s, in_pi) = meridian(c, a, w);
-    let dist = |x: T| hypot(x, ca);
-    let (d_near, d_far) = (dist(s - big_r), dist(s + big_r));
-    let cuts = |d: T| (d + r - rho).min(rho - (d - r).abs());
-    let [near, far] = match signs([(NEAR, cuts(d_near)), (FAR, cuts(d_far))], band) {
-        Ok(x) => x,
-        Err(tan) => {
-            return torus_sphere_touch(tan, [big_r, r], (s, ca), rho, [d_near, d_far], band)
-                .map_or_else(
-                    || tan.into(),
-                    |(x, y)| tan.touch(&[NEAR, FAR], || in_pi(x, y)),
-                );
-        }
-    };
-    match (near, far) {
-        (true, true) => essential_pair(true, false),
-        (false, false) => match signs(
-            [(
-                "section_torus_sphere_between",
-                (rho - d_near - r).min(d_far - r - rho),
-            )],
-            band,
-        ) {
-            Ok([true]) => essential_pair(true, false),
-            Ok([false]) => none(),
-            Err(tan) => tan.into(),
-        },
-        (true, false) | (false, true) => {
-            let sigma = if near { T::one() } else { -T::one() };
-            let d = if near { d_near } else { d_far };
-            // Circle against circle in Π: T_σ centred (σR, 0) radius r,
-            // the sphere's great circle centred (s, c_a) radius ρ.
-            let (ex, ey) = ((s - sigma * big_r) / d, ca / d);
-            let along = (d.powi(2) + r.powi(2) - rho.powi(2)) / (d + d);
-            let half = ((r - along) * (r + along)).sqrt();
-            lone(in_pi(
-                sigma * big_r + ex * along - ey * half,
-                ey * along + ex * half,
-            ))
-        }
-    }
-}
-
-/// **Where a sphere tangent to the tube circle `T_σ` the pinch names
-/// touches the torus, if at one point**: `(x, y)` in `Π`. The torus is
-/// `[R, r]`, the sphere's centre `(s, ca)` in `Π`, and `d_near`, `d_far`
-/// its distances from the tube centres `(±R, 0)`.
-///
-/// The section is the level `ρ` of `f = |x − cs|` on the torus. With
-/// `cs` off the axis (`s > 0`), `f`'s critical points are the four
-/// points of `T₊` and `T₋` on their normals through `cs`: on `T_σ`, its
-/// nearest point to `cs` at `|d_σ − r|` and its farthest at `d_σ + r`.
-/// The sphere is tangent at whichever of the two stands nearer `ρ`. That
-/// point is a touch when its value is `f`'s strict minimum or maximum
-/// over the torus, clear of the other three by a decided margin: in
-/// every pose the band admits, `{f ≤ ρ}` (or `{f ≥ ρ}`) is then one disc
-/// about it or empty, on which the carriers stand within the band of
-/// each other. It must also stand on the tube's outer half, where the
-/// torus is elliptic.
-///
-/// Which of the two is a choice, not a decision: `ρ` stands within the
-/// band of one of them and they are `2·min(d_σ, r)` apart, so wherever
-/// the choice is in doubt the other stands within the band too and the
-/// extreme margin refuses.
-fn torus_sphere_touch<T: Decide>(
-    tan: Pinch,
-    [big_r, r]: [T; 2],
-    (s, ca): (T, T),
-    rho: T,
-    [d_near, d_far]: [T; 2],
-    band: Band,
-) -> Option<(T, T)> {
-    let (sigma, d, d_other) = if tan.index == 0 {
-        (T::one(), d_near, d_far)
-    } else {
-        (-T::one(), d_far, d_near)
-    };
-    let positive = |name, m: T| sign(name, Margin::of(m), band) == Some(Sign::Positive);
-    // The midpoint of T_σ's two values is max(d_σ, r); `kappa` is +1 at
-    // the nearest point, −1 at the farthest.
-    let split = rho - d.max(r);
-    let (nearest, farthest) = ((d - r).abs(), d + r);
-    let kappa = split.select_le_zero(T::one(), -T::one());
-    let value = split.select_le_zero(nearest, farthest);
-    let [o1, o2, o3] = [
-        split.select_le_zero(farthest, nearest),
-        (d_other - r).abs(),
-        d_other + r,
-    ]
-    .map(|v| kappa * (v - value));
-    // T_σ's point along ±(cs − C_σ), C_σ = (σR, 0).
-    let (ux, uy) = ((s - sigma * big_r) / d, ca / d);
-    let (x, y) = (sigma * big_r + kappa * r * ux, kappa * r * uy);
-    (positive("section_torus_sphere_touch_extreme", o1.min(o2).min(o3))
-        && positive("section_torus_sphere_touch_elliptic", sigma * x - big_r))
-    .then_some((x, y))
-}
-
-/// **Torus × a cylinder whose axis is parallel to the torus's**, at
-/// offset `e` in the direction `toward`, each row read across the
-/// `slack` the pose admitted.
-#[allow(clippy::too_many_arguments)]
-fn torus_parallel_cylinder<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    big_r: T,
-    r: T,
-    (e, slack): (T, T),
-    toward: Vec3<T>,
-    rc: T,
-    band: Band,
-) -> Section<T> {
-    let (rho_min, rho_max) = ((e - rc).abs(), e + rc);
-    const NEAR_OUTER: &str = "section_torus_offset_wall_near_outer";
-    let (lo, hi) = (big_r - r, big_r + r);
-    let [min_over_lo, min_under_hi, max_over_lo, max_under_hi] = match signs_across(
-        [
-            (
-                "section_torus_offset_wall_near_inner",
-                "section_torus_offset_wall_near_inner_floor",
-                rho_min - lo,
-            ),
-            (
-                NEAR_OUTER,
-                "section_torus_offset_wall_near_outer_floor",
-                hi - rho_min,
-            ),
-            (
-                "section_torus_offset_wall_far_inner",
-                "section_torus_offset_wall_far_inner_floor",
-                rho_max - lo,
-            ),
-            (
-                "section_torus_offset_wall_far_outer",
-                "section_torus_offset_wall_far_outer_floor",
-                hi - rho_max,
-            ),
-        ],
-        slack,
-        band,
-    ) {
-        Ok(x) => x,
-        // The wall's nearest ruling on the outer equator, the rest of
-        // the wall beyond it: the extreme of the distance from the wall's
-        // axis over the torus (its minimum beside the torus, its maximum
-        // about it), at an elliptic point, clear of the next critical
-        // value by `2r` beside the torus and by `min(2r, 2e)` about it,
-        // both decided upstream: `r` by `torus_pair`'s
-        // `geom::require_ring_torus`, `e` by `axis_pose`'s `Positive`
-        // offset floor, the one pose that reaches this arm.
-        Err(tan) if tan.name == NEAR_OUTER => {
-            return tan.touch(&[NEAR_OUTER], || c + toward * (e - rc));
-        }
-        Err(tan) => return tan.into(),
-    };
-    let height = |rho: T| {
-        let dr = rho - big_r;
-        ((r - dr.abs()) * (r + dr.abs())).sqrt()
-    };
-    match (min_over_lo, min_under_hi, max_over_lo, max_under_hi) {
-        // The whole ρ-range inside the tube's shadow: two loops, each
-        // encircling the cylinder.
-        (true, true, true, true) => essential_pair(false, true),
-        // Wholly inside the hole, or wholly outside the torus.
-        (_, _, false, _) | (_, false, _, _) => none(),
-        // Across both bounds: two `(0,1)` loops on the torus.
-        (false, true, true, false) => essential_pair(true, false),
-        // Across the inner bound only: the null loop at θ = 0.
-        (false, true, true, true) => lone(c + toward * rho_max + a * height(rho_max)),
-        // Across the outer bound only: the null loop at θ = π.
-        (true, true, true, false) => lone(c + toward * (e - rc) + a * height(rho_min)),
-    }
-}
-
-/// One strand of the matching curve `W` of [`torus_parallel_torus`].
-#[derive(Clone, Copy)]
-struct Strand {
-    /// The point stands on the torus's outer sheet.
-    outer: bool,
-    /// It stands on the partner's outer sheet.
-    outer2: bool,
-    /// The loop runs up the strand.
-    up: bool,
-}
-
-const fn strand(outer: bool, outer2: bool, up: bool) -> Strand {
-    Strand { outer, outer2, up }
-}
-
-const PARALLEL_TORI_ORDER: &str = "section_torus_parallel_tori_order";
-
-/// **Torus × a torus whose axis is parallel to its own**, the partner's
-/// axis at offset `e` along `toward` and its centre at height `h`, each
-/// row read across the `slack` the pose admitted. `rings` is
-/// `[[R, r], [R₂, r₂]]`.
-///
-/// Both tori are symmetric under the reflection `σ` through the plane
-/// `Π` holding both axes. A point of the section has heights, and
-/// distances `ρ`, `ρ₂` from the two axes, lying on the two meridian
-/// circles `(ρ − R)² + y² = r²` and `(ρ₂ − R₂)² + (y − h)² = r₂²`; given
-/// those, the point is one of a mirror pair across `Π` when
-/// `|ρ − ρ₂| < e < ρ + ρ₂` and on `Π` at equality. So the section is two
-/// mirror copies of the part of the matching curve
-/// `W = {(ρ, ρ₂, y)}` inside that strict triangle, glued at the points
-/// of `Π` on both tori, which are the crossings of the tori's meridian
-/// circles in `Π` (closed form, at most eight).
-///
-/// `W` is smooth, its strands being the sheets `ρ = R ± √(r² − y²)` and
-/// the partner's over the heights both tubes span, joined where that
-/// span ends at a tube's top or bottom: two loops where one tube owns
-/// both ends, one loop of four strands otherwise. A crossing of the
-/// meridian circles is transverse (the rows below decide it), so the
-/// section crosses `Π` square to it there and `W` passes from inside the
-/// triangle to outside. A loop of `W` meeting `Π` in `2k` points is
-/// therefore cut into arcs alternately inside and outside, and each arc
-/// inside closes with its mirror into one component: `k` components,
-/// each holding exactly one of every other point in the loop's cyclic
-/// order, its witness. A loop of `W` meeting no point of `Π` lies wholly
-/// inside the triangle or wholly outside, read at one height: inside,
-/// it is two components, mirror images, witnessed there. Essentiality
-/// is not read: every component carries a witness.
-#[allow(clippy::too_many_arguments)]
-fn torus_parallel_torus<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    [[big_r, r], [big_r2, r2]]: [[T; 2]; 2],
-    h: T,
-    (e, slack): (T, T),
-    toward: Vec3<T>,
-    band: Band,
-) -> Section<T> {
-    let side = a.cross(toward);
-    let at = |x: T, y: T, z: T| c + toward * x + a * y + side * z;
-    match signs_across(
-        [(
-            "section_torus_parallel_tori_slabs",
-            "section_torus_parallel_tori_slabs_floor",
-            r + r2 - h.abs(),
-        )],
-        slack,
-        band,
-    ) {
-        Ok([true]) => {}
-        Ok([false]) => return none(),
-        Err(tan) => return tan.into(),
-    }
-    // Which tube owns the top and the bottom of the heights both span.
-    let [own_top, own_bottom] = match signs_across(
-        [
-            (
-                "section_torus_parallel_tori_top",
-                "section_torus_parallel_tori_top_floor",
-                h + r2 - r,
-            ),
-            (
-                "section_torus_parallel_tori_bottom",
-                "section_torus_parallel_tori_bottom_floor",
-                h - r2 + r,
-            ),
-        ],
-        slack,
-        band,
-    ) {
-        Ok([top_is_first, bottom_is_second]) => [top_is_first, !bottom_is_second],
-        Err(tan) => return tan.into(),
-    };
-    let y_hi = if own_top { r } else { h + r2 };
-    let y_lo = if own_bottom { -r } else { h - r2 };
-    let run = y_hi - y_lo;
-    // The station at the start of a loop's `n`th strand.
-    let runs = |n: usize| run * T::from_f64(n as f64);
-    // The loops of `W`, each its strands in order: a strand's sheet on
-    // the tube owning the end it runs into turns there.
-    let loops: Vec<Vec<Strand>> = match (own_top, own_bottom) {
-        (true, true) => [true, false]
-            .map(|s2| vec![strand(true, s2, true), strand(false, s2, false)])
-            .to_vec(),
-        (false, false) => [true, false]
-            .map(|s1| vec![strand(s1, true, true), strand(s1, false, false)])
-            .to_vec(),
-        (true, false) => vec![vec![
-            strand(true, true, true),
-            strand(false, true, false),
-            strand(false, false, true),
-            strand(true, false, false),
-        ]],
-        (false, true) => vec![vec![
-            strand(true, true, true),
-            strand(true, false, false),
-            strand(false, false, true),
-            strand(false, true, false),
-        ]],
-    };
-    // The points of `Π` on both tori, each on its loop at its station
-    // along it.
-    let mut on_pi: Vec<Vec<(T, Point3<T>)>> = vec![Vec::new(); loops.len()];
-    for (xa, far1) in [(big_r, false), (-big_r, true)] {
-        for (xb, far2) in [(e + big_r2, false), (e - big_r2, true)] {
-            let (dx, dy) = (xb - xa, h);
-            let d = hypot(dx, dy);
-            match signs_across(
-                [
-                    (
-                        "section_torus_parallel_tori_reach",
-                        "section_torus_parallel_tori_reach_floor",
-                        r + r2 - d,
-                    ),
-                    (
-                        "section_torus_parallel_tori_nest",
-                        "section_torus_parallel_tori_nest_floor",
-                        d - (r - r2).abs(),
-                    ),
-                ],
-                slack,
-                band,
-            ) {
-                Ok([true, true]) => {}
-                Ok(_) => continue,
-                Err(tan) => return tan.into(),
-            }
-            let m = (d.powi(2) + (r - r2) * (r + r2)) / (d * T::from_f64(2.0));
-            let k = ((r - m) * (r + m)).max(T::zero()).sqrt();
-            let (ux, uy) = (dx / d, dy / d);
-            for k in [k, -k] {
-                let (x, y) = (xa + ux * m - uy * k, uy * m + ux * k);
-                // The sheet each tube's circle holds the point on, by
-                // the side of the circle's centre it stands, read bare
-                // of the slack: the side changes only at the tube's top
-                // or bottom. A tube that owns no end of the span stands
-                // clear of both by the top and bottom rows' floors,
-                // decided across the slack, so its side is decided or
-                // the pair refuses. A tube that owns an end can stand
-                // undecided only at that end (its other end lies past
-                // the span by the same floors), where its two strands
-                // meet and read one station: either sheet places the
-                // point there.
-                let outer =
-                    |off: T, owns: bool| match sign(PARALLEL_TORI_ORDER, Margin::of(off), band) {
-                        Some(Sign::Positive) => Some(true),
-                        Some(Sign::Negative) => Some(false),
-                        _ => owns.then_some(true),
-                    };
-                let (Some(s1), Some(s2)) = (
-                    outer(if far1 { xa - x } else { x - xa }, own_top || own_bottom),
-                    outer(if far2 { xb - x } else { x - xb }, !own_top || !own_bottom),
-                ) else {
-                    return Section::Tangent(PARALLEL_TORI_ORDER);
-                };
-                let Some((i, j, up)) = loops.iter().enumerate().find_map(|(i, l)| {
-                    l.iter()
-                        .position(|t| (t.outer, t.outer2) == (s1, s2))
-                        .map(|j| (i, j, l[j].up))
-                }) else {
-                    unreachable!("every pair of sheets is a strand of one loop of `W`")
-                };
-                let station = runs(j) + if up { y - y_lo } else { y_hi - y };
-                on_pi[i].push((station, at(x, y, T::zero())));
-            }
-        }
-    }
-    let mut parts = Vec::new();
-    let component = |w: Point3<T>| Component {
-        unbounded: false,
-        essential_f: false,
-        essential_g: false,
-        witness: Some(w),
-    };
-    for (strands, mut points) in loops.iter().zip(on_pi) {
-        if points.is_empty() {
-            let Strand {
-                outer: s1,
-                outer2: s2,
-                ..
-            } = strands[0];
-            let y = (y_lo + y_hi) / T::from_f64(2.0);
-            let (rho, rho2) = (sheet([big_r, r], y, s1), sheet([big_r2, r2], y - h, s2));
-            // Read at a fixed height, the rows move with the partner by
-            // one slack through `e`, and through `ρ₂` by at most the
-            // slack times `√(1 + slope²) ≤ 1 + slope`, `slope` being
-            // the sheet's `|dρ₂/dy|` there: a point of the partner moved
-            // by `δ` moves its sheet's radius at that height by at most
-            // that much.
-            let slope = (y - h).abs() / ((r2 - (y - h).abs()) * (r2 + (y - h).abs())).sqrt();
-            match signs_across(
-                [
-                    (
-                        "section_torus_parallel_tori_gap",
-                        "section_torus_parallel_tori_gap_floor",
-                        e - (rho - rho2).abs(),
-                    ),
-                    (
-                        "section_torus_parallel_tori_span",
-                        "section_torus_parallel_tori_span_floor",
-                        rho + rho2 - e,
-                    ),
-                ],
-                slack * (T::from_f64(2.0) + slope),
-                band,
-            ) {
-                Ok([true, true]) => {
-                    let x = ((rho - rho2) * (rho + rho2) + e.powi(2)) / (e * T::from_f64(2.0));
-                    let z = ((rho - x) * (rho + x)).max(T::zero()).sqrt();
-                    parts.extend([z, -z].map(|z| component(at(x, y, z))));
-                }
-                Ok(_) => {}
-                Err(tan) => return tan.into(),
-            }
-            continue;
-        }
-        let cycle = runs(strands.len());
-        if let Err(tan) = along_w(&mut points, cycle, band) {
-            return tan;
-        }
-        if points.len() % 2 == 1 {
-            return Section::Tangent(PARALLEL_TORI_ORDER);
-        }
-        parts.extend(points.iter().step_by(2).map(|&(_, w)| component(w)));
-    }
-    let single = parts.len() == 1;
-    Section::Components { parts, single }
-}
-
-/// Sorts points of a loop of `W` by their station along it, every
-/// neighbour pair decided apart, the last and the first round the
-/// `cycle` too: two in one place within the band refuse R-tan.
-///
-/// The stations are read off the turned image, bare of the pose's slack,
-/// and that is sound: the points are distinct crossings of the meridian
-/// circles (two `A` circles never meet, nor two `B` circles, a ring
-/// torus's tube circles standing apart), so two stations trade places
-/// along the loop only by coinciding, a tangency of one circle pair,
-/// which its `reach` and `nest` rows decide across the slack; and the
-/// loop's strands are fixed by the top and bottom rows, decided across
-/// it too.
-fn along_w<T: Decide>(xs: &mut [(T, Point3<T>)], cycle: T, band: Band) -> Result<(), Section<T>> {
-    apart_in_order(xs, PARALLEL_TORI_ORDER, Margin::of, band)?;
-    if let [first, .., last] = xs
-        && sign(
-            PARALLEL_TORI_ORDER,
-            Margin::of(first.0 + cycle - last.0),
-            band,
-        ) != Some(Sign::Positive)
-    {
-        return Err(Section::Tangent(PARALLEL_TORI_ORDER));
-    }
-    Ok(())
-}
-
-/// **A cylinder whose axis stands square to the torus axis**, read in the
-/// meridian plane `Π` through the torus centre normal to it: `d` the
-/// wall's unit axis, `across = a × d`, and `(e, z0)` the axis's trace in
-/// `Π`, `e` along `across` and `z0` along `a`. `slop` bounds how far the
-/// rounding leaves `e` and `z0` from their exact values.
-#[derive(Clone, Copy, Debug)]
-struct SquareWall<T: Real> {
-    d: Vec3<T>,
-    across: Vec3<T>,
-    e: T,
-    z0: T,
-    slop: T,
-}
-
-/// The ulps of its operands' size a coordinate of the trace carries.
-const SQUARE_TRACE_ULPS: f64 = 2.0;
-
-/// Decides whether the partner axis `(o, d)` stands square to the torus
-/// axis `a`: `a·d` levered as [`axis_pose`] levers a tilt. Square, the
-/// wall is read with its axis turned square to `a` about the pivot, which
-/// moves it by less than the band anywhere the section can matter. An
-/// undecided margin is not a pose this arm claims.
-fn square_pose<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    o: Point3<T>,
-    d: Vec3<T>,
-    reach: Reach<T>,
-    band: Band,
-) -> Option<SquareWall<T>> {
-    if sign(
-        "section_torus_square_wall_tilt",
-        Margin::levered(a.dot(d), lever(reach.ball().foot_on(o, d), reach)),
-        band,
-    ) != Some(Sign::Zero)
-    {
-        return None;
-    }
-    // The pivot's offset from the torus centre, summed from the stored
-    // operands so that neither's distance from the origin is rounded in.
-    let reach_along = (reach.centre - o).dot(d);
-    let w = (o - c) + d * reach_along;
-    let (along, n) = perp_to(d, a);
-    let d = along / n;
-    let across = a.cross(d);
-    Some(SquareWall {
-        d,
-        across,
-        e: w.dot(across),
-        z0: w.dot(a),
-        slop: ((o - c).norm() + reach_along.abs() + w.norm())
-            * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON),
-    })
-}
-
-/// A point where the wall's trace `K` crosses a tube circle, `T₊` at
-/// `y = R` (`plus`) or `T₋`, on its outer half (`|y| > R`) or its inner.
-#[derive(Clone, Copy, Debug)]
-struct Fold<T: Real> {
-    plus: bool,
-    y: T,
-    z: T,
-    outer: bool,
-}
-
-/// A point where `K` crosses an edge of the strip `|z| ≤ r` (`top`:
-/// `z = r`), whether it stands over the torus's parallel there
-/// (`|y| < R`), and its side of `K`'s centre (`right`: along `across`).
-#[derive(Clone, Copy, Debug)]
-struct Edge {
-    top: bool,
-    over: bool,
-    right: bool,
-}
-
-const SQUARE_WALK: &str = "section_torus_square_wall_walk";
-const SQUARE_ORDER: &str = "section_torus_square_wall_order";
-const SQUARE_FOLD_HALF: &str = "section_torus_square_wall_fold_half";
-const SQUARE_EDGE_OVER: &str = "section_torus_square_wall_edge_over";
-
-/// **Torus × a cylinder whose axis is square to the torus's**, the wall
-/// `wall` of radius `rc`.
-///
-/// `Π` holds the torus axis and stands normal to the wall's, so the wall
-/// is the union of the lines `P + t·d` normal to `Π` through the points
-/// `P = (Y, Z)` of its trace `K`, the circle of radius `rc` about
-/// `(e, z0)`. Such a line stays at height `Z` and at distance
-/// `√(t² + Y²)` from the torus axis, so it meets the torus where
-/// `√(t² + Y²) = R ± √(r² − Z²)`: on each SHEET `ρ = R ± √(r² − Z²)` over
-/// the strip `|Z| ≤ r`, at `t = ±√(ρ² − Y²)` where `ρ ≥ |Y|`. The sheets
-/// join on the strip's edges, at `ρ = R`. So the section is the double
-/// cover, `t ↦ −t`, of the curve `γ` of points `(P, sheet)` with
-/// `ρ ≥ |Y|`, folded where `ρ = |Y|`: where `P` lies on a tube circle
-/// `T±` (centred `(±R, 0)` in `Π`), on the outer sheet on the circle's
-/// outer half and on the inner sheet on its inner half.
-///
-/// `γ`'s components are `K`'s arcs in the strip, each an oval running
-/// out along the outer sheet and back along the inner, or with `K` inside
-/// the open strip the two sheets as two loops. On each, `ρ ≥ |Y|` holds on
-/// alternate runs between folds; a run between two folds lifts to ONE
-/// closed component through `t = 0` at those two folds, and a fold-free
-/// component wholly in `ρ > |Y|` lifts to TWO, one at `t > 0` and its
-/// mirror. Their classes:
-///
-/// - a component through two folds is its own mirror, so the mirror acts
-///   on it as a reflection with those two folds fixed. It is null on the
-///   wall (an essential curve the mirror fixes would lie in `t = 0`), and
-///   its tube angle retraces itself (`q = 0`). It winds once about the
-///   torus axis iff its folds lie on different tube circles: it crosses
-///   `Π` only there, on the half-planes `u = ±π/2`;
-/// - a fold-free lift lies in one half-space `±t > 0`, where the torus is
-///   a tube segment (`p = 0`). A loop of a sheet is essential on the
-///   wall and stays on one half of the tube (null on the torus); an oval
-///   is null on the wall, and winds once about the tube iff it runs from
-///   one strip edge to the other.
-///
-/// Every fold and strip crossing is a circle meeting a circle or a line
-/// in `Π`, in closed form; each component's witness is one of its folds,
-/// or for a fold-free lift a point where its sheets stand apart. A margin
-/// `Zero` or undecided where the carriers are tangent — `K` tangent to a
-/// tube circle, or to a strip edge over the parallel, a fold too shallow
-/// to place within the band, two crossings in one place along `K` —
-/// refuses R-tan; a fold or strip crossing at a tube circle's top or
-/// bottom, where they cross, refuses R-order.
-fn torus_square_cylinder<T: Decide>(
-    c: Point3<T>,
-    a: Vec3<T>,
-    big_r: T,
-    r: T,
-    wall: &SquareWall<T>,
-    rc: T,
-    band: Band,
-) -> Section<T> {
-    let &SquareWall {
-        d,
-        across,
-        e,
-        z0,
-        slop,
-    } = wall;
-    let at = |y: T, z: T, t: T| c + across * y + a * z + d * t;
-    let k = (e, z0, rc);
-    let parts = (|| {
-        let top = reaches_edge(
-            "section_torus_square_wall_top",
-            z0 + rc - r,
-            (e, big_r),
-            band,
-        )?;
-        let bottom = reaches_edge(
-            "section_torus_square_wall_bottom",
-            rc - z0 - r,
-            (e, big_r),
-            band,
-        )?;
-        let folds = square_folds([big_r, r], k, slop, band)?;
-        if top || bottom {
-            across_strip([big_r, r], k, [top, bottom], &folds, at, band)
-        } else {
-            inside_strip([big_r, r], k, &folds, at, band)
-        }
-    })();
-    match parts {
-        Ok(parts) => {
-            let single = parts.len() == 1;
-            Section::Components { parts, single }
-        }
-        Err(s) => s,
-    }
-}
-
-/// `K`'s crossings with the tube circles `T±`: none or two each.
-///
-/// A fold is where `K` crosses a tube circle at the angle `θ` between
-/// them, `sin θ = dist·half / (r·rc)` for centres `dist` apart and the
-/// crossings `half` off their line. Where the angle is shallow the
-/// rounding `slop` of `K`'s centre moves the crossing `slop / sin θ` along
-/// both circles while it stays on each: a fold whose drift the band does
-/// not decide `Zero` is a near-tangency at the fold (the carriers' normals
-/// there stand `θ` apart) and refuses R-tan. A fold within the band of a
-/// tube circle's top or bottom point lies on neither half; the carriers
-/// cross there, and it refuses [`Section::Unordered`].
-fn square_folds<T: Decide>(
-    [big_r, r]: [T; 2],
-    (e, z0, rc): (T, T, T),
-    slop: T,
-    band: Band,
-) -> Result<Vec<Fold<T>>, Section<T>> {
-    let mut out = Vec::new();
-    for plus in [true, false] {
-        let sigma = if plus { T::one() } else { -T::one() };
-        let dy = e - sigma * big_r;
-        let dist = hypot(dy, z0);
-        let [cut] = signs(
-            [(
-                "section_torus_square_wall_tube",
-                (rc + r - dist).min(dist - (rc - r).abs()),
-            )],
-            band,
-        )?;
-        if !cut {
-            continue;
-        }
-        // Circle against circle: `T_σ` about `(σR, 0)` radius `r`, `K`
-        // about `(e, z0)` radius `rc`, `dist` apart.
-        let (uy, uz) = (dy / dist, z0 / dist);
-        let along = (dist.powi(2) + (r - rc) * (r + rc)) / (dist + dist);
-        let half = ((r - along) * (r + along)).sqrt();
-        let drift = (slop + (e.abs() + big_r + rc) * T::from_f64(SQUARE_TRACE_ULPS * f64::EPSILON))
-            * r
-            * rc
-            / (dist * half);
-        if sign(
-            "section_torus_square_wall_fold_drift",
-            Margin::of(drift),
-            band,
-        ) != Some(Sign::Zero)
-        {
-            return Err(Section::Tangent("section_torus_square_wall_fold_drift"));
-        }
-        for s in [half, -half] {
-            let (y, z) = (sigma * big_r + uy * along - uz * s, uz * along + uy * s);
-            let [outer] = signs([(SQUARE_FOLD_HALF, sigma * y - big_r)], band)
-                .map_err(|_| Section::Unordered(SQUARE_FOLD_HALF))?;
-            out.push(Fold { plus, y, z, outer });
-        }
-    }
-    Ok(out)
-}
-
-/// `(x² + y²)^½`.
-fn hypot<T: Real>(x: T, y: T) -> T {
-    (x.powi(2) + y.powi(2)).sqrt()
-}
-
-/// Whether `K` reaches past a strip edge's line, by the margin `m` of its
-/// reach there. `K` within the band of tangent to the line touches it at
-/// `(e, ±r)`: over the parallel (`|e| ≤ R`) the wall is tangent to the
-/// torus there, a pinch, R-tan; beyond it no line of the wall near that
-/// point meets the torus, and the section is the one of `K` held just
-/// short of the line, a pose the band admits.
-fn reaches_edge<T: Decide>(
-    name: &'static str,
-    m: T,
-    (e, big_r): (T, T),
-    band: Band,
-) -> Result<bool, Section<T>> {
-    match signs([(name, m)], band) {
-        Ok([past]) => Ok(past),
-        Err(_)
-            if sign(
-                "section_torus_square_wall_edge_clear",
-                Margin::of(e.abs() - big_r),
-                band,
-            ) == Some(Sign::Positive) =>
-        {
-            Ok(false)
-        }
-        Err(pinch) => Err(pinch.into()),
-    }
-}
-
-/// The radius of the sheet `ρ = R ± √(r² − z²)` at height `z`.
-fn sheet<T: Real>([big_r, r]: [T; 2], z: T, outer: bool) -> T {
-    let h = ((r - z.abs()) * (r + z.abs())).sqrt();
-    if outer { big_r + h } else { big_r - h }
-}
-
-/// The two lifts of a fold-free component of `γ` through `(y, z)` on the
-/// sheet of radius `rho > |y|`.
-fn lifts<T: Real>(
-    (y, z, rho): (T, T, T),
-    essential: [bool; 2],
-    at: impl Fn(T, T, T) -> Point3<T>,
-) -> [Component<T>; 2] {
-    let t = ((rho - y) * (rho + y)).sqrt();
-    [t, -t].map(|t| Component {
-        unbounded: false,
-        essential_f: essential[0],
-        essential_g: essential[1],
-        witness: Some(at(y, z, t)),
-    })
-}
-
-fn through<T: Real>(
-    f: Fold<T>,
-    essential_f: bool,
-    at: impl Fn(T, T, T) -> Point3<T>,
-) -> Component<T> {
-    Component {
-        unbounded: false,
-        essential_f,
-        essential_g: false,
-        witness: Some(at(f.y, f.z, T::zero())),
-    }
-}
-
-/// **`K` inside the open strip**: the sheets are two loops over all of
-/// `K`, the outer meeting the folds on outer halves, the inner those on
-/// inner halves. A tube circle's two folds share a half: `K` meets the
-/// segment `y = ±R` of the strip only inside that circle's disc. On the
-/// outer loop each tube circle's folds bound `K`'s arc inside its disc,
-/// in `ρ ≥ |Y|`: one component each. On the inner loop, one circle's
-/// folds bound the rest of `K`, which then stands between the discs;
-/// both circles' folds bound the two arcs of `K` between the discs, each
-/// from `T₊` to `T₋` and winding about the torus axis. (Folds on both
-/// outer halves would need `K` to reach past `y = ±R` inside `|z| < r`,
-/// `rc > R > r`.) On a fold-free loop `ρ − |Y|` keeps one sign, its zeros
-/// being folds, so any point of `K` decides it: the arm reads the point
-/// it witnesses with, `(e − rc, z0)`.
-fn inside_strip<T: Decide>(
-    ring: [T; 2],
-    (e, z0, rc): (T, T, T),
-    folds: &[Fold<T>],
-    at: impl Fn(T, T, T) -> Point3<T> + Copy,
-    band: Band,
-) -> Result<Vec<Component<T>>, Section<T>> {
-    let mut parts = Vec::new();
-    for outer in [true, false] {
-        let on = |plus: bool| -> Vec<Fold<T>> {
-            folds
-                .iter()
-                .copied()
-                .filter(|f| f.outer == outer && f.plus == plus)
-                .collect()
-        };
-        match (on(true).as_slice(), on(false).as_slice()) {
-            ([], []) => {
-                let (y, rho) = (e - rc, sheet(ring, z0, outer));
-                if signs([("section_torus_square_wall_sheet", rho - y.abs())], band)? == [true] {
-                    parts.extend(lifts((y, z0, rho), [false, true], at));
-                }
-            }
-            ([f, _], []) | ([], [f, _]) => parts.push(through(*f, false, at)),
-            ([p1, p2], [_, _]) if !outer => {
-                parts.push(through(*p1, true, at));
-                parts.push(through(*p2, true, at));
-            }
-            _ => return Err(Section::Tangent(SQUARE_WALK)),
-        }
-    }
-    Ok(parts)
-}
-
-/// **`K` across a strip edge**: `γ` is one oval per arc of `K` in the
-/// strip. Read along `K` from a point outside the strip (its top when it
-/// crosses `z = r`, else its bottom), the strip crossings alternate in
-/// and out, and with two arcs (`K` across both edges) they are `K`'s
-/// left and right flanks. Every fold lies inside its arc, in the open
-/// strip, so folds are ordered among themselves only, never against a
-/// strip crossing. An arc's oval runs out along the outer sheet
-/// through its outer-half folds and back along the inner through its
-/// inner-half ones; at its strip crossings both sheets lie in `ρ ≥ |Y|`
-/// iff the crossing stands over the parallel (`|y| < R`).
-fn across_strip<T: Decide>(
-    ring: [T; 2],
-    (e, z0, rc): (T, T, T),
-    [top, bottom]: [bool; 2],
-    folds: &[Fold<T>],
-    at: impl Fn(T, T, T) -> Point3<T> + Copy,
-    band: Band,
-) -> Result<Vec<Component<T>>, Section<T>> {
-    let [big_r, r] = ring;
-    if top != bottom {
-        let m = if top { r - (z0 - rc) } else { z0 + rc + r };
-        if !reaches_edge("section_torus_square_wall_meets", m, (e, big_r), band)? {
-            return Ok(Vec::new());
-        }
-    }
-    let kappa = if top { T::one() } else { -T::one() };
-    // The angle along `K` from the cut, `(−π, π)` everywhere off it.
-    let psi = |y: T, z: T| (kappa * (y - e)).atan2(-kappa * (z - z0));
-    let mut edges = Vec::new();
-    for (edge, crossed) in [(true, top), (false, bottom)] {
-        if !crossed {
-            continue;
-        }
-        let z = if edge { r } else { -r };
-        let h = (z - z0).abs();
-        let w = ((rc - h) * (rc + h)).sqrt();
-        for right in [true, false] {
-            let y = if right { e + w } else { e - w };
-            let [over] = signs([(SQUARE_EDGE_OVER, big_r - y.abs())], band)
-                .map_err(|_| Section::Unordered(SQUARE_EDGE_OVER))?;
-            edges.push((
-                psi(y, z),
-                Edge {
-                    top: edge,
-                    over,
-                    right,
-                },
-            ));
-        }
-    }
-    along_k(&mut edges, rc, band)?;
-    let arcs: Vec<[Edge; 2]> = edges.chunks(2).map(|p| [p[0].1, p[1].1]).collect();
-    let mut on_arc: Vec<Vec<(T, Fold<T>)>> = vec![Vec::new(); arcs.len()];
-    for &f in folds {
-        let k = if arcs.len() == 1 {
-            0
-        } else {
-            let [right] = signs([("section_torus_square_wall_fold_side", f.y - e)], band)?;
-            usize::from(arcs[0][0].right != right)
-        };
-        on_arc[k].push((psi(f.y, f.z), f));
-    }
-    let mut parts = Vec::new();
-    for ([start, end], mut on) in arcs.into_iter().zip(on_arc) {
-        along_k(&mut on, rc, band)?;
-        // Out along the outer sheet, back along the inner.
-        let (outward, inner): (Vec<Fold<T>>, Vec<Fold<T>>) =
-            on.into_iter().map(|(_, f)| f).partition(|f| f.outer);
-        let crossed_out = outward.len();
-        let ring_order: Vec<Fold<T>> = outward.into_iter().chain(inner.into_iter().rev()).collect();
-        if (crossed_out % 2 == 0) != (start.over == end.over) || ring_order.len() % 2 == 1 {
-            return Err(Section::Tangent(SQUARE_WALK));
-        }
-        if ring_order.is_empty() {
-            if start.over {
-                // Edge to edge: `K`'s point at `z = 0`, where the sheets
-                // stand `2r` apart; else the arc's extreme.
-                let essential = start.top != end.top;
-                let (y, z) = if essential {
-                    let h = z0.abs();
-                    let w = ((rc - h) * (rc + h)).sqrt();
-                    (if start.right { e + w } else { e - w }, T::zero())
-                } else {
-                    (e, z0 - kappa * rc)
-                };
-                parts.extend(lifts((y, z, sheet(ring, z, true)), [essential, false], at));
-            }
-            continue;
-        }
-        // The runs in `ρ ≥ |Y|` pair the folds, the first run wrapping
-        // through `start` when it stands over the parallel.
-        let n = ring_order.len();
-        let skip = usize::from(start.over);
-        for k in (0..n).step_by(2) {
-            let (f1, f2) = (ring_order[(k + skip) % n], ring_order[(k + skip + 1) % n]);
-            parts.push(through(f1, f1.plus != f2.plus, at));
-        }
-    }
-    Ok(parts)
-}
-
-/// Sorts points of `K` by their angle along it, every final neighbour
-/// pair decided apart (as arc length): two in one place within the band
-/// refuse R-tan.
-fn along_k<T: Decide, X: Copy>(xs: &mut [(T, X)], rc: T, band: Band) -> Result<(), Section<T>> {
-    apart_in_order(xs, SQUARE_ORDER, |m| Margin::levered(m, rc), band)
-}
-
-/// Sorts `xs` by their keys, every pair the sort compares decided apart
-/// on `margin` of their difference: two in one place within the band,
-/// or undecided, refuse R-tan naming `name`.
-fn apart_in_order<T: Decide, X>(
-    xs: &mut [(T, X)],
-    name: &'static str,
-    margin: impl Fn(T) -> Margin<T>,
-    band: Band,
-) -> Result<(), Section<T>> {
-    crate::splitting::order::insertion_sort_by(xs, |a, b| {
-        match sign(name, margin(a.0 - b.0), band) {
-            Some(Sign::Positive) => Ok(true),
-            Some(Sign::Negative) => Ok(false),
-            _ => Err(Section::Tangent(name)),
-        }
-    })
-}
-
 /// The cone arms: `k` is a cone, `p` its partner. Components are listed
 /// on the DOUBLE cone: one on the other nappe from the face has a
 /// witness the face's trim places `Out`, so `classify` never needs the
@@ -2106,15 +1098,21 @@ fn cone_pair<T: Decide>(
             axis: d,
             radius: rc,
             ..
-        } => match axis_pose(apex, cone.a, origin, unit(d), |_| T::zero(), reach, band) {
+        } => match axis_pose(
+            (apex, cone.a),
+            (origin, unit(d)),
+            |_| T::zero(),
+            reach.ball(),
+            band,
+        ) {
             // The meridians meet at `h = ±r_c/τ`: a parallel per nappe.
-            Pose::Coaxial { .. } => essential_pair(true, true),
-            Pose::Parallel { e, toward, slack } => {
+            AxisPose::Coaxial { .. } => essential_pair(true, true),
+            AxisPose::Parallel { e, toward, slack } => {
                 cone_parallel_cylinder(&cone, (e, slack), toward, rc, band)
             }
             // The ruling charts read the pose as it stands, with nothing
             // bridged, so an offset neither reading claims is theirs.
-            Pose::Undecided(_) | Pose::Other => {
+            AxisPose::Undecided(_) | AxisPose::Other => {
                 cone_cylinder(&cone, origin, unit(d), rc, reach, band)
             }
         },
@@ -2124,21 +1122,19 @@ fn cone_pair<T: Decide>(
             half_angle: half_angle2,
             u_ref: u_ref2,
         } => match axis_pose(
-            apex,
-            cone.a,
-            apex2,
-            unit(d),
+            (apex, cone.a),
+            (apex2, unit(d)),
             // The apexes' gap is read off `apex2` itself, which the turn
             // onto the first axis moves along it by its station from the
             // pivot times `1 − cos`, at most `sin²`.
             |t| (apex2 - t.at).dot(unit(d)).abs() * t.tilt.powi(2),
-            reach,
+            reach.ball(),
             band,
         ) {
             // The meridians `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet in one or
             // two parallels, each essential on both; a common apex is the
             // cones touching there or coinciding.
-            Pose::Coaxial { slack } => match signs_across(
+            AxisPose::Coaxial { slack, .. } => match signs_across(
                 [(
                     "section_cone_coaxial_apexes",
                     "section_cone_coaxial_apexes_floor",
@@ -2150,13 +1146,13 @@ fn cone_pair<T: Decide>(
                 Ok(_) => essential_pair(true, true),
                 Err(tan) => tan.into(),
             },
-            Pose::Parallel { .. } => {
+            AxisPose::Parallel { .. } => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
                 cone_cone(&cone, &other, true, reach, band)
             }
             // As against a cylinder, the ruling charts take an offset
             // neither reading claims.
-            Pose::Undecided(_) | Pose::Other => {
+            AxisPose::Undecided(_) | AxisPose::Other => {
                 let other = Cone::new(apex2, d, half_angle2, u_ref2);
                 cone_cone(&cone, &other, false, reach, band)
             }
@@ -2245,21 +1241,11 @@ fn charted<T: Real>(
     if first.bounded.len() != second.bounded.len() || first.unbounded != second.unbounded {
         return Section::Tangent(row);
     }
-    let line = Component {
-        unbounded: true,
-        essential_f: false,
-        essential_g: false,
-        witness: None,
-    };
+    let line = Component::closed_form(true, [false, false], None);
     let parts: Vec<_> = first
         .bounded
         .iter()
-        .map(|&w| Component {
-            unbounded: false,
-            essential_f: first.essential,
-            essential_g: second.essential,
-            witness: Some(w),
-        })
+        .map(|&w| Component::closed_form(false, [first.essential, second.essential], Some(w)))
         .chain(core::iter::repeat_n(line, first.unbounded))
         .collect();
     let single = parts.len() == 1;
@@ -2460,24 +1446,14 @@ fn cone_plane<T: Decide>(
         band,
     ) {
         Some(Sign::Negative) => {
-            let c = Component {
-                unbounded: true,
-                essential_f: false,
-                essential_g: false,
-                witness: None,
-            };
+            let c = Component::closed_form(true, [false, false], None);
             Section::Components {
                 parts: vec![c, c],
                 single: false,
             }
         }
         Some(Sign::Zero) => Section::Components {
-            parts: vec![Component {
-                unbounded: false,
-                essential_f: true,
-                essential_g: false,
-                witness: None,
-            }],
+            parts: vec![Component::closed_form(false, [true, false], None)],
             single: false,
         },
         None => Section::Tangent("section_cone_plane_aperture"),
@@ -2512,12 +1488,11 @@ fn cone_plane<T: Decide>(
             let g = cone.generator(r);
             let t = (p0 - cone.apex).dot(facing) / g.dot(facing);
             Section::Components {
-                parts: vec![Component {
-                    unbounded: false,
-                    essential_f: true,
-                    essential_g: false,
-                    witness: Some(cone.apex + g * t),
-                }],
+                parts: vec![Component::closed_form(
+                    false,
+                    [true, false],
+                    Some(cone.apex + g * t),
+                )],
                 single: true,
             }
         }
@@ -2565,11 +1540,8 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         let half = ((rho - d) * (rho + d)).sqrt();
         (b, d, [-b - half, -b + half])
     };
-    let part = |w: Vec3<T>, t: T, essential: bool| Component {
-        unbounded: false,
-        essential_f: essential,
-        essential_g: false,
-        witness: Some(cone.apex + w * t),
+    let part = |w: Vec3<T>, t: T, essential: bool| {
+        Component::closed_form(false, [essential, false], Some(cone.apex + w * t))
     };
     let (b_hi, d_hi, t_hi) = roots(hi);
     let (b_lo, d_lo, t_lo) = roots(lo);
@@ -2651,12 +1623,7 @@ fn cone_parallel_cylinder<T: Decide>(
     };
     let foot = cone.apex + toward * (e - rc);
     let h = (e - rc).abs() * c / s;
-    let part = |h: T| Component {
-        unbounded: false,
-        essential_f: !outside,
-        essential_g: true,
-        witness: Some(foot + cone.a * h),
-    };
+    let part = |h: T| Component::closed_form(false, [!outside, true], Some(foot + cone.a * h));
     Section::Components {
         parts: vec![part(h), part(-h)],
         single: false,
@@ -2704,12 +1671,7 @@ fn cylinder_cylinder<T: Decide>(
                 band,
             ) {
                 Ok(Sign::Positive) => Section::Components {
-                    parts: vec![Component {
-                        unbounded: true,
-                        essential_f: false,
-                        essential_g: false,
-                        witness: None,
-                    }],
+                    parts: vec![Component::closed_form(true, [false, false], None)],
                     single: false,
                 },
                 Ok(Sign::Zero) => Section::Tangent(COINCIDENT),
@@ -2747,7 +1709,7 @@ fn cylinder_cylinder<T: Decide>(
                 .unwrap_or_else(|| tan.into());
         }
         Err(tan) => {
-            return tan.touch(&[REACH], || {
+            return touch(tan, &[REACH], || {
                 axis_foot((o1, d1), (o2, d2), sin.powi(2)) + m * (delta * r1 / (r1 + r2))
             });
         }
@@ -2803,12 +1765,11 @@ fn equal_crossing_axes<T: Decide>(
     }
     let p = axis_foot((o1, d1), (o2, d2), d1.cross(d2).norm_squared());
     Some(Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: true,
-            witness: Some(p + m * r1.abs()),
-        }],
+        parts: vec![Component::closed_form(
+            false,
+            [true, true],
+            Some(p + m * r1.abs()),
+        )],
         single: true,
     })
 }
@@ -2831,12 +1792,7 @@ fn axis_foot<T: geom_core::Real>(
 /// certified, so W4 is never read.
 fn cylinder_plane<T: Real>() -> Section<T> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: false,
-            witness: None,
-        }],
+        parts: vec![Component::closed_form(false, [true, false], None)],
         single: false,
     }
 }
@@ -2863,7 +1819,7 @@ fn sphere_plane<T: Decide>(
         }
         Ok([false]) => none(),
         // The foot of the centre: the circle's centre.
-        Err(tan) => tan.touch(&[REACH], || cs - n * d),
+        Err(tan) => touch(tan, &[REACH], || cs - n * d),
     }
 }
 
@@ -2893,35 +1849,98 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
         {
             tan.into()
         }
-        Err(tan) => tan.touch(&[REACH, NEST], || {
+        Err(tan) => touch(tan, &[REACH, NEST], || {
             let k = (c2 - c1) / dd;
             c1 + k * ((dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd))
         }),
     }
 }
 
-/// **A pair the section value builds** ([`geom_brep::pair_section`]),
+/// **A pair the section value builds** ([`geom_brep::pair_section()`]),
 /// classified from it, its first surface `F`: a tangency it decided is a
 /// [`Touch`] at the point where the section is one point and R-tan
-/// otherwise; a pose question undecided R-tan, named by the decision; a
-/// radius not definitely positive, decided or not, R-reach: an operand's
-/// size is no tangency, and the pair has no arm for it. Every other section is its
-/// components, each with whether it winds about each carrier and its
-/// witness, certified single when there is one.
+/// otherwise; a pose question undecided, a closed-form count that
+/// pinches, and two tori decided one, R-tan, named by the decision; a
+/// crossing the closed form cannot order R-order; a radius not definitely
+/// positive, decided or not, and a torus off its ring convention,
+/// R-reach: an operand's size is no tangency, and the pair has no arm
+/// for it. A section a closed form counts is its components, each with
+/// whether it winds about each carrier and its witness, certified single
+/// when there is one, and the face whose chart boundary it reaches in a
+/// channel the chart does not close, on a side that is not collapsed
+/// (W1′, `pcurves::chart_side_bounds`), read at `band` as the loop walk
+/// reads it; one no closed form counts is the march's, read by
+/// `marched` ([`of_carried`]).
 pub(super) fn of_pair_section<T: Decide>(
     read: &Result<geom_brep::PairSection<T>, geom_brep::SectionError>,
+    band: Band,
+    marched: impl FnOnce(&geom_brep::PairSection<T>) -> Section<T>,
 ) -> Section<T> {
-    use geom_brep::{ComponentShape, SectionError};
+    use geom_brep::{ComponentShape, Components, SectionError};
     let section = match read {
         Ok(section) => section,
+        // Every row the value decides goes through `k_stats`, which names
+        // the predicate it escalates; one with no name is the value's
+        // door itself.
         Err(SectionError::Escalated(diag)) => {
-            return Section::Tangent(diag.predicate.unwrap_or("cs_pose"));
+            return Section::Tangent(diag.predicate.unwrap_or("pair_section"));
         }
-        Err(_) => return Section::Intractable,
+        Err(SectionError::Pinched { predicate }) => return Section::Tangent(predicate),
+        Err(SectionError::Unordered { predicate }) => return Section::Unordered(predicate),
+        // Two surfaces decided one share a carrier: no component count
+        // is certified, as at a tangency. Two tori (`tt_coincident`), two
+        // cylinders and a spline wall on a plane
+        // (`section_nurbs_plane_coincident`) are decided one; the refusal
+        // carries no pose, so it is named by the value.
+        Err(SectionError::CoincidentSurfaces) => {
+            return Section::Tangent("pair_section_coincident");
+        }
+        // A kind pair the value serves refuses these on no arm of its
+        // own: an operand's size (decided or not), a torus off its ring,
+        // and the refusals of the arms it does not build.
+        Err(
+            SectionError::RadiusEscalated { .. }
+            | SectionError::DegenerateOperand { .. }
+            | SectionError::DegenerateTorus(_)
+            | SectionError::WrongLane { .. }
+            | SectionError::RoutesToGeneralRung { .. }
+            | SectionError::NoRegion { .. }
+            | SectionError::BeyondOperandExtent { .. }
+            | SectionError::Carrier(_)
+            | SectionError::Spiric(_)
+            | SectionError::Unaccounted { .. },
+        ) => return Section::Intractable,
+        Err(SectionError::NoMarch { scalar }) => return Section::NoLane(scalar),
     };
-    let components = section.components();
+    let (f, g) = section.pose().operands();
+    let components = match section.components() {
+        Components::Counted(components) => components,
+        Components::Marched => return marched(section),
+        // Every component is open, ending on some of these sides (some
+        // side, by the variant's contract): each clears by W1′ where
+        // every side listed bounds its surface; otherwise the list is the
+        // reader's to take.
+        &Components::Reaching(reached) => {
+            let [on_f, on_g] = reached.rims();
+            if !(bounding(on_f, f, band).all(|b| b) && bounding(on_g, g, band).all(|b| b)) {
+                return marched(section);
+            }
+            let side = if on_f.any() { Side::F } else { Side::G };
+            return Section::Components {
+                parts: vec![Component {
+                    unbounded: false,
+                    essential_f: false,
+                    essential_g: false,
+                    witness: None,
+                    reaches: Some(side),
+                    pad: 0.0,
+                }],
+                single: false,
+            };
+        }
+    };
     if let Some(zero) = section.tangency() {
-        return match components {
+        return match components.as_slice() {
             [c] if c.shape == ComponentShape::Point => match c.witness {
                 Some(at) => Section::Touch(Touch {
                     name: zero.decision.name(),
@@ -2940,6 +1959,84 @@ pub(super) fn of_pair_section<T: Decide>(
                 essential_f: c.winds[0],
                 essential_g: c.winds[1],
                 witness: c.witness,
+                reaches: match c.shape {
+                    // Only rim ends reach a chart side; a cut end or a
+                    // node end clears nothing here, so such a component
+                    // is read as a loop is, by its witness.
+                    ComponentShape::Open {
+                        ends:
+                            geom_brep::ComponentEnds {
+                                rims: [on_f, on_g], ..
+                            },
+                    } => {
+                        if bounding(on_f, f, band).any(|b| b) {
+                            Some(Side::F)
+                        } else if bounding(on_g, g, band).any(|b| b) {
+                            Some(Side::G)
+                        } else {
+                            None
+                        }
+                    }
+                    ComponentShape::Loop | ComponentShape::Point => None,
+                },
+                pad: c.pad,
+            })
+            .collect(),
+        single: components.len() == 1,
+    }
+}
+
+/// **Whether each side of `surface`'s chart `reach` names bounds a face
+/// on it** (W1′, [`crate::pcurves::chart_side_bounds`]), side by side.
+fn bounding<'a, T: Decide>(
+    reach: geom_brep::ChartReach,
+    surface: &'a geom::Surface<T>,
+    band: Band,
+) -> impl Iterator<Item = bool> + 'a {
+    reach
+        .sides()
+        .map(move |side| crate::pcurves::chart_side_bounds(surface, side, band))
+}
+
+/// **A section no closed form counts, read from its march** (W0 to W4
+/// on the march's components): no branch is W0, its receipt being the
+/// march's exhaustiveness; each loop winds as its turns about each
+/// surface's axis and core read over its uniqueness tube do (W2,
+/// `geom_brep::pair_section::winds`); its witness is its carrier's
+/// middle point, within its reach of the component, so W3 places it with
+/// that pad ([`Component::pad`]); and the march's count is certified, so
+/// a lone loop is W4's. At
+/// a scalar with no march it is R-lane; a march or loop reading that
+/// refused is R-march.
+pub(super) fn of_carried<T: Decide>(
+    carried: Result<&geom_brep::CarriedSection<T>, &geom_brep::CarryError>,
+) -> Section<T> {
+    use geom_brep::CarryError;
+    let section = match carried {
+        Ok(section) => section,
+        Err(CarryError::NoLane { scalar }) => return Section::NoLane(scalar),
+        Err(
+            CarryError::Unminted(_)
+            | CarryError::March(_)
+            | CarryError::Winds(_)
+            | CarryError::PadShort { .. }
+            | CarryError::TubeUnread
+            | CarryError::Escalated(_)
+            | CarryError::Desync(_)
+            | CarryError::Seat(_),
+        ) => return Section::Unmarched,
+    };
+    let components = section.components();
+    Section::Components {
+        parts: components
+            .iter()
+            .map(|c| Component {
+                unbounded: false,
+                essential_f: c.winds[0],
+                essential_g: c.winds[1],
+                witness: Some(c.witness),
+                reaches: None,
+                pad: c.reach,
             })
             .collect(),
         single: components.len() == 1,
@@ -2950,7 +2047,10 @@ pub(super) fn of_pair_section<T: Decide>(
 ///
 /// `evented` says whether the reduction recorded an event on this pair;
 /// `describes` asks W2's question of a face (cached by the caller);
-/// `place` places a witness point in `[F, G]`, `None` for no verdict.
+/// `place` places a witness point in `[F, G]` against the band it is
+/// handed, `None` for no verdict: `band` itself for a closed-form point,
+/// and `band` padded by twice a marched witness's pad
+/// ([`Component::pad`]).
 ///
 /// # Errors
 ///
@@ -2958,15 +2058,16 @@ pub(super) fn of_pair_section<T: Decide>(
 pub(crate) fn certify<T: Decide>(
     section: &Section<T>,
     evented: bool,
+    band: Band,
     mut describes: impl FnMut(Side) -> Sheet,
-    mut place: impl FnMut(Point3<T>) -> [Option<FaceContainment>; 2],
+    mut place: impl FnMut(Point3<T>, Band) -> [Option<FaceContainment>; 2],
 ) -> Result<Vec<Cleared>, Refusal> {
     let (parts, single) = match section {
         Section::Components { parts, single } => (parts, *single),
         Section::Tangent(name) => return Err(Refusal::Tangent(name)),
         Section::Unordered(name) => return Err(Refusal::Unordered(name)),
         Section::Touch(t) if !evented => {
-            let placed = place(t.at);
+            let placed = place(t.at, band);
             return [Side::F, Side::G]
                 .into_iter()
                 .zip(placed)
@@ -2976,11 +2077,17 @@ pub(crate) fn certify<T: Decide>(
         }
         Section::Touch(t) => return Err(Refusal::Tangent(t.name)),
         Section::Intractable => return Err(Refusal::Reach),
+        Section::NoLane(scalar) => return Err(Refusal::NoLane(scalar)),
+        Section::Unmarched => return Err(Refusal::Unmarched),
     };
     let mut out = Vec::with_capacity(parts.len());
     for c in parts {
         if c.unbounded {
             out.push(Cleared::Unbounded);
+            continue;
+        }
+        if let Some(side) = c.reaches {
+            out.push(Cleared::Reaches(side));
             continue;
         }
         let mut unread = false;
@@ -3014,7 +2121,10 @@ pub(crate) fn certify<T: Decide>(
         let Some(p) = c.witness else {
             return Err(undecided);
         };
-        let [at_f, at_g] = place(p);
+        let [at_f, at_g] = match band.padded(2.0 * c.pad) {
+            Ok(padded) => place(p, padded),
+            Err(_) => [None, None],
+        };
         if at_f == Some(FaceContainment::Out) {
             out.push(Cleared::Out(Side::F));
             continue;
@@ -3054,6 +2164,12 @@ mod section_cert_parallel_tori_rows;
 #[cfg(test)]
 #[path = "section_cert_rows.rs"]
 pub(super) mod section_cert_rows;
+#[cfg(test)]
+#[path = "section_cert_spline_pair_rows.rs"]
+mod section_cert_spline_pair_rows;
+#[cfg(test)]
+#[path = "section_cert_spline_rows.rs"]
+mod section_cert_spline_rows;
 #[cfg(test)]
 #[path = "section_cert_square_rows.rs"]
 mod section_cert_square_rows;

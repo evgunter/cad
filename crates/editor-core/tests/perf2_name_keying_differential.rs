@@ -123,238 +123,14 @@ fn sans_epsilon(t: &str) -> String {
 
 /// `(document, both-direction name digest, persisted-text digest)`.
 ///
-/// **Re-pinned for INTENT-LITERALS PR C** (a slot holds a variable):
-/// every node is minted from slots that hold variable ids, a typed
-/// value's variable drawn from what it holds, so every node id moved
-/// and with it every row this hashes. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held untouched across the change.
-///
-/// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
-/// `kitchen_sink` alone, whose formulas hold written quantities that
-/// now mint variables of their own; every other row held its word.
-///
-/// **Re-pinned for INTENT stage 2 PR C** (the product is the world):
-/// every document now places its bodies, so its text holds the
-/// placement nodes and their outputs (`roots` is gone from it) and its
-/// tables hold each copy's names under its placement. What each
-/// document delivers did not move: `intent_s2_c_world`'s migration
-/// check holds each product to its pre-C digest.
-///
-/// **Re-pinned for INTENT stage 2 PR D** (a measure is one primitive):
-/// `measured_web` alone. Its measure holds the distance and the web is
-/// a definition the assertion reads, so the measure's mint preimage,
-/// its id and its saved text moved; every other row held its word, and
-/// the id-masked geometry fence held untouched.
-///
-/// **Re-pinned for INTENT stage 2 PR E** (a selection is a variable):
-/// the seven documents that blend, shell, frame on a face or measure —
-/// `measured_web`, `die_fillet`, `die_chamfer`, `face_sketch`,
-/// `die_composed`, `die_composed_tour` and `reshaped_rod` — now mint a
-/// selection variable each such node reads, so their node ids moved and
-/// every row naming them; every other row held its word, and the
-/// id-masked geometry fence held untouched.
-///
-/// **Re-pinned for INTENT stage 3 PR A** (a revolve's axis is a line on
-/// the node): the five documents that revolve — `kitchen_sink`,
-/// `die_pips`, `die_tool`, `die_composed` and `die_composed_tour` —
-/// hold no in-plane axis datum,
-/// so their later node ids moved and every row naming them; every other
-/// row held its word, and no point moved. Re-taken merged over
-/// FORK-DM4 unit 1 (PR 4527), whose names keyed by read had moved the
-/// same rows on main.
-///
-/// **Re-pinned for the killed-lineage chase** (`emit_topo`'s
-/// `KilledSplits`): `crossing_slots` only. Its second slot's bottom rim
-/// reaches the result in pieces split off around stretches the subtract
-/// killed. Those pieces were read as chords, and one was named a seam of
-/// the first slot's floor and the second slot's wall. They are now
-/// pieces of that rim. Two floor corners moved with them: one from a
-/// junction of three seam lines to a crossing of the rim, and one from
-/// a face crossing to the seam vertex of two edges that touch. Every
-/// other document held its word.
-///
-/// **Re-pinned for the vertex run** (N2: an `EdgeCrossing` is a run of
-/// (line, sense) in name order): `corner_table` and `crossing_slots`,
-/// the two documents whose pair booleans meet edge to edge. Their
-/// tables are the old ones with each edge × edge vertex re-spelled: read
-/// as a set of (line, sense), every run is the pair it replaced, and no
-/// other row moved; the persisted text did not move.
-/// **Re-pinned for the output stage's killed lineage** (`topo`'s
-/// output stage copies the records of the edges its merge kills into
-/// `BooleanNaming::killed_lineage`, which `KilledSplits` reads):
-/// `crossing_slots` only. The second subtract's merge of the two flush
-/// floors kills one stretch of the first cavity's bottom rim and keeps
-/// the next, whose lineage stopped at the stretch killed, so it was
-/// named a seam of the cavity's wall and the slot's floor. It is now a
-/// piece of that rim, and the floor corner where the slot's rim meets
-/// the cavity's wall moved from a touch of the wall to a crossing of the
-/// two rims, as the other three such corners are named. Every
-/// other document held its word, and the persisted text did not move.
-///
-/// **Re-pinned for INTENT stage 3 B** (a placement is the bundle of
-/// mates), every row, the persisted text with it (it spells `Place` and
-/// its constraint): a placement is a `Place` holding a world pin where
-/// it was a `PlaceInWorld`, so its stored node, and with it its mint
-/// preimage, moved, and every id the mint chain draws after it. No
-/// outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// **Re-pinned for FORK-DM4 unit 2** (a name is scoped by the variable
-/// holding its body): `cut_cylinder`, `kitchen_sink` and `part_select`,
-/// the three documents holding a split. A split's two halves are two
-/// tables and its names spell no half, so each row walks both tables of
-/// the half-free names; `part_select`'s union, which declares the rest
-/// between the halves by the section face, also took a new id. Every
-/// other row held its word, and the id-masked geometry fence held.
-/// The persisted text moved in `kitchen_sink` (its appearance key is
-/// now a body read and a name) and `part_select` (its union's declared
-/// names); `cut_cylinder`'s held.
-///
-/// Re-taken merged over INTENT stage 3 PR A (a revolve's axis is a
-/// line on the node), which moved `kitchen_sink` too: its merged row is
-/// neither tree's value; every other row is the one of the two trees
-/// that moved it.
-///
-/// **Re-taken merged over INTENT stage 4 F** (declared pairs retire):
-/// main's re-bless and this unit's each moved these rows, so the merged
-/// rows are neither tree's value; the id-masked geometry fence held.
-///
-/// **Re-taken merged over INTENT stage 3 B** (#5232, a placement is the
-/// bundle of mates), which re-pinned every row by its new mint chain:
-/// the merged rows are main's values but for the three split documents,
-/// `cut_cylinder`, `kitchen_sink` and `part_select`, which this unit
-/// moves, and whose merged values are neither tree's.
-///
-/// **Re-pinned for INTENT stage 3 C** (a mate relates two poses), every
-/// row, the persisted text with it (it spells the pin): each document
-/// places its copy where it stands by a loose `Place` and the named
-/// interim's world pin (`DocEdit::PinWhereItStands`), where one edit
-/// minted the placement holding its world pin, so the placement's id
-/// and every id drawn after it moved. No outcome or point moved:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held.
-///
-/// **Re-pinned for a seam citing the parent face** (N3): `crossing_slots`'
-/// table only, whose two seams beside the merged floor cite its
-/// `Merged` parent where they cited one floor; its persisted text held.
-///
-/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
-/// placement), every row, the persisted text with it: each document was
-/// re-spelled without `Datum` or `Transform` (a construction is built in
-/// its own coordinates and placed into the world by a `Place`), so its
-/// nodes, their mint preimages, the names they mint and the saved text
-/// all moved.
-///
-/// **Re-pinned merging main into D**: `corner_table`'s and
-/// `declared_tangency`'s persisted text, their tables held — each
-/// placement's values are written from the evaluated geometry its mate
-/// reads, which main's merge moved by rounding (the chord's director
-/// spelled by its components, the union's fold); `kitchen_sink`'s
-/// tables and text, its lone block's copies hung below the world's xy as
-/// its retired `SetExtrudeSide` edit had them.
-///
-/// **Re-pinned for the identity bundle** (FORK-REST): a copy standing
-/// where its body stands is placed by no mate and the constant `0` on
-/// every freedom, written as one `AddValues`, which mints a different number of ids
-/// from the plane mate and three values it replaces, so every node
-/// minted after a stand moved its id. The persisted text moved in every
-/// document holding a stand, the bundle it saves being new; the name
-/// tables moved in the five documents that mint a node after a stand
-/// (`heat_sink`, `declared_tangency`, `kitchen_sink`, `cut_cylinder`,
-/// `part_select`), as `lib_g16`'s did.
-///
-/// Re-pinned for exact turns (INTENT stage 3 D), name tables and
-/// persisted text: `die_tool` (its ball's exact heading lets the
-/// placement gesture write its spin as the constant `0`, one variable
-/// fewer, so every later id moved); `die_pips`, `die_composed` and the
-/// tour die (pips standing on lines stated from the cube's corner); and
-/// `kitchen_sink` (its revolve upright by a bundle with no mate spun
-/// `turn/4`, its split's plane and pattern's axis read off its faces).
-/// Every other document held, across main's merge at `557e581a64` too.
-///
-/// `die_tool` moved again when its master ball came to stand on the
-/// cube's corner frame (`corner_frame`) by an axis mate whose slide and
-/// spin are the constant `0`, where the retired place-against helper had placed it by a
-/// read-back frame that minted 42 more ids, and its explicit rule's
-/// frames came to be built from the fraction of a turn each is. Every
-/// other document held.
-///
-/// `tube_arc`'s and `hollow_tube_elbow`'s persisted text moved when each
-/// tube came to stand about the world's `+y` by a bundle with no mate
-/// spun `−turn/4`, where it had stood where its body stands; their name
-/// tables held, and so did every other document.
-///
-/// **Re-pinned for a seam's sides and a crossing's lines named in the
-/// boolean's own table, in name order** (N3): the tables of the nine
-/// documents holding a subtract; the persisted text of `die_composed`
-/// and `die_composed_tour`, whose stored selections name their pip rims
-/// by the subtract's seams, and the tour's ids after its fillets with
-/// them. No point moved
-/// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`).
-///
-/// Re-pinned merging main at `be82e5ad6b` into D, `die`,
-/// `crossing_slots`, the three `nested_islands`, `kitchen_sink`,
-/// `cut_cylinder`, `die_pips`, `die_tool`, `part_select`,
-/// `die_composed` and the tour die: main's N3 names each seam side and
-/// crossing line with the read it came in through, and in D a later
-/// operand is a placed copy, so the names those documents' booleans
-/// spell moved under both changes and each value is neither tree's.
-/// The persisted text moved in `die_composed` and the tour die alone:
-/// their fillets store the pip rim's names.
-///
-/// Re-pinned, `die` alone, when its pips came to stand on frames stated
-/// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
-/// written `atan2`'s rounded turns: the die's world vertices are the
-/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
-/// placements, their ids and the names under them are new.
-///
-/// Re-pinned for D′1 (a placement names its target space): each
-/// construction defines its space beside its body and every bundle is
-/// written whole, so ids, the names spelled with them and the persisted
-/// text (a `target` on every placement, a `space` row per construction)
-/// moved in every document; `m10_p_fence`'s ids-masked geometry fence
-/// held.
-///
-/// **Re-pinned for PR 5616** (a mirror's seam is the plane's face read
-/// twice), taken merged over D′2 (PR 5613, mates read geometry), which
-/// left this row red on main: D′2 moved every corpus document's ids,
-/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
-/// seam face plainly, so its ids moved too. Ids only:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// held unmoved.
-///
-/// **Re-pinned for D′3** (a placement copies one source, the product is
-/// a slot): a copy carries its source's names verbatim, with no layer
-/// naming a placement, each product reads a `⊔` of its world copies, and
-/// every id drawn after one moved. Names and ids only:
-/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
-/// holds with the `⊔` nodes set aside.
-///
-/// **Re-pinned for a pair boolean's walls** (a `Borders` wall cites its
-/// parent as the boolean's own table names it, the `From` it came in
-/// through): `crossing_slots`' name table only, its second subtract's
-/// divided pieces' walls gaining their read. Its persisted text, and
-/// every other document, held.
-///
-/// **Re-pinned for a run line's bare sense** (an orientation is read,
-/// never chosen): `corner_table`'s and `crossing_slots`' name tables
-/// only, their `EdgeCrossing` names spelling each line's sense bare.
-/// Their persisted text, and every other document, held.
-///
-/// Measured again for D′3 over main's merge at `1235f4c050`, which
-/// brings stage 4 I's id moves (`f077063267`) and the walls above
-/// beneath D′3's names and ids; the ids-masked fence held.
-///
-/// Measured again for D′3 over main's merge at `4c341b9225`, which
-/// brings the run line's bare sense (above) beneath D′3's names and ids;
-/// the ids-masked fence held.
+/// A row's first word moves with its document's names and ids, its
+/// second with its persisted text, and a row is added with every
+/// document the registry gains. The PR that moves a row says which
+/// documents moved and why.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x874a19bb0c1cb210, 0xfe1f3779173f909d),
     ("corner_table", 0x1538f5150ad6647a, 0xde5c69b920f6fdea),
-    ("heat_sink", 0x17b608554ece6b1a, 0x03c4cf88e6b26717),
+    ("heat_sink", 0x5a65_8b2b_816b_abfb, 0x83ab_6af2_145b_adc8),
     ("crossing_slots", 0x531c69e7e9ff59e6, 0xd0f6429faf4510be),
     ("nested_islands_105", 0xa3260846d5b40f15, 0xe9af7ac8f708e855),
     (
@@ -368,17 +144,21 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x5c1219843db607a6,
     ),
     ("declared_tangency", 0x0e962063407e3b05, 0x0634581982b9dfd5),
-    ("kitchen_sink", 0xd9e863a801b598a6, 0xa38e2dd9cfad6dde),
+    ("kitchen_sink", 0x54bb_19b3_5f10_b835, 0xdaa9_41f7_37ec_5c4f),
     ("cut_cylinder", 0x35a106126dc3aca0, 0xf746b3c7d6dda1f9),
     ("measured_web", 0x5f0b35b9a50ae2b4, 0xe039ab7aa5cad1da),
     ("boss_union", 0x25d270ae52dade43, 0x7311f8275a31e470),
     ("die_fillet", 0x8ddc8e8e4cc1cc18, 0x44273f0b972dadee),
     ("die_chamfer", 0x4d9e144d4e8be9b4, 0xed273f48cb5ca907),
     ("die_pips", 0x46ff4311b0616fbd, 0x5e8871c705b54729),
-    ("heat_sink_fins", 0x9c34cfa0fb53a7b7, 0x08d941cbe7d15871),
-    ("die_tool", 0x53f3bf4530d7e9a0, 0x9f9eab600b9852ea),
+    (
+        "heat_sink_fins",
+        0x33cf_9cd2_a9d5_348e,
+        0xfac2_6885_ef93_a89f,
+    ),
+    ("die_tool", 0x346c_da78_24bf_a878, 0x814d_4779_2822_0e71),
     ("face_sketch", 0x1a32703bef525f6b, 0x3a0976a80e3f9cbf),
-    ("part_select", 0x1e9dd41792e566e6, 0xececff8c053acde3),
+    ("part_select", 0xfc2d_3fc5_a314_fab7, 0xe6a1_919f_be71_88de),
     ("symmetric_plate", 0x4481fd1b6f905ec1, 0xd50cfd94a5cbf8ea),
     ("loft_prism", 0xf84090b7955f6cd0, 0x9d1660151c8302a0),
     ("die_composed", 0xec47aa7753cf019c, 0xc69608fcaa2c548d),
@@ -390,6 +170,18 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("hollow_tube_elbow", 0xdbf97cdac2df4d30, 0x88b19605f5015b9c),
     ("hollow_tube_ring", 0xf0a59d29f0a5ef21, 0x743a5c3e6051831a),
     ("reshaped_rod", 0xd37dd1691945dda0, 0x40e1518b88d07303),
+    ("pin_in_bore", 0x70c706ddcfaafe79, 0xfc906cdc112c4e68),
+    ("axis_projection", 0x9a503b2d07b5e7ba, 0x25ace293e80616db),
+    (
+        "blocks_on_one_floor",
+        0xe3698f46a60e0cf7,
+        0x1118cf3b11e89b46,
+    ),
+    (
+        "revolves_on_one_axis",
+        0x1a95665af34466c7,
+        0xecaa35ae22f6a002,
+    ),
 ];
 
 #[test]

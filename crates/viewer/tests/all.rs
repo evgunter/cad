@@ -88,6 +88,8 @@ mod doc_io;
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
+#[path = "drive.rs"]
+mod drive;
 #[path = "duplicate_beside.rs"]
 mod duplicate_beside;
 #[path = "edge_pick.rs"]
@@ -133,8 +135,8 @@ mod node_labels;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
-#[path = "part_root_carried.rs"]
-mod part_root_carried;
+#[path = "part_product_carried.rs"]
+mod part_product_carried;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]
@@ -171,6 +173,8 @@ mod review_m10_1_r1;
 mod review_pick_r2;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
+#[path = "save_and_fork_doors.rs"]
+mod save_and_fork_doors;
 
 #[path = "scene_build.rs"]
 mod scene_build;
@@ -196,5 +200,7 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "whole_rim_pick.rs"]
+mod whole_rim_pick;
 
 test_utils::every_suite_file_is_aggregated!();

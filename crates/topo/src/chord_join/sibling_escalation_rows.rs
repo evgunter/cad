@@ -1,5 +1,5 @@
-//! **Ring re-homing on a plane and on a cylinder's chart reads past an
-//! escalated vertex** ([`super::ring_side`], [`super::chart_ring_side`]):
+//! **Ring re-homing on a plane and on a cylinder wall reads past an
+//! escalated vertex** ([`super::ring_side`], [`super::path_ring_side`]):
 //! a bystander ring whose first vertex reads the run in the escalation
 //! band says nothing there, and its next vertex decides, as the sphere
 //! and cone readings do ([`super::first_decided`]). Each row sweeps the
@@ -11,6 +11,7 @@
 //! is [`super::first_decided`]'s premise (the ring does not cross the
 //! run), so which of them answers changes nothing here.
 
+use super::wall_ring_rows::wall_side;
 use super::*;
 use crate::euler::{MefSite, MevSite};
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
@@ -187,7 +188,7 @@ pub(super) fn rim_arc(
     EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Intersection {
             pair: geom_brep::SurfacePair::new(cyl, plane),
-            witness: carrier.mid_point(t0, t1),
+            selector: geom_brep::CurveSelector::Witness(carrier.mid_point(t0, t1)),
         },
         carrier,
         param_start: t0,
@@ -195,15 +196,15 @@ pub(super) fn rim_arc(
     }
 }
 
-/// **A bystander on a cylinder whose first vertex's ray reads the run in
-/// the escalation band is re-homed by its second.** The unit wall
+/// **A bystander on a cylinder whose first vertex's paths read the run
+/// in the escalation band is re-homed by its second.** The unit wall
 /// `[0.2, 1.4] × [0, 1]` holding the island `[0.5, 1] × [0.3, 0.7]`,
 /// walled off by its closing ruling at 0.5; the first vertex at height
-/// 0.5 a hair past azimuth 0.5, where its ray runs along the island's
-/// ruling, then two at azimuths 0.75 and 0.85 (inside) or 1.2 and 1.3
-/// (outside), each decided.
+/// 0.5 a hair past azimuth 0.5, beside the island's ruling, then two at
+/// azimuths 0.75 and 0.85 (inside) or 1.2 and 1.3 (outside), each
+/// decided.
 #[test]
-fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
+fn a_wall_ring_vertex_escalating_hands_re_homing_to_the_next() {
     let at = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
     let mut escalated = [0; 2];
     for delta in offsets() {
@@ -217,7 +218,6 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
                 tol(),
             );
             let cyl = body.get_face(face).unwrap().surface;
-            let surface = body.get_surface(cyl).unwrap().clone();
             let (p0, p1, p2) = (
                 at(0.5 + delta, 0.5),
                 at(second, 0.5),
@@ -266,7 +266,7 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
             // The first vertex alone escalates.
             let lone = ring_at(&mut body, face, p0, &[]);
             if !matches!(
-                chart_ring_side(&body, &surface, made.face, lone, band()),
+                wall_side(&body, (face, made.face), lone),
                 Err(SplitJoinError::Escalated { .. })
             ) {
                 continue;
@@ -275,13 +275,13 @@ fn a_chart_ring_vertex_escalating_hands_re_homing_to_the_next() {
             for q in [p1, p2] {
                 let alone = ring_at(&mut body, face, q, &[]);
                 assert_eq!(
-                    chart_ring_side(&body, &surface, made.face, alone, band()).unwrap(),
+                    wall_side(&body, (face, made.face), alone).unwrap(),
                     if inside { RingSide::In } else { RingSide::Out },
                     "each later vertex is decided, on one side"
                 );
             }
             escalated[usize::from(inside)] += 1;
-            let side = chart_ring_side(&body, &surface, made.face, ring, band()).unwrap();
+            let side = wall_side(&body, (face, made.face), ring).unwrap();
             assert_eq!(
                 side,
                 if inside { RingSide::In } else { RingSide::Out },

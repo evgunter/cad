@@ -127,7 +127,7 @@ use crate::names::emit_topo::{
     line_name as line_name_of, name_corner_copies, name_edge_pieces, name_parent_faces,
     sense_along_line, sets_per_line,
 };
-use crate::names::groups::{GroupRecord, Parent as GroupParent};
+use crate::names::groups::{GroupRecord, Parent as GroupParent, Rederived};
 use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
@@ -135,7 +135,7 @@ use crate::names::role::{
     edge_line, is_fold_side, never_in_a_boolean_table,
 };
 use crate::names::seam_pair;
-use crate::names::table::{EntityKey, Entry, NameTable};
+use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use crate::var::VarId;
 
@@ -269,7 +269,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     fold: &Fold<'_>,
     links: &Links<T>,
     tol: geom_core::Tol,
-) -> Result<(Arc<NameTable>, GroupRecord), NamingError> {
+) -> Result<(Arc<NameTable>, Rederived), NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
     let parents = Parents::of(node, body, members, fold, links)?;
@@ -285,12 +285,17 @@ pub(crate) fn name_union<T: geom_core::Decide>(
             .flat_map(|g| g.edges.iter().map(move |&k| (k, &g.base)))
             .collect(),
     };
+    let mut groups = Rederived {
+        groups: by_parents.groups,
+        by_fold: BTreeSet::new(),
+    };
     let mut t = cite_member_edges(
         t,
         by_parents.vertices,
         body,
         (&flush, fold),
         (&lines, links),
+        &mut groups,
     )?;
     let mut tie = TieRows::default();
     let mut pieces = EdgePieces::default();
@@ -308,7 +313,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
     check_total(&t, body, 0)?;
-    Ok((Arc::new(t), by_parents.groups))
+    Ok((Arc::new(t), groups))
 }
 
 /// The edges of a union's finished body that are pieces of one parent
@@ -1264,7 +1269,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     ) -> Result<(Sense, EdgeReading), NamingError> {
         let bug = |what| NamingError::Emission { what };
         let (n, name) = line;
-        let m = self.member(*n, name.name());
+        // The member by its place in the list: the members of a family
+        // read whole share one read and one body's keys, and the name
+        // tells them apart.
+        let (at_member, m) = member_at(self.members, *n, name.name());
         // The member's rows on the line, each with its edge, a tied
         // row with each candidate's: the classified piece is the one at
         // `v`. The line itself need not be a row.
@@ -1290,7 +1298,10 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         // Whether a judgement of the edge's member against one the name
         // cites recorded something at the point `at` that is `v`'s.
         let here = |member: usize, other: usize, at: geom_core::Point3<T>| {
-            if read(member) != Some(*n) || !read(other).is_some_and(|o| others.contains(&o)) {
+            // Another member of the line's own family is one the name
+            // cites: its read is the line's, which the name cites once.
+            let cited = |o: VarId| others.contains(&o) || (o == *n && other != at_member);
+            if member != at_member || !read(other).is_some_and(cited) {
                 return Ok(false);
             }
             let gap = Margin::of((at - p).norm());
@@ -1776,13 +1787,22 @@ fn member_edge_piece(name: &StableName) -> Option<(VarId, NameRef, bool)> {
 /// sits at across members (a tied name's candidates being separate
 /// corners), and named with the other copies of that corner
 /// ([`name_corner_copies`]).
-#[allow(clippy::too_many_arguments)]
+///
+/// **The vertex groups** (N5's group-size rung) are formed here, over
+/// the finished body, into `rec`: one per member corner, its copies,
+/// under the corner's name, as the pair boolean groups an operand
+/// corner's copies. The union qualifies no other vertex, so no other
+/// vertex forms a group of its own. A row the fold tied at a member
+/// corner keeps the fold's corner-copy name, so it is a member of the
+/// group the fold formed, and its base is left to the fold's record
+/// ([`Rederived::by_fold`]).
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     vertex_rows: Vec<(StableName, Entry)>,
     body: &topo::Body<T>,
     (flush, fold): (&Flush<'_, T>, &Fold<'_>),
     (lines, links): (&EdgeLines<'_>, &Links<T>),
+    rec: &mut Rederived,
 ) -> Result<NameTable, NamingError> {
     let mut out = NameTable::new();
     let mut tie = TieRows::default();
@@ -1834,6 +1854,20 @@ fn cite_member_edges<T: geom_core::Decide>(
                 flush.resensed(&name, at, whole)?
             }
         };
+        // A row the fold tied at a member corner keeps the fold's
+        // corner-copy name, so it is a member of the fold step's group,
+        // and its base reads the fold's record. That record reads alike
+        // in every member order only where every order's fold ties the
+        // corner; the suite holds no order that does not, and the
+        // corner rule taking these rows retires the exception
+        // (`work/wire/a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule.md`).
+        if let (Entry::Tied(es), [_, .., RoleSeg::Fragment(_)]) = (&entry, cited.path.as_slice())
+            && at_member_corners(flush, es)?
+        {
+            let mut base = cited.clone();
+            base.path.pop();
+            rec.by_fold.insert(base);
+        }
         if cited.kind != EntityKind::Vertex {
             put_entry(&mut out, cited, &entry)?;
             continue;
@@ -1849,11 +1883,33 @@ fn cite_member_edges<T: geom_core::Decide>(
         let ents = entries.iter().flat_map(Entry::entities).copied().collect();
         mint_candidates(&mut out, &mut tie, false, name, ents)?;
     }
+    for held in corners.values() {
+        let copies = held.copies.iter().map(|&(_, e)| e).collect();
+        rec.groups
+            .record(&held.name, copies, GroupParent::Elsewhere);
+    }
     name_corner_copies(&mut out, &mut tie, corners, |at, keys| {
         member_corner_walls(at, keys, body, (flush, fold))
     })?;
     tie.flush(&mut out)?;
     Ok(out)
+}
+
+/// Whether every one of `es` is a finished vertex at a member corner
+/// ([`Flush::member_vertices`]).
+fn at_member_corners<T: geom_core::Decide>(
+    flush: &Flush<'_, T>,
+    es: &[EntityRef],
+) -> Result<bool, NamingError> {
+    for e in es {
+        let EntityKey::Vertex(v) = e.key else {
+            return Ok(false);
+        };
+        if flush.member_vertices(v)?.is_none() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// The divider walls each of `keys`, the finished vertices member
@@ -1961,6 +2017,11 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
         walked: StableName,
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
+    }
+
+    /// An index is the document's own: re-citing a member edge keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 
@@ -2408,7 +2469,6 @@ impl Parents {
     }
 }
 
-/// What [`name_by_parents`] returns: the table, the seam rows held
 /// What [`name_by_parents`] hands on.
 struct ByParents {
     /// Every face, and every row but a seam edge or a vertex.
@@ -2675,6 +2735,11 @@ impl SegRewrite for CiteParents<'_> {
         walked: StableName,
     ) -> Result<Option<StableName>, NamingError> {
         Ok((walked != *n).then_some(walked))
+    }
+
+    /// An index is the document's own: citing a parent keeps it.
+    fn index(&mut self, index: VarId) -> Result<VarId, Self::Error> {
+        Ok(index)
     }
 }
 
@@ -3745,6 +3810,7 @@ mod tests {
                 &self.body,
                 (&flush, &Fold::new(0, &self.body)),
                 (&lines, &Links::default()),
+                &mut Rederived::default(),
             )
         }
     }
@@ -4342,8 +4408,8 @@ mod tests {
         let fold_name = |i: u64| StableName {
             kind: EntityKind::Vertex,
             node: m.union,
-            path: vec![RoleSeg::Instance {
-                i: u32::try_from(i).unwrap(),
+            path: vec![RoleSeg::Member {
+                at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                 of: NameRef::new(tied.clone()),
             }],
         };
@@ -4362,6 +4428,7 @@ mod tests {
             &m.body,
             (&flush, &Fold::new(0, &m.body)),
             (&lines, &Links::default()),
+            &mut Rederived::default(),
         )
         .unwrap();
         let name = entity_name(m.union, &(m.read, tied_ref));
@@ -4439,8 +4506,8 @@ mod tests {
         for (i, v) in [v0, v1].into_iter().enumerate() {
             let fold = vertex(
                 tied.union,
-                vec![RoleSeg::Instance {
-                    i: u32::try_from(i).unwrap(),
+                vec![RoleSeg::Member {
+                    at: vec![(crate::VarId::new(9, 9), u32::try_from(i).unwrap())],
                     of: NameRef::new(tie.clone()),
                 }],
             );
@@ -4456,6 +4523,7 @@ mod tests {
             &tied.body,
             (&flush, &Fold::new(0, &tied.body)),
             (&lines, &Links::default()),
+            &mut Rederived::default(),
         )
         .unwrap();
         for v in [v0, v1] {

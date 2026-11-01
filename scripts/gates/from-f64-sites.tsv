@@ -2,14 +2,11 @@
 # (file, argument), tab-separated: file, count, class, argument, reason.
 # The classes and what each one means are in the gate's header.
 crates/editor-core/src/analysis.rs	4	constant	value	a free variable's authored nominal; the box's offset, or the door's symbol, is the variable, and a Fixed axis holds it at that nominal (a constant at every scalar)
-crates/editor-core/src/clearance.rs	1	constant	c	the authored clearance, at the concrete Interval (never Sym)
 crates/editor-core/src/doc.rs	1	constant	value	a free variable's authored nominal, bound unvaried
 crates/editor-core/src/eval/mod.rs	1	constant	v[0]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	v[1]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	v[2]	a computing twist's stated part (EvalOptions::computing_twist, test-facing), a motion written in f64 by its caller
 crates/editor-core/src/eval/mod.rs	1	constant	self.angle	a computing twist's stated angle (EvalOptions::computing_twist, test-facing), written in f64 by its caller
-crates/editor-core/src/eval/wire/stepped.rs	1	constant	i as f64	a pattern step's index
-crates/editor-core/src/eval/wire/stepped.rs	1	constant	k as f64	a whole-turn count
 crates/editor-core/src/expr.rs	1	constant	f64::from(small)	a count read as a scalar
 crates/editor-core/src/expr.rs	1	constant	q.value	an authored quantity literal
 crates/editor-core/src/placement.rs	1	constant	<fn>	a frame's stored coordinates, carried exactly (f64 by type in the document)
@@ -43,6 +40,9 @@ crates/geom-brep/src/half_angle.rs	2	constant	share	a fixed split fraction (SPLI
 crates/geom-brep/src/half_angle.rs	3	constant	f64::from(k)	a subdivision index
 crates/geom-brep/src/implicit.rs	1	constant	k as f64	a sample index
 crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
+crates/geom-brep/src/pair_section/gap.rs	1	constant	k as f64	the index of a cell of the critical gap's first cut of the turn
+crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
+crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
 crates/geom-brep/src/pcurve_cache.rs	1	constant	a	own_interval: a net's knot-domain lower end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	b	own_interval: a net's knot-domain upper end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedule's fraction
@@ -70,8 +70,8 @@ crates/geom-core/src/dual.rs	1	constant	f64::from(n)	powi's exponent
 crates/geom-core/src/dual.rs	1	constant	x	the Real impl's own door: Dual::from_f64 embeds at its value scalar
 crates/geom-core/src/interval.rs	1	constant	x	the Real impl's own door: Interval::from_computed is the point embed by design
 crates/geom-core/src/interval/certification.rs	1	constant	x	the concrete Interval's point embed, the door itself: never Sym
-crates/geom-core/src/linalg/angle.rs	2	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
-crates/geom-core/src/linalg/angle.rs	2	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
+crates/geom-core/src/linalg/angle.rs	1	constant	at as f64	the numerator of an octant's fraction of a turn, an exact integer below 2^51
+crates/geom-core/src/linalg/angle.rs	1	constant	(4 * den) as f64	the denominator of an octant's fraction of a turn, an exact integer at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	n as f64	a written fraction's numerator or denominator, an exact integer of magnitude at most 2^53
 crates/geom-core/src/linalg/angle.rs	1	constant	hi as f64	the high half of a written fraction's integer past 2^53, an exact integer below 2^32
 crates/geom-core/src/linalg/angle.rs	1	constant	lo as f64	the low half of a written fraction's integer past 2^53, an exact integer below 2^32
@@ -127,18 +127,21 @@ crates/sweep/src/test_support.rs	4	fixture	<fn>	a fixture's f64 points lifted in
 crates/topo/src/boolean/boxes.rs	1	constant	l as f64	a sample index
 crates/topo/src/boolean/boxes.rs	1	constant	k as f64	a sample index
 crates/topo/src/boolean/carrier_touch.rs	1	constant	band.escalate()	the band's escalation width, a tolerance
+crates/topo/src/boolean/circle_roots.rs	1	constant	band.zero()	the band's zero width, a tolerance (a leg's start on the plane, which picks its roots' representative)
 crates/topo/src/boolean/join.rs	1	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/boolean/mod.rs	1	constant	boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/rim_wedge.rs	1	constant	k	a fixed wrap count
 crates/topo/src/boolean/rim_wedge.rs	1	constant	phase(i)	a fixed station of the sample schedule
 crates/topo/src/boolean/rim_wedge.rs	1	constant	sgn	a root's sign, ±1
-crates/topo/src/boolean/section_cert.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
 crates/topo/src/boolean/section_cert/ruling.rs	1	constant	<block> if charged	the band's zero width or zero, a tolerance (the reader cuts the argument at its brace)
 crates/topo/src/boolean/section_cert/ruling.rs	2	constant	f64::from(k)	an eighth-turn sample index
 crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
+crates/topo/src/boolean/solid_contain.rs	1	constant	<block> if plus	a fixed fraction of a circle arc's span, as the half-edge walks it: a sample point of the arc whose turn is read
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(k)	a sample's index along an arc's span (edge_clearance): a count read as a scalar
+crates/topo/src/boolean/solid_contain.rs	1	constant	f64::from(CLEARANCE_SAMPLES)	the count of even steps an arc's clearance samples (edge_clearance): a count read as a scalar
 crates/topo/src/boolean/solid_contain.rs	1	constant	super::boxes::sweep_pad(band)	the band's sweep pad, a tolerance
 crates/topo/src/boolean/region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
@@ -147,6 +150,8 @@ crates/topo/src/census.rs	2	constant	band.zero()	the band's zero width, a tolera
 crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces' sweep pads, a tolerance
 crates/topo/src/chart_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/chart_region.rs	1	constant	n as f64	a count
+crates/topo/src/clearance.rs	1	constant	c	the authored clearance bound, a constant of the question (the interval arithmetic of the sweep, never the lane scalar)
+crates/topo/src/clearance.rs	1	constant	f64::from(winding)	harmonic_of: an angle channel's rate, its integer winding count (the ratio of two equal periods)
 crates/topo/src/offset_derive.rs	1	constant	<fn>	certified_speed: an f64 carrier's stored net lifted to Interval (map_scalar) to read its certified speed bound
 crates/topo/src/pcurves.rs	1	constant	2.0 * band.zero()	the band's zero width, a tolerance
 crates/topo/src/pcurves.rs	1	constant	1.0 / f64::from(n)	the step of an orbit, a period over its steps (1 or 2)
@@ -165,9 +170,18 @@ crates/topo/src/splitting/classify.rs	1	constant	crate::boolean::boxes::sweep_pa
 crates/topo/src/splitting/containment.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/order.rs	1	constant	<fn>	a fixed ray direction of the schedule
 crates/topo/src/splitting/spline_arc.rs	1	constant	m	a spline piece's middle parameter, a point the halving chose
+crates/topo/src/test_support_meeting.rs	1	fixture	<fn>	posed_pyramid_kept: a fixture's posed f64 corners lifted into T
 crates/topo/src/test_support_fixtures.rs	1	fixture	frame.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	self.radius	a fixture surface's radius
 crates/topo/src/test_support_fixtures.rs	1	fixture	t0	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	1	fixture	t1	a fixture curve's domain
 crates/topo/src/test_support_fixtures.rs	10	fixture	<fn>	a fixture's f64 frame lifted into T
 crates/topo/src/validate.rs	1	constant	band.escalate() / band.zero()	the band's K, the ratio of its two widths
+crates/geom-brep/src/chart_singularity.rs	2	constant	f64::from(i)	a sample schedule's index (the sampled carrier's starting spans and a walk's stations)
+crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(WALK_SAMPLES)	a walk's station count per edge
+crates/geom-brep/src/chart_singularity.rs	1	constant	f64::from(SAMPLED_SPANS)	a sampled carrier's starting span count
+crates/geom-brep/src/chart_singularity.rs	1	constant	band.zero() * 0.5	half the band's zero width, a tolerance (a sampled span's resolution)
+crates/geom-brep/src/chart_singularity.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the reach of a singular point on the loop)
+crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * (m as f64 + 8.0) * geom_core::UNIT_ROUNDOFF	a summation's rounding factor, from the count of its terms
+crates/geom-brep/src/chart_singularity.rs	1	constant	2.0 * samples.len() as f64	the count of steps a walk's error bound is shared over
+crates/geom-brep/src/chart_singularity.rs	1	constant	c	a half-turn threshold's multiple of π, a literal at each call (±1, ±3)

@@ -36,18 +36,17 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape, translation};
 use pncad::document::{Doc, DocEdit, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
-use viewer::session::{
-    DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, SessionOp,
-};
+use viewer::session::{DocSession, PatternRuleSpec, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the rook's dimensions (metres) --------------------------------
@@ -112,11 +111,11 @@ const CARVED_STATES: usize = 22;
 /// their first operand's placement and deleting the second's (8); and
 /// the last, whose second operand nothing places, re-pointing only (1).
 const WORLD_EDITS: usize = 24;
-/// Edits on the FINAL saved path: the twenty-two carving actions'
+/// Edits on the session's FINAL path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`
 /// counts states.
-const SAVED_PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
+const PATH_EDITS: usize = (CARVED_STATES - 1) + WORLD_EDITS + 1;
 
 // --- closed forms ---------------------------------------------------
 
@@ -170,7 +169,7 @@ fn lifted(session: &mut DocSession, body: RecipeNodeId, translation: [f64; 3]) -
             input: body.into(),
             translation: len3(translation),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     )
 }
@@ -316,7 +315,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddTransform {
             input: cutter.into(),
-            translation: len3([0.0, 0.0, CUT_Z + CUT2_LIFT]),
+            translation: translation([0.0, 0.0, CUT_Z + CUT2_LIFT]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
             rotation_angle: ang(FRAC_PI_2),
         },
@@ -378,9 +377,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         };
         assert_eq!(instances.len(), 4, "four blocks round the crown");
     }
-    // Fusing THESE onto the rook is refused at the door, typed: a
-    // pattern's value is several bodies, not the ONE a boolean seat
-    // consumes (the F4 division the heatsink demo documents).
+    // Fusing THESE onto the rook is refused at the door, typed: a union's
+    // member seat reads the family whole (D10 `[repetition]`), its
+    // members joining the list, but the family stands in the block's own
+    // space and the carved rook in the rook's, and a union reads its
+    // members in one space.
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
@@ -388,8 +389,8 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert!(
         matches!(
             &refused.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body })
-                if node.id() == pattern
+            Some(Refusal::Edit(edit))
+                if matches!(edit.as_ref(), pncad::document::EditError::SpaceMismatch { .. })
         ),
         "{:?}",
         refused.refusal
@@ -402,7 +403,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // boolean seat takes without complaint.
     let merlons = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: block.into(),
             count: 4,
             rule: PatternRuleSpec::Circular {
@@ -417,7 +418,10 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         let eval = session.evaluation().expect("the fused group landed");
         let value = eval.value(merlons).expect("the group evaluated");
         assert!(
-            matches!(value.payload, ValuePayload::Body(_)),
+            matches!(
+                value.payload,
+                ValuePayload::Boolean(pncad::document::BooleanValue::Body { .. })
+            ),
             "the fused group is ONE body where the pattern was four"
         );
     }
@@ -457,17 +461,28 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // The crenellated rook's world placement reads the union, so it is
     // in the cone too (A10): the cascade takes the copy with the body.
     let rook_copy = common::copy_of(session.committed_doc(), crenellated);
+    // The fused door's family: the placement its union reads whole.
+    let Some(pncad::document::Node::Union {
+        members: pncad::document::Bodies::Family(family),
+    }) = session.committed_doc().node(merlons)
+    else {
+        panic!("the fused door mints a union over the family");
+    };
+    let fused_family = session
+        .committed_doc()
+        .operation_of(family.read)
+        .expect("the family is a node");
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
         format!(
-            "Delete Extrude {} and 5 dependent features",
+            "Delete Extrude {} and 6 dependent features",
             test_utils::refusal::tag(block.0.digest())
         )
     );
     assert!(
         affordance.hover.as_deref().is_some_and(|hover| {
-            ["1 × Pattern", "1 × PlacedUnion", "1 × Union", "2 × Place"]
+            ["2 × Union", "4 × Place"]
                 .iter()
                 .all(|kind| hover.contains(kind))
         }),
@@ -476,14 +491,22 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     assert_eq!(
         affordance.cascade,
-        vec![rook_copy, crenellated, crowning, merlons, pattern, block],
+        vec![
+            rook_copy,
+            crenellated,
+            crowning,
+            merlons,
+            fused_family,
+            pattern,
+            block
+        ],
         "consumers first, the target last"
     );
     let deleted = session.perform(SessionOp::DeleteNode { node: block });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     assert_eq!(
         deleted.committed.len(),
-        6,
+        7,
         "one delete per doomed node, recorded as ONE action"
     );
     for (edit, want) in deleted.committed.iter().zip(&affordance.cascade) {
@@ -628,9 +651,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             .is_none(),
         "the rook saves"
     );
-    // The file records the CURRENT PATH's linear log — the abandoned
-    // branch is session state, not document.
-    assert_eq!(session.history().path_edits().len(), SAVED_PATH_EDITS);
+    let history = session.history();
+    let path_edits: usize = history
+        .path()
+        .into_iter()
+        .map(|id| history.entry(id).edits().len())
+        .sum();
+    assert_eq!(path_edits, PATH_EDITS, "the edits on the current path");
     let saved_doc = session.committed_doc().clone();
     assert!(
         session.perform(SessionOp::Open(path)).refusal.is_none(),
@@ -640,12 +667,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         session.committed_doc().bit_eq(&saved_doc),
         "save → reopen is bit-identity on the document"
     );
-    assert_eq!(
-        session.history().path_edits().len(),
-        SAVED_PATH_EDITS,
-        "the reopened history replays exactly the saved log"
+    assert!(
+        !session.history().can_undo(),
+        "the file is the document's state, so undo ends at the open"
     );
-    // Same ids (the log replays in order), same solid, bit for bit.
+    // Same ids, same solid, bit for bit.
     let v_reopened = body_volume(&mut session, carved, tol);
     assert_eq!(
         v_tall.to_bits(),

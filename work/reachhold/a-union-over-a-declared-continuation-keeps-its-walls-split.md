@@ -43,3 +43,10 @@ E rewrites the merge so that it glues every adjacent pair its margins decide one
 ## Closed (2026-10-26, tracker sweep)
 
 **Fixed.** `B ∪ A` now builds the thick plate with the plate's own 10 faces in all three in-wall poses (sunk, flush top, flush bottom): `crates/sweep/tests/reach_continuation.rs:921`–`:926`, `builds(…, topo::union(&b, &a, tol()), area(4.0), 10)`, where `builds` asserts the face count (`:648`). The test's doc says "its walls glued back whole where the thin plate's lay (the plate's 10 faces)" (`:876`–`:878`). The rounded two-plate stack also merges its four fillet pairs now, with ten faces and no recorded skip (`reach_continuation.rs:158`–`:190`). The A ∪ B and B ∖ A refusals in that test are `rounded-stack-subtract-and-intersect-refuse-fallback-extent`'s (this slate), which stays open. The history is shallow, so the commit was not found.
+
+## 2026-11-01 — the pinning test's name (SPLITDOOR, `splitdoor/sided-followups`)
+
+The test cited above is now
+`reach_continuation::rounded_continuations_inside_a_wall_build_every_op`.
+Since PR 6070, `A ∪ B` builds the thick plate with its 10 faces too,
+and `B ∖ A` is nothing.

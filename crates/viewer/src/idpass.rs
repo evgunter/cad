@@ -40,13 +40,13 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
-use pncad::prelude::StableName;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::display::DisplayView;
 use crate::frame::{Message, Retold, Subject};
 use crate::generation::Generation;
 use crate::pickindex::{PatchNameFault, PickError, PickIndex};
+use crate::session::FaceSelection;
 
 /// What the viewport should do about the GPU id query this frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -249,8 +249,10 @@ impl IdChannel {
 /// other arm as *nothing* publishes a claim the id buffer did not make.
 #[derive(Clone, Debug, PartialEq)]
 pub enum IdAnswer {
-    /// A drawn patch, by the name the index has for it.
-    Named(StableName),
+    /// A drawn patch, as the face the index has for it: its name and
+    /// the (node, body) it is drawn on, since two copies of one body
+    /// wear the same names.
+    Named(FaceSelection),
     /// The index names no patch for the id, in its door's words
     /// ([`PickIndex::name_of`]). [`PatchNameFault::Nothing`] is the id
     /// buffer's clear value: no geometry under the cursor. A readback
@@ -283,7 +285,7 @@ impl Say for IdAnswer {
     /// buffer, whatever it turns out to denote.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
-            Self::Named(name) => write!(f, "{}", by.name(name)),
+            Self::Named(face) => say_face(f, by, face),
             Self::Refused(fault) => fault.say(f, by),
             Self::Hidden { id } => write!(f, "id {id}, which no patch of this picture draws"),
         }
@@ -308,16 +310,15 @@ impl IdAnswer {
     /// naming layer refused, because the picture drawing no patch
     /// under it is the fact about the id buffer's word.
     pub fn of(index: &PickIndex, display: &DisplayView, id: u32) -> Self {
-        // The id map is derived from the same windows as the name
-        // table, so an id the index assigned has a patch, and the
-        // patch's node is the placement the display view hides or not.
+        // The patch's node is the placement the display view hides
+        // or not.
         let hidden = index
             .ids()
             .key_of(id)
             .is_some_and(|patch| display.hidden_placements.contains(&patch.node));
-        match index.name_of(id) {
+        match index.face_of(id) {
             Ok(_) | Err(PatchNameFault::Unnamed { .. }) if hidden => Self::Hidden { id },
-            Ok(name) => Self::Named(name.clone()),
+            Ok(face) => Self::Named(face),
             Err(fault) => Self::Refused(fault),
         }
     }
@@ -347,13 +348,13 @@ pub struct Disagreement {
     /// either — the pixel there falls to depth rounding, so the id
     /// pass naming ONE of them is not a disagreement
     /// ([`compare`]).
-    pub from_ray: Vec<StableName>,
+    pub from_ray: Vec<FaceSelection>,
 }
 
 impl Say for Disagreement {
-    /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
-    /// either side is said in its words, which tell two names of one
-    /// table apart. The sentence reaches the user's status line
+    /// The id side is [`IdAnswer`]'s own sentence. Every face on
+    /// either side is said by its name in its words, which tell two
+    /// names of one table apart, and by the copy it is on. The sentence reaches the user's status line
     /// ([`Disagreement::notice`]), so it carries no role path: the path
     /// a bug report replays is this value's `Debug`, for a log, and no
     /// surface of the viewer prints it.
@@ -370,19 +371,44 @@ impl Say for Disagreement {
         )?;
         match &from_ray[..] {
             [] => f.write_str("nothing"),
-            [name] => write!(f, "{}", by.name(name)),
+            [face] => say_face(f, by, face),
             tied => {
                 f.write_str("tied between ")?;
-                for (i, name) in tied.iter().enumerate() {
+                for (i, face) in tied.iter().enumerate() {
                     if i > 0 {
                         f.write_str(" and ")?;
                     }
-                    write!(f, "{}", by.name(name))?;
+                    say_face(f, by, face)?;
                 }
                 Ok(())
             }
         }
     }
+}
+
+/// A face as the cross-check compares it, in words: its name, and the
+/// copy it is drawn on, by the copy's node, which is what tells two
+/// copies of one body apart. A body past a node's first is said by its
+/// index, the one word the picture has for it.
+pub(crate) struct SaidFace<'a>(pub(crate) Speaker<'a>, pub(crate) &'a FaceSelection);
+
+impl core::fmt::Display for SaidFace<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self(by, FaceSelection { name, node, body }) = *self;
+        write!(f, "{} on {}", by.name(name), by.node(*node))?;
+        if *body != 0 {
+            write!(f, ", body {body}")?;
+        }
+        Ok(())
+    }
+}
+
+fn say_face(
+    f: &mut core::fmt::Formatter<'_>,
+    by: Speaker<'_>,
+    face: &FaceSelection,
+) -> core::fmt::Result {
+    write!(f, "{}", SaidFace(by, face))
 }
 
 /// The sentence where no document is at hand: each node by its tag.
@@ -497,15 +523,16 @@ impl IdNews {
     }
 }
 
-/// Compare the id pass's answer against the ray path's, **by name**.
+/// Compare the id pass's answer against the ray path's, **by face**:
+/// a name and the (node, body) it is drawn on.
 ///
-/// # Why names and not ids
+/// # Why the copy and not the name alone
 ///
-/// One stable name can be drawn under several ids, so comparing raw
-/// ids reports a disagreement whenever the two paths
-/// name the same face on different drawn copies. The property the two
-/// lanes are supposed to share is "the same face is under the cursor",
-/// and a face is a name.
+/// A copy wears its source's names as they are, so one stable name is
+/// drawn under one id per copy. The property the two lanes are
+/// supposed to share is "the same face is under the cursor", and an id
+/// on the left copy beside a ray on the right one is two faces of the
+/// world under one name.
 ///
 /// # The role inversion, recorded at the seam
 ///
@@ -520,7 +547,7 @@ impl IdNews {
 /// # A tie is not a disagreement when the raster chose inside it
 ///
 /// `from_ray` is a SET ([`Disagreement::from_ray`]). The two paths
-/// AGREE when the id buffer's name is one of it — the kernel said
+/// AGREE when the id buffer's face is one of it — the kernel said
 /// these faces cannot be ordered, and the rasterizer picking one of
 /// them is the depth buffer's rounding, not a contradiction of
 /// anything the kernel claimed. They disagree when the id buffer
@@ -571,16 +598,17 @@ impl IdNews {
 /// whose name the naming layer refused ([`PatchNameFault::Unnamed`]),
 /// or an id no patch of this picture is drawn under (never assigned,
 /// [`PatchNameFault::Unassigned`], or assigned to a hidden placement's
-/// part, [`IdAnswer::Hidden`], which the index would otherwise name). `display` is the view the picture and
-/// the ray were both drawn and asked under, while the view in hand is
-/// the one the picture was drawn under
+/// part, [`IdAnswer::Hidden`], which the index would otherwise name).
+/// `display` is the view the picture and the ray were both drawn and
+/// asked under, while the view in hand is the one the picture was drawn
+/// under
 /// (`work/vnews/the-cursor-reads-the-display-view-in-hand-not-the-one-the-picture-was-drawn-under.md`
-/// is where it is not). Neither AGREES with any
-/// ray answer. Agreement is a shared name, and these have
-/// none, so silence here would claim an agreement nobody can check.
-/// Nor is either said anywhere else. This comparison is the id
-/// answer's only reader, so the notice is where each is said, with
-/// the id, which is what issue #1097 §4 asks an operator to record.
+/// is where it is not). Neither AGREES with any ray answer. Agreement
+/// is a shared face, and these have none, so silence here would claim
+/// an agreement nobody can check. Nor is either said anywhere else.
+/// This comparison is the id answer's only reader, so the notice is
+/// where each is said, with the id, which is what issue #1097 §4 asks
+/// an operator to record.
 /// The ray path's own brush with an unnamed face is a refusal, and
 /// beside a refusal only an undrawn id is said (above).
 ///
@@ -602,7 +630,7 @@ pub fn compare(
     display: &DisplayView,
     answer: Option<&IdReply>,
     expected: Option<u32>,
-    from_ray: Result<&[StableName], &PickError>,
+    from_ray: Result<&[FaceSelection], &PickError>,
 ) -> Option<IdNews> {
     let answer = answer?;
     if expected? != answer.serial {
@@ -618,7 +646,7 @@ pub fn compare(
     };
     let agrees = match &from_gpu {
         IdAnswer::Refused(PatchNameFault::Nothing) => from_ray.is_empty(),
-        IdAnswer::Named(name) => from_ray.contains(name),
+        IdAnswer::Named(face) => from_ray.contains(face),
         IdAnswer::Refused(PatchNameFault::Unassigned { .. } | PatchNameFault::Unnamed { .. })
         | IdAnswer::Hidden { .. } => false,
     };
@@ -642,7 +670,7 @@ mod tests {
 
     use super::*;
     use pncad::document::VarId;
-    use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
+    use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg, StableName};
     use pncad::select::UnnamedEntity;
 
     /// A disagreement says each name in its words, and no role path, on
@@ -666,8 +694,16 @@ mod tests {
                 }],
             });
             Disagreement {
-                from_gpu: IdAnswer::Named(deep.clone()),
-                from_ray: vec![deep],
+                from_gpu: IdAnswer::Named(FaceSelection {
+                    name: deep.clone(),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+                    body: 0,
+                }),
+                from_ray: vec![FaceSelection {
+                    name: deep,
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
+                    body: 0,
+                }],
             }
             .to_string()
         });
@@ -708,10 +744,14 @@ mod tests {
         );
         for no_verdict in [
             IdAnswer::Refused(PatchNameFault::Nothing),
-            IdAnswer::Named(StableName {
-                kind: EntityKind::Face,
+            IdAnswer::Named(FaceSelection {
+                name: StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
+                    path: vec![RoleSeg::Cap(CapEnd::End)],
+                },
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
+                body: 0,
             }),
         ] {
             assert_eq!(beside_refusal(&no_verdict), None, "{no_verdict}");

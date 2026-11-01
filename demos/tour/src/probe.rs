@@ -132,6 +132,37 @@ fn sweep<F: FnOnce() -> Vec<ProbeBody>>(
     eprintln!("k_probe(demo): {scene}: {} samples", samples.len());
 }
 
+/// A scene pinned to stop at this ε, while the row that owns the fix
+/// stays open: `build` must panic with a message carrying every piece
+/// of `says`, so the pin goes red the day the scene builds or stops
+/// some other way. Its samples are dropped, as a scene that stopped
+/// has no population to report.
+fn pinned_stop<F: FnOnce() -> Vec<ProbeBody> + std::panic::UnwindSafe>(
+    scene: &str,
+    eps: f64,
+    says: &[&str],
+    build: F,
+) {
+    k_stats::start_recording();
+    let stopped = std::panic::catch_unwind(build);
+    drop(k_stats::take_samples());
+    let message = match stopped {
+        Ok(_) => panic!(
+            "k_probe(demo): {scene} is pinned to stop at ε = {eps:e} on {says:?}, and it built"
+        ),
+        Err(payload) => payload
+            .downcast_ref::<String>()
+            .cloned()
+            .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_string()))
+            .unwrap_or_default(),
+    };
+    assert!(
+        says.iter().all(|piece| message.contains(piece)),
+        "k_probe(demo): {scene} is pinned to stop at ε = {eps:e} on {says:?}, it stopped otherwise: {message}"
+    );
+    eprintln!("k_probe(demo): {scene}: pinned stop at ε = {eps:e}, as pinned");
+}
+
 /// The sweep entry point (`demo-tour k-probe [out.csv]`; stdout when
 /// no path is given).
 pub fn run(out: Option<String>, tol: Tol) {
@@ -341,19 +372,24 @@ pub fn run(out: Option<String>, tol: Tol) {
     // coordinate intent in the corpus (torus segments), plus
     // doubly-truncated sphere zones and crescent-section blades swept
     // along arching spines.
-    sweep(
-        s,
-        t,
-        u,
-        "lily",
-        || {
-            lily::plant::<Probe>(tol)
-                .into_iter()
-                .map(|piece| (piece.name.to_string(), piece.body, piece.contacts))
-                .collect()
-        },
-        tol,
-    );
+    let lily = || {
+        lily::plant::<Probe>(tol)
+            .into_iter()
+            .map(|piece| (piece.name.to_string(), piece.body, piece.contacts))
+            .collect()
+    };
+    // At 1e-12 the stem's tube arc refuses as limb 2's kernel limit on
+    // its torus (`work/offset/main-red-five-slow-rows-refuse-at-limb-2s-kernel-limit-since-5728.md`).
+    const LILY_STOP: &[&str] = &[
+        "stem tube arc builds",
+        "AnalyticRung3(KernelLimit { operand: Torus, bound: 3.201461299630955e-12",
+        "extent: 0.13416407865000426",
+    ];
+    if eps == 1e-12 {
+        pinned_stop("lily", eps, LILY_STOP, lily);
+    } else {
+        sweep(s, t, u, "lily", lily, tol);
+    }
     // The curved-support fillet arms' own K row, and the ONLY scene that
     // reaches `fillet3_support_coaxiality`: every other filleted or
     // chamfered body in this corpus has plane supports, and that
@@ -371,17 +407,16 @@ pub fn run(out: Option<String>, tol: Tol) {
     // lily's walls, run at the probe scalar, and their margins record
     // here — wall 7's carve builds and its drawing is what refuses, so
     // that wall records the decisions of a whole tilted sphere cut.
-    sweep(
-        s,
-        t,
-        u,
-        "lily_walls",
-        || {
-            lily::wall_probes::<Probe>(tol);
-            Vec::new()
-        },
-        tol,
-    );
+    let lily_walls = || {
+        lily::wall_probes::<Probe>(tol);
+        Vec::new()
+    };
+    // The walls build the same stem, and stop where the lily does.
+    if eps == 1e-12 {
+        pinned_stop("lily_walls", eps, LILY_STOP, lily_walls);
+    } else {
+        sweep(s, t, u, "lily_walls", lily_walls, tol);
+    }
 
     assert_eq!(
         unnamed, 0,

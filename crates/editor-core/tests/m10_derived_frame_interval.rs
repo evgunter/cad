@@ -587,7 +587,7 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
 /// frame, so the boss is never rebuilt over the box, and the
 /// start-endpoint certification of the mapped extrude that refused over
 /// an enclosure of [0, 0.32] is not run
-/// (`work/carve/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`
+/// (`work/lathe/the-guided-derived-frame-extrude-escalates-as-a-kernel-defect.md`
 /// measured it). The ten forms that used to freeze at A0's rung sat
 /// under `1/max(1, min(1, max(0, 1))/4)` — a `max`/`min` of two
 /// CONSTANTS — and A0 decides those exactly now

@@ -2,12 +2,13 @@
 id: shell-curved-wall-clearance-window
 kind: issue
 title: shell - the curved wall-clearance window (planar gate landed; curved residue waits on M10's clearance certificate)
-status: parked
+status: closed
 blocked_on: [SHELL-4]
 opened: 2026-08-27
 refs: [1048, 571]
 priority: P1
 cost: H
+closed: 2026-11-01
 ---
 
 ## From GitHub issue 1055
@@ -44,3 +45,13 @@ on `f71c22688` through the per-chart door:
 
 The pair is curved×planar, so the planar gate never reads it. This
 is the curved residue this item names.
+
+## Update (CLEAR orchestrator, 2026-10-30, from SHELL-4's lane)
+
+The 2026-10-06 measured instance (the box with a cylindrical void at
+`t = 0.1`) no longer shells wrong at `f64`. `moved_walls_cross` refuses
+it `OffsetsCross` (faces 4v1/7v1, overlap 0.539). At `Interval` the same
+gate escalates (`shell_moved_walls_overlap`, enclosure [−1.02, 0.48])
+before the cavity check runs. The curved twin of the OFF-D dumbbell
+still shells Ok at `f64` (bulge 0.2, t = 0.15), so the curved window
+stays open there, as the module docs say.

@@ -69,9 +69,9 @@
 //! sets, so there are two tables and this file checks both.
 //! [`SessionOp::permitted_during_free_move`] has two refusals rather
 //! than 26 and they have a name, so it is NOT restated here as a
-//! second copy of 42 rows: `replaces_the_document` says the property
-//! the table encodes — an operation that puts a different document
-//! under the session — and
+//! second copy of 42 rows: [`SessionOp::replaces_the_document`] says
+//! the property the table encodes — an operation that puts a different
+//! document under the session — and
 //! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
 //! the table against it over the same sample roster. That is a
 //! different row from `expected`'s, and a stronger one, because the
@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 57;
+const OP_COUNT: usize = 60;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -226,6 +226,15 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         SessionOp::Reevaluate,
         SessionOp::Open(save_to.with_file_name("no-such-document.pncad")),
         SessionOp::Save(save_to.to_path_buf()),
+        SessionOp::SaveAsNewDocument(save_to.with_file_name("forked.pncad")),
+        SessionOp::Stage {
+            creation: viewer::session::Creation::of(SessionOp::AddSplit {
+                target: node.into(),
+                origin: len3([0.0; 3]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            })
+            .expect("a split creates a node"),
+        },
         SessionOp::SetInstanceHidden {
             instance: node,
             hidden: true,
@@ -254,7 +263,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             },
             loops: vec![],
             distance: len(0.01),
-            spin: common::ang(0.0),
+            spin: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddProfile { loops: vec![] },
         SessionOp::AddExtrude {
@@ -280,9 +289,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
         },
         SessionOp::AddTransform {
             input: node.into(),
-            translation: len3([0.0; 3]),
+            translation: common::no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: common::ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddPattern {
             input: node.into(),
@@ -292,7 +301,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
                 spacing: len(0.05),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: node.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -329,6 +338,7 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             base: pncad::document::ProfileProgram {
                 loops: vec![],
                 ids: Vec::new(),
+                on: None,
             },
             loops: vec![],
             ids: vec![],
@@ -364,6 +374,15 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
+        SessionOp::AddDrawnProfile {
+            plane: FaceSelection {
+                name: face(node),
+                node,
+                body: 0,
+            },
+            traced: Vec::new(),
+            chains: Vec::new(),
+        },
         SessionOp::SetProduct {
             bodies: vec![node.into()],
         },
@@ -445,7 +464,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddSplit { .. } => (34, false),
         SessionOp::AddTransform { .. } => (35, false),
         SessionOp::AddPattern { .. } => (36, false),
-        SessionOp::AddPlacedUnion { .. } => (37, false),
+        SessionOp::AddFusedPattern { .. } => (37, false),
         SessionOp::AddFillet { .. } => (38, false),
         SessionOp::AddChamfer { .. } => (39, false),
         SessionOp::AddInstance { .. } => (40, false),
@@ -485,6 +504,14 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // What the document makes: a document edit, fenced with every
         // other one.
         SessionOp::SetProduct { .. } => (56, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddDrawnProfile { .. } => (57, false),
+        // The fork re-identifies every state of the history the drag
+        // previews against.
+        SessionOp::SaveAsNewDocument(_) => (58, false),
+        // A draft's question: it stages on the committed document and
+        // records nothing, so a drag has nothing to protect from it.
+        SessionOp::Stage { .. } => (59, true),
     }
 }
 
@@ -678,17 +705,15 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// that draws the control — give the same answer, and the prune a
 /// gesture's commit runs cannot discard what it is holding.
 ///
-/// **The gesture here drags a node's slots, both kinds.** A pattern
-/// over the probed instance carries a continuous `Spacing`
-/// (`DocEdit::SetParam`) and a structural `Count`
-/// (`DocEdit::SetStructuralParam`) — the two of the three value-gesture
-/// edits that write into `doc.nodes` at all, and the ones the identity
-/// is actually about. Dragging a document variable instead would
-/// write only `doc.params`, which no display predicate reads, and every
-/// assertion below would hold for any implementation of them.
+/// **The gesture here drags a node's slot.** A read of one member of
+/// a row over the other post carries a structural index — the node
+/// slot the identity is actually about. Dragging a document
+/// variable instead would write only `doc.params`, which no display
+/// predicate reads, and every assertion below would hold for any
+/// implementation of them.
 ///
-/// The pattern places nothing (A10), so `drawn_targets` resolves the
-/// instance to its own copy.
+/// The row and the read stand in a space of their own and draw nothing
+/// (A10), so `drawn_targets` resolves the instance to its own copy.
 ///
 /// Where it goes red: give a value gesture an edit that changes the
 /// node graph and the identity block fails outright (`free_move_check`
@@ -703,6 +728,12 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// when it was written, and the silence it described was ended by the
 /// third withdrawal kind.) Reversing the table's four rows fails the
 /// first block, at `BeginFreeMove`.
+/// A member read's index: the structural slot the gesture drags.
+const INDEX: SlotId = SlotId::Index {
+    seat: pncad::document::OperandSlot::Source,
+    k: 0,
+};
+
 #[test]
 fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let tol = Tol::witness();
@@ -719,35 +750,57 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         outcome
     }
 
-    // A pattern over the probed instance: the slots a value gesture can
-    // open on in an assembly of bare instances. It places nothing
-    // (A10), so the instance's display state stays on its own copy.
-    let pattern = common::session_insert(
-        &mut session,
-        SessionOp::AddPattern {
-            input: post.into(),
-            count: 2,
-            rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
-                spacing: len(0.03),
-            },
-        },
+    // A row over the other post, and a read of one of its members: the
+    // member's index is the node slot a value gesture can open on in an
+    // assembly of bare instances. Both stand in a space of their own,
+    // which no placement reaches the world from, so they draw nothing
+    // and the probed instance's display state stays on its own copy. No
+    // session door authors a member read that stays out of the world
+    // (the part door places its read), so the two are written into the
+    // bench's stored assembly and the bench reopened.
+    use pncad::document::{BodyRead, Formula, Node, Operand, Placed, stand};
+    let mut doc = session.committed_doc().clone();
+    let room = common::insert_into(&mut doc, Node::Space, tol);
+    let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
+    let (doc, k) = crate::fixture::index(doc, "k", 4);
+    let stepped = Placed::of(
+        &doc,
+        Vec::new(),
+        crate::fixture::slides_along(k, [1.0, 0.0, 0.0], 0.03),
     );
+    let (doc, family) = crate::fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::plain(Operand::Node(bench.post_b)),
+            room.clone(),
+            stepped.bundle(),
+        ),
+    );
+    let (doc, pattern) = crate::fixture::insert(
+        doc,
+        Node::place(
+            BodyRead::indexed(family, vec![Formula::count(0)]),
+            room,
+            stand().bundle(),
+        ),
+    );
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the workspace opens");
+    ws.resave(&doc, tol).expect("the assembly stores");
+    let mut session = common::asm::open_bench(&bench, tol);
+    session.pump();
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
         Ok(std::iter::once(bench.post_a).collect()),
         "the probe on the instance is drawn on the instance's own copy"
     );
 
-    // Both node-writing gesture doors, one after the other.
-    for slot in [SlotId::Spacing, SlotId::Count] {
+    // The node-writing gesture door.
+    {
+        let slot = INDEX;
         // The spaces the probe's admission reads are a landing's, so
         // the last edit lands before the drags open.
         session.pump();
-        let drag_to = match slot {
-            SlotId::Count => 3.0,
-            _ => 0.04,
-        };
+        let drag_to = 2.0;
         let probe = Frame::translation([0.0, 0.0, 0.011]);
 
         perform(
@@ -853,13 +906,10 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: one edit for the whole drag"
         );
         // The door actually taken, so the claim above is executed
-        // rather than described: a value gesture writes the value of
-        // the variable its slot reads (Q6), a count's as a spacing's.
+        // rather than described: a structural slot's drag writes the
+        // node's slot (`DocEdit::SetStructuralParam`).
         assert!(
-            matches!(
-                (&outcome.committed[0], slot),
-                (DocEdit::SetVarValue { .. }, SlotId::Spacing | SlotId::Count)
-            ),
+            matches!(&outcome.committed[0], DocEdit::SetStructuralParam { .. }),
             "{slot:?} took an unexpected door: {:?}",
             outcome.committed[0]
         );
@@ -950,6 +1000,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
+        | SessionOp::Stage { .. }
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -957,6 +1009,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
@@ -966,7 +1019,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFusedPattern { .. }
         | SessionOp::AddFillet { .. }
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
@@ -1231,16 +1284,16 @@ fn a_names_cancel_is_its_own_drags() {
     );
 }
 
-/// **A door that cannot act says the refusal its OWN operation gives.**
+/// **A door is closed exactly when its OWN operation refuses.**
 ///
-/// The sentence a disabled control shows is composed from the refusal
-/// the operation answers with rather than written beside the button, so
-/// the two cannot come to disagree — the defect
-/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
-/// reason-elsewhere.md` is open about one facility over. Both doors,
-/// with no gesture of either kind open.
+/// The toolbar draws a door while `CancelDoor::blocked` is `None`, so
+/// what decides whether the door is on screen is the refusal the
+/// operation answers with, not a test written beside the button — the
+/// two cannot come to disagree, and a door is never drawn where its
+/// click would be refused. Both doors, with no gesture of either kind
+/// open: each is closed, on its operation's own refusal.
 #[test]
-fn a_closed_door_says_what_its_own_operation_refuses() {
+fn a_door_is_closed_exactly_when_its_own_operation_refuses() {
     let tol = Tol::witness();
     for door in fixture(tol).0.cancel_doors() {
         let CancelDoor { label, op, blocked } = door;
@@ -1253,7 +1306,7 @@ fn a_closed_door_says_what_its_own_operation_refuses() {
         assert_eq!(
             blocked.to_string(),
             refusal.to_string(),
-            "{label}: the disabled control's words"
+            "{label}: the door's closing reason is its operation's refusal"
         );
         assert_eq!(
             format!("{blocked:?}"),
@@ -1515,85 +1568,6 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
     );
 }
 
-/// **The free-move table's answer, restated as the PROPERTY it encodes
-/// rather than as a second copy of its rows.**
-///
-/// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table's refusals have
-/// no shorter description than the list itself — all but one move the
-/// document, the history or the file a drag previews against, and
-/// `ProbeBounds` reads rather than moves. The
-/// free-move table has two, and they have a name: an operation that REPLACES the
-/// document the session is about — as against one that moves it, which
-/// a prune answers for by reporting. So this says the name, and
-/// `the_free_move_table_refuses_exactly_the_replacement_doors` checks
-/// the table against it. A row that disagrees is either a table entry
-/// that is wrong or a property that has stopped being the reason, and
-/// both are things to find out.
-fn replaces_the_document(op: &SessionOp) -> bool {
-    match op {
-        // The two doors that put a different document under the
-        // session, dropping the whole of its display state with
-        // `DocSession::clear_for_new_document`.
-        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
-        SessionOp::Select(_)
-        | SessionOp::Hover(_)
-        | SessionOp::DeleteNode { .. }
-        | SessionOp::RemoveConstraint { .. }
-        | SessionOp::IntoOwnSpace { .. }
-        | SessionOp::SetSlot { .. }
-        | SessionOp::SetSlotVariable { .. }
-        | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
-        | SessionOp::SetSlotUnit { .. }
-        | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetVariable { .. }
-        | SessionOp::SetVariableUnit { .. }
-        | SessionOp::SetVariableText { .. }
-        | SessionOp::DeclareVar { .. }
-        | SessionOp::RenameVar { .. }
-        | SessionOp::DeleteVar { .. }
-        | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginVariableGesture { .. }
-        | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewVariableGesture { .. }
-        | SessionOp::CommitVariableGesture { .. }
-        | SessionOp::CancelGesture
-        | SessionOp::Undo
-        | SessionOp::Redo
-        | SessionOp::CancelEvaluation
-        | SessionOp::Reevaluate
-        | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
-        | SessionOp::BeginFreeMove { .. }
-        | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove { .. }
-        | SessionOp::CancelFreeMove
-        | SessionOp::AddMate { .. }
-        | SessionOp::SketchOnFace { .. }
-        | SessionOp::AddProfile { .. }
-        | SessionOp::EditProfile { .. }
-        | SessionOp::AddExtrude { .. }
-        | SessionOp::AddRevolve { .. }
-        | SessionOp::AddBoolean { .. }
-        | SessionOp::AddSplit { .. }
-        | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
-        | SessionOp::AddPattern { .. }
-        | SessionOp::AddPlacedUnion { .. }
-        | SessionOp::AddFillet { .. }
-        | SessionOp::AddChamfer { .. }
-        | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. }
-        | SessionOp::CreateLabelled { .. } => false,
-    }
-}
-
 /// The free-move table is exactly the replacement doors, on the same
 /// sample roster the value table is checked on.
 #[test]
@@ -1604,7 +1578,7 @@ fn the_free_move_table_refuses_exactly_the_replacement_doors() {
     for op in every_op(node, &dir.join("saved.pncad")) {
         assert_eq!(
             op.permitted_during_free_move(),
-            !replaces_the_document(&op),
+            !op.replaces_the_document(),
             "the free-move table's answer for {op:?}"
         );
     }
@@ -1673,11 +1647,11 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
         let begins_a_second_probe = matches!(op, SessionOp::BeginFreeMove { .. });
         assert_eq!(
             fenced,
-            replaces_the_document(&op) || begins_a_second_probe,
+            op.replaces_the_document() || begins_a_second_probe,
             "{op:?} refused {:?} with a probe in flight",
             outcome.refusal
         );
-        if replaces_the_document(&op) {
+        if op.replaces_the_document() {
             assert!(
                 outcome.committed.is_empty(),
                 "{op:?} committed while fenced"
@@ -1758,6 +1732,7 @@ fn committed_distance(
         .find(|row| row.slot == SlotId::Distance)
         .expect("the extrude's distance row")
         .value
+        .map(|reading| reading.one().expect("one value"))
 }
 
 /// **A drag that could not open cannot steer the one that did**, at

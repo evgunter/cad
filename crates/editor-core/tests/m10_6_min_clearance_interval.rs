@@ -8,7 +8,7 @@
 //!    document still builds, and the assertion over it reports E10's
 //!    third state carrying that reason.
 //! 2. At the INTERVAL scalar the value IS the engine's bracket —
-//!    re-derived here by calling `clearance::min_separation` directly,
+//!    re-derived here by calling `topo::clearance::min_separation` directly,
 //!    so the row would fail if the evaluation path computed anything
 //!    else.
 //! 3. The bracket is BUDGET-HONEST: a smaller budget widens it and
@@ -26,9 +26,10 @@
 //! every row below compare against the truth instead of against a
 //! previous run.
 //!
-//! The two walls share no vertex, so the wedge rule admits the pair;
-//! they are two faces of ONE body, which is also the case a
-//! `min_clearance` between two named faces has to handle.
+//! The two walls share no vertex, so the pair is measured by
+//! subdivision rather than read off shared topology; they are two
+//! faces of ONE body, which is also the case a `min_clearance` between
+//! two named faces has to handle.
 //!
 //! The box every row drives over is ε-scaled for the reason M10-5's
 //! header states at length: above a small fraction of ε no node's
@@ -41,31 +42,22 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
-use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionRelation, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
-    ValuePayload, VarName, evaluate,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt,
+    MinClearanceOperand, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
+    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
+use topo::clearance::{Budgets, min_separation};
 
 use fixture::{Recorder, len};
 
-/// The clearance engine has no lane at the symbolic identity tier
-/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
-/// the deviation is issue `symbolic-tier-and-clearance-engine`), so every drive over a `min_clearance`
-/// document asks for the numeric-only replay BY NAME. It is a disclosed
-/// limitation of the tier, not a property of these fixtures: with the
-/// tier on the driver refuses this document up front rather than
-/// certifying leaves whose clearance measure was never computed.
-fn numeric_lane() -> DriveConfig {
-    DriveConfig {
-        symbolic: SymbolicDials::off(),
-        ..DriveConfig::default()
-    }
+/// The evaluation's own band, which the engine decides its cells at.
+fn band() -> geom_core::Band {
+    geom_core::Band::linear(Tol::witness()).expect("the witness tolerance has a band")
 }
 
 /// The true minimum separation between the neck walls, by construction.
@@ -126,6 +118,7 @@ fn dumbbell() -> Dumbbell {
             .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -141,8 +134,8 @@ fn dumbbell() -> Dumbbell {
         solid,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
         ],
     );
     let measured = r.measure(
@@ -191,14 +184,14 @@ struct Dumbbell {
 ///
 /// It exists so the rows can ask the engine the same question the
 /// measure asks it, without either of them going through the other.
-struct Neck<'v> {
-    body: &'v topo::Body<geom_core::Interval>,
+struct Neck<'v, T: geom_core::Decide> {
+    body: &'v topo::Body<T>,
     at: RecipeNodeId,
     faces: [topo::entity::FaceKey; 2],
 }
 
-impl<'v> Neck<'v> {
-    fn of(ev: &'v editor_core::Evaluation<geom_core::Interval>, f: &Dumbbell) -> Self {
+impl<'v, T: geom_core::Decide> Neck<'v, T> {
+    fn of(ev: &'v editor_core::Evaluation<T>, f: &Dumbbell) -> Self {
         let Some(NodeResult::Ok(value)) = ev.result(f.placed) else {
             panic!("the placed body evaluated");
         };
@@ -224,13 +217,51 @@ impl<'v> Neck<'v> {
         }
     }
 
-    fn side(&self, which: usize) -> MinSepSelection<'_> {
-        MinSepSelection {
+    /// One wall of the neck, as the measure resolves a face-kind
+    /// reference: the placed node's body 0, and that one face.
+    fn operand(&self, which: usize) -> MinClearanceOperand<'_, T> {
+        MinClearanceOperand {
             at: self.at,
             index: 0,
             body: self.body,
             faces: vec![self.faces[which]],
         }
+    }
+
+    /// The engine's bracket between two walls, asked the way the
+    /// measure's interval lane asks it: the sides AND the same-body
+    /// question through the operands' own doors, so a row here reds when
+    /// the measure's derivation of either does.
+    fn ask(
+        &self,
+        a: usize,
+        b: usize,
+        config: Budgets,
+    ) -> Result<topo::clearance::MinSeparation, topo::clearance::MinSeparationRefusal>
+    where
+        T: geom_core::CertifiedBounds,
+    {
+        let (a, b) = (self.operand(a), self.operand(b));
+        min_separation(&a.side(), &b.side(), a.same_body(&b), band(), config)
+    }
+
+    /// The neck's bracket through this scalar's door value, as the
+    /// measure asks it.
+    fn bracket(&self) -> T
+    where
+        T: topo::AtRestPolicy,
+    {
+        let lane = T::clearance_lane().expect("a certifying scalar holds the engine's door");
+        let (a, b) = (self.operand(0), self.operand(1));
+        lane.min_separation(
+            &a.side(),
+            &b.side(),
+            a.same_body(&b),
+            band(),
+            Budgets::MIN_SEPARATION,
+        )
+        .expect("the neck pair is admitted")
+        .expect("the neck pair witnesses an upper end")
     }
 }
 
@@ -281,10 +312,12 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
     match &v.payload {
         ValuePayload::MeasureUnavailable { reason, dim } => {
             assert_eq!(*dim, Dimension::Length);
-            let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason;
+            let MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door } = reason else {
+                panic!("at f64 the measure needs an enclosure, not {reason:?}");
+            };
             assert_eq!(*verb, "min_clearance");
             assert_eq!(*scalar, "f64");
-            assert_eq!(*door, "clearance::min_separation");
+            assert_eq!(*door, "topo::ClearanceLane");
         }
         other => panic!("expected a typed absence, got a {}", other.kind_name()),
     }
@@ -297,7 +330,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
         }) => {
             // The prose names the door rather than a number: a reader
             // is told where the answer lives.
-            assert!(format!("{why}").contains("clearance::min_separation"));
+            assert!(format!("{why}").contains("topo::ClearanceLane"));
         }
         other => panic!("expected E10's third state, got {other:?}"),
     }
@@ -312,7 +345,7 @@ fn a_point_scalar_has_no_min_clearance_value_and_the_assertion_says_why() {
 /// **Row 2**: at the interval scalar the value IS the engine's bracket.
 ///
 /// Re-derived rather than compared to a recorded number: the row calls
-/// `clearance::min_separation` itself, over the bodies the same
+/// `topo::clearance::min_separation` itself, over the bodies the same
 /// evaluation produced, and requires the two to agree bit for bit. A
 /// path that computed the measure some other way — a sampled pair, a
 /// midpoint distance, a second engine — fails here.
@@ -330,10 +363,14 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
 
     // The same question, asked of the engine directly.
     let neck = Neck::of(&ev, &f);
-    let direct = min_separation(&neck.side(0), &neck.side(1), MinSeparationConfig::default())
+    let direct = neck
+        .ask(0, 1, Budgets::MIN_SEPARATION)
         .expect("the neck pair is admitted");
     assert_eq!(value.lo().to_bits(), direct.lo().to_bits());
-    assert_eq!(value.hi().to_bits(), direct.window_hi().to_bits());
+    assert_eq!(
+        value.hi().to_bits(),
+        direct.hi().expect("an upper end").to_bits()
+    );
 
     // And the bracket is a bracket: it contains the gap the geometry
     // was built with.
@@ -342,6 +379,56 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
         "[{}, {}] must enclose the built gap {NECK_GAP}",
         value.lo(),
         value.hi()
+    );
+}
+
+/// **The engine's door at the symbolic scalar.** The leaf replay's
+/// `Body<Sym<Interval>>` goes to the same door value the interval lane
+/// holds, and the bracket comes back as two computed values hulled:
+/// bit-identical to the interval run's numbers, and a fresh unknown,
+/// so two asks of one neck are two values the tier cannot prove equal.
+/// A re-entry through `from_f64` would mint the same literal for each
+/// end of both asks, so the two hulls would be one node.
+#[test]
+fn the_engines_door_runs_at_the_symbolic_scalar_and_re_enters_computed() {
+    use geom_core::{Interval, Sym};
+    let f = dumbbell();
+    let budget = geom_core::SymBudget {
+        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+    };
+    let numeric = {
+        let ev = eval_over::<Interval>(&f.doc, Some(leaf(&f.doc)));
+        let neck = Neck::of(&ev, &f);
+        let direct = neck
+            .ask(0, 1, Budgets::MIN_SEPARATION)
+            .expect("the neck pair is admitted")
+            .enclosure()
+            .expect("an upper end");
+        let lane = neck.bracket();
+        assert_eq!(
+            lane.repr_bits(),
+            direct.repr_bits(),
+            "at Interval the door's re-entry is the engine's enclosure, bit for bit"
+        );
+        lane
+    };
+    let ((first, second), _) = geom_core::sym::with_session(budget, || {
+        let ev = eval_over::<Sym<Interval>>(&f.doc, Some(leaf(&f.doc)));
+        let neck = Neck::of(&ev, &f);
+        (neck.bracket(), neck.bracket())
+    });
+    for (n, v) in [("first", first), ("second", second)] {
+        assert_eq!(
+            v.value.repr_bits(),
+            numeric.repr_bits(),
+            "{n} ask: the symbolic bracket's numbers are the interval run's"
+        );
+    }
+    assert_ne!(
+        first.node(),
+        second.node(),
+        "two asks with equal brackets are two unknowns, never one node"
     );
 }
 
@@ -358,25 +445,24 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
     let neck = Neck::of(&ev, &f);
     let mut widths = Vec::new();
     for pairs in [2usize, 32, 512] {
-        let m = min_separation(
-            &neck.side(0),
-            &neck.side(1),
-            MinSeparationConfig {
-                max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
-            },
-        )
-        .expect("the neck pair is admitted");
+        let m = neck
+            .ask(
+                0,
+                1,
+                Budgets {
+                    max_cell_pairs: pairs,
+                    ..Budgets::MIN_SEPARATION
+                },
+            )
+            .expect("the neck pair is admitted");
+        let hi = m.hi().expect("a pair witnesses an upper end");
         assert!(
-            m.lo() <= NECK_GAP && NECK_GAP <= m.window_hi(),
+            m.lo() <= NECK_GAP && NECK_GAP <= hi,
             "budget {pairs}: [{}, {}] must enclose {NECK_GAP}",
             m.lo(),
-            m.window_hi()
+            hi
         );
-        assert!(
-            m.lo() <= m.window_hi(),
-            "budget {pairs}: a bracket is ordered"
-        );
+        assert!(m.lo() <= hi, "budget {pairs}: a bracket is ordered");
         assert!(
             m.receipt().holds(),
             "budget {pairs}: the receipt identity holds"
@@ -387,22 +473,23 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
         eprintln!(
             "min_separation @ max_cell_pairs={pairs}: [{}, {}] (width {:e}), receipt {:?}",
             m.lo(),
-            m.window_hi(),
-            m.window_hi() - m.lo(),
+            hi,
+            hi - m.lo(),
             m.receipt()
         );
-        widths.push(m.window_hi() - m.lo());
+        widths.push(hi - m.lo());
         // The goldening form is exact bits and is stable across
         // repeats: the same query twice is the same text.
-        let again = min_separation(
-            &neck.side(0),
-            &neck.side(1),
-            MinSeparationConfig {
-                max_cell_pairs: pairs,
-                ..MinSeparationConfig::default()
-            },
-        )
-        .expect("the neck pair is admitted");
+        let again = neck
+            .ask(
+                0,
+                1,
+                Budgets {
+                    max_cell_pairs: pairs,
+                    ..Budgets::MIN_SEPARATION
+                },
+            )
+            .expect("the neck pair is admitted");
         assert_eq!(m.serialize(), again.serialize());
     }
     assert!(
@@ -423,7 +510,7 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     let f = dumbbell();
     let (doc, assertion) = (f.doc, f.assertion);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness())
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the witness build succeeds");
     assert!(
         !verdict.certified().is_empty(),
@@ -431,13 +518,14 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
         verdict.refused().len()
     );
     for leaf in verdict.certified() {
-        let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
-        let Some(NodeResult::Ok(a)) = ev.result(assertion) else {
-            panic!("the assertion evaluated over a certified leaf");
-        };
-        let ValuePayload::Assertion(verdict) = &a.payload else {
-            panic!("an assertion node carries a verdict");
-        };
+        let verdict = editor_core::drive::assertion_at(
+            &doc,
+            assertion,
+            &leaf.box_,
+            verdict.symbolic(),
+            Tol::witness(),
+        )
+        .expect("the assertion evaluated over a certified leaf, on its lane");
         assert_eq!(
             verdict.holds(),
             Some(true),
@@ -446,50 +534,83 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     }
 }
 
-/// With the symbolic tier on, the driver refuses the dumbbell up front
-/// and speaks the clearance measure from the driven document.
+/// **The symbolic tier drives a clearance measure**: the dumbbell
+/// certifies with the tier on, and the certified worst case of its
+/// `min_clearance` is bit-identical to the numeric run's. The leaf
+/// replays at `Sym<Interval>` hand the engine's door that body, and the
+/// tier changes how a margin decides, never a bracket.
 #[test]
-fn the_symbolic_tier_refuses_a_clearance_measure_by_its_spoken_node() {
+fn the_symbolic_tier_certifies_a_clearance_measure_bit_identical_to_the_numeric_run() {
     let f = dumbbell();
-    let (doc, _) = fixture::step(
-        f.doc,
-        DocEdit::SetLabel {
-            node: f.measure,
-            label: Some(editor_core::Label::new("neck gap").expect("a valid label")),
-        },
-    );
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let refusal = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect_err("the symbolic tier has no clearance lane");
-    let editor_core::DriveRefusal::SymbolicClearanceUnsupported { node } = &refusal else {
-        panic!("expected SymbolicClearanceUnsupported, got {refusal:?}");
+    let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
+    let worst = |symbolic: SymbolicDials| {
+        let config = DriveConfig {
+            symbolic,
+            ..DriveConfig::default()
+        };
+        let verdict =
+            drive(&f.doc, &analyzed, &config, Tol::witness()).expect("the witness build succeeds");
+        assert!(
+            !verdict.certified().is_empty(),
+            "the ε-scaled box certifies at least one leaf (tier on: {}); refused: {}",
+            symbolic.enabled,
+            verdict.refused().len()
+        );
+        let report = stackup(
+            &f.doc,
+            crate::fixture::output(&f.doc, f.measure),
+            &analyzed,
+            &verdict,
+            None,
+            true,
+            None,
+            Tol::witness(),
+        )
+        .expect("the report builds");
+        let w = report.worst_case;
+        (
+            verdict.certified().len(),
+            w.leaves,
+            w.lo.to_bits(),
+            w.hi.to_bits(),
+        )
     };
-    assert_eq!(*node, doc.spoken(f.measure));
-    assert!(
-        refusal.to_string().starts_with(&format!(
-            "Measure \"neck gap\" ({}) is a `min_clearance`, whose engine has no lane at \
-             the symbolic identity tier",
-            test_utils::refusal::tag(f.measure.0.digest())
-        )),
-        "{refusal}"
+    let on = worst(SymbolicDials::default());
+    assert!(on.1 > 0, "the tier-on worst case reads certified leaves");
+    assert_eq!(
+        on,
+        worst(SymbolicDials::off()),
+        "(certified leaves, worst-case leaves, lo bits, hi bits) with the tier on, against off"
     );
 }
 
-/// **Row 4b**: a pairing the wedge rule empties refuses typed.
+/// **Row 4b**: two scopes that meet read 0, named on the cell they
+/// share.
 ///
-/// One face against ITSELF: a face is never at a distance from itself,
-/// so the only candidate is dropped and there is no separation to
-/// enclose. The minimum over an empty set is `+∞`, and reporting that
-/// as a clearance would be a number no geometry backs.
+/// One face against ITSELF: the two scopes share that face, so the
+/// minimum separation is 0, read off topology, and the bracket is
+/// `[0, 0]` with the face as its witness. A metric door has no pairing
+/// rule: a scope that meets another is at 0 from it.
+///
+/// The row is also what holds the measure's same-body derivation
+/// (`MinClearanceOperand::same_body`): the meeting is read only between
+/// two scopes of one body, and a derivation that answered `false` here
+/// would subdivide the face against itself instead.
 #[test]
-fn a_pairing_the_wedge_rule_empties_refuses_typed() {
+fn two_scopes_that_meet_read_zero_on_the_shared_cell() {
     let f = dumbbell();
     let ev = eval_over::<geom_core::Interval>(&f.doc, Some(leaf(&f.doc)));
     let neck = Neck::of(&ev, &f);
-    match min_separation(&neck.side(0), &neck.side(0), MinSeparationConfig::default()) {
-        Err(r) => assert_eq!(r.name(), "no_admitted_pair", "{r:?}"),
-        Ok(m) => panic!("a face against itself has no pair: {}", m.serialize()),
-    }
+    let m = neck
+        .ask(0, 0, Budgets::MIN_SEPARATION)
+        .expect("a face against itself is at 0");
+    assert_eq!((m.lo(), m.hi()), (0.0, Some(0.0)), "{}", m.serialize());
+    let meets = m.meets().expect("the scopes meet");
+    assert_eq!(meets.a, meets.b, "on the one face: {meets:?}");
+    assert!(
+        matches!(meets.shared, topo::clearance::SharedCell::Face(f) if f == meets.a),
+        "{meets:?}"
+    );
 }
 
 /// **Row 5**: a reference that names neither a body nor a face refuses
@@ -506,6 +627,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -556,8 +678,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
 fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates() {
     let f = dumbbell();
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict =
-        drive(&f.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
+    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the nominal builds");
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,
@@ -586,7 +708,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
             assert_eq!(why.verb(), "min_clearance");
             let said = why.to_string();
             assert!(
-                said.contains("clearance::min_separation"),
+                said.contains("topo::ClearanceLane"),
                 "the forfeit names the door that can answer: {said}"
             );
         }

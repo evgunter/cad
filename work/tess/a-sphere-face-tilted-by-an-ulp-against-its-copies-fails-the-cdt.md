@@ -4,6 +4,8 @@ kind: issue
 title: A PlacedUnion of a ball whose master is tilted by an ulp against exact copy frames fails the CDT at 1e-4
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 Found by INTENT stage 3 D's exact-turn lane (`work/intent/transform-retires-into-a-placement.md`), which measured it and then moved its own corpus off it; nothing in the suite reaches it now.

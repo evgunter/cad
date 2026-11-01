@@ -108,3 +108,105 @@ a one-vertex cap, or `Mixed`), and it now decides
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to HONESPLIT (`work/honesplit/`) by `git mv`, id and body unchanged: whose charter is split and carve bookkeeping, unproven walks and the reads nothing reaches. No fixture reaches it. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Evidence (2026-11-01, CLEAVE PR 6177): a wall piece with every edge on the other boundary
+
+Once the join closes a one-segment cylinder's loop at a vertex of a
+planar face's boundary (`boolean/join.rs` `closes_at_its_site`), two
+poses reach `SectionLoopUndecided` that `main` refused earlier as
+`SingleSiteSectionLoop`:
+
+- `a_closed_conic_in_the_partners_face.rs` `a_boss_over_a_hole_by_pose`,
+  the aligned one-segment row: the boss `r = 0.3`, `z ∈ [0, 1]`, beside
+  the plate `[−1, 1]² × [0, 0.5]` holed by `r = 0.1` about `(0.2, 0)`,
+  tangent inside the boss's rim, vertices at azimuth 0. Every op in both
+  orders, at the default ε, `1e-6` and `1e-12`; pinned there as a red
+  citing this row.
+- The PR 5808 review probe's S10 (a cylinder tangent inside a wider one,
+  the wider one's top at `z = 0.5`), one-segment, `B ∖ A`, `aaz = 0`.
+
+In both the null face of the floor rim's section has two loops: one
+whose region is the boss's floor, flush with the plate's floor (reads
+the other boundary), and one whose region is the piece of the boss's
+wall between the two floors. Every edge of that wall piece lies on the
+plate's boundary: its rims in the plate's floor and top, its wrap edge
+along the hole's wall, tangent to it. So the ladder reads it nowhere,
+and `seam_germ_side` reads nothing at a seam on a curve. S10's two-arc
+form builds: its wall has a ruling at azimuth π inside the wider
+cylinder's material, which reads (the aligned row's two-arc form
+refuses `UnpairedLooseEnds` first). A reading at a curved seam (the region's direction off
+the conic chord against the holding face's normal) would decide both
+poses without an interior point.
+
+(Superseded, 2026-11-01: `seam_germ_side` now reads a seam on a curve,
+and the aligned one-segment pose's unions build. See the SPLITDOOR note
+below.)
+
+## The role read's seam fallback reads curved chords (2026-11-01, SPLITDOOR)
+
+PR 6221 (`splitdoor/wrap-tip-boolean`) extends `boolean/join.rs`
+`seam_germ_side`, the role read's fallback where neither section loop's
+witnesses decide. Before, it read only a line chord on a planar region.
+Now it reads every chord at first order, by one rule:
+- the chord's carrier point and tangent at its mid-parameter, oriented
+  along the mate;
+- the region's outward normal there.
+
+The region leaves the chord along `n_r × t`. That is signed against the
+holding face's outward normal (`germ_side`) and levered by the chord's
+extent along its carrier, so a closed chord reads as any other. A
+graze (the region tangent to the face along the chord) or a flush
+region reads Zero and nothing, so the loop stays undecided and
+`loop_roles` refuses as before (`germ_side_rows`).
+
+**The rows that hold the read.** Each is at its closed form, with tiers
+3 and 3′ and a `point_in_solid` lattice against the analytic region,
+and each builds wrong with the read's tangent flipped:
+- the slab well's ring in a sphere island, all six ops, at the PR's
+  pose and four more: wide in `y`, narrow, a lower ball, `x`-poled
+  (`a_ring_on_a_sphere_face::a_ring_inside_a_sphere_island_moves_and_builds`,
+  `…::the_well_at_other_poses_builds_at_the_seam`);
+- the die pip's slab standing above the unit ball, `z ∈ [0, 1.3]`, its
+  seam great circle in the bottom face, every op
+  (`m5_pr9c_sphere_doors::the_die_slab_above_the_ball_builds_at_its_closed_form`);
+- the unit ball whose one wrap edge runs pole to pole, cut by a
+  half-space or quarter holding the wrap edge
+  (`a_wrap_tip_reads_its_full_turn_in_the_boolean`).
+
+**What the role read no longer blocks, without guarding the read.** The
+y-poled pip on the cube's top builds every op
+(`tilted_sphere_pair::a_pip_with_its_seam_in_the_cubes_top_builds_at_its_closed_form`,
+`germ_coplanar_conic`'s row), but it builds right with the tangent
+flipped too.
+
+**What it still does not read:**
+- **The shell witness's caller** (`shell_witness`), whose
+  `ShellWitnessExhausted` / `CoincidentShell` arm is unchanged.
+- **A chord whose region grazes the face.** Its side is the second
+  order's.
+- **A chord whose midpoint no one face holds strictly inside.**
+
+**Measured elsewhere.** PR 9c's die pips (`m5_pr9c_sphere_doors`, the
+slab less the unit ball) now pass the role read. They stop later and
+typed, at the crossings path's interior-loop guard
+(`CurvedPairUnsupported` at `InteriorLoopGuard`, pinned as
+`the_die_pips_shape_stops_typed_at_its_tangent_top`). The slab of height
+0.7, which cuts the sphere in a circle inside its top face, refuses the
+same way. So the cause is the interior-loop class
+(`work/germtail/interior-loop-cut-in.md`), not the tangency.
+
+**Measured against CLEAVE's evidence above.** The reading CLEAVE
+proposed decides the aligned one-segment pose of
+`a_closed_conic_in_the_partners_face.rs` `a_boss_over_a_hole_by_pose`
+once a closed chord reads, levered by its length rather than its ends'
+distance, which is nought. Its rims in the plate's floor and top are
+closed. On the merge of main, at ε 1e-9, 1e-6 and 1e-12:
+- both unions build at their closed form, `SOUND`;
+- both intersections refuse `MixedSeam`, typed;
+- both differences refuse `EdgeUndescribed`, typed, past the join.
+
+The row is re-pinned so. The two-arc form still refuses at the join
+(`UnpairedLooseEnds`). The PR 5808 review probe's S10 is not re-run
+here.
+
+This row's status and priority are left to HONESPLIT.

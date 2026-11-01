@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-22
 priority: P2
 cost: M
-refs: [the-door-reads-a-mated-seat-by-its-mate]
+refs: [5587]
 ---
 
 

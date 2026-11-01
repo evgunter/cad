@@ -78,7 +78,7 @@ use crate::{SceneBody, TourStop, View};
 /// — the part's whole dimension set, named once so the closed-form
 /// oracle below reads as arithmetic on them rather than as a magic
 /// number.
-const PLATE: (f64, f64, f64) = (6.0, 4.0, 1.0);
+pub const PLATE: (f64, f64, f64) = (6.0, 4.0, 1.0);
 const PEG_R: f64 = 0.5;
 /// How far along +x the apart framing sits from the mated body. The
 /// plate is 6 wide, so 8 leaves 2 of clear air between the two
@@ -291,7 +291,7 @@ fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
 
 /// Every cylindrical face of `body` whose axis stands on a peg centre:
 /// the pegs' walls and the bores', as opposed to the corner fillets.
-fn peg_walls<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
+pub fn peg_walls<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
     cylinders(body)
         .into_iter()
         .filter(|&k| {
@@ -306,37 +306,10 @@ fn peg_walls<S: Scalar>(body: &Body<S>) -> Vec<pncad::topo::FaceKey> {
         .collect()
 }
 
-/// The one planar face of `body` at height `z` whose outward normal
-/// points up (`up`) or down — a POSITIONAL pick, by stored plane
-/// parameters, and it stays one.
-///
-/// Same finding as [`cylinders`]: nothing on the plain body API says
-/// "the mating face" — a document would say it with a `GeoSelect` — so
-/// the scene says it in coordinates.
-#[cfg(test)]
-fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(pncad::geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z.f() - z).abs() < 1e-12 && (normal.z.f() > 0.5) == up
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one z = {z} face (up = {up}), got {hits:?}");
-    };
-    f
-}
-
 /// The cell's boolean work, generic (the K-probe sweep runs the same
 /// ops): both parts, the mate, and the lifted copy for the apart
 /// framing.
-pub(crate) fn build<S: Scalar>(
-    tol: Tol,
-) -> (AtRestBody<S>, AtRestBody<S>, BooleanBody<S>, Body<S>) {
+pub fn build<S: Scalar>(tol: Tol) -> (AtRestBody<S>, AtRestBody<S>, BooleanBody<S>, Body<S>) {
     let p = plate_with_pegs::<S>(tol);
     let q = plate_with_holes::<S>(tol);
 
@@ -483,58 +456,4 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
             SceneBody::plain("twopeg_apart_q", [0.78, 0.60, 0.42], q_aside),
         ],
     }]
-}
-
-/// **The rounded mate builds, and it decides a wall pair and the mating
-/// plane.** [`build`] asserts the volumes and the full-engagement
-/// removal; this row runs it outside the render, so the mate is pinned
-/// by the suite, and checks the union records an outer-wall
-/// continuation and the mating plane's contact among the coincidences
-/// it decided.
-#[cfg(test)]
-mod rounded_mate {
-    use super::*;
-    use pncad::geom_core::Tol;
-    use pncad::topo::{Cell, Operand, Relation, RowCell};
-
-    #[test]
-    fn the_rounded_mate_builds_and_decides_a_wall_continuation_and_the_mating_plane() {
-        let tol = Tol::witness();
-        let (p, q, mated, _) = build::<f64>(tol);
-        let (pegs_p, pegs_q) = (peg_walls(&p), peg_walls(&q));
-        let wall_continuation = mated.coincidences.iter().any(|row| {
-            row.relation == Relation::SameOriented
-                && matches!(
-                    row.cells,
-                    [
-                        RowCell::Input { input: Operand::A, cell: Cell::Face(fa) },
-                        RowCell::Input { input: Operand::B, cell: Cell::Face(fb) },
-                    ] if !pegs_p.contains(&fa) && !pegs_q.contains(&fb)
-                )
-        });
-        assert!(
-            wall_continuation,
-            "the mate decides an outer-wall continuation, not a peg fit: {:?}",
-            mated.coincidences
-        );
-        let (top_p, bottom_q) = (
-            plane_face(&p, PLATE.2, true),
-            plane_face(&q, PLATE.2, false),
-        );
-        let mating = mated.coincidences.iter().any(|row| {
-            row.relation == Relation::SameOpposite
-                && matches!(
-                    row.cells,
-                    [
-                        RowCell::Input { input: Operand::A, cell: Cell::Face(fa) },
-                        RowCell::Input { input: Operand::B, cell: Cell::Face(fb) },
-                    ] if fa == top_p && fb == bottom_q
-                )
-        });
-        assert!(
-            mating,
-            "the mate decides P's top resting on Q's bottom: {:?}",
-            mated.coincidences
-        );
-    }
 }

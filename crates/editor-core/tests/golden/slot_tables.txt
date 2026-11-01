@@ -1,4 +1,4 @@
-Profile(ProfileProgram { loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [] })
+Profile(ProfileProgram { loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [], on: None })
   #0 Profile { loop_: 0, step: 0, arg: PointX }
   #1 Profile { loop_: 0, step: 0, arg: PointY }
   #2 Profile { loop_: 0, step: 1, arg: TargetX }
@@ -77,49 +77,10 @@ Place { source: @0, target: @1, constraints: [Constraint { id: ConstraintId(Mint
   @1 Operand(Space)
 World
 Space
-Pattern { input: @0, count: #0, kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
-  #0 Count
-  #1 Direction(X)
-  #2 Direction(Y)
-  #3 Direction(Z)
-  #4 Spacing
-  @0 Operand(Input)
-PlacedUnion { input: @0, count: Some(#0), kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
-  #0 Count
-  #1 Direction(X)
-  #2 Direction(Y)
-  #3 Direction(Z)
-  #4 Spacing
-  @0 Operand(Input)
-PlacedUnion { input: @0, count: None, kind: Linear { direction: [#0, #1, #2], spacing: #3 } }
-  #0 Direction(X)
-  #1 Direction(Y)
-  #2 Direction(Z)
-  #3 Spacing
-  @0 Operand(Input)
-Pattern { input: @0, count: #0, kind: Circular { axis: @1, step: #1 } }
-  #0 Count
-  #1 Step
-  @0 Operand(Input)
-  @1 Operand(Axis)
-PlacedUnion { input: @0, count: Some(#0), kind: Circular { axis: @1, step: #1 } }
-  #0 Count
-  #1 Step
-  @0 Operand(Input)
-  @1 Operand(Axis)
-PlacedUnion { input: @0, count: None, kind: Circular { axis: @1, step: #0 } }
-  #0 Step
-  @0 Operand(Input)
-  @1 Operand(Axis)
-Pattern { input: @0, count: VarId(MintId { ordinal: 1, digest: 14029098967242113565 }), kind: Explicit([]) }
-  @0 Operand(Input)
-PlacedUnion { input: @0, count: Some(VarId(MintId { ordinal: 1, digest: 14029098967242113565 })), kind: Explicit([]) }
-  @0 Operand(Input)
-PlacedUnion { input: @0, count: None, kind: Explicit([]) }
-  @0 Operand(Input)
-Part { of: @0, select: Instance(#0) }
-  #0 Instance
-  @0 Operand(Of)
+Place { source: BodyRead { read: @0, at: [#0] }, target: @1, constraints: [] }
+  #0 Index { seat: Source, k: 0 }
+  @0 Operand(Source)
+  @1 Operand(Space)
 InstantiatePart { doc_ref: DocRef { id: DocumentId(272522191089886152265255929154993748228), pin: ContentPin([205, 5, 221, 101, 178, 25, 73, 194, 233, 249, 132, 107, 246, 149, 121, 4, 119, 31, 132, 192, 233, 43, 185, 169, 63, 156, 228, 98, 7, 179, 48, 228]) }, interface: InterfaceRecord { crossings: [] }, target: @0, constraints: [Constraint { id: ConstraintId(MintId { ordinal: 0, digest: 1 }), kind: Value(Value { coord: Slide(Z), by: #0 }) }] }
   #0 ValueSlide { constraint: ConstraintId(MintId { ordinal: 0, digest: 1 }) }
   @0 Operand(Space)

@@ -143,7 +143,7 @@ fn kept<'e>(
     node: RecipeNodeId,
 ) -> &'e editor_core::Product<f64> {
     ev.value(node)
-        .and_then(|value| value.census.as_ref())
+        .and_then(|value| value.carry.census.as_ref())
         .expect("the door keeps its census")
         .verdict(doc, Tol::witness())
         .expect("the census runs")
@@ -386,7 +386,18 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
         Tol::witness(),
     )
     .expect("the checks run");
-    assert!(report.findings.is_empty(), "the cut is proved: {report}");
+    assert_eq!(
+        report
+            .findings
+            .iter()
+            .map(|f| (f.check, f.subject))
+            .collect::<Vec<_>>(),
+        [(
+            editor_core::CheckId::Unused,
+            editor_core::FindingSubject::Node(glued)
+        )],
+        "the cut is proved, and the union beside the product is used by nothing: {report}"
+    );
 }
 
 /// A bolt standing on a plate, `bolt ⊔ plate`: two pieces that meet
@@ -407,7 +418,7 @@ fn seat(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
 /// The reads `node`'s value holds pieces by, in order.
 fn piece_reads(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<VarId> {
     ev.value(node)
-        .and_then(|v| v.pieces.as_ref())
+        .and_then(|v| v.carry.pieces.as_ref())
         .map(|p| p.pieces.iter().map(|piece| piece.read).collect())
         .unwrap_or_default()
 }
@@ -616,11 +627,15 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
         2,
         "the bolt and its bead, and the plate"
     );
-    let Some(ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. })) =
-        ev.value(kept).map(|v| &v.payload)
-    else {
+    let Some(value) = ev.value(kept).filter(|v| {
+        matches!(
+            v.payload,
+            ValuePayload::Boolean(editor_core::BooleanValue::Body { .. })
+        )
+    }) else {
         panic!("the union builds: {:?}", ev.result(kept))
     };
+    let contacts = &value.carry.contacts;
     assert_eq!(
         contacts.face_face().count(),
         1,
@@ -660,7 +675,8 @@ fn three_pieces(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// those three pieces and nothing else, however many other bodies are
 /// placed in the world; a slot reading nothing is the empty product.
 ///
-/// *Breaks if* the product is derived from which bodies go unread.
+/// *Breaks if* the product is derived from which bodies go unread, or
+/// an unread body is no finding.
 #[test]
 fn the_product_is_what_the_slot_reads() {
     let (doc, _, unread) = three_pieces("dprime3-slot");
@@ -674,6 +690,11 @@ fn the_product_is_what_the_slot_reads() {
     assert!(
         ev.value(unread).is_some(),
         "the unread placement evaluates all the same"
+    );
+    assert_eq!(
+        doc.unused().operations,
+        vec![unread],
+        "the unread placement is the `unused` check's finding"
     );
     let empty = set_product(&doc, None);
     let ev = run(&empty, &EvalOptions::default());
@@ -1106,7 +1127,7 @@ fn a_kept_verdict_is_reused_only_with_its_cone() {
     let _ = said(&base, &first);
     let kept = |ev: &Evaluation<f64>| {
         ev.value(both)
-            .and_then(|value| value.census.clone())
+            .and_then(|value| value.carry.census.clone())
             .expect("the `⊔` keeps its census")
     };
 

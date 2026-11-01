@@ -254,6 +254,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -265,6 +266,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_profile.into(),
@@ -312,12 +314,19 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, r_dist)),
     });
+    // A plate with a hole: the bore's wall faces into it, so the fit
+    // reads `R − r − d`.
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Circle {
-            centre: [len(0.0), len(0.0)],
-            radius: len(0.5),
-        }],
+        loops: vec![
+            LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)])
+                .expect("finite corners"),
+            LoopProgram::Circle {
+                centre: [len(0.0), len(0.0)],
+                radius: len(0.5),
+            },
+        ],
         ids: Vec::new(),
+        on: None,
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_p.into(),
@@ -329,6 +338,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
             radius: param("r", Dimension::Length),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let pin = r.insert(Node::Extrude {
         profile: pin_p.into(),
@@ -368,6 +378,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let a = r.insert(Node::Extrude {
         profile: pa.into(),
@@ -379,6 +390,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let b = r.insert(Node::Extrude {
         profile: pb.into(),
@@ -435,11 +447,13 @@ fn loft() -> (ProfileDoc, VarId) {
     let p0 = r.insert(Node::Profile(ProfileProgram {
         loops: vec![c0],
         ids: Vec::new(),
+        on: None,
     }));
     let (c1, z1) = section(1.0);
     let p1 = r.insert(Node::Profile(ProfileProgram {
         loops: vec![c1],
         ids: Vec::new(),
+        on: None,
     }));
     let loft = r.insert(Node::Loft {
         first: p0.into(),

@@ -87,7 +87,9 @@ fn probe(q: Point3<f64>, d_raw: Vec3<f64>, band: Band) -> (Option<(usize, Vec<f6
     ) {
         Ok(QuarticRoots::Miss) => (Some((0, Vec::new())), false),
         Err(RootRefusal::Unsettled(Unsettled::CountDisagrees { .. })) => (None, true),
-        Err(RootRefusal::Unsettled(_)) => (None, false),
+        Err(RootRefusal::Unsettled(_) | RootRefusal::Touch(_) | RootRefusal::Fault(_)) => {
+            (None, false)
+        }
         Ok(QuarticRoots::Certified(found)) => {
             let (count, ts) = (found.count(), found.roots());
             let mut v: Vec<f64> = ts[..count].to_vec();

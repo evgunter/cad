@@ -64,8 +64,12 @@
 //! The result ([`SplitReduction`]) is the annotated body the joining
 //! step consumes: cached per-vertex sides, the ON set, and the minted
 //! null edges with their side attributes. [`split`] composes
-//! reduce → join → finish; [`plane_section`] stops after join and
-//! reads the polygons off the scratch clone.
+//! reduce → join → finish's carve into two sides, then on each side:
+//! tier 2, the fusion of a pinch's cones where the section's corners
+//! pair their germs (`section_cones`), the coplanar merges and edge
+//! joins (`finish::end_maximal`), tier 2 again, and the pcurves.
+//! [`plane_section`] stops after join and reads the polygons off the
+//! scratch clone.
 
 mod classify;
 pub mod containment;
@@ -75,23 +79,22 @@ pub(crate) mod finish;
 mod insert;
 pub(crate) mod join;
 mod neighborhood;
-pub(crate) use neighborhood::{EntryFault, entry_side, wide_entry};
-// `pub(crate)` for `order::exact_band` alone: the bit-hairline band is
-// a shared DEVICE (audit note N6), and the boolean backstop's
-// sign-certainty arm decides against the same one rather than minting
-// a second copy of the constants.
+pub(crate) use neighborhood::{EntryFault, entry_side, wide_entries};
+// `pub(crate)` for `order::{FRAME_ARM, FRAME_AXIS}`, which
+// `chord_join` reads rather than minting a second copy.
 pub(crate) mod order;
 pub(crate) mod pieced_arc;
 #[cfg(test)]
 pub(crate) mod reassembly;
 pub mod rules;
 mod section;
+mod section_cones;
 mod section_loops;
 pub(crate) mod spiric_arc;
 pub(crate) mod spline_arc;
 
 use geom_brep::recourse::{LeverOnly, Reading, RefusedArm};
-use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Point3, Real, UnitVec3, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, VertexKey};
@@ -139,8 +142,30 @@ pub enum SectionGermReading {
     /// (`split_germ_line`).
     Line,
     /// The order of two germs about the plane's normal
-    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`).
+    /// (`split_germ_side`, `split_germ_sense`, `split_germ_order`), or of
+    /// two along one tangent by how their sections curve off it
+    /// (`tangent_sector_order2`, `tangent_sector_order2_arm`).
     Order,
+}
+
+/// How the section table's reading of a plane against a cone disagrees
+/// with the walk, which read the plane crossing one of the cone's
+/// sub-sectors at its apex ([`SplitReduceError::ApexSection`]).
+#[derive(Debug)]
+pub enum ApexSectionReading {
+    /// The table reads the plane's section of the cone as a closed
+    /// conic, standing off the apex.
+    ClosedOffApex,
+    /// The table refused the pair; its refusal, which for a plane the
+    /// walk read through the apex is most often an open conic standing
+    /// off it ([`SplitJoinError::OpenConicChord`]).
+    Refused(Box<SplitJoinError>),
+    /// The table's section rulings through the apex: none of them lies
+    /// inside the sub-sector the walk read the plane crossing.
+    NoRulingInside,
+    /// Both of the table's section rulings lie inside one sub-sector,
+    /// across which the walk read the plane's side monotone.
+    BothRulingsInside,
 }
 
 /// Why the germs round a vertex fix no corners of the section there
@@ -152,8 +177,12 @@ pub enum SectionGermFault {
     /// the tolerance.
     NoLine,
     /// Two germs of different sectors lie along one direction, to the
-    /// tolerance.
+    /// tolerance, and their sections curve alike off it.
     Coincident,
+    /// Two germs lie along one direction, and a face's section has no
+    /// curvature to read there: its surface is singular at the vertex
+    /// (a cone's apex) or meets the plane tangentially.
+    Singular,
     /// The germs as read do not alternate between the material's starts
     /// and ends. Argued to need faces within the tolerance of one
     /// another, which the readings decided apart rule out; not reached.
@@ -204,10 +233,12 @@ impl PlaneSide {
 pub enum SectorEntryKind {
     /// A real neighborhood edge, classified by its final vertex.
     Edge,
-    /// The duplicate entry of a wide (≥180°) sector, classified by the
-    /// sector's interior bisector direction (convex subdivision — see
-    /// the `neighborhood` module docs). Shares its half-edge with the
-    /// preceding [`SectorEntryKind::Edge`] entry.
+    /// A subdivision entry of one sector, classified by its direction: a
+    /// wide (≥180°) sector's interior bisector (convex subdivision), a slit
+    /// tip's full turn's three quarter directions, or, at a cone's apex,
+    /// each extremal ruling inside the sector, one or two at any width (the
+    /// `neighborhood` module docs). Shares its half-edge with
+    /// the sector's [`SectorEntryKind::Edge`] entry before it.
     WideBisector,
 }
 
@@ -240,8 +271,9 @@ pub struct NullEdgeRecord {
     /// The F9 side attribute (`above_end` = the end standing for the
     /// piece above the plane) — orientation as data.
     pub attr: NullEdge,
-    /// True for a dangling null edge (a wide same-side sector whose
-    /// bisector crossed — the strut case, either way round).
+    /// True for a dangling null edge (subdivision entries of one sector
+    /// that crossed where its bounds did not — the strut case, either way
+    /// round).
     pub dangling: bool,
 }
 
@@ -264,6 +296,11 @@ pub struct SplitReduction<T: Real> {
     pub on_vertices: Vec<VertexKey>,
     /// Every null edge minted, in insertion order.
     pub null_edges: Vec<NullEdgeRecord>,
+    /// Each null-edge half whose face is a cone at its apex there, with
+    /// the unit ruling of the section the face leaves the apex along
+    /// beside it: the germ its cut was read at (`insert`), which the join
+    /// puts the half on its section ruling by.
+    pub(crate) apex_germs: SecondaryMap<HalfEdgeKey, Vec3<T>>,
     /// The pinches the ON verdicts decided, in ON-vertex order, keyed in
     /// the operand ([`crate::coincidence`]).
     pub coincidences: Vec<crate::Coincidence>,
@@ -435,6 +472,29 @@ pub enum SplitReduceError {
         vertex: VertexKey,
         /// What fixed no corners.
         fault: SectionGermFault,
+    },
+    /// The walk read the plane crossing a cone face at its apex, and the
+    /// section table, asked for the ruling the plane leaves the apex
+    /// along inside one of the face's sub-sectors, does not agree:
+    /// `reading` says how.
+    ApexSection {
+        /// The apex vertex.
+        vertex: VertexKey,
+        /// The cone face.
+        face: FaceKey,
+        /// How the table's section disagrees with the walk.
+        reading: ApexSectionReading,
+    },
+    /// A vertex of a cone face lies within the band of the cone's axis
+    /// ([`crate::face_normal::cone_point`] escalated): whether the
+    /// face has a tangent plane there or is at its apex is undecided.
+    ApexUndecided {
+        /// The vertex.
+        vertex: VertexKey,
+        /// The cone face.
+        face: FaceKey,
+        /// The escalation.
+        diag: Indeterminate,
     },
     /// A sector's bounding chord has **no finite length**: its
     /// components overflow the norm (past ~1e154), or one of them is
@@ -731,7 +791,12 @@ impl core::fmt::Display for SplitReduceError {
                         "a face round a vertex leaves the split plane along no line"
                     }
                     SectionGermFault::Coincident => {
-                        "the split plane leaves two faces round a vertex along one direction"
+                        "the split plane leaves two faces round a vertex along one direction, \
+                         curving alike off it"
+                    }
+                    SectionGermFault::Singular => {
+                        "the split plane leaves two faces round a vertex along one direction, \
+                         and one face has no curvature to read there"
                     }
                     SectionGermFault::Alternation => {
                         "material and gap do not alternate round a vertex in the split plane"
@@ -742,6 +807,39 @@ impl core::fmt::Display for SplitReduceError {
                 };
                 write!(f, "{what}. Recourse: {SPLIT_COINCIDENCE_RECOURSE}")
             }
+            Self::ApexSection { reading, .. } => {
+                let what = match reading {
+                    ApexSectionReading::ClosedOffApex => {
+                        "the section it cuts in the cone reads as a closed curve clear of the tip"
+                    }
+                    ApexSectionReading::Refused(section) => match **section {
+                        SplitJoinError::OpenConicChord { .. } => {
+                            "the section it cuts in the cone reads as an open curve clear of \
+                             the tip"
+                        }
+                        _ => "the section it cuts in the cone does not read there",
+                    },
+                    ApexSectionReading::NoRulingInside => {
+                        "no line of the section it cuts in the cone leaves the tip where the \
+                         plane crosses the cone there"
+                    }
+                    ApexSectionReading::BothRulingsInside => {
+                        "both lines of the section it cuts in the cone leave the tip where the \
+                         plane crosses the cone once there"
+                    }
+                };
+                write!(
+                    f,
+                    "the split plane passes through the tip of a cone, and {what}. Recourse: \
+                     {SPLIT_COINCIDENCE_RECOURSE}"
+                )
+            }
+            Self::ApexUndecided { diag, .. } => write!(
+                f,
+                "a corner of a cone face lies too near the cone's axis to say whether it is \
+                 the cone's tip ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has no finite length (a component overflows the norm \
@@ -883,16 +981,18 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
     let mut body = reduced.begin_surgery();
 
     classify::carrier_gate(&body, plane, band)?;
+    let tips = crate::sector_shape::SlitTips::of(&body);
     let (mut sides, mut on_vertices, on_margins) =
-        classify::classify_vertices_margined(&body, plane, band)?;
+        classify::classify_vertices_margined(&body, plane, &tips, band)?;
     let edge_pieces =
         classify::insert_crossings(&mut body, plane, &mut sides, &mut on_vertices, tol)?;
 
     let mut null_edges = Vec::new();
+    let mut apex_germs = SecondaryMap::new();
     let mut coincidences = Vec::new();
     for &v in &on_vertices {
         let (entries, rays) =
-            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, band)?;
+            neighborhood::classify_neighborhood_rays(&body, plane, &sides, v, &tips, band)?;
         let runs = insert::above_runs(&entries);
         // An operand vertex decided ON whose neighbourhood leaves two or
         // more runs on a side: pieces of the solid touch there. A
@@ -921,10 +1021,11 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         };
         insert::insert_null_edges(
             &mut body,
-            plane.normal.get(),
+            plane,
             &hood,
             &mut sides,
             &mut null_edges,
+            &mut apex_germs,
             band,
         )?;
     }
@@ -936,6 +1037,7 @@ pub(crate) fn reduce<T: geom_core::Decide + crate::props::AtRestPolicy>(
         sides,
         on_vertices,
         null_edges,
+        apex_germs,
         coincidences,
         edge_pieces,
     })
@@ -1199,6 +1301,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::RawPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            section_cones::fuse_section_cones(body, side, &mut result.naming, tol)?;
             // On this run's own output: a refusal discards it.
             finish::end_maximal(body, side, &mut result.naming, plane.normal.get(), tol)?;
             // The side's tier-2 gate again, on the body as joined.

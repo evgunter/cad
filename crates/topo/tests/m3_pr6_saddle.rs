@@ -219,7 +219,7 @@ fn tilt_sweep_no_silent_mispair() {
                 Tol::witness(),
             );
             match union(&a, &b, Tol::witness()) {
-                // Gated success (tier 1–2 + volume backstop inside).
+                // Gated success (tier 1–2 inside).
                 Ok(_) => {}
                 Err(BooleanError::PairingMismatch { .. }) => {
                     panic!(

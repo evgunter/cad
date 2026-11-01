@@ -9,7 +9,7 @@
 use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Point3, Tol};
 use topo::test_support::CylFrame;
-use topo::{ChartOverlap, ChartRegionError, ContactVerdict, declared_pair_overlap};
+use topo::{ChartOverlap, ChartRegionError, glued_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
@@ -106,7 +106,7 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
     //     head this pair CERTIFIED PositiveArea — the review's central
     //     finding; the redesigned gate prices the radius through the
     //     `hyp` lever and refuses it typed).
-    let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
+    let got = glued_pair_overlap(&ba, fa, &bb, fb, topo::CarrierPremise::Decided, band());
     assert!(
         matches!(got, Err(ChartRegionError::CarrierTilt)),
         "a 3D-disjoint tilted pair (gap > 5e-6 m ≈ 5000·eps) must refuse \
@@ -116,7 +116,7 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
 
 /// PROBE (census-reachable tier; adopted as a red-first acceptance
 /// row): a tilt INSIDE Door 1's own band (θ = 8e-9 rad: at the 1 m
-/// arm that is in [ε, k·ε), exactly what `Bridged` bridges) on a
+/// arm that is in [ε, k·ε), a carrier Door 1 reads in band) on a
 /// LARGE cylinder (r = 100 m), trims 3D-disjoint by ~100·ε. On the
 /// pre-fix head the gates passed and the arm CERTIFIED — the
 /// composition through the census admitted a radius-levered error.
@@ -124,8 +124,7 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
 #[test]
 fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
     // θ = 8·ε rad: at Door 1's pinned 1 m arm this is IN BAND
-    // ([ε, k·ε)), i.e. exactly the residue `Bridged` bridges — this
-    // pair is census-reachable with a declaration. ε-RELATIVE at the
+    // ([ε, k·ε)), a carrier Door 1 reads in band. ε-RELATIVE at the
     // fix pass, so the band-relative story holds at every ε row; the
     // tilt gate fires before extraction, so no mint-lottery masking.
     let eps = Tol::witness().eps();
@@ -145,10 +144,10 @@ fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
     // ADOPTED as a red-first acceptance row at the fix pass: on the
     // pre-fix head this census-reachable pair CERTIFIED PositiveArea.
     // The `hyp` lever prices the 100 m radius (sin θ · hyp ≈ 8e-7 m,
-    // definitely apart), so the gate refuses typed — under `Bridged`
+    // definitely apart), so the gate refuses typed — on the in-band premise
     // the premise band is additionally tightened, which can only move
     // the outcome further from certification.
-    let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Bridged, band());
+    let got = glued_pair_overlap(&ba, fa, &bb, fb, topo::CarrierPremise::InBand, band());
     assert!(
         matches!(got, Err(ChartRegionError::CarrierTilt)),
         "a Door-1-band tilt on a 100 m cylinder must refuse typed at the \
@@ -170,7 +169,7 @@ fn r2_what_does_the_short_tilt_pair_actually_return() {
     let (aframe, bframe) = (CylFrame::canonical(1.0), CylFrame::tilted(1.0, tilt));
     let (ba, fa) = wall_sheet(aframe, 0.2, 1.6, 0.0, 1e-3);
     let (bb, fb) = wall_sheet(bframe, 0.2, 1.6, 0.0, 1e-3);
-    let short = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
+    let short = glued_pair_overlap(&ba, fa, &bb, fb, topo::CarrierPremise::Decided, band());
     println!("short tilt pair verdict: {short:?}");
     // RE-MEASURED at the fix pass. On the pre-fix head this pair
     // declined `TouchingBoundary` (identical windows share collinear
@@ -200,20 +199,20 @@ fn r2_seam_hugging_pair_is_frame_invariant_both_ways() {
     // two windows are the whole subject, so they are adjacent lines.
     let (ba, fa) = wall_sheet(frame_a, -0.15, 0.15, 0.1, 0.6);
     let (bb, fb) = wall_sheet(frame_b, 0.4, 0.9, 0.25 - 0.5, 0.25 - 0.2);
-    let ab = verdict_class(declared_pair_overlap(
+    let ab = verdict_class(glued_pair_overlap(
         &ba,
         fa,
         &bb,
         fb,
-        ContactVerdict::Definite,
+        topo::CarrierPremise::Decided,
         band(),
     ));
-    let ba_v = verdict_class(declared_pair_overlap(
+    let ba_v = verdict_class(glued_pair_overlap(
         &bb,
         fb,
         &ba,
         fa,
-        ContactVerdict::Definite,
+        topo::CarrierPremise::Decided,
         band(),
     ));
     assert_eq!(ab, ba_v, "seam-hugging pair: the two orders disagree");
@@ -243,12 +242,12 @@ fn r2_diag_mintable_tilts() {
                 let f = CylFrame::tilted(r, theta);
                 let (bb, fb) = wall_sheet(f, 0.3, 1.3, -0.3 * w, 0.7 * w);
                 let (bb2, fb2) = wall_sheet(f, 0.2, 1.2, 0.0, w);
-                verdict_class(declared_pair_overlap(
+                verdict_class(glued_pair_overlap(
                     &bb,
                     fb,
                     &bb2,
                     fb2,
-                    ContactVerdict::Definite,
+                    topo::CarrierPremise::Decided,
                     band(),
                 ))
             });
@@ -271,7 +270,7 @@ fn r2_flush_cylinder_seat_declines_touching_boundary() {
     // world z [0.5, 1.0] = v_B [0.25 − 1.0, 0.25 − 0.5]; azimuth
     // [0.5, 1.3] = u_B [0.7 − 1.3, 0.7 − 0.5].
     let (bb, fb) = wall_sheet(frame_b, -0.6, 0.2, -0.75, -0.25);
-    let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
+    let got = glued_pair_overlap(&ba, fa, &bb, fb, topo::CarrierPremise::Decided, band());
     match got {
         Err(ChartRegionError::TouchingBoundary) => {}
         other => panic!("expected the disclosed TouchingBoundary decline: {other:?}"),

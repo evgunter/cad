@@ -282,7 +282,7 @@ fn min_x(body: &topo::Body<f64>) -> f64 {
 
 /// Row 1 (kernel half) — an assembly of TWO instances of one part at
 /// different frames evaluates to a 2-solid product whose volume is
-/// twice the part's, in root order.
+/// twice the part's, in piece order.
 #[test]
 fn row1_two_instances_gather_into_a_two_solid_product() {
     let mut store = StubStore::default();
@@ -310,7 +310,7 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
         "volume is twice the part's: {got} vs {want}"
     );
 
-    // Solid order IS root order: the first root's solid sits at x = 0,
+    // Solid order IS piece order: the first piece's solid sits at x = 0,
     // the second's at x = 5.
     let ev2 = run(&doc, &opts);
     let body2 =
@@ -425,14 +425,17 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // identity bundle, placed by no map, which decides nothing.
     // Each validation of the part's own box re-certifies its edges,
     // where limb 2's distance bound (`ssi_hull_sup`, C2) adds 24 = 12 box
-    // edges × 2 operands: 826 → 850 on the part. The copy is validated by
-    // no one, so main's matching +24 on the placing op does not arise.
+    // edges × 2 operands: 826 → 850 on the part. Each of its profile's
+    // two validations no longer reads a gap on the box's four corner
+    // pairs, which share a vertex (`profile::seg`'s `line_line`):
+    // 850 → 834. The copy is validated by no one, so main's matching +24
+    // on the placing op does not arise.
     assert_eq!(
         first.len(),
         0,
         "the instantiate op decides nothing; the part's {direct_total} decisions are its own"
     );
-    assert_eq!(direct_total, 850, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 834, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -990,7 +993,7 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
     // depth counter waiting 1024 levels out.
     let ev = run(&doc, &opts);
     let (cause, rendered) =
-        root_cause(failure(&ev, ids[0])).expect("the cycle is reached through a failed root");
+        root_cause(failure(&ev, ids[0])).expect("the cycle is reached through a failed piece");
     match cause {
         NodeErrorKind::Part {
             fault: PartFault::ReferenceCycle { cycle },
@@ -1021,7 +1024,7 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
 /// an `Evaluation` that died with the resolution. The failed node is
 /// the part's one instance, itself the placement.
 #[test]
-fn r1_a_broken_part_names_its_failing_root_and_cause() {
+fn r1_a_broken_part_names_its_failing_piece_and_cause() {
     // The part's own instance names a reference its store cannot
     // resolve: a typed cause, one document down.
     let missing = DocRef {
@@ -1047,7 +1050,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let ev = run(&doc, &opts);
     let fault = part_fault(&ev, ids[0]);
     match &fault {
-        PartFault::PartRootFailed { node, refusal, .. } => {
+        PartFault::PartProductFailed { node, refusal, .. } => {
             assert_eq!(
                 *node, inner_root,
                 "the failing placement is named: the instance itself"
@@ -1063,10 +1066,10 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
                         },
                     } if *doc_ref == missing
                 ),
-                "the root's refusal travels typed, with the reference it crossed: {refusal:?}"
+                "the piece's refusal travels typed, with the reference it crossed: {refusal:?}"
             );
         }
-        other => panic!("expected PartRootFailed, got {other:?}"),
+        other => panic!("expected PartProductFailed, got {other:?}"),
     }
     let rendered = fault.to_string();
     assert!(
@@ -1078,7 +1081,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
             "InstantiatePart {}",
             test_utils::refusal::tag(inner_root.0.digest())
         )) && !rendered.contains("did not resolve"),
-        "it names the root and points, never quoting the root's own refusal: {rendered}"
+        "it names the piece and points, never quoting the piece's own refusal: {rendered}"
     );
     assert!(
         root_cause(failure(&ev, ids[0])).is_some_and(|(_, line)| line.contains("did not resolve")),
@@ -1088,10 +1091,10 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
 
 /// **A real chain three documents deep reads one level per document,
 /// each in the document its node is numbered in.** The assembly
-/// instantiates `p1`, whose root instantiates `p2`, whose root
-/// instantiates `p3`, whose root, an extrude, refuses. The kernel's
+/// instantiates `p1`, whose piece instantiates `p2`, whose piece
+/// instantiates `p3`, whose piece, an extrude, refuses. The kernel's
 /// chain names `p1`, `p2` and `p3` in order with each level's failed
-/// root, and the last line is `p3`'s node error exactly as `p3`'s own
+/// piece, and the last line is `p3`'s node error exactly as `p3`'s own
 /// evaluation renders it.
 #[test]
 fn a_depth_three_chain_keeps_every_level_and_its_document() {
@@ -1153,14 +1156,14 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     assert_eq!(levels[2].2, p3_own, "the last line is p3's own rendering");
 }
 
-/// **A part whose root was poisoned carries the failure that poisoned
+/// **A part whose piece was poisoned carries the failure that poisoned
 /// it.** The part's extrude refuses and its one placement, of the
 /// extrude, never runs: the instance names both nodes, points at
 /// the extrude, and carries the extrude's own refusal typed — the last
 /// level of its chain is the extrude's line exactly as the part's own
 /// evaluation draws it.
 #[test]
-fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
+fn a_poisoned_piece_carries_the_failure_that_poisoned_it() {
     let tol = Tol::witness();
     let (part, extrude, placed) = poisoned_part("asm2a-poisoned-part");
     let own = own_line(&part, extrude, &EvalOptions::default());
@@ -1170,16 +1173,16 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let ev = run(&doc, &with_resolver(store));
 
     let fault = part_fault(&ev, ids[0]);
-    let PartFault::PartRootPoisoned {
-        root,
+    let PartFault::PartProductPoisoned {
+        node,
         through,
         refusal,
         ..
     } = &fault
     else {
-        panic!("expected PartRootPoisoned, got {fault:?}");
+        panic!("expected PartProductPoisoned, got {fault:?}");
     };
-    assert_eq!((*root, *through), (placed, extrude), "both nodes are named");
+    assert_eq!((*node, *through), (placed, extrude), "both nodes are named");
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Expr { .. }),
         "the extrude's refusal travels typed: {refusal:?}"
@@ -1193,7 +1196,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
             "Place {}",
             test_utils::refusal::tag(placed.0.digest())
         )),
-        "the instance names the root and points at the failed node: {rendered}"
+        "the instance names the piece and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
         .carried_chain()
@@ -1254,14 +1257,14 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
 /// The bracket holds an instance of the poisoned part, and the instance
 /// is a placement in the bracket's product: it fails in its own right
 /// (the placement that places it also reads is poisoned through
-/// it), and its own fault is the part's poisoned root in turn. The assembly's
+/// it), and its own fault is the part's poisoned piece in turn. The assembly's
 /// instance carries both levels, typed, each drawn as its own document
 /// draws it, and the last is the extrude's line.
 #[test]
-fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
+fn a_poisoned_piece_two_documents_down_chains_to_the_failing_node() {
     let tol = Tol::witness();
     let mut store = StubStore::default();
-    let (part, extrude, part_root) = poisoned_part("asm2a-poisoned-deep-part");
+    let (part, extrude, part_piece) = poisoned_part("asm2a-poisoned-deep-part");
     let broken_line = own_line(&part, extrude, &EvalOptions::default());
     let part_ref = store.insert(part, tol);
 
@@ -1275,18 +1278,18 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let ev = run(&doc, &opts);
 
     let fault = part_fault(&ev, ids[0]);
-    let PartFault::PartRootFailed { node, refusal, .. } = &fault else {
-        panic!("expected PartRootFailed, got {fault:?}");
+    let PartFault::PartProductFailed { node, refusal, .. } = &fault else {
+        panic!("expected PartProductFailed, got {fault:?}");
     };
     assert_eq!(
         *node, inner,
-        "the bracket's failed root is its instance, a placement in its own right"
+        "the failed node the bracket's product reads is its instance, a placement in its own right"
     );
     assert!(
         matches!(refusal.kind(), NodeErrorKind::Part {
-            fault: PartFault::PartRootPoisoned { root, through, .. }, ..
-        } if (*root, *through) == (part_root, extrude)),
-        "the carried refusal is the inner instance's own poisoned root: {refusal:?}"
+            fault: PartFault::PartProductPoisoned { node, through, .. }, ..
+        } if (*node, *through) == (part_piece, extrude)),
+        "the carried refusal is the inner instance's own poisoned node: {refusal:?}"
     );
     let bracket_line = own_line(&bracket, inner, &opts);
     let levels: Vec<_> = failure(&ev, ids[0])
@@ -1310,7 +1313,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
 /// arrive as [`PartFault::PartProduct`]: the prose differs, which is
 /// all a caller used to have, and the classes differ too — including
 /// on `means_no_body`, the one reading every consumer of a gather
-/// refusal draws. A failed or poisoned root is what does NOT come here
+/// refusal draws. A failed or poisoned piece is what does NOT come here
 /// (it chains, typed, above).
 #[test]
 fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {

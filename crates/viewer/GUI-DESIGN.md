@@ -79,9 +79,10 @@ sketcher is not implemented.
 
 The v1 GUI is click-to-select for editing (selection feeds the
 existing edit doors), pan/rotate/zoom, free-moving the shown spaces
-of an assembly (DI5: each a `Space` variable, the world's among them) relative to each other
+(DI5: each a `Space` variable, the world's among them, and the world
+the frame the others move against) relative to each other
 (fit-probing before a mate exists: a display transform, no solver),
-hiding instances, and defining a mate between previously unmated
+showing and hiding spaces and bodies, and defining a mate between previously unmated
 parts. Live dragging of partly constrained geometry is not on the
 path; the witness contract stays ratified for whenever it arrives.
 Hiding and free-move are display state, never persisted into the
@@ -148,11 +149,22 @@ the end of the session (the badge paragraph above).
   solve refuses across the placement graph, which the result DAG has
   no edges for, and those rows draw as downstream of the mate the
   fault names (`crate::tree`).
+  The picture is partial the same way. The pick index and the scene
+  draw every drawn copy whose node has a value, and hold a copy
+  without one as undrawn, with its reason: a failure takes away its
+  own copies' picture and no other. A copy that has a value and still
+  cannot be drawn (not a body, or a tessellation the kernel refused) is
+  held undrawn the same way, and said loudly, naming the copy, because
+  no row of the tree reports it. The index refuses as a whole only
+  for a fault of the index itself (an id map that is not one-to-one, a
+  body drawn twice, names from another document).
   Progress reporting and in-op yield points are absent; v1 shows a busy
   indicator over the shipped `CancelToken`.
-- **GQ3, persistence.** Every `DocEdit` is persisted: the on-disk form
-  is a snapshot plus an edit log, verified to replay through `apply`
-  on save and replayed on load. The format carries no schema version
+- **GQ3, persistence.** A save file holds the document's state: its
+  id and its current snapshot. Undo is session state and ends at a
+  reopen; history that outlives a session is a separate history store
+  of retrievable earlier states (GUI-6), which the document file never
+  depends on. The format carries no schema version
   before release; a file a build cannot read refuses typed with the
   regenerate recourse.
 - **GQ4, document scope.** One document is one part's recipe, which
@@ -243,6 +255,12 @@ is a different answer from *nothing under the cursor*, and a hover is
 left alone because it is an observation pushed on every frame and not
 an act.
 
+That build-in-flight window, and a canceled evaluation (whose toolbar
+says it is showing an older result), are the only times an older
+picture stays on screen. The picture keeps the index's promise: an
+index refused as a whole draws nothing, never the picture from before
+the refusal.
+
 **What that does to the frame-state inventory** — the per-field
 justifications on `ViewerApp`'s own non-document fields, in
 `src/app.rs`, which is the live form of what GUI-3's §5 ratification
@@ -265,8 +283,8 @@ anything is taken from it.
 **The index seam's promise is weaker than the evaluation seam's, and
 the asymmetry is deliberate.** It has no cancel — not a cancel that
 does nothing, but no door at all. The shipped `CancelToken` is checked
-BETWEEN NODES and the step behind this seam has no nodes to be checked
-between: neither `mesh::tessellate` nor the BVH build takes a token,
+between nodes and a family's members, and the step behind this seam has
+neither to be checked between: neither `mesh::tessellate` nor the BVH build takes a token,
 and giving them one is other crates' territory. So the policy is
 **restart without cancel**: a δ change mid-build lets that build run to
 completion and discards its answer, which costs a second full build —

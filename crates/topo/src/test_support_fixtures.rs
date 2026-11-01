@@ -769,7 +769,7 @@ pub fn describe_as_intersections<T: geom_core::Decide + crate::props::AtRestPoli
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
         spec.description = EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
-            witness,
+            selector: geom_brep::CurveSelector::Witness(witness),
         };
         body.set_edge_curve(edge_key, spec, tol).unwrap();
     }
@@ -1427,7 +1427,7 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness: frame.at((u0 + u1) * 0.5, v),
+                selector: geom_brep::CurveSelector::Witness(frame.at((u0 + u1) * 0.5, v)),
             },
             carrier,
             param_start: T::from_f64(t0),
@@ -1849,7 +1849,7 @@ pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKe
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(cyl, plane),
-                witness: carrier.eval(0.5 * tau),
+                selector: geom_brep::CurveSelector::Witness(carrier.eval(0.5 * tau)),
             },
             carrier,
             param_start: 0.0,
@@ -1905,7 +1905,9 @@ pub fn arc_cap(
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
                     pair: SurfacePair::new(wall, plane),
-                    witness: carrier.eval(0.5 * (span.0 + span.1)),
+                    selector: geom_brep::CurveSelector::Witness(
+                        carrier.eval(0.5 * (span.0 + span.1)),
+                    ),
                 },
                 carrier,
                 param_start: span.0,
@@ -1978,6 +1980,20 @@ pub(crate) fn whole_period_gap_over_a_box<R>(
         let b = p * (p + one);
         f(a, b)
     })
+}
+
+/// `x` crossed with its endpoints intact under `Trv`: the value a scalar
+/// that does not certify lifts to through
+/// `geom_core::Interval::from_certified`.
+pub fn trv(x: f64) -> geom_core::Interval {
+    use geom_core::{Bounds, Real};
+    let refused =
+        geom_core::Interval::from_bounds(x, x) + geom_core::Interval::from_bounds(-1.0, 0.0).sqrt();
+    assert!(
+        !refused.is_certified() && refused.lo() == x && refused.hi() == x,
+        "a refused crossing keeps its endpoints: {refused:?}"
+    );
+    refused
 }
 
 #[cfg(test)]
