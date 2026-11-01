@@ -205,9 +205,9 @@ fn the_lily_blade_moved_off_the_origin_reads_its_walls_alike() {
 
 /// **The whole bodies**, reported: `lily_leaf_a` and the Klein loop, each
 /// against itself at the default budget, at `f64` (neither builds at
-/// `Interval`, as the wall rows say). Their cap
-/// corners refuse Departure at depth (`cap_corner_departure` in `lily.rs`
-/// and `klein.rs`), so this asserts nothing; it prints the verdict, the
+/// `Interval`, as the wall rows say). A report for the injectivity price
+/// row (`work/clear/injectivity-price-on-tour-lofts-exceeds-the-pair-budget.md`),
+/// which owns the verdicts: it asserts nothing and prints the verdict, the
 /// pair count and the time.
 ///
 /// `cd demos/tour && cargo nextest run --cargo-profile ci-tour --run-ignored only
