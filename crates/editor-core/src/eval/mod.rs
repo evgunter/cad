@@ -2632,11 +2632,11 @@ impl Epoch {
 }
 
 /// The cooperative cancel token (spec D5): checked BETWEEN nodes on
-/// the serial walk, and between levels on the level schedule — node
-/// granularity in v1; tokens are never threaded into kernel ops. A
-/// `parallel` request that runs as the serial walk (a symbolic session
-/// or shape report installed, [`EvalOptions::parallel`]) is checked
-/// between nodes.
+/// the serial walk, between levels on the level schedule, and before
+/// each member of a family; tokens are never threaded into kernel ops.
+/// A `parallel` request that runs as the serial walk (a symbolic
+/// session or shape report installed, [`EvalOptions::parallel`]) is
+/// checked between nodes.
 #[derive(Debug, Clone, Default)]
 pub struct CancelToken(Arc<AtomicBool>);
 
@@ -3534,10 +3534,12 @@ pub(crate) fn read_pose_in<T: EvalScalar>(
 /// whole, recorded on [`Evaluation::prior_refused`], and the run
 /// recomputes every node.
 ///
-/// `cancel` is checked between nodes on the serial walk and between
-/// levels on the level schedule — spec D5's cooperative yield points at
-/// node granularity; a canceled run returns the completed prefix with
-/// [`EvalOutcome::Canceled`]. A `parallel` request runs as the serial
+/// `cancel` is checked between nodes on the serial walk, between
+/// levels on the level schedule, and before each member of a family
+/// ([`members::eval_family`]) — spec D5's cooperative yield points; a
+/// canceled run returns the completed prefix with
+/// [`EvalOutcome::Canceled`], a family canceled part-way holding no
+/// result. A `parallel` request runs as the serial
 /// walk, and is checked between nodes, while a symbolic session or
 /// shape report is installed ([`EvalOptions::parallel`]).
 pub fn evaluate<T>(
@@ -3766,12 +3768,17 @@ where
             // Each node runs under a K-funnel frame of its own; its
             // bracket in `eval_node` nests inside that frame.
             let results = geom_core::k_stats::map_detached(level, |&id| {
-                eval_any(doc, &env, id, &chains, &nodes, prior, &op_env, tol)
+                eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
             });
             for (&id, (step, recording)) in level.iter().zip(results) {
-                bookkeep(&step, &mut recomputed, &mut reused);
-                nodes.insert(id, step.result);
                 recordings.insert(id, recording);
+                match step {
+                    Ok(step) => {
+                        bookkeep(&step, &mut recomputed, &mut reused);
+                        nodes.insert(id, step.result);
+                    }
+                    Err(Canceled) => outcome = EvalOutcome::Canceled,
+                }
             }
         }
         for id in &sched.order {
@@ -3785,7 +3792,11 @@ where
                 outcome = EvalOutcome::Canceled;
                 break;
             }
-            let step = eval_any(doc, &env, id, &chains, &nodes, prior, &op_env, tol);
+            let Ok(step) = eval_any(doc, &env, id, &chains, &nodes, prior, cancel, &op_env, tol)
+            else {
+                outcome = EvalOutcome::Canceled;
+                break;
+            };
             bookkeep(&step, &mut recomputed, &mut reused);
             nodes.insert(id, step.result);
         }
@@ -4042,22 +4053,23 @@ fn eval_any<T>(
     chains: &BTreeMap<RecipeNodeId, crate::repetition::Reached>,
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&Evaluation<T>>,
+    cancel: &CancelToken,
     op_env: &wire::OpEnv<'_, T>,
     tol: Tol,
-) -> NodeStep<T>
+) -> Result<NodeStep<T>, Canceled>
 where
     T: EvalScalar,
 {
     let prior = prior.and_then(|p| p.value(id));
     match chains.get(&id) {
-        Some(crate::repetition::Reached::Unrelated(a, b)) => NodeStep {
+        Some(crate::repetition::Reached::Unrelated(a, b)) => Ok(NodeStep {
             result: NodeResult::Failed(NodeError {
                 node: id,
                 kind: NodeErrorKind::IndicesUnrelated { a: *a, b: *b },
                 escalations: Arc::new(Vec::new()),
             }),
             reused: false,
-        },
+        }),
         Some(crate::repetition::Reached::Chain(chain)) if !chain.is_empty() => {
             members::eval_family(
                 doc,
@@ -4066,15 +4078,23 @@ where
                 chain,
                 results,
                 prior,
+                cancel,
                 op_env,
                 |env, results, prior, op_env, at| {
                     eval_node(doc, env, id, results, prior, op_env, at, tol)
                 },
             )
         }
-        _ => eval_node(doc, env, id, results, prior, op_env, &[], tol),
+        _ => Ok(eval_node(doc, env, id, results, prior, op_env, &[], tol)),
     }
 }
+
+/// **The cancel token was observed set inside a node** — before one
+/// of a family's members: the node holds no result, as one the walk
+/// never reached holds none. Not `coincide::Canceled`, whose `Display`
+/// says the coincidence door was canceled.
+#[derive(Debug)]
+struct Canceled;
 
 struct NodeStep<T: Decide> {
     result: NodeResult<T>,
