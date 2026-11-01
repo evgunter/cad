@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{RecipeNodeId, SpokenVar, TakenOver, VarId};
+use pncad::document::{RecipeNodeId, Reseated, SpokenVar, VarId};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
@@ -44,15 +44,12 @@ pub struct FaceSelection {
 }
 
 impl FaceSelection {
-    /// **This pick after `taken`**: the name a takeover moved its copy's
-    /// face to, on the same drawn copy; itself where the takeover did
-    /// not move it.
+    /// **This pick after a takeover** ([`reseated_name`]), on the same
+    /// drawn copy.
     #[must_use]
-    pub fn reseated(&self, taken: &TakenOver) -> Self {
+    pub fn reseated(&self, moved: &Reseated) -> Self {
         Self {
-            name: taken
-                .reseat(self.node, &self.name)
-                .map_or_else(|| self.name.clone(), Clone::clone),
+            name: reseated_name(self.node, &self.name, moved),
             ..self.clone()
         }
     }
@@ -75,8 +72,24 @@ impl FaceSelection {
     /// walk cannot classify, so an unclassified role degrades to the
     /// drawn copy rather than to no feature at all.
     pub fn feature(&self) -> RecipeNodeId {
-        attribute(&self.name).minted_by().unwrap_or(self.node)
+        feature_of(self.node, &self.name)
     }
+}
+
+/// **The feature a pick of `name` on `node`'s drawn body is**
+/// ([`FaceSelection::feature`]), for either kind of pick.
+fn feature_of(node: RecipeNodeId, name: &StableName) -> RecipeNodeId {
+    attribute(name).minted_by().unwrap_or(node)
+}
+
+/// **The name a pick of `name` on the copy `node` holds after a
+/// takeover**: the one the takeover moved the copy's entity to
+/// ([`Reseated::reseat`]), or `name` where it did not move it. For
+/// either kind of pick.
+fn reseated_name(node: RecipeNodeId, name: &StableName, moved: &Reseated) -> StableName {
+    moved
+        .reseat(node, name)
+        .map_or_else(|| name.clone(), Clone::clone)
 }
 
 /// A picked edge: the stable name it is, and the node whose body
@@ -101,11 +114,9 @@ pub struct EdgeSelection {
 impl EdgeSelection {
     /// [`FaceSelection::reseated`], for an edge.
     #[must_use]
-    pub fn reseated(&self, taken: &TakenOver) -> Self {
+    pub fn reseated(&self, moved: &Reseated) -> Self {
         Self {
-            name: taken
-                .reseat(self.node, &self.name)
-                .map_or_else(|| self.name.clone(), Clone::clone),
+            name: reseated_name(self.node, &self.name, moved),
             ..self.clone()
         }
     }
@@ -115,7 +126,7 @@ impl EdgeSelection {
     /// argument, unchanged. An edge carried through a later boolean is
     /// still the edge the earlier feature made.
     pub fn feature(&self) -> RecipeNodeId {
-        attribute(&self.name).minted_by().unwrap_or(self.node)
+        feature_of(self.node, &self.name)
     }
 }
 
@@ -217,13 +228,13 @@ pub enum Selection {
 }
 
 impl Selection {
-    /// **This selection after `taken`**: a picked face or edge re-seated
-    /// ([`FaceSelection::reseated`]); anything else as it is.
+    /// **This selection after a takeover**: a picked face or edge
+    /// re-seated ([`FaceSelection::reseated`]); anything else as it is.
     #[must_use]
-    pub fn reseated(&self, taken: &TakenOver) -> Self {
+    pub fn reseated(&self, moved: &Reseated) -> Self {
         match self {
-            Self::Face(face) => Self::Face(face.reseated(taken)),
-            Self::Edge(edge) => Self::Edge(edge.reseated(taken)),
+            Self::Face(face) => Self::Face(face.reseated(moved)),
+            Self::Edge(edge) => Self::Edge(edge.reseated(moved)),
             Self::None | Self::Node(_) | Self::Variable(_) => self.clone(),
         }
     }

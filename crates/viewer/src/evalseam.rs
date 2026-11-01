@@ -149,6 +149,13 @@ pub struct EvalRequest {
     /// semantics. Shared by `Arc` so the worker holds a handle, not a
     /// copy of the store.
     pub resolver: Option<Arc<dyn PartResolver>>,
+    /// **A run to start from in place of the seam's own**: a completed
+    /// evaluation of a document this one was staged from, under this
+    /// request's resolver, made beside the seam (a takeover reads the
+    /// result's table off one before it writes its rebinds). Only what
+    /// the later edits touched is evaluated again. `None` starts from
+    /// the seam's last completed run, as every other request does.
+    pub seed: Option<Arc<Evaluation<f64>>>,
 }
 
 /// A finished run.
@@ -288,10 +295,18 @@ fn run_once(
     prior: &mut Option<PriorRun>,
     cancel: &CancelToken,
 ) -> Arc<Evaluation<f64>> {
-    let prime = prior
-        .as_ref()
-        .filter(|p| same_resolver(&p.resolver, &request.resolver))
-        .map(|p| p.evaluation.as_ref());
+    // A seed is under the request's own resolver by its contract, and
+    // is held to the completed-run rule here like the seam's own.
+    let seeded = request
+        .seed
+        .as_deref()
+        .filter(|seed| seed.outcome == EvalOutcome::Completed);
+    let prime = seeded.or_else(|| {
+        prior
+            .as_ref()
+            .filter(|p| same_resolver(&p.resolver, &request.resolver))
+            .map(|p| p.evaluation.as_ref())
+    });
     let evaluation = Arc::new(evaluate::<f64>(
         &request.doc,
         prime,

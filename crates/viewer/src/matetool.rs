@@ -548,6 +548,18 @@ impl MateTool {
         crate::seats::respeak_each(&mut self.said, doc);
     }
 
+    /// **The held picks after a takeover** ([`FaceSelection::reseated`]).
+    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
+        self.state = match &self.state {
+            MateToolState::Idle => MateToolState::Idle,
+            MateToolState::One(on) => MateToolState::One(on.reseated(moved)),
+            MateToolState::Two { on, to } => MateToolState::Two {
+                on: on.reseated(moved),
+                to: to.reseated(moved),
+            },
+        };
+    }
+
     /// **`side`'s pick's node as a refusal says it**: by the label the
     /// tool kept, re-spoken from the shown document after every
     /// operation; as `doc` holds it only when nothing named was kept.

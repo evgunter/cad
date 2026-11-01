@@ -803,6 +803,27 @@ impl Tools {
         }
     }
 
+    /// **The open tool's held picks after a takeover**: the mate tool's
+    /// faces, the mirror's plane and the blend's edges; the seated tools
+    /// hold bodies, whose reads a takeover keeps.
+    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.reseat(moved),
+            Some(OpenTool::Blend(tool)) => tool.reseat(moved),
+            Some(OpenTool::Mirror(tool)) => tool.reseat(moved),
+            None
+            | Some(
+                OpenTool::Revolve(_)
+                | OpenTool::Boolean(_)
+                | OpenTool::Split(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_)
+                | OpenTool::Duplicate(_),
+            ) => {}
+        }
+    }
+
     /// **The half seat `seat` of the open tool reads**, when it holds a
     /// split picked alone ([`crate::seats::Seats::choose_half`]); a
     /// no-op for a tool without body seats.

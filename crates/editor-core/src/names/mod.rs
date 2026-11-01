@@ -22,7 +22,6 @@
 pub(crate) mod attribute;
 mod borders;
 mod canonical;
-mod carrier;
 mod chase;
 mod defer;
 mod discriminate;
@@ -47,12 +46,11 @@ mod plane_pieces;
 pub(crate) mod role;
 mod seam_pair;
 mod select;
+mod successor;
 mod table;
 pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
-pub use carrier::carriers;
-pub(crate) use carrier::reseated;
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
 pub use emit::{
@@ -93,6 +91,8 @@ pub(crate) use role::{FOLD_A, FOLD_B, read_edge};
 pub(crate) use role::{VerbatimEdge, verbatim_edge};
 pub(crate) use role::{edge_line, fragment_tail_start, name_free_seg, wrapped_edge};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
+pub(crate) use successor::reseated;
+pub use successor::successors;
 pub use table::{
     DuplicateName, EntityKey, EntityNamed, EntityRef, Entry, KindMismatch, NameTable,
     SeatingRefusal, ShortTie,

@@ -4074,14 +4074,23 @@ class Doc:
         `EditError` under the pin refusal's word."""
 
     def take_over(
-        self, copies: list[NodeId], result: _Operand
+        self,
+        copies: list[NodeId],
+        result: _Operand,
+        *,
+        resolver: Optional[Workspace] = None,
     ) -> list[tuple[NodeId, str, str]]:
         """A takeover: each of `copies` re-pointed to copy `result`,
         which replaces the body they copied, and every selection that
-        read one of them rebound where the result carries its face
-        uniquely; a face the result splits, ties or consumes stays
-        stale. One action. Answers each name moved as
-        `(copy, old name, new name)`."""
+        read one of them rebound where the result carries its entity
+        (a face, an edge or a vertex) as one entity; one the result
+        splits, ties or consumes stays stale. One action. Answers each
+        name moved as `(copy, old name, new name)`.
+
+        Reading where a name went evaluates the document under
+        `resolver=`, as `evaluate` does: a document with instances needs
+        the workspace their parts resolve in, or their copies evaluate
+        to nothing and no name of them moves."""
 
     def sketch_on_face(
         self,

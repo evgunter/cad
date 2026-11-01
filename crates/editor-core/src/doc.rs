@@ -1137,6 +1137,18 @@ impl<P> Doc<P> {
         }
     }
 
+    /// **The read the placement `node` copies**: its source's read, or
+    /// `None` where `node` is no `Place` (only a placement copies, and
+    /// only it carries a source slot). The one spelling of "is this a
+    /// placement copying that body" the takeover door and its callers
+    /// ask.
+    pub fn copied_read(&self, node: RecipeNodeId) -> Option<VarId> {
+        match self.node(node)? {
+            Node::Place { source, .. } => Some(source.read),
+            _ => None,
+        }
+    }
+
     /// **The space `node`'s body is in** ([`Self::space_of`] of its
     /// body), `None` for a node that builds no body.
     pub fn node_space(&self, id: RecipeNodeId) -> Option<VarId>

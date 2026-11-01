@@ -184,9 +184,12 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
             "{name}: one rebind, the mate's face: {:?}",
             outcome.committed
         );
+        let moved = session.take_landed_reseats();
         assert!(
-            !outcome.reseated.reseated[&copy].is_empty(),
-            "{name}: the copy's names moved"
+            moved
+                .iter()
+                .any(|m| m.0.get(&copy).is_some_and(|names| !names.is_empty())),
+            "{name}: the copy's names moved, read off the landed run"
         );
         assert_eq!(
             drawn::extent(&mut session, small_copy),
@@ -346,4 +349,52 @@ fn a_face_of_a_union_of_the_copy_is_re_seated() {
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
+}
+
+/// **The mirror's merged top keeps the old top's frame**, which is why
+/// the small block mated on it stands where it stood: the symmetric
+/// part is `Union[body, image]` (`DocSession::add_mirror`), and a union
+/// keeps its FIRST member's carrier for a face it merges, so the merged
+/// top's frame is the body's top's. The order is load-bearing: a part
+/// spelled `Union[image, body]` would frame the top by the image's,
+/// mirrored, and the mate would turn the block over. Goes red if the
+/// mirror's union is written image first, or the union stops keeping
+/// its first member's carrier.
+#[test]
+fn the_mirrors_merged_top_keeps_the_old_tops_frame() {
+    let Seated {
+        mut session, copy, ..
+    } = seated(top);
+    let held = top(&session);
+    let var = session.committed_doc().output(copy, 0).expect("copy body");
+    let before = {
+        let eval = session.evaluation().expect("landed");
+        pncad::select::face_frame(eval, var, &held.name).expect("frame before")
+    };
+    let op = mirror_across(&session, &minus_x_wall(&session));
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let moved = session.take_landed_reseats();
+    let now = moved
+        .iter()
+        .find_map(|m| m.reseat(copy, &held.name))
+        .expect("the top moved to the merged top")
+        .clone();
+    assert!(
+        matches!(now.path.as_slice(), [RoleSeg::Merged(set)] if set.len() == 2),
+        "the top merged across the glue plane: {now:?}"
+    );
+    let after = {
+        let eval = session.evaluation().expect("landed");
+        pncad::select::face_frame(eval, var, &now).expect("frame after")
+    };
+    // Compared exactly, through `Debug`'s shortest round-trip spelling
+    // of each number (the frame types carry no `PartialEq`): the same
+    // carrier, not one close to it.
+    assert_eq!(
+        format!("{after:?}"),
+        format!("{before:?}"),
+        "the merged top is framed as the body's top was"
+    );
 }

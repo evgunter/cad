@@ -1,10 +1,12 @@
-//! **Split and inline** — the first-class recorded refactorings
-//! (ASM-4 D-2/D-3; ASSEMBLY-DESIGN A4, A10, A11).
+//! **Split, inline and flatten** — the first-class recorded
+//! refactorings (ASM-4 D-2/D-3; ASSEMBLY-DESIGN A4, A10, A11): each
+//! rewrites a document into one that evaluates to the same shapes.
 //!
 //! [`split`] cuts a closed set of nodes out of a document into a new
 //! part document and leaves an [`Node::InstantiatePart`] of it behind;
 //! [`inline`] is the inverse — it splices a referenced document's
-//! recipe into the host and deletes the instance. Both are PURE
+//! recipe into the host and deletes the instance; [`flatten`] folds an
+//! identity placement into its target (below). All three are PURE
 //! functions returning new document values, the ordinary recorded
 //! [`DocEdit`]s that produce them, and the [`crate::Maintenance`]
 //! those edits reported, net of what a later edit in the same
@@ -151,18 +153,12 @@
 //!
 //! # Determinism (D6/D9)
 //!
-//! Both refactorings are pure functions of their inputs (the part
+//! Every refactoring here is a pure function of its inputs (the part
 //! document's identity is CALLER-supplied, never ambient), every
 //! iteration below runs over ordered structures, and part-node ids
 //! remap in document order — so two split runs, in any two processes,
 //! produce byte-identical documents.
-//!
-//! [`take_over`] is the third: copies re-pointed to a result that
-//! replaces their body, with what read them re-seated.
 use std::collections::{BTreeMap, BTreeSet, btree_map};
-
-mod take_over;
-pub use take_over::{TakeOverOutcome, TakenOver, take_over};
 
 use crate::doc::{Doc, FreeVar, NameCarrier, VarName};
 use crate::edit::Maintenance;
@@ -3625,40 +3621,17 @@ pub fn split(
             &onto,
         )?;
     }
+    let mut moved: BTreeMap<StableName, StableName> = BTreeMap::new();
     for from in &rebinds {
         let to = in_part(from, None)?;
         // A copy carries its source's names, so a name the instance's
         // copy carries as the cut did needs no repair.
-        if &to == from {
-            continue;
+        if &to != from {
+            moved.insert(from.clone(), to);
         }
-        // A repair is addressed by body: one per remainder selection
-        // body naming `from`, and one for the carriers no body holds.
-        let mut bodies: BTreeSet<VarId> = BTreeSet::new();
-        let mut unbodied = false;
-        for carrier in remainder.doc().name_carriers() {
-            if carrier.name() != from {
-                continue;
-            }
-            match carrier {
-                NameCarrier::Select { var, .. } => {
-                    if let Some(select) = remainder.doc().selection(var) {
-                        bodies.insert(select.body);
-                    }
-                }
-                NameCarrier::Payload { .. } | NameCarrier::Store { .. } => unbodied = true,
-            }
-        }
-        for body in bodies.into_iter().map(Some).chain(unbodied.then_some(None)) {
-            rem_apply(
-                &mut remainder,
-                DocEdit::Rebind {
-                    body,
-                    from: from.clone(),
-                    to: to.clone(),
-                },
-            )?;
-        }
+    }
+    for edit in rebinds_at_sites(remainder.doc(), |_, name| moved.get(name).cloned()) {
+        rem_apply(&mut remainder, edit)?;
     }
     // Reverse document order deletes consumers before their inputs, so
     // no delete dangles a live reference — except past a union
@@ -4210,34 +4183,14 @@ pub fn inline(
             moved.insert(from.clone(), to);
         }
     }
-    for (from, to) in &moved {
-        let mut bodies: BTreeSet<VarId> = BTreeSet::new();
-        let mut unbodied = false;
-        for carrier in current.doc().name_carriers() {
-            if carrier.name() != from {
-                continue;
-            }
-            match carrier {
-                NameCarrier::Select { var, .. } => {
-                    if let Some(select) = current.doc().selection(var)
-                        && !reads_instance(select.body)
-                    {
-                        bodies.insert(select.body);
-                    }
-                }
-                NameCarrier::Payload { .. } | NameCarrier::Store { .. } => unbodied = true,
-            }
-        }
-        for body in bodies.into_iter().map(Some).chain(unbodied.then_some(None)) {
-            step(
-                &mut current,
-                DocEdit::Rebind {
-                    body,
-                    from: from.clone(),
-                    to: to.clone(),
-                },
-            )?;
-        }
+    let sited = rebinds_at_sites(current.doc(), |site, name| match site {
+        // A selection still read in the instance's copy keeps its part's
+        // names.
+        Some(body) if reads_instance(body) => None,
+        _ => moved.get(name).cloned(),
+    });
+    for edit in sited {
+        step(&mut current, edit)?;
     }
     // The record dissolves (ASM-R2b D-4, and the function docs): every
     // crossing's part-side reference must land on a spliced local
@@ -4497,6 +4450,41 @@ impl core::fmt::Display for FlattenError {
 }
 
 impl core::error::Error for FlattenError {}
+
+/// **The rebinds that move each name `doc` holds where `to` says**, one
+/// per site: the one home of "rebind a moved name at every site that
+/// holds it", over the compile-forced carrier enumeration
+/// ([`Doc::name_carriers`]), so a carrier kind added there is a site
+/// here without being remembered.
+///
+/// A repair is addressed by what [`DocEdit::Rebind`] can address: a
+/// selection by its body (`Some(body)`), and every payload site and
+/// appearance key together (`None`, which rewrites all of them). `to`
+/// answers each held name at its site: its new name, or `None` to
+/// leave it. Each (site, from, to) is written once, in that order.
+pub(crate) fn rebinds_at_sites<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mut to: impl FnMut(Option<VarId>, &StableName) -> Option<StableName>,
+) -> Vec<DocEdit<P>> {
+    let mut sited: BTreeSet<(Option<VarId>, StableName, StableName)> = BTreeSet::new();
+    for carrier in doc.name_carriers() {
+        let site = match carrier {
+            NameCarrier::Select { var, .. } => match doc.selection(var) {
+                Some(select) => Some(select.body),
+                None => continue,
+            },
+            NameCarrier::Payload { .. } | NameCarrier::Store { .. } => None,
+        };
+        let from = carrier.name();
+        if let Some(now) = to(site, from) {
+            sited.insert((site, from.clone(), now));
+        }
+    }
+    sited
+        .into_iter()
+        .map(|(body, from, to)| DocEdit::Rebind { body, from, to })
+        .collect()
+}
 
 /// **Flattens an identity placement into its target** (ASSEMBLY A4):
 /// a `Place` whose bundle is the identity as written, and whose source

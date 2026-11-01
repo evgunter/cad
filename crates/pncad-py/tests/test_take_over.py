@@ -1,8 +1,9 @@
 """`Doc.take_over`: copies of a body re-pointed to a result that
 replaces it, every name the result carries uniquely re-seated.
 
-The Python face of `refactor::take_over`, which the viewer's fillet,
-mirror, sketch-on-face and transform gestures author through. A plate's
+The Python face of `take_over`, which the viewer's takeover gestures
+author through: a fillet or a chamfer, a mirror, a sketch on a face, a
+transform, a combine and a fused pattern. A plate's
 world copy is taken over by the union a sketch on its top makes: the
 union carries each of the plate's faces as one face of its own, so
 each face name of the copy moves to the union's name for it, and the

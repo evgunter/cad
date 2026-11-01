@@ -686,6 +686,22 @@ impl BlendTool {
         }
     }
 
+    /// **The held edges after a takeover**: each held on a copy the
+    /// takeover re-pointed takes the name it moved to
+    /// ([`pncad::document::Reseated::reseat`]), rims included.
+    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
+        let Some(node) = self.target().map(|target| target.node) else {
+            return;
+        };
+        let now = |name: &StableName| moved.reseat(node, name).unwrap_or(name).clone();
+        self.edges = self.edges.iter().map(now).collect();
+        self.rims = self
+            .rims
+            .iter()
+            .map(|rim| rim.iter().map(now).collect())
+            .collect();
+    }
+
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
     ///

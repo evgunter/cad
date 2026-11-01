@@ -1751,28 +1751,50 @@ impl Doc {
     /// **A takeover**: each of `copies` (placements) re-pointed to copy
     /// `result`, which replaces the body they copied, and every
     /// selection that read one of them rebound where the result carries
-    /// its face uniquely; a face the result splits, ties or consumes
-    /// stays stale. One action. Answers each name moved, as
-    /// `(copy, old name, new name)`, for a name held outside the
-    /// document.
+    /// its entity (a face, an edge or a vertex) as one entity; one the
+    /// result splits, ties or consumes stays stale. One action. Answers
+    /// each name moved, as `(copy, old name, new name)`, for a name held
+    /// outside the document.
+    ///
+    /// Reading where a name went evaluates the document, under
+    /// `resolver=` as `evaluate` takes it: a document with instances
+    /// needs the workspace their parts resolve in, or their copies
+    /// evaluate to nothing and no name of them moves.
+    #[pyo3(signature = (copies, result, *, resolver=None))]
     fn take_over(
         &mut self,
         py: Python<'_>,
         copies: Vec<NodeId>,
         result: OperandArg,
+        resolver: Option<&super::store::Workspace>,
     ) -> PyResult<Vec<(NodeId, String, String)>> {
         let copies: Vec<d::RecipeNodeId> = copies.into_iter().map(|c| c.0).collect();
         let result = result.read();
-        let done = d::take_over(
-            &self.inner,
-            &copies,
-            &result,
-            &d::EvalOptions::default(),
-            Tol::witness(),
-        )
-        .map_err(|err| edit_err(py, &err))?;
+        let opts = d::EvalOptions {
+            resolver: seam(resolver),
+            ..d::EvalOptions::default()
+        };
+        let tol = Tol::witness();
+        let done = d::take_over(&self.inner, &copies, &result, &opts, tol)
+            .map_err(|err| edit_err(py, &err))?;
+        // The door's own run where it made one (it holds the result),
+        // else one of the document the action produced.
+        let ev = match &done.taken.evaluation {
+            Some(ev) => std::sync::Arc::clone(ev),
+            None if done.taken.is_empty() => {
+                self.take_up(done.doc, done.maintenance);
+                return Ok(Vec::new());
+            }
+            None => std::sync::Arc::new(d::evaluate(
+                &done.doc,
+                None,
+                &d::CancelToken::new(),
+                &opts,
+                tol,
+            )),
+        };
         let mut moved = Vec::new();
-        for (copy, names) in &done.taken.reseated {
+        for (copy, names) in &done.taken.reseated(&ev).0 {
             for (from, to) in names {
                 moved.push((NodeId(*copy), name_text(py, from)?, name_text(py, to)?));
             }

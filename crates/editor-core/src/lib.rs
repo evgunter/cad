@@ -84,6 +84,7 @@ pub mod spoken;
 /// enclosure.
 pub mod stackup;
 pub mod step_handle;
+pub mod take_over;
 // Test fixtures (the literals and the pick door); see the module's
 // docs. The gate is this crate's `test-support` feature, on only
 // through dev-dependency edges. `doc(hidden)` because the rustdoc gate
@@ -224,8 +225,7 @@ pub use range::{
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SplitError,
-    SplitOutcome, StepMap, TakeOverOutcome, TakenOver, Uncarried, Unmapped, flatten, inline,
-    remap_name, split, take_over,
+    SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
@@ -246,6 +246,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
+pub use take_over::{Reseated, TakeOverOutcome, Taken, TakenOver, take_over};
 pub use trace::{
     TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
     trace_marks, traced_frame,

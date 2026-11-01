@@ -1,4 +1,4 @@
-//! **A takeover's rebinds on adversarial results** (`refactor::take_over`):
+//! **A takeover's rebinds on adversarial results** (`editor_core::take_over`):
 //! a world copy of a block `B`, a shell holding `B`'s top read in that
 //! copy, and the copy taken over by a result that splits, merges or
 //! keeps the top. The door rebinds the held top only where the result
@@ -254,4 +254,42 @@ fn an_instances_copy_taken_over_with_a_lateral_face_held() {
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("it saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
     assert!(loaded.doc.bit_eq(&doc), "the whole document round-trips");
+}
+
+/// **The door evaluates only for a reader in the document**: a copy no
+/// selection reads is re-pointed with no evaluation, and the names it
+/// moved are read off a later one ([`editor_core::TakenOver::reseated`]);
+/// a copy a selection reads is evaluated, and that evaluation rides out
+/// for the run of the finished document to start from. Goes red if the
+/// door evaluates for an unread copy, or stops handing its run out.
+#[test]
+fn the_door_evaluates_only_where_the_document_reads_a_copy() {
+    let doc = ProfileDoc::empty_derived("takeover-unread", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (unread, copy) = insert(doc.clone(), stood(b));
+    let take = |doc: &ProfileDoc, copy| {
+        take_over(
+            doc,
+            &[copy],
+            &Operand::Node(u),
+            &EvalOptions::default(),
+            Tol::witness(),
+        )
+        .expect("the takeover applies")
+    };
+    let done = take(&unread, copy);
+    assert!(done.taken.evaluation.is_none(), "nothing reads the copy");
+    let ev = crate::fixture::run(&done.doc, &EvalOptions::default());
+    let moved = done.taken.reseated(&ev);
+    assert!(
+        moved.reseat(copy, &cap(b, CapEnd::End)).is_some(),
+        "the top's new name is read off the later run"
+    );
+    let (read, copy) = copy_with_held_top(doc, b);
+    assert!(
+        take(&read, copy).taken.evaluation.is_some(),
+        "a shell reads the copy's top"
+    );
 }

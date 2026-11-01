@@ -1227,10 +1227,20 @@ impl Drafts {
     /// **Another document replaced the one the held face was picked
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
-        self.trace_plane = None;
-        self.trace_face = None;
-        self.sketch_face = None;
+        for latch in self.latches() {
+            *latch = None;
+        }
         self.sketch_face_said = HeldNodes::default();
+    }
+
+    /// **The faces the forms latch**, the one list of them: what a
+    /// replaced document drops and a takeover re-seats.
+    fn latches(&mut self) -> [&mut Option<FaceSelection>; 3] {
+        [
+            &mut self.sketch_face,
+            &mut self.trace_plane,
+            &mut self.trace_face,
+        ]
     }
 
     /// **The on-face form takes the selection's face**, with its nodes
@@ -1246,14 +1256,10 @@ impl Drafts {
         &self.sketch_face_said
     }
 
-    /// **The latched faces after `taken`** ([`FaceSelection::reseated`]).
-    pub(crate) fn reseat(&mut self, taken: &pncad::document::TakenOver) {
-        for latch in [
-            &mut self.sketch_face,
-            &mut self.trace_plane,
-            &mut self.trace_face,
-        ] {
-            *latch = latch.as_ref().map(|face| face.reseated(taken));
+    /// **The latched faces after a takeover** ([`FaceSelection::reseated`]).
+    pub(crate) fn reseat(&mut self, moved: &pncad::document::Reseated) {
+        for latch in self.latches() {
+            *latch = latch.as_ref().map(|face| face.reseated(moved));
         }
     }
 

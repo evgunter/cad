@@ -1,16 +1,26 @@
 //! **Where a name read in one variable went, in a table that carries
-//! that variable in** (N1, N3): the carrier query a takeover re-seats
-//! its references by (`refactor::take_over`).
+//! that variable in** (N1, N3): the successor query a takeover re-seats
+//! its references by (`crate::take_over`).
 //!
 //! An operation carries an entity of an input in as
 //! `From { read, of }`, or, where it merges faces or edges, as one
 //! member of a `Merged` set. A name `of` of the variable `read` has a
-//! **unique carrier** in a table when exactly one row of it is that
-//! carry, alone or as a member of its set, and that row is unique.
-//! A fragment of it, a borders-qualified piece, a tie, or two rows
-//! that each hold it, is no carrier: which entity the name now means
-//! is a choice, and the reference stays stale for the person to make it
-//! (N5's `Rebind`).
+//! **successor** in a table when exactly one row of it is that carry,
+//! alone or as a member of its set, and that row is unique. A fragment
+//! of it, a borders-qualified piece, a tie, or two rows that each hold
+//! it, is no successor: which entity the name now means is a choice,
+//! and the reference stays stale for the person to make it (N5's
+//! `Rebind`).
+//!
+//! **Why this is not `merged.rs`'s walk.** That walk reads a set
+//! through its descent wrappers (`From` of any read, and `Inner`) to
+//! list the set's constituents; a successor is read through neither.
+//! An `Inner` is a shell's twin of a face, another face; a carry
+//! through some other read is that operation's face, named by it, and
+//! a takeover's result reads the body it takes over directly (a
+//! feature of it, a union or a combine over it), so its own carries
+//! are the ones that say where the body's entities went. What the two
+//! share is only the one-level shape of a carry and of a set.
 
 use std::collections::BTreeMap;
 
@@ -18,15 +28,15 @@ use super::role::{RoleSeg, StableName};
 use super::table::{Entry, NameTable};
 use crate::VarId;
 
-/// **The unique carrier in `table` of each name of `read` it carries
-/// in**, keyed by that name.
+/// **The successor in `table` of each name of `read` it carries in**,
+/// keyed by that name.
 ///
 /// A row counts when its whole path is `[From { read, of }]`, or
 /// `[Merged(set)]` with that carry among the set; a row with more
 /// segments (a fragment, a borders qualifier) carries a piece of `of`
 /// and does not count. A name two rows count for, or whose one row
-/// is tied, has no unique carrier and is left out.
-pub fn carriers(table: &NameTable, read: VarId) -> BTreeMap<StableName, StableName> {
+/// is tied, has no successor and is left out.
+pub fn successors(table: &NameTable, read: VarId) -> BTreeMap<StableName, StableName> {
     let mut found: BTreeMap<&StableName, Vec<(&StableName, bool)>> = BTreeMap::new();
     for (row, entry) in table.iter() {
         let unique = matches!(entry, Entry::Unique(_));
@@ -59,9 +69,9 @@ pub fn carriers(table: &NameTable, read: VarId) -> BTreeMap<StableName, StableNa
 /// whose `read` is a key of `moved` and whose `of` that read's map
 /// holds, carries the mapped name instead. `None` where nothing it
 /// carries moved.
-pub(crate) fn reseated(
+pub(crate) fn reseated<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>>(
     name: &StableName,
-    moved: &BTreeMap<VarId, BTreeMap<StableName, StableName>>,
+    moved: &BTreeMap<VarId, M>,
 ) -> Option<StableName> {
     let Ok(now) = name.clone().rewrite_path(&mut Reseat(moved));
     (now != *name).then_some(now)
@@ -70,16 +80,20 @@ pub(crate) fn reseated(
 /// [`reseated`]'s walk: a carry is answered from the pair it is, its
 /// read and its name ([`super::SegRewrite::from`]); every other carried
 /// name is descended, for the carries inside it.
-struct Reseat<'m>(&'m BTreeMap<VarId, BTreeMap<StableName, StableName>>);
+struct Reseat<'m, M>(&'m BTreeMap<VarId, M>);
 
-impl super::SegRewrite for Reseat<'_> {
+impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrite
+    for Reseat<'_, M>
+{
     type Error = core::convert::Infallible;
 
     fn from(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
-        Ok(match self.0.get(&read).and_then(|map| map.get(of)) {
-            Some(to) => super::Carry::Replace(to.clone()),
-            None => super::Carry::Descend,
-        })
+        Ok(
+            match self.0.get(&read).and_then(|map| map.borrow().get(of)) {
+                Some(to) => super::Carry::Replace(to.clone()),
+                None => super::Carry::Descend,
+            },
+        )
     }
 
     fn name(&mut self, _: &StableName) -> Result<super::Carry, Self::Error> {
@@ -100,9 +114,9 @@ impl super::SegRewrite for Reseat<'_> {
 }
 
 #[cfg(test)]
-mod a_carrier_is_one_whole_unique_row {
+mod a_successor_is_one_whole_unique_row {
     #![allow(clippy::expect_used)]
-    use super::{carriers, reseated};
+    use super::{reseated, successors};
     use crate::VarId;
     use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
     use crate::names::table::{EntityKey, EntityRef, NameTable};
@@ -194,7 +208,7 @@ mod a_carrier_is_one_whole_unique_row {
         table
             .insert_tied(from(READ, own(3)), vec![ent(10), ent(11)])
             .expect("a tie");
-        let found = carriers(&table, READ);
+        let found = successors(&table, READ);
         assert_eq!(
             found,
             BTreeMap::from([(own(0), whole.clone()), (own(1), set.clone())]),

@@ -1031,6 +1031,11 @@ impl ViewerApp {
         let withdrawn = self.session.take_landed_withdrawals();
         self.notices
             .extend(withdrawn.iter().flat_map(frame::withdrawal_notices));
+        // A takeover that landed moved names a pick holds; the session's
+        // selection followed at the landing, and the chrome's follow here.
+        for moved in self.session.take_landed_reseats() {
+            self.reseat_held(&moved);
+        }
         // **The survival step, once per frame, for whichever tool is
         // open** — the obligation every tool's module docs put on its
         // consumer, discharged in the one place that holds them all.
@@ -1274,6 +1279,14 @@ impl ViewerApp {
         self.tools.respeak(doc);
     }
 
+    /// **Every held pick after a takeover** (`DocSession::take_landed_reseats`):
+    /// the forms' latched faces and the open tool's picks, each on the
+    /// name the takeover moved it to, as the session's selection is.
+    fn reseat_held(&mut self, moved: &pncad::document::Reseated) {
+        self.drafts.reseat(moved);
+        self.tools.reseat(moved);
+    }
+
     /// **A document replaced this one**: everything held about it is
     /// dropped, here and nowhere else — [`DocumentDerived`] whole, and
     /// the held ids inside the drafts and the open tool, whose values
@@ -1344,9 +1357,6 @@ impl ViewerApp {
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
             let minted = core::mem::take(&mut outcome.minted);
-            // A takeover moved the names of its copies' faces; the form's
-            // held face follows, as the session's selection did.
-            self.drafts.reseat(&outcome.reseated);
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -6289,7 +6299,7 @@ mod properties_pane_tests {
     /// so the selection and the form's held face both name it there and
     /// both resolve on the copy. Goes red if the takeover stops
     /// re-seating the session's selection or the drafts' held face, or
-    /// if the carrier query stops finding the cap at the union.
+    /// if the successor query stops finding the cap at the union.
     #[test]
     fn a_sketch_on_the_held_face_re_seats_the_selection_and_the_held_face() {
         use crate::session::Standing;
@@ -6325,6 +6335,58 @@ mod properties_pane_tests {
         assert!(
             matches!(verdict, Resolution::Resolved(_)),
             "the held face resolves: {verdict:?}"
+        );
+    }
+
+    /// **An open tool's held pick follows a takeover too**: the mate
+    /// tool holding the startup plate's top cap on its copy, and a
+    /// sketch committed on that face, which takes the copy over with the
+    /// union. Once the run lands the tool's pick names the cap as the
+    /// union carries it, and resolves there. Goes red if the landed
+    /// re-seat stops reaching the open tool (`Tools::reseat`).
+    #[test]
+    fn an_open_tools_pick_on_a_taken_over_copy_is_re_seated() {
+        use crate::matetool::MateToolState;
+        use pncad::select::Resolution;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![Selection::Face(top.clone()), Selection::None]);
+        assert_eq!(
+            driven
+                .app
+                .tools
+                .mate()
+                .map(crate::matetool::MateTool::state),
+            Some(&MateToolState::One(top.clone())),
+            "the tool holds the cap"
+        );
+        driven.perform(SessionOp::SketchOnFace {
+            face: top.clone(),
+            loops: vec![crate::test_support::rectangle_loop(
+                [-0.001, -0.001],
+                0.002,
+                0.002,
+            )],
+            distance: crate::test_support::len(0.001),
+            spin: crate::test_support::ang(0.0),
+        });
+        let Some(MateToolState::One(held)) = driven
+            .app
+            .tools
+            .mate()
+            .map(crate::matetool::MateTool::state)
+        else {
+            panic!("the tool still holds one pick")
+        };
+        assert_eq!(held.node, top.node, "on the same drawn copy");
+        assert_ne!(held.name, top.name, "named as the union carries the cap");
+        let session = &driven.app.session;
+        let eval = session.evaluation().expect("landed");
+        let verdict =
+            crate::tree::pick_resolution(session.doc(), eval, held.node, held.body, &held.name);
+        assert!(
+            matches!(verdict, Resolution::Resolved(_)),
+            "the held pick resolves: {verdict:?}"
         );
     }
 

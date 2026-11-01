@@ -1429,7 +1429,6 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         withdrawn,
         maintenance,
         // A re-seated pick says nothing: it still means the face it did.
-        reseated: _,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
