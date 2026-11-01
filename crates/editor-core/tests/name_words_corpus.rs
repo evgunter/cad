@@ -908,6 +908,66 @@ fn each_boolean_join_says_its_operation() {
     }
 }
 
+/// **`LeafRole::nodes` names the feature and each node a join says**,
+/// and no node a carry leaves unsaid: a face joined in at a union or
+/// cut in at a subtract names the boolean, a face carried through a
+/// subtract's `from` — the body's own continuation, said in the
+/// feature's words alone — does not, and a name with no path names its
+/// own node. The viewer says which node a pick is on only where this
+/// list does not hold it (`viewer::tree::PickedName`).
+#[test]
+fn leaf_role_nodes_name_the_feature_and_each_join() {
+    for op in [BooleanOp::Subtract, BooleanOp::Union] {
+        let mut r = Recorder::new();
+        let (block, pin) = block_and_pin(&mut r);
+        let pin = moved(&mut r, block, pin, [0.0, 0.0, PIN_Z]);
+        let at = boolean(&mut r, op, block, pin);
+        let ev = fixture::run(&r.doc, &EvalOptions::default());
+        let table = ev
+            .table_at(at)
+            .unwrap_or_else(|| panic!("{op:?} evaluates: {:?}", corpus::failures(&ev)));
+        let by = Speaker::of(&r.doc);
+        let through = |read| {
+            table
+                .iter()
+                .map(|(name, _)| name)
+                .find(|name| {
+                    matches!(name.path.as_slice(), [RoleSeg::From { read: r, .. }] if *r == read)
+                })
+                .unwrap_or_else(|| panic!("{op:?}: a face comes through {read:?}"))
+                .clone()
+        };
+        let (a, b) = (
+            through(fixture::out(&r.doc, block)),
+            through(fixture::out(&r.doc, pin)),
+        );
+        let nodes = |name: &StableName| editor_core::leaf_role(name).nodes(by);
+        let feature = |name: &StableName| editor_core::role_leaf(name).node;
+        assert_eq!(
+            nodes(&b),
+            [feature(&b), at],
+            "{op:?}: the joined member's face names its feature, then the boolean"
+        );
+        let a_nodes = match op {
+            // A subtract's `from` is the body's continuation, said
+            // nowhere in the words.
+            BooleanOp::Subtract => vec![feature(&a)],
+            _ => vec![feature(&a), at],
+        };
+        assert_eq!(nodes(&a), a_nodes, "{op:?}: the first operand's face");
+    }
+    let bare = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId::new(0, 7),
+        path: Vec::new(),
+    };
+    assert_eq!(
+        editor_core::leaf_role(&bare).nodes(Speaker::TAG),
+        [RecipeNodeId::new(0, 7)],
+        "a name with no path is said as its own node's"
+    );
+}
+
 /// **Two copies of one body read apart where a sentence names a face of
 /// each**: the copies' faces carry names alike, since a name says the
 /// node that made it and not the node holding it, so the pick's tie

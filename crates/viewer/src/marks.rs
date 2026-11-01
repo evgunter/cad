@@ -332,7 +332,7 @@ pub struct EdgeOverlay {
     pub held_refused: Option<EdgeNamesRefused>,
     /// Whether the held edges belong to a free-moved instance — one
     /// flag, because a held set is on one body
-    /// ([`crate::blend::BlendTarget`]). See
+    /// ([`crate::tree::DrawnBody`]). See
     /// [`EdgeOverlay::selected_probed`].
     pub held_probed: bool,
     /// **Segments that are not in the document at all**: the
@@ -682,7 +682,7 @@ impl LegLane {
 ///
 /// **Made, not merely drawn under.** A patch belongs to the node that
 /// MINTED the entity its name denotes, which
-/// [`pncad::select::attribute`] reads off the name's own
+/// [`crate::tree::feature_of`] reads off the name's own
 /// carry-through segments: a fillet's `From { of: f }` face is still
 /// the target's face `f`, so a fillet's extent is the blends and
 /// corners it created and nothing else. Which node DRAWS a patch is a
@@ -700,10 +700,10 @@ impl LegLane {
 /// Failing that, a node no drawn name mentions at all — a profile —
 /// marks the drawn copies deriving from it
 /// ([`crate::display::placements_deriving_from`]): a profile's line and the wall it
-/// swept are one thing seen twice. That last step is also where a name
-/// the vocabulary walk cannot classify degrades to, so an
-/// unclassified role costs the whole-body picture rather than an empty
-/// one.
+/// swept are one thing seen twice. Which node minted a patch is the one
+/// feature rule ([`crate::tree::feature_of`]), so the focus of a face pick
+/// is the feature the tree and the property header name, a name the
+/// attribution walk cannot classify included.
 ///
 /// **What it does NOT do yet (issue 1182)**, stated so the gap is not
 /// mistaken for a decision: the marking is per NODE, so selecting a
@@ -750,10 +750,13 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
     // One walk of the names per call, not one per selected node: a
     // variable selection asks the same question of every node it
     // drives.
-    let made: Vec<(u32, NameOrigin)> = index
+    let made: Vec<Made> = index
         .ids()
         .ids()
-        .filter_map(|id| Some((id, attribute(index.name_of(id).ok()?))))
+        .filter_map(|id| {
+            let name = index.name_of(id).ok()?;
+            Some((id, attribute(name), crate::tree::feature_of(name)))
+        })
         .collect();
     let mut out = BTreeSet::new();
     for node in nodes {
@@ -762,21 +765,25 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
     out
 }
 
+/// A drawn patch, the nodes its name passes through, and the feature it
+/// is ([`crate::tree::feature_of`]).
+type Made = (u32, NameOrigin, RecipeNodeId);
+
 /// The patches ONE node is responsible for: what it minted, else what
 /// passes through it, else the copies built from it (see [`focus`]).
 fn marked_for(
     index: &PickIndex,
     doc: &Doc<ProfileProgram>,
-    made: &[(u32, NameOrigin)],
+    made: &[Made],
     node: RecipeNodeId,
 ) -> BTreeSet<u32> {
-    let pick = |keep: &dyn Fn(&NameOrigin) -> bool| -> BTreeSet<u32> {
+    let pick = |keep: &dyn Fn(&NameOrigin, RecipeNodeId) -> bool| -> BTreeSet<u32> {
         made.iter()
-            .filter(|(_, at)| keep(at))
-            .map(|(id, _)| *id)
+            .filter(|(_, at, feature)| keep(at, *feature))
+            .map(|(id, _, _)| *id)
             .collect()
     };
-    let minted = pick(&|at| at.minted_by() == Some(node));
+    let minted = pick(&|_, feature| feature == node);
     if !minted.is_empty() {
         return minted;
     }
@@ -786,13 +793,12 @@ fn marked_for(
     // entities it carries are the ones minted anywhere below it.
     let below: BTreeSet<RecipeNodeId> = made
         .iter()
-        .filter_map(|(_, at)| at.minted_by())
+        .map(|(_, _, feature)| *feature)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .filter(|&minter| crate::display::derives_from(doc, node, minter))
         .collect();
-    let through =
-        pick(&|at| at.passes_through(node) || at.minted_by().is_some_and(|m| below.contains(&m)));
+    let through = pick(&|at, feature| at.passes_through(node) || below.contains(&feature));
     if !through.is_empty() {
         return through;
     }
