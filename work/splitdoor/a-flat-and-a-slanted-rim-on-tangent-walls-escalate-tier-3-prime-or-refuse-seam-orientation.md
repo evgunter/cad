@@ -75,7 +75,7 @@ Both germs fall in the corner's first entry, so their null edge is a strut, and 
 ## 2, measured after the fix
 
 The tier-3′ escalation on `A ∪ B` and `B ∖ A` is unchanged, in both handednesses. The census's curved edge-edge pass (`census::curved::interior_meeting`) reads `geom_brep::curve_pair::meet` on B's cut cap in the result: the section arcs (A's wall across B's plane, an ellipse about `(1, 0)`) against the pieces of B's rim (an ellipse about the origin). The two carriers are coplanar and internally tangent at `(2, 0, 0)`. Every such pair answers `MeetFault::Touch` on `curve_pair_coplanar_sub_side` at about 2ε, which the census types `CensusEscalated`:
-- **A shared vertex.** Pairs whose edges share `(2, 0, 0)` as an end, e.g. the arc piece `(2, 0, 0)–(1, ±1, z)` against the rim piece from `(2, 0, 0)`, touch at that common end. This is `work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`'s open touch.
+- **A shared vertex.** Pairs whose edges share `(2, 0, 0)` as an end, e.g. the arc piece `(2, 0, 0)–(1, ±1, z)` against the rim piece from `(2, 0, 0)`, touch at that common end. This is `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`'s open touch.
 - **Off the span.** Pairs whose arc ends nowhere near the touch, e.g. the arc piece `(1, ±1, z)–(0, 0, 0)`, escalate on the carriers' touch, off that arc's span. This is `work/cpair/the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc.md`'s shape.
 
 Both are cpair's ground, and the escalation is an honest one: a touch the reader cannot place, in band. It stays as is. The evidence is added to both rows, and the pin above asserts it.
