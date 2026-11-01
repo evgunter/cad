@@ -46,8 +46,8 @@
 //!   refuse `PartnerAlongFace`;
 //! - a **dart** on the plate, whose apex is a reflex edge, and the plate
 //!   less a dart or a near-flat quadrilateral, a void below the top
-//!   whose apex is one too, each read as a polygon cone
-//!   (`sectors::cone_read`);
+//!   whose apex is one too, each read through the gathered cone
+//!   (`vtxfac::cone_classes`);
 //! - the plate alone, and the arches without it, read once.
 //!
 //! A kernel op called without `BooleanInputs` records carries none of
@@ -623,6 +623,7 @@ fn refuses_beside_the_ray(
                 operand,
                 vertex,
                 reads: [SectorRead::Pierce(_), SectorRead::Pair(partner)],
+                ..
             }) => {
                 assert!(crosses, "{what}: refuses {how:?}, got the crossing pierce");
                 assert_eq!(operand, x_is, "{what}: the touching operand");
@@ -667,6 +668,7 @@ fn refuses(
                 operand,
                 vertex,
                 reads: [SectorRead::Pierce(first), next],
+                ..
             }) => {
                 assert_eq!(operand, x_is, "{what}: the operand read twice");
                 if minted {
@@ -962,9 +964,10 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         pose,
     );
     builds("a pyramid over a dart void", &s.over, &s.dart_void, pose);
-    // A dart's apex is a reflex edge, read as a polygon cone
-    // (`sectors::cone_read`): beside it on the top, and below the top
-    // beside a void whose apex is one, a touching vertex layers it.
+    // A dart's apex is a reflex edge, read through the gathered cone
+    // (`vtxfac::cone_classes`): beside it on the top, and below the top
+    // beside a void whose apex is one, a touching vertex reads it with
+    // the face it touches.
     builds("a standing pyramid beside a dart", &s.cone, &s.dart, pose);
     builds("a pyramid over a dart", &s.over, &s.dart, pose);
     builds(
@@ -1014,8 +1017,8 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
 /// void holds the ray as a zero-area ring of the top, whose tip each
 /// partner's apex meets ([`REFUSING`] names the cells that refuse). A
 /// pyramid with a face flush on the top across the ray, and one with a
-/// face on the lying pyramid's, refuse `PartnerAlongFace`: the layering
-/// is not read beside a coincidence of the touch's or the pair's
+/// face on the lying pyramid's, refuse `PartnerAlongFace`: the cone is
+/// not read beside a coincidence of the touch's or the pair's
 /// (`vtxfac::partner_side`). At rest; every pose is the slow matrix's.
 #[test]
 fn a_touching_vertex_beside_a_partner_along_the_face_builds_sound_in_every_op() {

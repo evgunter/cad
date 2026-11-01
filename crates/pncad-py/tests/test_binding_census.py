@@ -2198,7 +2198,8 @@ FAMILIES: dict[str, str] = {
 #:
 #: The positive form is `tests/test_cancellation.py`. Its oracle is
 #: the kernel's own contract on a canceled run — full `order()`, the
-#: completed prefix, node granularity — read back through the doors
+#: completed prefix, checked between nodes and a family's members —
+#: read back through the doors
 #: that report it, with the DETERMINISTIC arm (a token canceled
 #: before the run starts, so the check before the first node fires)
 #: as the pin, and the interruption of a run already under way
