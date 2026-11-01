@@ -2,11 +2,11 @@
 id: a-union-across-a-tangent-crescent-refuses-unbuilt
 kind: issue
 title: A union of two plane faces overlapping in a crescent tangent at a vertex refuses TangentCrescentUnsupported: no germ runs along a region of zero angle
-status: dispatched
+status: open
 opened: 2026-10-25
 priority: P1
 cost: H
-branch: cleave/tangent-crescent-builds
+design: true
 ---
 
 
@@ -68,3 +68,72 @@ join produces the section's germs along a region of zero angle:
   osculating a circle). Both are unmeasured.
 - Two faces on one curved carrier could overlap in a crescent too; the
   reading runs on plane faces only, and no such pose has been built.
+
+## Plan (measured on PR 5852's tree, 2026-10-27)
+
+Weighed by the lane that took this row with
+`a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit`
+and judged larger than `H` for one lane: it is a second-order reading
+in the vertex classifier, which every tangent vertex pair runs through,
+before it is a join or a result question. Measured on the boss over a
+hole tangent inside its rim, two arcs, vertices at the touch, `A ∪ B`
+(the boss `A`), with `crescent_refusal` bypassed:
+
+- **What the classifier reads at the touch.** `A`'s sectors there are
+  the floor (two, split at `−x`, normal `−z`) and the wall (two, split
+  at `+z`, normal `+x`); `B`'s the top (two, split at `+x`, normal `+z`)
+  and the hole's wall (two, normal `−x`). Four records, wall × top and
+  floor × hole wall on each side of the shared tangent `±y`, every one
+  `intersect: false`: each pair touches along `±y`, one bound `On` the
+  other's plane. The join then refuses `UnpairedLooseEnds { count: 4 }`
+  (the four arcs' ends at the touch with no germ there); the one-segment
+  forms refuse the same with count 2, or ship two shells with both faces
+  whole where both vertices are at the touch.
+- **Reading the crescent as an overlap** (floor × top, both halves, as
+  `On`/`On` records) moves `recl_sectors` to read them `(In, In)` and
+  `recl_edges` to reclassify the walls' `On` bounds, but the two crossing
+  records the section needs stay `intersect: false`: wall × top reads
+  `sa = (Out, In)`, `sb = (On, Out)`, and floor × hole wall
+  `sa = (On, Out)`, `sb = (Out, In)`. The `On` left in each is a bound
+  tangent to a CURVED partner face: the hole's rim against the boss
+  wall's tangent plane, the boss's rim against the hole wall's.
+  `sectors::pair_codes` reads a bound against the face's tangent plane
+  only, and `pierce_side` says so of a tie with a curved face ("which
+  way it leaves the face is the two carriers' relative curvature").
+  Read one order down (the bound's curvature against the face's normal
+  curvature along it), both are `In`: the hole's rim bends inside the
+  boss's cylinder, the boss's rim stays in the plate's material outside
+  the hole's. With them `In` both records cross, and their germs are the
+  two the union needs: the boss's rim (`A` on its edge, `B` in its top)
+  and the hole's rim (`A` in its floor, `B` on its edge). Their loci
+  are the second-order reading `sectors::runs_into` already makes.
+
+## What building it takes, in order
+
+1. **The crescent as an overlap**, under union of two opposed plane
+   faces (`sectors::crescent`, which `crescent_refusal` reads today): a
+   coplanar record per crescent half, so `recl_sectors` reclassifies it.
+2. **A bound tangent to a curved partner face read one order down** in
+   the pair codes: the bound's curvature vector against the face's
+   normal curvature in the bound's direction, as a decided margin in
+   metres (`(κ_b·n̂ − II(d̂, d̂))·l²/2` at the bound's reach), registered
+   like `bool_sector_runs_into_bend`. This is the step with reach: every
+   bound tangent to a curved face at a vertex pair reads it, so its
+   outcome diff runs over the whole boolean suite.
+3. **Two one-site loops through one site** at the join: each rim lying
+   in the partner's face, tangent to that face's boundary at the touch
+   (`join.rs` `closes_at_its_site`'s `Closed` against `Other`, which a
+   boss standing over a hole tangent outside already takes once). Today
+   `one_site_segments` takes one record per site.
+4. **The pinch**, two vertices at the touch with a vertex–vertex contact
+   record (`[topology]`: touching through distinct entities): one shell
+   touching itself through a hole, and the pocket's cavity a void shell
+   touching the outer shell.
+5. `crescent_refusal` and `TangentCrescentUnsupported` go, and
+   `a_boss_over_a_hole_by_pose`'s crescent cells read `Sound(1)` through
+   and two shells pocketed.
+
+Step 2 is a design question with more than one answer (a curvature
+reading in `pair_codes`, or the declared-tangent machinery of
+`sectors::tangent_relative_side` extended to undeclared ties), so a
+designer pass first.

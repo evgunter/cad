@@ -690,6 +690,7 @@ fn a_spline_arc_is_made_only_on_its_evidence() {
         certificate: None,
         winds: [false, false],
         pad: 0.0,
+        reach: 0.0,
         witness: curve.eval(0.5),
     };
     assert!(

@@ -158,6 +158,8 @@ mod a_torus_off_its_ring_reads_as_at_rest;
 mod a_tube_ending_on_a_ball;
 #[path = "a_vertex_on_a_grazing_plane.rs"]
 mod a_vertex_on_a_grazing_plane;
+#[path = "a_vertex_piercing_a_lens_wall.rs"]
+mod a_vertex_piercing_a_lens_wall;
 #[path = "a_wall_seam_takes_the_column_it_lies_on.rs"]
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "a_wrap_tip_sits_on_its_faces_chart_singularity.rs"]
@@ -523,6 +525,8 @@ mod contfp_reads_arcs_on_their_carriers;
 mod copied_carriers_at_interval;
 #[path = "corner_patch_chart_poles.rs"]
 mod corner_patch_chart_poles;
+#[path = "edges_lying_in_a_face_part_wherever_they_lie.rs"]
+mod edges_lying_in_a_face_part_wherever_they_lie;
 #[path = "ellipse_torus.rs"]
 mod ellipse_torus;
 #[path = "encl_curved_loft_shell.rs"]

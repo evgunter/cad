@@ -271,7 +271,9 @@ impl ViewerBehavior<'_> {
                     FieldWriting::of(dimension, None, Notation::CANONICAL).tick
                 });
             match self.new_variable_unit() {
-                Some(unit) => unit_field(ui, unit, speed, &mut self.drafts.new_variable_value),
+                Some(unit) => {
+                    unit_field(ui, unit, speed, &mut self.drafts.new_variable_value);
+                }
                 // A `Count` and a bare `Scalar` name no notation, so
                 // the field is the number itself and no picker is
                 // drawn beside it.
