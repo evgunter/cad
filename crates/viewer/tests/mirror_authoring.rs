@@ -701,6 +701,58 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
     );
 }
 
+/// **A drop says the plane as the line said it**, after the copy it
+/// was clicked on is deleted: the line read the click on the block the
+/// copy places, so the drop says the block, and not the deleted copy by
+/// its tag. Red if the drop reads the click's body again against the
+/// document that dropped it.
+#[test]
+fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
+    let tol = Tol::witness();
+    let (mut session, block) = block(tol);
+    let wall = face_toward(&session, 1.0);
+    let copy = wall.node;
+    assert_ne!(
+        copy, block,
+        "the premise: the wall was clicked on the block's copy"
+    );
+    let mut tools = mirror_tool_picking(&session, &[wall]);
+    let line = tools
+        .mirror()
+        .expect("open")
+        .line(viewer::frame::landed_speaker(session.landed_pair()));
+    let plane = line
+        .split_once("mirror plane: ")
+        .map(|(_, plane)| plane.to_owned())
+        .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
+    let (block_said, copy_said) = (
+        session.doc().spoken(block).to_string(),
+        session.doc().spoken(copy).to_string(),
+    );
+    assert!(
+        plane.starts_with("the side wall ")
+            && plane.ends_with(&format!(" of {block_said}, on {copy_said}")),
+        "the line says the block's wall on the copy clicked: {line:?}"
+    );
+    let outcome = session.perform(SessionOp::DeleteNode { node: copy });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    tools.respeak(session.doc());
+    session.pump();
+    let dropped: Vec<String> = tools
+        .reconcile(session.doc(), session.landed_pair())
+        .iter()
+        .filter(|notice| matches!(notice, ToolNotice::Mirror(MirrorEvent::PlaneLost { .. })))
+        .map(|notice| notice.said(session.landed_pair()))
+        .collect();
+    assert_eq!(
+        dropped,
+        [format!(
+            "mirror tool: the mirror plane pick ({plane}) no longer resolves; the tool dropped it"
+        )],
+        "the drop says the plane as the line did"
+    );
+}
+
 /// **A plane read in another space is refused, however it is reached**:
 /// a face of a second block's IMAGE (its own space's, since an image is
 /// in its source's), a face clicked on the second block's drawn copy,
@@ -797,20 +849,29 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     );
 }
 
-/// **One click is named by one node**: a face clicked on the block's
-/// copy is said as the block in both of the tool's items, the body and
-/// the plane.
+/// **A click on a copy seats the block and says the copy**: a face
+/// clicked on the block's copy seats the block as the body, and the
+/// plane is said as the block's wall on the copy it was clicked on —
+/// the plane was taken there.
 #[test]
-fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
+fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
     let tol = Tol::witness();
     let (session, block) = block(tol);
     let wall = face_toward(&session, 1.0);
+    let wall_copy = wall.node;
     let tools = mirror_tool_picking(&session, &[wall]);
-    let doc = session.committed_doc();
-    let said = doc.spoken(block).to_string();
-    assert_eq!(
-        tools.mirror().expect("open").line(doc),
-        format!("mirrored body: {said}; mirror plane: face of {said}"),
+    let said = session.doc().spoken(block).to_string();
+    let copy = session.doc().spoken(wall_copy).to_string();
+    let line = tools
+        .mirror()
+        .expect("open")
+        .line(viewer::frame::landed_speaker(session.landed_pair()));
+    let plane = line
+        .strip_prefix(&format!("mirrored body: {said}; mirror plane: "))
+        .unwrap_or_else(|| panic!("the body seat says the block: {line:?}"));
+    assert!(
+        plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {said}, on {copy}")),
+        "the plane is the block's wall in its words, said on the copy clicked: {line:?}"
     );
 }
 

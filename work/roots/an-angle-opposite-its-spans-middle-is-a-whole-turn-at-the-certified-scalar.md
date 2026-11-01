@@ -34,7 +34,12 @@ Each reduces an angle onto a span's middle and then reads the span's ends:
 - `ruled_region`'s `Conic::angle`, a point of a conic edge read on its
   span (the parallel leg × conic arm);
 - `sphere_region`'s arc landings, roots reduced by
-  `first_harmonic_roots_in_band` onto the arc's middle;
+  `first_harmonic_roots_in_band` onto the arc's middle. **Fixed by
+  RESTCURVE's pole-door PR (#6252)**: the door reads each root as a
+  direction (`circle_roots::first_harmonic_root_directions`) and its span
+  at the nearer end (`region::span_at_nearer_end`), and
+  its own row pins it
+  (`sphere_region::a_root_opposite_its_arcs_middle_or_on_its_phase_cut_reads_tight`);
 - `torus_region`'s meridian-leg × circle arm, the same root reduction
   (`circle_roots`);
 - `circle_torus.rs`, `thetas[count] = near_span(theta, (t0, t1))`, the
@@ -46,7 +51,9 @@ Each reduces an angle onto a span's middle and then reads the span's ends:
   course is shared by every region door's legs. **Taken by RESTCURVE's
   pole-door unit** (`the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar`),
   whose branch rewrites `Round`'s swept angle with no cut; it is not this
-  row's.
+  row's. **Fixed by #6252**, with the repro below as its row
+  (`one_region_rows::two_windows_at_opposite_azimuths_validate`, f64 and
+  Interval, passing at ε 1e-6, 1e-9 and 1e-12).
   - The repro is from PR 6244's review, probe `review_antipodal` on
     `restcurve/review-marten-6244` @ `cf2cf225`. It plants two windows on
     the donut's face at opposite azimuths, `((-1.2, -0.2), (-0.4, 0.4))`
