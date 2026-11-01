@@ -21,7 +21,8 @@ vertex's point lies among the dropped face's pieces (`fate::lies`):
 inside one piece it mints a lone vertex, at vertices of the division it
 ends the chord there (PR 6185). On an edge of the division, at no vertex
 of it, it refuses `ClassificationInvariant` "a fate cut's end lies on an
-edge of its face's division" (`Unplaced::OnEdge`). No witness reaches it:
+edge of its face's division" (`fate::Lies::OnEdge` at the touch
+placement). No witness reaches it:
 PR 6185's grids (two and three lumps touching along a segment or an
 edge, flush partners, all poses, three ε) reach the pierced corner's
 on-edge case only.

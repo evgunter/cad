@@ -4491,7 +4491,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
             "recharted_row_unstated",
-            "rest_piece_unread",
             "result_invalid",
             "revert",
             "rim_cusp_arm_unbuilt",

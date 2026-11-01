@@ -1129,10 +1129,9 @@ pub enum SelfCheck {
     /// (`bool_ring_run_winding`): a zero area is a degenerate run
     /// (`JoinDesync`).
     RingWinding,
-    /// Where a record's span along a line edge lies (`ops::record_spans`):
-    /// the order of its bounds along the edge, or whether a face holds
-    /// its midpoint, asked as the census confirms a record. The records
-    /// bounding it certified at rest, so an undecided answer is one the
+    /// Which piece of a face the op divided holds a record's point
+    /// (`ops::piece_reading`), asked as the census confirms a record. The
+    /// record certified at rest, so an undecided answer is one the
     /// census could not decide either.
     CarriedLineage,
     /// Which way a one-vertex seam edge runs against its partner
