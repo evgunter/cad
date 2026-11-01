@@ -14,7 +14,8 @@
 //! Every surface, curve and point the door reads is lifted through
 //! [`Interval::from_certified`], and cells, enclosures, the funnelled
 //! `d − c` and the bracket are interval arithmetic; at `T = Interval`
-//! the lift keeps every bound. On a window that is a superset of its
+//! the lift keeps every bound, and a face any of whose lifted values
+//! does not certify is refused (`window_of`). On a window that is a superset of its
 //! face, the cells' and stations' point-in-face decisions run at `T`
 //! ([`crate::cell_region`]); a window that IS its face (an iso-bounded
 //! NURBS patch) asks neither door, since every cell and station of it
@@ -2281,7 +2282,7 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                 continue;
             };
             let sep = separation(&pa.enc, &pb.enc);
-            if !(sep.lo().is_finite() && sep.hi().is_finite()) {
+            if poisoned(sep) {
                 // Geometry that did not evaluate. Not an indeterminacy
                 // refinement could settle and not a budget — the
                 // bound sweep's own class, for the same reason.
@@ -2432,12 +2433,13 @@ impl Bracket {
     ) {
         let (sa, sb) = (centre(a.u, a.v), centre(b.u, b.v));
         let at = |w: &Window<'_, T>, (u, v): (f64, f64)| enclosure(&w.surface, (u, u), (v, v));
-        let stations = separation(&at(x, sa), &at(y, sb)).hi();
+        let stations = separation(&at(x, sa), &at(y, sb));
         // A region is read only where its answer could lower the
         // incumbent.
-        if !(stations.is_finite() && self.hi.is_none_or(|hi| stations < hi)) {
+        if poisoned(stations) || self.hi.is_some_and(|hi| stations.hi() >= hi) {
             return;
         }
+        let stations = stations.hi();
         let region = &mut self.region;
         let placed = k_stats::unlogged("F28", || {
             let mut on = |side_b, index, w: &Window<'_, T>, c: Cell, station| match region
@@ -2465,7 +2467,7 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
     ) -> ControlFlow<()> {
         let pair = task.pair;
         let sep = separation(&pair.a.enc, &pair.b.enc);
-        if !(sep.lo().is_finite() && sep.hi().is_finite()) {
+        if poisoned(sep) {
             self.poison = Some(MinSeparationRefusal::PoisonEnclosure {
                 a: x.face,
                 b: y.face,
@@ -2507,12 +2509,22 @@ impl<T: Decide + CertifiedBounds> Question<T> for Bracket {
     /// for a budget.
     fn overflow(&mut self, receipt: &mut CellReceipt, frontier: Vec<Task>) {
         for task in frontier {
-            self.floor = self
-                .floor
-                .min(separation(&task.pair.a.enc, &task.pair.b.enc).lo());
+            let sep = separation(&task.pair.a.enc, &task.pair.b.enc);
+            // A separation that did not evaluate floors at `0`, which
+            // every separation is at least.
+            let lo = if poisoned(sep) { 0.0 } else { sep.lo() };
+            self.floor = self.floor.min(lo);
             receipt.abandoned += 1;
         }
     }
+}
+
+/// Whether a cell pair's separation is no bracket the minimum may read:
+/// one that does not certify, or one with an end that is not finite.
+/// Behind [`window_of`]'s refusal a cell's enclosure is its certified
+/// carrier's, so no admitted face is known to reach the first arm.
+fn poisoned(sep: Interval) -> bool {
+    !(sep.is_certified() && sep.lo().is_finite() && sep.hi().is_finite())
 }
 
 // ------------------------------------------------- carrier windows
@@ -2574,9 +2586,9 @@ struct RegionMemo {
     /// The witness stations the point doors were asked to place, by the
     /// same bitwise key, and where they placed them.
     stations: BTreeMap<(bool, usize, u64, u64), Option<FaceContainment>>,
-    /// Each window's stored carrier and boundary lifted, once: every
-    /// cell of the window reads them.
-    lifted: BTreeMap<(bool, usize), (Surface<Interval>, Vec<BoundaryStop>)>,
+    /// Each window's boundary lifted, once: every cell of the window
+    /// reads it.
+    lifted: BTreeMap<(bool, usize), Vec<BoundaryStop>>,
 }
 
 impl RegionMemo {
@@ -2616,17 +2628,16 @@ impl RegionMemo {
             {
                 None => CellRegion::Undecided,
                 Some(stored) => {
-                    let (lifted, boundary) =
-                        self.lifted.entry((side_b, index)).or_insert_with(|| {
-                            (
-                                stored.map_scalar(Interval::from_certified),
-                                lift_boundary(w.body, w.face),
-                            )
-                        });
+                    // The carrier is the window's own lift, which
+                    // [`window_of`] admitted only where it certifies.
+                    let boundary = self
+                        .lifted
+                        .entry((side_b, index))
+                        .or_insert_with(|| lift_boundary(w.body, w.face));
                     cell_region_lifted(
                         w.body,
                         w.face,
-                        (stored, lifted, boundary),
+                        (stored, &w.surface, boundary),
                         c.u,
                         c.v,
                         self.band,
@@ -2757,7 +2768,9 @@ fn window_of<'b, T: Decide + CertifiedBounds>(
         }
         _ => {}
     }
-    let charted = stored.map_scalar(Interval::from_certified);
+    let Some(charted) = certified_lift(|lift| stored.map_scalar(lift)) else {
+        return unsupported("a face whose carrier does not certify");
+    };
     let superset = |u, v| (u, v, Region::Trimmed);
     let (u, v, region) = match &charted {
         Surface::Plane {
@@ -2850,6 +2863,22 @@ fn winds_nowhere<T: Decide>(body: &Body<T>, f: &Face) -> bool {
         }
     }
     crate::joint::Winding::of(elements).is_zero()
+}
+
+/// **`lift` with every scalar it reads crossed through
+/// [`Interval::from_certified`]**, `None` when any crossing does not
+/// certify: at `T = Interval` a refused value crosses with its ordinary
+/// endpoints under `Trv`, and the engine reads endpoints.
+fn certified_lift<T: CertifiedBounds, X>(
+    lift: impl FnOnce(&dyn Fn(T) -> Interval) -> X,
+) -> Option<X> {
+    let refused = core::cell::Cell::new(false);
+    let lifted = lift(&|x| {
+        let i = Interval::from_certified(x);
+        refused.set(refused.get() || !i.is_certified());
+        i
+    });
+    (!refused.get()).then_some(lifted)
 }
 
 /// A rectangle of carrier parameters, `(u, v)` ranges.
@@ -3029,8 +3058,9 @@ fn narrows(whole: &Aabb, half: &Aabb) -> bool {
 /// bounding, so a circular edge's bulge is enclosed rather than chorded
 /// away — together with the boundary's vertex points, each lifted
 /// through [`Interval::from_certified`]. `None` for a face whose
-/// boundary this cannot walk or one of whose edges carries no certified
-/// curve: an unclaimable extent, never a silently smaller one.
+/// boundary this cannot walk, one of whose edges carries no certified
+/// curve, or one any of whose lifted values does not certify: an
+/// unclaimable extent, never a silently smaller one.
 ///
 /// The lifted boundary carries each edge's carrier and span, its two
 /// end vertices, and each of the face's half-edges on it with that
@@ -3043,8 +3073,17 @@ fn boundary_of<T: Decide + CertifiedBounds>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Option<(Aabb, Boundary)> {
+    certified_lift(|lift| walk_boundary(body, face, lift)).flatten()
+}
+
+/// [`boundary_of`]'s walk, every value it reads crossed by `lift`.
+fn walk_boundary<T: Decide + CertifiedBounds>(
+    body: &Body<T>,
+    face: FaceKey,
+    lift: &dyn Fn(T) -> Interval,
+) -> Option<(Aabb, Boundary)> {
     let f = body.get_face(face)?;
-    let point = |p: &Point3<T>| p.map(Interval::from_certified);
+    let point = |p: &Point3<T>| p.map(lift);
     let mut pts: Vec<Point3<Interval>> = Vec::new();
     let mut out = Boundary {
         sense: f.sense,
@@ -3079,28 +3118,25 @@ fn boundary_of<T: Decide + CertifiedBounds>(
                                 let (t0, t1) = row.row.params();
                                 let end = |t: T| {
                                     let q = row.pcurve.eval(t);
-                                    [Interval::from_certified(q.x), Interval::from_certified(q.y)]
+                                    [lift(q.x), lift(q.y)]
                                 };
-                                row_of(&row.pcurve, (t0, t1), [end(t0), end(t1)])
+                                row_of(&row.pcurve, (lift(t0), lift(t1)), [end(t0), end(t1)], lift)
                             }),
                         );
                     }
                     for row in rows {
                         let (t0, t1) = row.row.params();
-                        let lift = |t: T| {
+                        let end = |t: T| {
                             let q = row.pcurve.eval(t);
-                            Point2::new(
-                                Interval::from_certified(q.x),
-                                Interval::from_certified(q.y),
-                            )
+                            Point2::new(lift(q.x), lift(q.y))
                         };
                         images.insert(
                             row.half_edge,
                             (
-                                [lift(t0), lift(t1)],
-                                iso_of(&row.pcurve),
-                                harmonic_of(&row.pcurve),
-                                wall_of(&row.pcurve),
+                                [end(t0), end(t1)],
+                                iso_of(&row.pcurve, lift),
+                                harmonic_of(&row.pcurve, lift),
+                                wall_of(&row.pcurve, lift),
                             ),
                         );
                     }
@@ -3112,8 +3148,8 @@ fn boundary_of<T: Decide + CertifiedBounds>(
         let e = body.get_edge(ek)?;
         let curve = body.get_curve_geom(e.curve)?.certified()?;
         let (t0, t1) = curve.params();
-        let span = (Interval::from_certified(t0), Interval::from_certified(t1));
-        let carrier = curve.carrier().map_scalar(Interval::from_certified);
+        let span = (lift(t0), lift(t1));
+        let carrier = curve.carrier().map_scalar(lift);
         // The whole parameter span as ONE interval: the carrier's
         // interval evaluation over it encloses the entire arc, which is
         // what makes a curved boundary bound its own face's window.
@@ -3164,22 +3200,23 @@ enum Row {
 
 /// **One row of a loop's lift as [`extent_of`] reads it**: a monotone
 /// coordinate line by its `ends`, its chart points at `t0` and `t1`; a
-/// harmonic or spiric wall image by its enclosure over its whole span;
-/// `None` for any other image.
-fn row_of<T: CertifiedBounds>(
+/// harmonic or spiric wall image by its enclosure over its whole span,
+/// its coefficients crossed by `lift`; `None` for any other image.
+fn row_of<T: CertifiedBounds, S: CertifiedBounds>(
     pcurve: &Pcurve<T>,
-    (t0, t1): (T, T),
+    (t0, t1): (S, S),
     ends: [[Interval; 2]; 2],
+    lift: &dyn Fn(T) -> Interval,
 ) -> Option<Row> {
     if !monotone_line(pcurve) {
         let t = Interval::from_bounds(
             Interval::from_certified(t0).lo(),
             Interval::from_certified(t1).hi(),
         );
-        if let Some(w) = wall_of(pcurve) {
+        if let Some(w) = wall_of(pcurve, lift) {
             return Some(Row::Bulging(w.at(t)));
         }
-        return Some(Row::Bulging(harmonic_of(pcurve)?.at(t)));
+        return Some(Row::Bulging(harmonic_of(pcurve, lift)?.at(t)));
     }
     Some(Row::Ends(ends))
 }
@@ -3240,8 +3277,10 @@ fn monotone_line<T: CertifiedBounds>(p: &Pcurve<T>) -> bool {
         Channel::Free { a, b, .. } => zero(a) && zero(b),
     };
     match p {
-        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => iso_of(p).is_some(),
-        Pcurve::Harmonic { u, v } => match iso_of(p) {
+        Pcurve::IsoLine { .. } | Pcurve::IsoArc { .. } => {
+            iso_of(p, &Interval::from_certified).is_some()
+        }
+        Pcurve::Harmonic { u, v } => match iso_of(p, &Interval::from_certified) {
             Some((Axis::U, _, _)) => moves_monotone(v),
             Some((Axis::V, _, _)) => moves_monotone(u),
             None => false,
@@ -3264,30 +3303,33 @@ type Image = (
     Option<injective::Wall>,
 );
 
-/// **A harmonic chart image's coefficients, lifted**
+/// **A harmonic chart image's coefficients, crossed by `lift`**
 /// ([`injective::Harmonic`]); `None` for every other variant.
 ///
 /// An angle channel's rate is its winding count, read off the count:
 /// the rate is a ratio of two equal periods
 /// ([`geom_brep::pcurve_cache::angle_rate`]), which an interval scalar
 /// encloses wider than the integer it is.
-fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic> {
+fn harmonic_of<T: CertifiedBounds>(
+    p: &Pcurve<T>,
+    lift: &dyn Fn(T) -> Interval,
+) -> Option<injective::Harmonic> {
     let Pcurve::Harmonic { u, v } = *p else {
         return None;
     };
-    let lift = |ch: Channel<T>| match ch {
+    let channel = |ch: Channel<T>| match ch {
         Channel::Angle { phase, winding } => {
             let zero = Interval::from_f64(0.0);
             [
-                Interval::from_certified(phase),
+                lift(phase),
                 zero,
                 zero,
                 Interval::from_f64(f64::from(winding)),
             ]
         }
-        Channel::Free { c, a, b, l } => [c, a, b, l].map(Interval::from_certified),
+        Channel::Free { c, a, b, l } => [c, a, b, l].map(lift),
     };
-    let ([cu, au, bu, lu], [cv, av, bv, lv]) = (lift(u), lift(v));
+    let ([cu, au, bu, lu], [cv, av, bv, lv]) = (channel(u), channel(v));
     Some(injective::Harmonic {
         p0: [cu, cv],
         pa: [au, av],
@@ -3296,10 +3338,13 @@ fn harmonic_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Harmonic>
     })
 }
 
-/// **A spiric's wall image, lifted** ([`injective::Wall`]); `None` for
+/// **A spiric's wall image, crossed by `lift`** ([`injective::Wall`]); `None` for
 /// every other image, and for a wall whose `sense` does not lift to
 /// exactly `±1`, which every minted image's does.
-fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Wall> {
+fn wall_of<T: CertifiedBounds>(
+    p: &Pcurve<T>,
+    lift: &dyn Fn(T) -> Interval,
+) -> Option<injective::Wall> {
     let Pcurve::Spiric {
         major,
         minor,
@@ -3315,7 +3360,6 @@ fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Wall> {
     else {
         return None;
     };
-    let lift = Interval::from_certified;
     let sigma = [1.0, -1.0]
         .into_iter()
         .find(|&s| injective::exactly(lift(sense), s))?;
@@ -3338,10 +3382,9 @@ fn wall_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<injective::Wall> {
 /// coordinate it holds, the value, and whether its moving coordinate is
 /// an angle. The held coordinate is exact structure — a velocity, or a
 /// harmonic channel's three coefficients, that lift to the point zero —
-/// so no zero is decided here.
-fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>) -> Option<IsoImage> {
+/// so no zero is decided here. The value is crossed by `lift`.
+fn iso_of<T: CertifiedBounds>(p: &Pcurve<T>, lift: &dyn Fn(T) -> Interval) -> Option<IsoImage> {
     let zero = |x: T| injective::exactly(Interval::from_certified(x), 0.0);
-    let lift = Interval::from_certified;
     let line = |p0: Point2<T>, d: geom_core::Vec2<T>| {
         if zero(d.x) {
             Some((Axis::U, lift(p0.x), false))
@@ -3916,7 +3959,7 @@ mod extent_rows {
     use super::{Row, extent_of, row_of};
     use core::f64::consts::{PI, TAU};
     use geom_brep::{Channel, Pcurve};
-    use geom_core::Bounds;
+    use geom_core::{Bounds, Interval};
 
     /// The harmonic image `u = t`, `v = sin t`, which bulges to `v = 1`
     /// between its ends over `[0, π]`.
@@ -3955,16 +3998,26 @@ mod extent_rows {
     /// a row that is no monotone line is read by its ends.
     #[test]
     fn a_harmonic_rows_extent_holds_its_bulge() {
-        let Some(Row::Bulging([u, v])) = row_of(&arch(), (0.0, PI), flat(PI)) else {
+        let Some(Row::Bulging([u, v])) =
+            row_of(&arch(), (0.0, PI), flat(PI), &Interval::from_certified)
+        else {
             panic!("the arch is read by its enclosure");
         };
         assert!(
             u.lo() <= 0.0 && PI <= u.hi() && v.hi() >= 1.0,
             "the enclosure holds the arch: {u:?} {v:?}"
         );
-        let [(_, _), (_, top)] =
-            extent_of(CYLINDER, [row_of(&arch(), (0.0, PI), flat(PI))].into_iter())
-                .expect("an extent");
+        let [(_, _), (_, top)] = extent_of(
+            CYLINDER,
+            [row_of(
+                &arch(),
+                (0.0, PI),
+                flat(PI),
+                &Interval::from_certified,
+            )]
+            .into_iter(),
+        )
+        .expect("an extent");
         assert!(top >= 1.0, "the extent reaches the bulge: {top}");
     }
 
@@ -3978,12 +4031,23 @@ mod extent_rows {
         assert!(
             extent_of(
                 CYLINDER,
-                [row_of(&arch(), (0.0, TAU), flat(TAU))].into_iter()
+                [row_of(
+                    &arch(),
+                    (0.0, TAU),
+                    flat(TAU),
+                    &Interval::from_certified
+                )]
+                .into_iter()
             )
             .is_none(),
             "a turn-wide superset reads unknown"
         );
-        let wide = [row_of(&arch(), (0.0, TAU), flat(TAU))];
+        let wide = [row_of(
+            &arch(),
+            (0.0, TAU),
+            flat(TAU),
+            &Interval::from_certified,
+        )];
         assert!(
             extent_of([false, false], wide.into_iter()).is_some(),
             "a superset a turn wide on an axis that is not periodic is taken"
@@ -4016,7 +4080,7 @@ mod extent_rows {
         use geom_brep::WallTorus::{Mirror, Own};
         for (sense, torus) in [(1.0, Own), (-1.0, Own), (1.0, Mirror), (-1.0, Mirror)] {
             let p = wall(sense, torus);
-            let w = super::wall_of(&p).expect("a wall image");
+            let w = super::wall_of(&p, &Interval::from_certified).expect("a wall image");
             for k in 0..8 {
                 let t = -2.0 + 0.6 * f64::from(k);
                 let q = p.eval(t);
@@ -4027,7 +4091,10 @@ mod extent_rows {
                 );
             }
         }
-        assert!(super::wall_of(&wall(0.5, Own)).is_none(), "no unit sign");
+        assert!(
+            super::wall_of(&wall(0.5, Own), &Interval::from_certified).is_none(),
+            "no unit sign"
+        );
     }
 
     /// **A wall row's extent holds its bulge**: over `t ∈ [−1, 1]` its
@@ -4040,7 +4107,12 @@ mod extent_rows {
             let q = p.eval(t);
             [q.x, q.y].map(|x| geom_core::interval::Interval::from_bounds(x, x))
         };
-        let Some(Row::Bulging([u, _])) = row_of(&p, (-1.0, 1.0), [end(-1.0), end(1.0)]) else {
+        let Some(Row::Bulging([u, _])) = row_of(
+            &p,
+            (-1.0, 1.0),
+            [end(-1.0), end(1.0)],
+            &Interval::from_certified,
+        ) else {
             panic!("the wall is read by its enclosure");
         };
         let top = p.eval(0.0).x;
@@ -4079,7 +4151,7 @@ mod winding_rate {
                     l: zero,
                 },
             };
-            let h = harmonic_of(&image).expect("a harmonic image");
+            let h = harmonic_of(&image, &Interval::from_certified).expect("a harmonic image");
             assert!(
                 injective::exactly(h.pl[0], f64::from(winding)),
                 "winding {winding}: rate {:?}",
@@ -4383,5 +4455,104 @@ mod refines_rows {
             ..unit
         };
         assert!(!narrows(&unbounded, &inward), "an unbounded whole");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod trv_rows {
+    use super::{Budgets, MinSeparationRefusal, Side, min_separation, poisoned};
+    use crate::{Body, FaceKey};
+    use geom::Surface;
+    use geom_core::{Band, Bounds, Interval, Real, Tol};
+
+    /// `x` crossed with its endpoints intact under `Trv`: the value a
+    /// refused scalar lifts to through [`Interval::from_certified`].
+    fn trv(x: f64) -> Interval {
+        let refused = Interval::from_bounds(x, x) + Interval::from_bounds(-1.0, 0.0).sqrt();
+        assert!(
+            !refused.is_certified() && refused.lo() == x && refused.hi() == x,
+            "a refused crossing keeps its endpoints: {refused:?}"
+        );
+        refused
+    }
+
+    fn brick(x: (f64, f64)) -> Body<Interval> {
+        crate::test_support_fixtures::brick::<Interval>(x, (0.0, 1.0), (0.0, 1.0), Tol::witness())
+    }
+
+    fn faces(body: &Body<Interval>) -> Vec<FaceKey> {
+        body.faces().map(|(k, _)| k).collect()
+    }
+
+    /// The minimum separation of the unit cube and a copy `1` along `x`
+    /// that `poison` has changed.
+    fn bracket(
+        poison: impl FnOnce(&mut Body<Interval>),
+    ) -> Result<super::MinSeparation, MinSeparationRefusal> {
+        let a = brick((0.0, 1.0));
+        let mut b = brick((2.0, 3.0));
+        poison(&mut b);
+        min_separation(
+            &Side {
+                body: &a,
+                faces: faces(&a),
+            },
+            &Side {
+                body: &b,
+                faces: faces(&b),
+            },
+            false,
+            Band::linear(Tol::witness()).unwrap(),
+            Budgets::MIN_SEPARATION,
+        )
+    }
+
+    /// **A face whose lifted carrier or boundary does not certify is
+    /// refused at its window** (`window_of`, `boundary_of`): a plane
+    /// whose origin, or a vertex whose point, is a refused value with
+    /// the certified one's endpoints. The control brackets the bricks'
+    /// separation of `1`. Red if either lift reads the refused value's
+    /// bracket and the engine brackets the minimum off it.
+    #[test]
+    fn a_face_that_does_not_certify_is_refused_at_its_window() {
+        let control = bracket(|_| {}).expect("the certified control");
+        assert!(
+            control.lo() <= 1.0 && control.hi().is_some_and(|hi| 1.0 <= hi),
+            "the certified control brackets 1: {}",
+            control.render()
+        );
+        let refusal = |poison: fn(&mut Body<Interval>)| match bracket(poison) {
+            Err(MinSeparationRefusal::Unsupported { carrier, .. }) => carrier,
+            other => panic!("refused as unsupported, not {other:?}"),
+        };
+        let carrier = refusal(|b| {
+            let Some(Surface::Plane { origin, .. }) = b.surfaces.values_mut().next() else {
+                panic!("a brick's faces are planes");
+            };
+            origin.x = trv(origin.x.lo());
+        });
+        assert_eq!(carrier, "a face whose carrier does not certify");
+        let carrier = refusal(|b| {
+            let p = b.points.values_mut().next().expect("a brick has vertices");
+            p.x = trv(p.x.lo());
+        });
+        assert_eq!(carrier, "a face whose boundary carries no sound enclosure");
+    }
+
+    /// **A separation that does not certify is poison** to the minimum
+    /// (`poisoned`): its root and pair reads refuse it, its witness skips
+    /// it, and an abandoned pair floors at `0` on it. Behind
+    /// `window_of`'s refusal no admitted face's cells reach it, so the
+    /// predicate is pinned here. Red if it reads only finiteness.
+    #[test]
+    fn a_separation_that_does_not_certify_is_poison() {
+        assert!(!poisoned(Interval::from_bounds(1.0, 2.0)), "certified");
+        assert!(poisoned(trv(1.0)), "refused, ends finite");
+        assert!(
+            poisoned(Interval::from_bounds(1.0, f64::INFINITY)),
+            "unbounded"
+        );
+        assert!(poisoned(Interval::from_bounds(f64::NAN, 1.0)), "NaI");
     }
 }

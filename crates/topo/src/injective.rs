@@ -1021,6 +1021,9 @@ impl<'a> Presented<'a> {
 fn forward(u: &Use, iso: Iso) -> Option<f64> {
     let [p, q] = u.image?;
     let delta = iso.moving(q) - iso.moving(p);
+    if !delta.is_certified() {
+        return None;
+    }
     match (delta.lo() > 0.0, delta.hi() < 0.0) {
         (true, _) => Some(1.0),
         (_, true) => Some(-1.0),
@@ -1041,10 +1044,14 @@ fn face_side(u: &Use, iso: Iso, sense: bool) -> Option<f64> {
     Some(if sense { side } else { -side })
 }
 
-/// The moving coordinate's range along a use, outer hull of its ends.
+/// The moving coordinate's range along a use, outer hull of its ends;
+/// `None` where an end does not certify.
 fn along(u: &Use, iso: Iso) -> Option<Interval> {
     let [p, q] = u.image?;
     let (a, b) = (iso.moving(p), iso.moving(q));
+    if !(a.is_certified() && b.is_certified()) {
+        return None;
+    }
     Some(Interval::from_bounds(
         a.lo().min(b.lo()),
         a.hi().max(b.hi()),
@@ -1595,6 +1602,11 @@ fn present_chart<'a>(
         let Some(first) = on.first() else {
             continue;
         };
+        // A line that does not certify places nothing; the folds below
+        // would skip a NaN one.
+        if on.iter().any(|c| !c.at.is_certified()) {
+            return Err(Unpresented::Local);
+        }
         let common_lo = on
             .iter()
             .map(|c| c.at.lo())
@@ -1703,7 +1715,7 @@ fn present_chart<'a>(
             Axis::U => (x.1 - x.0, rect_jet(piece.surface, x, y).0),
             Axis::V => (y.1 - y.0, rect_jet(piece.surface, x, y).1),
         };
-        let width = at(across) * at(lever.norm().hi());
+        let width = at(across) * lever.norm();
         if matches!(decide(SLIVER, Margin::of(width), band), Ok(Sign::Zero)) {
             return Ok(Presentation::Vacuous);
         }
@@ -1956,7 +1968,10 @@ fn present_plane<'a>(
             // ball, so the plane's disk inside the ball meets the
             // boundary only in a whole chord of this edge, and the
             // disk's half off the face side is all outside the face. The
-            // cell lies in that half.
+            // cell lies in that half. `y` brackets the quotient wherever
+            // the lifted inputs certify, though `len2` may hold zero: an
+            // edge whose true length is zero has `a` holding zero on both
+            // axes, so the numerator holds zero and `y` is the whole line.
             if y.hi() <= 0.0 {
                 return Ok(Presentation::Vacuous);
             }
@@ -2211,10 +2226,8 @@ impl Trig {
         };
         // `|ψ| ≤ |Q| / d` for `Q = ψ·D`, `D ≥ d > 0`.
         let over = |q: Interval, d: Interval| {
-            (d.lo() > 0.0).then(|| {
-                let m = q.abs() / d;
-                Interval::from_bounds(-m.hi(), m.hi())
-            })
+            let m = q.abs() / d;
+            (m.is_certified() && d.lo() > 0.0).then(|| Interval::from_bounds(-m.hi(), m.hi()))
         };
         match *psi {
             Psi::Linear { n, q } => Some(linear(n, q)),
@@ -2321,8 +2334,11 @@ impl Curved {
             );
             let lip = m.norm() + slope.abs() * axis.norm();
             let speed = edge.a.norm() + edge.b.norm();
-            let bound = (lip * (at(d.hi().max(0.0)).sqrt() + speed * at(overhang))).hi();
-            return Some(Interval::from_bounds(-bound, bound));
+            let bound = lip * (at(d.hi().max(0.0)).sqrt() + speed * at(overhang));
+            if !(d.is_certified() && bound.is_certified()) {
+                return None;
+            }
+            return Some(Interval::from_bounds(-bound.hi(), bound.hi()));
         }
         image.psi(psi, t)
     }
@@ -7900,5 +7916,120 @@ mod presentation_rows {
             ),
             "{got:?}"
         );
+    }
+
+    /// `x` crossed with its endpoints intact under `Trv`: the value a
+    /// refused scalar lifts to through [`Interval::from_certified`].
+    fn trv(x: f64) -> Interval {
+        let refused = iv0(x) + Interval::from_bounds(-1.0, 0.0).sqrt();
+        assert!(
+            !refused.is_certified() && refused.lo() == x && refused.hi() == x,
+            "a refused crossing keeps its endpoints: {refused:?}"
+        );
+        refused
+    }
+
+    /// **An iso use's ends that do not certify decide neither its
+    /// direction nor its range** ([`forward`], [`along`]). The image runs
+    /// `v` from `0` to a refused `1`: certified, it runs forward over
+    /// `[0, 1]`. Red if either read takes the refused end's bracket.
+    #[test]
+    fn an_iso_use_with_a_refused_end_reads_no_direction_or_range() {
+        let iso = Iso {
+            held: Axis::U,
+            at: iv0(1.0),
+            full: false,
+        };
+        let image = |end: Interval| Use {
+            plus: true,
+            image: Some([p2((1.0, 0.0)), Point2::new(iv0(1.0), end)]),
+            iso: Some(iso),
+            wall: None,
+            harmonic: None,
+        };
+        let certified = image(iv0(1.0));
+        assert_eq!(forward(&certified, iso), Some(1.0), "the certified control");
+        assert!(along(&certified, iso).is_some(), "the certified control");
+        let refused = image(trv(1.0));
+        assert_eq!(forward(&refused, iso), None, "direction off a refused end");
+        assert!(along(&refused, iso).is_none(), "range off a refused end");
+    }
+
+    /// **A line that does not certify bounds no rectangle** (the merge in
+    /// [`present_chart`]): [`slot`]'s right line at a refused `1.5`, the
+    /// cell beside it on its face side. Certified, the rectangle runs
+    /// from the line; refused, nothing is presented. Red if the merge
+    /// hulls a refused line into a certified side.
+    #[test]
+    fn a_refused_line_bounds_no_rectangle() {
+        let s = cylinder();
+        let mut b = slot();
+        let cell = ((1.6, 2.0), (0.3, 0.7));
+        assert_eq!(
+            chart(&s, &b, &[0, 1], cell.0, cell.1),
+            Read::Of((1.5, 2.0), (0.3, 0.7)),
+            "the certified control"
+        );
+        let Some(iso) = b.edges[1].uses[0].iso.as_mut() else {
+            panic!("the slot's right edge is an iso");
+        };
+        iso.at = trv(1.5);
+        assert_eq!(chart(&s, &b, &[0, 1], cell.0, cell.1), Read::Local);
+    }
+
+    /// **A lever that does not certify measures no sliver** (the sliver in
+    /// [`present_chart`]): a cell `1e-13` wide beside [`slot`]'s shared
+    /// right line on a cylinder whose radius is a refused `1`. Certified,
+    /// the strip is within the band and vacuous; refused, the width is
+    /// not decided. Red if the width is minted from the lever's upper
+    /// end.
+    #[test]
+    fn a_refused_lever_measures_no_sliver() {
+        let b = slot();
+        let cell = ((1.5, 1.5 + 1e-13), (0.3, 0.7));
+        let on = |radius| {
+            let s = Surface::Cylinder {
+                origin: origin(),
+                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                radius,
+                u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            };
+            chart_near(&s, &b, &[0, 1], &[1], cell)
+        };
+        assert_eq!(on(iv0(1.0)), Read::Vacuous, "the certified control");
+        assert_ne!(on(trv(1.0)), Read::Vacuous);
+    }
+
+    /// **A separator whose coefficients do not certify bounds nothing
+    /// along a curve** ([`Trig::psi`]'s quotient bound, [`Curved::psi`]'s
+    /// graph bound): the rim's cylinder with a refused radius, and the
+    /// graph separator with a refused gradient. Each reads with the
+    /// same values certified. Red if either bound is minted from a
+    /// refused one's upper end.
+    #[test]
+    fn a_refused_separator_bounds_nothing_along_a_curve() {
+        let s = floor();
+        let x = Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0));
+        let (c, _) = rim_cell(&disk(0.7, x, true, true), &s);
+        let cylinder = |r| {
+            Psi::Carrier(Implicit::Cylinder {
+                o: origin(),
+                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                r,
+            })
+        };
+        assert!(
+            c.psi(&cylinder(iv0(0.7))).is_some(),
+            "the certified control"
+        );
+        assert!(c.psi(&cylinder(trv(0.7))).is_none(), "a refused radius");
+        let graph = |m0| Psi::Graph {
+            m: Vec3::new(m0, iv0(0.0), iv0(0.0)),
+            t: Vec3::new(iv0(0.0), iv0(1.0), iv0(0.0)),
+            slope: iv0(0.0),
+            piece: (c.t.0 - 0.1, c.t.1 + 0.1),
+        };
+        assert!(c.psi(&graph(iv0(1.0))).is_some(), "the certified control");
+        assert!(c.psi(&graph(trv(1.0))).is_none(), "a refused gradient");
     }
 }
