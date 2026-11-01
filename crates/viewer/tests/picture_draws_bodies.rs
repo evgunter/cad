@@ -271,9 +271,9 @@ fn a_disjoint_union_is_drawn_as_its_pieces() {
             .triangles
             > 0
     );
-    let hidden = session.perform(SessionOp::SetBodyHidden {
+    let hidden = session.perform(SessionOp::SetBodyOn {
         node: assemble,
-        hidden: true,
+        on: false,
     });
     assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     assert_eq!(
@@ -520,7 +520,7 @@ fn a_piece_two_unions_draw_stays_until_both_are_hidden() {
     );
     let mut session = landed(doc, tol);
     let hide = |session: &mut DocSession, node| {
-        let outcome = session.perform(SessionOp::SetBodyHidden { node, hidden: true });
+        let outcome = session.perform(SessionOp::SetBodyOn { node, on: false });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     };
     hide(&mut session, product);

@@ -39,12 +39,12 @@ impl ViewerBehavior<'_> {
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
         ui.separator();
-        // The COMMITTED document, the one the two doors read.
+        // The COMMITTED document, the one the toggles were read over.
         let doc = self.session.committed_doc();
-        let groups = crate::display::toggles(doc, self.display);
         let part_files = self.session.part_files();
         let label = |node| crate::tree::node_label(doc, node, part_files);
-        self.ops.extend(toggles_ui(ui, doc, &groups, label));
+        self.ops
+            .extend(toggles_ui(ui, doc, &self.toggles.groups, label));
         ui.separator();
         for line in camera_readout(self.camera, *self.notation) {
             ui.label(line);
@@ -123,9 +123,9 @@ fn toggles_ui(
                     ui.weak(READ_AS_A_BODY);
                 }
                 if toggle.changed() {
-                    ops.push(SessionOp::SetBodyHidden {
+                    ops.push(SessionOp::SetBodyOn {
                         node: body.node,
-                        hidden: !on,
+                        on,
                     });
                 }
             });
@@ -136,11 +136,7 @@ fn toggles_ui(
 
 /// A space as its toggle names it: as a sentence does, capitalised.
 fn space_label(doc: &Doc<ProfileProgram>, space: VarId) -> String {
-    let said = doc.spoken_space(space).to_string();
-    let mut chars = said.chars();
-    chars.next().map_or_else(String::new, |first| {
-        first.to_uppercase().chain(chars).collect()
-    })
+    crate::tools::capitalised(&doc.spoken_space(space).to_string())
 }
 
 /// The camera's state as the View pane's two lines, read in the working
@@ -373,10 +369,7 @@ mod tests {
         });
         assert_eq!(
             ops.into_inner(),
-            vec![SessionOp::SetBodyHidden {
-                node,
-                hidden: false
-            }],
+            vec![SessionOp::SetBodyOn { node, on: true }],
             "the click shows the body"
         );
     }

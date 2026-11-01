@@ -417,19 +417,19 @@ pub enum SessionOp {
     /// `DocRef`s keep naming it. Like [`SessionOp::Save`], the session
     /// is then backed by the path and its resolver follows the folder.
     SaveAsNewDocument(PathBuf),
-    /// Turn the toggle of the body `node` builds off or on (G3): a
-    /// DISPLAY operation over the default picture — off drops what
-    /// draws the body, on draws a body the default leaves out; the
+    /// Turn the toggle of the body `node` builds on or off (G3): a
+    /// DISPLAY operation over what the toggle reads now — off drops
+    /// what draws the body, on draws a body the picture leaves out; the
     /// document and the feature tree keep it either way, and nothing is
-    /// persisted ([`crate::display::DisplayState::set_body_hidden`]).
-    SetBodyHidden {
+    /// persisted ([`crate::display::DisplayState::set_body_on`]).
+    SetBodyOn {
         /// The node building the body.
         node: RecipeNodeId,
-        /// Off, or on.
-        hidden: bool,
+        /// On, or off.
+        on: bool,
     },
     /// Hide or show a space, every body drawn in it: a DISPLAY operation
-    /// as [`SessionOp::SetBodyHidden`] is
+    /// as [`SessionOp::SetBodyOn`] is
     /// ([`crate::display::DisplayState::set_space_hidden`]).
     SetSpaceHidden {
         /// The space.
@@ -1268,7 +1268,7 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1339,7 +1339,7 @@ impl SessionOp {
             | Self::Open(_)
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
@@ -1487,7 +1487,7 @@ impl SessionOp {
     ///   is and not by a row here;
     /// - layer-3 moves that touch neither the document nor the history
     ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
-    ///   family, [`SessionOp::SetBodyHidden`]) and the evaluation
+    ///   family, [`SessionOp::SetBodyOn`]) and the evaluation
     ///   controls ([`SessionOp::CancelEvaluation`],
     ///   [`SessionOp::Reevaluate`]);
     /// - [`SessionOp::Save`], which has TWO effects and this row is
@@ -1542,7 +1542,7 @@ impl SessionOp {
             | Self::CancelEvaluation
             | Self::Reevaluate
             | Self::Save(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginGesture { .. }
             | Self::BeginVariableGesture { .. }
@@ -1677,7 +1677,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }
@@ -1751,7 +1751,7 @@ impl SessionOp {
             | Self::Reevaluate
             | Self::Save(_)
             | Self::SaveAsNewDocument(_)
-            | Self::SetBodyHidden { .. }
+            | Self::SetBodyOn { .. }
             | Self::SetSpaceHidden { .. }
             | Self::BeginFreeMove { .. }
             | Self::PreviewFreeMove { .. }

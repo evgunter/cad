@@ -54,10 +54,9 @@
 //! the pick cache needs from a session arrives as [`IndexInputs`],
 //! which the session mints.
 
-use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, ProfileProgram};
 use pncad::geom_core::Tol;
 
 use crate::evalseam::{FitService, IndexDone, IndexRequest, IndexService, InlineIndexer};
@@ -65,11 +64,12 @@ use crate::generation::Generation;
 use crate::input::PickAction;
 use crate::pickindex::{PickIndex, PickIndexError, PictureKey};
 use crate::scene::DisplayTolerance;
+use crate::world::Shown;
 
-/// **What a pick index is built from**: a landed run, its generation
-/// and the ε to tessellate at.
+/// **What a pick index is built from**: a landed run, its generation,
+/// the ε to tessellate at, and the bodies the author's toggles show.
 ///
-/// **Three of the four move together, and that is the point of the
+/// **Three of the five move together, and that is the point of the
 /// value.** The generation, the document and the evaluation are
 /// written by one landing and describe one run, so a caller cannot
 /// pick up a generation without the pair it answers — the property
@@ -77,6 +77,9 @@ use crate::scene::DisplayTolerance;
 /// accessors. `tol` is not one of them: it is the session's ε, fixed
 /// at construction and never rewritten by a landing. It rides here
 /// because the build needs it and this is what the build is handed.
+/// `shown` is display state, not the landing's: it is the third part
+/// of the picture's key ([`PictureKey::shown`]), and a required input,
+/// so no caller draws the default by forgetting it.
 ///
 /// The session mints it ([`crate::session::DocSession::index_inputs`])
 /// so that this module names no driver; the argument for hoisting
@@ -88,14 +91,8 @@ pub struct IndexInputs<'a> {
     doc: &'a Doc<ProfileProgram>,
     evaluation: &'a Arc<Evaluation<f64>>,
     tol: Tol,
-    /// The author's shows the picture draws, at their revision
-    /// ([`IndexInputs::showing`]): display state, not the landing's,
-    /// and part of the picture's key.
-    shown: (u64, &'a BTreeSet<RecipeNodeId>),
+    shown: Shown,
 }
-
-/// No show: the default picture.
-static NO_SHOW: BTreeSet<RecipeNodeId> = BTreeSet::new();
 
 impl<'a> IndexInputs<'a> {
     /// One landing's inputs, minted together.
@@ -110,23 +107,14 @@ impl<'a> IndexInputs<'a> {
         doc: &'a Doc<ProfileProgram>,
         evaluation: &'a Arc<Evaluation<f64>>,
         tol: Tol,
+        shown: Shown,
     ) -> Self {
         Self {
             generation,
             doc,
             evaluation,
             tol,
-            shown: (0, &NO_SHOW),
-        }
-    }
-
-    /// These inputs drawing the author's shows `shown`, at `revision`
-    /// ([`crate::display::DisplayState::shown_revision`]).
-    #[must_use]
-    pub fn showing(self, revision: u64, shown: &'a BTreeSet<RecipeNodeId>) -> Self {
-        Self {
-            shown: (revision, shown),
-            ..self
+            shown,
         }
     }
 }
@@ -189,7 +177,7 @@ pub struct PickCache {
 /// together. A state on the key says it, and makes the diverged pair —
 /// waiting on a picture other than the one attempted — unrepresentable
 /// rather than merely absent.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum Attempt {
     /// Submitted, and no answer yet.
     ///
@@ -208,7 +196,7 @@ enum Attempt {
 
 impl Attempt {
     /// The picture attempted, in either state.
-    fn key(self) -> PictureKey {
+    fn key(&self) -> &PictureKey {
         match self {
             Self::Asked(key) | Self::Answered(key) => key,
         }
@@ -348,7 +336,7 @@ impl PickCache {
                 doc,
                 evaluation,
                 tol,
-                shown: (revision, shown),
+                shown,
             }),
             Some(delta),
         ) = (landed, delta)
@@ -356,26 +344,26 @@ impl PickCache {
             self.forget();
             return CacheStep::Nothing;
         };
-        let wanted = PictureKey::showing(generation, delta, revision);
+        let wanted = PictureKey::of(generation, delta, shown);
         if self
             .index
             .as_ref()
-            .is_some_and(|index| index.current_for(Some(wanted)))
+            .is_some_and(|index| index.current_for(Some(wanted.clone())))
         {
             return CacheStep::Current;
         }
-        match self.attempt {
+        match &self.attempt {
             // Asked, and the answer is not here yet. Asking again
             // would be the per-frame rebuild loop with a thread in it.
-            Some(Attempt::Asked(key)) if key == wanted => return CacheStep::Indexing,
+            Some(Attempt::Asked(key)) if *key == wanted => return CacheStep::Indexing,
             // Attempted and refused for this exact picture. Retrying
             // is the per-frame rebuild loop; the error is already
             // recorded and the caller has already seen it.
-            Some(Attempt::Answered(key)) if key == wanted => return CacheStep::Held,
+            Some(Attempt::Answered(key)) if *key == wanted => return CacheStep::Held,
             // Nothing asked yet, or asked for another picture.
             Some(Attempt::Asked(_) | Attempt::Answered(_)) | None => {}
         }
-        self.attempt = Some(Attempt::Asked(wanted));
+        self.attempt = Some(Attempt::Asked(wanted.clone()));
         // **Dropped before the answer, not after it.** What is held
         // from here describes a run nobody is looking at any more, and
         // the one thing this cache must never do is answer a pick from
@@ -400,7 +388,6 @@ impl PickCache {
             doc: doc.clone(),
             evaluation: Arc::clone(evaluation),
             tol,
-            shown: shown.clone(),
         });
         CacheStep::Submitted
     }
@@ -458,14 +445,14 @@ impl PickCache {
     /// Decide one answer's fate. Public so the staleness rule is
     /// testable without a scheduler.
     ///
-    /// **The key is the PAIR.** A build carrying the generation on
+    /// **The key is the whole picture.** A build carrying the generation on
     /// screen at a δ the user has since moved off is a picture nobody
     /// asked for, and it would install without complaint if only the
     /// generation were compared — the sharper half of the same failure
     /// a wrong generation is, because the document is right and only
     /// the tessellation is not.
     pub fn land(&mut self, done: IndexDone) -> IndexLanding {
-        if self.attempt.map(Attempt::key) != Some(done.key) {
+        if self.attempt.as_ref().map(Attempt::key) != Some(&done.key) {
             return IndexLanding::Stale;
         }
         self.attempt = Some(Attempt::Answered(done.key));

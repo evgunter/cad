@@ -99,9 +99,9 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
 /// the point — the tree is the document, the viewport is the display),
 /// and the checkbox is the display op's chrome.
 ///
-/// `hide_refusal` is what `SessionOp::SetBodyHidden` would refuse
+/// `hide_refusal` is what `SessionOp::SetBodyOn` would refuse
 /// this row's node with
-/// ([`crate::session::DocSession::body_hidden_refusal`]). The kind
+/// ([`crate::session::DocSession::body_toggle_refusal`]). The kind
 /// decides whether the toggle is drawn; the op's admission decides
 /// whether it is live, and a refused one carries the op's sentence on
 /// its hover.
@@ -366,8 +366,8 @@ impl ViewerBehavior<'_> {
     /// One feature-tree row ([`feature_row_ui`]), and the ops its
     /// clicks name.
     pub(crate) fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
-        let hidden = !self.display.body_on(row.id);
-        let refusal = self.session.body_hidden_refusal(row.id);
+        let hidden = !self.toggles.body_on(row.id);
+        let refusal = self.session.body_toggle_refusal(row.id);
         let clicks = feature_row_ui(
             ui,
             row,
@@ -381,9 +381,9 @@ impl ViewerBehavior<'_> {
             self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
         if let Some(hidden) = clicks.hide {
-            self.ops.push(SessionOp::SetBodyHidden {
+            self.ops.push(SessionOp::SetBodyOn {
                 node: row.id,
-                hidden,
+                on: !hidden,
             });
         }
         if let Some(accept) = clicks.accept {

@@ -1010,6 +1010,7 @@ fn a_copy_with_no_value_is_left_to_its_tree_row_and_the_rest_draw() {
         PictureKey::of(
             session.landed_generation().expect("landed"),
             common::plate_delta(),
+            viewer::world::Shown::none(),
         ),
         tol,
     )
@@ -2925,7 +2926,11 @@ fn an_answer_for_a_superseded_generation_is_discarded_not_installed() {
     );
 
     let landing = cache.land(IndexDone {
-        key: PictureKey::of(stale.generation(), common::plate_delta()),
+        key: PictureKey::of(
+            stale.generation(),
+            common::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
         memo: MemoReport::default(),
         index: Ok(stale),
     });
@@ -2958,7 +2963,11 @@ fn an_answer_built_at_another_delta_is_discarded_too() {
         CacheStep::Submitted
     );
     let landing = cache.land(IndexDone {
-        key: PictureKey::of(generation, common::plate_delta()),
+        key: PictureKey::of(
+            generation,
+            common::plate_delta(),
+            viewer::world::Shown::none(),
+        ),
         memo: MemoReport::default(),
         index: Ok(coarse),
     });
@@ -4017,6 +4026,7 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     let report = PruneReport {
         superseded: vec![gone(4)],
         dropped_hides: vec![gone(5)],
+        dropped_shows: vec![gone(7)],
         killed_gesture: Some(gone(6)),
     };
     let notices: Vec<frame::Message> = frame::Withdrawal::all(&report)
@@ -4030,7 +4040,7 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
             withdrawal.notice()
         })
         .collect();
-    assert_eq!(notices.len(), 3, "one notice per kind");
+    assert_eq!(notices.len(), 4, "one notice per kind");
 
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
@@ -4044,7 +4054,8 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
         line.text(),
         "nothing to undo \u{2022} free move: a committed placement was discarded — node 000000000004 is \
          not in the document \u{2022} hide: a hide was dropped with what it was on — \
-         node 000000000005 is not in the document \u{2022} free move: the drag in flight was ended — node \
+         node 000000000005 is not in the document \u{2022} show: a show was dropped with what \
+         it was on — node 000000000007 is not in the document \u{2022} free move: the drag in flight was ended — node \
          000000000006 is not in the document"
     );
 }

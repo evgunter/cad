@@ -11,7 +11,7 @@ opened: 2026-11-01
 Found building `the-view-pane-toggles-spaces-and-bodies`.
 
 The View pane's toggle draws a body the default picture leaves out
-(`DisplayState::set_body_hidden` holds it in `shown_bodies`;
+(`DisplayState::set_body_on` holds it in `toggled`;
 `world::Picture::showing` draws it). The free-move doors still read the
 default picture alone: `display::free_move_check` asks
 `world::Picture::of(doc).is_drawn(node)` and refuses `NotDrawn` on a
@@ -22,7 +22,7 @@ reads the default picture the same way.
 
 **What it should do.** Decide whether a shown body is a free-move
 handle on its space. If it is, the three read
-`Picture::showing(doc, shown_bodies)`; that makes the frame's survival
+`Picture::showing(doc, &DisplayState::shown())`; that makes the frame's survival
 depend on display state, which DI5 (`crates/editor-core/IDENTITY.md`)
 keys on the document's shown spaces today, so it may want a line there.
 

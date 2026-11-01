@@ -170,18 +170,18 @@ fn request_at(session: &DocSession, at: DisplayTolerance) -> IndexRequest {
                 .landed_generation()
                 .expect("a landed evaluation has a generation"),
             at,
+            viewer::world::Shown::none(),
         ),
         doc: doc.clone(),
         evaluation: Arc::clone(session.evaluation_arc().expect("a landed run")),
         tol: session.tol(),
-        shown: std::collections::BTreeSet::new(),
     }
 }
 
 /// A seam's answer for a request, waited for: the inline seam answers
 /// inside `poll`, the threaded one when its worker is done.
 fn answer(seam: &mut impl IndexService, request: IndexRequest) -> IndexDone {
-    let key = request.key;
+    let key = request.key.clone();
     seam.submit(request);
     for _ in 0..100_000 {
         if let Some(done) = seam.poll() {

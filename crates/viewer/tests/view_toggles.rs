@@ -2,9 +2,11 @@
 //! *The picture draws bodies*): the pane lists the world first, then
 //! every space holding a body, each body under its space with its
 //! toggle; the drawing rule decides only the default, so a body it
-//! leaves out can be shown and any drawn one hidden; the feature tree's
-//! and the Properties pane's toggles read the same state; and none of
-//! it reaches the document (GUI-DESIGN G3).
+//! leaves out can be shown and any drawn one hidden, each click decided
+//! against what the toggle reads now; and none of it reaches the
+//! document (GUI-DESIGN G3). That the feature tree's and the Properties
+//! pane's checkboxes read the same toggle is driven in
+//! `app::properties_pane_tests`.
 //!
 //! The index each row reads is the application's own: a [`PickCache`]
 //! synced to [`DocSession::index_inputs`], which carries the author's
@@ -15,9 +17,9 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, VarId};
+use pncad::document::{Bodies, BodyRead, Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
 use pncad::geom_core::Tol;
-use viewer::display::{self, BodyToggle, DisplayView, SpaceToggles};
+use viewer::display::{BodyToggle, DisplayView, Held, SpaceToggles};
 use viewer::pickcache::{CacheStep, PickCache};
 use viewer::pickindex::PickIndex;
 use viewer::session::{BooleanSpec, DocSession, SessionOp};
@@ -66,12 +68,17 @@ fn perform(session: &mut DocSession, op: SessionOp) {
 
 /// Turn `node`'s toggle `on` or off, as a click on its checkbox does.
 fn toggle(session: &mut DocSession, node: RecipeNodeId, on: bool) {
-    perform(session, SessionOp::SetBodyHidden { node, hidden: !on });
+    perform(session, SessionOp::SetBodyOn { node, on });
 }
 
 /// The View pane's list over `session`'s committed document.
 fn toggles(session: &DocSession) -> Vec<SpaceToggles> {
-    display::toggles(session.committed_doc(), &session.display_view())
+    session.toggles().groups
+}
+
+/// Whether `node`'s toggle reads on.
+fn on(session: &DocSession, node: RecipeNodeId) -> bool {
+    row(session, node).0.on
 }
 
 /// `node`'s row in the View pane's list, and whether its space's toggle
@@ -104,19 +111,18 @@ fn visible(index: &PickIndex, view: &DisplayView, node: RecipeNodeId) -> bool {
 }
 
 /// **Every toggle says what the picture does**: a body whose own toggle
-/// and its space's are on is drawn, and no other is. What the feature
-/// tree's and the Properties pane's checkboxes show is
-/// [`DisplayView::body_on`], so this holds them to the picture too.
+/// and its space's are on is drawn, and no other is — read off the
+/// toggles on one side and the index and the scene's view on the
+/// other. A body whose value the index cannot draw (a refusal, on its
+/// own badge) is not a toggle's to answer for.
 fn assert_toggles_agree(session: &DocSession, index: &PickIndex, at: &str) {
     let view = session.display_view();
+    let undrawn: Vec<RecipeNodeId> = index.undrawn().iter().map(|u| u.node()).collect();
     for group in toggles(session) {
         for body in group.bodies {
-            assert_eq!(
-                body.on,
-                view.body_on(body.node),
-                "{at}: the View pane and the tree read one toggle for {:?}",
-                body.node
-            );
+            if undrawn.contains(&body.node) {
+                continue;
+            }
             assert_eq!(
                 body.on && group.on,
                 visible(index, &view, body.node),
@@ -262,8 +268,22 @@ fn an_operand_a_boolean_took_over_can_be_shown() {
     assert!(row(&session, union).0.drawn_by_default);
     assert_toggles_agree(&session, cache.index().expect("indexed"), "at rest");
 
+    // On and off again before the cache looks: the picture is the
+    // same one, so nothing is rebuilt.
     toggle(&mut session, a, true);
-    assert!(session.display().shown_bodies().contains(&a));
+    toggle(&mut session, a, false);
+    assert_eq!(
+        sync(&session, &mut cache),
+        CacheStep::Current,
+        "the picture is keyed by what is shown"
+    );
+
+    toggle(&mut session, a, true);
+    assert_eq!(
+        session.display().toggled().get(&a),
+        Some(&true),
+        "a show is held"
+    );
     assert_eq!(
         sync(&session, &mut cache),
         CacheStep::Submitted,
@@ -284,7 +304,7 @@ fn an_operand_a_boolean_took_over_can_be_shown() {
 
     toggle(&mut session, a, false);
     assert!(
-        session.display().shown_bodies().is_empty() && session.display().hidden_bodies().is_empty(),
+        session.display().toggled().is_empty(),
         "a toggle turned back to the default holds nothing"
     );
     sync(&session, &mut cache);
@@ -309,19 +329,20 @@ fn a_drawn_bodys_toggle_hides_it() {
     let (doc, b) = extrude(&doc, 2.0 * SIDE, tol);
     let (mut session, mut cache) = landed(doc, tol);
     toggle(&mut session, a, false);
-    assert!(session.display().hidden_bodies().contains(&a));
     let index = cache.index().expect("indexed");
     assert!(!visible(index, &session.display_view(), a), "the body goes");
     assert!(
         visible(index, &session.display_view(), b),
         "its sibling stays"
     );
-    assert!(!row(&session, a).0.on);
+    assert!(!on(&session, a));
     assert_toggles_agree(&session, index, "the body hidden");
 
     toggle(&mut session, a, true);
-    assert!(session.display().hidden_bodies().is_empty());
-    assert!(session.display().shown_bodies().is_empty());
+    assert!(
+        session.display().toggled().is_empty(),
+        "a toggle turned back on holds nothing"
+    );
     let subtract = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
@@ -342,13 +363,11 @@ fn a_drawn_bodys_toggle_hides_it() {
     assert_toggles_agree(&session, index, "after the boolean");
 }
 
-/// **An instance a pattern reads is listed off, and the toggle the tree
-/// and the Properties pane draw for it shows it**: the instance's row
-/// reads off where it used to read "shown" over an undrawn body, and the
-/// op the tree's checkbox pushes draws it.
+/// **An instance a pattern reads is listed off, and its toggle shows
+/// it** beside the family.
 ///
-/// *Breaks if* the tree's checkbox state is the hide set alone (it reads
-/// on while nothing is drawn), or the op it pushes changes nothing.
+/// *Breaks if* the instance reads on while nothing draws it, or the op
+/// its checkbox pushes changes nothing.
 #[test]
 fn an_instance_a_pattern_reads_is_listed_off_and_shown_by_its_toggle() {
     let tol = Tol::witness();
@@ -361,10 +380,7 @@ fn an_instance_a_pattern_reads_is_listed_off_and_shown_by_its_toggle() {
     cache.pump();
     let (listed, space_on) = row(&session, instance);
     assert!(space_on);
-    assert!(
-        !listed.on && !session.display_view().body_on(instance),
-        "the instance the pattern reads is off in every pane"
-    );
+    assert!(!listed.on, "the instance the pattern reads is listed off");
     assert_eq!(
         session.committed_doc().node_space(family),
         Some(space),
@@ -379,7 +395,7 @@ fn an_instance_a_pattern_reads_is_listed_off_and_shown_by_its_toggle() {
     let index = cache.index().expect("indexed");
     assert!(visible(index, &session.display_view(), instance), "shown");
     assert!(visible(index, &session.display_view(), family), "beside it");
-    assert!(row(&session, instance).0.on);
+    assert!(on(&session, instance));
 }
 
 /// **None of it reaches the document**: every toggle above, turned, and
@@ -410,12 +426,191 @@ fn no_toggle_reaches_the_document() {
     }
     toggle(&mut session, copy, false);
     toggle(&mut session, operand, true);
+    let held = session.display().toggled();
     assert!(
-        !session.display().shown_bodies().is_empty()
-            && !session.display().hidden_bodies().is_empty()
+        held.values().any(|&on| on)
+            && held.values().any(|&on| !on)
             && !session.display().hidden_spaces().is_empty(),
-        "the premise: every kind of toggle state is held"
+        "the premise: a show, a hide and a space's hide are held: {held:?}"
     );
     assert_eq!(saved(&session, tol), before, "the document is unchanged");
     assert_eq!(session.history().len(), steps, "and no step was taken");
+}
+
+/// **A piece of a shown `⊔` reads on, and its click hides it**: a `⊔` a
+/// placement reads is left out, and so are its pieces; showing the `⊔`
+/// draws both pieces, each reading on, and a click on one takes that one
+/// off and leaves the other and the `⊔` on.
+///
+/// *Breaks if* the click is decided against the default picture, which
+/// leaves the piece out either way, so it holds nothing and the piece
+/// stays drawn.
+#[test]
+fn a_piece_of_a_shown_union_is_hidden_by_its_toggle() {
+    let tol = Tol::witness();
+    let (doc, a) = extrude(&Doc::empty_derived("toggles-shown-union", tol), 0.0, tol);
+    let (doc, b) = extrude(&doc, 2.0 * SIDE, tol);
+    // The `⊔` reads its pieces in one space: `b`, placed into `a`'s.
+    let space = doc.node_space(a).expect("its own space");
+    let (doc, b_beside) = common::inserted(
+        &doc,
+        Node::place(
+            BodyRead::plain(Operand::from(b)),
+            Operand::Var(space),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    let (doc, union) = common::inserted(
+        &doc,
+        Node::Assemble {
+            members: Bodies::Spelled(vec![
+                BodyRead::plain(Operand::Node(a)),
+                BodyRead::plain(Operand::Node(b_beside)),
+            ]),
+        },
+        tol,
+    );
+    let (doc, _) = common::placed(&doc, union, tol);
+    let (mut session, mut cache) = landed(doc, tol);
+    assert!(
+        !on(&session, union) && !on(&session, a) && !on(&session, b_beside),
+        "the premise: the placement reads the ⊔, so it and its pieces are off"
+    );
+    toggle(&mut session, union, true);
+    assert!(
+        on(&session, a) && on(&session, b_beside),
+        "showing the ⊔ draws its pieces"
+    );
+    sync(&session, &mut cache);
+    assert_toggles_agree(&session, cache.index().expect("indexed"), "the ⊔ shown");
+
+    toggle(&mut session, a, false);
+    sync(&session, &mut cache);
+    let index = cache.index().expect("indexed");
+    let view = session.display_view();
+    assert!(!on(&session, a), "the piece reads off");
+    assert!(!visible(index, &view, a), "and is not drawn");
+    assert!(visible(index, &view, b_beside), "the other piece stays");
+    assert!(on(&session, union), "and so does the ⊔");
+    assert_toggles_agree(&session, index, "a piece of the shown ⊔ hidden");
+}
+
+/// **A piece of a hidden `⊔` reads off, and its click shows it** on its
+/// own, drawn once though two drawings now cover it.
+///
+/// *Breaks if* the piece reads on under its hidden `⊔`, its click holds
+/// nothing, it is built twice, or showing it brings the other piece or
+/// the `⊔` back.
+#[test]
+fn a_piece_of_a_hidden_union_is_shown_by_its_toggle() {
+    let tol = Tol::witness();
+    let (doc, a) = extrude(&Doc::empty_derived("toggles-hidden-union", tol), 0.0, tol);
+    let (doc, b) = extrude(&doc, 2.0 * SIDE, tol);
+    let (doc, a_copy) = common::placed(&doc, a, tol);
+    let (doc, b_copy) = common::placed(&doc, b, tol);
+    let product = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .expect("the product reads the world's copies");
+    let (mut session, mut cache) = landed(doc, tol);
+    toggle(&mut session, product, false);
+    assert!(
+        !on(&session, a_copy) && !on(&session, b_copy),
+        "the ⊔'s pieces read off"
+    );
+    toggle(&mut session, a_copy, true);
+    sync(&session, &mut cache);
+    let index = cache.index().expect("indexed");
+    let view = session.display_view();
+    assert!(
+        on(&session, a_copy) && visible(index, &view, a_copy),
+        "the piece is drawn"
+    );
+    assert!(!visible(index, &view, b_copy), "the other is not");
+    assert!(!on(&session, product), "the ⊔ stays off");
+    assert_eq!(
+        index
+            .parts()
+            .iter()
+            .filter(|part| part.node() == a_copy)
+            .count(),
+        1,
+        "the piece is built once"
+    );
+    assert_toggles_agree(&session, index, "a piece of the hidden ⊔ shown");
+}
+
+/// **A body hidden earlier that an operation then takes over reads off,
+/// and its toggle shows it**: the hide is held over a body the default
+/// no longer draws, and a click on decides against that.
+///
+/// *Breaks if* the toggle reads on (the hide is ignored as moot) or the
+/// click holds nothing and the body stays out of the picture.
+#[test]
+fn a_body_hidden_then_taken_over_is_shown_by_its_toggle() {
+    let tol = Tol::witness();
+    let (doc, a) = extrude(&Doc::empty_derived("toggles-hidden-taken", tol), 0.0, tol);
+    let (doc, b) = extrude(&doc, 2.0 * SIDE, tol);
+    let (mut session, mut cache) = landed(doc, tol);
+    toggle(&mut session, a, false);
+    common::session_insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Subtract {
+                from: b.into(),
+                tool: a.into(),
+            },
+        },
+    );
+    session.pump();
+    assert!(!on(&session, a), "the operand reads off");
+    toggle(&mut session, a, true);
+    sync(&session, &mut cache);
+    let index = cache.index().expect("indexed");
+    assert!(
+        visible(index, &session.display_view(), a),
+        "the click draws it"
+    );
+    assert_toggles_agree(&session, index, "the hidden operand shown");
+}
+
+/// **A show the document can no longer hold is dropped, and said**: a
+/// show of the placement a boolean wrote goes with the undo of the
+/// boolean, on the undo's own report as a dropped show.
+///
+/// *Breaks if* the show goes in silence, is reported as a hide, or
+/// outlives its node.
+#[test]
+fn a_dropped_show_is_reported() {
+    let tol = Tol::witness();
+    let (doc, a) = extrude(&Doc::empty_derived("toggles-dropped-show", tol), 0.0, tol);
+    let (doc, b) = extrude(&doc, SIDE / 2.0, tol);
+    let (mut session, _cache) = landed(doc, tol);
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: BooleanSpec::Union(vec![a.into(), b.into()]),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let made = outcome.made.expect("the union");
+    let placement = *outcome
+        .minted
+        .iter()
+        .find(|&&node| node != made && session.committed_doc().placements().contains(&node))
+        .expect("the boolean placed its second operand into the first's space");
+    toggle(&mut session, placement, true);
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    let dropped: Vec<Held> = undone
+        .withdrawn
+        .dropped_shows
+        .iter()
+        .map(|withdrawn| withdrawn.held)
+        .collect();
+    assert_eq!(dropped, vec![Held::Node(placement)], "the show is reported");
+    assert!(
+        undone.withdrawn.dropped_hides.is_empty(),
+        "and not as a hide"
+    );
+    assert!(session.display().toggled().is_empty(), "and is gone");
 }

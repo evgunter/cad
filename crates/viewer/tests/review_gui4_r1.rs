@@ -307,9 +307,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         frame: asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])),
     });
     session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: true,
+        on: false,
     });
     let view = session.display_view();
     let scene = index.scene_for(&view).expect("a scene");
@@ -336,9 +336,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     );
 
     // Unhide: both facts come back together.
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: false,
+        on: true,
     });
     assert_eq!(
         index
@@ -807,16 +807,16 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
     // keeps every copy.
     assert!(
         session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: instance,
-                hidden: true,
+                on: false,
             })
             .refusal
             .is_none(),
         "hide is accepted on the patterned instance"
     );
     assert!(
-        !session.display_view().body_on(instance) && !session.display().is_body_hidden(instance),
+        !session.toggles().body_on(instance) && session.display().toggled().is_empty(),
         "the toggle reads off, and an off turned off holds nothing"
     );
     assert_eq!(
@@ -829,18 +829,18 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
         "the instance is not drawn, so its hide takes nothing off the picture"
     );
     // A world copy's hide takes that copy off.
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: copies[0],
-        hidden: true,
+        on: false,
     });
     let hidden_scene = index.scene_for(&session.display_view()).expect("a scene");
     assert!(
         hidden_scene.stats().triangles < baseline,
         "hiding a drawn copy takes it off the picture"
     );
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: copies[0],
-        hidden: false,
+        on: true,
     });
     assert_eq!(
         index
@@ -877,9 +877,9 @@ fn r1_a_patterned_instance_is_drawn_through_its_copies_and_its_space_is_not_show
     // The family's placement builds bodies, so its hide is accepted.
     assert!(
         session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: pattern,
-                hidden: true,
+                on: false,
             })
             .refusal
             .is_none(),
@@ -929,9 +929,9 @@ fn r1_an_assembly_alone_in_an_empty_directory_opens_and_badges() {
     }
     // The hide op still works on an unresolvable instance — display
     // state is about the DOCUMENT's nodes, not about what evaluated.
-    let hidden = session.perform(SessionOp::SetBodyHidden {
+    let hidden = session.perform(SessionOp::SetBodyOn {
         node: RecipeNodeId(rows[0].id.0),
-        hidden: true,
+        on: false,
     });
     assert!(
         hidden.refusal.is_none(),
