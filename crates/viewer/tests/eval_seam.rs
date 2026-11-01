@@ -648,19 +648,20 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
     });
     broken.pump();
     // **The premise, asserted where it is used.** The discrimination
-    // below is `Ok` against `Err`, so a broken document that started
-    // indexing cleanly would leave the row passing in both directions
-    // instead of going red. It is checked here rather than inherited
-    // from a row in another file.
+    // below is a whole picture against one holding an undrawn copy, so
+    // a broken document that drew its copy would leave the row passing
+    // in both directions instead of going red. It is checked here rather
+    // than inherited from a row in another file.
     let mut probe = InlineIndexer::new();
     probe.submit(index_request(&broken, generation));
+    let broken_index = probe
+        .poll()
+        .expect("the inline seam answers inside poll")
+        .index
+        .expect("a failed copy does not refuse the index");
     assert!(
-        probe
-            .poll()
-            .expect("the inline seam answers inside poll")
-            .index
-            .is_err(),
-        "a zero-distance extrude must refuse to index, or this row \
+        !broken_index.undrawn().is_empty(),
+        "a zero-distance extrude must leave its copy undrawn, or this row \
          measures nothing",
     );
 
@@ -685,7 +686,10 @@ fn the_threaded_index_seam_keeps_an_answer_a_waiting_request_asks_for() {
         PictureKey::of(generation, common::plate_delta())
     );
     assert!(
-        results[0].index.is_ok(),
+        results[0]
+            .index
+            .as_ref()
+            .is_ok_and(|index| index.undrawn().is_empty()),
         "the answer in hand was kept, not thrown away and rebuilt",
     );
 }

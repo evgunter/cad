@@ -2,10 +2,12 @@
 id: committing-a-mate-floods-the-banner
 kind: issue
 title: committing a mate floods the banner: a refused label and raw-id dropped-value lines
-status: open
+status: review
 opened: 2026-10-31
 priority: P1
 cost: M
+pr: 6203
+branch: chrome/mate-banner
 ---
 
 ## Finding
