@@ -774,19 +774,33 @@ fn arc_place<T: Decide>(
     lever: T,
     band: Band,
 ) -> Result<Option<(T, bool)>, Fault> {
-    const ROW: &str = "bool_torus_region_span";
-    let theta = near_span(y.atan2(x), (t0, t1));
-    let fault = match span(ROW, theta, (t0, t1), lever, band) {
+    let (theta, read) = arc_span((t0, t1), (x, y), lever, band);
+    let fault = match read {
         Ok(at) => return Ok(at.map(|sideless| (theta, sideless))),
         Err(fault) => fault,
     };
     let two = T::from_f64(2.0);
     let (mid, half) = ((t0 + t1) / two, (t1 - t0) / two);
     let from_mid = (x * mid.cos() + y * mid.sin()) / (x.powi(2) + y.powi(2)).sqrt();
-    match decide(ROW, Margin::of(lever * (from_mid - half.cos())), band) {
+    match decide(SPAN, Margin::of(lever * (from_mid - half.cos())), band) {
         Ok(Sign::Negative) => Ok(None),
         _ => Err(fault),
     }
+}
+
+const SPAN: &str = "bool_torus_region_span";
+
+/// A point's angle on an arc, from its offset `(x, y)` as [`arc_place`]
+/// takes it, on the branch of the span's middle, and the span reading on
+/// it ([`span`]).
+fn arc_span<T: Decide>(
+    (t0, t1): (T, T),
+    (x, y): (T, T),
+    lever: T,
+    band: Band,
+) -> (T, Result<Option<bool>, Fault>) {
+    let theta = near_span(y.atan2(x), (t0, t1));
+    (theta, span(SPAN, theta, (t0, t1), lever, band))
 }
 
 #[cfg(test)]
@@ -1334,7 +1348,8 @@ mod tests {
     /// scalar: its angle lies at the cut of the span's branch, which an
     /// enclosing scalar holds as a whole turn, so the span reading is in
     /// band and the cosine reading places it. A point inside the arc and
-    /// one just past an end read as the span reading does.
+    /// one past an end read as the span reading does, and one in band of
+    /// an end keeps the span reading's refusal.
     #[test]
     fn a_point_opposite_an_arcs_middle_is_past_its_span() {
         use geom_core::{Interval, Real};
@@ -1349,7 +1364,7 @@ mod tests {
         let opposite = (iv(0.5 + PI).cos(), iv(0.5 + PI).sin());
         let ispan = (iv(0.0), iv(1.0));
         assert!(
-            span_reading(ispan, opposite).is_err(),
+            arc_span(ispan, opposite, iv(1.0), b).1.is_err(),
             "interval: the span reading alone is in band opposite the middle"
         );
         assert!(
@@ -1367,18 +1382,16 @@ mod tests {
             "interval, past the end"
         );
 
-        fn span_reading(
-            (t0, t1): (Interval, Interval),
-            (x, y): (Interval, Interval),
-        ) -> Result<Option<bool>, Fault> {
-            let theta = near_span(y.atan2(x), (t0, t1));
-            span(
-                "bool_torus_region_span",
-                theta,
-                (t0, t1),
-                Interval::from_f64(1.0),
-                Band::new(1e-9, 1e-8).unwrap(),
-            )
-        }
+        // In band of an end, the cosine is in band too, and the span
+        // reading's refusal stands.
+        let at_end = (iv(1.0 + 5e-9).cos(), iv(1.0 + 5e-9).sin());
+        assert!(
+            arc_span(ispan, at_end, iv(1.0), b).1.is_err(),
+            "interval: the span reading is in band at the end"
+        );
+        assert!(
+            arc_place(ispan, at_end, iv(1.0), b).is_err(),
+            "interval, in band of an end: the refusal stands"
+        );
     }
 }

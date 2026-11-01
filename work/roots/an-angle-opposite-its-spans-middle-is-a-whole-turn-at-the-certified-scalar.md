@@ -43,7 +43,17 @@ Each reduces an angle onto a span's middle and then reads the span's ends:
   `turn` of `atan2` from the leg's start, whose cut is the point opposite
   the start. A crossing there is placed over a whole turn at the certified
   scalar, so it cannot be ordered against the path's other crossings. This
-  course is shared by every region door's legs.
+  course is shared by every region door's legs. **Taken by RESTCURVE's
+  pole-door unit** (`the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar`),
+  whose branch rewrites `Round`'s swept angle with no cut; it is not this
+  row's.
+  - The repro is from PR 6244's review, probe `review_antipodal` on
+    `restcurve/review-marten-6244` @ `cf2cf225`. It plants two windows on
+    the donut's face at opposite azimuths, `((-1.2, -0.2), (-0.4, 0.4))`
+    and `((π − 1.2, π − 0.2), (-0.4, 0.4))`.
+  - The body is valid and validates at f64. At `Interval`, tier 3
+    refuses it `CycleSideUndecided` at all three ε, with margin
+    `[0, 7.5066]`, which is `π·ρ`.
 
 A root's representative is not a point, so the cosine reading needs the
 root's raw angle (`φ ± half-chord`), which the reduction discards. Either
