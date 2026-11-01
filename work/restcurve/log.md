@@ -44,3 +44,7 @@
   - Filed: F2 on TESSWALK; F5 on SPLITDOOR, a tip defect rather than a seam defect, per the probe; the not-owed gap here.
 - 2026-10-31 — Dispatched `a-wrap-tip-cap-loses-its-side-datum-when-the-chart-image-drops-the-tip` (P1 M; single FULL review; branch `restcurve/tip-side-datum`). It is the precondition for any door that mints a tip.
 - 2026-10-31 — **PR 6116 merged** (the wrap-tip side datum; closes its row). Review: single FULL, APPROVE-WITH-FIXES, no MAJOR. The fix pass added the two-tip and in-band-tip rows and made the flux arm take the datum, per the ratified DESIGN. Filed on NEARPOINT: `a-seam-region-holding-a-wrap-tip-is-never-read`. Every condition a door minting a tip needs on RESTCURVE's side is now in place.
+- 2026-11-01 — **PR 6163 merged** (containment unit 2, the region arm; closes `validate-tier3-curved-boundary-containment`).
+  - Dual review, concurrent (H), on `9c07853b`. R2's MAJOR (two torus windows refused at the certified scalar) was TALLIED. Row `PR-6163`.
+  - Three fix passes. Reviews outside the pair: a delta of `19efe519` found a second MAJOR (windows sharing an azimuth span), and a re-check of `8f9aea64` found a regression of pass 2 (the span fallback). Both are fixed and pinned by rows. I ran the last row against a mutant myself.
+  - Filed: the hair-gap residual (P1), `the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar` (P1, item (e)), and the exemptions on the spline/off-admits row. CI was green but for the python binding census, a main red filed on SPACES.
