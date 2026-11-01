@@ -332,3 +332,54 @@ fn span_deriv_does_not_move_with_the_curve() {
         }
     }
 }
+
+/// **`span_deriv` is tight against the curve's own turning, off the
+/// origin.** The circle moved by `(1e3, −1e3, 1e3)`, over ranges `2⁻²` to
+/// `2⁻³⁰` long, some straddling its double knots: the widest coordinate
+/// of the enclosure is at most 4× that coordinate's spread over 33
+/// sampled points of the range, plus `1e-9`. A range read about a point
+/// far from its piece carries that distance times the weight's slope,
+/// which shrinks no faster than the range's own spread.
+#[test]
+fn span_deriv_is_tight_against_its_own_range_off_the_origin() {
+    let by = geom_core::Vec3::new(1e3, -1e3, 1e3);
+    let away = nurbs_circle()
+        .map_points(|p| p + by)
+        .map_scalar(Interval::from_f64);
+    let mut worst = 0.0f64;
+    for k in [2, 4, 8, 16, 30] {
+        let h = 2f64.powi(-k);
+        for lo in [0.0, 0.1, 0.25 - h / 2.0, 0.6, 1.0 - h] {
+            let d = away.span_deriv(lo, lo + h).unwrap();
+            let samples: Vec<_> = (0..=32)
+                .map(|i| {
+                    let t = (lo + h * f64::from(i) / 32.0).min(lo + h);
+                    away.deriv(Interval::from_f64(t))
+                })
+                .collect();
+            let spread = |pick: fn(&geom_core::Vec3<Interval>) -> Interval| {
+                let lo = samples
+                    .iter()
+                    .map(|d| pick(d).hi())
+                    .fold(f64::INFINITY, f64::min);
+                let hi = samples
+                    .iter()
+                    .map(|d| pick(d).lo())
+                    .fold(f64::NEG_INFINITY, f64::max);
+                (hi - lo).max(0.0)
+            };
+            let spread = spread(|d| d.x).max(spread(|d| d.y)).max(spread(|d| d.z));
+            let width = [d.x, d.y, d.z]
+                .iter()
+                .map(|c| c.hi() - c.lo())
+                .fold(0.0, f64::max);
+            worst = worst.max(width / spread.max(1e-300));
+            assert!(
+                width <= 4.0 * spread + 1e-9,
+                "C′ over [{lo}, {}]: {width} wide against a sampled spread of {spread}",
+                lo + h
+            );
+        }
+    }
+    println!("[jet frame] the circle off the origin: worst width / spread {worst}");
+}

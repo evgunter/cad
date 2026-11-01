@@ -140,13 +140,13 @@ each face about its shell's reference point (`props/quad_lane.rs`,
 
 ## The home (JETFRAME, CLEAR, 2026-11-01)
 
-A rational net's first derivative over a cell now has one home in
-`geom`: `net::rational_slope`, reading the cell's homogeneous net about
-a point of the cell (`net::cell_origin`, `net::homogeneous_about`).
-`B = A − c·w` is the homogeneous form of `S − c`, whose derivative is
-`S`'s for any constant `c`, so `c` is never certified and costs only
-width. `NurbsSurface::rect_jet` and `NurbsCurve3::span_deriv` read
-through it, and their widths no longer move with the net. This row was
-not in reach of that unit, and was not fixed in it. The home is
-`pub(crate)` in `geom`; a caller in another crate needs it exported, or
-a door in `geom` that reads through it.
+`geom::net` now holds the home of a rational net's derivatives over a
+cell, read about a point of the cell: `rational_slope` (`S_u`, `S_v`)
+and `rational_mixed` (`S_uv`), behind `NurbsSurface::rect_jet`. This
+row's lane, `rational_patch_face` → `Ladder::cross_num_at` in
+`geom-brep`, forms the area element's cross product, which the home
+does not: `S_u × S_v` is a product of two quotients, and its width wants
+the cross formed from the recentred hulls (or the quotient statement
+`cell_measure_quotients` this row already measured). The home is
+`pub(crate)` in `geom`, so the lane would need it exported, or a `geom`
+door that returns the cross. Left open by JETFRAME.

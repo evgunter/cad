@@ -456,6 +456,22 @@ mod exact {
     }
 
     impl Net {
+        /// The net of `degree`, `knots`, row-major `control` and `weights`
+        /// as given.
+        pub(super) fn new(
+            degree: [usize; 2],
+            knots: [Vec<f64>; 2],
+            control: Vec<[f64; 3]>,
+            weights: Vec<f64>,
+        ) -> Self {
+            Self {
+                degree,
+                knots,
+                control,
+                weights,
+            }
+        }
+
         pub(super) fn draw(rng: &mut Rng) -> Self {
             let degree = [1 + rng.below(4), 1 + rng.below(4)];
             let knots = [knots(rng, degree[0]), knots(rng, degree[1])];
@@ -748,4 +764,181 @@ fn a_rational_walls_jet_is_tight_against_its_own_range() {
         }
     }
     println!("[jet frame] quarter circle at (3, 3): worst width / spread {worst}");
+}
+
+/// **`S_uv` against its exact value, on one fixed net.** A quartic ×
+/// linear patch whose weights span `0.01` to `474`, moved to about
+/// `(4, −7, −128)`, on a cell `1.5e-5 × 3.9e-3` whose `v` side starts on
+/// an interior knot: the exact `S_uv` at the cell's corners and middle,
+/// on every span that meets it there, lies inside `rect_jet`'s
+/// enclosure. The weights' slopes and twist are steep enough that each of
+/// the mixed partial's weight terms, `B·w_uv` included, moves `S_uv`
+/// outside the enclosure when dropped, on every run. The net is the
+/// exact oracle's draw at `CAD_FUZZ_SEED=0xb`, `CAD_FUZZ_EFFORT=8`,
+/// written out.
+#[test]
+fn rect_jet_contains_the_exact_mixed_partial_of_a_fixed_rational_net() {
+    let knots = [
+        vec![0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+        vec![
+            0.0,
+            0.0,
+            0.158_226_476_123_069_95,
+            0.417_353_407_794_508_36,
+            0.423_261_609_471_575_43,
+            1.0,
+            1.0,
+        ],
+    ];
+    let control = vec![
+        [3.050684608727739, -7.178091779965307, -127.05691323810933],
+        [3.8740481326772764, -6.05589459197545, -126.93362955858143],
+        [4.203129067593478, -6.591866329780057, -128.46802443939205],
+        [3.8786676091911763, -6.597712431775758, -127.42304157601524],
+        [4.044996355426123, -7.660184353670945, -127.31016418887981],
+        [3.4467115813412144, -5.7651536390525795, -127.94727107639736],
+        [3.2967088336918886, -6.9162905431774755, -127.9144226170482],
+        [2.865635694996638, -7.276749283565412, -127.13856184432342],
+        [4.290250853305883, -7.560079973978031, -127.75826575462008],
+        [4.665713561612451, -7.15669900401047, -128.11683160390533],
+        [4.172179846933471, -7.1018169317187905, -127.11205220335792],
+        [3.3825904284215493, -6.751485532829372, -128.2185563131049],
+        [3.8818678665045727, -5.914391892584441, -128.53339538668527],
+        [2.875673697583536, -6.685454066578751, -128.12856829204156],
+        [3.9718999782930036, -7.393790450216364, -127.73138178959199],
+        [2.8901198717051106, -5.997698238870685, -127.00582465596217],
+        [3.1110116353089263, -7.271043711538317, -128.22076286754285],
+        [2.984657930262114, -7.590605128805975, -128.55126318179677],
+        [2.788702100704791, -6.161700012823305, -126.82823386766917],
+        [4.635549707905644, -6.427819108973203, -127.5201890173393],
+        [4.045383980092756, -6.8671844222713965, -127.46014563580876],
+        [3.203650205574907, -6.319781505149965, -127.27644246816584],
+        [4.516658169742177, -7.27515979507934, -127.4225895090312],
+        [4.67091759260741, -5.829628071187193, -127.74565022044183],
+        [4.277178235047719, -6.702753974382321, -127.64319719219007],
+    ];
+    let weights = vec![
+        16.201368860575894,
+        80.11449246535871,
+        0.7022726137531653,
+        32.77331889076174,
+        2.3513617617327927,
+        270.3095951132867,
+        22.585000274865024,
+        0.011730963644322223,
+        131.08289513497513,
+        3.6143006436512173,
+        473.86566487168744,
+        1.2558176452317087,
+        90.75678516505872,
+        113.93898271748513,
+        0.0257092401721693,
+        0.08497622157165653,
+        27.299110050291407,
+        1.0211646851314597,
+        0.027431508998624832,
+        0.03039679866751755,
+        250.65176372801014,
+        0.3450485435613021,
+        0.3681499449773386,
+        0.010297527717472986,
+        234.01393296691782,
+    ];
+    let data = exact::Net::new([4, 1], knots, control, weights);
+    let net = data.surface();
+    let (u, v) = (
+        (0.324_520_691_074_959_4, 0.324_535_949_864_021_9),
+        (0.417_353_407_794_508_36, 0.421_259_657_794_508_36),
+    );
+    let (_, _, suv) = net.rect_jet(u, v).expect("a cell inside the domain");
+    let at = |(lo, hi): (f64, f64), x: f64| (lo + x * (hi - lo)).clamp(lo, hi);
+    let mut checked = 0usize;
+    for (a, b) in [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (1.0, 1.0), (0.5, 0.5)] {
+        let (s, t) = (at(u, a), at(v, b));
+        for (cu, cv) in data
+            .spans(0, u, s)
+            .flat_map(|cu| data.spans(1, v, t).map(move |cv| (cu, cv)))
+        {
+            let want = &data.partials(cu, cv, s, t)[2];
+            for (k, c) in [suv.x, suv.y, suv.z].iter().enumerate() {
+                assert!(
+                    want[k].cmp_f64(c.lo()).is_ge() && want[k].cmp_f64(c.hi()).is_le(),
+                    "S_uv[{k}] at ({s}, {t}) on spans ({cu}, {cv}) is {} exactly, outside \
+                     the enclosure {c:?}",
+                    want[k].to_f64_report()
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(
+        checked, 15,
+        "five points, one span pair each, three coordinates"
+    );
+}
+
+/// **A piece whose middle evaluates to poison claims no partial.** Every
+/// control point at `1.5e308` with a weight of 2: the homogeneous sums
+/// overflow, so the evaluation at the cell's middle has no finite point
+/// to read the net about, and `rect_jet` answers `None` rather than an
+/// enclosure read about a point the cell does not have.
+#[test]
+fn rect_jet_refuses_a_piece_whose_middle_overflows() {
+    let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let far = 1.5e308;
+    let net = NurbsSurface::new(
+        unit(),
+        unit(),
+        vec![Point3::new(far, far, far); 4],
+        vec![2.0; 4],
+    )
+    .unwrap()
+    .map_scalar(Interval::from_f64);
+    assert!(
+        net.rect_jet((0.25, 0.5), (0.25, 0.5)).is_none(),
+        "a poisoned middle claims no partial: {:?}",
+        net.rect_jet((0.25, 0.5), (0.25, 0.5))
+    );
+}
+
+/// **A weight not certified positive claims no partial.** The bilinear
+/// patch with corner weights `10, 10, 10` and `[−0.5, 1.5]` at `(1, 1)`,
+/// on the cell `[½, 1]²`: the weight at the cell's middle is certainly
+/// positive, so the cell has a point to be read about, but the
+/// restricted weight at its far corner reaches zero, so the quotient's
+/// denominator is not certified positive and `rect_jet` answers `None`.
+#[test]
+fn rect_jet_refuses_a_weight_not_certified_positive() {
+    let unit = || KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let net = NurbsSurface::new(
+        unit(),
+        unit(),
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+        ],
+        vec![10.0, 10.0, 10.0, 0.5],
+    )
+    .unwrap()
+    .map_scalar(|x| {
+        if x == 0.5 {
+            Interval::from_bounds(-0.5, 1.5)
+        } else {
+            Interval::from_f64(x)
+        }
+    });
+    let middle = net.eval(Interval::from_f64(0.75), Interval::from_f64(0.75));
+    assert!(
+        [middle.x, middle.y, middle.z]
+            .iter()
+            .all(|c| c.lo().is_finite() && c.hi().is_finite()),
+        "the cell's middle evaluates to a finite point: {middle:?}"
+    );
+    assert!(
+        net.rect_jet((0.5, 1.0), (0.5, 1.0)).is_none(),
+        "a weight reaching zero claims no partial: {:?}",
+        net.rect_jet((0.5, 1.0), (0.5, 1.0))
+    );
 }

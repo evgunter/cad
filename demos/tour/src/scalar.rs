@@ -11,7 +11,7 @@
 //! is a transparent f64 wrapper; its arithmetic delegates verbatim),
 //! so every oracle asserted at f64 holds bit-identically at Probe.
 //! `Interval` builds scenes only for the rows that ask them for a
-//! certificate, and no oracle reads its `f`.
+//! certificate, and its `f` panics.
 
 use pncad::document::ContentBits;
 use pncad::geom_core::Decide;
@@ -144,12 +144,13 @@ impl Scalar for f64 {
 }
 
 /// The certifying scalar, for the rows that ask a certificate of a
-/// scene (`tests/wall_jets.rs`): its `f` is the midpoint, which is not
-/// exact, so no narration or oracle reads a scene built at it.
+/// scene (`tests/wall_jets.rs`). An enclosure has no exact `f64`, so `f`
+/// panics: a scene path that narrates or decides off `f` (the lantern's
+/// mouth depth, the cone offsets) cannot be built at `Interval` until it
+/// stops reading one, and says so loudly rather than reading a midpoint.
 impl Scalar for pncad::geom_core::Interval {
     fn f(self) -> f64 {
-        use pncad::geom_core::Bounds;
-        0.5 * self.lo() + 0.5 * self.hi()
+        panic!("the tour reads no exact f64 off an Interval enclosure: {self:?}")
     }
 }
 

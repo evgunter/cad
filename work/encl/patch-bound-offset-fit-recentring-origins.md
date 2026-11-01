@@ -39,13 +39,11 @@ Parked 2026-09-26 on `f64-refinement-inside-an-enclosure-has-five-more-sites` be
 
 ## The home (JETFRAME, CLEAR, 2026-11-01)
 
-A rational net's first derivative over a cell now has one home in
-`geom`: `net::rational_slope`, reading the cell's homogeneous net about
-a point of the cell (`net::cell_origin`, `net::homogeneous_about`).
-`B = A − c·w` is the homogeneous form of `S − c`, whose derivative is
-`S`'s for any constant `c`, so `c` is never certified and costs only
-width. `NurbsSurface::rect_jet` and `NurbsCurve3::span_deriv` read
-through it, and their widths no longer move with the net. This row was
-not in reach of that unit, and was not fixed in it. The home is
-`pub(crate)` in `geom`; a caller in another crate needs it exported, or
-a door in `geom` that reads through it.
+JETFRAME gave `geom` a per-cell centre of its own: `rect_jet` and
+`span_deriv` read each cell's homogeneous net about the evaluation at
+that cell's middle (`net::cell_origin`). That is the cell-local choice
+this row weighs, made where the consumer is per cell. It does not
+decide this row: `patch_bound::comp_nets` already reads per cell, and
+`offset_fit::channel`'s whole-patch origin feeds products formed once
+over the merged break structure, so the cost measurement on
+`offset_fit` this row asks for is still owed.

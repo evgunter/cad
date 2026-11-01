@@ -1625,21 +1625,25 @@ impl NurbsSurface<Interval> {
     /// enclosed: `(S_u, S_v, S_uv)` at every point of `u × v`.
     ///
     /// [`NurbsSurface::rect_enclosure`]'s restriction, one order up. On
-    /// each knot cell the rectangle meets, the homogeneous net `(w·P, w)` is
-    /// restricted to the meet — the Bernstein net of exactly that piece —
+    /// each knot cell the rectangle meets, the homogeneous net is read
+    /// about a point `c` of that piece, `(w·(P − c), w)`, and restricted
+    /// to the meet — the Bernstein net of exactly that piece of `S − c` —
     /// and so are its partials, each axis's derivative read off the
     /// blossom across that knot cell's own span
     /// ([`geom_core::spline::SpanRow::restrict_derivative`]), so a meet a
     /// few ulps wide is enclosed as tightly as a wide one. Their hulls
-    /// enclose the homogeneous partials. The partials of the point follow by
-    /// the quotient rule in interval arithmetic, `S_u = (A_u·w − A·w_u)/w²`
-    /// and its `v`-derivative, with `A` and `w` enclosed by the net's own
-    /// hull and every restricted weight certified positive. The hull over
-    /// the cells encloses the rectangle.
+    /// enclose the homogeneous partials, and the partials of the point
+    /// follow by the quotient rule over them ([`net::rational_slope`],
+    /// [`net::rational_mixed`]), with every restricted weight certified
+    /// positive. `S − c` has `S`'s partials for any constant `c`, and
+    /// about a point of the piece the width shrinks with the cell and
+    /// does not move with the patch. The hull over the cells encloses
+    /// the rectangle.
     ///
     /// `None` for a rectangle with no extent on an axis, one past the knot
-    /// domain, a restriction the blossom door refuses, and a weight not
-    /// certified positive: no partial is claimed there.
+    /// domain, a restriction the blossom door refuses, a weight not
+    /// certified positive, and a piece whose middle evaluates to poison:
+    /// no partial is claimed there.
     #[allow(clippy::type_complexity)]
     pub fn rect_jet(
         &self,
@@ -1781,10 +1785,10 @@ fn restricted_jet(
     ev: (Interval, Interval),
 ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
     let mid = |(a, b): (Interval, Interval)| {
-        let m = 0.5 * a.lo() + 0.5 * b.hi();
+        let m = net::middle(a.lo(), b.hi());
         Interval::from_bounds(m, m)
     };
-    let c = net::cell_origin(win.eval_in_span(mid(eu), mid(ev)));
+    let c = net::cell_origin(win.eval_in_span(mid(eu), mid(ev)))?;
     let hull = |u: Along, v: Along| -> Option<[Interval; 4]> {
         read_net(win, c, (eu, u), (ev, v))?
             .into_iter()
@@ -1795,20 +1799,11 @@ fn restricted_jet(
     let hu = hull(Along::Slope, Along::Value)?;
     let hv = hull(Along::Value, Along::Slope)?;
     let huv = hull(Along::Slope, Along::Slope)?;
-    let w = h[3];
-    if !certainly_positive(&[w]) {
-        return None;
-    }
-    let at = |x: f64| Interval::from_bounds(x, x);
-    let v3 = |x: [Interval; 4]| Vec3::new(x[0], x[1], x[2]);
-    let (a, au, av, auv) = (v3(h), v3(hu), v3(hv), v3(huv));
-    let (wu, wv, wuv) = (hu[3], hv[3], huv[3]);
-    let w2 = w.powi(2);
-    let su = net::rational_slope(h, hu);
-    let sv = net::rational_slope(h, hv);
-    let suv = (auv * w + au * wv - av * wu - a * wuv) * (at(1.0) / w2)
-        - (au * w - a * wu) * (wv * at(2.0) / (w2 * w));
-    Some((su, sv, suv))
+    Some((
+        net::rational_slope(h, hu)?,
+        net::rational_slope(h, hv)?,
+        net::rational_mixed(h, hu, hv, huv)?,
+    ))
 }
 
 /// The dehomogenized control points of `win`'s piece restricted to
