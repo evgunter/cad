@@ -889,10 +889,9 @@ mod tests {
     /// far off the zone's boundary, and every great circle through it is
     /// a meridian, which meets the two rims at places the band cannot
     /// order: the face's door, every surface cycle kept, escalates on the
-    /// order row with its margin at both poles, never a side. A pin of the
-    /// door's in-band reading at `f64`, where it reads alike before and
-    /// after its roots are read as directions; tier 3 reads it through
-    /// the door once the switch lands.
+    /// order row with its margin at both poles, never a side, and tier 3,
+    /// which reads the poles' side through the door, refuses both
+    /// `ChartSingularityUndecided` with that margin.
     #[test]
     fn a_pole_read_in_band_escalates_with_its_margin() {
         use crate::construction::{FaceSurface, MefSite, MevSite};
@@ -1028,6 +1027,33 @@ mod tests {
                 "the {pole} pole is undecided on the order row: {got:?}"
             );
         }
+        // Tier 3 reads each pole's side through the door, and refuses it
+        // typed, carrying the margin, never a place.
+        use geom_brep::chart_singularity::{SideUnread, Singularity, Undecided};
+        let (errors, _) = crate::validate::tier3_local_checks(&body, tol, None);
+        for pole in [Singularity::North, Singularity::South] {
+            assert!(
+                errors.iter().any(|e| matches!(
+                    e,
+                    crate::ValidationError::ChartSingularityUndecided {
+                        face: f,
+                        point,
+                        reading: Undecided::Side(SideUnread::Banded(diag)),
+                    } if *f == zone
+                        && *point == pole
+                        && diag.predicate == Some("bool_sphere_region_order")
+                        && !diag.margin.is_invalid()
+                )),
+                "tier 3 refuses {pole:?} undecided on the order row: {errors:?}"
+            );
+        }
+        assert!(
+            !errors.iter().any(|e| matches!(
+                e,
+                crate::ValidationError::ChartSingularityNotAVertex { face: f, .. } if *f == zone
+            )),
+            "no place is read off a margin in band: {errors:?}"
+        );
     }
 
     /// The unit sphere's lune between azimuths `π` and `3π/2`, below the
