@@ -72,9 +72,10 @@ mod driven {
         driver.click("New…", 0).expect("the new-document form");
         driver.click("document name", 0).expect("the name field");
         driver.type_text("ball").expect("typed");
-        driver.click("Create", 0).expect("created");
+        driver.click("Create document", 0).expect("created");
         driver.settle().expect("settles");
         driver.click("Add feature", 0).expect("the section opens");
+        driver.click("Add profile…", 0).expect("the form opens");
         driver.click("path", 0).expect("the path shape");
         driver.click("line_to", 0).expect("a line row");
         driver.click("arc_to", 0).expect("an arc row");
