@@ -4824,7 +4824,14 @@ pub(super) fn line_wall_roots_of<T: Decide>(
             radius,
             ..
         } => match super::solid_contain::line_wall_roots(
-            origin, dir, c_origin, axis, radius, span, band,
+            origin,
+            dir,
+            c_origin,
+            axis,
+            radius,
+            span,
+            band,
+            super::solid_contain::About::Start,
         )
         .map_err(|fault| BooleanError::Escalated {
             decision: BooleanDecision::WallRoots(fault.rung),
@@ -4861,11 +4868,18 @@ pub(super) fn line_wall_roots_of<T: Decide>(
         // The quadratic, the ray lane's own. No line lies on a sphere,
         // so it has no constant case either.
         geom::Surface::Sphere { center, radius, .. } => {
-            match super::solid_contain::line_sphere_roots(origin, dir, center, radius, band)
-                .map_err(|diag| BooleanError::Escalated {
-                    decision: BooleanDecision::SphereRoots,
-                    diag,
-                })? {
+            match super::solid_contain::line_sphere_roots(
+                origin,
+                dir,
+                center,
+                radius,
+                band,
+                super::solid_contain::About::Start,
+            )
+            .map_err(|diag| BooleanError::Escalated {
+                decision: BooleanDecision::SphereRoots,
+                diag,
+            })? {
                 WallRoots::Two(ts, _) => two(ts),
                 WallRoots::Tangent => Err(Unsettled::Tangency),
                 WallRoots::AxisParallel | WallRoots::Miss => Ok(CircleRoots::Miss),

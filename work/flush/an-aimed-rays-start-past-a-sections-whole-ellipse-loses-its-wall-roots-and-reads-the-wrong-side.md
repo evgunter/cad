@@ -174,7 +174,12 @@ Three changes, each closing the defect alone, together by construction:
    (`line_sphere_roots`) and the cone (`line_cone_centred`, both the
    trimmed and the partial cone arm). `c` is read at the body's scale.
    The discriminant and the lead are the same quantities, so every
-   margin is unchanged in meaning.
+   margin is unchanged in meaning. The rays read `About::Nearest`. The
+   edge sweep (`reduce.rs`) reads `About::Start`, bit for bit as
+   before: its line starts at the body's scale, and the shift would
+   only widen an `Interval` enclosure. Measured: re-centred,
+   `verbs_germarms2_interval`'s skew pair at 1e-12 moved its re-posed
+   escape from `carrier_matches_mapped_source` to `pcurve_map_residual`.
 3. **The roots' rounding reaches the order** (`Centred::roots`,
    `PlaneCross::slack`, `RayHit::slack`). Each root carries a
    first-order bound, linear in the start's distance. Each plane

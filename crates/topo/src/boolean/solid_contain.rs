@@ -2402,6 +2402,19 @@ pub(super) enum WallRoots<T> {
     Two([T; 2], T),
 }
 
+/// **Where a line × quadric quadratic is read from** ([`Centred`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum About {
+    /// The line's own origin, for a line given at the body's own scale
+    /// (an edge's carrier line): its residual there is already of that
+    /// scale, and moving it would only widen an enclosure by the
+    /// shift's own.
+    Start,
+    /// The line's closest approach to the quadric's axis or centre, for
+    /// a ray started far from the body.
+    Nearest,
+}
+
 /// The certified roots of the LINE `q + d·t` against the INFINITE
 /// cylinder wall `(origin, axis, radius)` — the quadratic in metres
 /// that the ray lane has solved since M5 PR 9, factored out so the
@@ -2442,6 +2455,7 @@ pub(super) fn line_wall_roots<T: Decide>(
     radius: T,
     span: T,
     band: Band,
+    about: About,
 ) -> Result<WallRoots<T>, WallRootFault> {
     let w0 = q - origin;
     let w0p = w0 - axis * w0.dot(axis);
@@ -2460,10 +2474,13 @@ pub(super) fn line_wall_roots<T: Decide>(
         Sign::Positive => {}
         _ => return Ok(WallRoots::AxisParallel),
     }
-    // About the line's closest approach to the axis, held to the run.
-    let shift = ((T::zero() - w0p.dot(dp)) / a2)
-        .max(T::zero() - span)
-        .min(span);
+    // Read from the line's closest approach to the axis, held to the run.
+    let shift = match about {
+        About::Start => T::zero(),
+        About::Nearest => ((T::zero() - w0p.dot(dp)) / a2)
+            .max(T::zero() - span)
+            .min(span),
+    };
     let w = w0p + dp * shift;
     let centred = Centred {
         shift,
@@ -2650,11 +2667,14 @@ pub(super) fn line_sphere_roots<T: Decide>(
     center: Point3<T>,
     radius: T,
     band: Band,
+    about: About,
 ) -> Result<WallRoots<T>, geom_core::Indeterminate> {
     let w0 = q - center;
     let a2 = d.norm_squared();
-    // About the line's closest approach to the centre.
-    let shift = (T::zero() - w0.dot(d)) / a2;
+    let shift = match about {
+        About::Start => T::zero(),
+        About::Nearest => (T::zero() - w0.dot(d)) / a2,
+    };
     let w = w0 + d * shift;
     let centred = Centred {
         shift,
@@ -3861,7 +3881,7 @@ fn carrier_roots<T: Decide>(
                     radius,
                     sense,
                     ..
-                } => match line_wall_roots(q, d, origin, axis, radius, reach, band)
+                } => match line_wall_roots(q, d, origin, axis, radius, reach, band, About::Nearest)
                     .map_err(|fault| escalate(fault.diag))?
                 {
                     WallRoots::Miss => missed.push(face),
@@ -3921,7 +3941,9 @@ fn carrier_roots<T: Decide>(
                     radius,
                     sense,
                     ..
-                } => match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                } => match line_sphere_roots(q, d, center, radius, band, About::Nearest)
+                    .map_err(escalate)?
+                {
                     WallRoots::Two([near, far], slack) => {
                         push(
                             near,
@@ -4557,24 +4579,25 @@ pub(crate) fn ray_crossings<T: Decide>(
                 anchor,
                 reach: ball,
             } => {
-                let ts = match line_wall_roots(q, d, origin, axis, radius, reach, band)
-                    .map_err(|fault| escalate(fault.diag))?
-                {
-                    WallRoots::Miss => continue,
-                    WallRoots::AxisParallel => {
-                        if clear_of_carrier(
-                            wall_elevation(origin, axis, radius, q),
-                            face,
-                            band,
-                            rows,
-                        )? {
-                            continue;
+                let ts =
+                    match line_wall_roots(q, d, origin, axis, radius, reach, band, About::Nearest)
+                        .map_err(|fault| escalate(fault.diag))?
+                    {
+                        WallRoots::Miss => continue,
+                        WallRoots::AxisParallel => {
+                            if clear_of_carrier(
+                                wall_elevation(origin, axis, radius, q),
+                                face,
+                                band,
+                                rows,
+                            )? {
+                                continue;
+                            }
+                            return Err(RayFault::Graze);
                         }
-                        return Err(RayFault::Graze);
-                    }
-                    WallRoots::Tangent => return Err(RayFault::Graze),
-                    WallRoots::Two(ts, _) => ts,
-                };
+                        WallRoots::Tangent => return Err(RayFault::Graze),
+                        WallRoots::Two(ts, _) => ts,
+                    };
                 for t in ts {
                     let ahead = ray_walk::advance(rows.advance, Margin::of(t), band)
                         .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
@@ -4620,7 +4643,9 @@ pub(crate) fn ray_crossings<T: Decide>(
                     continue;
                 }
                 let ([near, far], slack) =
-                    match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                    match line_sphere_roots(q, d, center, radius, band, About::Nearest)
+                        .map_err(escalate)?
+                    {
                         WallRoots::Two(ts, slack) => (ts, slack),
                         WallRoots::Tangent => return Err(RayFault::Graze),
                         WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
@@ -5370,8 +5395,17 @@ mod wall_root_rows {
     /// the `z` axis, over a run of `span`.
     fn roots(q: Point3<f64>, d: Vec3<f64>, r: f64, span: f64) -> WallRoots<f64> {
         let z = Vec3::new(0.0, 0.0, 1.0);
-        line_wall_roots(q, d, Point3::new(0.0, 0.0, 0.0), z, r, span, band())
-            .unwrap_or_else(|f| panic!("the rungs decide: {f:?}"))
+        line_wall_roots(
+            q,
+            d,
+            Point3::new(0.0, 0.0, 0.0),
+            z,
+            r,
+            span,
+            band(),
+            About::Start,
+        )
+        .unwrap_or_else(|f| panic!("the rungs decide: {f:?}"))
     }
 
     /// **A ray straight across a wide wall's axis has its two roots.**
@@ -5426,24 +5460,27 @@ mod wall_root_rows {
             let band =
                 Band::linear_at(tol, eps).unwrap_or_else(|e| panic!("the band at {eps}: {e:?}"));
             let d = Vec3::new(dx, dy, (1.0 - dx * dx - dy * dy).sqrt());
-            let got = line_wall_roots(
-                Point3::new(qx, qy, 0.0),
-                d,
-                Point3::new(0.0, 0.0, 0.0),
-                z,
-                r,
-                span,
-                band,
-            )
-            .unwrap_or_else(|f| panic!("the rungs decide at {eps}: {f:?}"));
-            let WallRoots::Two([_, t1], _) = got else {
-                panic!("both roots at {eps}: {got:?}");
-            };
-            if (t1 - exit).abs() > eps {
-                off.push(format!(
-                    "at ε = {eps}: {t1} against {exit}, off by {:e}",
-                    (t1 - exit).abs()
-                ));
+            for about in [About::Start, About::Nearest] {
+                let got = line_wall_roots(
+                    Point3::new(qx, qy, 0.0),
+                    d,
+                    Point3::new(0.0, 0.0, 0.0),
+                    z,
+                    r,
+                    span,
+                    band,
+                    about,
+                )
+                .unwrap_or_else(|f| panic!("the rungs decide at {eps}: {f:?}"));
+                let WallRoots::Two([_, t1], _) = got else {
+                    panic!("both roots at {eps}, {about:?}: {got:?}");
+                };
+                if (t1 - exit).abs() > eps {
+                    off.push(format!(
+                        "at ε = {eps}, {about:?}: {t1} against {exit}, off by {:e}",
+                        (t1 - exit).abs()
+                    ));
+                }
             }
         }
         assert!(off.is_empty(), "the exit roots: {off:?}");
@@ -5461,13 +5498,20 @@ mod wall_root_rows {
     fn a_ray_from_far_keeps_a_walls_roots() {
         for (big, r, x0) in [(4e5, 1.0_f64, 0.6), (2e3, 1e-3, 6e-4)] {
             let half = (r * r - x0 * x0).sqrt();
-            let got = roots(
-                Point3::new(x0, -big, 0.3),
-                Vec3::new(0.0, 1.0, 0.0),
-                r,
-                4.0 * big,
+            let (q, d) = (Point3::new(x0, -big, 0.3), Vec3::new(0.0, 1.0, 0.0));
+            let z = Vec3::new(0.0, 0.0, 1.0);
+            let o = Point3::new(0.0, 0.0, 0.0);
+            let read = |about| line_wall_roots(q, d, o, z, r, 4.0 * big, band(), about);
+            let Ok(WallRoots::Two([s0, s1], _)) = read(About::Start) else {
+                panic!("both roots {big} out, read about the start");
+            };
+            let start_off = (s0 - (big - half)).abs().max((s1 - (big + half)).abs());
+            assert!(
+                start_off > 1e-8,
+                "{big} out, read about the start, the roots lose {start_off:e}"
             );
-            let WallRoots::Two([t0, t1], slack) = got else {
+            let got = read(About::Nearest);
+            let Ok(WallRoots::Two([t0, t1], slack)) = got else {
                 panic!("both roots {big} out: {got:?}");
             };
             let off = (t0 - (big - half)).abs().max((t1 - (big + half)).abs());
@@ -5493,6 +5537,7 @@ mod wall_root_rows {
             Point3::new(0.0, 0.0, 0.0),
             r,
             band(),
+            About::Nearest,
         )
         .unwrap_or_else(|e| panic!("the sphere's disc decides: {e:?}"));
         let WallRoots::Two([t0, t1], slack) = got else {
