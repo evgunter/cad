@@ -2,10 +2,11 @@
 id: one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build
 kind: issue
 title: One-segment ellipse rims tangent at a point refuse the union typed (no join arm copies a closed ellipse); the two-arc form builds it, failing tier 3′
-status: open
+status: dispatched
 opened: 2026-10-27
 priority: P1
 cost: H
+branch: tangrim/one-segment-ellipse-rims
 ---
 
 Found by PR 5808's claims review (`one-segment-tangent-rims-refuse-where-their-two-arc-forms-build`).

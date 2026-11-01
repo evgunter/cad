@@ -41,3 +41,7 @@ takes first; the operand the refusal names is the plate in both orders
 which refuses `EdgeInFace` with the `CurvedFace` gap. The raising site
 among `boolean/reduce.rs`'s `CurvedPierceUnsupported` raises is
 unmeasured.
+
+## Slate triage
+
+2026-11-01: claimed from CLEAVE by `git mv` after PR 6177 merged (CLEAVE's split note: the cylinder-tangent rows 6177 files move to TANGRIM); id and body unchanged. (TANGRIM orchestrator)
