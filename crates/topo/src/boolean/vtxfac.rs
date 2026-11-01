@@ -2991,30 +2991,26 @@ pub(super) fn pierce_germ_dir<T: Decide>(
             ));
         }
     }
-    let d = int.normalize();
-    let germ = match out {
-        OutBound::Start => d,
-        OutBound::End => -d,
+    let line = match out {
+        OutBound::Start => int,
+        OutBound::End => -int,
     };
+    let germ = line.normalize();
     // D9 row 5: where membership singles out one ray it is this one.
-    // Calibrated on JOIN's near-tangent census at ε = 1e-9, 1e-6 and
-    // 1e-12: no disagreement over 855k such readings (PR 4581's review).
-    // Where a bound reads On, membership at the arm can read both rays
-    // out, which is no disagreement.
+    // Where a bound reads On, membership can read both rays out, which
+    // is no disagreement.
     #[cfg(debug_assertions)]
+    if let Ok((along, against)) =
+        super::sectors::rays_within(line, &[s], DeclarationRead::Moot, band)
     {
-        let moot = DeclarationRead::Moot;
-        let member = |dir| super::sectors::within(s, dir, false, moot, band);
-        if let (Ok(along), Ok(against)) = (member(germ), member(-germ)) {
-            debug_assert!(
-                along || !against,
-                "the transition's germ {germ:?} ({out:?}) is outside the sector \
-                 {:?}→{:?} (normal {:?}) and its opposite inside, against {pierced_normal:?}",
-                s.start,
-                s.end,
-                s.normal.vec(),
-            );
-        }
+        debug_assert!(
+            along || !against,
+            "the transition's germ {germ:?} ({out:?}) is outside the sector \
+             {:?}→{:?} (normal {:?}) and its opposite inside, against {pierced_normal:?}",
+            s.start,
+            s.end,
+            s.normal.vec(),
+        );
     }
     Ok(germ)
 }
