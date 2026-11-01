@@ -2,10 +2,11 @@
 id: distance-test-separates-boxes-not-directions
 kind: issue
 title: the distance arm separates axis-aligned boxes, so two near-parallel walls tilted against the axes need cells about as small as their gap; a support along a direction would need cells of about sqrt(gap x radius)
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: M
+closed: 2026-11-01
 ---
 
 
