@@ -11,81 +11,92 @@ design: true
 
 ## What the GUI is missing
 
-A `min_clearance` measure has a value only at a certifying scalar. The
-viewer evaluates at `f64` (`Evaluation<f64>` in
-`crates/viewer/src/session.rs`), so the measure's row shows the
-kernel's `MeasureUnavailableAt` sentence and nothing else. An assertion
-over it reads `Unevaluated`, and nothing marks where the parts come
-closest. Nothing in `crates/viewer` asks for the certified answer.
+A clearance requirement, "these parts clear each other by 2 mm", has
+no answer in the viewer. Today it is written as a `min_clearance`
+measure plus an assertion over it. That measure has a value only at a
+certifying scalar, and the viewer evaluates at `f64`. So its row shows
+the kernel's `MeasureUnavailableAt` sentence, the assertion reads
+`Unevaluated`, and nothing marks where the parts are too close.
 
-The measure's engine is `topo::clearance::min_separation`, reached
-through `ClearanceLane` from inside a certifying evaluation
-(`crates/editor-core/src/eval/wire.rs`). It answers a certified
-bracket `[lo, hi]` of the separation, or `meets` (zero, read off
-topology), or one of `MinSeparationRefusal`'s three arms. A measure's
-verdict comes from an assertion over it. `editor_core::clearance`
-(`clearance`, `clearance_over`) answers a different question: E7's
-toleranced "separation ≥ c over a drive's certified leaves". It has no
-caller outside tests, and the `pncad` façade leaves it out on purpose.
-`Bracket::witness` sets `hi` from a pair of placed stations and then
-discards which pair it was, so the engine has no witness to give.
+The kernel side is wrong too. `wire_assertion` (`eval/wire.rs`)
+compares a bracket that `min_separation` already computed to its full
+budget, and it never hands the bound to the search. The predicate
+search exists: topo's `Sweep` answers `separation ≥ c`. It discharges
+pairs that clear `c`, splits only those that straddle `c`, and stops at
+the first verified violation. Yet its only door,
+`editor_core::clearance`, spells the question a second time
+(`Selection` plus `c`), and nothing outside tests calls it.
 
 ## The design
 
-- **A kernel door on `pncad`: certified readings at nominal.**
-  - *Input:* the document, its resolver, the tolerance, a cancel
-    token, and the nodes to read.
-  - *Lane:* it evaluates at `Interval` with no parameter box, so every
-    free variable is a point interval at its nominal.
-  - *Output, per node, in plain numbers:*
-    - a measure's bracket with its closest pair found;
-    - or "no upper end";
-    - or the measure's refusal;
-    - or an upstream node's refusal at the certified lane;
-    - for an assertion over the measure, `Holds`, `Violated`, or
-      `Indeterminate` when the bracket straddles the bound.
-  - The lane and the evaluated scope are the door's own: the whole
-    document now, the asked nodes' upstream cone once that walk
-    exists. The GUI never names a scalar.
-- **Topo.** `MinSeparation` keeps the station pair that set `hi`: the
-  face, chart uv and point on each side, or the shared cell when the
-  scopes meet. The certified `Measure` payload carries that pair as
-  E3's output, "the closest pair found". Its comment, "none of them is
-  a pair of points anyone evaluated", is reworded with the change.
-- **Viewer: a certify seam with the at-rest coincidence door's shape.**
-  - `DocSession::land` submits it only when the landed `f64` evaluation
-    holds a `MeasureUnavailable` payload.
-  - It is keyed by generation, cancelled by the next submit, and
-    settled into `LandedRun` as `Pending | Landed | NotOwed`.
-  - A row reads it exactly when its `f64` payload is
-    `MeasureUnavailable`; every other row keeps its `f64` value.
-  - What the rows show:
-    - pending reads "certifying…";
-    - a bracket is spelled in the working notation, rounded outward
-      (`[0.39996, 0.40004] m` reads `399.9 – 400.1 mm`), and becomes
-      one number only when the rounded ends agree;
-    - `meets` reads `0`;
-    - a refusal, or an upstream node that refused at `Interval`, reads
-      as that node's failure, never as a clearance value.
-  - `props::Computed` gains a bracket form.
-  - Selecting or hovering the measure's row draws the found pair in
-    the viewport as two points and a segment, labelled with its
-    distance.
+- **The document.** A clearance is a requirement, `Clears { a, b, by
+  }` (ERROR-DESIGN E3), and not a measure.
+  - `a` and `b` take the reference seats `min_clearance` has today, a
+    body or a face each; `by` is a length formula.
+  - It has no relation field and defines no variable, so a computed
+    minimum, arithmetic over a clearance, and `=` or `≤` cannot be
+    written.
+  - `min_clearance` leaves the measure primitives. Python's
+    constructor becomes the requirement's.
+- **Evaluation.** At a certifying scalar the node resolves its two seats
+  and runs `Sweep` at `by`. `by` is an enclosure there, so the sweep's
+  bound changes from `f64` to an enclosure: `Holds` is decided against
+  its upper end and a violation against its lower end. Each verdict
+  is one of:
+  - `Holds`;
+  - `Violated` with a violating pair: two face points that the `f64`
+    rebuild (`LaneEnv::nominal_results`, whose build condition widens)
+    decides are closer than `by`, with their distance;
+  - a typed refusal, which is the verdict's third state (sliver, budget,
+    unsupported carrier, …) and carries its recourse.
+
+  At `f64` the node reads its third state, naming the certifying
+  lane, and never poisons.
+- **Retiring.** Over a tolerance box, `drive::assertion_at` is the same
+  evaluation per leaf, and `editor_core::clearance`'s second spelling
+  retires into it. With the measure, these retire too:
+  - `MeasureUnavailableAt`;
+  - `ValuePayload::MeasureUnavailable`;
+  - `Observed::Unavailable`;
+  - `UnevaluatedReason::MeasureUnavailable`.
+
+  `min_separation` leaves evaluation.
+- **The viewer.** An at-rest certify seam has the coincidence door's
+  shape. `DocSession::land` submits it when the landed `f64` evaluation
+  holds a `Clears` node. It is keyed by generation, cancelled by the
+  next submit, and settled into `LandedRun`. It returns one verdict
+  per node, in plain numbers, from a `pncad` door that runs the nominal
+  at `Interval`. The requirement's row reads:
+  - `certifying…` while the seam runs;
+  - `Holds: clears 2 mm`, with no other number, because none is
+    computed;
+  - `Violated: a violating pair 1.84 mm apart (needs ≥ 2 mm)`, spelled
+    so rounding never reaches the bound. While the row is selected or
+    hovered, the viewport draws the pair as a leg with its two faces
+    lit.
+  - the refusal's sentence and recourse.
+
+  There is no bare clearance row and no bracket. The create pane gains
+  "add a clearance requirement": two seats and a bound.
 - `crates/viewer/README.md`'s clause that a landing is "taken in that
   pair's single `land`" is reworded: a landing may owe answers that
-  settle later, which the coincidence door already makes true.
+  settle later.
 
 Not part of this row:
-- a tolerance panel, which belongs to every measure;
-- a "tighten" control, which would re-ask at a larger cell budget;
-- the faces that floor `lo`, which only that control would read.
+- a "within" requirement (`≤`), which is the same sweep read inverted
+  and is additive;
+- a clearance value door;
+- the faces that floor a minimum.
 
 ## Seams
 
-- The pair: topo (CLEAR, CLEARTAIL).
-- The door: editor-core and `pncad`.
-- The seam and the rows: DOORS, shared with VSEAM.
+- The requirement form, the engine wiring and the retirements:
+  editor-core and topo (CLEAR, CLEARTAIL).
+- The `pncad` door and `pncad-py`.
+- The seam, the rows and the create door: DOORS, shared with VSEAM.
 - The pair's mark: `marks.rs` (VGEOM).
 
-`work/cleartail/measure-clearance-refused-states-no-recourse-and-prints-its-goldening-payload`
-words the refusals these rows draw.
+CLEARTAIL's
+`clearance-violated-verdict-names-its-pair-by-bare-keys` and
+`violated-witness-can-sit-off-the-trimmed-face` become the GUI's
+witness rows.
