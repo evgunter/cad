@@ -324,7 +324,6 @@ pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
 /// part chooser's to the node their op mints.
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
-const MATE_NOUN: &str = "Mate";
 
 /// What the mate tool writes for a freedom left unticked: every bundle
 /// pins its copy, so an unset freedom is written where the copy stands,
@@ -559,7 +558,6 @@ impl ViewerBehavior<'_> {
                 unit_field(ui, unit, speed, value);
             });
         }
-        self.creation_label_row(ui, MATE_NOUN);
         let closing = commit_row(ui, ToolKind::Mate.commit(), None, |_| {});
         let mut close = closing.cancel;
         if closing.commit {
@@ -589,14 +587,14 @@ impl ViewerBehavior<'_> {
                     };
                     match tool.proposal(doc, choice) {
                         Ok(proposal) => {
-                            // One committed action (and its
-                            // label); the tool closes with it.
+                            // One committed action; the tool
+                            // closes with it.
                             let op = if self.drafts.mate_into_target_space {
                                 proposal.op_into_target_space()
                             } else {
                                 proposal.op()
                             };
-                            self.push_labelled(MATE_NOUN, op);
+                            self.push_tool_op(self.tool_noun(ToolKind::Mate), op);
                             close = true;
                         }
                         // Said from the document the panel's
@@ -1615,7 +1613,9 @@ impl ViewerBehavior<'_> {
     /// the whole tool value.
     pub(crate) fn blend_commit_row(&mut self, ui: &mut egui::Ui, count: usize) {
         let noun = self.tool_noun(ToolKind::Blend);
-        self.creation_label_row(ui, noun);
+        if let Some(noun) = noun {
+            self.creation_label_row(ui, noun);
+        }
         let mut clear = false;
         let closing = commit_row(
             ui,
@@ -1637,7 +1637,7 @@ impl ViewerBehavior<'_> {
                                 BlendKindChoice::Chamfer => tool.chamfer_op(size),
                             });
                     if let Some(op) = op {
-                        self.push_labelled(noun, op);
+                        self.push_tool_op(noun, op);
                     }
                 }
                 Err(error) => {
@@ -1662,15 +1662,22 @@ impl ViewerBehavior<'_> {
     }
 
     /// **The kind noun of the node a tool's commit creates** —
-    /// `node_kind_noun`'s word, which its proposed label counts by. The
+    /// `node_kind_noun`'s word, which its proposed label counts by —
+    /// or `None` for the mate tool, whose commit is a constraint in a
+    /// placement's bundle and creates no node, so its form offers no
+    /// label ([`Self::tool_commit_row`]). It is read off the tool, not
+    /// the op ([`SessionOp::creates_a_node`]), because the label is
+    /// offered before the picks make an op; a noun beside an op that
+    /// creates no node is said at the commit ([`Self::push_labelled`]).
+    /// The
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
     /// projection, and the mirror tool's, for a drawn body, the union
     /// of its symmetric part; the label lands there.
-    fn tool_noun(&self, kind: ToolKind) -> &'static str {
-        match kind {
-            ToolKind::Mate => MATE_NOUN,
+    fn tool_noun(&self, kind: ToolKind) -> Option<&'static str> {
+        Some(match kind {
+            ToolKind::Mate => return None,
             ToolKind::Revolve => "Revolve",
             ToolKind::Boolean => match self.tools.boolean().map(|tool| tool.operation()) {
                 Some(BooleanOp::Union) | None => "Union",
@@ -1699,7 +1706,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part | ToolKind::Duplicate => "Part",
-        }
+        })
     }
 
     /// **A create form's label field** (DESIGN.md Band 1, "Node
@@ -1764,6 +1771,15 @@ impl ViewerBehavior<'_> {
         }
     }
 
+    /// A tool's commit: labelled when the tool creates a node
+    /// ([`Self::tool_noun`]), queued alone when it creates none.
+    fn push_tool_op(&mut self, noun: Option<&'static str>, op: SessionOp) {
+        match noun {
+            Some(noun) => self.push_labelled(noun, op),
+            None => self.ops.push(op),
+        }
+    }
+
     /// **The commit/cancel row every combining tool ends with**, and
     /// the one place their two halves of the close rule live.
     ///
@@ -1780,11 +1796,13 @@ impl ViewerBehavior<'_> {
         op: impl FnOnce(&Drafts, Notation) -> Result<SessionOp, CommitFault>,
     ) {
         let noun = self.tool_noun(kind);
-        self.creation_label_row(ui, noun);
+        if let Some(noun) = noun {
+            self.creation_label_row(ui, noun);
+        }
         let closing = commit_row(ui, kind.commit(), None, |_| {});
         if closing.commit {
             match op(self.drafts, *self.notation) {
-                Ok(op) => self.push_labelled(noun, op),
+                Ok(op) => self.push_tool_op(noun, op),
                 Err(error) => {
                     self.notices.push(frame::tool_news(&kind.refuses(&error)));
                 }

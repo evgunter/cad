@@ -672,6 +672,18 @@ fn a_mate_reports_each_value_it_drops() {
         "the three links and the z slide go, each reported"
     );
     assert_eq!(dropped[1].1, tilt, "the x link's row names `tilt`");
+    let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        said,
+        [format!(
+            "{}'s placement was written again without the values on its spin about z, spin \
+             about x and slide along z, which read tilt",
+            doc.spoken(copy)
+        )],
+        "the four rows are said once, each freedom once, naming only the named variable"
+    );
     assert!(
         applied.doc.var_named("tilt").is_some(),
         "the named variable stays declared"
@@ -688,5 +700,56 @@ fn a_mate_reports_each_value_it_drops() {
             Coord::SPIN,
         ],
         "the x slide, then the 0 on the y slide and on the spin"
+    );
+}
+
+/// **A named variable read on two dropped freedoms is said once.**
+/// `a_mate_reports_each_value_it_drops`'s fixture with `tilt` written
+/// on the chain's first two links: both rows name `tilt`, and the
+/// sentence names it once.
+///
+/// *Breaks if* `Maintenance::values_dropped` lists a variable once per
+/// row rather than once.
+#[test]
+fn a_variable_dropped_twice_is_named_once() {
+    let doc = ProfileDoc::empty(DocumentId::derive("dprime2-drops"), Tol::witness());
+    let (doc, _) = step(
+        doc,
+        DocEdit::DeclareVar {
+            name: VarName::from_static("tilt"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 0.2)),
+        },
+    );
+    let (doc, floor) = block(doc, 20.0, 20.0, 1.0);
+    let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
+    let (doc, f) = fixture::in_world_by(doc, floor, Placed::unmated(vec![]).values);
+    let mut moves = chain(None);
+    moves[1].1 = editor_core::Formula::named(VarName::from_static("tilt"), Dimension::Angle);
+    moves[0].1 = editor_core::Formula::named(VarName::from_static("tilt"), Dimension::Angle);
+    let (doc, copy) = fixture::in_world_by(doc, boss, Placed::unmated(moves).values);
+    let top = fixture::fname(floor, RoleSeg::Cap(CapEnd::End));
+    let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
+    let mate = fixture::rest(head(start), head_at(f, top));
+    let applied = doc
+        .apply(
+            &DocEdit::AddConstraint {
+                placement: copy,
+                mate: Box::new(mate),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the rest is admitted");
+    let said: Vec<String> = editor_core::Maintenance::values_dropped(&applied.maintenance)
+        .map(|s| s.to_string())
+        .collect();
+    assert_eq!(
+        said,
+        [format!(
+            "{}'s placement was written again without the values on its spin about z, spin \
+             about x and slide along z, which read tilt",
+            doc.spoken(copy)
+        )],
+        "tilt is named once"
     );
 }
