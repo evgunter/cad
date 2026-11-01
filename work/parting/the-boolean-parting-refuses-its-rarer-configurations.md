@@ -83,6 +83,21 @@ probe `s19` already does where the touching apex lies on a separate
 face. Witness: the review's `s19b`, a connected non-convex wall whose
 protrusion's apex touches the hole's edge from outside at `z = 0.75`.
 
+## Evidence: `Tangent` at a fillet's arc beside a falling side (PR 6219's review, 2026-11-01)
+
+`A` is the square `[−1, 1]²` whose `(+, +)` corner is a convex quarter
+arc `r = 0.2` about `(0.8, 0.8)` into `(0.8, 1)`, from where a straight
+side falls to `(−1, 0.6)`; extruded over `z ∈ [0, 1]`. `B` is the box
+`[0.5, 1.5] × [0.5, 1]` over a `z` span, its face `y = 1` tangent to
+the arc's wall along the ruling `x = 0.8`. `B ∖ A` refuses
+`EdgeInFace { gap: Tangent }` at every span (`[0, 1]`, `[0, 0.5]`,
+`[−0.5, 1]`, `[−0.5, 1.5]`, `[0.25, 0.75]`), at rest and turned, at
+default ε, 1e-6 and 1e-12, on `main` and on PR 6219 alike; the other
+five ops build SOUND. Pinned in
+`crates/sweep/tests/a_box_along_a_fillets_line_arc_junction.rs`
+(`a_box_along_a_tangent_wall_beside_a_falling_side`). Built, `B ∖ A` is
+the box less the part of it `A` holds, its closed form in the pin.
+
 ## Fix
 
 Build each: `Pocket` by nesting the cut-off loop as `nest_slit` nests a

@@ -1657,7 +1657,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         let line_on = along_edge_conic((&red.a, &red.b), &germ)?.and_then(|along| {
             matches!(along.carrier, geom::Curve3::Line { .. }).then_some(along.on)
         });
-        let along_line = |on: Operand| Ok::<_, BooleanError>(line_on == Some(on));
+        let along_line = |on: Operand| line_on == Some(on);
         let (curve_a, curve_b) = match lane {
             None => (
                 sa.curve(&mut red.a, &plan_a, JoinLane::AlongEdge, leave_a)?,
@@ -1700,7 +1700,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             // straight: where the plane is tangent to the wall along the
             // ruling, no section of the pair names it.
             Some(GermLane::PlaneWall(plane)) => (
-                if along_line(Operand::B)? {
+                if along_line(Operand::B) {
                     sa.curve(&mut red.a, &plan_a, JoinLane::Planar, leave_a)?
                 } else {
                     sa.bool_planar_curve(
@@ -1730,7 +1730,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                     germ.branch,
                     leave_a,
                 )?;
-                let curve_b = if along_line(Operand::A)? {
+                let curve_b = if along_line(Operand::A) {
                     sb.curve(&mut red.b, &plan_b, JoinLane::Planar, leave_b)?
                 } else {
                     let window = cone_window(&red.a, germ.a_face, &ga, band);

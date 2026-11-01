@@ -1055,16 +1055,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // recorded, and neither reads the sector's tilt again.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if class == Some(GlueClass::Tangent) {
-            let surface_of = |body: &Body<T>, f| {
-                body.get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
-                    .cloned()
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "declared-Tangent face lost its surface",
-                    })
-            };
-            let s_sector = surface_of(piercing_body, s.face)?;
-            let s_pierced = surface_of(pierced_body, contact.face)?;
+            let s_sector = super::sectors::tangent_carrier(piercing_body, s.face)?;
+            let s_pierced = super::sectors::tangent_carrier(pierced_body, contact.face)?;
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::TangentSide,
