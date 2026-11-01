@@ -2,11 +2,13 @@
 id: a-failed-feature-hides-every-later-edit
 kind: issue
 title: after one feature fails, later edits commit and read Ok but nothing is drawn or picked
-status: open
+status: review
 opened: 2026-10-31
 priority: P0
 cost: H
-design: true
+refs: [one-failed-root-refuses-the-whole-pick-index, 6197]
+branch: chrome/partial-picture
+pr: 6205
 ---
 
 ## Finding

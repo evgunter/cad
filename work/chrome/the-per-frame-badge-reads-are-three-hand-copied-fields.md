@@ -7,6 +7,7 @@ opened: 2026-09-30
 priority: P1
 cost: M
 closed: 2026-11-01
+branch: chrome/per-frame-reads
 pr: 6199
 ---
 
