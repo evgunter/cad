@@ -247,8 +247,11 @@ pub use voids::{
 /// decisions has no words here, since neither decision's words are
 /// true of it: `bool_contact_vertex` (the contact sweep's
 /// [`BooleanDecision::VertexOnVertex`], and containment's boundary
-/// pre-pass) and `bool_contact_arc` (the split point on its circle, and
-/// the same pre-pass).
+/// pre-pass), `bool_contact_arc` (the split point on its circle, and
+/// the same pre-pass) and `bool_sector_crescent` (the sectors'
+/// coincidence where its crescent reads in band, and
+/// [`BooleanDecision::ConicBend`] where a bound's bend carries no
+/// bound).
 #[must_use]
 pub fn decision_words(predicate: &str) -> Option<&'static str> {
     if let Some(words) = crate::sector_shape::rung_words(predicate) {
@@ -293,6 +296,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_rider_wall_coplanar"
         | "bool_touch_sheets_part"
         | "bool_sector_runs_into_bend"
+        | "bool_fate_corner"
+        | "bool_fate_corner_straddle"
+        | "bool_fate_corner_bend"
+        | "bool_fate_corner_bend_straddle"
         | "bool_rim_face_opposed" => Coincide::Sectors.subject(),
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
@@ -2223,10 +2230,12 @@ pub struct PierceRingRecord {
     /// The piercing vertices the ring serves, in the other operand's
     /// clone keys.
     pub pierces: Vec<VertexKey>,
-    /// Whether two of those pierces' germs lie along one direction (two
+    /// Each two of those pierces' germs that lie along one direction (two
     /// cones touching along a ray in the face), an order the ring broke
-    /// by their chords (`vtxfac::germ_order`): a corner of no angle.
-    pub tied: bool,
+    /// by their chords (`vtxfac::germ_order`), leaving a corner of no
+    /// angle between them: the strut halves facing them, the germ first
+    /// clockwise about the face's outward normal first.
+    pub ties: Vec<[HalfEdgeKey; 2]>,
 }
 
 /// **Two pierces of one face decided one point** (`vtxfac::ring_groups`):
