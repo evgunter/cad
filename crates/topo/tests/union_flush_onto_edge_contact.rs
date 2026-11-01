@@ -2438,11 +2438,14 @@ fn three_corners_alternating_round_the_cube_refuse_three_ops() {
 /// review r1): a cutter whose near face holds the whole pinch line, so at
 /// each end of the line the two bricks' pierces of that face share a
 /// germ along the line, and the ring orders the two by their chords
-/// (`vtxfac::tie_breaks_after`). With the face's normal at slopes 0.5
-/// (either side) and 2 the join cannot wind a run round the corner of no
-/// angle the tie leaves, and every op refuses typed `PinchRaysInAFace`,
-/// not as the kernel's defect. At slope −0.5 every op builds, passing 3′:
-/// the unions 33, `pinch ∖` and both `∩`s 1, `cutter ∖` 31.
+/// (`vtxfac::tie_breaks_after`). A join that closes the corner of no
+/// angle the tie leaves winds as that order places the two apart
+/// (`join::tie_winding`). With the face's normal at slopes 0.5 (either
+/// side), 2 and −0.5 every op builds, passing tiers 3 and 3′: the face
+/// halves the pinch's point-symmetric pair, so the unions are 33,
+/// `pinch ∖` and both `∩`s 1, `cutter ∖` 31, with one shell per brick a
+/// pinch-only result keeps a part of, and an edge along the pinch line
+/// per creased sector of the result's material about it.
 #[test]
 fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
     let tol = Tol::witness();
@@ -2508,29 +2511,87 @@ fn a_face_holding_the_pinch_line_ties_the_pierces_germs() {
             ),
         ] {
             let pose = format!("slope={slope} side={side} {what}");
-            if slope < 0.0 {
-                let Ok(BooleanResult::Body(out)) = r else {
-                    panic!("{pose}: {r:?}")
-                };
-                let v = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
-                    .expect("mass")
-                    .met()
-                    .expect("the pinned resolution is met")
-                    .volume;
-                let want = match what {
-                    "pinch ∪ cutter" | "cutter ∪ pinch" => 33.0,
-                    "cutter ∖ pinch" => 31.0,
-                    _ => 1.0,
-                };
-                assert!((v - want).abs() < 1e-9, "{pose}: volume {v}, want {want}");
-                let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
-                assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
-            } else {
-                assert!(
-                    matches!(r, Err(BooleanError::PinchRaysInAFace { .. })),
-                    "{pose}: {r:?}"
+            let Ok(BooleanResult::Body(out)) = r else {
+                panic!("{pose}: {r:?}")
+            };
+            let v = mass_properties(&out.body, tol, topo::test_support::pinned_resolution(tol))
+                .expect("mass")
+                .met()
+                .expect("the pinned resolution is met")
+                .volume;
+            let want = match what {
+                "pinch ∪ cutter" | "cutter ∪ pinch" => 33.0,
+                "cutter ∖ pinch" => 31.0,
+                _ => 1.0,
+            };
+            assert!((v - want).abs() < 1e-9, "{pose}: volume {v}, want {want}");
+            assert_eq!(
+                topo::validate_geometric(&out.body, tol),
+                Ok(()),
+                "{pose}: tier 3"
+            );
+            let verdict = validate_pseudomanifold(&out.body, &out.contacts, tol);
+            assert!(verdict.is_ok(), "{pose}: 3′ refused {:?}", verdict.err());
+            // The material about the pinch line, by angle in degrees in
+            // the xy-plane: the bricks hold `[0, 90]` and `[180, 270]`,
+            // the cutter the half-plane behind its near face.
+            let at = |k: usize| {
+                let a = (f64::from(u32::try_from(k).expect("a degree")) + 0.5).to_radians();
+                let (pinch, cutter) = (
+                    a.to_degrees() % 180.0 < 90.0,
+                    n[0] * a.cos() + n[1] * a.sin() < 0.0,
                 );
-            }
+                let kept = match what {
+                    "pinch ∪ cutter" | "cutter ∪ pinch" => pinch || cutter,
+                    "pinch ∖ cutter" => pinch && !cutter,
+                    "cutter ∖ pinch" => cutter && !pinch,
+                    _ => pinch && cutter,
+                };
+                (kept, kept && cutter && !pinch)
+            };
+            // Each sector of the material about the line, its length in
+            // degrees and whether it holds the cutter's material outside
+            // the bricks.
+            let sectors: Vec<(usize, bool)> =
+                (0..360).find(|&k| !at(k).0).map_or_else(Vec::new, |start| {
+                    let mut runs = vec![(0usize, false)];
+                    for k in 1..=360 {
+                        let (kept, cutter) = at((start + k) % 360);
+                        if kept {
+                            let run = runs.last_mut().unwrap();
+                            *run = (run.0 + 1, run.1 || cutter);
+                        } else {
+                            runs.push((0, false));
+                        }
+                    }
+                    runs.into_iter().filter(|&(n, _)| n > 0).collect()
+                });
+            // The sectors holding the cutter's own material are one shell,
+            // joined away from the line; each other sector, a brick's
+            // part alone, is a shell of its own,
+            // touching the rest along the line.
+            let shells = usize::from(sectors.iter().any(|&(_, c)| c))
+                + sectors.iter().filter(|&&(_, c)| !c).count();
+            assert_eq!(out.body.shells().count(), shells, "{pose}: shells");
+            // One edge along the line per sector that is not flat.
+            let creased = sectors.iter().filter(|&&(n, _)| n != 180).count();
+            let on_line = |v| {
+                let p = topo::readback::vertex_point(&out.body, v).expect("a vertex's point");
+                p.x.abs() < 1e-9 && p.y.abs() < 1e-9 && (0.5 - 1e-9..=1.5 + 1e-9).contains(&p.z)
+            };
+            let along = out
+                .body
+                .edges()
+                .filter(|(_, e)| {
+                    let plus = out.body.get_half_edge(e.he_plus).expect("its plus half");
+                    let next = out.body.get_half_edge(plus.next).expect("the next half");
+                    on_line(plus.start) && on_line(next.start)
+                })
+                .count();
+            assert_eq!(
+                along, creased,
+                "{pose}: an edge along the pinch line per creased sector"
+            );
         }
     }
 }
