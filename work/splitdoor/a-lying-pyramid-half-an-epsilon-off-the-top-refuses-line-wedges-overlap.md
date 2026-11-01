@@ -2,7 +2,7 @@
 id: a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap
 kind: issue
 title: The lying pyramid 0.5ε off the top refuses LineWedges Overlap since PR 6212 (a slow row red on main)
-status: dispatched
+status: review
 branch: splitdoor/lying-pyramid-line-wedges
 opened: 2026-11-01
 priority: P1
@@ -34,3 +34,7 @@ So the within-zero tilt now decides the pyramid's face as upright where
 the line-wedge read then finds the two edges overlapping. Whether the
 answer is a typed refusal admitted by the row, or a build, is
 SPLITDOOR's to decide; it is not PR 6221's change.
+
+## 2026-11-01 (SPLITDOOR, `splitdoor/lying-pyramid-line-wedges`)
+
+This is an honest refusal. The exact on-top scene pins this cell: `REFUSING` lists "around the lying pyramid, x − y" as `LineWedges`, the unbuilt re-pairing (`work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md`). Since PR 6212 the 0.5ε tilt decides as upright, as the row's own contract asks ("within the zero every scene builds as on the top"), so the pose refuses as the on-top scene does. It went red only because `builds_or_refuses` looked pins up by the tipped label, which never matches `REFUSING`. The row now passes the on-top scene's label as its pins for poses within the zero, with `not_pinned` enforced too. The file passes at 1e-6, 1e-9 and 1e-12.
