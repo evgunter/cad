@@ -603,17 +603,41 @@ fn coplanar_conic_rims_tangent_at_a_vertex_meet_once_there() {
     for eps in [1e-6, 1e-9, 1e-12] {
         let band = Band::new(eps, 10.0 * eps).unwrap();
         for (what, x, tx, y, ty) in [
-            ("outside, both from the touch", &boss, (0.0, TAU), &hole, (PI, PI + TAU)),
-            ("outside, the hole's from it", &boss, (-PI, PI), &hole, (PI, PI + TAU)),
+            (
+                "outside, both from the touch",
+                &boss,
+                (0.0, TAU),
+                &hole,
+                (PI, PI + TAU),
+            ),
+            (
+                "outside, the hole's from it",
+                &boss,
+                (-PI, PI),
+                &hole,
+                (PI, PI + TAU),
+            ),
             ("outside, neither", &boss, (-PI, PI), &hole, (0.0, TAU)),
             ("outside, two arcs", &boss, (-1.0, 1.0), &hole, (2.0, 4.0)),
             ("a circle outside", &boss, (-1.0, 1.0), &round, (2.0, 4.0)),
-            ("inside, from the touch", &boss, (0.0, TAU), &inner, (0.0, TAU)),
+            (
+                "inside, from the touch",
+                &boss,
+                (0.0, TAU),
+                &inner,
+                (0.0, TAU),
+            ),
             ("inside, neither", &boss, (-PI, PI), &inner, (-PI, PI)),
         ] {
             for (order, got) in [
-                ("first first", meet(&Span::new(x, tx), &Span::new(y, ty), band)),
-                ("second first", meet(&Span::new(y, ty), &Span::new(x, tx), band)),
+                (
+                    "first first",
+                    meet(&Span::new(x, tx), &Span::new(y, ty), band),
+                ),
+                (
+                    "second first",
+                    meet(&Span::new(y, ty), &Span::new(x, tx), band),
+                ),
             ] {
                 let m = got.unwrap_or_else(|e| panic!("ε {eps:e}, {what}, {order}: {e:?}"));
                 assert!(
@@ -2051,4 +2075,3 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         "one meeting, on both interiors: {m:?}"
     );
 }
-

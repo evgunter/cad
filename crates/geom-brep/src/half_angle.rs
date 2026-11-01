@@ -902,8 +902,8 @@ fn subdivision<T: Decide>(
                     Ok(Sign::Zero)
                 ) {
                     let [(g0, n0), (g1, _), _, _] = taylor(at);
-                    let depth = (T::zero() - toward * g0 - n0).max(T::zero())
-                        + g1.powi(2) / (two * curve);
+                    let depth =
+                        (T::zero() - toward * g0 - n0).max(T::zero()) + g1.powi(2) / (two * curve);
                     let reach = g1.abs() / curve + (two * depth / curve).sqrt();
                     match decide(touch.gap, Margin::of(two * speed_hi * reach), band) {
                         Ok(Sign::Zero) => {

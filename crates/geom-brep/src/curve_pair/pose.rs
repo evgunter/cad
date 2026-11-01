@@ -1297,8 +1297,13 @@ fn subdivided<T: Decide>(
     place: &impl Fn(T) -> Candidate<T>,
     band: Band,
 ) -> Result<Pose<T>, MeetFault> {
-    let found =
-        certified_subdivision_touching(poly, residual, frame, (&COPLANAR_ROWS, &COPLANAR_TOUCH), band)?;
+    let found = certified_subdivision_touching(
+        poly,
+        residual,
+        frame,
+        (&COPLANAR_ROWS, &COPLANAR_TOUCH),
+        band,
+    )?;
     let roots: &[T] = match &found.roots {
         Roots::Miss => &[],
         Roots::Certified(r) => r.roots(),
