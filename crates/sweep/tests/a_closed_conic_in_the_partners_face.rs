@@ -59,7 +59,7 @@ use topo::{
 };
 
 use crate::common::differential::{
-    VOLUME_CLAIM, VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
+    VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
 };
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
@@ -127,15 +127,12 @@ fn census<T: Real>(body: &Body<T>) -> [usize; 5] {
 /// there is one.
 ///
 /// `pad` is the widest volume enclosure accepted
-/// (`differential::judged_within`). Where `escalates` names a predicate,
-/// the body passes every check but tier 3′, and every error tier 3′
-/// returns is a `CensusEscalated` on that predicate.
+/// (`differential::judged_within`).
 fn holds(
     row: &str,
     r: Result<BooleanResult<f64>, BooleanError>,
     want: f64,
     pad: f64,
-    escalates: Option<&str>,
 ) -> Option<[usize; 5]> {
     let counted = match &r {
         Ok(BooleanResult::Body(b)) => {
@@ -146,32 +143,15 @@ fn holds(
                 Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
                 Err(e) => panic!("{row}: {e:?}"),
             }
-            if let Some(predicate) = escalates {
-                let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts, tol());
-                let escalated = |e: &ValidationError| {
-                    matches!(e, ValidationError::CensusEscalated { cause }
-                        if cause.predicate == Some(predicate))
-                };
-                assert!(
-                    t3p.as_ref().is_err_and(|es| es.iter().all(escalated)),
-                    "{row}: tier 3′ {t3p:?}"
-                );
-            }
             Some(census(&b.body))
         }
         _ => None,
     };
     let j = judged_within(r, Some(want), tol(), pad);
-    let ok = match (want == 0.0, escalates) {
-        (true, _) => j.line.starts_with("EMPTY ok"),
-        (false, None) => j.line.starts_with("OK SOUND"),
-        (false, Some(_)) => {
-            j.line
-                .starts_with("OK BAD t2=true t3p=false cert=true operand=true")
-                && j.volume
-                    .zip(j.pad)
-                    .is_some_and(|(v, p)| p <= pad && (v - want).abs() <= p + VOLUME_CLAIM)
-        }
+    let ok = if want == 0.0 {
+        j.line.starts_with("EMPTY ok")
+    } else {
+        j.line.starts_with("OK SOUND")
     };
     assert!(ok, "{row}: {}", j.line);
     counted
@@ -190,7 +170,7 @@ fn every_op(
         .into_iter()
         .map(|(op, r, want)| {
             let row = format!("{what}: {op}");
-            (op, holds(&row, r, want, VOLUME_PAD_BUDGET, None))
+            (op, holds(&row, r, want, VOLUME_PAD_BUDGET))
         })
         .collect()
 }
@@ -215,7 +195,7 @@ fn both_unions(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: f64) 
         ("A ∪ B", topo::union(a, b, tol())),
         ("B ∪ A", topo::union(b, a, tol())),
     ] {
-        holds(&format!("{what}: {op}"), r, want, VOLUME_PAD_BUDGET, None);
+        holds(&format!("{what}: {op}"), r, want, VOLUME_PAD_BUDGET);
     }
 }
 
@@ -517,10 +497,10 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
     match reads {
         Reads::Empty => {
             assert_eq!(want, 0.0, "{row}: the closed form");
-            holds(row, r, want, VOLUME_PAD_BUDGET, None);
+            holds(row, r, want, VOLUME_PAD_BUDGET);
         }
         Reads::Sound(shells) => {
-            let counted = holds(row, r, want, VOLUME_PAD_BUDGET, None);
+            let counted = holds(row, r, want, VOLUME_PAD_BUDGET);
             assert_eq!(counted.map(|c| c[0]), Some(shells), "{row}: shells");
         }
         Reads::Unrecorded | Reads::Undecided => {
@@ -1103,11 +1083,9 @@ fn ellipse_pad_ceiling() -> f64 {
 ///
 /// Every op in both orders, at rest and turned, is held by [`holds`]
 /// within [`ellipse_pad_ceiling`]: its closed form, tiers 1–3, the
-/// certificate, the operand gate and the mesh. Tier 3′ passes but on the
-/// unions, whose census reads the two rims, coplanar and tangent,
-/// through the curve-pair touch, and escalates on
-/// `curve_pair_coplanar_sub_side` and on nothing else (pinned red:
-/// `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`).
+/// certificate, tier 3′, the operand gate and the mesh. Tier 3′ on a
+/// union reads the two rims, coplanar and tangent, through the
+/// curve-pair touch.
 ///
 /// Each body is also read against the operands' analytic membership by
 /// `point_in_solid` on a grid and beside the touch, off the plane: no
@@ -1241,13 +1219,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
                         );
                     }
                 }
-                holds(
-                    &row,
-                    r,
-                    want,
-                    ellipse_pad_ceiling(),
-                    union.then_some("curve_pair_coplanar_sub_side"),
-                );
+                holds(&row, r, want, ellipse_pad_ceiling());
             }
         }
     }

@@ -113,7 +113,7 @@ fn op_reading_the_parting(
 }
 
 /// The ops on [`rims`] at `(t_a, t_b)`, each held to its closed form,
-/// tiers 1–3, and tier 3′ where `census` says it passes; and each read
+/// tiers 1–3′; and each read
 /// as the walls parting at the crossing, once.
 ///
 /// `A` is `3π`, `B` is `12π`: each plane's `y`-moment vanishes on its
@@ -124,11 +124,11 @@ fn op_reading_the_parting(
 /// `bool_touch_sheets_part` reads Negative. With `A` first the sweep
 /// reads `A`'s rim against `B`'s wall, bounded there by `B`'s rim; with
 /// `B` first, the other way about.
-fn builds_at_its_closed_form((t_a, t_b): (f64, f64), ops: &[(BooleanOp, &str, bool)]) {
+fn builds_at_its_closed_form((t_a, t_b): (f64, f64), ops: &[(BooleanOp, &str)]) {
     let (a, b) = rims(t_a, t_b);
     let shared = 2.0 / 3.0 * (t_a.tan() - t_b.tan()).abs();
     let (va, vb) = (3.0 * PI, 12.0 * PI);
-    for &(o, name, census) in ops {
+    for &(o, name) in ops {
         let (closed, x, y) = match name {
             "A−B" => (va - shared, &a, &b),
             "A∩B" => (shared, &a, &b),
@@ -154,16 +154,8 @@ fn builds_at_its_closed_form((t_a, t_b): (f64, f64), ops: &[(BooleanOp, &str, bo
             m.volume,
             m.volume_pad
         );
-        let three_prime = topo::validate_pseudomanifold(body, &res.contacts, tol());
-        if census {
-            three_prime.unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
-        } else {
-            let e = format!("{:?}", three_prime.expect_err(&what));
-            assert!(
-                e.contains("CensusEscalated") && e.contains("curve_pair_coplanar_sub_side"),
-                "{what}: tier 3′ moved: {e}"
-            );
-        }
+        topo::validate_pseudomanifold(body, &res.contacts, tol())
+            .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
     }
 }
 
@@ -172,7 +164,7 @@ fn builds_at_its_closed_form((t_a, t_b): (f64, f64), ops: &[(BooleanOp, &str, bo
 /// operand first; the body builds at its closed form, tiers 1–3′.
 #[test]
 fn an_ellipse_rim_crossing_a_walls_ellipse_rim_reads_the_walls_parting() {
-    builds_at_its_closed_form((0.2, 0.5), &[(BooleanOp::Subtract, "A−B", true)]);
+    builds_at_its_closed_form((0.2, 0.5), &[(BooleanOp::Subtract, "A−B")]);
 }
 
 /// **The other handedness builds too**: tilts `(0.5, 0.2)`, `tan t_a >
@@ -181,17 +173,15 @@ fn an_ellipse_rim_crossing_a_walls_ellipse_rim_reads_the_walls_parting() {
 /// its corner arrives on, A∖B at its closed form, tiers 1–3′.
 #[test]
 fn a_rim_crossing_with_the_inner_plane_steeper_builds() {
-    builds_at_its_closed_form((0.5, 0.2), &[(BooleanOp::Subtract, "A−B", true)]);
+    builds_at_its_closed_form((0.5, 0.2), &[(BooleanOp::Subtract, "A−B")]);
 }
 
 /// **Every op, both handednesses**: a flat rim against a slanted one
 /// and two rims in two planes, each with `tan t_a` below `tan t_b` and
 /// above it, up to their near-equality at `(0.45, 0.5)` and
-/// `(0.5, 0.45)`. Every body passes tiers 1–3 at its closed form. Tier
-/// 3′ passes on `A ∖ B` and `A ∩ B`; on `A ∪ B` and `B ∖ A` it
-/// escalates `curve_pair_coplanar_sub_side` on the coplanar touch of
-/// `B`'s rim and the section arc, a touch the curve-pair reader cannot
-/// place (`work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`).
+/// `(0.5, 0.45)`. Every body passes tiers 1–3′ at its closed form; on
+/// `A ∪ B` and `B ∖ A` tier 3′ reads the coplanar touch of `B`'s rim and
+/// the section arc, placed by the curve-pair reader.
 #[test]
 fn rims_crossing_on_tangent_walls_build_every_op() {
     for tilts in [
@@ -208,25 +198,22 @@ fn rims_crossing_on_tangent_walls_build_every_op() {
         builds_at_its_closed_form(
             tilts,
             &[
-                (BooleanOp::Subtract, "A−B", true),
-                (BooleanOp::Intersect, "A∩B", true),
-                (BooleanOp::Union, "A∪B", false),
-                (BooleanOp::Subtract, "B−A", false),
+                (BooleanOp::Subtract, "A−B"),
+                (BooleanOp::Intersect, "A∩B"),
+                (BooleanOp::Union, "A∪B"),
+                (BooleanOp::Subtract, "B−A"),
             ],
         );
     }
 }
 
-/// **Two slanted rims tangent on the ruling refuse at their touch**
-/// before the walls' parting is asked. The inner rod below
-/// `z = y·tan t`, the outer above it: both rims are ellipses in one
-/// plane, tangent at `(2, 0, 0)`. The crossing layer reads their touch
-/// in band, the edge is deferred, and every op refuses
-/// `CurvedPierceUnsupported` (the coplanar ellipse touch,
-/// `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`). Cut
-/// flat, the same rims are circles, read and built.
+/// **Two slanted rims tangent on the ruling build at their touch.** The
+/// inner rod below `z = y·tan t`, the outer above it: both rims are
+/// ellipses in one plane, tangent at `(2, 0, 0)` (circles, cut flat).
+/// The crossing layer places their touch, and the union and `A ∖ B`
+/// build at their closed forms, tiers 3 and 3′.
 #[test]
-fn two_slanted_rims_tangent_on_the_ruling_refuse_at_their_touch() {
+fn two_slanted_rims_tangent_on_the_ruling_build_at_their_touch() {
     for tilt in [0.0, 0.3] {
         let a = cut(&rod(1.0, 1.0), tilt, true);
         let b = cut(&rod(2.0, 0.0), tilt, false);
@@ -237,13 +224,6 @@ fn two_slanted_rims_tangent_on_the_ruling_refuse_at_their_touch() {
         ] {
             let what = format!("tilt {tilt} {name}");
             let got = op(o, &a, &b);
-            if tilt != 0.0 {
-                assert!(
-                    matches!(got, Err(BooleanError::CurvedPierceUnsupported { .. })),
-                    "{what}: {got:?}"
-                );
-                continue;
-            }
             let res = match got {
                 Ok(BooleanResult::Body(res)) => res,
                 other => panic!("{what}: {other:?}"),

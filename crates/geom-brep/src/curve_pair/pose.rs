@@ -139,6 +139,23 @@
 //! there is the distance to the other carrier itself, so the reading of
 //! the candidate decides it.
 //!
+//! # A touch in the subdivision
+//!
+//! **The coplanar subdivisions place a touch as the circle pair does**
+//! ([`crate::half_angle::certified_subdivision_touching`]). Two conics
+//! that touch stay within the band of each other over an arc much wider
+//! than the band, so no cut there reads a definite sign. Before that
+//! arc is cut, the piece holding it reads convex toward its ends' common
+//! side (`curve_pair_coplanar_sub_convex`): `F″` one-signed, so `F` has
+//! one extremum there and at most two roots, both about it. The
+//! extremum is the candidate. Read on the carrier in the zero band, the
+//! arc that holds every root of the piece, at the least depth `F`'s
+//! rounding allows, decides (`curve_pair_coplanar_sub_touch`): zero is
+//! one touch standing for them all, as the circle pair's root gap read
+//! zero is; in the gap it escalates; roots the band can part are left to
+//! the walk. The touch is the extremum's own point, on the first
+//! carrier exactly, and is read on both spans like any candidate.
+//!
 //! # Across planes: the closest pair
 //!
 //! **Where a curve crosses the other's plane is not where the two meet**

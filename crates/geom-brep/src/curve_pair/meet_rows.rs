@@ -538,44 +538,28 @@ fn two_coplanar_ellipses_apart_meet_nowhere() {
     }
 }
 
-/// **Two ellipses in one plane that touch are never read apart.** The
+/// **Two ellipses in one plane that touch meet once, at the touch.** The
 /// ellipses `(2, 1)` about the origin and about `(0, 2)` touch from
 /// outside at `(0, 1)`, a double root of the level. The two stay within
 /// the band of each other over about `10⁻⁴` of arc about it, wider than
-/// the band, so the subdivision finds no definite sign to split it at:
-/// the pair escalates on the band's reading there, never a decided miss,
-/// in either order.
-/// Pulled `10⁻³` apart they are decided apart; pushed `10⁻³` together
-/// they cross twice, near `(±0.09, 1)`. Red where the touch is cleared.
+/// the band, so no cut there reads a definite sign: the subdivision
+/// places the touch at the level's extremum, in either order. Pulled
+/// `10⁻³` apart they are decided apart; pushed `10⁻³` together they
+/// cross twice, near `(±0.09, 1)`. Red where the touch refuses or is
+/// cleared.
 #[test]
-fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
+fn two_coplanar_ellipses_that_touch_meet_once_at_the_touch() {
     let x = flat_ellipse([0.0, 0.0], [1.0, 0.0], 2.0, 1.0);
+    let y = flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0);
     let whole = (-PI, PI);
     for (order, got) in [
-        (
-            "first first",
-            meets(
-                (&x, whole),
-                (&flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0), whole),
-            ),
-        ),
-        (
-            "second first",
-            meets(
-                (&flat_ellipse([0.0, 2.0], [1.0, 0.0], 2.0, 1.0), whole),
-                (&x, whole),
-            ),
-        ),
+        ("first first", meets((&x, whole), (&y, whole))),
+        ("second first", meets((&y, whole), (&x, whole))),
     ] {
+        let m = got.unwrap_or_else(|e| panic!("{order}: the touch refuses: {e:?}"));
         assert!(
-            matches!(
-                got,
-                Err(ref r) if matches!(
-                    r.fault,
-                    MeetFault::Touch(_)
-                )
-            ),
-            "{order}: the touch refuses typed: {got:?}"
+            m.points.len() == 1 && (m.points[0].point - Point3::new(0.0, 1.0, 0.0)).norm() < ZERO,
+            "{order}: one meeting at the touch: {m:?}"
         );
     }
     let apart = meets(
@@ -596,6 +580,48 @@ fn two_coplanar_ellipses_that_touch_are_never_read_apart() {
             "near the touch: {:?}",
             p.point
         );
+    }
+}
+
+/// **Coplanar conic rims tangent at a vertex meet once, there, at every
+/// band.** The rims of `ellipse_rims_tangent_outside_build_every_op`
+/// (sweep): a boss `r = 0.3` about the origin and a hole `r = 0.1` about
+/// `(0.4, 0)`, both tilted `0.3` rad and cut flat, so ellipses tangent
+/// outside at `(0.3, 0)`; the hole as its circle; and an ellipse
+/// `(0.2, 0.2/cos 0.3)` about `(0.1, 0)` tangent inside the boss's. Whole
+/// turns starting at the touch, at its antipode, and short arcs about
+/// it, in both orders, at ε = 1e-6, 1e-9 and 1e-12: one meeting, at the
+/// touch. Red where the touch refuses (`curve_pair_coplanar_sub_side`).
+#[test]
+fn coplanar_conic_rims_tangent_at_a_vertex_meet_once_there() {
+    let c = 0.3f64.cos();
+    let boss = flat_ellipse([0.0, 0.0], [1.0, 0.0], 0.3, 0.3 / c);
+    let hole = flat_ellipse([0.4, 0.0], [1.0, 0.0], 0.1, 0.1 / c);
+    let round = circle([0.4, 0.0, 0.0], [0.0, 0.0, 1.0], 0.1);
+    let inner = flat_ellipse([0.1, 0.0], [1.0, 0.0], 0.2, 0.2 / c);
+    let touch = Point3::new(0.3, 0.0, 0.0);
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::new(eps, 10.0 * eps).unwrap();
+        for (what, x, tx, y, ty) in [
+            ("outside, both from the touch", &boss, (0.0, TAU), &hole, (PI, PI + TAU)),
+            ("outside, the hole's from it", &boss, (-PI, PI), &hole, (PI, PI + TAU)),
+            ("outside, neither", &boss, (-PI, PI), &hole, (0.0, TAU)),
+            ("outside, two arcs", &boss, (-1.0, 1.0), &hole, (2.0, 4.0)),
+            ("a circle outside", &boss, (-1.0, 1.0), &round, (2.0, 4.0)),
+            ("inside, from the touch", &boss, (0.0, TAU), &inner, (0.0, TAU)),
+            ("inside, neither", &boss, (-PI, PI), &inner, (-PI, PI)),
+        ] {
+            for (order, got) in [
+                ("first first", meet(&Span::new(x, tx), &Span::new(y, ty), band)),
+                ("second first", meet(&Span::new(y, ty), &Span::new(x, tx), band)),
+            ] {
+                let m = got.unwrap_or_else(|e| panic!("ε {eps:e}, {what}, {order}: {e:?}"));
+                assert!(
+                    m.points.len() == 1 && (m.points[0].point - touch).norm() < eps,
+                    "ε {eps:e}, {what}, {order}: one meeting at the touch: {m:?}"
+                );
+            }
+        }
     }
 }
 
@@ -2025,3 +2051,4 @@ fn a_spline_with_a_corner_meets_a_line_past_it() {
         "one meeting, on both interiors: {m:?}"
     );
 }
+
