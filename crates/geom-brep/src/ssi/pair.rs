@@ -1103,3 +1103,171 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_line_rows {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Vec2};
+
+    use super::{PairRow, Section};
+    use crate::ssi::{BranchEnd, SsiDomain};
+
+    /// `z = k·y·(y − δ)` over the unit square, a biquadratic (exact).
+    fn wall(k: f64, delta: f64, (x0, x1): (f64, f64)) -> NurbsSurface<f64> {
+        let kn = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        // Bernstein coefficients in y of k·(y² − δ·y): b0 = 0, b1 = −kδ/2, b2 = k(1 − δ).
+        let b = [0.0, -0.5 * k * delta, k * (1.0 - delta)];
+        let control = (0..9)
+            .map(|n| {
+                Point3::new(
+                    x0 + (x1 - x0) * 0.5 * (n / 3) as f64,
+                    0.5 * (n % 3) as f64,
+                    b[n % 3],
+                )
+            })
+            .collect();
+        NurbsSurface::new(kn(), kn(), control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **A second branch inside the widest rung's cover is traced, never
+    /// covered.** `z = 0` and `z = 20·y·(y − δ)` share their `v = 0` row
+    /// and meet again in the line `y = δ`, inside the first rungs' width
+    /// (an eighth of the chart, then a sixteenth). Handed the row, the
+    /// reading must still trace the line: one open branch.
+    #[test]
+    fn r2_a_second_branch_beside_a_shared_row_is_traced() {
+        let zero: f64 = std::env::var("R2_ZERO")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1e-9);
+        let (a, b) = (wall(0.0, 0.0, (0.0, 1.0)), wall(20.0, 0.06, (-0.5, 1.5)));
+        let image = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(1.0, 0.0),
+        };
+        let image_b = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.25, 0.0),
+            pl: Vec2::new(0.5, 0.0),
+        };
+        let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
+        let band = Band::new(zero, 10.0 * zero).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 40.0,
+            extent: 80.0,
+            floor_scale: 1.0,
+        };
+        let t = std::time::Instant::now();
+        let got = Section::of(&a, &b, domain, band)
+            .unwrap()
+            .with_known(vec![row], Vec::new())
+            .read_all();
+        eprintln!(
+            "zero {zero}: {:?} ({:?})",
+            got.as_ref().map(|r| (
+                r.outcome.branches.iter().map(|b| b.end).collect::<Vec<_>>(),
+                &r.regions
+            )),
+            t.elapsed()
+        );
+        let r = got.expect("the pair reads");
+        let open = r
+            .outcome
+            .branches
+            .iter()
+            .filter(|b| matches!(b.end, BranchEnd::Rim { .. }))
+            .count();
+        assert_eq!(open, 1, "the line y = δ inside the cover is traced");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_ellipse_rows {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Vec2};
+
+    use super::{PairRow, Section};
+    use crate::ssi::{BranchEnd, SsiDomain};
+
+    fn binom(n: usize, k: usize) -> f64 {
+        (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
+    }
+
+    /// `z = Σ a[m][n] x^m y^n` over `x ∈ [0, 1]`, `y ∈ [0, s]`, exactly.
+    fn poly(a: [[f64; 4]; 3], s: f64) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let mut control = Vec::new();
+        for i in 0..3 {
+            for j in 0..4 {
+                let mut b = 0.0;
+                for m in 0..=i {
+                    for n in 0..=j {
+                        b += a[m][n] * s.powi(n as i32) * binom(i, m) / binom(2, m) * binom(j, n)
+                            / binom(3, n);
+                    }
+                }
+                control.push(Point3::new(i as f64 / 2.0, s * j as f64 / 3.0, b));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap()
+    }
+
+    /// **A loop inside the widest rung's cover is traced, never covered.**
+    /// `z = 0` and `z = K·y·(((x − ½)/a)² + ((y − δ)/r)² − 1)` share
+    /// their `v = 0` row and meet again in an ellipse inside the first
+    /// rungs' width on both charts.
+    #[test]
+    fn r2_a_loop_inside_the_first_cover_is_traced() {
+        let zero: f64 = std::env::var("R2_ZERO")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1e-9);
+        let (k, aa, d, r, s) = (0.25, 0.3, 0.008, 0.004, 0.125);
+        let mut c = [[0.0; 4]; 3];
+        c[2][1] = k / (aa * aa);
+        c[1][1] = -k / (aa * aa);
+        c[0][1] = k * (0.25 / (aa * aa) + d * d / (r * r) - 1.0);
+        c[0][2] = -2.0 * k * d / (r * r);
+        c[0][3] = k / (r * r);
+        let (a, b) = (poly([[0.0; 4]; 3], 1.0), poly(c, s));
+        let image = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(1.0, 0.0),
+        };
+        let row = PairRow::new((&a, image.clone()), (&b, image), (0.0, 1.0)).unwrap();
+        let band = Band::new(zero, 10.0 * zero).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 40.0,
+            extent: 80.0,
+            floor_scale: 1.0,
+        };
+        let t = std::time::Instant::now();
+        let got = Section::of(&a, &b, domain, band)
+            .unwrap()
+            .with_known(vec![row], Vec::new())
+            .read_all();
+        eprintln!(
+            "ellipse zero {zero}: {:?} ({:?})",
+            got.as_ref().map(|r| (
+                r.outcome.branches.iter().map(|b| b.end).collect::<Vec<_>>(),
+                &r.regions
+            )),
+            t.elapsed()
+        );
+        if let Ok(r) = got {
+            let loops = r
+                .outcome
+                .branches
+                .iter()
+                .filter(|b| b.end == BranchEnd::Closed)
+                .count();
+            assert_eq!(loops, 1, "the ellipse inside the cover is traced");
+        }
+    }
+}
