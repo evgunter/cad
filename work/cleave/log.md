@@ -1892,3 +1892,60 @@ Signed (CLEAVE orchestrator).
   - Seams considered and set aside:
     - census-wall-tangent sits with ONEREAD (one question, two answers), not TANGRIM, to keep TANGRIM under 30.
     - The ONEHOME, TANG and CONTACTHOLD charters overlap ONEREAD and SEAL, but all three are over budget, so new tracks were opened rather than growing them. (CLEAVE orchestrator)
+
+- 2026-11-01: 6198 (the split) merged. Cloud orchestrator sessions started for TANGRIM, PARTING, ONEREAD and TOUCHREC, each with a kickoff naming its reading, its claim (`status: active` on `<id>/orchestrator`), the rows due to arrive from CLEAVE's in-flight PRs, and the shared-ground and file-overlap notes.
+  - SEAL is left `ready` with no orchestrator. Its dispatchable work is one design row plus the vertex-piercing row held by D10, so it is not yet a session's work. (CLEAVE orchestrator)
+
+- 2026-11-01: 6185 fix pass handed back, head `6358c6a6ce`.
+  - Pins: the slow family now holds the three-piece lumps, and a 0.2 s gate test holds one cell beside the box and one three-piece cell. Both go red on main's `fate.rs` and under the `first`/`last`/`old` mutants.
+  - `Lies::Nowhere` carries `Unplaced{OnEdge,InSeveral,Off}`, and each refusal names what it measured.
+  - Docs now say "no record names a partner". The touches are keyed by root.
+  - Rows: the on-edge row is corrected; new P2 rows for the touch-end on an edge and for the missing partner record.
+  - CI is red, but on the #6200 main red: the blend recourse wording fails `m5_pr12_die_body` and three `refusal_concision_chains` budget tests. That run was cancelled on main and the later runs filtered the tests out. CHROME owns it (TOUCHREC filed it in #6215) and is waiting on the nightly.
+  - Commented once on 6185. It merges main and re-pushes when the fix lands. (CLEAVE orchestrator)
+
+- 2026-11-01: 6184 and 6177 fix passes handed back. CI on both is red only on the #6200 main red.
+  - 6184 (`4b7c8d9e24`): one `cut_order` (`Apart|Tied(Sign)`) is the only tie arm; `walk_faces_first` reads it first, in main's order. The unreached cases in `tied_held` (far ends) and `strut_anchor` now refuse loud. `beside_order` agrees with `tied_held`'s codes in 1015 of 1015 decided calls over `topo::all`, recorded on the honeone row.
+  - 6177 (`ded8cab389`): B1's aligned row refuses `SectionLoopUndecided`, attributed to honesplit's curved-interior witness row and re-pinned as red there. One closed-edge carrier reader (`slit::carrier_on_surface`); `closed_reach` is the only germ reader. No site-record fallbacks remain. Outcome diff: 214 refused → SOUND, 0 to refused or invalid.
+  - Narrow re-reviews dispatched for both, each on its own delta. Both carry real logic changes: the 6184 reading order and new refusals, and the 6177 reader consolidation with a new conic-on-torus reading. (CLEAVE orchestrator)
+
+- 2026-11-01: #6227 (CHROME's fix for the #6200 main red) merged. I merged main into 6185 (`7ae66f1727`) and 6177 (`d5265c511a`) and told the 6184 lane to take it.
+  - 6184 re-review: nothing blocking. All five claims held, executed (`walk_faces_first` equal to main over 9020 calls; no new refusal reached; `cut_order` an order over 4032 pairs; 1015/1015 accurate). A small follow-up was sent: `tie_reads` is a second spelling of `beside_order`'s guard; the doc lists too few `Zero` cases; the two new refusals' voice.
+  - 6177 re-review: nothing blocking. B1's cause, the outcome diff (0 G→R, 0 →WRONG on full payloads), the invariants (never fire) and the red-on-main rows are confirmed.
+    - A second fix pass was sent. The torus 9-point reading is unsound as a banded test on fat tori: the residual's interpolation ratio reaches 20 at r/R 0.98 against K = 10, so a near-miss could read as lying on the torus.
+    - Also in that pass: `runs_in` keeps a midpoint reading of closed edges; a sphere lone ring may now refuse in `place_strut`; `GermEdgeCarrierUnsupported`'s Display text is stale; and a row for a validator that cannot see a ring in the wrong face. (CLEAVE orchestrator)
+
+- 2026-11-01: 6185 merged (`6245d38ace`) on full green after main's #6227 fix. Orchestrator's read of the fix-pass code: `Unplaced{OnEdge,InSeveral,Off}` keeps each refusal's kind and names what was measured; touches are keyed by (holder, root, vertex). TOUCHREC was told the missing-partner-record row is on main to claim. (CLEAVE orchestrator)
+
+- 2026-11-01: 6184 merged (`4228843d1e`) on full green.
+  - In the small pass, `Cut::tie_flankers` is the one gate both `beside_order` and `walk_faces_first` ask, and `beside_order`'s three `Zero` cases are documented.
+  - The two new refusals are limits, not invariants. The lane could not argue either unreachable: `tied_held`'s far ends, and `strut_anchor`'s ordered tie, which names the reaching pose.
+    - They stay in `ClassificationInvariant`'s voice, with "a limit, not a broken invariant:" text, until the typed limit lands. Both are recorded as instances on the P2 `a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug`.
+    - `strut_anchor`'s `Tied(Zero)` keeps main's invariant.
+  - Orchestrator's read of the delta. (CLEAVE orchestrator)
+
+- 2026-11-01: Dispatched `a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece` (P1 M, the last dispatchable P1) to lane `cleave-fateedge` on `cleave/fate-cut-end-on-a-division-edge`.
+  - The pierced corner on a division edge reads the piece by the dropped sector's direction, or refuses as a typed `fate::Limit` that `fallback_fates` keeps uncut.
+  - Review tier: full, since it touches the placement reading. (CLEAVE orchestrator)
+
+- 2026-11-01: The 6177 second fix pass handed back green (`297c20013d`).
+  - The torus reading decides Λ₉·max|F/2r|/(R²−r²) on the band, where F is the torus's quartic along the conic, a degree-4 trig polynomial. Λ₉ is 2.3619. A near miss reads unread (`None`), never on.
+  - The sphere and cylinder per-sample reading is sound with Λ₅ 1.99 < K. The cone has no bound, filed as a P3.
+  - Near-miss and Villarceau rows are at r/R 0.98. `runs_in` answers closed edges from `closed_reach`. `JoinPlan` takes a strut only when both chords are planned. `GermEdgeCarrierUnsupported{closed}` has its own text.
+  - The validator gap went to RESTFRONT (P2).
+  - Orchestrator's read: I checked the bound (F = ((ρ−R)²+h²−r²)((ρ+R)²+h²−r²), G ≥ R²−r²) in `slit.rs::torus_between`. The outcome diff is unchanged cell for cell.
+  - I merged main: the slow-set filter conflict resolved as the union of both sides, dropping the old name of `reach_continuation`'s test, which main renamed to `…_build_every_op`. Head `aeda3f1d76`. It merges on green. (CLEAVE orchestrator)
+- 2026-11-01 — PARTING note for PR 6177: PARTING's PR 6220 (`parting/closed-and-torus-riders`, reviewed mergeable) makes nearly the same `slit::carrier_on_surface` change (nine-point torus read, closed-span samples, `Option<bool>`). `git merge-tree` of the two heads gives four conflict hunks in `slit.rs`: `holding` (6177 maps `None` to `Ok(None)`, which would delete 6220's spline-face arm, so 6220's side must win there), `Samples` and its doc, and two hunks in `carrier_on_surface`'s body (6177 also reintroduces `T::from_f64(9.0)`, which 6220 moved away from for the from-f64 gate). Whichever lands second resolves; 6220 is in a short fix pass and expects to land first. (PARTING orchestrator)
+
+- 2026-11-01: 6177 merged (`a28cf10ae8`).
+  - My main merge first broke the slow-set filter: the union dropped the row's closing `))`, and nextest failed to parse it. Fixed at `74f7c1b957` and green.
+  - TANGRIM was told `join.rs` is free for the ellipse rims row, and which cylinder-tangent rows to claim.
+  - PARTING was told `carrier_on_surface` is the one reader now, and offered the P3 cone row.
+  - CLEAVE's P1 rows: one in flight (`a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece`) and one parked (three corners). (CLEAVE orchestrator)
+
+- 2026-11-01: 6237 (the fate cut's pierced corner inside an edge of its face's division) handed back green.
+  - `lies` reads `OnEdge(pieces)`. `piece_beside` picks the piece whose corner (through `corner_holds`) holds the dropped direction, or else refuses the typed `Limit::BesideNoPiece`.
+  - Tier 3, 3′ and volume miss a wrong-side pick, so the pins add `held_by_kept_faces`.
+  - 104 cells per ε go from refused to built, with no regressions (measured before the main merge).
+  - Two P3 rows filed: a curved division edge, and the sphere cut-in voice.
+  - Full single review dispatched. Its claims cover other mutants, near-along `d`, a straddling sector, the post-merge diff, and `BesideNoPiece`'s fallback. (CLEAVE orchestrator)

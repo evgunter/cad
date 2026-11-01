@@ -279,14 +279,11 @@ fn a_count_below_zero_refuses_typed() {
         let ev = run(&doc);
         match ev.result(row) {
             Some(editor_core::NodeResult::Failed(editor_core::NodeError {
-                kind:
-                    editor_core::NodeErrorKind::IndexCountOutOfRange {
-                        count: got, admits, ..
-                    },
+                kind: editor_core::NodeErrorKind::IndexCountOutOfRange { count: got, .. },
                 ..
             })) => {
                 assert_eq!(*got, count);
-                assert_eq!(*admits, 0..=i64::from(u32::MAX));
+                assert!(!editor_core::MemberCountFault::ADMITS.contains(got));
             }
             other => panic!("{count}: {other:?}"),
         }

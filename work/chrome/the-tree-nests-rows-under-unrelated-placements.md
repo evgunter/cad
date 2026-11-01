@@ -2,11 +2,13 @@
 id: the-tree-nests-rows-under-unrelated-placements
 kind: issue
 title: the feature tree's indentation does not follow the document's structure
-status: dispatched
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: M
 branch: chrome/tree-structure
+closed: 2026-11-01
+pr: 6218
 ---
 
 
@@ -36,8 +38,9 @@ Replay with `cargo run --release -p viewer --features app --example drive -- scr
 click "New…"
 click "document name"
 type "bracket"
-click "Create" 0
+click "Create document"
 click "Add feature"
+click "Add profile…"
 click "rectangle"
 click "0.0100" 0
 type "0.06"
@@ -46,6 +49,7 @@ click "0.0100" 0
 type "0.04"
 key Enter
 click "Add profile"
+click "Add profile…"
 click "Profile 1 Profile bf935d4a4c62"
 click "0.0100" 0
 type "0.005"
@@ -61,6 +65,7 @@ click "0.0100" 0
 type "0.03"
 key Enter
 click "Add profile"
+click "Add profile…"
 click "on the picked face"
 click "circle"
 click "0.0000" 1
@@ -70,6 +75,7 @@ click "0.0100" 0
 type "0.003"
 key Enter
 click "Add profile"
+click "Add profile…"
 scroll 1000 200 -600
 click "Profile 3 Profile c05c7d9b118f"
 click "0.0050" 0
@@ -89,3 +95,7 @@ dump
 click "View"
 dump
 ```
+
+## Closed (2026-11-01, PR 6218)
+
+Every node row sits in one column, in evaluation order. Only the lines a row draws under itself indent: its constraints first, then its failure words, links and readouts, then the steps of carried refusals by level. The depth rule is gone (`TreeRow::depth`, `depth_of`). It was not ratified, and drawn in topological order it put rows under whatever preceded them. A test makes every node row share the column and every line a row draws sit under it, past that column; it goes red on the old indentation. Dropped: the "tools one level in" grouping. How a node's inputs might nest under the row that consumes them is `the-tree-view-nests-a-nodes-inputs-under-its-consumer` (P2, design), for the tree view Ev plans. The Union's mislabel stays on `a-creation-label-lands-on-a-node-the-form-did-not-name`.

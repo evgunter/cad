@@ -3026,11 +3026,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "slit.rs",
-        "carrier_on_surface",
+        "conic_or_line_on",
         "Coincide::EdgeOnCurvedFace",
         2,
     ),
-    ("slit.rs", "carrier_on_surface", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 2),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",
@@ -3038,6 +3038,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    ("slit.rs", "spline_floor", "BooleanDecision::Containment", 1),
+    ("slit.rs", "spline_floor", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
