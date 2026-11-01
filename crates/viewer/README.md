@@ -2041,8 +2041,13 @@ nothing it derives re-enters the model.
 Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
 **shown spaces** are the world and every space that holds a drawn body
-(IDENTITY DI5), then the author's show and hide, which is display
-state; the View pane lists them, the world first, each with its toggle.
+(IDENTITY DI5). That is the default picture; the author's show and
+hide is display state over it. The View pane lists the shown spaces,
+the world first, and every body of the document under its space, each
+with its toggle, so a body the default leaves out (an operand a boolean
+took over, a fillet's input) can be shown, and any drawn one hidden
+(Ev, PR 6209: "all bodies should be viewable by toggle in the view
+pane").
 A drawn body the product slot does not reach is tinted as outside the
 product. Every shown space stands at the identity, so a body is drawn
 where it was written, except that a shown space whose drawn bodies copy
