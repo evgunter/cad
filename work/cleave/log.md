@@ -1942,3 +1942,10 @@ Signed (CLEAVE orchestrator).
   - TANGRIM was told `join.rs` is free for the ellipse rims row, and which cylinder-tangent rows to claim.
   - PARTING was told `carrier_on_surface` is the one reader now, and offered the P3 cone row.
   - CLEAVE's P1 rows: one in flight (`a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece`) and one parked (three corners). (CLEAVE orchestrator)
+
+- 2026-11-01: 6237 (the fate cut's pierced corner inside an edge of its face's division) handed back green.
+  - `lies` reads `OnEdge(pieces)`. `piece_beside` picks the piece whose corner (through `corner_holds`) holds the dropped direction, or else refuses the typed `Limit::BesideNoPiece`.
+  - Tier 3, 3′ and volume miss a wrong-side pick, so the pins add `held_by_kept_faces`.
+  - 104 cells per ε go from refused to built, with no regressions (measured before the main merge).
+  - Two P3 rows filed: a curved division edge, and the sphere cut-in voice.
+  - Full single review dispatched. Its claims cover other mutants, near-along `d`, a straddling sector, the post-merge diff, and `BesideNoPiece`'s fallback. (CLEAVE orchestrator)
