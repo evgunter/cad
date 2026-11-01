@@ -243,6 +243,17 @@ pub(crate) mod metric {
 
     /// The distance's escalation under the run band, as the K row
     /// `name`, where it reads in band: what a refusal carries.
+    /// The escalation of a distance the band decides zero where only a
+    /// side would do: the nonzero gate's rejection of that zero, with its
+    /// margin ([`crate::validate::decide_nonzero`]).
+    pub(crate) fn zero_refused<T: Decide>(
+        name: &'static str,
+        d: Distance<T>,
+        band: Band,
+    ) -> Option<Indeterminate> {
+        crate::validate::decide_nonzero(name, margin(d.0), band).err()
+    }
+
     pub(crate) fn why<T: Decide>(
         name: &'static str,
         d: Distance<T>,
@@ -256,7 +267,12 @@ pub(crate) mod metric {
     }
 
     fn decided<T: Decide>(name: &'static str, v: T, band: Band) -> Result<Sign, Indeterminate> {
-        decide(name, Margin::of(v), band)
+        decide(name, margin(v), band)
+    }
+
+    /// A distance as the margin the gates read: the door's one.
+    fn margin<T: Decide>(v: T) -> Margin<T> {
+        Margin::of(v)
     }
 }
 
@@ -881,16 +897,23 @@ fn wedge_settle<T: Decide>(
     x: Point3<T>,
     rd: Reading<T>,
 ) -> Result<Sign, Unsettled> {
+    metric::settle(LINK_WEDGE, wedge_distance(p, m, r, x, rd), rd)
+}
+
+/// The distance [`wedge_side`] reads.
+fn wedge_distance<T: Decide>(
+    p: Point3<T>,
+    m: Vec3<T>,
+    r: Point3<T>,
+    x: Point3<T>,
+    rd: Reading<T>,
+) -> Distance<T> {
     let x = if rd.own {
         x
     } else {
         within(p, x, (r - p).norm())
     };
-    metric::settle(
-        LINK_WEDGE,
-        Distance::of(x, p, m.cross((r - p).normalize())),
-        rd,
-    )
+    Distance::of(x, p, m.cross((r - p).normalize()))
 }
 
 /// Whether `x` lies ahead of `p` along the ray through `r` or behind it,
@@ -1128,7 +1151,14 @@ impl<T: Decide> Sector<T> {
                     on(k == last && !self.closed, ahead_settle(p, b, x, rd))
                 }
                 (Err(why), _) | (_, Err(why)) => Err(why),
-                _ => Err(None),
+                // On both rays' lines: drawn in to them, `x` stands
+                // within zero of the apex, and no side of either ray
+                // places it.
+                _ => Err(metric::zero_refused(
+                    LINK_WEDGE,
+                    wedge_distance(p, m, a, x, rd),
+                    rd.band,
+                )),
             };
             match got {
                 Ok(Place::Inside) => return Ok(Place::Inside),
@@ -3824,10 +3854,9 @@ mod tests {
             .reads_tied(Point3::new(0.5, 0.5, -1.6 * zero), &[], band)
             .expect_err("in band of the corner's own floor");
         assert_eq!(unread.sector, Some(0), "the floor's sector, named");
-        assert_eq!(
-            unread.why.and_then(|why| why.predicate),
-            Some(LINK_PLANE),
-            "the floor plane's reading, escalated over the tie"
+        assert!(
+            unread.why.is_none(),
+            "decided by the band and unsettled by the tie: no escalation"
         );
         assert_eq!(
             cone.reads_tied(Point3::new(0.5, 0.5, -4.0 * zero), &[], band)
@@ -3848,7 +3877,7 @@ mod tests {
     /// touch analysis (`census.rs`, from its banner to the backstop's
     /// header), and the boolean's side of the gathered cone, which
     /// builds a cone's rays and reads an own edge through it
-    /// (`boolean::sectors::fans`, `bound_side::Reach::point`,
+    /// (`boolean::sectors::fans`, the line cone's `boolean::sectors::line_fans`, `bound_side::Reach::point`,
     /// `boolean::vtxfac::cone_classes`), and holds:
     /// - every `Margin` door and every `decide` call lies inside `mod
     ///   metric` (one `Margin::of`);
@@ -3940,6 +3969,10 @@ mod tests {
             src[at..balanced_end(&src, open).expect("its closing brace")].to_owned()
         };
         let fans = item(include_str!("boolean/sectors.rs"), "\npub(crate) fn fans<");
+        let line_fans = item(
+            include_str!("boolean/sectors.rs"),
+            "\npub(crate) fn line_fans<",
+        );
         let classes = item(
             include_str!("boolean/vtxfac.rs"),
             "\npub(crate) fn cone_classes<",
@@ -4090,7 +4123,7 @@ mod tests {
             "write_fmt",
             "to_string(",
         ] {
-            for boolean_side in [&fans, &classes, &point] {
+            for boolean_side in [&fans, &line_fans, &classes, &point] {
                 stray.extend(outside(boolean_side, needle, &[]));
             }
         }

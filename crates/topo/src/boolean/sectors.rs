@@ -2502,6 +2502,71 @@ pub(crate) fn fans<T: geom_core::Real>(
         .collect()
 }
 
+/// **How a face of a solid's sectors at a point stands about a line
+/// through it** ([`line_fans`]): a sector whose start bound lies along
+/// the line, one whose end bound does, or one the line runs inside.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LineSheet {
+    Start(usize),
+    End(usize),
+    Across(usize),
+}
+
+/// **A solid's faces holding a line through `apex`, as the half-planes
+/// they span about it**: the line cone's corners
+/// ([`crate::link::Cone::gathered`]), each tagged with the sector it is
+/// read from. A sector with a bound along the line is the half-plane on
+/// its far bound's side: rays the line's bound, the far bound, and the
+/// line's opposite ray, in the orbit's turn — the line first where it
+/// is the sector's start bound, last where it is its end. A sector the
+/// line runs inside is its plane's two halves, its start bound's and its
+/// end bound's, parted by the line at `line` and its opposite ray.
+/// Every ray is fixed at its own bound's reach, the opposite ray at the
+/// line's. Nothing is decided here: which bound lies along the line is
+/// the sheet's ([`LineSheet`]), and the orbit's turn is the sectors'
+/// order.
+pub(crate) fn line_fans<T: geom_core::Real>(
+    sectors: &[BoolSector<T>],
+    sheets: &[LineSheet],
+    apex: Point3<T>,
+    line: Point3<T>,
+) -> Vec<(usize, crate::link::Fan<T>)> {
+    let back = |l: Point3<T>| apex - (l - apex);
+    let fan = |s: &BoolSector<T>, rays: Vec<Point3<T>>| crate::link::Fan {
+        outward: s.normal.vec(),
+        apex,
+        rays,
+    };
+    let mut out = Vec::with_capacity(sheets.len() + 1);
+    for &sheet in sheets {
+        match sheet {
+            LineSheet::Start(i) => {
+                let s = &sectors[i];
+                let l = s.start_reach.point(apex, s.start);
+                out.push((i, fan(s, vec![l, s.end_reach.point(apex, s.end), back(l)])));
+            }
+            LineSheet::End(i) => {
+                let s = &sectors[i];
+                let l = s.end_reach.point(apex, s.end);
+                out.push((
+                    i,
+                    fan(s, vec![back(l), s.start_reach.point(apex, s.start), l]),
+                ));
+            }
+            LineSheet::Across(i) => {
+                let s = &sectors[i];
+                let (start, end) = (
+                    s.start_reach.point(apex, s.start),
+                    s.end_reach.point(apex, s.end),
+                );
+                out.push((i, fan(s, vec![back(line), start, line])));
+                out.push((i, fan(s, vec![line, end, back(line)])));
+            }
+        }
+    }
+    out
+}
+
 /// Each corner's face, in [`fans`]' order.
 pub(crate) fn fan_faces<T: geom_core::Real>(
     sectors: &[BoolSector<T>],

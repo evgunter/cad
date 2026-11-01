@@ -287,8 +287,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | slit::RIDER_ON_CURVED => Coincide::EdgeOnCurvedFace.subject(),
         slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
-        | "bool_flank_offset"
-        | "bool_wedge_reflex"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
