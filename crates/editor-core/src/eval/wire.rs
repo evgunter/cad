@@ -446,7 +446,7 @@ where
             &crate::verbs::shell::shell(),
             id,
             &select(doc, results, O::Open, *open)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -458,7 +458,7 @@ where
                 pose::eval_posed(doc, unprojected, O::Tool, *tool, env.lane.params, tol)?,
                 *tool,
             ),
-            results,
+            (doc, results),
             tol,
         ),
         Node::Mirror { body, plane } => wire_mirror(
@@ -1831,7 +1831,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     open: &Selected<topo::FaceKey>,
-    results: &Results<T>,
+    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -1849,15 +1849,33 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let door = <T as topo::AtRestPolicy>::shell_door()
         .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
     let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
-    let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
+    let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+    // The operand's records ride the thin solid through the shell's
+    // lineage, as the split's ride its sides ([`wire_split`]).
+    let shelled = topo::Shelled {
+        body: out.body,
+        naming,
+    };
+    let carried = shelled
+        .carry_contacts(
+            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            band(tol)?,
+            T::region_lane(),
+        )
+        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
+    let topo::Shelled { body, naming } = shelled;
+    let table = (verb.emitter)(id, target, target_read, &target_table, &body, &naming)
         .map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(super::Framed::in_frame(
-            Arc::new(out.body),
+            Arc::new(body),
             operand.frame().clone(),
         )),
         table,
+    )
+    .holding(
+        Arc::new(carried),
+        vec![crate::coincide::CitedInput::Read(target_read)],
     ))
 }
 
@@ -2482,13 +2500,14 @@ fn wire_assertion<T: Decide>(
 /// A tool that is not a plane pose is `WrongOperand`, decided before
 /// any verb exists. Failure of the op itself is
 /// [`NodeErrorKind::Split`] through [`verb_refused`]; nothing here
-/// re-derives the plane.
+/// re-derives the plane. An operand record the carry onto the sides
+/// refuses is [`NodeErrorKind::ContactCarry`].
 fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     (target_read, target): (crate::VarId, RecipeNodeId),
     (tool, tool_read): (pose::Posed<T>, crate::pose::RoleRead<crate::VarId>),
-    results: &Results<T>,
+    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     tol: Tol,
 ) -> OpResult<T> {
     // It computes in its operand's frame, its tool read into it.
@@ -2503,8 +2522,33 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     });
     let built = (verb.build)(plane);
     let out = built.run_split(&body, tol).map_err(verb_refused)?;
-    let coincidences = out.coincidences;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
+    // The operand's records, as its door kept them ([`super::Carry::kept`]),
+    // ride each side through the split's lineage, each citing the
+    // operand's record it is; a record the cut parts across the cut
+    // retires, a touch between the two sides. Caller-side, until the
+    // split's door carries them itself onto a finished body that holds
+    // its records (heldrecords' ratified unit
+    // `a-finished-body-holds-its-contact-records-at-every-door`).
+    let split = topo::SplitResult {
+        above: out.above,
+        below: out.below,
+        naming,
+        coincidences: out.coincidences,
+    };
+    let (carried, _) = split
+        .carry_contacts_across(
+            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            band(tol)?,
+            T::region_lane(),
+        )
+        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
+    let topo::SplitResult {
+        above,
+        below,
+        naming,
+        coincidences,
+    } = split;
     let side = |part: SplitPart<T>| match part {
         // The verdict the split's gate kept is not carried in a value yet (F2).
         SplitPart::Body(b) => SplitSide::Body(super::Framed::in_frame(
@@ -2513,8 +2557,8 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         )),
         SplitPart::Empty => SplitSide::Empty,
     };
-    let above = side(out.above);
-    let below = side(out.below);
+    let above = side(above);
+    let below = side(below);
     let as_body = |s: &SplitSide<T>| match s {
         SplitSide::Body(b) => Some(Arc::clone(b.shared())),
         SplitSide::Empty => None,
@@ -2542,14 +2586,32 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
         })
         .collect();
-    OpOut::per_output(ValuePayload::Split { above, below }, outputs).recording(
-        &coincidences,
-        &crate::coincide::RowInputs {
-            a: (target_read, &target_table),
-            b: None,
-            tool: Some(tool_read),
-        },
-    )
+    // Each side's carry at its half's output body, its records citing
+    // the operand's read.
+    let mut sides = [
+        (SplitHalf::Above, carried.above),
+        (SplitHalf::Below, carried.below),
+    ];
+    sides.sort_by_key(|(half, _)| half.output_body());
+    let sides = sides.map(|(_, records)| {
+        super::Carry::default().recording(
+            Arc::new(records),
+            vec![crate::coincide::CitedInput::Read(target_read)],
+        )
+    });
+    OpOut::per_output(ValuePayload::Split { above, below }, outputs)
+        .carrying(super::Carry {
+            members: Some(Arc::from(sides)),
+            ..super::Carry::default()
+        })
+        .recording(
+            &coincidences,
+            &crate::coincide::RowInputs {
+                a: (target_read, &target_table),
+                b: None,
+                tool: Some(tool_read),
+            },
+        )
 }
 
 /// **A mirror** (D10 `[repetition]`): the body `source` defines,
@@ -2870,7 +2932,11 @@ fn split_port<T: Decide>(
              though the split's lowering names each half's output"
         )
     });
-    projected(split, value, body, names, half.output_body()).map(Some)
+    let (of, index, projected) = projected(split, value, body, names, half.output_body())?;
+    // A half carries its own side's records, keyed in its arena.
+    let at = usize::try_from(half.output_body()).unwrap_or(usize::MAX);
+    let carry = value.carry.member(at).clone();
+    Ok(Some((of, index, super::NodeValue { carry, ..projected })))
 }
 
 /// `value`'s output `index` as the body alone, at output 0, with that

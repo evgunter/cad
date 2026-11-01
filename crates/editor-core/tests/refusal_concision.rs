@@ -720,6 +720,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                     SectorRead::Pierce(FaceKey::default()),
                     SectorRead::Pair(VertexKey::default()),
                 ],
+                in_band: None,
             },
         ),
         (
@@ -730,14 +731,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 face: FaceKey::default(),
                 partner: VertexKey::default(),
                 along: topo::AlongFace::FacesInOnePlane,
-            },
-        ),
-        (
-            "NestingUnread",
-            BooleanError::NestingUnread {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                partners: [VertexKey::default(); 2],
             },
         ),
         (
