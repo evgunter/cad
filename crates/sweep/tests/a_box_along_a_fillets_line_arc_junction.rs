@@ -30,7 +30,7 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{brick, finished};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanError, BooleanResult, EdgeInFaceGap, EulerOpError, SplitJoinError};
+use topo::{AtRestBody, BooleanError, BooleanResult, EdgeInFaceGap};
 
 use crate::common::differential::{every_op_both_orders, outcome};
 use crate::common::poses::torax_pose;
@@ -175,12 +175,6 @@ fn beside_the_junction(make: fn(&Affine3<f64>) -> Neighbour, open: Open) {
     }
 }
 
-/// The join's `mekr` handed loops of two faces.
-fn not_same_face(e: &BooleanError) -> bool {
-    matches!(e, BooleanError::Join(j)
-        if matches!(j.error(), SplitJoinError::Euler(EulerOpError::NotSameFace { .. })))
-}
-
 /// The parting's tangent-wall gap.
 fn a_tangent_parting(e: &BooleanError) -> bool {
     matches!(
@@ -195,9 +189,8 @@ fn a_tangent_parting(e: &BooleanError) -> bool {
 /// **An inflection ruling.** `A`'s corner runs the fillet's convex arc
 /// into `(0.8, 1)` and a concave arc about `(0.8, 1.2)` on to
 /// `(0.6, 1.2)`: `4 + 1.6 R`, of which the box's section holds
-/// `0.25 − CORNER`. Where the box stands past both of `A`'s ends every
-/// op refuses at the join, open on
-/// `work/tangrim/a-box-face-along-an-inflection-ruling-refuses-not-same-face-past-both-ends.md`.
+/// `0.25 − CORNER`. Where the box stands past both of `A`'s ends, both
+/// ends of the ruling lie inside the box's face.
 #[test]
 fn a_box_along_an_inflection_ruling() {
     fn make(pose: &Affine3<f64>) -> Neighbour {
@@ -213,9 +206,7 @@ fn a_box_along_an_inflection_ruling() {
         let a = prism("the inflected prism", chain, pose);
         (a, 4.0 + 1.6 * R, 0.25 - CORNER)
     }
-    beside_the_junction(make, |z, _| {
-        (z == (-0.5, 1.5)).then_some(not_same_face as Refusal)
-    });
+    beside_the_junction(make, |_, _| None);
 }
 
 /// **A tangent wall beside a falling side.** `A`'s corner runs the

@@ -1148,6 +1148,25 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         entries[k].lumped = true;
         entries[(k + 1) % n].lumped = true;
     }
+    // A bound two tangent sectors share is neither lump's: it reads its
+    // own side at second order through both, as their germs read it, so
+    // a ruling between walls curving to opposite sides stays `On` and
+    // folds the same way at each of its ends.
+    for e in (0..n).filter(|&e| n > 1 && !by_carrier[e]) {
+        let before = (e + n - 1) % n;
+        let (Some(ends), Some(starts)) = (&tangent_reads[e], &tangent_reads[before]) else {
+            continue;
+        };
+        let [_, end] = sectors[e].reached_bounds();
+        let [start, _] = sectors[before].reached_bounds();
+        let side = ends.side(n_pierced, p, end, band)?;
+        if side != starts.side(n_pierced, p, start, band)? {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "two tangent sectors read their shared bound on different sides",
+            });
+        }
+        entries[e].class = side;
+    }
     if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
         return Err(refusal);
     }
