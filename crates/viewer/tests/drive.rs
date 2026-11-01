@@ -36,6 +36,11 @@ mod driven {
             "the creation forms start folded"
         );
         driver.click("Add feature", 0).expect("the section opens");
+        assert!(
+            !driver.shows("Add profile"),
+            "the open section offers the form's door, not the form"
+        );
+        driver.click("Add profile…", 0).expect("the form opens");
         driver.click("rectangle", 0).expect("the shape is chosen");
         driver
             .click("Add profile", 0)

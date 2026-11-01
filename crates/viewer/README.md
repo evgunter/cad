@@ -66,12 +66,22 @@ slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
 
-In the Properties panel, the document-variables list ends with an
-add-variable row (name + dimension + value, written in the working
-notation's unit, one undoable edit); an
+In the Properties panel, the document-variables list ends with
+**New variable…**, which opens the add-variable row (name + dimension
++ value, written in the working notation's unit, one undoable edit),
+saying under it what **Create variable** still waits for; an
 expression that names an undeclared variable refuses typed, and the
-refusal offers to create it — prefilled into that row, with the
+refusal offers to create it — the row opened and prefilled, with the
 dimension left as your pick.
+
+The Properties panel at rest is its doors: the creation sections
+(**Add feature**, **Combine bodies**, **Blend edges**, **Assemble
+parts**) fold, and inside each every tool and form is a button that
+opens it. A form whose operation takes the selection is drawn beside
+the selection instead, while its operation would accept it — the
+extrude form while a profile is selected. The toolbar's **Cancel
+drag** and **Cancel free-move** are there only while their gesture is
+in flight.
 
 In the Features pane, an instance whose part file has changed since it
 was placed fails on its pin, and its row offers **Accept updated
@@ -155,8 +165,10 @@ cargo run --release -p viewer --features app --example drive -- script.txt
 ```
 
 ```text
-click "Create"
-click "Box"
+click "Add feature"
+click "Add profile…"
+click "rectangle"
+click "Add profile"
 dump
 picture shot.png
 ```

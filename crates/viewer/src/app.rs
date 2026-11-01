@@ -1952,6 +1952,27 @@ impl ViewerApp {
             // name `crate::theme` gives it — the registry IS the
             // menu, so a theme cannot be shipped and left
             // unreachable.
+            //
+            // A combo lays itself out at the cursor whether the row has
+            // room or not (`egui`'s `button_frame` takes the rect before
+            // the wrap), so the wrapping row is asked first: a picker
+            // that would run past the edge starts the next line.
+            let spacing = ui.spacing();
+            let picker_width = egui::WidgetText::from(chosen.name)
+                .into_galley(
+                    ui,
+                    Some(egui::TextWrapMode::Extend),
+                    f32::INFINITY,
+                    egui::TextStyle::Button,
+                )
+                .size()
+                .x
+                + spacing.icon_width
+                + spacing.item_spacing.x
+                + 2.0 * spacing.button_padding.x;
+            if ui.available_size_before_wrap().x < picker_width {
+                ui.end_row();
+            }
             egui::ComboBox::from_id_salt("viewer_theme")
                 .selected_text(chosen.name)
                 .show_ui(ui, |ui| {
@@ -3327,6 +3348,38 @@ mod tests {
         const ELSEWHERE: egui::Pos2 = egui::Pos2::new(1500.0, 550.0);
     }
 
+    /// **A cancel door is on the toolbar exactly while its gesture is
+    /// in flight**: neither at rest, and the drag's door once a slot
+    /// drag has begun — its in-flight state read off the door
+    /// (`CancelDoor::blocked`), so the free-move door stays off while
+    /// only the drag is held.
+    #[test]
+    fn a_cancel_door_is_on_the_toolbar_only_while_its_gesture_is_in_flight() {
+        const DRAG: &str = "Cancel drag";
+        const FREE_MOVE: &str = "Cancel free-move";
+        let shown = |painted: &[(String, egui::Rect)], label: &str| {
+            painted.iter().any(|(text, _)| text == label)
+        };
+        let mut toolbar = Toolbar::open();
+        let rest = toolbar.frame(Some(Toolbar::ELSEWHERE));
+        assert!(
+            !shown(&rest, DRAG) && !shown(&rest, FREE_MOVE),
+            "no gesture in flight, no cancel on the toolbar: {rest:?}"
+        );
+        // The startup plate's extrude (`scene::plate_with_hole`).
+        let extrude = toolbar.app.session.doc().ids()[1];
+        let begun = toolbar.app.session.perform(SessionOp::BeginGesture {
+            node: extrude,
+            slot: pncad::document::SlotId::Distance,
+        });
+        assert!(begun.refusal.is_none(), "the drag begins: {begun:?}");
+        let held = toolbar.frame(Some(Toolbar::ELSEWHERE));
+        assert!(
+            shown(&held, DRAG) && !shown(&held, FREE_MOVE),
+            "a drag in flight puts its own door on the toolbar and no other: {held:?}"
+        );
+    }
+
     /// **A disabled toolbar control says what its own operation
     /// refuses** — and says it about ITSELF.
     ///
@@ -3967,22 +4020,22 @@ mod properties_pane_tests {
     }
 
     /// **The collapsed Properties section whose body paints `kind`'s
-    /// activation button**, or `None` for a button at the pane's top
-    /// level. The one answer every row here that opens a tool reads.
-    fn section_of(kind: crate::tools::ToolKind) -> Option<&'static str> {
-        use crate::pane::create::{ADD_FEATURE, BLEND_EDGES, COMBINE_BODIES};
+    /// activation button**. The one answer every row here that opens a
+    /// tool reads.
+    fn section_of(kind: crate::tools::ToolKind) -> &'static str {
+        use crate::pane::create::{ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES};
         use crate::tools::ToolKind;
         match kind {
-            ToolKind::Mate => None,
-            ToolKind::Revolve => Some(ADD_FEATURE),
+            ToolKind::Mate => ASSEMBLE_PARTS,
+            ToolKind::Revolve => ADD_FEATURE,
             ToolKind::Boolean
             | ToolKind::Split
             | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
             | ToolKind::Duplicate
-            | ToolKind::Mirror => Some(COMBINE_BODIES),
-            ToolKind::Blend => Some(BLEND_EDGES),
+            | ToolKind::Mirror => COMBINE_BODIES,
+            ToolKind::Blend => BLEND_EDGES,
         }
     }
 
@@ -4012,7 +4065,8 @@ mod properties_pane_tests {
         app.tools.open(tool);
         clicked(&mut app, picks(body));
         let landed = settle(&mut app, quiescent, |app| paint(app, Vec::new()));
-        if let Some(section) = section_of(tool) {
+        {
+            let section = section_of(tool);
             let at = landed
                 .iter()
                 .find(|landed| landed.text == section)
@@ -5222,6 +5276,7 @@ mod properties_pane_tests {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
+        app.drafts.profile_open = true;
         plant(&mut app.drafts);
         let mut frame = eframe::Frame::_new_kittest();
         let mut seconds = 0.0;
@@ -5340,20 +5395,16 @@ mod properties_pane_tests {
             .map(|kind| {
                 let section = section_of(kind);
                 assert_eq!(driven.app.tools.open_kind(), None, "before {kind:?}");
-                if let Some(section) = section {
-                    let closed = driven.frame(Vec::new());
-                    assert!(
-                        !closed.iter().any(|(run, _)| *run == kind.button()),
-                        "{kind:?}'s button is painted before {section:?} opens: {closed:?}"
-                    );
-                    driven.click(section);
-                }
+                let closed = driven.frame(Vec::new());
+                assert!(
+                    !closed.iter().any(|(run, _)| *run == kind.button()),
+                    "{kind:?}'s button is painted before {section:?} opens: {closed:?}"
+                );
+                driven.click(section);
                 driven.click(&kind.button());
                 let opened = driven.app.tools.open_kind();
                 driven.app.tools.close();
-                if let Some(section) = section {
-                    driven.click(section);
-                }
+                driven.click(section);
                 opened
             })
             .collect();
@@ -5365,14 +5416,15 @@ mod properties_pane_tests {
     }
 
     /// **The creation doors that are not tools are reachable too**: the
-    /// extrude form, under "Add feature", is drawn while a profile is
-    /// selected and not while anything else is (its door's own kind
-    /// test), and the `Add part…` button opens the part chooser. The
-    /// add-profile form is the subject of rows of its own above, which
-    /// open the section and read it.
+    /// extrude form is drawn while a profile is selected and not while
+    /// anything else is (its door's own kind test) — with every
+    /// creation section still collapsed, so a profile selected finds it
+    /// without opening a header — and the `Add part…` button, under
+    /// its section, opens the part chooser. The add-profile form is the
+    /// subject of rows of its own, which open its door and read it.
     #[test]
     fn the_extrude_form_and_the_part_chooser_are_reachable() {
-        use crate::pane::create::{ADD_FEATURE, ADD_PART, EXTRUDE};
+        use crate::pane::create::{ADD_PART, ADD_PROFILE_DOOR, ASSEMBLE_PARTS, EXTRUDE};
         // The button's words for `node`, as the form spells them.
         let button = |driven: &Driven, node: RecipeNodeId| {
             format!(
@@ -5384,7 +5436,6 @@ mod properties_pane_tests {
             painted.iter().any(|(run, _)| run == words)
         };
         let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
-        driven.click(ADD_FEATURE);
         let painted = driven.frame(Vec::new());
         let refused = button(&driven, extrude());
         assert!(
@@ -5395,14 +5446,65 @@ mod properties_pane_tests {
         let painted = driven.frame(Vec::new());
         let offered = button(&driven, startup_node(0));
         assert!(
+            !offers(&painted, ADD_PROFILE_DOOR),
+            "the creation sections are collapsed in this frame: {painted:?}"
+        );
+        assert!(
             offers(&painted, &offered),
-            "the startup profile selected offers {offered:?}: {painted:?}"
+            "the startup profile selected offers {offered:?} with the sections collapsed: \
+             {painted:?}"
         );
         assert!(driven.app.part_chooser.is_none(), "the startup app");
+        driven.click(ASSEMBLE_PARTS);
         driven.click(ADD_PART);
         assert!(
             driven.app.part_chooser.is_some(),
             "{ADD_PART:?} opens the chooser"
+        );
+    }
+
+    /// **The Properties pane at rest is its doors**: with nothing
+    /// selected and nothing open, no form's fields or commit is
+    /// painted — the add-profile form behind `Add profile…` even with
+    /// its section open, the add-variable form behind `New variable…` —
+    /// and each door opens its form. The add-variable form, open with
+    /// no dimension picked, says why its commit waits in the painted
+    /// frame rather than only on a hover.
+    #[test]
+    fn the_properties_pane_at_rest_draws_doors_and_each_opens_its_form() {
+        use crate::pane::create::{ADD_FEATURE, ADD_PROFILE, ADD_PROFILE_DOOR};
+        use crate::pane::properties::{NEW_VARIABLE, NEW_VARIABLE_COMMIT};
+        let offers = |painted: &[(String, egui::Rect)], words: &str| {
+            painted.iter().any(|(run, _)| run == words)
+        };
+        let mut driven = Driven::with(Vec::new());
+        let rest = driven.frame(Vec::new());
+        for (door, form) in [
+            (NEW_VARIABLE, NEW_VARIABLE_COMMIT),
+            (ADD_FEATURE, ADD_PROFILE),
+        ] {
+            assert!(
+                offers(&rest, door) && !offers(&rest, form),
+                "at rest {door:?} is painted and {form:?} is not: {rest:?}"
+            );
+        }
+        driven.click(ADD_FEATURE);
+        let section = driven.frame(Vec::new());
+        assert!(
+            offers(&section, ADD_PROFILE_DOOR) && !offers(&section, ADD_PROFILE),
+            "the open section offers the form's door, not the form: {section:?}"
+        );
+        driven.click(ADD_PROFILE_DOOR);
+        assert!(
+            offers(&driven.frame(Vec::new()), ADD_PROFILE),
+            "the door opens the add-profile form"
+        );
+        driven.click(NEW_VARIABLE);
+        driven.app.drafts.new_variable_name = "gap".to_owned();
+        let open = driven.frame(Vec::new());
+        assert!(
+            offers(&open, NEW_VARIABLE_COMMIT) && offers(&open, "pick a dimension first"),
+            "the open form paints its commit and why it waits: {open:?}"
         );
     }
 
@@ -5582,6 +5684,7 @@ mod properties_pane_tests {
             .into_owned();
         let mut driven = Driven::with(vec![SessionOp::Save(dir.join("assembly.pncad"))]);
         driven.settle();
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
         driven.click(ADD_PART);
 
         let painted = driven.frame(Vec::new());
@@ -5752,6 +5855,7 @@ mod properties_pane_tests {
         /// rows, and the selection then cleared.
         fn holding_the_top_cap() -> (Self, crate::session::FaceSelection) {
             let mut driven = Self::with_seams(Vec::new(), |app| {
+                app.drafts.profile_open = true;
                 app.drafts.sketch_on_face = true;
                 app.drafts.profile_shape = Some(crate::forms::ShapeKind::Circle);
             });
@@ -6527,6 +6631,7 @@ mod properties_pane_tests {
                 .is_some_and(|tool| tool.state().picks()[0].is_some()),
             "the survival step kept the pick"
         );
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
@@ -6714,6 +6819,7 @@ mod properties_pane_tests {
         fn drive(session: DocSession, plane: FaceSelection, traced: FaceSelection) -> Driven {
             let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
             let drafts = &mut pane.app.drafts;
+            drafts.profile_open = true;
             drafts.profile_shape = Some(ShapeKind::Path);
             drafts.profile_path = footprint();
             drafts.trace_on = true;
@@ -7940,14 +8046,14 @@ mod properties_pane_tests {
         #[test]
         fn the_naming_door_waits_on_held_edits() {
             let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(profile()))]);
-            // The pane says `name` once outside the editor (the
-            // new-variable form), so what is counted is the rows' doors.
+            // The new-variable form, whose field also says `name`, is
+            // behind its door, so every `name` counted is a row's door.
             let named = |painted: &[(String, egui::Rect)]| {
                 painted.iter().filter(|(run, _)| run == "name").count()
             };
             let untouched = named(&driven.quiet());
             assert!(
-                untouched > 1,
+                untouched > 0,
                 "an untouched draft offers naming: {untouched}"
             );
             driven
@@ -7960,7 +8066,7 @@ mod properties_pane_tests {
                 Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.0, 0.05)));
             assert_eq!(
                 named(&driven.quiet()),
-                1,
+                0,
                 "held edits hold every row's naming door"
             );
         }

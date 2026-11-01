@@ -46,8 +46,6 @@ impl ViewerBehavior<'_> {
             self.instance_ui(ui, node);
             self.product_ui(ui, node);
         }
-        // Nothing at all unless the selection is a profile.
-        self.extrude_ui(ui);
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");
@@ -164,6 +162,9 @@ impl ViewerBehavior<'_> {
                 // (`DocSession::standing`), so the two are one answer.
             }
         }
+        // The selection's own forms, under its rows: nothing at all
+        // unless the selection is a profile.
+        self.extrude_ui(ui);
         ui.separator();
         ui.label("variables");
         for row in crate::props::variable_rows(self.session.doc()) {
@@ -334,7 +335,9 @@ impl ViewerBehavior<'_> {
         // as the form reads, and a name the door refuses in that door's
         // own words.
         let withheld = match (&named, self.drafts.new_variable_dimension) {
-            (Err(_), _) if typed.is_empty() => Some(("name the variable".to_owned(), Tone::Advisory)),
+            (Err(_), _) if typed.is_empty() => {
+                Some(("name the variable".to_owned(), Tone::Advisory))
+            }
             (Err(fault), _) => Some((fault.to_string(), Tone::Actionable)),
             (Ok(_), None) => Some(("pick a dimension first".to_owned(), Tone::Advisory)),
             (Ok(_), Some(_)) => None,
