@@ -13,7 +13,9 @@
 use super::{
     ContactAcc, InPlane, PendingRow, SweepKnobs, SweepStrategy, settle_in_plane, sweep_and_settle,
 };
-use crate::boolean::{Cell, EfContact, GluedPairs, Operand, ReductionContacts, VfContact};
+use crate::boolean::{
+    Cell, EfContact, GluedPairs, Operand, ReductionContacts, VfContact, VvContact,
+};
 use crate::test_support_fixtures::{brick, prism_z};
 use crate::{Backing, Body, EdgeKey, FaceKey, VertexKey};
 use geom_core::{Band, Point3, Tol};
@@ -53,12 +55,18 @@ fn edge_at(body: &Body<f64>, p: Point3<f64>, q: Point3<f64>) -> EdgeKey {
         .expect("the edge is in the body")
 }
 
-/// Both directions and the settle, on clones: the swept clones, the
-/// records and the decisions they cite.
-fn sweep(a: &Body<f64>, b: &Body<f64>) -> ([Body<f64>; 2], ReductionContacts, Vec<PendingRow>) {
+/// Both directions and the settle, on clones, over the records `seed`
+/// writes first: the swept clones, the records and the decisions they
+/// cite.
+fn sweep(
+    a: &Body<f64>,
+    b: &Body<f64>,
+    seed: impl FnOnce(&mut ContactAcc),
+) -> ([Body<f64>; 2], ReductionContacts, Vec<PendingRow>) {
     let tips = crate::sector_shape::SlitTips::of_operands(a, b);
     let (mut x, mut y) = (a.clone(), b.clone());
     let mut acc = ContactAcc::default();
+    seed(&mut acc);
     sweep_and_settle(
         (&mut x, &mut y),
         &tips,
@@ -83,10 +91,14 @@ fn sweep(a: &Body<f64>, b: &Body<f64>) -> ([Body<f64>; 2], ReductionContacts, Ve
 /// wall face reads it; laid along `x`, the wall face reads the whole
 /// apex before the brick's end face splits it.
 ///
+/// Each apex vertex on the wall's plane also carries decoys written
+/// before the sweep, a record on the wall's far face and a tie with a
+/// wall vertex there, which the record must not cite.
+///
 /// Mutants: citing the decisions at the ends of the fragment the wall
 /// face read names the laid apex's far end; citing an end's record on
 /// another face of the wall, or its tie with a wall vertex off the
-/// face, names the wall off the face.
+/// face, names a decoy.
 #[test]
 fn each_edge_face_record_cites_its_own_pieces_ends() {
     let tol = Tol::witness();
@@ -128,7 +140,36 @@ fn each_edge_face_record_cites_its_own_pieces_ends() {
     for (pose, apex, wall, ends) in &poses {
         for (x_is, a, b) in [(Operand::A, apex, wall), (Operand::B, wall, apex)] {
             let what = format!("{pose}, apex {x_is:?}");
-            let ([sa, sb], records, pending) = sweep(a, b);
+            let far = face_along(wall, [0.0, 1.0, 0.0]);
+            let off = wall
+                .vertices()
+                .map(|(k, _)| k)
+                .find(|&k| point(wall, k).y > 1.0)
+                .unwrap();
+            let decoys = |acc: &mut ContactAcc| {
+                let on_plane = apex.vertices().map(|(k, _)| k);
+                for w in on_plane.filter(|&w| (point(apex, w).y - 0.5).abs() < 1e-12) {
+                    let mine = (x_is, Cell::Vertex(w));
+                    let vf = VfContact {
+                        vertex: w,
+                        face: far,
+                    };
+                    acc.vf(
+                        x_is,
+                        vf,
+                        PendingRow::on(mine, (x_is.other(), Cell::Face(far)), None),
+                    );
+                    let vv = match x_is {
+                        Operand::A => VvContact { a: w, b: off },
+                        Operand::B => VvContact { a: off, b: w },
+                    };
+                    acc.vv(
+                        vv,
+                        PendingRow::on(mine, (x_is.other(), Cell::Vertex(off)), None),
+                    );
+                }
+            };
+            let ([sa, sb], records, pending) = sweep(a, b, decoys);
             let (x, y, list, other) = match x_is {
                 Operand::A => (&sa, &sb, &records.a_in_b, &records.b_in_a),
                 Operand::B => (&sb, &sa, &records.b_in_a, &records.a_in_b),
