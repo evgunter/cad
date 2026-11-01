@@ -298,6 +298,14 @@ const WORDLESS: &[(&str, &[&str])] = &[
         &["bool_ring_run_winding"],
     ),
     (
+        // `geom_brep::parting_side`'s two gates, raised by every
+        // second-order parting that reads one: a bound tied with a face
+        // (`topo::bound_side`), a declared tangency's lump, a curve
+        // against a plane, so no one decision's words are true of them.
+        "one parting, several decisions",
+        &["tangent_sector_order2", "tangent_sector_order2_arm"],
+    ),
+    (
         // Filed: work/doctail/flip-reports-name-no-decision-for-most-predicates.md.
         "no words yet",
         &[
