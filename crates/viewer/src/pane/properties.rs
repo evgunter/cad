@@ -2553,6 +2553,33 @@ mod variable_lines {
         assert_eq!(variable_line(&count, Notation::DEFAULT), "t = 3");
     }
 
+    /// The working notation is the one a definition reads in, and a
+    /// free variable remembering no unit reads in it too (review of
+    /// #6242): under millimetres, `0.04 m` is `40 mm`, so a line that
+    /// kept the default notation goes red.
+    #[test]
+    fn the_working_notation_is_what_an_unwritten_value_reads_in() {
+        let millimetres = Notation {
+            length: pncad::quantity::MM,
+            ..Notation::DEFAULT
+        };
+        assert_eq!(
+            defined_line(
+                &defined(Ok(Reading::One(SlotValue::Continuous(0.04)))),
+                millimetres
+            ),
+            "w = 2 * t = 40 mm"
+        );
+        let unremembered = VariableRow {
+            var: VarId::new(0, 7),
+            label: spoken("t"),
+            dimension: Dimension::Length,
+            value: SlotValue::Continuous(0.02),
+            unit: None,
+        };
+        assert_eq!(variable_line(&unremembered, millimetres), "t = 20 mm");
+    }
+
     /// A definition reads its value in the working notation, and one
     /// that reads nothing says the field's `?`.
     #[test]
