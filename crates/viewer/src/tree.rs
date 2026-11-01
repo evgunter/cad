@@ -613,21 +613,65 @@ fn readout_of(
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
-        ValuePayload::Split { above, below } => match (above, below) {
-            (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
-            (SplitSide::Empty, SplitSide::Body(_)) => {
-                Some(Readout::Empty(Emptiness::Half(SplitHalf::Above)))
-            }
-            (SplitSide::Body(_), SplitSide::Empty) => {
-                Some(Readout::Empty(Emptiness::Half(SplitHalf::Below)))
-            }
-            (SplitSide::Body(_), SplitSide::Body(_)) => None,
-        },
+        ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
         | ValuePayload::Family => None,
+    }
+}
+
+/// **Which part of a split's value holds no material**, if any: the
+/// row's readout ([`Emptiness`]).
+fn split_emptiness(above: &SplitSide<f64>, below: &SplitSide<f64>) -> Option<Emptiness> {
+    match (above, below) {
+        (SplitSide::Empty, SplitSide::Empty) => Some(Emptiness::Whole),
+        (SplitSide::Empty, SplitSide::Body(_)) => Some(Emptiness::Half(SplitHalf::Above)),
+        (SplitSide::Body(_), SplitSide::Empty) => Some(Emptiness::Half(SplitHalf::Below)),
+        (SplitSide::Body(_), SplitSide::Body(_)) => None,
+    }
+}
+
+/// **What a split's value comes to**, as its tree row reads it: the
+/// part holding no material ([`Emptiness`]), or `Ok(None)` for a split
+/// with material on both sides. For a reader asking before the split is
+/// committed, of a staged evaluation
+/// ([`crate::session::DocSession::staged_for`]).
+///
+/// # Errors
+///
+/// [`SplitUnread`]: the node's standing when it has no value, or a node
+/// whose value is not a split's.
+pub fn split_reading(
+    evaluation: &Evaluation<f64>,
+    id: RecipeNodeId,
+) -> Result<Option<Emptiness>, SplitUnread> {
+    match &evaluation
+        .usable(id)
+        .map_err(SplitUnread::Standing)?
+        .payload
+    {
+        ValuePayload::Split { above, below } => Ok(split_emptiness(above, below)),
+        _ => Err(SplitUnread::NotASplit),
+    }
+}
+
+/// **Why [`split_reading`] has no reading.**
+#[derive(Clone, Debug)]
+pub enum SplitUnread {
+    /// The node has no value: its standing.
+    Standing(pncad::document::NodeStanding),
+    /// The node's value is not a split's.
+    NotASplit,
+}
+
+impl std::fmt::Display for SplitUnread {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Standing(standing) => write!(f, "{standing}"),
+            Self::NotASplit => f.write_str("the node read is not a split"),
+        }
     }
 }
 

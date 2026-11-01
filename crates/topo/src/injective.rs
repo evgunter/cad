@@ -676,6 +676,14 @@ fn perp(v: Vec3<f64>, t: Vec3<f64>) -> Vec3<f64> {
     v - t * v.dot(t)
 }
 
+/// The unit bisector across two headings' parts perpendicular to `t`:
+/// `m·hx⊥ > 0 > m·hy⊥` at any dihedral between them off 0, whatever
+/// the headings' along-`t` parts. Only a separator: [`sign_on`] decides
+/// both faces' signs against it.
+fn bisector(hx: Vec3<f64>, hy: Vec3<f64>, t: Vec3<f64>) -> Option<Vec3<f64>> {
+    unit(unit(perp(hx, t))? - unit(perp(hy, t))?)
+}
+
 fn sign_of(x: Interval, row: &'static str, band: Band) -> Option<Sign> {
     match decide(row, Margin::of(x), band) {
         Ok(s @ (Sign::Positive | Sign::Negative)) => Some(s),
@@ -4261,15 +4269,15 @@ fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
 /// width. Anywhere else, and where the net door refuses (a restricted
 /// weight not certified positive), the centred form.
 fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
-    let net = match (psi.linear(), &p.map, p.surface) {
-        (Some(_), Map::Chart, Surface::Nurbs(net)) => net.rect_net(x, y),
+    let net = match (&p.map, p.surface) {
+        (Map::Chart, Surface::Nurbs(net)) if psi.linear().is_some() => net.rect_net(x, y),
         _ => None,
     };
     match net {
-        Some(points) => points
-            .into_iter()
-            .map(|q| psi.value(q))
-            .reduce(|a, b| Some(hull(a?, b?)))?,
+        Some(points) => {
+            let values = points.into_iter().map(|q| psi.value(q));
+            values.collect::<Option<Vec<_>>>()?.into_iter().reduce(hull)
+        }
         None => centred(psi, p, x, y),
     }
 }
@@ -4570,7 +4578,7 @@ fn plane_through(
         .collect::<Option<_>>()?;
     let n = match lines.as_slice() {
         [] => unit(hx - hy)?,
-        [d] => unit(perp(hx, *d) - perp(hy, *d))?,
+        [d] => bisector(hx, hy, *d)?,
         [d, e] if !near.vertices.is_empty() => unit(d.cross(*e))?,
         _ => return None,
     };
@@ -4656,8 +4664,9 @@ fn edge_piece(
 
 /// **The shared edge's graph**: one shared edge, projected onto the
 /// plane of `t`, its direction over the piece both images can reach,
-/// and `m`, across the faces' headings. Where `t·c′` is decided positive
-/// over the piece, the projected piece is the graph of `γ` over `s`.
+/// and `m`, bisecting the faces' headings about `t` ([`bisector`]).
+/// Where `t·c′` is decided positive over the piece, the projected piece
+/// is the graph of `γ` over `s`.
 fn graph_of(
     x: &Piece<'_>,
     near: &Near,
@@ -4680,7 +4689,7 @@ fn graph_of(
     let t = unit(vmid(carrier.deriv(middle)))?;
     let q0 = pmid(carrier.eval(middle));
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
-    let m = unit(perp(hx, t) - perp(hy, t))?;
+    let m = bisector(hx, hy, t)?;
     let (t, m) = (lift(t), lift(m));
     let d = arc_deriv(carrier, piece);
     let advance = t.dot(d);
@@ -7176,27 +7185,57 @@ mod presentation_rows {
         }
     }
 
-    /// **A restricted weight the net cannot certify positive falls back
-    /// to the centred form** ([`on_side`]): the net door refuses it, and
-    /// the centred form, whose jet refuses it too, reads nothing.
+    /// **A weight the net cannot certify positive falls back to the
+    /// centred form** ([`on_side`]), which reads nothing on such a net:
+    /// the net door refuses it, and so does the centred form's jet.
+    /// A weight that is positive but not certified reaches the door as
+    /// NaI, since the restriction refuses an uncertified coefficient. A
+    /// zero or a negative weight, which [`geom::NurbsSurface::new`]
+    /// refuses but `map_scalar` carries, reaches it as itself over the
+    /// whole span, where the restriction is the net. The guard is on the
+    /// restricted weights, so a cell whose restricted weights are all
+    /// positive reads the hull, which is sound there.
     #[test]
-    fn an_uncertified_weight_falls_back_off_the_iso_net() {
+    fn a_weight_the_net_cannot_certify_falls_back_off_the_iso_net() {
         let unproven = Interval::from_bounds(-1.0, 1.0).sqrt() * iv0(0.0) + iv0(1.0);
         assert!(
             !unproven.is_certified() && unproven.lo() == 1.0 && unproven.hi() == 1.0,
             "a weight of 1 not certified: {unproven:?}"
         );
-        let wall = arc_wall(unproven);
-        let Surface::Nurbs(net) = &wall else {
-            panic!("a spline wall")
+        let middle = std::f64::consts::FRAC_1_SQRT_2;
+        let lifted = |to: f64| {
+            let Surface::Nurbs(net) = arc_wall(iv0(middle)) else {
+                panic!("a spline wall")
+            };
+            let mapped = net.map_scalar(|x| {
+                if x.lo() == middle && x.hi() == middle {
+                    iv0(to)
+                } else {
+                    x
+                }
+            });
+            assert!(
+                mapped.weights().iter().any(|w| w.lo() == to),
+                "the middle weight is {to}"
+            );
+            Surface::Nurbs(std::sync::Arc::new(mapped))
         };
-        assert!(
-            net.rect_net((0.2, 0.3), (0.0, 0.0)).is_none(),
-            "the net door refuses the weight"
-        );
         let flat = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, 0.0));
-        let v = on_iso(&flat, &wall, (0.2, 0.3));
-        assert!(!is_zero(v, band()), "nothing is read zero: {v:?}");
+        for (what, wall, cell) in [
+            ("not certified", arc_wall(unproven), (0.2, 0.3)),
+            ("zero", lifted(0.0), (0.0, 1.0)),
+            ("negative", lifted(-0.5), (0.0, 1.0)),
+        ] {
+            let Surface::Nurbs(net) = &wall else {
+                panic!("a spline wall")
+            };
+            assert!(
+                net.rect_net(cell, (0.0, 0.0)).is_none(),
+                "{what}: the net door refuses the weight"
+            );
+            let v = on_iso(&flat, &wall, cell);
+            assert!(!is_zero(v, band()), "{what}: nothing is read zero: {v:?}");
+        }
     }
 
     // ------------------------------------------------- the spiric wall

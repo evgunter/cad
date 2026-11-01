@@ -168,6 +168,8 @@ mod a_wall_seam_takes_the_column_it_lies_on;
 mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_apex_lying_in_a_partners_face.rs"]
+mod an_apex_lying_in_a_partners_face;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
@@ -1328,8 +1330,8 @@ mod a_mirrored_body_is_its_image;
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "a_seam_inside_a_face_is_no_boundary_of_it.rs"]
 mod a_seam_inside_a_face_is_no_boundary_of_it;
-#[path = "an_aimed_ray_from_far_reads_a_split_side_inside_out.rs"]
-mod an_aimed_ray_from_far_reads_a_split_side_inside_out;
+#[path = "an_aimed_ray_from_far_reads_a_split_side_right.rs"]
+mod an_aimed_ray_from_far_reads_a_split_side_right;
 #[path = "join_lever_is_the_joined_edge.rs"]
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]

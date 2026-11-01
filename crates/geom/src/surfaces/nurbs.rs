@@ -40,6 +40,7 @@
 
 use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
+use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotMirrorError, KnotSpan, KnotVector, Knots, Span, SpanLocate,
     SplineError, Weights,
@@ -1541,27 +1542,16 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
 
 impl NurbsSurface<Interval> {
     /// **The patch's enclosure over the parameter rectangle `u × v`**,
-    /// one that narrows with the rectangle: the hull of the control
-    /// points of the patch RESTRICTED to the rectangle, cell by cell.
-    ///
-    /// On each knot cell the rectangle meets, the window's homogeneous
-    /// net `(w·P, w)` is restricted to the meet, along `u` and then
-    /// along `v` ([`spline::SpanRow::restrict`]): the Bernstein net of
-    /// exactly that piece of the patch. With every restricted weight
-    /// certified positive the piece is a convex combination of its
-    /// dehomogenized control points, so their hull encloses it, and the
-    /// hull over the cells encloses the rectangle. The restricted net
-    /// converges to the patch as the rectangle shrinks, so the
-    /// enclosure narrows with it.
+    /// one that narrows with the rectangle: the hull of
+    /// [`Self::rect_net`]'s points. The restricted net converges to the
+    /// patch as the rectangle shrinks, so the enclosure narrows with it.
     ///
     /// [`Self::eval`] at a wide interval does not: its basis recurrence
     /// carries every dependency between the interval arguments, and the
     /// weight sum it divides by can straddle zero, which encloses a
     /// whole knot cell by the whole line.
     ///
-    /// A rectangle that reaches past the knot domain, one that meets no
-    /// cell, a restriction the blossom door refuses, and a restricted
-    /// weight not certified positive answer poison: an unclaimable
+    /// Where `rect_net` refuses, the answer is poison: an unclaimable
     /// extent, never a smaller one. Past the domain the patch has no
     /// points, and `eval` there reads the end pieces' polynomial
     /// extension, so a clipped answer would be smaller than `eval`'s.
@@ -1573,14 +1563,18 @@ impl NurbsSurface<Interval> {
     }
 
     /// **The control points of the patch restricted to `u × v`**,
-    /// dehomogenized: on each knot cell the rectangle meets, the
-    /// Bernstein net of exactly that piece ([`Self::rect_enclosure`]),
-    /// every restricted weight certified positive. Each point of the
-    /// patch over the rectangle is a convex combination of one cell's
-    /// points, so an affine function of the point is enclosed by the
-    /// hull of its values at them. A rectangle with no extent on an axis
-    /// restricts that axis to its one parameter: the points are an iso's
-    /// restricted net, repeated.
+    /// dehomogenized, cell by cell.
+    ///
+    /// On each knot cell the rectangle meets, the window's homogeneous
+    /// net `(w·P, w)` is restricted to the meet, along `u` and then
+    /// along `v` ([`spline::SpanRow::restrict`]): the Bernstein net of
+    /// exactly that piece of the patch. With every restricted weight
+    /// certified positive ([`certainly_positive`]) the piece is a convex
+    /// combination of its dehomogenized control points, so an affine
+    /// function of the point is enclosed by the hull of its values at
+    /// them, and the point itself by their hull. A rectangle with no
+    /// extent on an axis restricts that axis to its one parameter: the
+    /// points are an iso's restricted net, repeated.
     ///
     /// `None` for a rectangle past the knot domain, one that meets no
     /// cell, a restriction the blossom door refuses, and a restricted
@@ -1788,7 +1782,7 @@ fn restricted_jet(
     let hv = hull(Along::Value, Along::Slope)?;
     let huv = hull(Along::Slope, Along::Slope)?;
     let w = h[3];
-    if !(w.is_certified() && w.lo() > 0.0) {
+    if !certainly_positive(&[w]) {
         return None;
     }
     let at = |x: f64| Interval::from_bounds(x, x);
@@ -1814,9 +1808,7 @@ fn restricted_points(
     restricted_net(win, eu, ev)?
         .into_iter()
         .flatten()
-        .map(|[x, y, z, w]| {
-            (w.is_certified() && w.lo() > 0.0).then(|| Point3::new(x / w, y / w, z / w))
-        })
+        .map(|[x, y, z, w]| certainly_positive(&[w]).then(|| Point3::new(x / w, y / w, z / w)))
         .collect()
 }
 

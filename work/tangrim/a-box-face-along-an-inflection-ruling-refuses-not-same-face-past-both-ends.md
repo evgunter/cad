@@ -2,11 +2,13 @@
 id: a-box-face-along-an-inflection-ruling-refuses-not-same-face-past-both-ends
 kind: issue
 title: A box face along the ruling where two tangent walls of opposite curvature meet refuses Join NotSameFace in every op when the box stands past both of A's ends
-status: open
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [a-box-along-a-fillets-line-arc-junction-reaches-classification-invariants, 6219]
+closed: 2026-11-01
+pr: 6249
 ---
 
 Found by PR 6219's review (its junction variants), measured on the
@@ -58,3 +60,7 @@ join receives is split across the two wall faces because of it.
 Read the shared bound of two tangent sectors at second order (as the
 germ already does, `vtxfac`'s `TangentRead`) instead of letting either
 lump claim it, and turn the pin's 12 refusals into SOUND rows.
+
+## Closed
+
+2026-11-01, PR 6249. Measured: at each end of the ruling the two wall sectors are tangent lumps of opposite sign (convex `In`, concave `Out`) sharing the ruling, which reads `On` at first order; the last lump written won, and orbit order reverses between the ends, so the ruling read `In` at one and `Out` at the other and the join refused `NotSameFace`. Now a bound two tangent sectors share takes neither lump: it reads its own side at second order through both sectors' `TangentRead::side` (equal at a legal pose, by Meusnier; disagreement refuses `ClassificationInvariant`), and an `On` folds order-free (`sectors::fold_on_bound`). 36 runs that refused on main build SOUND (108 over nine spans pinned, three ε, rest and turned). Full review: a firing census over 7243 tests showed only the intended resolutions moving. When `the-sector-passes-read-a-bounds-tie-first-order-beside-the-one-reading` (PR 6253) deletes `TangentRead`, the block reduces to "the tangent-lump loop does not overwrite a shared bound".

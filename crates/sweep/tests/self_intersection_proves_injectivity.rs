@@ -33,8 +33,8 @@
 //!   and the cone frustum's cavity hold at both scalars, and the klein
 //!   elbow's cavity refuses typed at a spiric cap edge;
 //! - a lens loft's cap refuses typed at the depth budget against a wall
-//!   at the lens tip, a twisted loft's seam refuses so, and the
-//!   half-turn helix's caps hold against its walls.
+//!   at the lens tip, while a twisted loft's seams and the half-turn
+//!   helix's caps hold against their walls.
 //!
 //! Every row builds its body twice, by the same generic builders: at
 //! `f64`, whose verdict and receipt the row pins, and at `Interval`, the
@@ -55,7 +55,7 @@ use std::collections::BTreeSet;
 use sweep::test_support::revolved_about_y_at;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve, sweep_body};
 use topo::clearance::{
-    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CertificateArm,
+    BoundReport, BoundVerdict, Budgets, CLEARANCE_MARGIN, Candidate, CellReceipt, CertificateArm,
     ClearanceBound, DEFAULT_MAX_CELL_DEPTH, EngineRefusal, SharedCell, Side, Sweep, Which,
     min_separation,
 };
@@ -2071,11 +2071,6 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
 
 // ------------------------------------- cap corners and twisted seams
 
-/// The row these pin:
-/// `work/clear/injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams.md`.
-const SEAMDIAG_ROW: &str =
-    "injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams";
-
 /// **Two faces of `body` asked alone**, each in its own window, at the
 /// default depth and the pair budget `budget`. No candidate is
 /// witnessed: the verdict is the certificates'.
@@ -2104,36 +2099,6 @@ fn pair_report<T: Scalar>(
     sweep.run(&window(a), &window(b), true, |_| {
         Err::<(), _>("no witness asked".to_owned())
     })
-}
-
-/// **The pair refuses `Uncertified { Departure }` across an edge it
-/// shares, at the depth budget**, not at the root.
-fn assert_refuses_at_depth<T: Scalar>(what: &str, body: &Body<T>, a: FaceKey, b: FaceKey) {
-    let report = pair_report(body, a, b, 8192);
-    println!(
-        "[seamdiag] {what}: {:?} {:?} deepest {}",
-        report.verdict, report.receipt, report.widths.deepest
-    );
-    assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Uncertified {
-                a: ra,
-                b: rb,
-                shared: SharedCell::Edge(_),
-                arm: CertificateArm::Departure,
-            }) if (ra, rb) == (a, b)
-        ),
-        "{what}: {a:?} against {b:?} refuses Uncertified Departure across their shared edge \
-         ({SEAMDIAG_ROW}); a fix flips this row: {:?} {:?}",
-        report.verdict,
-        report.receipt
-    );
-    assert_eq!(
-        report.widths.deepest, DEFAULT_MAX_CELL_DEPTH,
-        "{what}: {a:?} against {b:?} refuses at the depth budget ({SEAMDIAG_ROW}): {:?}",
-        report.receipt
-    );
 }
 
 /// Whether `f` of `body` is a plane.
@@ -2212,17 +2177,15 @@ fn a_lens_loft_cap_holds_against_its_walls_at_its_tip_at_both_scalars() {
     );
 }
 
-/// **A twisted loft refuses along a seam, at both scalars.** The
+/// **A twisted loft holds along its seams, at both scalars.** The
 /// prism's sections, the top square authored from its second corner, so
 /// every strut runs a quarter turn round (the tour's `twisted_loft`,
-/// `demos/tour/src/skinned.rs`). Across a seam the departure arm's graph
-/// separator takes its normal across the two faces' headings, each
-/// toward its cell's middle and normalised before its along-edge part is
-/// dropped; for two cells offset along the seam the farther one weighs
-/// less, and at this seam's dihedral (about 51°) the normal leaves both
-/// faces on one side of it. Every seam refuses so; one is asked here.
+/// `demos/tour/src/skinned.rs`). Across a seam the departure arm's
+/// graph separator bisects the two faces' headings about the seam; two
+/// cells offset along it, at this seam's dihedral (about 51°), read
+/// opposite sides of it. Every seam holds, well under the depth budget.
 #[test]
-fn a_twisted_loft_refuses_departure_along_a_seam_at_both_scalars() {
+fn a_twisted_loft_holds_along_its_seams_at_both_scalars() {
     fn twisted<T: Scalar>() -> Body<T> {
         use sweep::test_support::{
             PRISM_SQUARE, PRISM_TRAPEZOID, lift_places, lift_sections, stacked_at,
@@ -2235,6 +2198,35 @@ fn a_twisted_loft_refuses_departure_along_a_seam_at_both_scalars() {
             .expect("the twisted sections loft")
             .body
     }
+    /// Each seam's receipt and depth, every one holding, nothing
+    /// refused, well under the depth budget.
+    fn holds<T: Scalar>(
+        what: &str,
+        body: &Body<T>,
+        seams: &[(FaceKey, FaceKey)],
+    ) -> Vec<(CellReceipt, u32)> {
+        seams
+            .iter()
+            .map(|&(a, b)| {
+                let report = pair_report(body, a, b, 8192);
+                let (r, deepest) = (report.receipt, report.widths.deepest);
+                println!(
+                    "[heading] {what}: {a:?} against {b:?}: {:?} {r:?} deepest {deepest}",
+                    report.verdict
+                );
+                assert!(
+                    matches!(report.verdict, BoundVerdict::Holds)
+                        && r.refused == 0
+                        && r.certified > 0
+                        && deepest < 30,
+                    "{what}: {a:?} against {b:?} holds, certified, nothing refused, well \
+                     under the depth budget {DEFAULT_MAX_CELL_DEPTH}: {:?} {r:?} deepest {deepest}",
+                    report.verdict
+                );
+                (r, deepest)
+            })
+            .collect()
+    }
     let (float, interval) = (twisted::<f64>(), twisted::<Interval>());
     let seams = adjacent(&float, false);
     assert_eq!(seams.len(), 4, "four walls meet at four seams: {seams:?}");
@@ -2243,16 +2235,18 @@ fn a_twisted_loft_refuses_departure_along_a_seam_at_both_scalars() {
         seams,
         "one topology at both scalars"
     );
-    let (a, b) = seams[0];
-    assert_refuses_at_depth("the twisted loft's seam", &float, a, b);
-    assert_refuses_at_depth("the twisted loft's seam at Interval", &interval, a, b);
+    assert_eq!(
+        holds("the twisted loft at Interval", &interval, &seams),
+        holds("the twisted loft", &float, &seams),
+        "every seam reads one receipt at both scalars"
+    );
 }
 
 /// **The half-turn helix's caps hold against its walls, at both
 /// scalars.** `m8_14_long_turn_sweep`'s half-turn helix at 33 stations,
 /// a 0.16 square swept along it: CARVE's measurement found two of its
-/// top cap's four wall pairs refusing Departure at depth (the row
-/// [`SEAMDIAG_ROW`] names), on a branch from before the carried frame
+/// top cap's four wall pairs refusing Departure at depth
+/// (`injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams`), on a branch from before the carried frame
 /// and the clip sides' run-on past a corner. Every cap–wall pair now
 /// holds, at a depth far under the budget.
 #[test]
