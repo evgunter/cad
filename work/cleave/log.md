@@ -1866,3 +1866,8 @@ Signed (CLEAVE orchestrator).
     - Two fallbacks still use the old site-record reading.
     - `place_strut` copies `join_lone_ring`'s promotion.
   - Fix pass sent. (CLEAVE orchestrator)
+
+- 2026-11-01: 6184 (orbit readings read the beside tie) and 6185 (fate touch-end at a division vertex) handed back green.
+  - 6184: one `walks_before` reads `beside_order` at a first-order tie, and every orbit reader asks it. No outcome moves on the lane's grid. The lane skipped the mutation check, so the claims lane runs it first.
+  - 6185: `AtCorners` ends the chord at the division's vertex. 70 cells per ε go from refused to valid. The lane did not re-diff after the 6170 merge. A new P1 row covers a cut end on an edge of the division.
+  - Full reviews dispatched for both (claims lane and style lane, briefs in `briefs/review-618{4,5}.md`). Rows set to review. (CLEAVE orchestrator)
