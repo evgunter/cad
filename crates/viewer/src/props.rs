@@ -557,7 +557,7 @@ pub enum SlotFault {
         /// The index.
         index: SpokenVar,
         /// Why its count did not evaluate.
-        source: EvalError,
+        source: Box<EvalError>,
     },
     /// The expression reads an index whose count is below zero or past
     /// the members an index holds.
@@ -816,7 +816,7 @@ fn slot_value(
     let members = doc.member_envs::<f64>(&chain).map_err(|kind| match kind {
         NodeErrorKind::IndexCount { index, source } => SlotFault::IndexCount {
             index: doc.spoken_var(index),
-            source,
+            source: Box::new(source),
         },
         NodeErrorKind::IndexCountOutOfRange { index, count, .. } => {
             SlotFault::IndexCountOutOfRange {

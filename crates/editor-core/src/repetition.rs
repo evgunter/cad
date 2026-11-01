@@ -50,6 +50,10 @@ impl Reached {
     }
 }
 
+/// **One member's index values**, outermost index first, **and the
+/// environment its readers evaluate in** ([`Doc::member_envs`]).
+pub type MemberEnv<T> = (Vec<i64>, crate::VarEnv<T>);
+
 /// **The reach of a document's variables and operations**, memoised
 /// over one walk: each variable and operation is visited once.
 pub struct Reach<'d, P> {
@@ -296,7 +300,7 @@ impl<P: crate::ProfilePayload> Doc<P> {
     pub fn member_envs<T: geom_core::Decide>(
         &self,
         chain: &[VarId],
-    ) -> Result<Vec<(Vec<i64>, crate::VarEnv<T>)>, crate::NodeErrorKind> {
+    ) -> Result<Vec<MemberEnv<T>>, crate::NodeErrorKind> {
         let outside = self.var_env::<T>();
         let tuples = crate::eval::members::tuples(self, &outside, chain)?;
         Ok(tuples
