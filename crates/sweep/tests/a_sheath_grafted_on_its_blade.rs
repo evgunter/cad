@@ -170,3 +170,55 @@ fn a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim() {
         assert!(read > 0, "{what}: A has a spline edge and B a plane face");
     }
 }
+
+/// **The interior-loop guard reads the two bodies' walls with their
+/// shared rims handed in.** The section certificate over every face
+/// pair of blade × sheath, as if the sweep had found no event: each wall
+/// of one body against the wall of the other that shares its rim reads
+/// that rim, the `v = 0` row of both, as a row handed in
+/// (`boolean::spline_known`). On rim 1, where the walls are tangent at
+/// two points, the row's cover reads the crossing changing sign along
+/// it, the same finding the rim's certificate makes, and the pair refuses
+/// as tangent (`ssi_pair_row`). On rim 2 the cover is clear, the section
+/// there is the row, a `Side` region on a side of both charts, and the
+/// pair clears by W1′. The walls that share no rim meet at the lens's
+/// tips and clear; so do the plane caps. Red against no row handed in
+/// (rim 2 refuses `ssi_pair_boundary`), against the cover's width
+/// dropped (likewise), and against a `Side` region read as a loop (rim 2
+/// is placed nowhere: R-undec).
+#[test]
+fn the_guard_reads_the_walls_with_their_shared_rims_handed_in() {
+    let tol = Tol::witness();
+    let base = [0.170, 0.028, 0.020];
+    let (d, v) = (Vec3::unit_x(), Vec3::unit_z());
+    let leaf = blade(
+        d,
+        v,
+        (1.2, -0.3),
+        |s| [0, 1, 2].map(|i| base[i] + ([0.300, 0.034, 0.016][i] - base[i]) * s),
+        tol,
+    );
+    let sheath = blade(-d, v, (0.34, 0.85), |_| base, tol);
+    let report = topo::test_support::no_event_section_report(&leaf, &sheath, tol)
+        .expect("the bodies' boxes build");
+    let refused: Vec<&str> = report
+        .iter()
+        .filter(|(_, _, v)| !v.starts_with("Ok("))
+        .map(|(_, _, v)| v.as_str())
+        .collect();
+    assert_eq!(
+        refused,
+        ["Err(Tangent(\"ssi_pair_row\"))"],
+        "one pair, rim 1's, refuses as tangent along its row: {report:?}"
+    );
+    let spline = |b: &topo::AtRestBody<f64>, f| {
+        b.get_face(f)
+            .and_then(|x| b.get_surface(x.surface))
+            .is_some_and(|s| s.kind() == geom::SurfaceKind::Nurbs)
+    };
+    let walls = report
+        .iter()
+        .filter(|(fa, fb, _)| spline(&leaf, *fa) && spline(&sheath, *fb))
+        .count();
+    assert_eq!(walls, 4, "every wall pair is read: {report:?}");
+}
