@@ -6560,7 +6560,8 @@ mod tests {
                 code.is_err(),
                 "{what}: the bound's code reads in band: {code:?}"
             );
-            let found = pair_search(&[sa.clone()], &[sb.clone()], b).map(|f| f.records.len());
+            let found = pair_search(std::slice::from_ref(&sa), std::slice::from_ref(&sb), b)
+                .map(|f| f.records.len());
             let Err(e) = found else {
                 panic!("{what}: the plane-offset reading refuses, got {found:?}")
             };
