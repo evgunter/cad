@@ -3950,57 +3950,85 @@ fn chart_normal<T: Decide>(
     Ok(geom_brep::implicit_gradient(carrier(body, face)?, p))
 }
 
+/// **The margin by which the ray, from where it passes the met edge
+/// `m`, overshoots reaching a root of `face`'s carrier at advance `root`
+/// in band of the carrier** ([`reaches_root_in_band`]): the rise off the
+/// carrier over the root's distance `off` from the passage's span, at
+/// its incidence there (`levered(|d·n̂|, off)`), less the passage's
+/// clearance (the carrier's residual there). It is charged for the
+/// root's point lying off the carrier (the normal's tilt, the residual
+/// over the least radius of curvature) and for rounding. That rounding is
+/// a short chain's over the advances, the points' coordinates and the
+/// carrier's scale.
+///
+/// # Errors
+///
+/// A face with no carrier.
+fn reach_margin<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (q, d): (Point3<T>, Vec3<T>),
+    m: &Met<T>,
+    root: T,
+) -> Result<T, RayFault<PointInSolidError>> {
+    let surface = carrier(body, face)?;
+    let (at, passage) = (q + d * root, q + d * m.at);
+    let off = (m.span.0 - root).max(root - m.span.1).max(T::zero());
+    let n = chart_normal(body, face, at)?;
+    let tilt = geom_brep::implicit_residual(surface, at).abs()
+        / geom_brep::min_radius_of_curvature(surface, at);
+    let incidence = d.dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
+    let rise = Margin::levered(incidence, off).value();
+    let clearance = geom_brep::implicit_residual(surface, passage).abs();
+    let origin = Point3::origin();
+    let terms = m.at.abs()
+        + off
+        + (passage - origin).norm()
+        + (at - origin).norm()
+        + geom_brep::curvature_lever_arm(surface, passage);
+    // Lengths all.
+    Ok(rise - clearance + geom_core::rounding_charge(terms))
+}
+
 /// **Whether the ray reaches a root of `face`'s carrier at advance
-/// `root` from where it passes a met edge of the face, at `passage`, in
-/// band of the carrier**, `off` the root's distance along the ray from
-/// the passage's span.
+/// `root` from where it passes the met edge `m`, in band of the
+/// carrier**: whether [`reach_margin`] decides Negative or Zero.
 ///
 /// A ray's distance from a curved carrier need not be monotone along
-/// it: a root far from the passage can be the ray's crossing of the
-/// face elsewhere, past a graze at the edge that crosses the carrier
-/// nowhere (a ray grazing a partial torus's rim, crossing the tube
-/// across the axis). Where the distance `f` is convex (a cylinder, a
-/// cone's nappe, a sphere) and the ray reaches the root from outside,
-/// `|f'| · off ≤ f(passage)` at the root, so the ray, at its incidence
-/// there, rises off the carrier over `off` by no more than it stands
-/// off it at the passage. That is the test: the rise
-/// (`levered(|d·n̂|, off)`) less the passage's clearance (the carrier's
-/// residual there), charged for the root's point lying off the carrier
-/// (the normal's tilt, the residual over the least radius of curvature)
-/// and for rounding, is not definitely positive. A root reached from
-/// inside a convex carrier (a short inside chord) can rise up to twice
-/// the chord's depth, and so is set aside, as is any whose comparison
-/// lies in band. On a torus the bound is necessary and not shown
-/// sufficient.
+/// it. A root far from the passage can be the ray's crossing of the face
+/// elsewhere, past a graze at the edge that crosses the carrier nowhere
+/// (a ray grazing a partial torus's rim, crossing the tube across the
+/// axis). Where the distance `f` is convex (a cylinder, a cone's nappe,
+/// a sphere) and the ray reaches the root from outside,
+/// `|f'| · off ≤ f(passage)` at the root: at its incidence there, the
+/// ray rises off the carrier over `off` by no more than it stands off it
+/// at the passage. A margin decided Positive is a root the ray does not
+/// reach so. A margin in band, of either sign, decides nothing, and its
+/// root is set aside, even below zero where the argument would let it
+/// stand: at ε 1e-6, 204 roots of the curved-edge corpus's rays have a
+/// margin in band below zero, 192 of them reached from inside a convex
+/// carrier (short inside chords, which can rise up to twice the chord's
+/// depth) and 12 from outside. On a torus the bound is necessary and not
+/// shown sufficient.
 ///
 /// # Errors
 ///
 /// A comparison that no subdivision of a box can leave in band (an
 /// enclosure straddling it), or one a poisoned normal makes invalid (a
 /// root at a singular point of the carrier); a face with no carrier.
-#[allow(clippy::too_many_arguments)] // the face, the ray, its two advances and the rows
 fn reaches_root_in_band<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    (q, d): (Point3<T>, Vec3<T>),
-    (passage, root): (T, T),
-    off: T,
+    ray: (Point3<T>, Vec3<T>),
+    m: &Met<T>,
+    root: T,
     band: Band,
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
-    let surface = carrier(body, face)?;
-    let at = q + d * root;
-    let n = chart_normal(body, face, at)?;
-    let tilt = geom_brep::implicit_residual(surface, at).abs()
-        / geom_brep::min_radius_of_curvature(surface, at);
-    let incidence = d.dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
-    let rise = Margin::levered(incidence, off).value();
-    let clearance = geom_brep::implicit_residual(surface, q + d * passage).abs();
-    // Lengths both, and a short chain's rounding of the passage's read.
-    let margin = rise - clearance + geom_core::rounding_charge(passage.abs() + off);
+    let margin = reach_margin(body, face, ray, m, root)?;
     match decide(rows.reaches, Margin::of(margin), band) {
         Ok(sign) => Ok(sign != Sign::Positive),
-        Err(diag) if super::join::in_band(&diag) => Ok(false),
+        Err(diag) if crate::validate::in_band(&diag) => Ok(false),
         Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
             face,
             diag,
@@ -4197,10 +4225,16 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Cross::Plane => plane.map_or((m.at, Sign::Zero), |p| (p.t, p.outward)),
                 Cross::Root(k) => (
                     roots[k].t,
-                    match geo_of(f) {
-                        Some(geo) => root_outward(body, f, geo, roots[k], q, d, band)?,
-                        None => Sign::Zero,
-                    },
+                    root_outward(
+                        body,
+                        f,
+                        geo_of(f)
+                            .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face: f }))?,
+                        roots[k],
+                        q,
+                        d,
+                        band,
+                    )?,
                 ),
             };
             *end = (t, count(side));
@@ -4236,7 +4270,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                     (Cross::Root(_), _) => {
                         let geo = geo_of(f)
                             .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face: f }))?;
-                        if reaches_root_in_band(body, f, (q, d), (m.at, t), off, band, rows)? {
+                        if reaches_root_in_band(body, f, (q, d), m, t, band, rows)? {
                             root_held(f, geo, q + d * t, band)
                         } else {
                             Ok(None)
@@ -5811,5 +5845,76 @@ mod arc_turn_rows {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod reach_tests {
+    //! [`reaches_root_in_band`]'s fold: a margin in band sets its root
+    //! aside, whatever its sign.
+
+    use super::*;
+
+    /// **A root whose reach margin lies in band is set aside**, where a
+    /// fold of the band toward standing would let it stand. A brick's
+    /// face is restated as a unit cylinder about `z`. A ray in the plane
+    /// `z = 0.5`, along `y = 0.6`, enters the cylinder at `x = −0.8`.
+    /// From a passage `off` before that root, outside, the margin is
+    /// about `−f''·off²/2`, so a sweep of `off` crosses the band: a
+    /// near passage decides and reaches the root, and a passage whose
+    /// margin lies in band reads it not reached.
+    #[test]
+    fn a_root_whose_reach_margin_lies_in_band_is_set_aside() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let mut body =
+            crate::test_support_fixtures::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let face = body.faces().next().expect("a face").0;
+        let key = body.get_face(face).expect("the face").surface;
+        *body.surfaces.get_mut(key).expect("its surface") = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (q, d) = (Point3::new(-3.0, 0.6, 0.5), Vec3::new(1.0, 0.0, 0.0));
+        let root = 2.2;
+        let met = |off: f64| Met {
+            edge: crate::entity::EdgeKey::default(),
+            faces: [face, face],
+            at: root - off,
+            span: (root - off, root - off),
+            cross: [Cross::Root(0); 2],
+            gap: Gap::Zero,
+        };
+        let (mut decided, mut in_band) = (0, 0);
+        for i in 0..400 {
+            let off = 10f64.powf(-8.0 + f64::from(i) * 0.02);
+            let m = met(off);
+            let margin = reach_margin(&body, face, (q, d), &m, root).expect("a carrier");
+            let reached =
+                reaches_root_in_band(&body, face, (q, d), &m, root, band, SCHEDULE_ROWS).ok();
+            match decide(SCHEDULE_ROWS.reaches, Margin::of(margin), band) {
+                Ok(Sign::Positive) => assert_eq!(reached, Some(false), "off {off:e}"),
+                Ok(_) => {
+                    decided += 1;
+                    assert_eq!(reached, Some(true), "off {off:e}: decided, reached");
+                }
+                Err(diag) if crate::validate::in_band(&diag) => {
+                    in_band += 1;
+                    assert_eq!(
+                        reached,
+                        Some(false),
+                        "off {off:e}: margin {margin:e} in band, set aside"
+                    );
+                }
+                Err(diag) => panic!("off {off:e}: a margin no band reads: {diag:?}"),
+            }
+        }
+        assert!(
+            decided > 0 && in_band > 0,
+            "at ε {:e}: {decided} decided, {in_band} in band",
+            tol.eps()
+        );
     }
 }

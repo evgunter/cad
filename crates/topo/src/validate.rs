@@ -436,6 +436,18 @@ pub(crate) fn vertex_orbit_reading_no_start<T: Real>(
     }
 }
 
+/// Whether an undecided reading lies inside the band: a point margin,
+/// or an enclosure wholly inside one sliver band.
+pub(crate) fn in_band(diag: &geom_core::Indeterminate) -> bool {
+    match diag.margin.kind() {
+        geom_core::MarginKind::Value => true,
+        // An interval-lane reading; one straddling the band's edge is
+        // not in band.
+        geom_core::MarginKind::Enclosure => diag.terminal_sliver,
+        geom_core::MarginKind::Invalid => false,
+    }
+}
+
 /// The crate's plain classification door (the `geom-brep` pattern):
 /// delegates to the unified recorder funnel
 /// [`geom_core::k_stats::decide`] (M2 PR 7), which names the predicate

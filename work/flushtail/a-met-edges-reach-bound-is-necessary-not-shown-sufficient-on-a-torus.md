@@ -18,12 +18,14 @@ A met edge's half stands for a curved face's root far from where the ray
 passes the edge only where `reaches_root_in_band`
 (`crates/topo/src/boolean/solid_contain.rs`) says the ray reaches it in
 band of the carrier. It reaches it when the rise off the carrier over the
-distance, at the root's incidence, is not past the passage's own
-clearance. On a convex carrier (a cylinder, a cone's nappe, a sphere) the
+distance, at the root's incidence, less the passage's own clearance,
+decides Negative or Zero. A margin in band, of either sign, decides
+nothing, and the root is set aside. On a convex carrier (a cylinder, a cone's nappe, a sphere) the
 ray's distance is convex. A legitimate root reached from outside then
 satisfies the bound (`|f'|·off ≤ f(passage)`), and a graze outside is
 followed by no far root at all. So there the bound is both necessary and
-sufficient for roots reached from outside.
+sufficient for roots reached from outside, except that a root whose
+margin lies in band is set aside even where it would stand.
 
 On a torus the distance is not convex. The bound is necessary, but it is
 **not shown sufficient**: a root might pass it and still be the ray's
@@ -52,8 +54,8 @@ Both are on `flush/torus-rim-review` @ `2a622422d`
 
 ## The unexercised shape
 
-A ray near-bitangent to the tube's top or bottom circle on a near-full
-turn, where the root past the other cap is near-tangent enough to pass
+A ray near-bitangent off the tube's top or bottom circle on a near-full
+turn, not on it (the Touch band takes rays on those circles), where the root past the other cap is near-tangent enough to pass
 the bound but not so near that the Touch band takes it. Closing this row
 takes one of two things:
 
