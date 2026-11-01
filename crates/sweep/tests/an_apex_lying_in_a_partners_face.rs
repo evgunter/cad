@@ -44,9 +44,12 @@ fn point(body: &topo::Body<f64>, v: topo::VertexKey) -> Point3<f64> {
     *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
 }
 
-/// Every edge-face record of `r`'s body, as the edge's two ends and the
-/// face's plane `(normal, origin · normal)` (`None` off a plane).
-fn edge_face_records(r: &BooleanResult<f64>) -> Vec<([Point3<f64>; 2], Option<(Vec3<f64>, f64)>)> {
+/// An edge's two ends, and a face's plane `(normal, origin · normal)`
+/// (`None` off a plane).
+type EdgeInPlane = ([Point3<f64>; 2], Option<(Vec3<f64>, f64)>);
+
+/// Every edge-face record of `r`'s body.
+fn edge_face_records(r: &BooleanResult<f64>) -> Vec<EdgeInPlane> {
     let BooleanResult::Body(b) = r else {
         panic!("the op builds a body: {r:?}");
     };
