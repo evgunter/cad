@@ -190,3 +190,31 @@ And one refusal now builds:
 `a_minted_vertex_on_a_curved_face` (two wedges sharing the wall's
 tangent-plane face), every op in both orders at its closed form, tier 3
 clean (TANG's `two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends`).
+
+### Ruling (TANGRIM orchestrator, 2026-11-01) and outcome
+
+A tie's second order reads the first order's own three-way ladder:
+decided off the band → `Leaves(side)`; within the zero band → `Rides`
+(coincidence is then the carrier ladder's to certify or refuse); in the
+gap between the zero band and the escalation band → typed refusal. The
+branch already reads it so: `geom_brep::parting_side` decides the
+parting through `geom_core::k_stats::decide`, the ladder
+`bool_chord_side` decides a bound's first-order distance through.
+`bound_side`'s `a_ties_parting_reads_zero_gap_and_decided_as_first_order_does`
+pins the three rungs.
+
+All six rows land in the gap (band: zero `1e-9`, escalation `1e-8`),
+none in Zero, so all six refuse as the ruling says:
+
+| row | margin | past zero by |
+|---|---|---|
+| `a_band_pose_under_the_tubes_top_reaches_the_donuts_door` | −2.0e-9 | 1.0e-9 |
+| `a_near_square_rod_minus_a_box_builds` | −5.0e-9 | 4.0e-9 |
+| `a_turned_near_square_rod_minus_a_box_builds` | −7.5e-9 | 6.5e-9 |
+| `a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` | −1.0000000827e-9 | 8.3e-17 |
+| `a_trimmed_face_cut_beside_its_pole_builds` | 5.0e-9 | 4.0e-9 |
+| `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed` | 9.6e-9 | 8.6e-9 (0.4e-9 short of decided) |
+
+Each builds on main and refuses here; their pins are unchanged. The
+rim-offset row sits `8.3e-17` past the zero band, which is rounding in
+the parting's own arithmetic; it is not a distinct case.

@@ -779,4 +779,50 @@ mod tests {
             "a spline face's bend is not read"
         );
     }
+
+    /// **A tie's second order reads the first order's own three-way
+    /// ladder**: a unit line in a ball's tangent plane parts from it by
+    /// `l²/2R` at `l = 1`, so the radius sets the parting. Within the
+    /// zero band it rides the ball; between the zero band and the
+    /// escalation band it refuses; past the escalation band it leaves.
+    #[test]
+    fn a_ties_parting_reads_zero_gap_and_decided_as_first_order_does() {
+        let b = band();
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let line = Reach::Chord {
+            base: Point3::origin(),
+            far: Point3::new(1.0, 0.0, 0.0),
+        };
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let parting_at = |margin: f64| {
+            let radius = 0.5 / margin;
+            let face = FaceDatum::of_face(
+                OutwardNormal::from_chart(z, true),
+                FaceBend::ball(z, radius),
+                radius,
+            );
+            let FirstOrder::Tied(tie) = read(x, line, face, b).unwrap() else {
+                panic!("a line in the tangent plane ties at first order");
+            };
+            tie.descend(b)
+        };
+        let (zero, escalate) = (b.zero(), b.escalate());
+        assert_eq!(
+            parting_at(0.5 * zero).unwrap(),
+            BoundSide::Rides,
+            "within the zero band"
+        );
+        assert!(
+            matches!(
+                parting_at(0.5 * (zero + escalate)),
+                Err(ReadFault::Parting(_))
+            ),
+            "in the gap"
+        );
+        assert_eq!(
+            parting_at(10.0 * escalate).unwrap(),
+            BoundSide::Leaves(Side::Above),
+            "past the escalation band"
+        );
+    }
 }
