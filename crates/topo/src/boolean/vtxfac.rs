@@ -758,6 +758,37 @@ struct Entry {
     lumped: bool,
 }
 
+/// A tangent sector's carriers, which read its bounds' sides at second
+/// order ([`super::sectors::tangent_relative_side`]): a bound along the
+/// tangency locus `On`, any other the side its carrier curves to.
+#[derive(Clone)]
+struct TangentRead<T: geom_core::Real> {
+    sector: geom::Surface<T>,
+    pierced: geom::Surface<T>,
+    read: DeclarationRead,
+}
+
+impl<T: Decide> TangentRead<T> {
+    fn side(
+        &self,
+        n_pierced: OutwardNormal<T>,
+        p: geom_core::Point3<T>,
+        (d, reached): (geom_core::Vec3<T>, T),
+        band: Band,
+    ) -> Result<SideCode, BooleanError> {
+        super::sectors::tangent_relative_side(
+            &self.sector,
+            &self.pierced,
+            n_pierced,
+            p,
+            d,
+            reached,
+            self.read,
+            band,
+        )
+    }
+}
+
 /// Classifies `contact.vertex` (in the piercing body) against
 /// `contact.face` (in the pierced body) and performs the piercing
 /// side's insertion (module docs), returning its half of the ring for
@@ -978,6 +1009,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
+    // `ops::OnDeferred::answered` relies on what follows: a pierce whose
+    // lumped classes read two sides mints its null edges or refuses, so
+    // a fallback with no null pair saw each such vertex one-sided.
     // "Coplanar" is against the pierced face's TANGENT plane at `p`,
     // whose normal is `n_pierced` — the same vector `face_plane` hands
     // back on a planar face, so the planar lane's margin is unmoved.
@@ -1008,6 +1042,13 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     let flush = (0..n).any(flat);
     let mut covered = Vec::new();
     let mut fates = super::fate::Fates::default();
+    // A tangent sector touches the face only along the tangency locus,
+    // so a bound it shares with a one-carrier sector, which lies in the
+    // face, takes that sector's lump, and the tangent sector holds any
+    // transition between the two along the bound; its germ reads its
+    // bounds at second order ([`TangentRead`]).
+    let mut tangent_lumps = Vec::new();
+    let mut tangent_reads: Vec<Option<TangentRead<T>>> = vec![None; n];
     for (k, s) in sectors.iter().enumerate() {
         if !flat(k) {
             continue;
@@ -1017,16 +1058,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         // recorded, and neither reads the sector's tilt again.
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         if class == Some(GlueClass::Tangent) {
-            let surface_of = |body: &Body<T>, f| {
-                body.get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
-                    .cloned()
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "declared-Tangent face lost its surface",
-                    })
-            };
-            let s_sector = surface_of(piercing_body, s.face)?;
-            let s_pierced = surface_of(pierced_body, contact.face)?;
+            let s_sector = super::sectors::tangent_carrier(piercing_body, s.face)?;
+            let s_pierced = super::sectors::tangent_carrier(pierced_body, contact.face)?;
             let read = declared.read(
                 &[(piercing, s.face, pierced_op, contact.face)],
                 Coincide::TangentSide,
@@ -1048,10 +1081,12 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 read,
                 band,
             )?;
-            entries[k].class = lump;
-            entries[(k + 1) % n].class = lump;
-            entries[k].lumped = true;
-            entries[(k + 1) % n].lumped = true;
+            tangent_lumps.push((k, lump));
+            tangent_reads[k] = Some(TangentRead {
+                sector: s_sector,
+                pierced: s_pierced,
+                read,
+            });
             continue;
         }
         let rel = match declared.glued_relation(piercing, s.face, pierced_op, contact.face) {
@@ -1103,6 +1138,16 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         entries[(k + 1) % n].lumped = true;
     }
 
+    let by_carrier: Vec<bool> = entries.iter().map(|e| e.lumped).collect();
+    for (k, lump) in tangent_lumps {
+        for e in [k, (k + 1) % n] {
+            if !by_carrier[e] {
+                entries[e].class = lump;
+            }
+        }
+        entries[k].lumped = true;
+        entries[(k + 1) % n].lumped = true;
+    }
     if let Some((_, refusal)) = unread_bends.into_iter().find(|&(k, _)| !entries[k].lumped) {
         return Err(refusal);
     }
@@ -1155,15 +1200,27 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // the orbit the germ loci are read from.
     let germ_of = |t: usize, out: OutBound| -> Result<Germ<T>, BooleanError> {
         let s = &sectors[t];
+        let codes = match &tangent_reads[t] {
+            Some(tangent) => {
+                let [start, end] = s.reached_bounds();
+                (
+                    tangent.side(n_pierced, p, start, band)?,
+                    tangent.side(n_pierced, p, end, band)?,
+                )
+            }
+            None => (read[(t + 1) % n], read[t]),
+        };
         let own = super::sectors::germ_locus(
             super::sectors::GermSide {
                 body: piercing_body,
                 operand: piercing,
                 site: vertex,
                 sector: s,
-                read: (read[(t + 1) % n], read[t]),
+                read: codes,
             },
+            (pierced_body, contact.face),
             contacts,
+            band,
         )?;
         let pierced = super::Locus::InFace(contact.face);
         let cells = match piercing {
@@ -1173,7 +1230,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         let (dir, branch) = match (on_wall[t], branch) {
             (Some(plane), Some(branch)) => (pierce_germ_dir(s, plane.vec(), out, band)?, branch),
             _ => (
-                pierce_germ_dir(s, n_pierced.vec(), out, band)?,
+                // A tangent sector's germ runs along its bound on the
+                // tangency locus, where its plane and the pierced face's
+                // tangent plane are one.
+                match (&tangent_reads[t], codes) {
+                    (Some(_), (SideCode::On, _)) => s.start.normalize(),
+                    (Some(_), (_, SideCode::On)) => s.end.normalize(),
+                    _ => pierce_germ_dir(s, n_pierced.vec(), out, band)?,
+                },
                 germ_branch(
                     &declared.sections,
                     (&*piercing_body, pierced_body),
@@ -2932,30 +2996,26 @@ pub(super) fn pierce_germ_dir<T: Decide>(
             ));
         }
     }
-    let d = int.normalize();
-    let germ = match out {
-        OutBound::Start => d,
-        OutBound::End => -d,
+    let line = match out {
+        OutBound::Start => int,
+        OutBound::End => -int,
     };
+    let germ = line.normalize();
     // D9 row 5: where membership singles out one ray it is this one.
-    // Calibrated on JOIN's near-tangent census at ε = 1e-9, 1e-6 and
-    // 1e-12: no disagreement over 855k such readings (PR 4581's review).
-    // Where a bound reads On, membership at the arm can read both rays
-    // out, which is no disagreement.
+    // Where a bound reads On, membership can read both rays out, which
+    // is no disagreement.
     #[cfg(debug_assertions)]
+    if let Ok((along, against)) =
+        super::sectors::rays_within(line, &[s], DeclarationRead::Moot, band)
     {
-        let moot = DeclarationRead::Moot;
-        let member = |dir| super::sectors::within(s, dir, false, moot, band);
-        if let (Ok(along), Ok(against)) = (member(germ), member(-germ)) {
-            debug_assert!(
-                along || !against,
-                "the transition's germ {germ:?} ({out:?}) is outside the sector \
-                 {:?}→{:?} (normal {:?}) and its opposite inside, against {pierced_normal:?}",
-                s.start,
-                s.end,
-                s.normal.vec(),
-            );
-        }
+        debug_assert!(
+            along || !against,
+            "the transition's germ {germ:?} ({out:?}) is outside the sector \
+             {:?}→{:?} (normal {:?}) and its opposite inside, against {pierced_normal:?}",
+            s.start,
+            s.end,
+            s.normal.vec(),
+        );
     }
     Ok(germ)
 }

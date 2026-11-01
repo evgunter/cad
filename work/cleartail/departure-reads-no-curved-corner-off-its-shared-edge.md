@@ -39,3 +39,17 @@ The junction never reaches the node plane `x = 0` (`x0 > 0` keeps the walls' tan
 - For the vertex alone: a point zero for a curved corner. The quadrant reading generalises if the line reading's rectangle is cut at the vertex on the moving axis too, and the curve is decided to leave into that quadrant on both axes; then `Zero::Point`'s two derivatives apply.
 - For two curved edges: the other edge's height over the continued curve, decided along it, in place of `leaves_graph`'s straight-line rate. Where the two are arcs of one closed form (the ellipse split at a vertex), `continued` reads them as one curve.
 - For a plane's line edge: the line reading through `present_plane`'s affine map, with `leaves_line`'s functional the line's face-side normal and the span check dropped at the vertex end.
+
+## Further evidence (SEAMDIAG, 2026-11-01)
+
+Lofted caps meet the second bullet, a corner of two curved edges on a
+plane, at depth rather than at the root. `lily_leaf_a`'s and
+`lily_leaf_b`'s caps are bounded by two circles meeting at the lens
+tip. The Klein loop's caps are bounded by four arcs of one circle,
+meeting where the wall seams land. A cap cell at such a vertex is
+`beside_curve`'s `Structural`, and one beside it is `Local`. The pair
+still splits, because the wall presents. Today it refuses at depth 40
+(`work/clear/departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget.md`
+has the cells). There the binding obstacle is the wall's zero-side
+residual, so this row's corner reading alone would not certify those
+pairs.

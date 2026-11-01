@@ -140,6 +140,26 @@ impl SpanRow<'_> {
     pub fn restrict(self, ends: (Interval, Interval)) -> Result<Vec<Interval>, BlossomError> {
         span_restrict(self.span, self.row, ends)
     }
+
+    /// The Bernstein row on `[a, b]` of the piece's **first
+    /// derivative**: coefficient `k` is
+    /// `p·(f(a^{p−1−k}, b^k, U_{s+1}) − f(a^{p−1−k}, b^k, U_s))/(U_{s+1} − U_s)`,
+    /// the derivative blossom differenced across the span's own knots,
+    /// `f` being affine in each argument. The difference is taken over
+    /// the span's width, so the row is as tight on a cut a few ulps wide
+    /// as on the whole span, where differencing the restricted row and
+    /// dividing by `b − a` reads its rounding as slope. `p` coefficients;
+    /// a constant's derivative is the one coefficient zero.
+    ///
+    /// # Errors
+    ///
+    /// As [`SpanRow::restrict`].
+    pub fn restrict_derivative(
+        self,
+        ends: (Interval, Interval),
+    ) -> Result<Vec<Interval>, BlossomError> {
+        span_restrict_derivative(self.span, self.row, ends)
+    }
 }
 
 impl<E: CertifiedBounds> CoeffWindow<'_, E> {
@@ -522,26 +542,64 @@ fn whole_bezier_span(span: Span<'_>, (a, b): (Interval, Interval)) -> bool {
 /// each coefficient `k` its level `p − k` carried `k` levels on at `b`.
 fn pyramid(
     row: &[Interval],
-    (a, b): (Interval, Interval),
+    ends: (Interval, Interval),
     ratio: impl Fn(usize, usize, Interval) -> Interval,
 ) -> Vec<Interval> {
+    pyramid_after(row, 0, ends, &ratio)
+}
+
+/// [`pyramid`] on a row whose first `done` levels are already taken:
+/// the `p − done + 1` coefficients `f(…, a^{p−done−k}, b^k)`.
+fn pyramid_after(
+    row: &[Interval],
+    done: usize,
+    (a, b): (Interval, Interval),
+    ratio: &impl Fn(usize, usize, Interval) -> Interval,
+) -> Vec<Interval> {
     let p = row.len() - 1;
-    let mut at_a = Vec::with_capacity(p + 1);
+    let n = p - done;
+    let mut at_a = Vec::with_capacity(n + 1);
     at_a.push(row.to_vec());
-    for r in 1..=p {
+    for r in 1..=n {
         let mut d = at_a[r - 1].clone();
-        level(&mut d, r, a, &ratio);
+        level(&mut d, done + r, a, ratio);
         at_a.push(d);
     }
-    (0..=p)
+    (0..=n)
         .map(|k| {
-            let mut d = at_a[p - k].clone();
-            for r in p - k + 1..=p {
-                level(&mut d, r, b, &ratio);
+            let mut d = at_a[n - k].clone();
+            for r in n - k + 1..=n {
+                level(&mut d, done + r, b, ratio);
             }
             d[p]
         })
         .collect()
+}
+
+fn span_restrict_derivative(
+    span: Span<'_>,
+    row: &[Interval],
+    (a, b): (Interval, Interval),
+) -> Result<Vec<Interval>, BlossomError> {
+    let p = span.degree();
+    if p == 0 {
+        return Ok(vec![Interval::point(0.0)]);
+    }
+    let (closure, ratio) = span_ratio(span);
+    let (a, b) = (admit(a, 0, closure)?, admit(b, p - 1, closure)?);
+    let at = |x: f64| {
+        let mut d = row.to_vec();
+        level(&mut d, 1, Interval::point(x), &ratio);
+        pyramid_after(&d, 1, (a, b), &ratio)
+    };
+    let (lo, hi) = closure;
+    #[allow(clippy::cast_precision_loss)]
+    let scale = Interval::point(p as f64) / (Interval::point(hi) - Interval::point(lo));
+    Ok(at(hi)
+        .into_iter()
+        .zip(at(lo))
+        .map(|(top, bottom)| (top - bottom) * scale)
+        .collect())
 }
 
 /// [`super::SpanLocate::restrict_window`] at the certification scalar:

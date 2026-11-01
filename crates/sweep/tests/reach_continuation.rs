@@ -870,8 +870,7 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
 /// the sunk subtract as two plates of a quarter unit (twenty faces).
 /// A ∪ B is the thick plate (its 10 faces) and B ∖ A is nothing: no
 /// crossing event exists, the section pass defers the settled wall
-/// pairs, and no edge of the thick plate runs inside the thin plate's
-/// walls, so the thin plate's `In` stands. B ∪ A builds the thick plate
+/// pairs, and the thin plate's `In` stands. B ∪ A builds the thick plate
 /// too, its walls glued back whole where the thin plate's lay.
 ///
 /// Two results here are an operand itself measured through another
@@ -880,7 +879,7 @@ fn three_bricks_with_a_reflex_step_fold_in_every_order() {
 /// the sunk B ∪ A (the thick plate). The backstop re-derives each tie
 /// in interval arithmetic and builds it.
 #[test]
-fn rounded_continuations_inside_a_wall_build_subtract_and_intersect() {
+fn rounded_continuations_inside_a_wall_build_every_op() {
     let a = plate(rounded(R), 0.0);
     let half = area(4.0) / 2.0;
     for (label, z0, subtract_faces) in [
