@@ -1284,25 +1284,18 @@ fn spread<T: Decide>(
     (0..n).map(|k| carrier.eval(t0 + step * count(k))).collect()
 }
 
-/// **A circle of a torus's own reads on it at the nine points
-/// [`carrier_on_surface`] takes, and the points are distinct along a
-/// closed span.**
+/// **A conic of a torus's own reads on the torus face through
+/// [`carrier_on_surface`], and a conic a thousandth (a Villarceau
+/// circle, a millionth) off it reads off; the samples along a closed
+/// span are distinct.** The band is pinned at ε = 1e-9, the scale the
+/// near misses are about. Two misses meet the torus at their parameter
+/// `0`, so a sampler that reads only there reads them on.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torus_rows {
     use core::f64::consts::TAU;
 
     use geom_core::{Band, Point3, Tol, Vec3};
-
-    fn torus() -> geom::Surface<f64> {
-        geom::Surface::Torus {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            major_radius: 3.0,
-            minor_radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
-    }
 
     fn circle(
         center: Point3<f64>,
@@ -1318,59 +1311,47 @@ mod torus_rows {
         }
     }
 
-    fn reads_on(c: &geom::Curve3<f64>) -> bool {
-        let points = super::spread(c, ((0.0, TAU), true), 9);
-        for (i, p) in points.iter().enumerate() {
-            for q in &points[..i] {
-                assert!(
-                    (*p - *q).norm() > 0.1,
-                    "nine distinct points along a closed span"
-                );
-            }
-        }
-        crate::census::points_on_surface(
-            &torus(),
-            &points,
-            super::RIDER_ON_CURVED,
-            Band::linear(Tol::witness()).unwrap(),
-        )
-        .unwrap()
-    }
-
     #[test]
-    fn a_torus_circle_reads_on_it_and_another_does_not() {
+    fn a_torus_conic_reads_on_it_and_a_near_miss_does_not() {
+        let (body, face) = crate::boolean::boxes::tests::torus_wall(
+            Point3::origin(),
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            3.0,
+            1.0,
+            (0.0, 1.0),
+            (0.0, 1.0),
+        );
+        let band = Band::linear_at(Tol::witness(), 1e-9).unwrap();
         let (s, c) = (1.0 / 3.0, (8.0f64 / 9.0).sqrt());
+        let villarceau = |radius| {
+            circle(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                radius,
+                Vec3::new(c, 0.0, s),
+            )
+        };
+        let top = |radius| {
+            circle(
+                Point3::new(0.0, 0.0, 1.0),
+                Vec3::unit_z(),
+                radius,
+                Vec3::unit_x(),
+            )
+        };
+        let meridian = |x| {
+            circle(
+                Point3::new(x, 0.0, 0.0),
+                Vec3::unit_y(),
+                1.0,
+                Vec3::unit_x(),
+            )
+        };
         let rows = [
-            (
-                "a parallel",
-                circle(
-                    Point3::new(0.0, 0.0, 1.0),
-                    Vec3::unit_z(),
-                    3.0,
-                    Vec3::unit_x(),
-                ),
-                true,
-            ),
-            (
-                "a meridian",
-                circle(
-                    Point3::new(3.0, 0.0, 0.0),
-                    Vec3::unit_y(),
-                    1.0,
-                    Vec3::unit_x(),
-                ),
-                true,
-            ),
-            (
-                "a Villarceau circle",
-                circle(
-                    Point3::new(0.0, 1.0, 0.0),
-                    Vec3::new(-s, 0.0, c),
-                    3.0,
-                    Vec3::new(c, 0.0, s),
-                ),
-                true,
-            ),
+            ("a parallel", top(3.0), true),
+            ("a meridian", meridian(3.0), true),
+            ("a Villarceau circle", villarceau(3.0), true),
             (
                 "a circle across the tube",
                 circle(
@@ -1381,9 +1362,59 @@ mod torus_rows {
                 ),
                 false,
             ),
+            ("the top parallel, 1e-3 wide", top(3.0 + 1e-3), false),
+            (
+                "the top parallel tilted 1e-3, through (0, 3, 1)",
+                circle(
+                    Point3::new(0.0, 0.0, 1.0),
+                    Vec3::new(1e-3, 0.0, 1.0).normalize(),
+                    3.0,
+                    Vec3::unit_y(),
+                ),
+                false,
+            ),
+            ("a meridian shifted 1e-3", meridian(3.001), false),
+            (
+                "an ellipse of semi-axes 3 and 3.001 in the top plane, through (3, 0, 1)",
+                geom::Curve3::Ellipse {
+                    center: Point3::new(0.0, 0.0, 1.0),
+                    axis: Vec3::unit_z(),
+                    semi_u: 3.0,
+                    semi_v: 3.001,
+                    u_ref: Vec3::unit_x(),
+                },
+                false,
+            ),
+            (
+                "a Villarceau circle 1e-6 wide",
+                villarceau(3.0 + 1e-6),
+                false,
+            ),
         ];
         for (what, carrier, on) in rows {
-            assert_eq!(reads_on(&carrier), on, "{what}");
+            let read = super::carrier_on_surface(&body, &carrier, (0.0, TAU), true, face, band)
+                .unwrap_or_else(|e| panic!("{what}: {e:?}"));
+            assert_eq!(read, Some(on), "{what}");
+        }
+    }
+
+    #[test]
+    fn the_samples_along_a_closed_span_are_distinct() {
+        let parallel = circle(
+            Point3::new(0.0, 0.0, 1.0),
+            Vec3::unit_z(),
+            3.0,
+            Vec3::unit_x(),
+        );
+        let points = super::spread(&parallel, ((0.0, TAU), true), 9);
+        assert_eq!(points.len(), 9, "nine samples");
+        for (i, p) in points.iter().enumerate() {
+            for q in &points[..i] {
+                assert!(
+                    (*p - *q).norm() > 0.1,
+                    "nine distinct points along a closed span"
+                );
+            }
         }
     }
 }
