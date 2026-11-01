@@ -24,7 +24,7 @@ use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::{Creation, Selection, SessionOp};
+use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -458,7 +458,8 @@ impl ViewerBehavior<'_> {
     pub(crate) fn create_ui(&mut self, ui: &mut egui::Ui) {
         ui.collapsing(ADD_FEATURE, |ui| {
             self.add_profile_ui(ui);
-            ui.separator();
+            // Draws its own separator, and nothing at all unless a
+            // profile is selected.
             self.extrude_ui(ui);
             ui.separator();
             self.revolve_tool_ui(ui);
@@ -1040,9 +1041,22 @@ impl ViewerBehavior<'_> {
     /// The extrude form: the current selection is the profile (a tree
     /// pick, or a face pick whose feature is one — `Selection::node`),
     /// one distance field, one [`SessionOp::AddExtrude`] on commit.
-    /// A selection that is not a profile refuses typed at the door
-    /// and lands on the status line.
+    ///
+    /// **Drawn only while a profile is selected**, by the test the
+    /// door itself refuses with ([`admits`] for
+    /// [`NodeKindWanted::Profile`], over the committed document as
+    /// `DocSession::require_kind` reads it): the form is offered
+    /// exactly where the op would accept it, as the instance section
+    /// is (`ViewerBehavior::instance_ui`).
     pub(crate) fn extrude_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(node) =
+            self.session.selection().node().filter(|node| {
+                admits(self.session.committed_doc(), *node, NodeKindWanted::Profile)
+            })
+        else {
+            return;
+        };
+        ui.separator();
         ui.horizontal(|ui| {
             ui.label("extrude");
             ui.label("distance");
@@ -1055,35 +1069,27 @@ impl ViewerBehavior<'_> {
             length_picker(ui, "extrude_distance", &mut self.notation.length);
         });
         self.creation_label_row(ui, EXTRUDE_NOUN);
-        match self.session.selection().node() {
-            Some(node) => {
-                if ui
-                    .button(format!(
-                        "{EXTRUDE} {}",
-                        Speaker::of(self.session.doc())
-                            .or_held(self.session.selection_said())
-                            .node(node)
-                    ))
-                    .clicked()
-                {
-                    match self.notation.length_literal(self.drafts.extrude_distance) {
-                        Ok(distance) => self.push_labelled(
-                            EXTRUDE_NOUN,
-                            SessionOp::AddExtrude {
-                                profile: node,
-                                distance,
-                            },
-                        ),
-                        Err(error) => {
-                            self.notices
-                                .push(frame::tool_news(&FormKind::Extrude.refuses(&error)));
-                        }
-                    }
+        if ui
+            .button(format!(
+                "{EXTRUDE} {}",
+                Speaker::of(self.session.doc())
+                    .or_held(self.session.selection_said())
+                    .node(node)
+            ))
+            .clicked()
+        {
+            match self.notation.length_literal(self.drafts.extrude_distance) {
+                Ok(distance) => self.push_labelled(
+                    EXTRUDE_NOUN,
+                    SessionOp::AddExtrude {
+                        profile: node,
+                        distance,
+                    },
+                ),
+                Err(error) => {
+                    self.notices
+                        .push(frame::tool_news(&FormKind::Extrude.refuses(&error)));
                 }
-            }
-            None => {
-                ui.add_enabled(false, egui::Button::new(EXTRUDE))
-                    .on_disabled_hover_text("select the profile to extrude first");
             }
         }
     }
