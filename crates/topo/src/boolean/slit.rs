@@ -1202,12 +1202,17 @@ pub(super) fn carrier_on_surface<T: Decide>(
             geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
-            | geom::Surface::Cone { .. },
-        ) => (Samples::Five, RIDER_ON_CURVED, Coincide::EdgeOnCurvedFace),
-        (
-            geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. },
-            geom::Surface::Torus { .. },
-        ) => (Samples::Nine, RIDER_ON_CURVED, Coincide::EdgeOnCurvedFace),
+            | geom::Surface::Cone { .. }
+            | geom::Surface::Torus { .. },
+        ) => (
+            if matches!(surface, geom::Surface::Torus { .. }) {
+                Samples::Nine
+            } else {
+                Samples::Five
+            },
+            RIDER_ON_CURVED,
+            Coincide::EdgeOnCurvedFace,
+        ),
         _ => return Ok(None),
     };
     let at: Vec<T> = match (samples, closed) {
