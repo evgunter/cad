@@ -1338,6 +1338,8 @@ mod sphere_aims_reader_ties;
 #[path = "fallback_rows_review.rs"]
 mod fallback_rows_review;
 
+#[path = "a_box_along_a_fillets_line_arc_junction.rs"]
+mod a_box_along_a_fillets_line_arc_junction;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
 mod a_plane_near_a_needle_cones_apex;
 #[path = "fallback_rows_review_head.rs"]

@@ -29,14 +29,15 @@
 use crate::common;
 
 use pncad::document::{
-    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, SlotId, VarName,
-    VectorSlot,
+    Axis3, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, RecipeNodeId, SlotId,
+    VarName, VectorSlot,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};
 use pncad::quantity::{UnitDef, WrittenLength, unit_by_symbol};
 use viewer::props::{
-    self, Notation, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
+    self, MemberValues, Notation, Reading, SlotGroup, SlotRow, SlotUnitFault, SlotValue,
+    from_written, in_written, rendering_unit,
 };
 use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
 
@@ -332,7 +333,10 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         .into_iter()
         .next()
         .expect("the distance row");
-    assert_eq!(row.value, Ok(SlotValue::Continuous(0.012)));
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.012)))
+    );
     assert_eq!(row.unit, Some(MM.def()), "still written in mm");
 
     // And a gesture, which captures the unit when it opens rather than
@@ -355,7 +359,10 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         .into_iter()
         .next()
         .expect("the distance row");
-    assert_eq!(row.value, Ok(SlotValue::Continuous(0.02)));
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.02)))
+    );
     assert_eq!(row.unit, Some(MM.def()), "a drag does not canonicalize");
 }
 
@@ -407,10 +414,22 @@ fn changing_the_display_unit_leaves_the_value_bit_identical() {
         .find(|row| row.slot == SlotId::RevolveAngle)
         .expect("the sweep angle");
     assert_eq!(after.unit, Some(PI.def()), "written in half-turns now");
-    let radians = after.value.clone().expect("a value").as_f64();
+    let radians = after
+        .value
+        .clone()
+        .expect("a value")
+        .one()
+        .expect("one value")
+        .as_f64();
     assert_eq!(
         radians.to_bits(),
-        before.value.expect("a value").as_f64().to_bits(),
+        before
+            .value
+            .expect("a value")
+            .one()
+            .expect("one value")
+            .as_f64()
+            .to_bits(),
         "the notation moved; the value did not"
     );
     // And that notation is what the user asked for: a right angle,
@@ -554,6 +573,8 @@ fn the_field_shows_a_driven_slots_value_and_edits_its_source() {
         .value
         .as_ref()
         .expect("the expression evaluates")
+        .one()
+        .expect("one value")
         .as_f64();
     let shown = props::field_text(&row, session.notation());
     assert_eq!(
@@ -652,7 +673,10 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         props::SlotDriver::Literal,
         "still a bare number"
     );
-    assert_eq!(row.value, Ok(SlotValue::Continuous(25.0 * 0.0254)));
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(25.0 * 0.0254)))
+    );
 
     // And a bare number typed after it leaves that notation alone —
     // the numeric door re-attaches the stored unit, exactly as before.
@@ -1113,5 +1137,318 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     assert_eq!(
         props::doc_variable(Dimension::Count, SlotValue::Count(6), None),
         FreeVar::Count { value: 6 }
+    );
+}
+
+/// A pattern of `count` copies of a small block, spaced along x, and
+/// the session holding it; `fused` asks for the fused output.
+fn pattern(count: i64, fused: bool) -> (DocSession, RecipeNodeId) {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("pattern-rows", tol), tol);
+    let body = common::xy_box_in(&mut session, [0.02, 0.02, 0.01]);
+    let rule = viewer::session::PatternRuleSpec::Linear {
+        direction: common::scl3([1.0, 0.0, 0.0]),
+        spacing: common::len(0.07),
+    };
+    let input = body.into();
+    let op = if fused {
+        SessionOp::AddFusedPattern { input, count, rule }
+    } else {
+        SessionOp::AddPattern { input, count, rule }
+    };
+    let before = session.committed_doc().ids();
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let doc = session.committed_doc();
+    let placement = doc
+        .ids()
+        .into_iter()
+        .find(|id| !before.contains(id) && matches!(doc.node(*id), Some(Node::Place { .. })))
+        .expect("the pattern placed its copies");
+    let selected = session.perform(SessionOp::Select(Selection::Node(placement)));
+    assert!(selected.refusal.is_none(), "{:?}", selected.refusal);
+    (session, placement)
+}
+
+/// The selected node's one row that reads per member, after asserting
+/// no row of it reads nothing.
+fn per_member_row(session: &DocSession) -> SlotRow {
+    let rows = session.slot_rows();
+    let refused: Vec<_> = rows.iter().filter(|row| row.value.is_err()).collect();
+    assert!(refused.is_empty(), "rows that read nothing: {refused:?}");
+    let per_member: Vec<SlotRow> = rows
+        .into_iter()
+        .filter(|row| matches!(row.value, Ok(Reading::PerMember(_))))
+        .collect();
+    let [row] = per_member.as_slice() else {
+        panic!("one row reads the index: {per_member:?}");
+    };
+    row.clone()
+}
+
+fn members(row: &SlotRow) -> &MemberValues {
+    match &row.value {
+        Ok(Reading::PerMember(members)) => members,
+        other => panic!("a reading per member, not {other:?}"),
+    }
+}
+
+/// `value` metres as the field and the note say it.
+fn said(value: f64) -> String {
+    props::computed_text(Dimension::Length, value, Notation::DEFAULT)
+}
+
+/// The placement's slide through the text door.
+fn slide_to(session: &mut DocSession, placement: RecipeNodeId, row: &SlotRow, text: &str) {
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: placement,
+        slot: row.slot,
+        text: text.to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{text}: {:?}", outcome.refusal);
+}
+
+/// **A slot that reads a pattern's member index shows its value at
+/// each member**, not a refusal: outside a member the index has no
+/// value, so the row says the one it has in each. The other rows of
+/// the same placement read no index and keep their one value.
+#[test]
+fn a_patterns_member_indexed_rows_show_each_members_value() {
+    for fused in [false, true] {
+        let (session, _) = pattern(3, fused);
+        let row = per_member_row(&session);
+        let members = members(&row);
+        let expected: Vec<_> = (0..3_i64)
+            .map(|k| {
+                #[allow(clippy::cast_precision_loss)]
+                let slide = k as f64 * 0.07;
+                (vec![k], Ok(SlotValue::Continuous(slide)))
+            })
+            .collect();
+        assert_eq!(
+            members.members(),
+            expected,
+            "fused {fused}: each member slides k spacings"
+        );
+        assert_eq!(
+            props::field_text(&row, Notation::DEFAULT),
+            format!("{} {} … {}", props::DRIVEN, said(0.0), said(2.0 * 0.07)),
+            "fused {fused}: the field shows the least member's value and the greatest's"
+        );
+        let k = &members.over()[0];
+        assert_eq!(
+            members.spelled(Dimension::Length, Notation::DEFAULT),
+            format!(
+                "{k} = 0: {}; {k} = 1: {}; {k} = 2: {}",
+                said(0.0),
+                said(0.07),
+                said(2.0 * 0.07)
+            ),
+            "fused {fused}: the note names each member and its value"
+        );
+        assert!(
+            members.refusals().is_empty(),
+            "fused {fused}: no member refused"
+        );
+    }
+}
+
+/// **A member that refuses is said wherever it falls**: the field shows
+/// no span over it, and the note names it with its refusal even past
+/// the members it spells.
+#[test]
+fn a_refused_member_past_the_spelled_ones_is_still_said() {
+    let (mut session, placement) = pattern(10, false);
+    let row = per_member_row(&session);
+    slide_to(&mut session, placement, &row, "1 mm / (scalar(k) - 7)");
+    let row = per_member_row(&session);
+    let members = members(&row);
+    let refused: Vec<i64> = members
+        .members()
+        .iter()
+        .filter(|(_, value)| value.is_err())
+        .map(|(at, _)| at[0])
+        .collect();
+    assert_eq!(refused, [7], "the member dividing by zero refuses");
+    let field = props::field_text(&row, Notation::DEFAULT);
+    assert_eq!(
+        field,
+        format!(
+            "{} {} (1 of 10 members refused)",
+            props::DRIVEN,
+            props::NO_VALUE
+        ),
+        "the field shows no span over a refused member"
+    );
+    let k = &members.over()[0];
+    let spelled = members.spelled(Dimension::Length, Notation::DEFAULT);
+    assert!(
+        spelled.ends_with("; and 4 more") && !spelled.contains(&format!("{k} = 7")),
+        "the note spells six members, then counts the rest: {spelled}"
+    );
+    let refusals = members.refusals();
+    assert!(
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 7: "))),
+        "one refusal, at member 7 alone, past the spelled six: {refusals:?}"
+    );
+}
+
+/// **A refusal is said once, with every member it refused at**, and a
+/// family refusing at each member says its refusal once, its members
+/// named to a bound and counted past it.
+#[test]
+fn a_refusal_is_said_once_with_the_members_it_refused_at() {
+    let (mut session, placement) = pattern(10, false);
+    let row = per_member_row(&session);
+    slide_to(
+        &mut session,
+        placement,
+        &row,
+        "1 mm / ((scalar(k) - 3) * (scalar(k) - 7))",
+    );
+    let row = per_member_row(&session);
+    let alike = members(&row);
+    let k = &alike.over()[0];
+    let refusals = alike.refusals();
+    assert!(
+        matches!(refusals.as_slice(), [line] if line.starts_with(&format!("refused at {k} = 3, 7: "))),
+        "members 3 and 7 refuse alike, said once: {refusals:?}"
+    );
+
+    let (mut session, placement) = pattern(20, false);
+    let row = per_member_row(&session);
+    slide_to(&mut session, placement, &row, "1 mm / (scalar(k) * 0)");
+    let row = per_member_row(&session);
+    let every = members(&row);
+    let k = &every.over()[0];
+    let refusals = every.refusals();
+    assert!(
+        matches!(
+            refusals.as_slice(),
+            [line] if line.starts_with(&format!("refused at {k} = 0, 1, 2, 3, 4, 5, and 14 more: "))
+        ),
+        "every member refuses alike: six named, the rest counted: {refusals:?}"
+    );
+}
+
+/// **The span is the least and the greatest value**, not the first
+/// member's and the last's: a slot that falls and rises again reads
+/// over its whole range.
+#[test]
+fn a_non_monotone_slots_span_is_its_least_and_greatest() {
+    let (mut session, placement) = pattern(3, false);
+    let row = per_member_row(&session);
+    slide_to(
+        &mut session,
+        placement,
+        &row,
+        "(scalar(k) - 1) * (scalar(k) - 1) * 1 mm",
+    );
+    let row = per_member_row(&session);
+    let values: Vec<f64> = members(&row)
+        .members()
+        .iter()
+        .map(|(_, value)| value.as_ref().expect("evaluates").as_f64())
+        .collect();
+    assert_eq!(values, [0.001, 0.0, 0.001], "the slide falls and rises");
+    assert_eq!(
+        props::field_text(&row, Notation::DEFAULT),
+        format!("{} {} … {}", props::DRIVEN, said(0.0), said(0.001)),
+    );
+}
+
+/// A plate whose extrude distance reads an index of `count` members.
+fn plate_reading_an_index(count: i64) -> (DocSession, RecipeNodeId) {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let doc = pncad::document::apply(
+        &doc,
+        &DocEdit::DeclareVar {
+            name: VarName::new("k").expect("a name"),
+            def: pncad::document::VarDecl::Index {
+                count: Formula::count(count),
+                within: None,
+            },
+        },
+        tol,
+    )
+    .expect("an index declares")
+    .doc;
+    let mut session = DocSession::inline(doc, tol);
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "scalar(k) * 1 mm + 1 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let selected = session.perform(SessionOp::Select(Selection::Node(extrude)));
+    assert!(selected.refusal.is_none(), "{:?}", selected.refusal);
+    (session, extrude)
+}
+
+/// **Any slot reading an index reads per member**, not a placement's
+/// alone — and an index of no members says so rather than spanning
+/// nothing.
+#[test]
+fn an_extrude_reading_an_index_reads_per_member_and_none_at_zero() {
+    let (session, _) = plate_reading_an_index(3);
+    let row = per_member_row(&session);
+    assert_eq!(row.slot, SlotId::Distance);
+    let values: Vec<f64> = members(&row)
+        .members()
+        .iter()
+        .map(|(_, value)| value.as_ref().expect("evaluates").as_f64())
+        .collect();
+    assert_eq!(values, [0.001, 0.002, 0.003], "one distance per member");
+
+    let (session, _) = plate_reading_an_index(0);
+    let row = per_member_row(&session);
+    let members = members(&row);
+    assert!(members.members().is_empty(), "an index of no members");
+    let k = &members.over()[0];
+    assert_eq!(
+        props::field_text(&row, Notation::DEFAULT),
+        format!("{} {k} has no members", props::DRIVEN)
+    );
+    assert_eq!(
+        members.spelled(Dimension::Length, Notation::DEFAULT),
+        format!("{k} has no members")
+    );
+}
+
+/// **A named defined variable reading an index reads per member**, as
+/// a slot does, rather than refusing into a zero under its formula.
+#[test]
+fn a_defined_variable_reading_an_index_reads_per_member() {
+    let (mut session, _) = plate_reading_an_index(2);
+    let outcome = session.perform(SessionOp::DeclareVar {
+        name: VarName::new("step").expect("a name"),
+        value: FreeVar::continuous(Dimension::Length, 0.001),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let step = props::variable_rows(session.committed_doc())
+        .into_iter()
+        .find(|row| row.label.to_string() == "step")
+        .expect("declared")
+        .var;
+    let outcome = session.perform(SessionOp::SetVariableText {
+        var: step,
+        text: "scalar(k) * 2 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let row = props::defined_rows(session.committed_doc())
+        .into_iter()
+        .find(|row| row.var == step)
+        .expect("step is defined now");
+    let Ok(Reading::PerMember(members)) = &row.value else {
+        panic!("a reading per member, not {:?}", row.value);
+    };
+    let values: Vec<_> = members.members().iter().map(|(_, v)| v.clone()).collect();
+    assert_eq!(
+        values,
+        [
+            Ok(SlotValue::Continuous(0.0)),
+            Ok(SlotValue::Continuous(0.002))
+        ]
     );
 }

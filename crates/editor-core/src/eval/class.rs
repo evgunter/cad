@@ -619,7 +619,6 @@ mod tests {
             C::IndexCountOutOfRange => K::IndexCountOutOfRange {
                 index: crate::VarId::new(2, 0),
                 count: -1,
-                admits: 0..=i64::from(u32::MAX),
             },
             C::NoSuchPiece => K::NoSuchPiece {
                 pick: crate::VarId::new(2, 0),

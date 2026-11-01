@@ -29,8 +29,9 @@
 //!
 //! TOG's printed Table III carries the same ∖-row misprint consequence
 //! in its A-versus-B rows (`∪ Yes, ∖ Yes, ∩ No` — the ∖ entry follows
-//! the misprinted Table I; with the corrected lumping ∩ and ∖ must
-//! agree everywhere, as `A∖B ≡ A∩revert(B)` forces). We therefore
+//! the misprinted Table I; the corrected lumping keeps A's copy, the
+//! glue's kept side, and with A's copy kept ∩ and ∖ agree everywhere,
+//! as `A∖B ≡ A∩revert(B)` gives). We therefore
 //! DERIVE the rule from the adjudicated Eq. 15.3: *Rule = "the coplanar
 //! (ON) sector is lumped to the OUT side of the reference solid"* —
 //! then a test sector keyed IN intersects the reference iff Rule (the
@@ -56,52 +57,47 @@ use crate::boolean::plane_eq::PlaneRelation;
 ///
 /// Reading: for an A-sector on B, `Out` means "treated as AoutB";
 /// for a B-sector on A, `Out` means "treated as BoutA".
+///
+/// Stated for the glue's kept side ([`super::glue::KEPT`]): where the
+/// lump keeps one copy of the region ([`lump_keeps_one`]), the kept
+/// side's sector lumps to the side `op` keeps for its operand and the
+/// other's to the side `op` drops; elsewhere both lump to the side
+/// dropped. With A kept this is the book's table, cell for cell:
+/// ∪: AonB⁺→AoutB, AonB⁻→AinB; BonA±→BinA. ∩ and ∖ share a row
+/// (A∖B ≡ A∩revert(B)): AonB⁺→AinB, AonB⁻→AoutB; BonA±→BoutA.
 pub fn eq15_3_lump(op: BooleanOp, on_side: Operand, relation: PlaneRelation) -> SideCode {
-    debug_assert!(matches!(
-        relation,
-        PlaneRelation::SameOriented | PlaneRelation::SameOpposite
-    ));
-    let plus = matches!(relation, PlaneRelation::SameOriented);
-    match (op, on_side) {
-        // ∪: AonB⁺→AoutB, AonB⁻→AinB; BonA±→BinA.
-        (BooleanOp::Union, Operand::A) => {
-            if plus {
-                SideCode::Out
-            } else {
-                SideCode::In
-            }
-        }
-        (BooleanOp::Union, Operand::B) => SideCode::In,
-        // ∩ and ∖ share a row (A∖B ≡ A∩revert(B)):
-        // AonB⁺→AinB, AonB⁻→AoutB; BonA±→BoutA.
-        (BooleanOp::Intersect | BooleanOp::Subtract, Operand::A) => {
-            if plus {
-                SideCode::In
-            } else {
-                SideCode::Out
-            }
-        }
-        (BooleanOp::Intersect | BooleanOp::Subtract, Operand::B) => SideCode::Out,
+    let kept = super::finish::kept_side(op, on_side);
+    if kept_copy(op, relation) == Some(on_side) {
+        kept
+    } else {
+        kept.opposite()
     }
 }
 
 /// Whether the Eq. 15.3 lump of a coincident sector pair keeps exactly
 /// one operand's copy of the shared region, so that the result holds
 /// one face's region through the other face
-/// (`BooleanNaming::substituted`). The other arms keep neither copy.
+/// (`BooleanNaming::substituted`): where the two faces' materials lie
+/// on the side the op keeps one of, ∪ and ∩ on same-oriented faces and
+/// ∖ on opposed ones (B is reverted). The other arms keep neither copy.
 pub fn lump_keeps_one(op: BooleanOp, relation: PlaneRelation) -> bool {
-    kept_copy(op, relation).is_some()
+    debug_assert!(matches!(
+        relation,
+        PlaneRelation::SameOriented | PlaneRelation::SameOpposite
+    ));
+    let aligned = matches!(relation, PlaneRelation::SameOriented);
+    match op {
+        BooleanOp::Union | BooleanOp::Intersect => aligned,
+        BooleanOp::Subtract => !aligned,
+    }
 }
 
 /// Which operand's copy of a coincident sector pair's region the Eq.
-/// 15.3 lump keeps, when it keeps exactly one ([`lump_keeps_one`]).
+/// 15.3 lump keeps, when it keeps exactly one ([`lump_keeps_one`]): the
+/// glue's kept side ([`super::glue::KEPT`]), whose description the
+/// overlap carries into the merge.
 pub fn kept_copy(op: BooleanOp, relation: PlaneRelation) -> Option<Operand> {
-    let kept = |o| eq15_3_lump(op, o, relation) == super::finish::kept_side(op, o);
-    match (kept(Operand::A), kept(Operand::B)) {
-        (true, false) => Some(Operand::A),
-        (false, true) => Some(Operand::B),
-        _ => None,
-    }
+    lump_keeps_one(op, relation).then_some(super::glue::KEPT)
 }
 
 /// A Table II result cell for one test sector.
@@ -183,24 +179,9 @@ mod tests {
         }
     }
 
-    /// Where the lump keeps one copy, it keeps operand A's: B's copy is
-    /// the one dropped in every op. So a containment fallback that keeps
-    /// B whole drops no copy of a pair it holds, and one that cuts a
-    /// dropped copy cuts B's (`ops::fallback_fates`).
-    #[test]
-    fn the_lump_keeps_operand_as_copy_where_it_keeps_one() {
-        for op in [Union, Intersect, Subtract] {
-            for rel in [Plus, Minus] {
-                assert!(
-                    matches!(kept_copy(op, rel), None | Some(A)),
-                    "{op:?} {rel:?}"
-                );
-            }
-        }
-    }
-
     /// Eq. 15.3, every cell of the BOOK's table (the adjudicated one;
-    /// module docs for the ∖-row misprint record).
+    /// module docs for the ∖-row misprint record): the lump with A's
+    /// copy kept, the glue's kept side.
     #[test]
     fn eq15_3_all_rows() {
         // ∪ row.
