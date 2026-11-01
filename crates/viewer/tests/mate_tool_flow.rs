@@ -11,7 +11,7 @@ use pncad::document::{Dimension, Formula};
 
 use common::asm;
 use common::{ang, len, scl};
-use pncad::document::{MateSide, RecipeNodeId};
+use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState};
@@ -216,8 +216,8 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
-    tool.pick(session.doc(), shelf_bottom);
-    let held_line = tool.state().line(session.doc());
+    tool.pick(session.doc(), shelf_bottom.clone());
+    let held_line = tool.line(viewer::frame::landed_speaker(session.landed_pair()));
 
     // The SECOND pick's instance is deleted out from under the tool.
     session.perform(SessionOp::DeleteNode {
@@ -239,17 +239,21 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // The notice says the pick in the panel's words on the frame
     // before — the copy as the document spoke it when it was picked —
     // though the document that dropped it no longer holds it.
+    let tag = |node: RecipeNodeId| test_utils::refusal::tag(node.0.digest());
+    // The shelf's underside is the start cap of the part's own extrude,
+    // a node the assembly does not hold, picked on the shelf's instance.
     let said = format!(
-        "face of InstantiatePart {}",
-        test_utils::refusal::tag(bench.shelf_i.0.digest())
+        "the start cap of node {}, on InstantiatePart {}",
+        tag(shelf_bottom.name.node),
+        tag(bench.shelf_i),
     );
     assert!(held_line.ends_with(&format!("to: {said}")), "{held_line:?}");
     assert_eq!(
-        events[0].to_string(),
-        format!("the to pick (a {said}) no longer resolves; the tool dropped it")
+        Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval)))).to_string(),
+        format!("the to pick ({said}) no longer resolves; the tool dropped it")
     );
     match tool.state() {
-        MateToolState::One(held) => assert_eq!(held, &post_top),
+        MateToolState::One(held) => assert_eq!(held.face(), &post_top),
         other => panic!("the tool degrades to its previous step, got {other:?}"),
     }
 
@@ -694,7 +698,8 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let shelf_i = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, &bench.opts(), tol);
     let post_i = asm::instance_at(&mut doc, bench.post, asm::POST_B_AT, &bench.opts(), tol);
     let room = common::insert_into(&mut doc, Node::Space, tol);
-    let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
+    let room_space = doc.output(room, 0).expect("a new space defines its space");
+    let room = Operand::Var(room_space);
     let family = |doc: Doc<ProfileProgram>, name: &str, of: RecipeNodeId, dir: [f64; 3]| {
         let (doc, k) = crate::fixture::index(doc, name, 2);
         let placed = Placed::of(
@@ -754,6 +759,13 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    // The room draws the members no read takes, where the world copies
+    // stand: hidden, so the rows' rays meet the world's picture alone.
+    let hidden = session.perform(SessionOp::SetSpaceHidden {
+        space: room_space,
+        hidden: true,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     (
         session,
         [post_i, shelf_i, inner, part, outer, loose, outer_one],
@@ -901,13 +913,13 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
 }
 
 /// **A refusal about a pick names its node as the panel does**, after
-/// a rename that has not landed. The mate panel says a held pick is the
-/// face of the node as the session's document speaks it; the tool reads
-/// the landed pair, so its refusal is spoken again from that same
-/// document where the panel draws it (`MateToolError::respoken`), and
-/// the two say one label. Driven through `MateTool::proposal`: both
-/// picks on one instance refuse `SamePick`. Red if the refusal says the
-/// label from before the rename, or the instance by its tag alone.
+/// a rename that has not landed. The chrome speaks the landed document:
+/// the mate panel says a held pick's node as it holds it, and the tool's
+/// refusal is spoken again from that same document where the panel
+/// draws it (`MateToolError::respoken`), so the two say one label — the
+/// landed one, which the rename has not reached. Driven through
+/// `MateTool::proposal`: both picks on one instance refuse `SamePick`.
+/// Red if either says the rename before it lands.
 #[test]
 fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let tol = Tol::witness();
@@ -935,9 +947,11 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let refused = tool
         .proposal(doc, asm::seat_choice())
         .expect_err("one instance is no pair");
-    let said = refused.respoken(session.doc()).to_string();
+    // The chrome speaks the landed document, so both say the label it
+    // holds — none yet — and neither says the rename before it lands.
+    let said = refused.respoken(doc).to_string();
     let spoken = format!(
-        "InstantiatePart \"post\" ({})",
+        "InstantiatePart {}",
         test_utils::refusal::tag(bench.post_b.0.digest())
     );
     assert_eq!(
@@ -947,10 +961,10 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
              something else"
         )
     );
-    let panel = tool.state().line(session.doc());
+    let panel = tool.line(viewer::frame::landed_speaker(session.landed_pair()));
     assert!(
-        panel.contains(&spoken),
-        "the panel says the same node: {panel}"
+        panel.contains(&spoken) && !panel.contains("\"post\""),
+        "the panel says the same node, by the landed label: {panel}"
     );
 }
 
@@ -1054,6 +1068,13 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     let below = pncad::select::SplitHalf::Below;
     let at = common::drawn::translated([0.1, 0.0, 0.0]);
     let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
+    // The split itself is drawn whole in the block's own space, over the
+    // block's world copy: hidden, so the rays meet the copies alone.
+    let hidden = session.perform(SessionOp::SetBodyHidden {
+        node: split,
+        hidden: true,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     let underside = asm::pick_face(&session, &common::up_at(0.1, 0.0));
     let top = asm::pick_face(&session, &common::down_at(0.0, 0.0));
     assert_eq!(underside.node, half, "the ray met the lower half's copy");

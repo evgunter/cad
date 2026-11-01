@@ -93,6 +93,26 @@ Newest entries at the bottom; the tail is the program's live status.
   and in-order is the better answer. Main's concision red was CHROME's
   and is fixed on main (6222, 6227); the duplicate row this PR had filed
   is dropped before merge. (SPACES orchestrator)
+- 2026-11-01 — PR 6208 merged (`387df94f`). Every other P0/P1 row now
+  waits on Ev's answers in `[ev]` PR 6209: each carries `design: true`
+  and refs 6209 until then. Lanes reclaimed. (SPACES orchestrator)
+- 2026-11-01 — Ev answered PR 6209: (1) the picture rule confirmed, with
+  every body toggleable in the View pane (the rule sets only the
+  default); (2) nothing joins the product unasked ("might be changed
+  later for convenience"); (3) after the orchestrator's clarification
+  showed the narrow derived offset leaves two different parts
+  overlapping, Ev rejected a derived layout outright ("unnecessarily
+  complex to store/derive where on the screen something is displayed in
+  multiple ways"): the "Add part…" gesture stores the new space's
+  display frame. README, G3 and fork row 230 updated in place.
+  Slate cut into four units: `the-picture-draws-bodies` (P0 H, dual,
+  dispatched first), then `a-new-body-lands-unplaced` (P0 H, single
+  full), `the-add-to-the-product-door` (P1 M, single full) and
+  `the-view-pane-toggles-spaces-and-bodies` (P1 M, style), each parked
+  on the first. Claimed DOORS'
+  `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product`
+  (its (b) superseded, its (a) carried by the landing unit). Seam notes
+  left on PLACING's and DOORS' logs. (SPACES orchestrator)
 - 2026-11-01 — Seam note from DOORS:
   - DOORS' `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product` is now parked on PR 6209. On Ev's answer, (b) closes as superseded or comes back, and (a) moves here by `git mv` as 6209's body says.
   - DOORS' split, fillet-operand and mirror-two-pieces rows are parked on 6209 as well, to be re-read against the drawn-bodies rule.
@@ -100,3 +120,104 @@ Newest entries at the bottom; the tail is the program's live status.
   - SPACES' "gestures stop placing" unit rewrites the same gestures. Its re-points should go through that door, or its log should say why not. The branch is `doors/take-over-rebinds`.
 
   (DOORS orchestrator)
+- 2026-11-01 — PR 6209 merged (`531773d4`). `the-picture-draws-bodies`:
+  PR 6265 green at `2fee5472` (the rule over operand / one-input /
+  placement-source seats, per-member through constant indices only;
+  operator results drawn and pickable; outside-the-product tint; hide by
+  body and by space; free-move by space, world refused). Dual review,
+  CONCURRENT arm (H), both on frozen head `2fee5472`, identical briefs
+  modulo lane name: R1 a local Opus agent (inherits the finished
+  implementer's warm target by rename), R2 an Opus Claude Code Remote
+  session (`session_01EdpJs4bGYnGXNCZkTBTht9`) — the box's ~15 GB free
+  disk could not hold two cold reviewer builds beside DOORS' three lanes
+  (Ev 2026-10-02: lanes may run in their own cloud sessions). Neither
+  reviewer's method differs; recorded for the fair-pair test. The PR
+  discloses: `⊔` read as operands drawn as themselves; five fixtures
+  hide or delete a coinciding extra body; the corpus pick tally
+  re-pinned. (SPACES orchestrator)
+- 2026-11-01 — PR 6265 dual review delivered (concurrent arm, frozen
+  `2fee5472`). R1 (local, ~40 min): NOT-MERGEABLE-AS-IS, 1 MAJOR / 5
+  MINOR / 2 NIT / 10 style. R2 (cloud session, ~26 min):
+  APPROVE-WITH-FIXES, 1 MAJOR / 5 MINOR / 2 NIT / 11 style. Neither
+  disclosed a glimpse. **Correspondence pre-note** (the blinded coding
+  confirms): BILATERAL — the non-constant member read hides members
+  nothing reads (R1 MINOR / R2 MAJOR: severity divergence); a `⊔` piece
+  keyed without `within`; the `∪` + product-`⊔` overlap; a `Pick` read
+  takes the whole copy; style: two readings of what the product reads,
+  `drawn_bodies` recomputed per helper, `view`'s ignored `eval`.
+  UNILATERAL R1→ — MAJOR (executed): a split or pattern of a fresh box
+  makes the box unpickable, masked by `frame_policy.rs`'s split hide
+  (R2 read the other five fixture edits, not that one); MINOR the
+  copy→body doors drop `source.at`; the product's single body undrawn
+  when a `∪` reads it. UNILATERAL R2→ — MINOR (executed base vs head)
+  "families excluded, as before" false, gesture seats changed; a copy
+  into its body's own space now counted; no row for split-half
+  granularity. **Tally candidate:** R1's MAJOR (unilateral, code,
+  executed). Adjudication: it is real and an interim of U1 without U2
+  (split/pattern leave their target's world `Place`, ruled 2026-10-08,
+  `chrome/a-split-or-pattern-gesture-leaves-its-target-placed`), so the
+  fix is sequencing — `a-new-body-lands-unplaced` is built on 6265's
+  branch and the two merge back to back, with the row and the fixture
+  un-hide in that unit's done-when. Every other finding goes to one fix
+  pass off the union (the implementer, resumed). (SPACES orchestrator)
+- 2026-11-01 — PR 6265 fix pass in, green at `7bbc92fd`: every union
+  finding dispositioned (members by index range through
+  `Doc::member_envs`; drawings keyed by what draws them; the product's
+  body always drawn; one copy→body door with gesture behaviour back to
+  base, remaining gesture-visible changes disclosed with rows; the
+  split-half row; style all taken). Filed
+  `a-pick-read-takes-the-whole-copy` and
+  `the-feature-trees-hide-toggles-an-undrawn-instance-silently`.
+  No second review on the concurrent arm; `a-new-body-lands-unplaced`
+  dispatched stacked on 6265's branch (it inherits the U1 lane's warm
+  target by rename); its review covers the pair's interaction, and the
+  two merge back to back. Tier for it: single, FULL. (SPACES orchestrator)
+- 2026-11-01 — `a-new-body-lands-unplaced`: PR 6269, stacked on 6265, green
+  at `2b32f232`. No gesture writes a world `Place`; one `Takeover`
+  (copies, `⊔` operands, the product slot) replaces `repoint` /
+  `feature_over` / `stranded_pick`; `world::made` gone; the "Add part…"
+  frame written at the insert's landing and kept across undo/redo (the
+  README and IDENTITY DI5 prune sentences re-worded to the mechanism —
+  wording, checked by review); `as_body` and the mate tool's split-output
+  read fixed in passing. Stories re-baselined (the windmill story now
+  reopens its file to place the tower by hand: under review as a possible
+  test bent around the missing product door). Filed
+  `the-projection-tool-writes-a-member-read-a-pick-already-seats`.
+  Review: single FULL, on 6269 and the pair. (SPACES orchestrator)
+- 2026-11-01 — `the-view-pane-toggles-spaces-and-bodies` dispatched as
+  its own cloud session (`session_01EdpJs7QuXgMqdBE8FoVvUa`, branch
+  `spaces/view-toggles`, stacked on 6269 → 6265): this box has ~12 GB
+  free beside the 6269 reviewer's build. It also takes
+  `the-feature-trees-hide-toggles-an-undrawn-instance-silently`. The
+  product door waits on 6269's review (both rewrite the session's
+  gestures). (SPACES orchestrator)
+- 2026-11-01 — PR 6269 review (single FULL): NOT-MERGEABLE-AS-IS, 2 MAJOR
+  (executed): a gone space's insert frame lands on an unrelated space
+  after an undo (the "only the same insert re-mints it" premise is false:
+  every space-minting gesture's first insert is byte-identical), and the
+  `StrandedPick` guard's `⊔` arm can never fire. 4 MINOR: frames not
+  saved (filed `display-frames-are-not-saved-with-the-document`, P1 —
+  Ev's 6209 answer relies on it for reopen); two inserts before a landing
+  lose the first frame; a projected member drawn twice; the transform of
+  a copy (PLACING's row). Adjudication: the frame becomes part of the
+  insert gesture's action in history (undo takes it, redo of that step
+  restores it), so IDENTITY DI5 stays as ratified and the PR's DI5 edit
+  is reverted — no question for Ev. The windmill story's hand-placement
+  is a test bent around the missing product door: the door's unit now
+  lists the fixtures it retires. Fix pass dispatched to the implementer.
+  (SPACES orchestrator)
+- 2026-11-01 — 6269 fix pass in, green at `4df0fe42`: the insert frame is
+  keyed by the history state its action made (undo takes it back, redo of
+  that step restores it; IDENTITY DI5 reverted to as ratified, the two
+  drops-on-undo rows restored); the `⊔` arm of the stranded-pick guard
+  follows the pick's path; one booking per insert; style taken (one home
+  for the clearance step with its sag margin, `home_space` refusing where
+  the world was a fallback, `copy_of` strict, one test helper each).
+  The projected-member double draw did not reproduce. Targeted re-check
+  by the same reviewer, including a history-tree navigation other than
+  redo. (SPACES orchestrator)
+- 2026-11-01 — `the-picture-draws-bodies` closed with
+  `the-viewer-does-not-show-a-constructions-own-space` and
+  `a-family-placed-into-an-instances-space-hides-that-space` (PR 6265,
+  merged ahead of 6269). Its dual-review row rides 6265 as its last
+  commit. (SPACES orchestrator)

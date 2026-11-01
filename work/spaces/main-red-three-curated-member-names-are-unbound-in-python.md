@@ -2,8 +2,9 @@
 id: main-red-three-curated-member-names-are-unbound-in-python
 kind: issue
 title: Main red: the binding census fails on three curated names PR 6208 added (MemberCountFault, MemberEnv, Reached)
-status: open
+status: closed
 opened: 2026-11-01
+closed: 2026-11-01
 priority: P0
 cost: E
 ---
@@ -36,3 +37,10 @@ binds them, nor do `BOUND_AS` or `NOT_BOUND` in the census list them.
 
 Bind each name, or add it to `BOUND_AS` or `NOT_BOUND` with its family,
 as the test's message says.
+
+## Fixed by
+
+CLEAR, on branch `clear/binding-census-red`: `MemberCountFault` is in
+`BOUND_AS` as `EvaluationError.kind` (it crosses as the `index_count` /
+`index_count_out_of_range` tags), and `Reached` and `MemberEnv` are in
+`NOT_BOUND` as `behind-a-door` (`evaluate` makes both reads inside).

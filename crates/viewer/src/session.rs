@@ -214,7 +214,7 @@ struct Gesture {
 ///
 /// The machine is shared with the free-move probe and the
 /// vocabularies are not: these three sentences are about a field's
-/// drag, and the probe's three are about an instance's placement
+/// drag, and the probe's three are about a space's display frame
 /// ([`crate::display::DisplayFault`]).
 fn gesture_words() -> g1::Refusals<Refusal> {
     g1::Refusals {
@@ -1259,7 +1259,7 @@ impl DocSession {
 
     /// The display snapshot the scene and pick paths consume.
     pub fn display_view(&self) -> DisplayView {
-        self.display.view(self.doc(), self.evaluation())
+        self.display.view(self.doc())
     }
 
     /// The directory this session resolves part references against —
@@ -1796,35 +1796,44 @@ impl DocSession {
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
             SessionOp::SaveAsNewDocument(path) => self.save_as_new_document(&path),
-            SessionOp::SetInstanceHidden { instance, hidden } => {
+            SessionOp::SetBodyHidden { node, hidden } => {
                 match self
                     .display
-                    .set_hidden(self.history.doc(), instance, hidden)
+                    .set_body_hidden(self.history.doc(), node, hidden)
                 {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
             }
-            SessionOp::BeginFreeMove { instance } => {
+            SessionOp::SetSpaceHidden { space, hidden } => {
+                match self
+                    .display
+                    .set_space_hidden(self.history.doc(), space, hidden)
+                {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
+            SessionOp::BeginFreeMove { node } => {
                 // `space_evaluation` over the two fields it reads: the
                 // display state beside them is borrowed mutably.
                 let eval = space_evaluation(&self.derived, &self.history);
+                match self.display.begin_free_move(self.history.doc(), eval, node) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
+            SessionOp::PreviewFreeMove { node, frame } => {
                 match self
                     .display
-                    .begin_free_move(self.history.doc(), eval, instance)
+                    .preview_free_move(self.history.doc(), node, frame, self.tol())
                 {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
             }
-            SessionOp::PreviewFreeMove { instance, frame } => {
-                match self.display.preview_free_move(instance, frame, self.tol()) {
-                    Ok(()) => OpOutcome::default(),
-                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
-                }
-            }
-            SessionOp::CommitFreeMove { instance } => {
-                match self.display.commit_free_move(instance) {
+            SessionOp::CommitFreeMove { node } => {
+                match self.display.commit_free_move(self.history.doc(), node) {
                     Ok(()) => OpOutcome::default(),
                     Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
                 }
@@ -2316,18 +2325,17 @@ impl DocSession {
             .map(Refusal::SlotUnit)
     }
 
-    /// **What `SessionOp::SetInstanceHidden` would answer for
-    /// `instance`, or `None` where it would accept** — asked ahead of
-    /// the click by the control that pushes the op.
+    /// **What `SessionOp::SetBodyHidden` would answer for `node`, or
+    /// `None` where it would accept** — asked ahead of the click by the
+    /// control that pushes the op.
     ///
     /// It is the whole of that op's admission: its door runs
-    /// [`crate::display::display_check`] against the committed
-    /// document, and neither drag's table in `perform` refuses it. So
-    /// a row drawn from the LANDED document (the feature tree's) reads
-    /// the refusal for a node deleted, or fused by a boolean, since
-    /// the last landing.
-    pub fn instance_hidden_refusal(&self, instance: RecipeNodeId) -> Option<Refusal> {
-        crate::display::display_check(self.committed_doc(), instance)
+    /// [`crate::display::body_check`] against the committed document,
+    /// and neither drag's table in `perform` refuses it. So a row drawn
+    /// from the LANDED document (the feature tree's) reads the refusal
+    /// for a node deleted since the last landing.
+    pub fn body_hidden_refusal(&self, node: RecipeNodeId) -> Option<Refusal> {
+        crate::display::body_check(self.committed_doc(), node)
             .err()
             .map(|fault| Refusal::Display(fault.into()))
     }
@@ -2643,7 +2651,7 @@ impl DocSession {
                 // the node graph, and the free-move probe is admitted
                 // against the COMMITTED document while the view and
                 // the panel — which run ONE admission test between
-                // them, `display::instance_check` — resolve against
+                // them, `display::free_move_check` — resolve against
                 // this scratch, so the two agree only while a gesture's
                 // edits leave the graph alone. This holds the half a
                 // check can hold; the other half is that
@@ -4582,10 +4590,12 @@ impl core::fmt::Display for SketchTraceFault {
 impl core::error::Error for SketchTraceFault {}
 
 /// **The body a face pick is read on, and the face's name there**
-/// (`crate::world::on_body`): the node's output by its port where it
-/// holds several, its body output otherwise.
+/// (`crate::world::body_of`; a copy carries its body's names, so the
+/// name is the pick's): the node's output by its port where it holds
+/// several, its body output otherwise.
 fn picked_body(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> (Operand, StableName) {
-    let (at, port, name) = crate::world::on_body(doc, face.node, face.body, &face.name);
+    let (at, port) = crate::world::body_of(doc, face.node, face.body);
+    let name = face.name.clone();
     let body = match crate::world::seat_read(doc, at, Some(port)) {
         (at, Some(port)) => Operand::output(at, port),
         (at, None) => body_of(doc, at),
@@ -4980,7 +4990,7 @@ mod tests {
     /// **The hide admission is asked of the document the op reads, not
     /// of the one the tree is drawn from**: an instance deleted since
     /// the last landing still has a tree row, and the answer for it is
-    /// the refusal `SetInstanceHidden` gives.
+    /// the refusal `SetBodyHidden` gives.
     #[test]
     fn a_deleted_instance_not_yet_landed_is_refused_its_hide() {
         use pncad::document::{ContentPin, DocRef, DocumentId, ProfileDoc};
@@ -5002,7 +5012,7 @@ mod tests {
         );
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        assert!(session.instance_hidden_refusal(instance).is_none());
+        assert!(session.body_hidden_refusal(instance).is_none());
         let deleted = session.perform(SessionOp::DeleteNode { node: instance });
         assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
         assert!(
@@ -5010,12 +5020,12 @@ mod tests {
             "the tree still draws the landed document's row"
         );
         let said = session
-            .instance_hidden_refusal(instance)
+            .body_hidden_refusal(instance)
             .expect("the committed document holds no such node")
             .to_string();
         let got = session
-            .perform(SessionOp::SetInstanceHidden {
-                instance,
+            .perform(SessionOp::SetBodyHidden {
+                node: instance,
                 hidden: true,
             })
             .refusal

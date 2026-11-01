@@ -6,7 +6,7 @@
 use eframe::egui;
 use pncad::document::{
     Axis3, Dimension, Doc, Evaluation, Frame, HeldNodes, ProfileProgram, RecipeNodeId, Said,
-    SlotId, Speaker, VarId, VarName,
+    SlotId, VarId, VarName,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{AboutReference, Resolution};
@@ -21,6 +21,7 @@ use crate::session::{
     BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
 };
 use crate::theme::Theme;
+use crate::tree::PickedName;
 use crate::widgets::{
     CANCEL, FieldShowing, FieldVocabulary, GestureVocabulary, ProbeOps, UNIT_PICKER_WIDTH,
     angle_picker, commit_row, delete_button, form_door, free_move_gesture, length_picker,
@@ -43,7 +44,7 @@ impl ViewerBehavior<'_> {
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
-            self.instance_ui(ui, node);
+            self.display_ui(ui, node);
             self.product_ui(ui, node);
         }
         // The forms whose op takes the selection, under its header and
@@ -168,7 +169,7 @@ impl ViewerBehavior<'_> {
                 // drawn for it here: the header above has said so
                 // ([`standing_verdict`]), loud, and this panel says a
                 // fact once — the rule `failure_lines` keeps for a
-                // failed tree row and `instance_ui` keeps for a
+                // failed tree row and `display_ui` keeps for a
                 // vanished instance. The header's `present` reads the
                 // same document this lookup does
                 // (`DocSession::standing`), so the two are one answer.
@@ -437,11 +438,10 @@ impl ViewerBehavior<'_> {
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
                     ui.label(selected_node_heading(
-                        self.session.doc(),
+                        landed.map(|(doc, _)| doc),
                         self.session.part_files(),
                         said,
                         *node,
-                        *present,
                     ));
                     if *present && delete_button(ui, self.session, *node) {
                         self.ops.push(SessionOp::DeleteNode { node: *node });
@@ -455,10 +455,12 @@ impl ViewerBehavior<'_> {
                 return;
             }
             Standing::Face { face, .. } => {
-                self.entity_header_ui(ui, "face", face.feature(), standing);
+                let picked = PickedName::face(face);
+                self.entity_header_ui(ui, &picked, standing);
             }
             Standing::Edge { edge, .. } => {
-                self.entity_header_ui(ui, "edge", edge.feature(), standing);
+                let picked = PickedName::edge(edge);
+                self.entity_header_ui(ui, &picked, standing);
             }
         }
         standing_verdict(ui, &self.theme, standing, landed, said);
@@ -501,36 +503,31 @@ impl ViewerBehavior<'_> {
         });
     }
 
-    /// A picked entity's header line: which feature it belongs to, and
-    /// the delete that feature offers. Its verdict is
-    /// [`standing_verdict`]'s, on the lines under it.
-    ///
-    /// **One rendering for every kind of picked entity**, taking the
-    /// noun as an argument: a face and an edge differ in what they are
-    /// called and in nothing else this line does.
+    /// A picked entity's header line ([`entity_header`]): the entity as
+    /// the chrome says a pick, and the delete the feature that made it
+    /// offers. Its verdict is [`standing_verdict`]'s, on the lines
+    /// under it.
     fn entity_header_ui(
         &mut self,
         ui: &mut egui::Ui,
-        noun: &str,
-        feature: RecipeNodeId,
+        picked: &PickedName<'_>,
         standing: &Standing,
     ) {
         ui.horizontal(|ui| {
-            // The feature that MADE the entity, so the button deletes
-            // what the label names.
-            let by = Speaker::of(self.session.doc()).or_held(self.session.selection_said());
-            ui.label(format!("{noun} of {}", by.node(feature)));
+            let by = crate::frame::landed_speaker(self.session.landed_pair())
+                .or_held(self.session.selection_said());
+            let (label, feature) = entity_header(picked, by);
+            ui.label(label);
             if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
         });
     }
 
-    /// The selected instance's display controls: the hide toggle and
-    /// the free-move probe. Draws nothing for a node the document does
-    /// not admit display state on — the section is about per-instance
-    /// display state, which neither another kind of node nor an id the
-    /// document no longer holds has.
+    /// The selected body's display controls: the hide toggle and the
+    /// free-move probe. Draws nothing for a node the document does not
+    /// admit display state on — one that builds no body, or an id the
+    /// document no longer holds.
     ///
     /// **Silence is the whole answer for both refusals, and for the
     /// absent id it is half of a rule rather than a discard.** A
@@ -544,19 +541,12 @@ impl ViewerBehavior<'_> {
     /// again here would be one fact spelled twice in one pane, which
     /// this panel does nowhere.
     ///
-    /// **The section's gate and the toggle's are two different tests,
-    /// and each control reads the one its own door runs.**
-    /// [`crate::display::instance_check`] decides whether there is a
-    /// section at all — it is the kind test, and a node of another kind
-    /// has no per-instance display state to show. What the hide toggle
-    /// pushes runs [`crate::display::display_check`], the full
-    /// admission test, so an instance whose geometry is fused into a
-    /// placed body with another's is a live instance with a section and
-    /// no display operation that can address it: the toggle is gated on
-    /// the door's test and carries the door's own sentence.
-    pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+    /// The hide toggle pushes [`SessionOp::SetBodyHidden`], whose door
+    /// runs [`crate::display::body_check`] — the test that gates this
+    /// section — so the toggle is offered exactly where the op accepts.
+    pub(crate) fn display_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
         // **The COMMITTED document, because that is the one the doors
-        // read.** `set_hidden` and `begin_free_move` are handed
+        // read.** `set_body_hidden` and `begin_free_move` are handed
         // `history.doc()`, and both ops are permitted during a value
         // gesture, so a panel reading the previewed document would be
         // answering a different question from the click it is standing
@@ -566,7 +556,7 @@ impl ViewerBehavior<'_> {
         // The fault is discarded HERE, at the party that decides the
         // two refusals are one answer, rather than by a door that
         // answered a `bool` and could not have offered anything else.
-        if crate::display::instance_check(doc, node).is_err() {
+        if crate::display::body_check(doc, node).is_err() {
             return;
         }
         ui.separator();
@@ -575,43 +565,33 @@ impl ViewerBehavior<'_> {
             node,
             self.session.part_files(),
         ));
-        // The admission test `SetInstanceHidden` itself runs, read once
-        // for the section: the toggle below is offered exactly where
-        // the op would accept it, and the free-move probe runs this
-        // same test before its own.
-        let addressable = crate::display::display_check(doc, node);
-        let mut shown = !self.display.hidden.contains(&node);
-        if hide_toggle(ui, &self.theme, &addressable, &mut shown) {
-            self.ops.push(SessionOp::SetInstanceHidden {
-                instance: node,
+        let mut shown = !self.display.hidden_bodies.contains(&node);
+        if hide_toggle(ui, &mut shown) {
+            self.ops.push(SessionOp::SetBodyHidden {
+                node,
                 hidden: !shown,
             });
         }
-        // The probe below would refuse this very fault —
-        // `free_move_check` runs `display_check` first — so the section
-        // ends at the toggle rather than saying it a second time.
-        if addressable.is_err() {
-            return;
-        }
         // The evaluation the op reads (DI5: free-move moves a shown
-        // space, and a copy with no value has no picture to move).
+        // space, and a body with no value has no picture to move).
         match free_move_check(doc, self.session.space_evaluation(), node) {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
-                // with. Advisory for every fault that reaches here: the
-                // kind faults end the section above, which leaves a copy
-                // the document places into the world (the document working
-                // as written), a picture not known yet (an evaluation
-                // still on its way), neither of which asks anything of
-                // the reader, or a placement the evaluation refused,
-                // whose failure the tree's row already reports where it
-                // lives — here it only says why there is no probe.
+                // with. Advisory for every fault that reaches here: a
+                // body in the world (the document working as written),
+                // a picture not known yet (an evaluation still on its
+                // way), a space no drawn body is in, neither of which
+                // asks anything of the reader, or a node the evaluation
+                // refused, whose failure the tree's row already reports
+                // where it lives — here it only says why there is no
+                // probe.
                 crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
                 // The recourse the sentence names, where it is one: a
                 // copy placed into the world is given a space of its
                 // own, which the probe then moves.
                 if matches!(fault, crate::display::AdmissionFault::InTheWorld { .. })
+                    && doc.placements().contains(&node)
                     && ui.button("Into a space of its own").clicked()
                 {
                     self.ops.push(SessionOp::IntoOwnSpace { placement: node });
@@ -1408,22 +1388,33 @@ enum HeldAct {
     Rest,
 }
 
-/// **A selected node's heading**: as the document holds it while it is
-/// present ([`crate::tree::node_label`]), and once it is deleted as the
-/// last document that held it spoke it (`DocSession::selection_said`),
-/// since the document no longer says it.
+/// **A selected node's heading**: as the landed document holds it
+/// ([`crate::tree::node_label`]) — the document the picture and the
+/// face header beside it speak — and, where that document does not hold
+/// it (deleted, or not landed yet), as the last document that held it
+/// spoke it (`DocSession::selection_said`).
 fn selected_node_heading(
-    doc: &Doc<ProfileProgram>,
+    landed: Option<&Doc<ProfileProgram>>,
     files: &crate::parts::PartFiles,
     said: &HeldNodes,
     node: RecipeNodeId,
-    present: bool,
 ) -> String {
-    if present {
-        crate::tree::node_label(doc, node, files)
-    } else {
-        said.spoken(node).to_string()
+    match landed.filter(|doc| doc.node(node).is_some()) {
+        Some(doc) => crate::tree::node_label(doc, node, files),
+        None => said.spoken(node).to_string(),
     }
+}
+
+/// **A picked entity's header**: the pick as the chrome says one
+/// ([`PickedName`]), and the node its Delete deletes — the feature the
+/// words name ([`PickedName::feature`]), so the button deletes what the
+/// label names. It is the node [`crate::session::FaceSelection::feature`]
+/// answers too, so the tree highlights what the header deletes.
+pub(crate) fn entity_header(
+    picked: &PickedName<'_>,
+    by: pncad::document::Speaker<'_>,
+) -> (String, RecipeNodeId) {
+    (Said(picked, by).to_string(), picked.feature())
 }
 
 /// **What the selection's standing has to SAY, drawn**: the verdict on
@@ -1884,32 +1875,9 @@ fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool
         .clicked()
 }
 
-/// **The hide toggle, offered exactly where `SetInstanceHidden` would
-/// accept it.** `addressable` is the admission test that op runs
-/// (`display::display_check`); where it refuses, the checkbox is drawn
-/// disabled and the refusal's own sentence stands under it, visible
-/// rather than behind a hover.
-///
-/// Answers whether the toggle was changed — which a refused toggle
-/// never is.
-fn hide_toggle(
-    ui: &mut egui::Ui,
-    theme: &Theme,
-    addressable: &Result<(), crate::display::AdmissionFault>,
-    shown: &mut bool,
-) -> bool {
-    let toggle = ui.add_enabled(
-        addressable.is_ok(),
-        egui::Checkbox::new(shown, "shown in viewport"),
-    );
-    if let Err(fault) = addressable {
-        // Advisory: past the section's own kind gate the one fault
-        // left is geometry fused into a placed body with another
-        // instance's, which is what the document says and nothing a
-        // reader got wrong.
-        crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
-    }
-    toggle.changed()
+/// **The hide toggle**: answers whether it was changed.
+fn hide_toggle(ui: &mut egui::Ui, shown: &mut bool) -> bool {
+    ui.checkbox(shown, "shown in viewport").changed()
 }
 
 /// What an offered variable's button says on hover.
@@ -2204,17 +2172,60 @@ mod tests {
 
     use super::{free_move_probe, hide_toggle};
     use crate::app::ViewerBehavior;
-    use crate::display::AdmissionFault;
     use crate::pane::headless::{painted_after_clicking, painted_text};
     use crate::props::{Notation, SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::{Refusal, SessionOp};
-    use crate::theme::Theme;
     use eframe::egui;
     use pncad::document::{Dimension, RecipeNodeId, SlotId, SpokenVar, VarId, VarName};
 
-    use crate::test_support::spoken;
-
     const NODE: RecipeNodeId = RecipeNodeId::new(0, test_utils::refusal::tagged(4));
+
+    /// **The header's Delete deletes the node its label calls the
+    /// feature, the node the tree highlights.** A name the attribution
+    /// walk cannot classify (here, no path) is said as made by its own
+    /// node; the header deletes that one, says the drawn node as where
+    /// the pick was taken, and `FaceSelection::feature` — what the tree
+    /// highlights — answers the same node. A classified cap likewise.
+    #[test]
+    fn the_entity_headers_delete_is_the_feature_its_label_names() {
+        use crate::session::FaceSelection;
+        use crate::tree::PickedName;
+        use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+        let node = |n| RecipeNodeId::new(0, test_utils::refusal::tagged(n));
+        let (named, drawn) = (node(3), node(5));
+        let face = |path| FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: named,
+                path,
+            },
+            node: drawn,
+            body: 0,
+        };
+        let unclassified = face(Vec::new());
+        assert_eq!(
+            unclassified.feature(),
+            named,
+            "the tree's feature is the header's"
+        );
+        let by = pncad::document::Speaker::TAG;
+        assert_eq!(
+            super::entity_header(&PickedName::face(&unclassified), by),
+            (
+                "the face of node 000000000003, on node 000000000005".to_owned(),
+                named
+            ),
+        );
+        let cap = face(vec![RoleSeg::Cap(CapEnd::End)]);
+        assert_eq!(
+            super::entity_header(&PickedName::face(&cap), by),
+            (
+                "the end cap of node 000000000003, on node 000000000005".to_owned(),
+                named
+            ),
+        );
+        assert_eq!(cap.feature(), named, "the tree's feature is the header's");
+    }
 
     fn thickness() -> SpokenVar {
         SpokenVar::new(VarId::new(0, 5), Some(VarName::from_static("thickness")))
@@ -2289,67 +2300,17 @@ mod tests {
         );
     }
 
-    /// The fault a fused instance's display doors refuse with.
-    fn fused() -> AdmissionFault {
-        AdmissionFault::FusedGeometry {
-            instance: spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(0)),
-                Some("InstantiatePart"),
-            ),
-            body: spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
-                Some("Union"),
-            ),
-            others: vec![spoken(
-                RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
-                Some("InstantiatePart"),
-            )],
-        }
-    }
-
-    /// **A refused hide toggle is drawn, cannot be flipped, and carries
-    /// the door's own sentence under it** — the panel half of the fused
-    /// instance's repair, drawn headless.
-    ///
-    /// The runtime value that makes it false is a toggle gated on
-    /// anything weaker than the display doors' own test: clicked here,
-    /// it would report a change the op then refuses.
+    /// **A click on the hide toggle flips it.**
     #[test]
-    fn a_refused_hide_toggle_is_disabled_and_says_why() {
+    fn a_hide_toggle_flips() {
         let changed = Cell::new(false);
-        let painted = painted_after_clicking("shown in viewport", |ui| {
+        painted_after_clicking("shown in viewport", |ui| {
             let mut shown = true;
-            if hide_toggle(ui, &Theme::DEFAULT, &Err(fused()), &mut shown) {
-                changed.set(true);
-            }
-        });
-        assert!(!changed.get(), "a refused toggle is not the user's to flip");
-        // Planted, not compared with another reading of the fault.
-        assert!(
-            painted.contains(
-                "InstantiatePart 000000000000's geometry is fused into Union 000000000002 \
-                 together with InstantiatePart 000000000001 — a display operation cannot \
-                 address it separately"
-            ),
-            "{painted}"
-        );
-    }
-
-    /// **The same click on an addressable toggle DOES flip it** — the
-    /// row that keeps the one above from passing because the harness
-    /// missed the checkbox, and that no sentence is owed where the op
-    /// would accept.
-    #[test]
-    fn an_addressable_hide_toggle_flips_and_says_nothing() {
-        let changed = Cell::new(false);
-        let painted = painted_after_clicking("shown in viewport", |ui| {
-            let mut shown = true;
-            if hide_toggle(ui, &Theme::DEFAULT, &Ok(()), &mut shown) {
+            if hide_toggle(ui, &mut shown) {
                 changed.set(true);
             }
         });
         assert!(changed.get(), "the click reached the checkbox");
-        assert!(!painted.contains("fused"), "{painted}");
     }
 
     /// **A slot the user can write is offered the probe**, with nothing
@@ -2465,7 +2426,7 @@ mod tests {
         let previewed: Vec<[f64; 3]> = emitted
             .iter()
             .filter_map(|op| match op {
-                SessionOp::PreviewFreeMove { instance, frame } if *instance == NODE => {
+                SessionOp::PreviewFreeMove { node, frame } if *node == NODE => {
                     Some(frame.translation)
                 }
                 _ => None,
@@ -2477,9 +2438,9 @@ mod tests {
             "one typed value, previewed as millimetres: {emitted:?}"
         );
         assert!(
-            emitted.iter().any(
-                |op| matches!(op, SessionOp::CommitFreeMove { instance } if *instance == NODE)
-            ),
+            emitted
+                .iter()
+                .any(|op| matches!(op, SessionOp::CommitFreeMove { node } if *node == NODE)),
             "and committed: {emitted:?}"
         );
     }
@@ -2897,17 +2858,16 @@ mod verdict_tests {
                 ) => {
                     let files = crate::parts::PartFiles::default();
                     assert_eq!(
-                        super::selected_node_heading(session.doc(), &files, said, node, false),
+                        super::selected_node_heading(Some(landed), &files, said, node),
                         labelled,
                         "a deleted node heads the pane by the label it had"
                     );
                     assert_eq!(
                         super::selected_node_heading(
-                            session.doc(),
+                            Some(landed),
                             &files,
                             &HeldNodes::default(),
                             node,
-                            false
                         ),
                         by_tag,
                         "kept nothing, it is said by its tag"
@@ -2993,11 +2953,10 @@ mod verdict_tests {
         let files = crate::parts::PartFiles::default();
         assert_eq!(
             super::selected_node_heading(
-                session.doc(),
+                session.landed_pair().map(|(doc, _)| doc),
                 &files,
                 session.selection_said(),
                 profile,
-                false
             ),
             labelled,
             "the deleted profile heads the pane as the shown document said it"
@@ -3035,16 +2994,44 @@ mod verdict_tests {
             session.pump();
             assert_eq!(
                 super::selected_node_heading(
-                    session.doc(),
+                    session.landed_pair().map(|(doc, _)| doc),
                     &crate::parts::PartFiles::default(),
                     session.selection_said(),
                     block,
-                    false
                 ),
                 format!("Extrude \"{after}\" ({t})"),
                 "{what}: the deleted node is said by its last label"
             );
         }
+    }
+
+    /// **A present node heads the pane as the landed document holds
+    /// it**, as the face header beside it does: a rename that has not
+    /// landed is not the heading yet.
+    #[test]
+    fn a_selected_nodes_heading_says_the_landed_label_while_a_rename_has_not_landed() {
+        let tol = pncad::tolerance::witness();
+        let (doc, block, _) = crate::test_support::boss_on_block("heading-landed", tol);
+        let t = test_utils::refusal::tag(block.0.digest());
+        let mut session = DocSession::inline(doc, tol);
+        let label = |name: &str| SessionOp::SetLabel {
+            node: block,
+            label: Some(Label::new(name).expect("a label")),
+        };
+        assert!(session.perform(label("landed")).refusal.is_none());
+        session.pump();
+        session.perform(SessionOp::Select(Selection::Node(block)));
+        assert!(session.perform(label("shown")).refusal.is_none());
+        assert_eq!(
+            super::selected_node_heading(
+                session.landed_pair().map(|(doc, _)| doc),
+                &crate::parts::PartFiles::default(),
+                session.selection_said(),
+                block,
+            ),
+            format!("Extrude \"landed\" ({t})"),
+            "the heading waits for the rename to land"
+        );
     }
 
     /// **A name that no longer resolves is a verdict to act on**, so

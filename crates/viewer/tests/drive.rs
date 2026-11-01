@@ -138,7 +138,7 @@ mod driven {
             "the second is the sphere: {said:#?}"
         );
         let (doc, _) = driver.session().landed_pair().expect("landed");
-        let copies = viewer::world::drawn_copies(doc);
+        let copies = crate::common::drawn_copies(doc);
         assert_eq!(copies.len(), 2, "one copy per revolve: {said:#?}");
         let index = driver
             .index()
@@ -220,7 +220,7 @@ mod driven {
             driver
                 .screen()
                 .iter()
-                .find(|landed| landed.text.starts_with("member 1") || landed.text == "no picks yet")
+                .find(|landed| landed.text.starts_with("member 1") || landed.text == "none picked")
                 .map(|landed| landed.text.clone())
                 .expect("the boolean tool's picks line")
         };
@@ -228,7 +228,7 @@ mod driven {
         vclick(&mut driver, 0.3, 0.47);
         assert_eq!(
             members(&driver),
-            "no picks yet",
+            "none picked",
             "the replay's click is a miss"
         );
         // The original's material, beside the hole.
@@ -271,7 +271,7 @@ mod driven {
             .expect("clicked");
         driver.settle().expect("settles");
         assert!(
-            driver.shows("no picks yet"),
+            driver.shows("none picked"),
             "the premise: the click took nothing"
         );
         assert!(

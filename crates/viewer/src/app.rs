@@ -4206,9 +4206,10 @@ mod properties_pane_tests {
         let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
             vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
-        // A pick is on the drawn copy, and says so.
+        // A pick is the face in its words, on the copy clicked.
         let line = format!(
-            "on: face of Place {}; to: —",
+            "on: the end cap of Extrude {}, on Place {}; to: none picked",
+            test_utils::refusal::tag(extrude().0.digest()),
             test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
@@ -5090,24 +5091,14 @@ mod properties_pane_tests {
         );
     }
 
-    /// A session over two instances of one part, and the two instance
-    /// ids in document order: placed in the world through one union
-    /// when `fused`, and each its own placement either way. Also the union's
-    /// id, when there is one.
+    /// A session over two instances of one part, each placed into the
+    /// world by itself, and the two instance ids in document order.
     ///
-    /// The part is never resolved: the display admission is a question
-    /// about the recipe's edges, so the rows fail to evaluate and the
-    /// tree draws them, with their checkboxes, all the same.
-    fn two_instances(
-        fused: bool,
-    ) -> (
-        crate::session::DocSession,
-        [RecipeNodeId; 2],
-        Option<RecipeNodeId>,
-    ) {
-        use pncad::document::{
-            Bodies, BodyRead, ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId,
-        };
+    /// The part is never resolved: the hide's admission is a question
+    /// about the recipe, so the rows fail to evaluate and the tree draws
+    /// them, with their checkboxes, all the same.
+    fn two_instances() -> (crate::session::DocSession, [RecipeNodeId; 2]) {
+        use pncad::document::{ContentPin, DocRef, DocumentId, Node, Operand, ProfileDoc, VarId};
         let tol = pncad::tolerance::witness();
         let part = DocRef {
             id: DocumentId::derive("shown-part"),
@@ -5115,94 +5106,20 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
-        // Each instance is a placement of its own, into the world at
-        // the identity.
         let world = || Operand::Var(VarId::WORLD);
         let stand = || pncad::document::stand().bundle();
         let a = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
         let b = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
-        let union = fused.then(|| {
-            // An instance defines one body, its part's product: the
-            // edges are what the admission reads.
-            let copy = |instance| BodyRead::plain(Operand::Node(instance));
-            let union = insert(
-                &mut doc,
-                Node::Union {
-                    members: Bodies::Spelled(vec![copy(a), copy(b)]),
-                },
-            );
-            // Placed at the identity: the part never resolves, so no
-            // pose is read off its copies to place it by.
-            insert(
-                &mut doc,
-                Node::place(BodyRead::plain(Operand::from(union)), world(), stand()),
-            );
-            union
-        });
         let mut session = crate::session::DocSession::inline(doc, tol);
         session.pump();
-        (session, [a, b], union)
+        (session, [a, b])
     }
 
-    /// **A fused instance's tree checkbox is drawn, cannot be flipped,
-    /// and says on hover what `SetInstanceHidden` would refuse with**
-    /// — the whole app, the real feature tree, each row read for its
-    /// own instance.
-    ///
-    /// The runtime value that makes it false is a checkbox gated on
-    /// anything weaker than the op's admission (the row's kind, which
-    /// a fused instance passes): hovered, it would say nothing, and
-    /// clicked it would push an op the session then refuses.
+    /// **An instance row's tree checkbox is live, silent, and the click
+    /// hides its own row's body.**
     #[test]
-    fn a_fused_instances_tree_checkbox_is_disabled_with_the_refusal_it_would_get() {
-        let (session, ids, union) = two_instances(true);
-        let union = union.expect("the fused fixture has a union");
-        let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
-        let at = pane.each("shown");
-        assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
-        for (id, at) in ids.into_iter().zip(at) {
-            let said = pane
-                .app
-                .session
-                .instance_hidden_refusal(id)
-                .expect("SetInstanceHidden refuses a fused instance")
-                .to_string();
-            let quiet = pane.quiet();
-            assert_eq!(
-                Driven::gained(&quiet, pane.hovered(at)),
-                vec![said.clone()],
-                "the hover is the op's own sentence"
-            );
-            // Planted, not only compared with the one home: the words
-            // a reader gets, naming this row's instance.
-            let other = ids.into_iter().find(|&other| other != id).expect("two");
-            assert_eq!(
-                said,
-                format!(
-                    "InstantiatePart {}'s geometry is fused into Union {} together with \
-                     InstantiatePart {} — a display operation cannot address it separately",
-                    test_utils::refusal::tag(id.0.digest()),
-                    test_utils::refusal::tag(union.0.digest()),
-                    test_utils::refusal::tag(other.0.digest())
-                )
-            );
-            pane.click_at(at);
-            pane.quiet();
-            assert!(
-                pane.app.session.display().hidden().is_empty(),
-                "a refused checkbox hides nothing"
-            );
-            assert_eq!(status(&pane), None, "and pushes nothing the op refused");
-        }
-    }
-
-    /// **The same drive over two unfused instances: live, silent, and
-    /// the click hides its own row's instance** — the row that keeps
-    /// the one above from passing because the harness missed the
-    /// checkbox.
-    #[test]
-    fn an_addressable_instances_tree_checkbox_is_live_and_says_nothing() {
-        let (session, [a, _], _) = two_instances(false);
+    fn an_instances_tree_checkbox_is_live_and_hides_its_own_body() {
+        let (session, [a, _]) = two_instances();
         let mut pane = Driven::with_seams(Vec::new(), |app| app.session = session);
         let at = pane.each("shown");
         assert_eq!(at.len(), 2, "one checkbox per instance row: {at:?}");
@@ -5211,7 +5128,7 @@ mod properties_pane_tests {
         pane.click_at(at[0]);
         pane.quiet();
         assert_eq!(
-            pane.app.session.display().hidden(),
+            pane.app.session.display().hidden_bodies(),
             &std::collections::BTreeSet::from([a])
         );
     }
@@ -5836,7 +5753,7 @@ mod properties_pane_tests {
         assert!(!shown(&rest, FREE_MOVE), "no probe, no door: {rest:?}");
         driven
             .app
-            .perform_batch(vec![SessionOp::BeginFreeMove { instance }]);
+            .perform_batch(vec![SessionOp::BeginFreeMove { node: instance }]);
         assert!(
             driven.app.session.display().probing().is_some(),
             "the probe began: {:?}",
@@ -5886,12 +5803,12 @@ mod properties_pane_tests {
             .node_space(instance)
             .expect("the copy is placed into a space");
         driven.app.perform_batch(vec![
-            SessionOp::BeginFreeMove { instance },
+            SessionOp::BeginFreeMove { node: instance },
             SessionOp::PreviewFreeMove {
-                instance,
+                node: instance,
                 frame: pncad::document::Frame::translation([0.0, 0.0, 0.05]),
             },
-            SessionOp::CommitFreeMove { instance },
+            SessionOp::CommitFreeMove { node: instance },
         ]);
         assert!(
             driven.app.session.display().free_move_of(space).is_some(),
@@ -6174,7 +6091,12 @@ mod properties_pane_tests {
             let top = cap_of(pncad::prelude::CapEnd::End);
             driven.select(Selection::Face(top.clone()));
             assert_eq!(
-                driven.app.drafts.sketch_face.as_ref(),
+                driven
+                    .app
+                    .drafts
+                    .sketch_face
+                    .as_ref()
+                    .map(crate::tree::HeldPick::face),
                 Some(&top),
                 "the rows latched it"
             );
@@ -6269,7 +6191,12 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(
-            driven.app.drafts.sketch_face.as_ref(),
+            driven
+                .app
+                .drafts
+                .sketch_face
+                .as_ref()
+                .map(crate::tree::HeldPick::face),
             Some(&bottom),
             "kept, not cleared"
         );
@@ -6410,7 +6337,10 @@ mod properties_pane_tests {
             driven
                 .app
                 .drafts
-                .sketch_face_said()
+                .sketch_face
+                .as_ref()
+                .expect("the form holds the top cap")
+                .said()
                 .spoken(extrude())
                 .to_string(),
             plinth,
@@ -6787,7 +6717,7 @@ mod properties_pane_tests {
         let refused_said =
             pncad::document::Said(&refused, pncad::document::Speaker::of(landed)).to_string();
         assert!(
-            refused_said.contains("of Place "),
+            refused_said.contains("edges it draws on Place "),
             "the refusal's node is said as the landed document holds it: {refused_said}"
         );
         let spelled = crate::frame::Spelled::in_landed(refused.clone(), Some(landed));
@@ -7010,14 +6940,15 @@ mod properties_pane_tests {
         }
     }
 
-    /// **The mate tool's same-copy refusal says the kept label
-    /// while the landed document is behind**: the run that would land
-    /// the rename and the delete is held, so the landed document still
-    /// says the picked copy's placement by its old label and the survival step keeps the
-    /// picks; the commit's refusal says the last label the shown
-    /// document gave it.
+    /// **The mate tool's same-copy refusal says the landed label while
+    /// the landed document is behind**: the run that would land the
+    /// rename and the delete is held, so the landed document still says
+    /// the picked copy's placement by its old label and the survival
+    /// step keeps the picks. The chrome speaks the landed document, so
+    /// the commit's refusal says that label, as the panel line does —
+    /// not the rename the shown document made since.
     #[test]
-    fn the_mate_refusal_says_the_kept_label_while_a_delete_has_not_landed() {
+    fn the_mate_refusal_says_the_landed_label_while_a_delete_has_not_landed() {
         let (mut driven, open) = gated();
         driven.app.perform_batch(vec![SessionOp::SetLabel {
             node: placement(),
@@ -7063,15 +6994,15 @@ mod properties_pane_tests {
         driven.click(&crate::tools::ToolKind::Mate.commit());
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         let said = status(&driven).expect("the commit refused");
-        let plinth = format!(
-            "Place \"plinth\" ({})",
+        let base = format!(
+            "Place \"base\" ({})",
             test_utils::refusal::tag(placement().0.digest())
         );
         // Both picks are caps of the one copy, so the commit refuses
         // the pair, naming the copy's placement.
         assert!(
-            said.contains(&format!("both picks are on {plinth},")),
-            "the refusal says the kept label: {said}"
+            said.contains(&format!("both picks are on {base},")),
+            "the refusal says the landed label: {said}"
         );
     }
 
@@ -7452,7 +7383,8 @@ mod properties_pane_tests {
             pane.quiet();
             assert!(*pane.app.session.committed_doc() == before, "Add is held");
 
-            pane.app.drafts.trace_face = Some(wall);
+            let doc = pane.app.session.doc().clone();
+            crate::drafts::latch(&mut pane.app.drafts.trace_face, &doc, &wall);
             pane.quiet();
             assert!(
                 pane.app

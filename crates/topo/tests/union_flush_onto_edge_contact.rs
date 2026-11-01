@@ -80,11 +80,11 @@ fn members(c_span: (f64, f64), tol: Tol) -> [AtRestBody<f64>; 3] {
 /// 1e-2 along the edge from the vertex that `topo::point_in_solid`
 /// decides, the vertex's cone there, `On` where the point lies on its
 /// boundary. Pieces at a vertex the boolean
-/// minted are not read. A vertex in pairs alone layers its partners
-/// into one row per edge (`vtxfac::pair_classes`). Red when the
-/// layering keeps each pair's rows: an edge on two partners'
-/// boundaries reads `On` and `Out`, and one in a void that holds an
-/// island touching it along a ray reads `In` and `Out`.
+/// minted are not read. A vertex in pairs alone reads its partners as
+/// one cone, one row per edge (`vtxfac::cone_classes`). Red where a
+/// pair's rows are kept apart: an edge on two partners' boundaries
+/// would read `On` and `Out`, and one in a void that holds an island
+/// touching it along a ray `In` and `Out`.
 fn assert_classes(out: &BooleanBody<f64>, [a, b]: [&AtRestBody<f64>; 2], what: &str, tol: Tol) {
     let band = geom_core::Band::linear(tol).expect("the band");
     let mut classes = std::collections::BTreeMap::new();

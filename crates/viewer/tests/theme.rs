@@ -275,6 +275,25 @@ fn a_themes_ground_stays_off_its_own_swatches() {
     }
 }
 
+/// **A body outside the product is told from one inside it**, in every
+/// palette, under the vision types the palette's own claim covers,
+/// across the shading range: the outside mark composited over the body
+/// against the bare body. A tint too close to the body draws every
+/// construction as though the product held it.
+#[test]
+fn a_body_outside_the_product_is_told_from_the_product() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_outside_separation(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: a body outside the product is only {worst:.4} from one inside it, {at}, \
+             under the {:.4} bar",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
 /// **A committed profile is told from the preview drawn over it, by
 /// colour, in every palette and under every dichromacy the suite
 /// simulates.**
@@ -616,6 +635,37 @@ mod cvd {
                 let d = distance(seen(profile, kind), seen(neighbour, kind));
                 if d < worst.0 {
                     worst = (d, format!("{name} under {}", name_of(kind)));
+                }
+            }
+        }
+        worst
+    }
+
+    /// The closest a theme's body outside the product comes to its body,
+    /// over the shading range and the vision types its claim covers.
+    pub(super) fn worst_outside_separation(theme: &Theme) -> (f64, String) {
+        let composited = theme.outside.over(theme.body);
+        assert!(
+            composited.is_some(),
+            "{}: the outside mark does not composite",
+            theme.name
+        );
+        let outside = linear(composited.unwrap_or(theme.body));
+        let body = linear(theme.body);
+        let ambient = f64::from(theme.ambient.get());
+        let mut worst = (f64::INFINITY, String::new());
+        for shade in [ambient, ambient + (1.0 - ambient) * 0.5, 1.0] {
+            let scale = |c: [f32; 3]| {
+                Color::new(
+                    f64::from(c[0]) * shade,
+                    f64::from(c[1]) * shade,
+                    f64::from(c[2]) * shade,
+                )
+            };
+            for kind in kinds_of(theme) {
+                let d = distance(seen(scale(body), *kind), seen(scale(outside), *kind));
+                if d < worst.0 {
+                    worst = (d, format!("under {} at shade {shade:.2}", name_of(*kind)));
                 }
             }
         }

@@ -143,6 +143,8 @@ mod path_authoring;
 mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
+#[path = "picture_draws_bodies.rs"]
+mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "profile_draw.rs"]

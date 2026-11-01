@@ -65,4 +65,7 @@ mod verbs_teapot_r2_probes;
 #[path = "verbs_torus_vessel.rs"]
 mod verbs_torus_vessel;
 
+#[path = "wall_jets.rs"]
+mod wall_jets;
+
 test_utils::every_suite_file_is_aggregated!();
