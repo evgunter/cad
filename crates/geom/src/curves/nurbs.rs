@@ -1751,7 +1751,7 @@ impl NurbsCurve3<Interval> {
     /// `None` as [`Self::span_deriv`].
     pub fn span_enclosure(&self, lo: f64, hi: f64) -> Option<Point3<Interval>> {
         let mut acc: Option<Point3<Interval>> = None;
-        for (net, _, _) in self.restricted(lo, hi)? {
+        for (net, _) in self.restricted(lo, hi)? {
             for [x, y, z, w] in net {
                 let p = Point3::new(x / w, y / w, z / w);
                 acc = Some(acc.map_or(p, |a| {
@@ -1770,11 +1770,11 @@ impl NurbsCurve3<Interval> {
     /// enclosed: `C′(t)` at every `t` in it.
     ///
     /// On each knot span the range meets, the homogeneous coordinates
-    /// `(w·P, w)` are restricted to the meet — the Bernstein coefficients
-    /// of exactly that piece — and the degree times their differences
-    /// over the meet's span are the Bernstein coefficients of the
-    /// homogeneous derivative, so the hulls enclose `A`, `A′`, `w` and
-    /// `w′`; `C′ = (A′·w − A·w′)/w²` follows in interval arithmetic with
+    /// `(w·P, w)` and their derivative are restricted to the meet — the
+    /// Bernstein coefficients of exactly that piece, the derivative's read
+    /// off the blossom across the span's own knots
+    /// ([`geom_core::spline::SpanRow::restrict_derivative`]) — so the
+    /// hulls enclose `A`, `A′`, `w` and `w′`; `C′ = (A′·w − A·w′)/w²` follows in interval arithmetic with
     /// every restricted weight certified positive. [`Self::deriv`] at a
     /// wide interval runs the basis recurrence on it instead and can
     /// enclose a span's derivative by the whole line.
@@ -1785,21 +1785,12 @@ impl NurbsCurve3<Interval> {
     pub fn span_deriv(&self, lo: f64, hi: f64) -> Option<Vec3<Interval>> {
         let at = |x: f64| Interval::from_bounds(x, x);
         let mut acc: Option<Vec3<Interval>> = None;
-        for (net, a, b) in self.restricted(lo, hi)? {
-            let p = net.len() - 1;
+        for (net, slope) in self.restricted(lo, hi)? {
             let fold = |it: &mut dyn Iterator<Item = [Interval; 4]>| {
                 it.reduce(|x, y| [0, 1, 2, 3].map(|c| x[c].enclosure_hull(y[c])))
             };
             let h = fold(&mut net.iter().copied())?;
-            #[allow(clippy::cast_precision_loss)]
-            let scale = at(p as f64) / (at(b) - at(a));
-            let hd = if p == 0 {
-                [Interval::zero(); 4]
-            } else {
-                fold(
-                    &mut (0..p).map(|k| [0, 1, 2, 3].map(|c| (net[k + 1][c] - net[k][c]) * scale)),
-                )?
-            };
+            let hd = fold(&mut slope.iter().copied())?;
             let w = h[3];
             let (aa, ad) = (Vec3::new(h[0], h[1], h[2]), Vec3::new(hd[0], hd[1], hd[2]));
             let piece = (ad * w - aa * hd[3]) * (at(1.0) / w.powi(2));
@@ -1815,11 +1806,16 @@ impl NurbsCurve3<Interval> {
     }
 
     /// Each knot span's piece over `lo..hi`: its homogeneous Bernstein
-    /// net, every weight certified positive, and the meet's two ends.
+    /// net, every weight certified positive, and its derivative's
+    /// ([`geom_core::spline::SpanRow::restrict_derivative`]).
     /// `None` for a range with no extent or past the domain, a
     /// restriction the blossom door refuses, and an uncertified weight.
     #[allow(clippy::type_complexity)]
-    fn restricted(&self, lo: f64, hi: f64) -> Option<Vec<(Vec<[Interval; 4]>, f64, f64)>> {
+    fn restricted(
+        &self,
+        lo: f64,
+        hi: f64,
+    ) -> Option<Vec<(Vec<[Interval; 4]>, Vec<[Interval; 4]>)>> {
         use geom_core::Bounds as _;
         let (start, end) = self.domain();
         if !(lo < hi && start <= lo && hi <= end) {
@@ -1849,21 +1845,23 @@ impl NurbsCurve3<Interval> {
                 [w * q.x, w * q.y, w * q.z, w]
             };
             let mut net = vec![[Interval::zero(); 4]; p + 1];
+            let mut slope = vec![[Interval::zero(); 4]; p.max(1)];
             for c in 0..4 {
                 let row: Vec<Interval> = (0..=p).map(|k| homogeneous(k)[c]).collect();
-                let restricted = win
-                    .span()
-                    .with_window(&row)?
-                    .restrict((at(a), at(b)))
-                    .ok()?;
+                let row = win.span().with_window(&row)?;
+                let restricted = row.restrict((at(a), at(b))).ok()?;
                 for (slot, x) in net.iter_mut().zip(restricted) {
+                    slot[c] = x;
+                }
+                let derived = row.restrict_derivative((at(a), at(b))).ok()?;
+                for (slot, x) in slope.iter_mut().zip(derived) {
                     slot[c] = x;
                 }
             }
             if !net.iter().all(|h| h[3].is_certified() && h[3].lo() > 0.0) {
                 return None;
             }
-            out.push((net, a, b));
+            out.push((net, slope));
         }
         (!out.is_empty()).then_some(out)
     }
