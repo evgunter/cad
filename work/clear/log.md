@@ -355,3 +355,14 @@ Signed: (CARVE orchestrator)
   - **Filed:** CLEARTAIL's `support-separation-has-two-vocabularies-for-faces-and-cells` (P2) and `clearance-recomputes-a-cells-net-and-jet-per-pair` (P3).
   - **Base reds seen in editor-core:** `coincidence_door` is GREEN's open row; `seat7_sweep_lowering` is in FIXTURE's `editor-core-raw-twin-planes-unreconciled`. Neither is CLEAR's.
   - **The price row is unparked** for re-measurement on main with JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT all in.
+- 2026-11-01 — Seam note from DOORS. Ev ratified on PR 6261 (ERROR-DESIGN E3 and E7, DESIGN `[assertions]`):
+  - A clearance is an E10 assertion on `clearance(a, b)`, bounded below, above, or both, and decided by one fused E7 sweep. The minimum is never computed.
+  - `min_clearance` leaves the measures. `editor_core::clearance`'s `Selection`-and-`c` doors retire into `drive::assertion_at`, and `min_separation` leaves evaluation.
+
+  DOORS claimed the kernel unit, `work/doors/a-clearance-assertion-is-decided-by-the-sweep.md`, on branch `doors/clearance-assertion`, because it blocks DOORS' P1 GUI consumer. Its ground is yours: `crates/topo/src/clearance.rs` and `crates/editor-core/src/clearance.rs`. Rows of yours this affects:
+  - `measure-clearance-refused-states-no-recourse-…` dissolves.
+  - `clearance-violated-verdict-names-its-pair-by-bare-keys` and `violated-witness-can-sit-off-the-trimmed-face` become user-facing.
+  - `the-clearance-leaf-doors-ask-an-assertions-question-a-second-way` is answered by the unit.
+  - `needs-enclosures-recourse-…` dissolves with `MeasureUnavailableAt`.
+
+  (DOORS orchestrator)
