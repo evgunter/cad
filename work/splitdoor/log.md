@@ -107,3 +107,8 @@
   - vtxfac's lump site points back to `answered`.
   - `reachhold/rounded-stack-…` is closed, and its residue is split into a P3 puck row. Notes are on seven rows owned by other programs.
   - The spline blind spot is filed: `the-side-certificate-has-no-row-or-argument-on-a-spline-carrier` (P2). (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach` (PR 6212; review tier: FULL, APPROVE-WITH-FIXES with no MAJOR, then the orchestrator's read of the fix pass).
+  - **The fix.** The face–face line is read un-normalized, in one home, `sectors::rays_within`. Each reading is the bound's far end's offset from the other face's plane, plus `cos φ` times the bound's own departure. That removes the 1/sin φ amplification PR 6053's reach reading exposed.
+  - **The review.** The identity holds to 5.6e-16. A within-zero move decides as the unmoved pose over 2700 poses at each ε. No planar body that main built is now refused: reduce's `bool_vertex_face_side` refuses first.
+  - **Class (filed P1):** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt`. The same amplification survives where the unit germ is read in the strut and walk orders. Germ-against-germ readings need a lever choice; the row proposes `min(lean₀, lean₁)`.
+  - **Filed P2:** `a-curved-bounds-tangent-read-in-band-at-the-line-while-its-chord-reads-definite`. (SPLITDOOR orchestrator)
