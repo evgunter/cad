@@ -327,9 +327,10 @@ pub(super) enum Limit {
     NoCorner,
     /// A chord's end reads in several corners at once.
     SeveralCorners,
-    /// A chord's end on an edge of the kept face's division, at no
-    /// vertex of it, whose direction no one piece beside that edge holds:
-    /// along the edge, or the edge curved.
+    /// A dropped corner pierced inside an edge of the kept face's
+    /// division, at no vertex of it, whose direction no one piece beside
+    /// that edge holds: the edge curved, or the direction decided along
+    /// it.
     BesideNoPiece,
     /// A ring of a divided face lies on the new piece's boundary at
     /// every vertex.
@@ -1105,6 +1106,10 @@ enum Unplaced {
 }
 
 impl Unplaced {
+    /// A touching end on an edge of its face's division
+    /// ([`Lies::OnEdge`]), which the touch placement does not place.
+    const ON_EDGE: &'static str = "a fate cut's end lies on an edge of its face's division";
+
     /// A fate cut's end placed so.
     const fn refused(self) -> BooleanError {
         BooleanError::ClassificationInvariant {
@@ -1221,9 +1226,12 @@ fn piece_holding<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`Limit::BesideNoPiece`] where no one piece holds `d`: `d` along the
-/// edge, or an edge other than a line, whose direction at `p` is not
-/// read here.
+/// [`Limit::BesideNoPiece`] where no one piece holds `d`: an edge other
+/// than a line, whose direction at `p` is not read here, or `d` decided
+/// along the edge. A side of the edge that reads in band escalates as
+/// the corner reading does ([`corner_holds`]: the sectors'
+/// coincidence), and a piece with no normal at `p` refuses as
+/// [`normal_at`] does.
 fn piece_beside<T: Decide>(
     body: &Body<T>,
     sides: &[(FaceKey, EdgeKey)],
@@ -1839,7 +1847,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Lies::AtCorners(corners) => corners,
             Lies::OnEdge(_) => {
                 return Err(BooleanError::ClassificationInvariant {
-                    what: "a fate cut's end lies on an edge of its face's division",
+                    what: Unplaced::ON_EDGE,
                 }
                 .into());
             }
