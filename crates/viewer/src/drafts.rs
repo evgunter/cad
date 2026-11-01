@@ -153,6 +153,11 @@ pub(crate) struct Drafts {
     pub(crate) split_origin: [f64; 3],
     /// The split form's plane normal (unitless).
     pub(crate) split_normal: [f64; 3],
+    /// The split target the plane's point was last seeded for: a new
+    /// target seeds it at that body's centre
+    /// ([`crate::splitplane::centre`]), and the person's edits stand
+    /// until the target changes.
+    pub(crate) split_seeded: Option<pncad::document::Operand>,
     /// The add-profile form's shape choice — `None` until the user
     /// makes one.
     ///
@@ -915,6 +920,7 @@ impl Default for Drafts {
             sketch_spin: 0.0,
             split_origin: [0.0; 3],
             split_normal: [0.0, 0.0, 1.0],
+            split_seeded: None,
             profile_shape: None,
             profile_path: vec![
                 Step::At(Point2::origin()),

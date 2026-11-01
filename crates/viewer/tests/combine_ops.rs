@@ -3680,3 +3680,278 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
 }
+
+/// **The split plane's verdict is the door's, asked before commit**: the
+/// split the panel would commit, staged and evaluated beside the
+/// picture, read as its tree row would read it, with nothing recorded.
+/// A plane through the origin with normal z lies on the block's bottom
+/// face and leaves the below half empty; a plane above the block misses
+/// it; a plane through the block's centre cuts it in two. That the
+/// panel seeds that centre is `drive.rs`'s
+/// `the_split_tool_seeds_its_plane_through_the_picked_plate_and_draws_it_there`.
+///
+/// *Breaks if* staging records an edit, or the verdict stops being the
+/// split's own.
+#[test]
+fn a_staged_split_says_whether_its_plane_cuts_the_body() {
+    use viewer::session::{Creation, Staged};
+    use viewer::tree::{Emptiness, split_reading};
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let states = session.history().len();
+    let verdict = |session: &mut DocSession, origin: [f64; 3]| {
+        let creation = Creation::of(SessionOp::AddSplit {
+            target: body.into(),
+            origin: len3(origin),
+            normal: scl3([0.0, 0.0, 1.0]),
+        })
+        .expect("a split creates a node");
+        assert!(
+            session.staged_for(&creation).is_none(),
+            "{origin:?}: nothing is staged for a plane not yet asked about"
+        );
+        let staged = session.perform(SessionOp::Stage {
+            creation: creation.clone(),
+        });
+        assert!(
+            staged.refusal.is_none() && staged.committed.is_empty(),
+            "{origin:?}: a stage refuses nothing and commits nothing: {staged:?}"
+        );
+        session.pump();
+        match session.staged_for(&creation) {
+            Some(Staged::Evaluated {
+                node, evaluation, ..
+            }) => split_reading(evaluation, node).expect("the staged split evaluates"),
+            other => panic!("{origin:?}: the staged run landed inline: {other:?}"),
+        }
+    };
+    assert_eq!(
+        verdict(&mut session, [0.0; 3]),
+        Some(Emptiness::Half(SplitHalf::Below)),
+        "the old default lies on the bottom face"
+    );
+    assert_eq!(
+        verdict(&mut session, [0.0, 0.0, 1.0]),
+        Some(Emptiness::Half(SplitHalf::Above)),
+        "a plane above the block misses it"
+    );
+    let centre = {
+        let (doc, evaluation) = session.landed_pair().expect("landed");
+        let source = viewer::splitplane::source(doc, evaluation, &body.into()).expect("a body");
+        viewer::splitplane::centre(source).expect("the block has corners")
+    };
+    assert!(
+        near(centre[2], 0.5 * A[2]),
+        "the seed is the block's centre: {centre:?}"
+    );
+    assert_eq!(
+        verdict(&mut session, centre),
+        None,
+        "the seeded plane cuts the block in two"
+    );
+    assert_eq!(session.history().len(), states, "staging recorded nothing");
+}
+
+/// **The split plane is drawn under the part its target was picked
+/// on**, through the path the viewport takes (`splitplane::drawn`, over
+/// the tools, the session and a built pick index). A viewport pick on
+/// the block's world copy keeps that copy, and the plane is drawn where
+/// it stands. A tree pick hit no part, so nothing is drawn. A target
+/// whose frame is a map (a transform's copy, translated, so its body's
+/// `in_space` is `Some`) is drawn where its own copy stands, the
+/// translation applied once.
+///
+/// *Breaks if* the seat forgets the part, the preview stops reading the
+/// index's drawn map, or a target's own frame is applied twice or not
+/// at all.
+#[test]
+fn the_split_plane_is_drawn_under_the_picked_copy() {
+    use pncad::prelude::StableName;
+    use viewer::session::FaceSelection;
+
+    let tol = Tol::witness();
+    let z = [0.0, 0.0, 1.0];
+    let pick_on = |copy: RecipeNodeId| {
+        SessionOp::Select(Selection::Face(FaceSelection {
+            name: StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: copy,
+                path: Vec::new(),
+            },
+            node: copy,
+            body: 0,
+        }))
+    };
+    let drawn = |session: &DocSession, picked: SessionOp| {
+        let index = common::plate_index(session);
+        let mut tools = Tools::new();
+        tools.open(ToolKind::Split);
+        let declined = tools.feed(session.committed_doc(), Ok(&index), &[picked]);
+        assert!(declined.is_empty(), "{declined:?}");
+        let tool = tools.split().expect("the split tool is open");
+        let (doc, evaluation) = session.landed_pair().expect("landed");
+        let target = tool.seats().read(0).expect("a target");
+        let source = viewer::splitplane::source(doc, evaluation, &target).expect("a body");
+        let centre = viewer::splitplane::centre(source).expect("corners");
+        let plane = viewer::splitplane::drawn(
+            &viewer::splitplane::Drawing {
+                seats: tool.seats(),
+                landed: (doc, evaluation),
+                display: &session.display_view(),
+                index: &index,
+            },
+            centre,
+            z,
+        );
+        (tool, source.clone(), centre, plane)
+    };
+
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
+        panic!("the block lands with one world copy")
+    };
+    let (tool, _, centre, plane) = drawn(&session, pick_on(copy));
+    assert_eq!(
+        tool.target(),
+        Some(body),
+        "a pick on the copy seats the body"
+    );
+    assert_eq!(
+        tool.seats().through(0),
+        Some(copy),
+        "the seat keeps the part it hit"
+    );
+    let plane = plane.expect("the plane is drawn on the picked copy");
+    assert!(
+        (plane.centre.z - 0.5 * A[2]).abs() < 1e-12 && near(centre[2], 0.5 * A[2]),
+        "the plane is drawn at the block's mid-height: {:?}",
+        plane.centre
+    );
+    let (tool, _, _, plane) = drawn(&session, SessionOp::Select(Selection::Node(body)));
+    assert_eq!(tool.seats().through(0), None, "a tree pick hits no part");
+    assert!(plane.is_none(), "a tree pick draws no plane");
+
+    let lift = 4.0 * A[2];
+    let moved = session_insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: body.into(),
+            translation: translation([0.0, 0.0, lift]),
+            rotation_axis: scl3(z),
+            rotation_angle: Formula::zero(Dimension::Angle),
+        },
+    );
+    session.pump();
+    let [copy] = viewer::world::placements_of(session.committed_doc(), moved)[..] else {
+        panic!("the block's world copy now places the transform")
+    };
+    let (tool, source, centre, plane) = drawn(&session, pick_on(copy));
+    assert_eq!(
+        tool.target(),
+        Some(moved),
+        "the pick seats the transform's copy"
+    );
+    assert!(
+        pncad::document::in_space(&source).is_some(),
+        "the transform's body is framed by a map"
+    );
+    assert!(
+        near(centre[2], 0.5 * A[2] + lift),
+        "the seed is in the space the copy is built in: {centre:?}"
+    );
+    let plane = plane.expect("the plane is drawn on the lifted copy");
+    assert!(
+        (plane.centre.z - (0.5 * A[2] + lift)).abs() < 1e-12,
+        "the lift is applied once: {:?}",
+        plane.centre
+    );
+}
+
+/// **A staged verdict is not carried across a document replacement**
+/// (review of PR 6240): the stage is keyed on the creation and the
+/// history state, and a history id is an arena position — every
+/// freshly opened document's root is the same id. A split staged on a
+/// file must not answer for that file re-opened after it was edited
+/// and saved elsewhere: same node ids, same root id, a flatter block.
+///
+/// *Breaks if* `Open`/`NewDocument` leave the old stage standing.
+#[test]
+fn a_staged_verdict_does_not_survive_reopening_an_edited_file() {
+    use viewer::session::{Creation, Staged};
+    use viewer::tree::{Emptiness, split_reading};
+
+    let tol = Tol::witness();
+    let path = common::tempdir("staged-across-open").join("block.pncad");
+    let mut writer = session(tol);
+    let body = common::xy_box_in(&mut writer, A);
+    writer.pump();
+    let saved = writer.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "the tall block saves: {saved:?}");
+
+    let creation = Creation::of(SessionOp::AddSplit {
+        target: body.into(),
+        origin: len3([0.0, 0.0, 0.5 * A[2]]),
+        normal: scl3([0.0, 0.0, 1.0]),
+    })
+    .expect("a split creates a node");
+    let verdict = |session: &DocSession| match session.staged_for(&creation) {
+        Some(Staged::Evaluated {
+            node, evaluation, ..
+        }) => Some(split_reading(evaluation, node).expect("the staged split evaluates")),
+        None => None,
+        other => panic!("the staged run landed inline: {other:?}"),
+    };
+
+    let mut reader = session(tol);
+    assert!(
+        reader
+            .perform(SessionOp::Open(path.clone()))
+            .refusal
+            .is_none()
+    );
+    reader.pump();
+    reader.perform(SessionOp::Stage {
+        creation: creation.clone(),
+    });
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        Some(None),
+        "mid-height cuts the tall block"
+    );
+
+    // The writer flattens the block and saves over the file.
+    let flattened = writer.perform(SessionOp::SetSlot {
+        node: body,
+        slot: SlotId::Distance,
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.2 * A[2])
+            .expect("a finite length is a value"),
+    });
+    assert!(flattened.refusal.is_none(), "{flattened:?}");
+    writer.pump();
+    let saved = writer.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "the flat block saves: {saved:?}");
+
+    assert!(reader.perform(SessionOp::Open(path)).refusal.is_none());
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        None,
+        "nothing is staged on the re-opened (flat) block yet; the tall block's \
+         verdict would say the plane cuts it"
+    );
+    reader.perform(SessionOp::Stage {
+        creation: creation.clone(),
+    });
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        Some(Some(Emptiness::Half(SplitHalf::Above))),
+        "staged afresh, the plane passes over the flat block"
+    );
+}

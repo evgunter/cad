@@ -262,17 +262,15 @@ fn entered_faces<T: Decide>(
         .iter()
         .zip(faces)
         .map(|(&he, &face)| {
-            entry_side(body, vertex, he, (n, plane.reference), far, band).map_err(|fault| {
-                match fault {
-                    EntryFault::Walk(e) => VertexRefusal::Walk(e),
-                    EntryFault::Far(e) => e,
-                    EntryFault::Undecided(diag) => {
-                        VertexRefusal::Walk(SplitReduceError::SliverSector {
-                            vertex,
-                            face,
-                            reading: SectorReading::Escalated(diag),
-                        })
-                    }
+            entry_side(body, vertex, he, plane.reference, far, band).map_err(|fault| match fault {
+                EntryFault::Walk(e) => VertexRefusal::Walk(e),
+                EntryFault::Far(e) => e,
+                EntryFault::Undecided(diag) => {
+                    VertexRefusal::Walk(SplitReduceError::SliverSector {
+                        vertex,
+                        face,
+                        reading: SectorReading::Escalated(diag),
+                    })
                 }
             })
         })

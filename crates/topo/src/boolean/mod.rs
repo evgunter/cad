@@ -36,9 +36,11 @@
 //!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing
-//!    ON an edge (both edges split → a v-v pair); coplanar edge-face
-//!    pairs are skipped — their edge-edge events are caught when the
-//!    edge meets the face's noncoplanar NEIGHBOR faces (tested).
+//!    ON an edge (both edges split → a v-v pair); a line edge lying in
+//!    a planar face is read at its ends, its edge-edge events caught
+//!    when the edge meets the face's noncoplanar NEIGHBOR faces
+//!    (tested), and each of its pieces the face holds is recorded once
+//!    both directions have split it.
 //!    Every contact the sweep discovers or creates is emitted as a
 //!    **contact record** ([`ContactRecords`]), citing the coincidence
 //!    that decided it; nothing is ever scanned-for after the fact.
@@ -677,8 +679,10 @@ pub struct EeContact {
     pub b: crate::entity::EdgeKey,
 }
 
-/// An edge whose interior meets a face's, within one operand carried
-/// back into an op ([`OperandRecords`]).
+/// An edge whose interior meets a face's: within one operand carried
+/// back into an op ([`OperandRecords`]); in the reduction's working
+/// set, the edge one operand's and the face the other's
+/// ([`ReductionContacts::a_in_b`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct EfContact {
     /// The edge.
@@ -743,6 +747,11 @@ pub(crate) struct Mints {
     /// Each operand's vertices minted inside faces, each with its face.
     in_faces: [Vec<(VertexKey, FaceKey)>; 2],
 }
+
+/// How many splits of one operand's clone [`Mints`] held at a moment
+/// ([`Mints::mark`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct SplitMark(usize);
 
 impl Default for Mints {
     fn default() -> Self {
@@ -845,9 +854,26 @@ impl Mints {
         operand: Operand,
         edge: crate::entity::EdgeKey,
     ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
+        self.pieces_since(operand, edge, SplitMark(0))
+    }
+
+    /// Where `operand`'s splits stand now: [`Self::pieces_since`] reads
+    /// the splits made after it.
+    pub(crate) fn mark(&self, operand: Operand) -> SplitMark {
+        SplitMark(self.vertices[usize::from(operand == Operand::B)].len())
+    }
+
+    /// [`Self::pieces`] of `edge` as it stood at `mark`: the pieces the
+    /// splits made since cut it into, and the vertices they minted on it.
+    pub(crate) fn pieces_since(
+        &self,
+        operand: Operand,
+        edge: crate::entity::EdgeKey,
+        SplitMark(mark): SplitMark,
+    ) -> (Vec<crate::entity::EdgeKey>, Vec<VertexKey>) {
         let mut keys = vec![edge];
         let mut minted = Vec::new();
-        for (parent, vertex, child) in self.of(operand) {
+        for (parent, vertex, child) in self.of(operand).skip(mark) {
             if let Some(i) = keys.iter().position(|&k| k == parent) {
                 keys.insert(i + 1, child);
                 minted.push(vertex);
@@ -878,8 +904,10 @@ pub enum Cell {
 }
 
 /// **The boolean reduction's working contact set** (Mäntylä's ON-sets
-/// `sonvv`, `sonva`, `sonvb`, and the touches along a line the
-/// classification reads), each row citing the reduction's own
+/// `sonvv`, `sonva`, `sonvb`; the touches along a line the
+/// classification reads; the touches of faces the glue door verifies;
+/// and the pieces of line edges lying in planar faces), each row citing
+/// the reduction's own
 /// decisions: operand-tagged, every key in its operand clone's arena.
 /// It is the reduction's vocabulary, read by operand by the
 /// classification and the insertion, and it is not a body's record:
@@ -904,6 +932,13 @@ pub struct ReductionContacts {
     /// ([`verify_tangency`]). Written at the door, whatever the op: the
     /// carry keeps a row where both faces survive.
     pub ff: Vec<Cited<FfContact>>,
+    /// Pieces of line edges of A lying in planar faces of B, each citing
+    /// the records that placed the piece's two ends on the face: inside
+    /// it (`a_on_b`), or one with a vertex bounding it (`vv`)
+    /// (`reduce::settle_in_plane`).
+    pub a_in_b: Vec<Cited<EfContact>>,
+    /// Pieces of line edges of B lying in planar faces of A, likewise.
+    pub b_in_a: Vec<Cited<EfContact>>,
 }
 
 impl ReductionContacts {
@@ -911,45 +946,33 @@ impl ReductionContacts {
     /// one fixed order: the vertex pairs (A's vertex, B's), then A's
     /// vertices on B's faces, then B's on A's, each vertex first, then
     /// the edge pairs (A's edge, B's), then the face pairs (A's face,
-    /// B's).
+    /// B's), then A's edges in B's faces and B's in A's, each edge
+    /// first.
     pub fn rows(&self) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
-        let vv = self.vv.iter().map(|c| {
-            (
-                [
-                    (Operand::A, Cell::Vertex(c.a)),
-                    (Operand::B, Cell::Vertex(c.b)),
-                ],
-                &c.cites,
-            )
-        });
-        fn vf(
-            side: Operand,
-            other: Operand,
-            list: &[Cited<VfContact>],
+        use Operand::{A, B};
+        fn tagged<R>(
+            [x, y]: [Operand; 2],
+            list: &[Cited<R>],
+            cells: fn(&R) -> [Cell; 2],
         ) -> impl Iterator<Item = ([(Operand, Cell); 2], &Cites)> + '_ {
             list.iter().map(move |c| {
-                (
-                    [(side, Cell::Vertex(c.vertex)), (other, Cell::Face(c.face))],
-                    &c.cites,
-                )
+                let [p, q] = cells(c);
+                ([(x, p), (y, q)], &c.cites)
             })
         }
-        let ee = self.ee.iter().map(|c| {
-            (
-                [(Operand::A, Cell::Edge(c.a)), (Operand::B, Cell::Edge(c.b))],
-                &c.cites,
-            )
-        });
-        let ff = self.ff.iter().map(|c| {
-            (
-                [(Operand::A, Cell::Face(c.a)), (Operand::B, Cell::Face(c.b))],
-                &c.cites,
-            )
-        });
-        vv.chain(vf(Operand::A, Operand::B, &self.a_on_b))
-            .chain(vf(Operand::B, Operand::A, &self.b_on_a))
-            .chain(ee)
-            .chain(ff)
+        let vf = |c: &VfContact| [Cell::Vertex(c.vertex), Cell::Face(c.face)];
+        let ef = |c: &EfContact| [Cell::Edge(c.edge), Cell::Face(c.face)];
+        tagged([A, B], &self.vv, |c| [Cell::Vertex(c.a), Cell::Vertex(c.b)])
+            .chain(tagged([A, B], &self.a_on_b, vf))
+            .chain(tagged([B, A], &self.b_on_a, vf))
+            .chain(tagged([A, B], &self.ee, |c| {
+                [Cell::Edge(c.a), Cell::Edge(c.b)]
+            }))
+            .chain(tagged([A, B], &self.ff, |c| {
+                [Cell::Face(c.a), Cell::Face(c.b)]
+            }))
+            .chain(tagged([A, B], &self.a_in_b, ef))
+            .chain(tagged([B, A], &self.b_in_a, ef))
     }
 }
 
@@ -3817,17 +3840,6 @@ pub enum BooleanError {
         /// wants a parameter inverse).
         closed: bool,
     },
-    /// **A rest the op carries could not be placed on the pieces of the
-    /// face it divided.** A record's span along a line edge is placed in
-    /// a face by its midpoint (`ops::span_held`), and this piece's read
-    /// failed, so the span may be on it.
-    RestPieceUnread {
-        /// The piece, in result keys.
-        face: FaceKey,
-        /// The containment door's refusal; `None` where a curved face's
-        /// region gives no verdict for this face.
-        refusal: Option<ContainError>,
-    },
     /// **A record the op carries, or found, could not be placed on the
     /// result** (D1): the one carry refused it
     /// (`ops::carried`, `records::landings`): a pair of its cells'
@@ -4274,8 +4286,6 @@ pub enum BooleanErrorKind {
     JoinUndecided,
     /// [`BooleanError::JoinCarrierUnsupported`].
     JoinCarrierUnsupported,
-    /// [`BooleanError::RestPieceUnread`].
-    RestPieceUnread,
     /// [`BooleanError::CarryRefused`].
     CarryRefused,
     /// [`BooleanError::JoinDesync`].
@@ -4510,7 +4520,6 @@ impl BooleanError {
             Self::Join(_) => BooleanErrorKind::Join,
             Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
             Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
-            Self::RestPieceUnread { .. } => BooleanErrorKind::RestPieceUnread,
             Self::CarryRefused { .. } => BooleanErrorKind::CarryRefused,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::LineageRow { .. } => BooleanErrorKind::LineageRow,
@@ -5192,19 +5201,6 @@ impl core::fmt::Display for BooleanError {
             Self::Euler(e) => write!(f, "euler operation refused: {e}"),
             Self::Join(e) => write!(f, "the operands' sections could not be joined: {e}"),
             Self::JoinUndecided(e) => write!(f, "{e}"),
-            Self::RestPieceUnread { face, refusal } => {
-                let preamble = format_args!(
-                    "the Boolean cannot tell which piece of a face it divided holds a vertex \
-                     resting on that face: it cannot read whether piece {face:?} holds it"
-                );
-                match refusal {
-                    Some(e) => write!(f, "{preamble} ({e})"),
-                    None => write!(
-                        f,
-                        "{preamble} (the containment door does not read this curved face's trim)"
-                    ),
-                }
-            }
             Self::JoinCarrierUnsupported {
                 edge,
                 carrier,
@@ -9306,7 +9302,6 @@ mod tests {
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::JoinUndecided => "JoinUndecided",
                 BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
-                BooleanErrorKind::RestPieceUnread => "RestPieceUnread",
                 BooleanErrorKind::CarryRefused => "CarryRefused",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::LineageRow => "LineageRow",

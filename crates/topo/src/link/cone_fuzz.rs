@@ -83,8 +83,9 @@ test_utils::gated_to![
 
 use super::*;
 use crate::boolean::SideCode;
-use crate::boolean::sectors::{BoolSector, Reach};
+use crate::boolean::sectors::BoolSector;
 use crate::boolean::vtxfac::{Partner, cone_classes};
+use crate::bound_side::Reach;
 use crate::entity::HalfEdgeKey;
 use geom_brep::OutwardNormal;
 use geom_core::Tol;

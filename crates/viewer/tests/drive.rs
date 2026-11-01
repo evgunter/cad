@@ -183,6 +183,104 @@ mod driven {
         }
     }
 
+    /// **After a duplicate, a click on either body reaches the tool** —
+    /// the replay of
+    /// `work/chrome/after-a-duplicate-the-original-cannot-be-picked-into-a-tool.md`.
+    /// The duplicate's copy lands beside the plate, so the plate's body
+    /// is read by two placements. With the boolean tool open, a click on
+    /// the original's material seats the plate's extrude, as it does with
+    /// no duplicate, and a click on the copy seats the copy's placement.
+    /// The replay's own point, framed with both bodies in view, falls in
+    /// the original's hole: a miss, which seats nothing.
+    #[test]
+    fn after_a_duplicate_a_click_on_either_body_seats_it() {
+        let mut driver = started("drive-duplicate-pick");
+        driver.resize(egui::vec2(1280.0, 1600.0));
+        driver.settle().expect("settles");
+        let vclick = |driver: &mut Driver, fx: f32, fy: f32| {
+            let at = driver.in_viewport(fx, fy).expect("the viewport");
+            driver
+                .click_at(at, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
+                .expect("clicked");
+            driver.settle().expect("settles");
+        };
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Duplicate tool…", 0).expect("the tool opens");
+        vclick(&mut driver, 0.3, 0.4);
+        driver.click("Commit duplicate", 0).expect("committed");
+        driver.settle().expect("settles");
+        driver.click("Zoom to fit", 0).expect("framed");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        let members = |driver: &Driver| {
+            driver
+                .screen()
+                .iter()
+                .find(|landed| landed.text.starts_with("member 1") || landed.text == "no picks yet")
+                .map(|landed| landed.text.clone())
+                .expect("the boolean tool's picks line")
+        };
+        // The replay's point: the hole in the original.
+        vclick(&mut driver, 0.3, 0.47);
+        assert_eq!(
+            members(&driver),
+            "no picks yet",
+            "the replay's click is a miss"
+        );
+        // The original's material, beside the hole.
+        vclick(&mut driver, 0.2, 0.47);
+        let picked = members(&driver);
+        assert!(
+            picked.starts_with("member 1: Extrude "),
+            "a click on the original seats its extrude: {picked}"
+        );
+        // The copy.
+        vclick(&mut driver, 0.7, 0.55);
+        let picked = members(&driver);
+        assert!(
+            picked.contains("member 2: Place \"Part 1\""),
+            "a click on the copy seats the copy's placement: {picked}"
+        );
+    }
+
+    /// **A click that meets nothing while a tool is open says so**: the
+    /// boolean tool takes no pick from the ground around the plate, and
+    /// the line says that rather than leaving `no picks yet` as the only
+    /// answer to the click.
+    #[test]
+    fn a_click_on_nothing_with_a_tool_open_says_no_pick_was_taken() {
+        let mut driver = started("drive-missed-pick");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        let corner = driver.in_viewport(0.02, 0.02).expect("the viewport");
+        driver
+            .click_at(
+                corner,
+                egui::PointerButton::Primary,
+                egui::Modifiers::NONE,
+                1,
+            )
+            .expect("clicked");
+        driver.settle().expect("settles");
+        assert!(
+            driver.shows("no picks yet"),
+            "the premise: the click took nothing"
+        );
+        assert!(
+            driver.shows("boolean tool: nothing under the cursor — no pick taken"),
+            "the miss is said on the line: {}",
+            driver.dump()
+        );
+    }
+
     /// **The picture is the window's**: as many pixels as the window
     /// has, and inside the viewport the startup part is drawn — the
     /// pane's pixels are not all the ground it is painted on.
@@ -242,5 +340,153 @@ mod driven {
             ),
             "a second painting of a label painted once is not on screen"
         );
+    }
+
+    /// **The split panel seeds its plane through the body it picked,
+    /// says the staged split's verdict, and the viewport draws the plane
+    /// on that body** (row `the-split-tools-plane-is-typed-blind`): the
+    /// row's own replay, through the chrome. The startup plate picked
+    /// in the viewport seeds the plane's point at the plate's centre,
+    /// the panel reads the door's verdict that it cuts, and the plane
+    /// is drawn at the plate's mid-height, where its world copy stands.
+    ///
+    /// *Breaks if* the panel stops seeding (the old default lies on the
+    /// plate's bottom face, and the panel would say so), stops asking
+    /// the staged split, or the preview is not drawn on the picked copy.
+    #[test]
+    fn the_split_tool_seeds_its_plane_through_the_picked_plate_and_draws_it_there() {
+        let mut driver = started("drive-split-plane");
+        driver.click("Zoom to fit", 0).expect("the fit");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.click("Split tool…", 0).expect("the tool opens");
+        let plate = driver.in_viewport(0.3, 0.45).expect("a viewport");
+        driver
+            .click_at(
+                plate,
+                egui::PointerButton::Primary,
+                egui::Modifiers::NONE,
+                1,
+            )
+            .expect("the pick settles");
+        let bounds = viewer::scene::plate_bounds();
+        let mid = 0.5 * (bounds.min_z + bounds.max_z);
+        let origin = driver.split_origin();
+        assert!(
+            (origin[2] - mid).abs() < 1e-12,
+            "the panel seeds the plane at the plate's centre: {origin:?}"
+        );
+        assert!(
+            driver.shows("the plane cuts the body in two"),
+            "the panel reads the staged split's verdict: {}",
+            driver.dump()
+        );
+        let plane = driver
+            .split_plane()
+            .expect("the plane is drawn on the picked plate");
+        assert!(
+            (plane.centre.z - mid).abs() < 1e-9,
+            "the plane is drawn at the plate's mid-height: {:?}",
+            plane.centre
+        );
+    }
+}
+
+/// Review rows for PR 6239: the miss notice's negative and lifetime
+/// halves, which the PR's own row does not pin.
+#[cfg(feature = "app")]
+mod missed_pick_bounds {
+    use crate::common;
+    use viewer::app::drive::Driver;
+
+    fn started(label: &str) -> Driver {
+        Driver::start(
+            common::tempdir(label).join("prefs.toml"),
+            pncad::tolerance::witness(),
+        )
+        .expect("the app starts")
+    }
+
+    fn vclick(driver: &mut Driver, fx: f32, fy: f32) {
+        let at = driver.in_viewport(fx, fy).expect("the viewport");
+        driver
+            .click_at(at, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
+            .expect("clicked");
+        driver.settle().expect("settles");
+    }
+
+    /// **With no tool open a miss stays quiet**: it is a deselect.
+    #[test]
+    fn a_miss_with_no_tool_open_says_nothing() {
+        let mut driver = started("missed-pick-no-tool");
+        vclick(&mut driver, 0.02, 0.02);
+        assert!(
+            !driver.dump().contains("no pick taken"),
+            "{}",
+            driver.dump()
+        );
+    }
+
+    /// **The miss names what the tool's pick kind did not find**: under
+    /// the blend tool, which picks edges only, a click on the plate's
+    /// material away from every edge met a face, not nothing.
+    #[test]
+    fn an_edges_only_tool_says_no_edge_was_under_the_cursor() {
+        let mut driver = started("missed-pick-blend");
+        driver.click("Blend edges", 0).expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Blend tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.35, 0.5);
+        let dump = driver.dump();
+        assert!(
+            dump.contains("blend tool: no edge under the cursor — no pick taken"),
+            "{dump}"
+        );
+        assert!(!dump.contains("nothing under the cursor"), "{dump}");
+    }
+
+    /// **Closing the tool retires its miss**: once the boolean tool is
+    /// cancelled, nothing on screen says it took no pick.
+    #[test]
+    fn closing_the_tool_retires_its_miss() {
+        let mut driver = started("missed-pick-close");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.02, 0.02);
+        assert!(driver.dump().contains("no pick taken"), "the premise");
+        driver.click("Cancel", 0).expect("the tool closes");
+        driver.settle().expect("settles");
+        let dump = driver.dump();
+        assert!(!dump.contains("no pick taken"), "{dump}");
+    }
+
+    /// **Repeated misses say it once, and a pick retires it**: the line
+    /// carries one telling however many misses, and the click that
+    /// seats something clears it.
+    #[test]
+    fn repeated_misses_say_it_once_and_a_pick_retires_it() {
+        let mut driver = started("missed-pick-repeat");
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        vclick(&mut driver, 0.02, 0.02);
+        vclick(&mut driver, 0.03, 0.03);
+        vclick(&mut driver, 0.04, 0.02);
+        let dump = driver.dump();
+        assert_eq!(dump.matches("no pick taken").count(), 1, "{dump}");
+        // Beside the plate's central hole, on its material.
+        vclick(&mut driver, 0.35, 0.5);
+        let dump = driver.dump();
+        assert!(dump.contains("member 1: Extrude "), "the premise: {dump}");
+        assert!(!dump.contains("no pick taken"), "{dump}");
     }
 }

@@ -3614,6 +3614,49 @@ mod tests {
         );
     }
 
+    /// **A needle wedge is read off its rays' bisector where its centroid
+    /// reads nothing**: the corner a needle channel's leaning fill face
+    /// meets two walls at (`tests/shell_role_reader.rs`,
+    /// `a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam`),
+    /// the fill face's wedge 30ε across one way and a unit long the
+    /// other. The wedge's centroid lies along its long ray, within the
+    /// band of the floor's plane, so the only reference the parity has
+    /// passes over; its rays' bisector reads the edge leaving along the
+    /// wall's line behind the vertex, decidedly in front of the fill face,
+    /// `Out`.
+    #[test]
+    fn a_needle_wedge_is_read_off_its_rays_bisector() {
+        let p = Point3::new(1.0, 0.500_000_03, 0.5);
+        let (y, tip) = (
+            Point3::new(1.0, 0.8, 0.5),
+            Point3::new(1.0, 0.500_000_045_000_000_1, 0.500_000_03),
+        );
+        let far = Point3::new(0.0, 0.500_000_03, 0.5);
+        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
+            outward,
+            apex: p,
+            rays,
+        };
+        let cone = Cone::gathered(
+            p,
+            [
+                fan(Vec3::new(1.0, 0.0, 0.0), vec![y, tip]),
+                fan(Vec3::new(0.0, 0.0, -1.0), vec![far, y]),
+                fan(
+                    Vec3::new(0.0, -0.894_427_190_999_915_7, 0.447_213_595_499_957_87),
+                    vec![tip, far],
+                ),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        assert_eq!(
+            cone.reads_tied(Point3::new(1.0, 0.5, 0.5), &[], band()),
+            Some(Material::Out),
+            "the edge along the wall's line behind the vertex"
+        );
+    }
+
     /// **The link decides only through its doors** (S4 of `CONTACT-7`'s
     /// design). A levered reading of directions decides a verdict right
     /// wherever it is definite and wrong where its Zero is taken as one:
@@ -3679,49 +3722,6 @@ mod tests {
     ///   toward a read one (`lowest_on`); that is checked by reading.
     /// - A caller outside topo: `Gap`'s cell arms only call
     ///   [`Link::offset`] and [`Link::lowest_on`].
-    /// **A needle wedge is read off its rays' bisector where its centroid
-    /// reads nothing**: the corner a needle channel's leaning fill face
-    /// meets two walls at (`tests/shell_role_reader.rs`,
-    /// `a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam`),
-    /// the fill face's wedge 30ε across one way and a unit long the
-    /// other. The wedge's centroid lies along its long ray, within the
-    /// band of the floor's plane, so the only reference the parity has
-    /// passes over; its rays' bisector reads the edge leaving along the
-    /// wall's line behind the vertex, decidedly in front of the fill face,
-    /// `Out`.
-    #[test]
-    fn a_needle_wedge_is_read_off_its_rays_bisector() {
-        let p = Point3::new(1.0, 0.500_000_03, 0.5);
-        let (y, tip) = (
-            Point3::new(1.0, 0.8, 0.5),
-            Point3::new(1.0, 0.500_000_045_000_000_1, 0.500_000_03),
-        );
-        let far = Point3::new(0.0, 0.500_000_03, 0.5);
-        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
-            outward,
-            apex: p,
-            rays,
-        };
-        let cone = Cone::gathered(
-            p,
-            [
-                fan(Vec3::new(1.0, 0.0, 0.0), vec![y, tip]),
-                fan(Vec3::new(0.0, 0.0, -1.0), vec![far, y]),
-                fan(
-                    Vec3::new(0.0, -0.894_427_190_999_915_7, 0.447_213_595_499_957_87),
-                    vec![tip, far],
-                ),
-            ],
-            Vec::new(),
-        )
-        .expect("a cone");
-        assert_eq!(
-            cone.reads_tied(Point3::new(1.0, 0.5, 0.5), &[], band()),
-            Some(Material::Out),
-            "the edge along the wall's line behind the vertex"
-        );
-    }
-
     #[test]
     fn the_link_decides_only_through_its_doors() {
         use test_utils::source::{balanced_end, code_only};

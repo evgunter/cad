@@ -180,6 +180,18 @@ pub enum PickKinds {
 }
 
 impl PickKinds {
+    /// **What a cursor that met none of these kinds met**, in the words
+    /// a miss is said in: under an edges-only rule a face's material is
+    /// no edge, not nothing.
+    #[must_use]
+    pub fn nothing(self) -> &'static str {
+        match self {
+            Self::Any => "nothing",
+            Self::FacesOnly => "no face",
+            Self::EdgesOnly => "no edge",
+        }
+    }
+
     /// Whether an edge may win here.
     fn edges(self) -> bool {
         match self {
@@ -1180,6 +1192,22 @@ impl PickIndex {
     /// The drawn parts, in id order.
     pub fn parts(&self) -> &[NodePick] {
         &self.parts
+    }
+
+    /// **Where `placement`'s copy is drawn**: the map from its body's
+    /// coordinates into the picture, as the picture draws it
+    /// ([`drawn`]), `None` where no part of that placement is drawn —
+    /// none indexed, or its copy hidden.
+    pub(crate) fn drawn_map(
+        &self,
+        display: &DisplayView,
+        placement: RecipeNodeId,
+    ) -> Option<Affine3<f64>> {
+        if display.hidden_placements.contains(&placement) {
+            return None;
+        }
+        let part = self.parts.iter().find(|part| part.node() == placement)?;
+        Some(drawn(display, part).unwrap_or_else(Affine3::identity))
     }
 
     /// The drawn copies this index holds without a picture, each with
