@@ -86,9 +86,10 @@ Main at 37b8832, with JETFRAME #6250, ZEROSIDE #6234, HEADING #6235
 and DIRSUPPORT #6254. Nothing on the question's path (`topo::clearance`,
 `topo::injective`, `geom`, `geom-core`) changed between that commit and
 3759cfa. The question is the row's: `StrictlyPositive`, the body
-against itself, `DEFAULT_MAX_CELL_DEPTH`, 65536 pairs. Release with
-debug and overflow assertions on, pinned to one core of an otherwise
-idle 4-core box. CARVE's scratch harness, re-pointed and not committed.
+against itself, `DEFAULT_MAX_CELL_DEPTH`, 65536 pairs. Release builds
+with debug assertions on (the tour's profile also arms overflow checks;
+the workspace's, which built the helices in `crates/sweep`, does not),
+pinned to one core of an otherwise idle 4-core box. CARVE's scratch harness, re-pointed and not committed.
 
 "Pairs split" is the receipt's `splits`, "certified" its `certified`,
 "refused" its `refused`. "Build" is the loft or sweep call alone. The
