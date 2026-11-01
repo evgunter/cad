@@ -989,4 +989,45 @@ mod tests {
         read::<f64>("f64");
         read::<geom_core::Interval>("Interval");
     }
+
+    /// **A root a half turn from its arc's middle, or on its phase's cut,
+    /// reads as tightly as any.** From the north pole, the great circle
+    /// toward azimuth `5π/4` meets the lune's parallel arc at its middle
+    /// and a half turn from it; the one toward azimuth `π` lies in the
+    /// plane `y = 0`, against which the arc's phase (`−y` its reference,
+    /// about `−z`) is a half turn. Read as angles, the far root and both
+    /// of the second's were a whole turn's hull at `Interval`, which the
+    /// span reading refused in band. Read as directions, the first leg
+    /// lands once, inside the arc, and the second once, at its end.
+    #[test]
+    fn a_root_opposite_its_arcs_middle_or_on_its_phase_cut_reads_tight() {
+        fn read<T: Decide + geom_core::CertifiedBounds + geom_core::spline::SpanLocate>(
+            scalar: &str,
+        ) {
+            let band = Band::new(1e-9, 1e-8).unwrap();
+            let lift = T::from_f64;
+            let region = pole_lune::<T>();
+            let pole = Vec3::new(lift(0.0), lift(0.0), lift(1.0));
+            let pi = core::f64::consts::PI;
+            let rim = 1f64.sin();
+            for (az, end) in [(1.25 * pi, false), (pi, true)] {
+                let toward = Vec3::new(lift(az.cos()), lift(az.sin()), lift(0.0));
+                let leg = region.ray(pole, toward);
+                let got = region.landings(&region.edges[1], &leg, band);
+                let Ok(landings) = got else {
+                    panic!("azimuth {az}: the leg lands at {scalar}, got {got:?}")
+                };
+                assert_eq!(landings.len(), 1, "azimuth {az} at {scalar}");
+                let (y, _, sideless) = landings[0];
+                let want = Point3::new(rim * az.cos(), rim * az.sin(), 1f64.cos());
+                let miss = (y - Point3::new(lift(want.x), lift(want.y), lift(want.z))).norm();
+                assert!(
+                    geom_core::Bounds::hi(miss) < 1e-12 && sideless == end,
+                    "azimuth {az} at {scalar}: {y:?} sideless {sideless}"
+                );
+            }
+        }
+        read::<f64>("f64");
+        read::<geom_core::Interval>("Interval");
+    }
 }
