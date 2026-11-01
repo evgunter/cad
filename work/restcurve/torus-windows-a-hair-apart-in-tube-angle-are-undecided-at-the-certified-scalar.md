@@ -61,6 +61,26 @@ pinning it would assert a different outcome per ε for the same body. The
 fix's row is the probe's case asserting `Ok(())` at every ε. Until then the
 probe on the review branch reproduces it.
 
+## A likely sibling (pole-door lane, 2026-11-01)
+
+The sphere door's pole refusals at `Interval`
+(`the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar`) were
+angles read on their cut: a crossing at a ray's antipode placed by
+`atan2` on its branch cut, and a root a half turn from its arc's middle
+(`near_span`'s tie) or with its phase a half turn from the arc's
+`u_ref` (`harmonic_roots`' `atan2`). Each enclosed a whole turn and read
+in band on its span row. That door now reads roots as directions
+(`circle_roots::first_harmonic_root_directions`) against the span by
+the signed angle to its nearer end (`region::span_at_nearer_end`), and a
+place round a circle by the half-angle form (`region::between`). This
+door still reads its edges' roots through `near_span(atan2(..))`
+(`torus_region.rs` `landings`, the parallel-edge and meridian-edge arms)
+and the shared phase, and the enclosure above, about `[-3.06, 4.22]`, is
+a whole turn plus a span's offset, the shape those cuts give. PR 6252's
+review reproduced the class on plain bodies: a 90° partial donut and a
+single-window donut refuse `bool_torus_region_span` at `Interval` where
+`f64` reads out.
+
 ## Spec (RESTCURVE orchestrator, 2026-11-01)
 
 Branch `restcurve/hair-gap`. Review tier: **dual**, because the fix is in the torus door, which the boolean shares. Arm: **sequential** (byte 92, mod 3 = 2).
