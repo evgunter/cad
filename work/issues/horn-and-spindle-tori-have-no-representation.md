@@ -36,4 +36,6 @@ Hit in the viewer: a football, drawn as a shallow arc closed by its chord and re
 
 The whole spindle surface self-intersects, but the face a revolve makes is one of its two pieces: the lemon (the minor arc, between the apexes) or the apple (the major arc). Each piece alone is a regular surface away from its two apexes on the axis, as a sphere is away from its poles. A representation could be the piece rather than the whole surface; that choice is part of the design.
 
+The refusal reads the arc's whole CIRCLE, not the arc. So the football with conical ends (the arc's ends lifted off the axis and joined to it by straight segments) still refuses, although its arc never reaches the axis. Its face is a band of the lemon away from both apexes, and nothing about it is singular. Only the support surface, a spindle torus, has no representation. A representation of the piece covers this case with no apex at all.
+
 The refusal's recourse, "keep the arc's circle clear of the axis", cannot be met by an arc revolved about its own chord. That wording should change with whatever this decides.
