@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-26
 priority: P1
 cost: H
-blocked_on: [edge-in-face-spans-are-re-derived-in-the-carry-because-the-sweep-skips-coplanar-edge-face-pairs]
+blocked_on: [an-edge-lying-in-its-own-operands-face-reaches-the-parting-unrecorded]
 ---
 
 
@@ -76,3 +76,30 @@ the final state; it implements D1's record sentence and
   until the curve-touch lane lands
   (`work/contacthold/an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane.md`).
   (PARTING orchestrator)
+
+## 2026-11-01 — the blocker's residue in `ops` (PARTING, `parting/sweep-records-edge-in-face`)
+
+With `record_spans` gone, `ops::piece_reading`'s only caller is
+`slit::holding`, so `ops::DoorInBand` has one variant left
+(`Containment`) and `PieceRead::Unread`'s refusal is read by no one
+(an `expect(dead_code)` marks it). Both go with the geometric reading
+in `holding` that this row's parting half retires; that unit drops the
+parameter and the payload in `slit.rs`, which the blocker could not
+touch while `parting/closed-and-torus-riders` held it.
+
+## Opened (2026-11-01)
+
+Its blocker closed with PR 6225: the sweep now records every line piece lying in a plane face. Dispatchable for plane faces: the parting asks a plane face of an edge exactly where an edge-face record names the pair, and `Names`, `crossed_faces` and the geometric reading in `holding` go for that case; curved faces keep their geometric reading until the curve-touch lane lands. (PARTING orchestrator)
+
+## Parked again (2026-11-01)
+
+The lane's measurement before rewiring found 10 result cells
+(`a_vertex_read_again_classes_every_edge`, `tipped_b`) where a line
+lying in a plane face of its own operand reaches the parting with no
+record and both walls go into the face's material: the geometric
+reading parts it, a records-only reading would ship one edge that tier 3
+passes. Parked on `an-edge-lying-in-its-own-operands-face-reaches-the-parting-unrecorded`. The rewiring is built and kept on
+`parting/parting-reads-records-wip` (`28a969c583`, clippy clean, suites
+not run): plane faces read records only; `divide` carries the edge's
+edge-face record to each piece the face holds (it dropped it before: 31
+reads); `ops::DoorInBand` and `PieceRead::Unread`'s payload go. (PARTING orchestrator)

@@ -4595,8 +4595,9 @@ fn along_edge_spec<T: Decide>(
 }
 
 /// **A segment's chord along a closed edge** ([`JoinPlan`]'s `closed`):
-/// the edge's whole turn, in every lane — the segment is the edge, so no
-/// section is asked — run the way the chord's `mef` `site` needs
+/// the edge's whole turn on its own carrier, a circle or an ellipse, in
+/// every lane — the segment is the edge, so no section is asked — run
+/// the way the chord's `mef` `site` needs
 /// ([`closed_chord_runs_forward`]). It is stated in the chart of the
 /// face it divides, on which it lies: a whole-turn scaffold circle reads
 /// as a null edge's placeholder (`containment::carrier_loop`).
@@ -4613,26 +4614,36 @@ fn closed_edge_spec<T: Decide>(
     let CurveGeom::Certified(curve) = body.edge_curve_linked(edge, e) else {
         return Err(invariant("the segment's edge carries no certified curve"));
     };
-    let geom::Curve3::Circle { .. } = curve.carrier() else {
-        return Err(invariant("a closed segment edge that is not a circle"));
-    };
+    if !copies_closed_edge(curve.carrier()) {
+        return Err(invariant(
+            "a closed segment edge that is not a circle or an ellipse",
+        ));
+    }
     let forward = closed_chord_runs_forward(body, edge, site, face)?;
     let surface = body
         .get_face(face)
         .ok_or_else(|| corrupt_face(face))?
         .surface;
-    let (t0, t1) = curve.params();
     let turn = EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::chart(surface),
-        ..EdgeCurveSpec::arc_of_circle(curve.carrier().clone(), t0, t1).ok_or(invariant(
-            "a closed circle segment edge's turn does not state",
-        ))?
+        ..curve.restated_spec()
     };
     if forward {
         Ok(Some(turn))
     } else {
         run_back(&turn, face, Some(surface)).map(Some)
     }
+}
+
+/// **The closed carriers [`closed_edge_spec`] copies whole**: a circle
+/// or an ellipse. `boolean::join`'s `site_cell` reads a closed germ
+/// edge's site through this, so a one-site loop is planned only along
+/// an edge this module can copy.
+pub(crate) fn copies_closed_edge<T: Real>(carrier: &geom::Curve3<T>) -> bool {
+    matches!(
+        carrier,
+        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+    )
 }
 
 /// **Whether `edge` is closed at the site of `u`**: both of its ends
@@ -4654,8 +4665,8 @@ fn closed_at<T: Decide>(
 }
 
 /// **Which way a closed edge's chord runs**, where both ends of the
-/// segment's `edge` are the chord's one site: the chord is the whole
-/// circle, and `mef` decides only which loop each of its halves joins
+/// segment's `edge` are the chord's one site: the chord is the edge's
+/// whole turn, and `mef` decides only which loop each of its halves joins
 /// ([`MefSite::Chords`]: the minus half bounds the new face, the run
 /// from `he1` up to `he2`, and the plus half, which runs along the
 /// spec, stays in the old loop). The edge's own half is the one between

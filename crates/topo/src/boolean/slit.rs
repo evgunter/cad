@@ -121,6 +121,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use geom_brep::curve_pair::{Hit, MeetFault, Span, SpanEnd, meet};
 use geom_core::{Band, Decide, Margin, Point3, Sign, Tol, Vec3};
 
+use super::contain::ContainError;
 use super::ops::{DoorInBand, PieceRead, piece_reading};
 use super::{BooleanDecision, BooleanError, Coincide, DeclarationRead};
 use crate::Cell;
@@ -148,7 +149,7 @@ use crate::live::proven;
 /// driver that moves an end off the face's boundary when it reads
 /// [`EdgeInFaceGap::EndOnBoundary`], say. Then carry it and delete this
 /// paragraph and the disposition row with it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum EdgeInFaceGap {
     /// The face the edge lies in has no normal at its carrier's foot of
     /// the edge's midpoint, or one of the edge's own faces none at the
@@ -233,18 +234,23 @@ pub enum EdgeInFaceGap {
     /// edge touches a corner of the face from outside, say, which a
     /// vertex-on-edge record names as it names a crossing.
     Unjoined,
+    /// The containment door does not place the midpoint of a piece of
+    /// the edge, whose carrier lies on the face's surface, against the
+    /// face's region: its refusal, carried whole, or `None` where a
+    /// curved face's region gives no verdict.
+    Unread(Option<ContainError>),
 }
 
 impl EdgeInFaceGap {
     /// Whether the case is the kernel's own defect rather than a
     /// parting not built: no Boolean result holds it.
-    pub const fn is_defect(self) -> bool {
+    pub const fn is_defect(&self) -> bool {
         matches!(self, Self::Crossed | Self::TwinIncident | Self::Redivided)
     }
 
     /// The words a refusal says it in: after "where" for a construction
     /// gap, after "and" for a defect.
-    pub(super) const fn words(self) -> &'static str {
+    pub(super) const fn words(&self) -> &'static str {
         match self {
             Self::NoNormal => {
                 "the face has no normal at its carrier's foot of the edge's midpoint, or one of \
@@ -306,6 +312,10 @@ impl EdgeInFaceGap {
             Self::Unjoined => {
                 "a point it is divided at, where it meets the face's boundary, bounds no piece of \
                  it lying in the face"
+            }
+            Self::Unread(_) => {
+                "the face's region does not place the midpoint of a piece of the edge, whose \
+                 carrier lies on the face's surface"
             }
         }
     }
@@ -1000,7 +1010,10 @@ struct Names {
 /// surface is in band, both the edge's faces go into `f`'s material and
 /// something other than a crossing names the pair; or, on a spline face,
 /// where whether `f` holds the midpoint is in band.
-/// [`BooleanError::EdgeInFace`] with [`EdgeInFaceGap::SplineFace`] where
+/// [`BooleanError::EdgeInFace`] with [`EdgeInFaceGap::Unread`] where the
+/// containment door does not place a piece's midpoint and no piece reads
+/// in `f`, in the same cases as an in-band midpoint; with
+/// [`EdgeInFaceGap::SplineFace`] where
 /// an edge read as lying in a spline face has both its faces going into
 /// `f`'s material. [`walls_inside`]'s refusals but `Crossed`, where it
 /// reads the faces.
@@ -1020,8 +1033,17 @@ fn holding<T: Decide>(
     // in it.
     let crossed_only = !names.ends && !names.record;
     let unplaced = |read: BooleanError| match read {
-        BooleanError::Escalated { .. } if crossed_only => Ok(None),
+        BooleanError::Escalated { .. }
+        | BooleanError::EdgeInFace {
+            gap: EdgeInFaceGap::Unread(_),
+            ..
+        } if crossed_only => Ok(None),
         read => Err(read),
+    };
+    let unread = |why| BooleanError::EdgeInFace {
+        edge: e,
+        face: f,
+        gap: EdgeInFaceGap::Unread(why),
     };
     let on = match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
         Ok(Some(on)) => Ok(on),
@@ -1042,7 +1064,8 @@ fn holding<T: Decide>(
                     face: f,
                     gap: EdgeInFaceGap::SplineFace,
                 }),
-                Ok(PieceRead::NotIn | PieceRead::Unread(_)) => return Ok(None),
+                Ok(PieceRead::NotIn) => return Ok(None),
+                Ok(PieceRead::Unread(why)) => return Err(unread(why)),
                 Err(read) => return Err(read),
             }
         }
@@ -1084,20 +1107,23 @@ fn holding<T: Decide>(
         .chain(at.into_iter().rev())
         .chain(core::iter::once(t1))
         .collect();
-    let mut in_band = None;
+    let mut unasked = None;
     for piece in ends.windows(2) {
         let mid = carrier.eval(geom::mid_param(piece[0], piece[1]));
         // Whether the face holds the point is read here first, so the
         // door's margin in band is the operands' geometry.
         match piece_reading(body, f, mid, band, DoorInBand::Containment) {
             Ok(PieceRead::In) => return Ok(Some(divided)),
-            Ok(PieceRead::NotIn | PieceRead::Unread(_)) => {}
+            Ok(PieceRead::NotIn) => {}
+            Ok(PieceRead::Unread(why)) => {
+                unasked.get_or_insert(unread(why));
+            }
             Err(read) => {
-                in_band.get_or_insert(read);
+                unasked.get_or_insert(read);
             }
         }
     }
-    in_band.map_or(Ok(None), unplaced)
+    unasked.map_or(Ok(None), unplaced)
 }
 
 /// Where along `along`, edge `e`'s span, the records `named` place a
@@ -1718,9 +1744,8 @@ fn walls_inside<T: Decide>(
                 ) else {
                     return Err(refused(unread));
                 };
-                let apart =
-                    (floor_bend - wall_bend).dot(floor) * arm.powi(2) / (T::one() + T::one());
-                let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, Margin::of(apart), band)
+                let apart = geom_brep::parting(floor_bend - wall_bend, floor, arm);
+                let side = crate::validate::decide(RIDER_WALL_BEND_ACROSS, apart, band)
                     .map_err(sectors)?;
                 match side {
                     Sign::Negative => false,
@@ -1761,7 +1786,6 @@ fn spline_floor<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
-    use super::contain::ContainError;
     use crate::face_normal::{NormalAtError, SplineNormalError};
     let chart = body.get_face(f).and_then(|d| body.get_surface(d.surface));
     if !chart.is_some_and(|s| s.spline_chart().is_some()) {
@@ -2587,4 +2611,101 @@ fn face_halves<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeK
         }
     }
     Some(out)
+}
+
+/// **[`holding`] on a piece the containment door does not place**: a
+/// 2×1×1 prism whose top face holds a lone-vertex ring, which the door
+/// refuses ([`ContainError::EmptyLoop`]), read against an edge of the
+/// top's boundary, whose carrier lies on the top's plane.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod unread_piece {
+    use super::{ContainError, EdgeInFaceGap, Names, holding};
+    use crate::Body;
+    use crate::LoopBoundary;
+    use crate::boolean::BooleanError;
+    use crate::construction::MevSite;
+    use crate::entity::{EdgeKey, FaceKey, LoopKey};
+    use geom_core::{Band, Point3, Tol};
+
+    /// The prism, its top face, the top's empty ring and an edge of the
+    /// top's outer loop.
+    fn top_with_an_empty_ring() -> (Body<f64>, FaceKey, LoopKey, EdgeKey) {
+        let tol = Tol::witness();
+        let p = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let mut body = p.body;
+        let outer = body.get_face(p.top_face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+            panic!("the top is a cycle")
+        };
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: first,
+                    he2: first,
+                },
+                Point3::new(1.0, 0.5, 1.0),
+                tol,
+            )
+            .unwrap();
+        let ring = body.kemr(strut.he_plus, strut.he_minus).unwrap().ring;
+        assert_eq!(
+            body.get_face(p.top_face).unwrap().rings,
+            vec![ring],
+            "the strut's kill leaves the top one ring"
+        );
+        assert!(
+            matches!(
+                body.get_loop(ring).unwrap().boundary,
+                LoopBoundary::Empty { .. }
+            ),
+            "the top's ring is a lone vertex"
+        );
+        let edge = body.get_half_edge(first).unwrap().edge;
+        (body, p.top_face, ring, edge)
+    }
+
+    /// Where both the edge's ends lie on the face, the unread piece
+    /// refuses with the door's refusal; where nothing names the pair but
+    /// a crossing, the face is not asked.
+    #[test]
+    fn an_unread_piece_refuses_unless_only_a_crossing_names_the_pair() {
+        let (body, top, ring, edge) = top_with_an_empty_ring();
+        let band = Band::linear(Tol::witness()).unwrap();
+        let read = |ends| {
+            holding(
+                &body,
+                &[],
+                edge,
+                top,
+                Names {
+                    ends,
+                    record: false,
+                },
+                band,
+            )
+        };
+        let named = read(true);
+        assert!(
+            matches!(
+                &named,
+                Err(BooleanError::EdgeInFace {
+                    edge: e,
+                    face: f,
+                    gap: EdgeInFaceGap::Unread(Some(ContainError::EmptyLoop(lk))),
+                }) if *e == edge && *f == top && *lk == ring
+            ),
+            "ends on the face: the unread piece refuses naming the door's refusal, got {named:?}"
+        );
+        let crossed = read(false);
+        assert!(
+            matches!(crossed, Ok(None)),
+            "a crossing-only pair: the face is not asked, got {crossed:?}"
+        );
+    }
 }

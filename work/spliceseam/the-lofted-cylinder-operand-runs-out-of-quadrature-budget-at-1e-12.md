@@ -48,3 +48,15 @@ Un-pinning owes a re-measure: each pin stops its row at main's first stop, so wh
 ## Evidence (2026-11-01, SPLICE orchestrator)
 
 On main `fd5ae82f`, at ε 1e-12, `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`'s pinned red now PASSES: the operand's measurement no longer stops at `wall`. A SPLICE lane found this locally, and it is reproduced identically on a clean worktree. The props quad_lane/settle merges since the last nightly are the likely cause. The pin may need lifting, and this row may be closable; re-measure before deciding.
+
+## The 1e-12 pin now fails the other way (RESTCURVE, hair-gap PR 6244, 2026-11-01)
+
+At ε 1e-12, `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`
+(`crates/sweep/tests/spline_spiric_operands.rs`) fails at its pin:
+"pinned to stop on ["the operand measures: the measurement did not meet
+its resolution: it stopped at `wall`"] at ε = 1e-12, and it passed". The
+operand now measures, and the pin that cites this row expects the
+refusal. It does so with main's torus door (`torus_region.rs` as on main
+`71584a65`) swapped in, so it is main's state and not PR 6244's. Whether
+the quadrature now meets 1e-12 by a fix that should close this row, or
+passes by chance, was not looked into.

@@ -347,7 +347,7 @@ that decision's members of it, not the file's whole inventory (so
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/g1.rs` (`Slot`, the preview/commit rules both gestures obey), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (all three seams and all three workers) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (every seam and every worker) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `compose` with the `Held` picks and `drawn_patch`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs`, `src/platform.rs` and `src/idpass.rs` are vocabularies and are built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
@@ -2044,26 +2044,50 @@ the tool lists it twice and the session door commits it like any other
 document; the door's only per-operand check is the node kind
 (`Refusal::WrongNodeKind`), at every operand.
 
-### The picture shows a set of spaces
+### The picture draws bodies
 
-Each placement names the space it copies into, and the viewport draws a
-set of spaces (IDENTITY DI5): the world and every `new_space()` no
-placement reads a source body of (`world::shown_spaces`), read off the
-recipe. A construction's own space is drawn through the placement that
-copies the construction, not on its own: the picture draws placements'
-copies, and a construction is no placement.
-The drawn copies are the placements into those spaces
-(`world::drawn_copies`); a placement into a space whose bodies another
-placement copies — a body moved against its own geometry, an operand
-placed against a combine's first — is drawn through that copy. A
-free-move frame is display state keyed by a shown space's `Space`
-variable and moves every copy placed into it; it is dropped when the
-space is no longer shown or is gone (`display::space_check`). A copy
-placed into the world is the product's and is drawn where the document
-puts it, so the probe refuses it (`AdmissionFault::InTheWorld`). Until
-operations compute in a frame of their reads, a shown space's picture
-reads its bodies' coordinates in that space as they stand, at the
-world's origin.
+A new body lands unplaced, in a space of its own (Ev, 2026-10-31), and
+the picture draws bodies, not placements. **A body is drawn unless an
+operation reads it as a body**: as an operator's operand (`∪ − ∩ ⊔`),
+as a one-input operation's input (a fillet, a split, a mirror), or as a
+placement's source, wherever the copy lands. A read of one member of a
+family takes over that member alone. A mate reads a pose, a selection
+or a measure observes, an assertion states: none of them hides a body.
+So an extrude is drawn at once; a fillet of it is drawn in its place;
+a pattern of it draws the family, member 0 standing where the body
+stood; and once the body is placed into the world its own picture goes,
+while a body beside it that nothing reads stays drawn. The product
+stays the slot the document writes: only the picture is derived, and
+nothing it derives re-enters the model.
+
+Each drawn body is drawn in its own space through the one composing
+door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
+**shown spaces** are the world and every space that holds a drawn body
+(IDENTITY DI5). That is the default picture; the author's show and
+hide is display state over it. The View pane lists the shown spaces,
+the world first, and every body of the document under its space, each
+with its toggle, so a body the default leaves out (an operand a boolean
+took over, a fillet's input) can be shown, and any drawn one hidden
+(Ev, PR 6209: "all bodies should be viewable by toggle in the view
+pane").
+A drawn body the product slot does not reach is tinted as outside the
+product. Every shown space stands at the identity, so a body is drawn
+where it was written; where a space is drawn otherwise is held in one
+way only, as a display frame. The "Add part…" gesture writes the new
+space's display frame clear of what is drawn, the same kind of value a
+free-move writes (IDENTITY DI5), so two inserted parts never land on
+each other (Ev, PR 6209: one way to store where something is
+displayed, not a derived layout beside it).
+
+A free-move frame is display state keyed by a shown space's `Space`
+variable and moves every body drawn in it; it is dropped when the space
+is no longer shown or is gone once the next evaluation has settled
+(`display::space_check`), so an undo and redo of the gesture that made
+the space keeps its frame. The world is
+the frame the other spaces move against: a frame on it would be the
+camera a second time, so the probe refuses it
+(`AdmissionFault::InTheWorld`). Any other shown space under a pick is
+admitted, whatever kind of node drew it.
 
 ### The mate tool commits into a placement's bundle
 
@@ -2105,23 +2129,41 @@ the mate. A pick on a `Place`'s copy reads `on` off the shape it
 copies; a pick elsewhere is read through the member walk to the
 instance it places.
 
-**"Place part" writes the identity bundle.** Every gesture that puts a
-body or a part in the world — a creation, an inserted instance —
-inserts the placement into the world with the identity bundle
-(`editor_core::stand`): no mate, and the constant `0` on each slide and
-spin, so the copy stands where its body stands and can then be moved by
-its numbers. A duplicate is placed beside the original as it is drawn:
-into each drawn copy's space (the one picked, or every one when the
-tree names the body), by values on every freedom at that copy's
-evaluated motion and no mate, so it stands where the person sees the
-original, one step along the original's own `x`, and does not follow
-it. The transform gesture places a body into its
-own space by values on that space's axes: the three slides as the
-person wrote them, and the spin about the axis the rotation names
-where it is one of the space's, else the chain of turns its frame
-makes. A combine re-places an operand from another space at the pose
-it held, by values on the first operand's space's axes. Nothing a
-place gesture writes reads the copy's geometry.
+**A new body lands unplaced** (Ev, 2026-10-31). No gesture writes a
+world `Place` on the person's behalf. A construction, a feature or a
+boolean lands where D10 `[placement.spaces]` puts its body (its own
+space, or its inputs'), and the mirror writes `body ∪ image`. An
+inserted part is a fresh `new_space()` and the instance into it by the
+identity bundle (`editor_core::stand`: no mate, and the constant `0` on
+each slide and spin), in one action. A pattern, fused or not, lands
+where the pick was seen and takes the seen body over along the path it
+was seen through (a placement's source, a `⊔` operand, the product
+slot), member 0 standing where that body stood. A duplicate of a copy
+is one more copy in that copy's space, by values on every freedom at
+the copy's evaluated motion and no mate, one step along the original's
+own `x`; a duplicate of an unplaced body is two copies in its own
+space, a stand-in by the identity and the stepped one. Projecting a
+pattern member writes nothing: a pick on a drawn member seats
+`family[k]`. The transform gesture places an unplaced body into its own
+space by values on that space's axes: the three slides as the person
+wrote them, and the spin about the axis the rotation names where it is
+one of the space's, else the chain of turns its frame makes; on a copy
+it edits the copy's placement. A combine re-places an operand from
+another space at the pose it held, by values on the first operand's
+space's axes. Nothing a place gesture writes reads the copy's geometry.
+
+**A body reaches the product through one door.** Nothing joins the
+product unasked, a document's first body included. **Add to the
+product** is offered on the body under a viewport pick, on a drawn
+body's tree row, and as the action of the `EmptyProduct`,
+`StrandedProduct` and `unused` recourses, each one action and one undo:
+a copy in the world is added to the slot (`SetProduct`); a placement's
+copy that nothing in its space reads (no operand, no mate pose, no
+pick) has its placement re-targeted into the world, a space the
+gesture minted and left empty deleted, and is added; any other body is
+placed into the world by the identity bundle and that copy added. A
+fresh body therefore reports `unused` (D10 `[operations]`), with this
+door as its recourse.
 
 **A mate beyond the pin refuses, typed.** The edit door reads the
 bundle's families and measures nothing, so a mate added to a bundle

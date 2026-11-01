@@ -63,3 +63,7 @@ author's.
 ## Slate triage (2026-10-28, INTENT)
 
 Moved from `work/intent/` by `git mv`, id and body unchanged: residue of INTENT's D10 build that belongs to DOORS's charter (the viewer's authoring doors). INTENT keeps D10's core (G and its riders, the stage-3 umbrellas, the carry, the refactor rows, the roots rename); Ev asked for INTENT's slate to be cut to its charter and its residue handed on (in chat, 2026-10-28).
+
+## Moved (2026-11-01)
+
+Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)
