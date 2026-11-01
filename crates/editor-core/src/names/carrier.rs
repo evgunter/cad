@@ -110,6 +110,7 @@ impl super::SegRewrite for Reseat<'_> {
 
 #[cfg(test)]
 mod a_carrier_is_one_whole_unique_row {
+    #![allow(clippy::expect_used)]
     use super::{carriers, reseated};
     use crate::VarId;
     use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
@@ -196,7 +197,7 @@ mod a_carrier_is_one_whole_unique_row {
             .enumerate()
         {
             table
-                .insert(row.clone(), ent(i as u32))
+                .insert(row.clone(), ent(u32::try_from(i).expect("a few rows")))
                 .expect("distinct rows");
         }
         table
