@@ -55,6 +55,66 @@ use crate::session::{DocSession, FreeMoveName, GestureName, SessionOp, ValueGest
 use crate::sketch;
 use crate::theme::Theme;
 
+/// What every open form's and tool's closing button says.
+pub(crate) const CANCEL: &str = "Cancel";
+
+/// **The door to a form or a tool**: the one button that opens what
+/// `label` names, drawn while it is closed. Every door in the chrome is
+/// drawn here, so a door looks one way wherever it stands; what a click
+/// opens is the caller's, which is why this answers the response.
+pub(crate) fn door(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>) -> egui::Response {
+    ui.button(label)
+}
+
+/// **A form whose open state is a flag**, behind its [`door`]: closed,
+/// the door, which opens it when clicked. Answers whether the form is
+/// open — whether the caller draws it.
+pub(crate) fn form_door(ui: &mut egui::Ui, label: &str, open: &mut bool) -> bool {
+    if !*open && door(ui, label).clicked() {
+        *open = true;
+    }
+    *open
+}
+
+/// What a form's [`commit_row`] was clicked for this frame.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Closing {
+    /// The commit was clicked.
+    pub(crate) commit: bool,
+    /// [`CANCEL`] was clicked.
+    pub(crate) cancel: bool,
+}
+
+/// **An open form's closing row**: its commit, labelled with what it
+/// makes, then whatever else the form keeps beside it (`between`), then
+/// [`CANCEL`]. `blocked` is why the commit is withheld, said on the
+/// disabled commit's hover; `None` leaves it live. A form that says the
+/// reason in the open as well hands the same words to both.
+///
+/// The form closes on its Cancel here, and on its commit only once the
+/// document ACCEPTS the op — that is the caller's to read, so a refused
+/// commit keeps what was typed.
+pub(crate) fn commit_row(
+    ui: &mut egui::Ui,
+    commit: impl Into<egui::WidgetText>,
+    blocked: Option<&str>,
+    between: impl FnOnce(&mut egui::Ui),
+) -> Closing {
+    ui.horizontal(|ui| {
+        let button = ui.add_enabled(blocked.is_none(), egui::Button::new(commit));
+        let commit = match blocked {
+            Some(why) => button.on_disabled_hover_text(why).clicked(),
+            None => button.clicked(),
+        };
+        between(ui);
+        Closing {
+            commit,
+            cancel: ui.button(CANCEL).clicked(),
+        }
+    })
+    .inner
+}
+
 /// **A sentence drawn so that it WRAPS INSIDE THE REGION it is drawn
 /// in** — a refusal, a fault, a check finding, the status line.
 ///
@@ -2725,7 +2785,7 @@ mod tests {
     /// mean opposite things, and this is the one that means abandon.
     ///
     /// It is also the ONLY abandon a user has while the button is
-    /// still down: [`crate::session::DocSession::cancel_doors`] draws
+    /// still down: [`crate::session::DocSession::cancel_doors`] puts
     /// *"Cancel free-move"* in the toolbar, and reaching a toolbar
     /// control costs the pointer release that lands the frame.
     ///

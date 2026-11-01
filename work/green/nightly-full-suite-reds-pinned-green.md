@@ -62,3 +62,8 @@ census pins, or a nightly-filter exclusion) with a dated line on the
 owning program's open row. The last of them landed in #6093. The causes
 live on those rows, not here. A pin that goes red later is a new
 nightly red, handled from that night's triage.
+
+## 2026-11-01 — a renamed test (SPLITDOOR, `splitdoor/sided-followups`)
+
+`germ_torus_doors::subtract_and_intersect_refuse_where_union_does`,
+cited above, is now `subtract_and_intersect_reach_the_doors_union_does`.
