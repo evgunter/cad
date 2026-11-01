@@ -1170,7 +1170,7 @@ fn a_face_closed_across_part_of_the_slit_refuses_typed() {
 /// line's plane. Where the op keeps the partner's face over one lump,
 /// the dropped copy's corner at the lumps' shared point is held by the
 /// piece of the face whose corner there holds its direction: the point
-/// is a vertex of that face's division (`fate::fragment_along`).
+/// is a vertex of that face's division (`fate::piece_holding`).
 ///
 /// Every op but `x ∪ y` builds as the closed form says, tier 3 and 3′,
 /// with one edge along the line (each result's material about it is one
@@ -1249,6 +1249,91 @@ fn a_flush_partner_over_two_lumps_touching_along_an_edge_builds() {
                         "{what}: x ∪ y: {e:?}"
                     ),
                     Ok(_) => panic!("{what}: x ∪ y builds: pin it"),
+                }
+            }
+        }
+    }
+}
+
+/// **A fate edge ending at a corner of its face's division builds.**
+/// The cube `[0, 1]³` ∪ the box `[1, 2]² × [0.5, 1.5]`, touching along
+/// `x = y = 1`, `z ∈ [0.5, 1]`, the union's records carried. A partner
+/// over `[1, 1.5]`, `[0.5, 1]` or `[0.5, 1.5]` in z lies flush with the
+/// cube's top on `z = 1`, which the box crosses: the partner's face there
+/// is divided by the box's imprint, whose corner is the cube's top corner
+/// `(1, 1, 1)`. In `x ∖ y` and `x ∩ y` the cube's top edges are fate
+/// edges of that face, touching it at that corner with no surgery: each
+/// chord ends at the division's vertex, its corner read by its direction
+/// (`fate::place`). Both ops build in both union orders, tier 3 and 3′,
+/// at the volume the boxes' overlaps give.
+#[test]
+fn a_fate_edge_touching_a_corner_of_its_faces_division_builds() {
+    use common::meeting::posed_box;
+    type Boxed = [(f64, f64); 3];
+    let tol = t();
+    let meet = |a: &Boxed, b: &Boxed| -> f64 {
+        (0..3)
+            .map(|k| (a[k].1.min(b[k].1) - a[k].0.max(b[k].0)).max(0.0))
+            .product()
+    };
+    let lumps: [Boxed; 2] = [
+        [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
+        [(1.0, 2.0), (1.0, 2.0), (0.5, 1.5)],
+    ];
+    let poses = poses();
+    for pose in [&poses[0], &poses[4]] {
+        let [cube, beside] = lumps.map(|b| posed_box("a lump", b, pose, tol));
+        for (order, (a, b)) in [
+            ("cube first", (&cube, &beside)),
+            ("box first", (&beside, &cube)),
+        ] {
+            let Ok(BooleanResult::Body(x)) = topo::union(a, b, tol) else {
+                panic!("{}, {order}: the lumps unite", pose.label);
+            };
+            let inputs = topo::BooleanInputs {
+                records_a: x.contacts.carried(),
+                ..topo::BooleanInputs::default()
+            };
+            for z in [(1.0, 1.5), (0.5, 1.0), (0.5, 1.5)] {
+                for (x_span, y_span) in [
+                    ((-0.5, 2.5), (-0.5, 2.5)),
+                    ((-0.5, 2.5), (0.5, 1.5)),
+                    ((0.5, 1.5), (0.5, 1.5)),
+                ] {
+                    let partner: Boxed = [x_span, y_span, z];
+                    let y = posed_box("the partner", partner, pose, tol);
+                    let common: f64 = lumps.iter().map(|l| meet(l, &partner)).sum();
+                    for (op, kind, want) in [
+                        ("x ∖ y", topo::BooleanOp::Subtract, 2.0 - common),
+                        ("x ∩ y", topo::BooleanOp::Intersect, common),
+                    ] {
+                        let what =
+                            format!("{}, {order}, the partner {partner:?}: {op}", pose.label);
+                        let r = topo::boolean_op_with(
+                            kind,
+                            &x.body,
+                            &y,
+                            &inputs,
+                            topo::SweepStrategy::Realized,
+                            tol,
+                        );
+                        let Ok(BooleanResult::Body(r)) = r else {
+                            panic!("{what}: builds, got {:?}", r.map(|_| ()));
+                        };
+                        assert_eq!(validate_geometric(&r.body, tol), Ok(()), "{what}: tier 3");
+                        assert_eq!(
+                            validate_pseudomanifold(&r.body, &r.contacts, tol),
+                            Ok(()),
+                            "{what}: tier 3′"
+                        );
+                        let v =
+                            topo::test_support::pinned_volume("the measured body", &r.body, tol)
+                                .volume;
+                        assert!(
+                            (v - want).abs() < 1e-9,
+                            "{what}: volume {v}, closed form {want}"
+                        );
+                    }
                 }
             }
         }

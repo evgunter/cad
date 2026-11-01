@@ -970,7 +970,7 @@ enum End {
     /// vertex, each with its null-edge copies.
     At(Vec<VertexKey>),
     /// At this vertex of the kept operand touching the dropped face with
-    /// no surgery, where the face holds no vertex.
+    /// no surgery, where the face holds no partner of it.
     Touch(VertexKey),
 }
 
@@ -1056,20 +1056,6 @@ fn pieces<T: geom_core::Real>(
         .map(|(f, _)| f)
         .filter(|&f| divisions.root(f) == root && body.null_face_pair(f).is_none())
         .collect()
-}
-
-/// The face divided from `root` that holds `p` inside it.
-fn fragment_at<T: Decide>(
-    body: &Body<T>,
-    root: FaceKey,
-    divisions: &FaceDivisions,
-    p: Point3<T>,
-    band: Band,
-) -> Result<FaceKey, BooleanError> {
-    match lies(body, root, divisions, p, band)? {
-        Lies::Inside(one) => Ok(one),
-        Lies::AtCorners(_) | Lies::Nowhere => Err(in_no_one_piece()),
-    }
 }
 
 /// A fate cut's end that no one piece of its face holds.
@@ -1630,18 +1616,18 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<FateCuts, CutError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let [div_a, div_b] = divisions;
-    let mut lone = std::collections::BTreeMap::new();
+    let mut touched = std::collections::BTreeMap::new();
     // Each half whose face is substituted, with the kept half whose face
     // holds it; each chord, with its other half.
     let mut halves: Vec<(Operand, HalfEdgeKey, HalfEdgeKey)> = Vec::new();
     let mut out = FateCuts::default();
     let mut slits = Vec::new();
     let mut done = std::collections::BTreeSet::new();
-    // Every lone vertex is placed before any is minted: the containment
-    // reading cannot walk an empty loop.
+    // Every touch is placed before any lone vertex is minted: the
+    // containment reading cannot walk an empty loop.
     // A kept vertex's point key with its touch: two kept vertices on one
     // point (a slit's open end, one per wedge) touch the dropped face at
-    // one lone vertex.
+    // one place.
     let mut touches: Vec<(Operand, VertexKey, FaceKey, Point3<T>)> = Vec::new();
     let mut touch_points: Vec<(Operand, VertexKey, crate::geometry::PointKey)> = Vec::new();
     // Where one kept face holds the dropped one on both sides of a
@@ -1724,23 +1710,29 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 Operand::A => (&*div_b, &red.b),
                 Operand::B => (&*div_a, &red.a),
             };
-            let face = fragment_at(body, root, div_d, p, band)?;
-            Ok((h, t, face, p))
+            Ok((h, t, lies(body, root, div_d, p, band)?, p))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    for (holder, t, face, p) in touches {
+    for (holder, t, lies, p) in touches {
         let body = match holder {
             Operand::A => &mut red.b,
             Operand::B => &mut red.a,
         };
-        let (w, _) = super::vtxfac::ring_vertex_in(body, face, p, tol)?;
+        // At a vertex of the face's division the chord ends there, its
+        // corner read by its direction (`place`); inside one piece it ends
+        // at a lone vertex.
+        let ws = match lies {
+            Lies::Inside(face) => vec![super::vtxfac::ring_vertex_in(body, face, p, tol)?.0],
+            Lies::AtCorners(corners) => corners,
+            Lies::Nowhere => return Err(in_no_one_piece().into()),
+        };
         let key = touch_points
             .iter()
             .find(|&&(h, k, _)| (h, k) == (holder, t))
             .map(|&(.., key)| key);
         for &(h, k, at) in &touch_points {
             if h == holder && Some(at) == key {
-                lone.insert((holder, k), w);
+                touched.insert((holder, k), ws.clone());
             }
         }
     }
@@ -1791,10 +1783,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         let at = |x| match end_at(red, fe.holder, x, root, div_d)? {
             End::At(ws) => Ok(ws),
             End::Touch(t) => {
-                lone.get(&(fe.holder, t))
-                    .map(|&w| vec![w])
+                touched
+                    .get(&(fe.holder, t))
+                    .cloned()
                     .ok_or(BooleanError::JoinDesync {
-                        what: "a touching fate cut end has no lone vertex",
+                        what: "a touching fate cut end is not placed",
                     })
             }
         };
