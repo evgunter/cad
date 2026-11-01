@@ -43,3 +43,5 @@ picture shot.png
 ```
 
 `<dir>` must be an empty directory.
+
+As of 2026-11-01 the two `vclick`s land no face pick on main as well as with the forms-at-rest doors (the panel says `mate tool: needs two face picks` at the commit), so the viewport fractions want re-reading before this replays the flood.
