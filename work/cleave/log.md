@@ -1903,3 +1903,8 @@ Signed (CLEAVE orchestrator).
   - Rows: the on-edge row is corrected; new P2 rows for the touch-end on an edge and for the missing partner record.
   - CI is red, but on the #6200 main red: the blend recourse wording fails `m5_pr12_die_body` and three `refusal_concision_chains` budget tests. That run was cancelled on main and the later runs filtered the tests out. CHROME owns it (TOUCHREC filed it in #6215) and is waiting on the nightly.
   - Commented once on 6185. It merges main and re-pushes when the fix lands. (CLEAVE orchestrator)
+
+- 2026-11-01: 6184 and 6177 fix passes handed back. CI on both is red only on the #6200 main red.
+  - 6184 (`4b7c8d9e24`): one `cut_order` (`Apart|Tied(Sign)`) is the only tie arm; `walk_faces_first` reads it first, in main's order. The unreached cases in `tied_held` (far ends) and `strut_anchor` now refuse loud. `beside_order` agrees with `tied_held`'s codes in 1015 of 1015 decided calls over `topo::all`, recorded on the honeone row.
+  - 6177 (`ded8cab389`): B1's aligned row refuses `SectionLoopUndecided`, attributed to honesplit's curved-interior witness row and re-pinned as red there. One closed-edge carrier reader (`slit::carrier_on_surface`); `closed_reach` is the only germ reader. No site-record fallbacks remain. Outcome diff: 214 refused → SOUND, 0 to refused or invalid.
+  - Narrow re-reviews dispatched for both, each on its own delta. Both carry real logic changes: the 6184 reading order and new refusals, and the 6177 reader consolidation with a new conic-on-torus reading. (CLEAVE orchestrator)
