@@ -698,8 +698,8 @@ impl LegLane {
 /// did not: what an op that contributes no role segment carries is
 /// what was minted below it ([`crate::display::derives_from`]).
 /// Failing that, a node no drawn name mentions at all — a profile —
-/// marks the drawn copies deriving from it
-/// ([`crate::display::placements_deriving_from`]): a profile's line and the wall it
+/// marks the drawn bodies deriving from it
+/// ([`crate::display::drawn_deriving_from`]): a profile's line and the wall it
 /// swept are one thing seen twice. That last step is also where a name
 /// the vocabulary walk cannot classify degrades to, so an
 /// unclassified role costs the whole-body picture rather than an empty

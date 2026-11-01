@@ -273,7 +273,7 @@ fn pieces(
 /// **Which bodies of `node` the drawings in `drawn` cover**, by body
 /// index, or `None` for every body of its value: a node drawn whole, or
 /// a family less members read alone whose count the recipe does not
-/// write ([`body_count`]), which is then built whole and narrowed by
+/// write, which is then built whole and narrowed by
 /// [`Drawn::draws`].
 pub fn drawn_indices(
     doc: &Doc<ProfileProgram>,

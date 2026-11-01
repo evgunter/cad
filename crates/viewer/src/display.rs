@@ -358,13 +358,15 @@ impl From<AdmissionFault> for DisplayFault {
 ///
 /// [`DisplayFault::Admission`] carries the faults that say a node
 /// cannot hold display state — the answers of the tests
-/// [`display_check`], [`free_move_check`] and [`space_check`], each
+/// [`body_check`], [`space_hide_check`], [`free_move_check`] and
+/// [`space_check`], each
 /// naming the id it is about. The four arms beside it are about a
 /// gesture or a frame and name no id at all.
 ///
 /// The families are apart because one of them is joined into a list
 /// and the other is not: [`DisplayState::prune`] fills every
-/// [`Withdrawn`] from [`display_check`], [`space_check`] and the
+/// [`Withdrawn`] from [`body_check`], [`space_hide_check`],
+/// [`space_check`] and the
 /// gesture's own check, so a
 /// withdrawal's cause is an [`AdmissionFault`] by signature rather than
 /// by a property of those functions' error sets, and
