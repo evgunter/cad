@@ -12,7 +12,7 @@
 //! own roundings no longer coincide: the rim line's, and the seam's end.
 //! The presentation reads the side the seam bounds out to the rim
 //! line's far bound, which the seam alone does not reach
-//! (`topo::injective`'s `side_ranges`).
+//! (`topo::injective`'s `run_on`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

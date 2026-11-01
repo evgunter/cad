@@ -46,7 +46,10 @@ sphere exactly (`c = (0, 1/16)`, `r = 5/64`, point intervals), and
 `bulge_from_center` carries it about `1e-16` wide.
 
 The refusal is at the cavity's mouth-rim corner on a band half, where
-the seam meets the rim (`v = asin 7/9`). `present_chart` clips the
+the seam meets the rim. The cavity is the operand moved a wall of
+`1/128` inward: its sphere has radius `9/128` about `(0, 1/16)` and its
+mouth plane is `y = 15/128`, so its rim is at `v = asin 7/9`. (The
+operand's own rim, at `y = 1/8` on `r = 5/64`, is at `asin 4/5`.) `present_chart` clips the
 corner cell to the seam line `u = 2π` and the rim line, and then asks
 that the seam's `v` range cover the rectangle's side. That side ends
 at the rim line's outer bound, while the seam's range ends at its own
@@ -63,7 +66,7 @@ Sweep's wide sphere dominates both roundings, so its gap falls inside
 No cell narrows either enclosure, so the corner cell reads `Local` at
 every depth and the pair refuses `Uncertified { Departure }`.
 
-The fix is in the reader (`injective.rs`, `side_ranges`): a clip side's
+The fix is in the reader (`injective.rs`, `run_on`, read only by `sides_are_the_faces`): a clip side's
 edge that ends at a corner it shares with a clip on the other axis runs
 on from its end's own enclosure to that line's far bound. No producer
 changes.
