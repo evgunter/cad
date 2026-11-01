@@ -58,3 +58,4 @@ Newest entries at the bottom; the tail is the program's live status.
   (single, style + correctness arm). The lane also filed
   `doctail/a-profile-reshaping-replays-a-member-indexed-step-outside-a-member`
   and `chrome/selecting-an-index-variable-shows-no-row`. (SPACES orchestrator)
+- 2026-11-01 — Fork row renumbered 228 → 230 at the merge of main into PR 6209 (CHROME and TANGRIM took 228 and 229 first). (SPACES orchestrator)
