@@ -5352,16 +5352,39 @@ mod properties_pane_tests {
     }
 
     /// **The creation doors that are not tools are reachable too**: the
-    /// extrude form, under "Add feature", paints its button (withheld,
-    /// with nothing selected), and the `Add part…` button opens the part
-    /// chooser. The add-profile form is the subject of
-    /// rows of its own above, which open the section and read it.
+    /// extrude form, under "Add feature", is drawn while a profile is
+    /// selected and not while anything else is (its door's own kind
+    /// test), and the `Add part…` button opens the part chooser. The
+    /// add-profile form is the subject of rows of its own above, which
+    /// open the section and read it.
     #[test]
     fn the_extrude_form_and_the_part_chooser_are_reachable() {
         use crate::pane::create::{ADD_FEATURE, ADD_PART, EXTRUDE};
-        let mut driven = Driven::with(Vec::new());
+        // The button's words for `node`, as the form spells them.
+        let button = |driven: &Driven, node: RecipeNodeId| {
+            format!(
+                "{EXTRUDE} {}",
+                pncad::document::Speaker::of(driven.app.session.doc()).node(node)
+            )
+        };
+        let offers = |painted: &[(String, egui::Rect)], words: &str| {
+            painted.iter().any(|(run, _)| run == words)
+        };
+        let mut driven = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         driven.click(ADD_FEATURE);
-        Driven::only(&driven.frame(Vec::new()), EXTRUDE);
+        let painted = driven.frame(Vec::new());
+        let refused = button(&driven, extrude());
+        assert!(
+            !offers(&painted, &refused) && !offers(&painted, EXTRUDE),
+            "an extrude selected is not a profile, so no extrude is offered: {painted:?}"
+        );
+        driven.select(Selection::Node(startup_node(0)));
+        let painted = driven.frame(Vec::new());
+        let offered = button(&driven, startup_node(0));
+        assert!(
+            offers(&painted, &offered),
+            "the startup profile selected offers {offered:?}: {painted:?}"
+        );
         assert!(driven.app.part_chooser.is_none(), "the startup app");
         driven.click(ADD_PART);
         assert!(

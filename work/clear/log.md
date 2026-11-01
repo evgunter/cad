@@ -226,6 +226,7 @@ Signed: (CARVE orchestrator)
     - Fix pass 2 (`c140ecc3`), read and accepted: the audit row; `v` and in-band rows; the hang-prone rows bounded by a nextest timeout; N3 as an explicit refusal; `graph_read`'s whole-turn check gated by `periodic`, with every `whole_turn` caller swept.
   - **Moved to CLEARTAIL:** its P2 and P3 filings.
   - **SHELL-4 is unparked.** Its parking note was wrong: the vessel already held, via the carrier arm. SHELL-4 is CLEAR's last P1.
+- 2026-10-30 — **SHELL-4 dispatched** (`docs/SHELL4-SPEC.md`, branch `clear/shell4`, cloud lane). This is CLEAR's last P1. Review: a single FULL review, not DUAL. The design was ruled by Ev on #1737, and the unit wires the reviewed injectivity certificate into one verb, so the risk is placement, typing and cost, which one reviewer with claims to falsify covers.
 - 2026-10-30 — **SHELL-4's lane stopped; RIMSCALAR dispatched** (`docs/RIMSCALAR-SPEC.md`, branch `clear/rimscalar`). The vessel holds at `Body<f64>` but refuses `Departure` at `Body<Interval>`. **Class, recorded:** every self-intersection row runs `Body<f64>` only, so the certifying scalar is untested. CORNER's reviews and SHELL-4's unpark note both read `f64`. New P1 `injectivity-refuses-at-interval-what-it-certifies-at-f64`; SHELL-4 re-parked on it, with its WIP kept at `623daf636b`. Filed on OFFSET (P2): `offset-corner-on-surface-escalates-at-interval-on-an-arc-necked-extrude`. The curved-residue row is updated with the box-with-void's current behaviour. Review for RIMSCALAR: a single FULL review with mutation, since the fix aligns the `Interval` reading with the reviewed `f64` one.
 - 2026-10-30 — **RIMSCALAR merges (#6090)** with this commit last.
   - **The cause:** `harmonic_of` read an angle rate as `w·τ/τ`, a few ulps wide at `Interval`, so the corner presentation's exact ±1 test failed.
@@ -275,3 +276,15 @@ Signed: (CARVE orchestrator)
   - **Class, recorded:** for the third unit running (SPIRIC, POTDOC, and FRUSTUM's near end), the negative rows covered only one orientation, all high-side. Mutate both arms and both axes at spec time; the briefs already ask for this.
   - **Filed:** `vacuous-reads-a-cell-at-a-corner-local-at-every-depth` (P3, over-refusal, predates this unit).
   - **SHELL-4 is unparked** and resumed.
+- 2026-11-01 — **SHELL-4 merges (#6183)** with this commit last, closing `shell-curved-wall-clearance-window`. At `Interval` and `Sym<Interval>`, `shell` and `shell_open` now check the moved cavity clone for injectivity before inserting it.
+  - A verified crossing refuses `CavityCrosses`, carrying a witness: two face keys and their chart stations.
+  - An engine refusal comes back as `CavityUncertified` with the refusal verbatim.
+  - The planar gates stay at every scalar and run first (item 2).
+  - At `f64`, `Probe` and `Dual` nothing changes, and the window stays open there.
+  - Every valid body shells Ok at both certifying scalars: the tube, the vessel, the corpus pot (sweep and document) and the frustum. So does the klein elbow. Getting there took five upstream units: RIMSCALAR, CAVITYDIAG, FRUSTUM, SPIRIC and POTDOC.
+  - **The review.** A single FULL review at `efa24d2906` returned APPROVE-WITH-FIXES and found no path to Ok on an uncertified cavity. The fix pass (`b8e52882ef`) added a `CavityUncertified` row from a real body (the one-face torus cut), and the refusal→Ok mutant reds it. It also named the planar gate's over-refusal of a valid wedge at Interval. The orchestrator read it and accepted it.
+  - **Filed:**
+    - `the-planar-wall-clearance-gate-refuses-valid-wedges-at-interval-that-the-cavity-gate-certifies` (P2);
+    - CLEARTAIL's `one-home-for-the-clearance-witness-verifier` (P3).
+  - **The spec's curved twin and box rows** are pinned to their typed upstream refusals: OFFSET's arc-necked extrude row, and `shell_moved_walls_overlap`.
+  - **Not a handback.** CARVE filed four CLEAR rows at P0 on 2026-10-31 (`6d2622ba97`), parking its embedding certificate on them. CLEAR still has dispatchable P0 work, so the sitting goes on.

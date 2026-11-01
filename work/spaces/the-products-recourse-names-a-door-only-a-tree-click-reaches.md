@@ -4,6 +4,8 @@ kind: issue
 title: The product's recourse says 'set the product' and its only door is on a Place row the viewport never selects
 status: open
 opened: 2026-10-31
+priority: P1
+cost: M
 ---
 
 

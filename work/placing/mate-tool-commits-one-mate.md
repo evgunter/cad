@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-31
 priority: P1
 design: true
+cost: H
 ---
 
 
@@ -25,7 +26,7 @@ bodies, found three things in the mate tool:
    missing edge-aligning kind) is
    `work/msolve/a-consistent-second-mate-after-a-rest-is-refused.md`.
 3. **The tool offers two of the five kinds and picks faces only**:
-   `work/chrome/the-mate-tool-offers-two-of-the-five-mate-kinds.md`.
+   `work/placing/the-mate-tool-offers-two-of-the-five-mate-kinds.md`.
 
 ## Ev's direction
 

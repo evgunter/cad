@@ -4,6 +4,8 @@ kind: issue
 title: A family placed into an instance's own space hides that space from the picture
 status: open
 opened: 2026-10-28
+priority: P1
+cost: M
 ---
 
 Found in INTENT stage 3 G (PR 5954), disclosed there for review.

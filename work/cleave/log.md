@@ -1785,3 +1785,89 @@ Signed (CLEAVE orchestrator).
   - It closes `a-flush-closed-rim-tangent-at-its-vertex-reaches-the-fate-cut-limit` and files a P1: a seam ruling on the crescent's tangent line ships a `B ∖ A` that tier 3′ refuses (main's behaviour).
   - The union-across-a-crescent row goes back to open with `design: true`. It needs a second-order vertex classifier, which is larger than one lane.
   - The PR conflicts with main, so it went back to the lane for a merge before review. (CLEAVE orchestrator)
+- 2026-10-31 — PR 5852 reviewed (claims and style): nothing blocking.
+  - On the final head against current main, 16/8/20 cells move from `ClassificationInvariant` to built bodies that pass every check, with the closed-form volume. The BAD sets are identical, and the bend is load-bearing.
+  - The fix pass sent to the lane covers:
+    - the second-order reading straddled through `decide_agreed` (a two-sided ellipse reach read Along where it should refuse);
+    - one home for the `(κ − κ_b)·û·l²/2` margin that `fate`, `runs_into` and `crescent` each spell;
+    - `bend_at` folded into `leaving`;
+    - the filed seam-ruling row's footprint corrected, with its S7 `CensusUndecidable` sibling split out;
+    - merge leftovers in the closed-conic test;
+    - a P2 row for `NoCorner` speaking as a kernel invariant. (CLEAVE orchestrator)
+- 2026-10-31 — The two-lumps lane opened PR 6170 (`a10fec9142`), with CI green. The cause was in the join, not the ring order: the first ring cycle closed was the zero-area sliver between the two lumps' copies of the line.
+  - The tie's own order now winds that sliver (`join::tie_winding`, read only where the first-order winding reads Zero).
+  - A plug of several faces now nests whole in `outermost_survivor`.
+  - Its 216-cell probe: main refuses 54, and head builds 216/216 at three ε. Claims and style reviews dispatched. (CLEAVE orchestrator)
+- 2026-10-31 — The PR 5793 fourth pass handed back at `7f54013726`, with CI green and 0 cells moved against the third pass.
+  - What it did:
+    - F1a's witness now goes red: there is one sampling reading, `census::points_on_surface`, with unit rows behind it.
+    - The foot door reads the band on every degenerate locus and refuses torus/spline/Approx as `Unread`.
+    - The tangent-wall arms are folded into one second-order reading.
+    - The attribution is corrected, and the P2 rows filed.
+  - Last push asked for: register `bool_foot_off_locus` in `decision_words`, and close both rows in the PR. Merge on green.
+
+  Dispatched `a-one-segment-cylinder-through-a-plate-tangent-to-a-hole-refuses-single-site` (P1 M) on `cleave/one-segment-cylinder-through-a-holed-plate`. (CLEAVE orchestrator)
+- 2026-10-31 — The PR 5852 fix pass handed back at `6abaee6075`, with CI green.
+  - The narrow re-review verified:
+    - `decide_levered` is unchanged, and `runs_into`/`crescent` are token-identical through `sectors::bend_parting`;
+    - the straddle row goes red under either one-ended reading;
+    - the secant is unsound at an exact tie;
+    - S10 is identical to before.
+  - One should-fix: the tie refusal covers `out` only, so a tie at `back` still reads the secant. A last narrow push was asked for (S1, a test of the refusal, the nits). (CLEAVE orchestrator)
+- 2026-10-31 — PR 5793 merged (`367f1b3c3d`).
+  - The parting reads an edge lying in a face by its crossings, divided against every face holding a piece of it, and on curved faces too. It refuses typed (`CurvedFace` / `Curved`) where the parted form isn't meshed.
+  - A tangent wall bending away from a curved face builds (one second-order reading, `bool_rider_wall_bend_across`).
+  - One sampling reading: `census::points_on_surface`.
+  - The foot door is band-guarded (`foot_off_locus`).
+  - Both riders rows are closed in the PR. (CLEAVE orchestrator)
+- 2026-10-31 — PR 6170 reviewed (claims and style): nothing blocking.
+  - The claims lane widened the family to about 3,100 cells: 207 `PinchRaysInAFace` and 21 `Merge` cells move to sound builds, and nothing else moves.
+  - `tie_winding` is needed: `best_arc` alone refuses 6 steep wedge-beside cells where capture ranks both arcs Clean.
+  - The fix pass sent covers:
+    - no silent pick when the two ends' tie readings disagree;
+    - an enforced adjacency in `germ_order`;
+    - witnesses for both fixes;
+    - both union orders in the keel test;
+    - one row owning the remaining `PinchRaysInAFace` arms;
+    - the stale honeone row, and style. (CLEAVE orchestrator)
+- 2026-11-01 — The cylinder-hole lane opened PR 6177 (`a7e28bae92`), with CI green. It found three causes:
+  1. `closes_at_its_site` had no `(Wrap, Other planar)` arm.
+  2. `germ_locus` read a closed rim's germ from the site record.
+  3. `chord_join`'s strut ran its second chord backward, which put the disc inside out.
+
+  - Probe `rev5808r`, main vs head: 206/73/163 cells move from refused to SOUND, with nothing moving the other way. 8 S10 cells now refuse in the fate cut's kernel-bug voice, which PR 5852 addresses.
+  - Two P2 rows filed. Claims and style reviews dispatched. (CLEAVE orchestrator)
+- 2026-11-01 — PR 5852 merged (`ce374d70b4`).
+  - What it adds:
+    - A fate cut reads a kept edge leaving along a corner's bound one order down: the bend, straddled where the reach is two-sided, through one home `sectors::bend_parting`.
+    - A tie at either bound refuses `NoCorner` rather than reading the secant.
+    - Against main, 16/8/20 S10 cells go to SOUND.
+  - Merging main brought in PR 5793:
+    - The 24 seam-ruling cells now refuse `CurvedFace` typed, so that row is closed (refs 5793).
+    - 4 S7 one-segment unions went from refusing `EdgeInFace` to building with tier 3′ `CensusUndecidable`; this is noted on restread's P0. I asked the 6177 claims reviewer to check whether those bodies are right. (CLEAVE orchestrator)
+- 2026-11-01 — Dispatched two P1 M rows now that `fate.rs` is free:
+  - `a-fate-cut-touch-end-at-a-division-vertex-lies-in-no-piece`, on `cleave/fate-touch-end-at-a-division-vertex`;
+  - `the-other-orbit-readings-refuse-a-tie-the-walk-now-reads`, on `cleave/orbit-readings-read-the-beside-tie`. This one is asked to name which of the two second-order side readers its sites should ask. (CLEAVE orchestrator)
+- 2026-11-01 — PR 6170 merged (`12c6418450`). Two lumps touching along an edge now build against a flush partner in every op, in either order. What it does:
+  - The join winds a zero-area tie sliver by the ring's tie order (`tie_winding`). Disagreeing ends desync.
+  - `germ_order` refuses a non-adjacent tie.
+  - A multi-face plug nests whole in `outermost_survivor`, across the mergeable adjacency.
+  - Witnesses cover the steep wedge-beside cells, which need `tie_winding` over `best_arc`, and the diagonal `Merge` cells, in both union orders at three ε.
+  - It filed a P3 row for the two remaining `PinchRaysInAFace` arms, and a dated note on honeone's germ-order row. (CLEAVE orchestrator)
+- 2026-11-01 — PR 6177 reviewed (claims and style). Changes requested.
+  - The claims lane verified all three fixes are load-bearing, and the 206 → SOUND diff holds (214 merged with main, including 5852's 8 cells). Nothing ships invalid.
+  - The 4 S7 unions 5793 moved are right bodies (closed-form volume, 400/400 samples), which the census can't certify (`CensusUndecidable{MayOverlap}`). They are the same on main.
+  - Blocking:
+    - B1: the slow pin `a_boss_over_a_hole_by_pose` goes red. The flush coplanar bottoms now refuse `SectionLoopUndecided`.
+    - B2: conflicts with main.
+  - Should-fix:
+    - The diff hid 16 + 32 refusal-kind changes.
+    - `closed_on_partner` is a second, one-midpoint reader beside `slit::carrier_on_surface`, and disagrees with `closed_reach` on `Outside`.
+    - Two fallbacks still use the old site-record reading.
+    - `place_strut` copies `join_lone_ring`'s promotion.
+  - Fix pass sent. (CLEAVE orchestrator)
+
+- 2026-11-01: 6184 (orbit readings read the beside tie) and 6185 (fate touch-end at a division vertex) handed back green.
+  - 6184: one `walks_before` reads `beside_order` at a first-order tie, and every orbit reader asks it. No outcome moves on the lane's grid. The lane skipped the mutation check, so the claims lane runs it first.
+  - 6185: `AtCorners` ends the chord at the division's vertex. 70 cells per ε go from refused to valid. The lane did not re-diff after the 6170 merge. A new P1 row covers a cut end on an edge of the division.
+  - Full reviews dispatched for both (claims lane and style lane, briefs in `briefs/review-618{4,5}.md`). Rows set to review. (CLEAVE orchestrator)

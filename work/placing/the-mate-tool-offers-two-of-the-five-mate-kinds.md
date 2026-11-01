@@ -5,6 +5,7 @@ title: the mate tool offers two of the kernel's five mate kinds and picks faces 
 status: open
 opened: 2026-10-31
 priority: P0
+cost: H
 ---
 
 
@@ -41,4 +42,4 @@ Every mate kind the kernel has, with the picks its poses read: edge and
 vertex picks beside face picks, and the corner frame. How several mates
 compose in one placement is the kernel's
 `work/msolve/a-consistent-second-mate-after-a-rest-is-refused.md`; the mate tool's draft
-holding several mates is `work/chrome/mate-tool-commits-one-mate.md`.
+holding several mates is `work/placing/mate-tool-commits-one-mate.md`.

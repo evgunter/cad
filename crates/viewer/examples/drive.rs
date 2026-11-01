@@ -17,7 +17,7 @@
 //!
 //! | command | does |
 //! |---|---|
-//! | `click "label" [n]` | primary click on the `n`th (0-based) visible painting of `label` |
+//! | `click "label" [n]` | primary click on the `n`th (0-based) visible painting of `label`; a label ending in `*` matches any text starting with the rest |
 //! | `dclick "label" [n]` | double click on it |
 //! | `rclick "label" [n]` | secondary click on it |
 //! | `hover "label" [n]` | rest the pointer on it past the tooltip delay |
@@ -30,17 +30,22 @@
 //! | `key Name [mods]` | press a key (`Enter`, `Escape`, `Tab`, `Delete`, `Z`, …) |
 //! | `open path` / `save path` | what Open… / Save As… end in once the dialog answers |
 //! | `window w h` | lay the app out in a `w`×`h` window |
-//! | `settle` | frames until nothing is outstanding |
+//! | `settle` | frames until nothing is outstanding, the at-rest checks included |
 //! | `expect "label"` | fail unless `label` is on screen |
 //! | `dump` | print every visible painting as `x,y wxh text` |
 //! | `dumpall` | print every painting, clipped or not, with its clip rect |
 //! | `tree` | print the feature tree's rows |
+//! | `picture path.png` | render the window as the last frame painted it, chrome and viewport, to a PNG |
 //! | `echo text` | print `text` |
 //!
 //! `mods` is `+`-joined: `ctrl`, `shift`, `alt`, `cmd`. Every command
 //! is echoed as `> command` before its output. A command that cannot
 //! be done stops the run with exit status 1 and dumps the screen, so
 //! a failing step shows what WAS there.
+//!
+//! `picture` renders on a GPU device opened at its first use, on
+//! whatever adapter the machine has (`WGPU_BACKEND` steers it); a box
+//! with no GPU can use lavapipe from `mesa-vulkan-drivers`.
 //!
 //! Preferences are read from and written to a fresh file under the
 //! system temporary directory, never the preferences of the person
@@ -52,8 +57,32 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use eframe::egui;
-use viewer::app::drive::{DriveError, Driver};
+use eframe::{egui, wgpu};
+use viewer::app::drive::{DriveError, Driver, Picture, picture_device};
+
+/// The run's state beside the driver: the device pictures render on,
+/// opened at the first `picture`.
+#[derive(Default)]
+struct Run {
+    device: Option<(wgpu::Device, wgpu::Queue)>,
+}
+
+/// Write `picture` to `path` as an 8-bit RGBA PNG.
+fn write_png(picture: &Picture, path: &Path) -> Result<(), String> {
+    let file = std::fs::File::create(path)
+        .map_err(|error| format!("could not create {}: {error}", path.display()))?;
+    let mut encoder = png::Encoder::new(
+        std::io::BufWriter::new(file),
+        picture.size[0],
+        picture.size[1],
+    );
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder
+        .write_header()
+        .and_then(|mut writer| writer.write_image_data(&picture.rgba))
+        .map_err(|error| format!("could not write {}: {error}", path.display()))
+}
 
 /// Split one script line into words, honouring double quotes.
 fn words(line: &str) -> Result<Vec<String>, String> {
@@ -143,8 +172,30 @@ fn modifiers(word: Option<&String>) -> Result<egui::Modifiers, String> {
     Ok(held)
 }
 
+/// Where the `nth` visible painting of `label` is: exactly `label`,
+/// or, when it ends in `*`, any text starting with what comes before
+/// it — for a tree row, whose tag is minted afresh in every document
+/// a run creates.
+fn located(driver: &Driver, label: &str, nth: usize) -> Result<egui::Pos2, String> {
+    let Some(prefix) = label.strip_suffix('*') else {
+        return driver.find(label, nth).map_err(|error| error.to_string());
+    };
+    let shown: Vec<egui::Pos2> = driver
+        .screen()
+        .iter()
+        .filter(|landed| landed.text.starts_with(prefix))
+        .filter_map(|landed| landed.visible().map(|rect| rect.center()))
+        .collect();
+    shown.get(nth).copied().ok_or_else(|| {
+        format!(
+            "no visible text starting `{prefix}` #{nth} ({} visible)",
+            shown.len()
+        )
+    })
+}
+
 /// One command, done.
-fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
+fn perform(driver: &mut Driver, run: &mut Run, words: &[String]) -> Result<(), String> {
     let drive = |result: Result<(), DriveError>| result.map_err(|error| error.to_string());
     let at = |x: Option<&String>, y: Option<&String>| -> Result<egui::Pos2, String> {
         Ok(egui::pos2(number(x, "x")?, number(y, "y")?))
@@ -158,9 +209,7 @@ fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
     let arg = |n: usize| args.get(n);
     match command.as_str() {
         "click" | "dclick" | "rclick" => {
-            let at = driver
-                .find(label(arg(0))?, index(arg(1))?)
-                .map_err(|error| error.to_string())?;
+            let at = located(driver, label(arg(0))?, index(arg(1))?)?;
             let (button, count) = match command.as_str() {
                 "dclick" => (egui::PointerButton::Primary, 2),
                 "rclick" => (egui::PointerButton::Secondary, 1),
@@ -168,7 +217,11 @@ fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
             };
             drive(driver.click_at(at, button, egui::Modifiers::default(), count))
         }
-        "hover" => drive(driver.hover(label(arg(0))?, index(arg(1))?)),
+        "hover" => {
+            let at = located(driver, label(arg(0))?, index(arg(1))?)?;
+            driver.rest_at(at);
+            Ok(())
+        }
         "clickat" => {
             let point = at(arg(0), arg(1))?;
             drive(driver.click_at(point, button(arg(2))?, modifiers(arg(3))?, 1))
@@ -236,6 +289,27 @@ fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
             }
             Ok(())
         }
+        "picture" => {
+            let path = Path::new(label(arg(0))?);
+            if run.device.is_none() {
+                run.device =
+                    Some(pollster::block_on(picture_device()).map_err(|error| error.to_string())?);
+            }
+            let Some((device, queue)) = &run.device else {
+                return Err("no device".to_owned());
+            };
+            let picture = driver
+                .picture(device, queue)
+                .map_err(|error| error.to_string())?;
+            write_png(&picture, path)?;
+            println!(
+                "{}x{} picture written to {}",
+                picture.size[0],
+                picture.size[1],
+                path.display()
+            );
+            Ok(())
+        }
         "echo" => {
             println!("{}", args.join(" "));
             Ok(())
@@ -275,6 +349,7 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    let mut run = Run::default();
     for (number, line) in script.lines().enumerate() {
         let parsed = match words(line) {
             Ok(parsed) => parsed,
@@ -287,7 +362,7 @@ fn main() -> ExitCode {
             continue;
         }
         println!("> {}", line.trim());
-        if let Err(error) = perform(&mut driver, &parsed) {
+        if let Err(error) = perform(&mut driver, &mut run, &parsed) {
             println!("!! line {}: {error}", number + 1);
             println!("-- the screen when it failed --");
             print!("{}", driver.dump());
