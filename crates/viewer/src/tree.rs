@@ -1061,6 +1061,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
         | NodeErrorKind::Split(_)
+        | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)

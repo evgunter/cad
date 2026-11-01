@@ -1483,6 +1483,15 @@ pub enum NodeErrorKind {
     Tube(Box<TubeError>),
     /// The split op refused.
     Split(SplitError),
+    /// **Its operand's contact records do not carry onto what it
+    /// built**, through the kernel's carry for its op
+    /// ([`topo::SplitResult::carry_contacts`],
+    /// [`topo::Shelled::carry_contacts`]): the carry's refusal,
+    /// unaltered, citing the operand's record.
+    ContactCarry {
+        /// The carry's refusal.
+        refusal: topo::CarryRefusal,
+    },
     /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
     /// a structural precondition on the requested chain, one of the
     /// numbered predicates, a corner or spine class the in-place
@@ -2109,6 +2118,11 @@ impl crate::spoken::Say for NodeErrorKind {
             // would read a hollow refusal as a solid one half the time.
             Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
+            Self::ContactCarry { refusal } => write!(
+                f,
+                "its operand's contact records do not carry onto what it built: {refusal}. {}",
+                crate::sentence::Recourse("move the touch, or this operation's geometry off it")
+            ),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
