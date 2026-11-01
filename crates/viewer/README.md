@@ -2050,13 +2050,18 @@ took over, a fillet's input) can be shown, and any drawn one hidden
 pane").
 A drawn body the product slot does not reach is tinted as outside the
 product. Every shown space stands at the identity, so a body is drawn
-where it was written, except that a shown space whose drawn bodies copy
-the same source as an earlier shown space's (two instances of one part)
-is stepped clear of it along `+x`; nothing is written for that.
+where it was written; where a space is drawn otherwise is held in one
+way only, as a display frame. The "Add part…" gesture writes the new
+space's display frame clear of what is drawn, the same kind of value a
+free-move writes (IDENTITY DI5), so two inserted parts never land on
+each other (Ev, PR 6209: one way to store where something is
+displayed, not a derived layout beside it).
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
-is no longer shown or is gone (`display::space_check`). The world is
+is no longer shown or is gone once the next evaluation has settled
+(`display::space_check`), so an undo and redo of the gesture that made
+the space keeps its frame. The world is
 the frame the other spaces move against: a frame on it would be the
 camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is
