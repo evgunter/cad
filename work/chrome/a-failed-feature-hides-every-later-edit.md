@@ -24,9 +24,10 @@ window 2400 1600
 click "New…"
 click "document name"
 type "ball"
-click "Create" 0
+click "Create document"
 settle
 click "Add feature"
+click "Add profile…"
 click "path"
 click "line_to" 0
 click "arc_to"
@@ -37,6 +38,7 @@ click "×" 2
 click "×" 2
 settle
 click "Add profile"
+click "Add profile…"
 settle
 click "Revolve tool…"
 click "Profile 1 *"

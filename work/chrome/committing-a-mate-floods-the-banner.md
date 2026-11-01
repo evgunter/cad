@@ -23,12 +23,13 @@ save <dir>/plate.pncad
 click "New…"
 click "document name"
 type "assembly"
-click "Create" 0
+click "Create document"
 save <dir>/assembly.pncad
+click "Assemble parts"
 click "Add part…"
-click "add" 2
+click "add" 1
 click "Add part…"
-click "add" 2
+click "add" 1
 click "InstantiatePart 2 *"
 click "0.0000" 2
 type "0.03"

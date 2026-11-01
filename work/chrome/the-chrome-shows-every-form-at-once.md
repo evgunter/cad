@@ -19,7 +19,7 @@ Replay with `cargo run --release -p viewer --features app --example drive -- scr
 
 ```text
 tree
-click "Create"
+click "New variable…"
 dumpall
 ```
 
