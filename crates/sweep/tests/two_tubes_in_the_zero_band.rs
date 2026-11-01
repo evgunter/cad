@@ -254,9 +254,8 @@ fn a_quarter_rod_in_the_bore() {
 /// top face `y = 0` (the puck `y ∈ [−0.3, 0]`, spun 1 rad), its axis
 /// `0.5·ε` above the tangency and its seam on the contact ruling, which
 /// the puck's rim circle crosses at `x = ±1`. ∪ records the rim's two
-/// touches on the seam and not the seam's span in the top face between
-/// them (`a-line-edges-span-bounded-by-a-conic-crossing-is-not-recorded`),
-/// which 3′ does not flag.
+/// touches on the seam and the seam lying in the top face between them
+/// (the sweep's record of a line in a plane face).
 #[test]
 fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
     let gap = 0.5 * band().zero();
@@ -279,7 +278,7 @@ fn a_rod_on_a_puck_with_its_seam_on_the_ruling() {
         ),
         (rod, PI * r * r * 3.0),
         &Want {
-            records: 2,
+            records: 3,
             findings: &[
                 "undecided Cylinder / Cylinder",
                 "undecided Cylinder / Cylinder",

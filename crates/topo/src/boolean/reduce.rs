@@ -277,6 +277,15 @@ impl ContactAcc {
             }
         }
     }
+    /// Whether `vertex` of `x_is` is recorded strictly inside `face` of
+    /// the other operand.
+    fn rests_in(&self, x_is: Operand, vertex: VertexKey, face: FaceKey) -> bool {
+        match x_is {
+            Operand::A => &self.seen_ab,
+            Operand::B => &self.seen_ba,
+        }
+        .contains_key(&(vertex, face))
+    }
     /// Records the chart point `uv` of `face` that `vertex` of `x_is`
     /// was placed inside the face at ([`Self::charts`]).
     pub(super) fn chart_point(
@@ -1646,12 +1655,17 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 (za, zb) => {
                     if (za, zb) == (Sign::Zero, Sign::Zero) {
                         lying_in.push(LyingIn::Plane(face));
-                        contacts.in_plane.push(InPlane {
-                            x_is,
-                            edge: edge_key,
-                            face,
-                            ends: [(u, d1.margin), (v, d2.margin)],
-                        });
+                        // An edge bounding a face glued one carrier with
+                        // this one lies in it as part of the two faces'
+                        // overlap, which the glue records.
+                        if !on_declared_shared_carrier(x, x_is, &edge, face, declared) {
+                            contacts.in_plane.push(InPlane {
+                                x_is,
+                                edge: edge_key,
+                                face,
+                                ends: [(u, d1.margin), (v, d2.margin)],
+                            });
+                        }
                     }
                     let mut hit = false;
                     if za == Sign::Zero {
@@ -1775,12 +1789,13 @@ struct InPlane {
 /// **Records each piece of a line edge lying in a planar face that the
 /// face holds** (D1: every pair whose interiors meet is recorded, an
 /// edge lying in a face included), once both directions have split the
-/// edge, so that every crossing of the face's boundary is a piece's end.
-/// A piece lies in the plane as the edge's ends do, and the face holds
-/// it where its midpoint is inside the face ([`contfp_decided`]); a
-/// piece along the face's boundary is a touch of two edges, which the
-/// classification records. Each record cites the decisions that put the
-/// edge's two ends on the plane.
+/// edge.
+/// A piece lies in the plane as the edge's ends do, and its interior
+/// meets the face's where an end is recorded inside the face or, failing
+/// that, where its midpoint is inside ([`contfp_decided`]); a piece along
+/// the face's boundary is a touch of two edges, which the classification
+/// records. Each record cites the decisions that put the edge's two ends
+/// on the plane.
 ///
 /// # Errors
 ///
@@ -1805,11 +1820,17 @@ fn settle_in_plane<T: Decide>(
                 .ok_or(BooleanError::ClassificationInvariant {
                     what: "a piece of an edge lying in a face vanished",
                 })?;
-            let ((_, p0), (_, p1)) = edge_ends(x, edge)?;
-            let mid = p0 + (p1 - p0) * T::from_f64(0.5);
-            let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
-                .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
-            if !matches!(at, FaceContainment::In) {
+            let ((w0, p0), (w1, p1)) = edge_ends(x, edge)?;
+            let held = [w0, w1]
+                .into_iter()
+                .any(|w| contacts.rests_in(lie.x_is, w, lie.face))
+                || {
+                    let mid = p0 + (p1 - p0) * T::from_f64(0.5);
+                    let (at, _) = contfp_decided(y, lie.face, plane.normal, mid, band)
+                        .map_err(|e| esc(e, lie.x_is.other(), lie.face))?;
+                    matches!(at, FaceContainment::In)
+                };
+            if !held {
                 continue;
             }
             let cites = lie.ends.map(|(w, on)| {
