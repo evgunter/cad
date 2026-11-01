@@ -905,12 +905,40 @@ mod tests {
         }
     }
 
+    /// [`crate::boolean::region::fixture_turn`] at `Interval`.
+    fn interval_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<geom_core::Interval>> {
+        use geom_core::Interval;
+        let band = Band::new(1e-9, 1e-8).ok()?;
+        let lift = <Interval as geom_core::Real>::from_f64;
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(lift(0.0), lift(0.0), lift(0.0)),
+            axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+            radius: lift(1.0),
+            u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        };
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), lift(t0), lift(t1))?;
+        let (start, end) = (circle.eval(lift(t0)), circle.eval(lift(t1)));
+        geom_brep::EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            lift(1.0),
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
+        .ok()?
+        .turn()
+        .copied()
+    }
+
     /// The unit sphere's lune between azimuths `π` and `3π/2`, below the
     /// parallel at polar angle `1`, at `T`: its two meridian arcs run down
     /// to the south pole, a vertex of the face, and its parallel arc is
     /// framed about `−z` from `−y`, as a box row's carve frames it.
-    fn pole_lune<T: Decide + geom_core::CertifiedBounds + geom_core::spline::SpanLocate>()
-    -> SphereFaceRegion<T> {
+    fn pole_lune<T: Decide>(
+        turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+    ) -> SphereFaceRegion<T> {
         let lift = T::from_f64;
         let v = |x: f64, y: f64, z: f64| Vec3::new(lift(x), lift(y), lift(z));
         let pi = core::f64::consts::PI;
@@ -921,7 +949,7 @@ mod tests {
             carrier,
             t0: lift(t0),
             t1: lift(t1),
-            turn: crate::boolean::region::fixture_turn(t0, t1),
+            turn: turn(t0, t1),
             forward,
         };
         let meridian = |az: f64| geom::Curve3::Circle {
@@ -960,12 +988,13 @@ mod tests {
     /// and a point of the lune in it, at `f64` and at `Interval`.
     #[test]
     fn the_door_settles_a_pole_at_the_certified_scalar() {
-        fn read<T: Decide + geom_core::CertifiedBounds + geom_core::spline::SpanLocate>(
+        fn read<T: Decide>(
             scalar: &str,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
         ) {
             let band = Band::new(1e-9, 1e-8).unwrap();
             let lift = T::from_f64;
-            let region = pole_lune::<T>();
+            let region = pole_lune::<T>(turn);
             let at = |x: f64, y: f64, z: f64| Point3::new(lift(x), lift(y), lift(z));
             let pi = core::f64::consts::PI;
             let (polar, az) = (2.0f64, 1.25 * pi);
@@ -978,8 +1007,8 @@ mod tests {
                 assert_eq!(region.contains(p, band), Ok(want), "{what} at {scalar}");
             }
         }
-        read::<f64>("f64");
-        read::<geom_core::Interval>("Interval");
+        read::<f64>("f64", crate::boolean::region::fixture_turn);
+        read::<geom_core::Interval>("Interval", interval_turn);
     }
 
     /// **A root a half turn from its arc's middle, or on its phase's cut,
@@ -993,12 +1022,14 @@ mod tests {
     /// lands once, inside the arc, and the second once, at its end.
     #[test]
     fn a_root_opposite_its_arcs_middle_or_on_its_phase_cut_reads_tight() {
-        fn read<T: Decide + geom_core::CertifiedBounds + geom_core::spline::SpanLocate>(
+        fn read<T: Decide>(
             scalar: &str,
+            turn: fn(f64, f64) -> Option<geom_brep::CertifiedTurn<T>>,
+            hi: fn(T) -> f64,
         ) {
             let band = Band::new(1e-9, 1e-8).unwrap();
             let lift = T::from_f64;
-            let region = pole_lune::<T>();
+            let region = pole_lune::<T>(turn);
             let pole = Vec3::new(lift(0.0), lift(0.0), lift(1.0));
             let pi = core::f64::consts::PI;
             let rim = 1f64.sin();
@@ -1014,12 +1045,12 @@ mod tests {
                 let want = Point3::new(rim * az.cos(), rim * az.sin(), 1f64.cos());
                 let miss = (y - Point3::new(lift(want.x), lift(want.y), lift(want.z))).norm();
                 assert!(
-                    geom_core::Bounds::hi(miss) < 1e-12 && sideless == end,
+                    hi(miss) < 1e-12 && sideless == end,
                     "azimuth {az} at {scalar}: {y:?} sideless {sideless}"
                 );
             }
         }
-        read::<f64>("f64");
-        read::<geom_core::Interval>("Interval");
+        read::<f64>("f64", crate::boolean::region::fixture_turn, |x| x);
+        read::<geom_core::Interval>("Interval", interval_turn, geom_core::Bounds::hi);
     }
 }

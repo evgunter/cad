@@ -878,28 +878,22 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
 /// interval, certified, whose interval and extent are what a conic
 /// reading of the fixture reads (its own carrier supplies the rest).
 #[cfg(test)]
-pub(crate) fn fixture_turn<
-    T: Decide + geom_core::CertifiedBounds + geom_core::spline::SpanLocate,
->(
-    t0: f64,
-    t1: f64,
-) -> Option<geom_brep::CertifiedTurn<T>> {
+pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<f64>> {
     let band = Band::new(1e-9, 1e-8).ok()?;
-    let lift = T::from_f64;
     let circle = geom::Curve3::Circle {
         center: Point3::origin(),
-        axis: Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
-        radius: lift(1.0),
-        u_ref: Vec3::new(lift(1.0), lift(0.0), lift(0.0)),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), lift(t0), lift(t1))?;
-    let (start, end) = (circle.eval(lift(t0)), circle.eval(lift(t1)));
+    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
+    let (start, end) = (circle.eval(t0), circle.eval(t1));
     geom_brep::EdgeCurve::certify(
         spec,
         start,
         end,
         |_| None,
-        lift(1.0),
+        1.0,
         band,
         geom_brep::NurbsLane::certified(),
     )
