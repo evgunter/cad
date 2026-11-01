@@ -1443,7 +1443,7 @@ pub(super) struct GermSide<'a, T: geom_core::Real> {
 
 /// Where an edge leaving a site lies against the partner past it, in
 /// rank order: what the reduction recorded at its far end, or for a
-/// closed edge where its midpoint lies ([`closed_reach`]).
+/// closed edge where its own carrier runs ([`closed_reach`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Touch {
     /// No contact: the edge leaves the partner.
@@ -1579,7 +1579,10 @@ pub(super) fn germ_loci<T: Decide>(
             (InFace(a.sector.face), InFace(b.sector.face))
         }
         core::cmp::Ordering::Equal => {
-            match (runs_in(a, ea, b, eb, band)?, runs_in(b, eb, a, ea, band)?) {
+            match (
+                runs_in((a, ea, ca), (b, eb), band)?,
+                runs_in((b, eb, cb), (a, ea), band)?,
+            ) {
                 (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)?),
                 (Some(false), Some(true)) => (tangent(a, b, eb)?, OnEdge(eb.edge)),
                 _ => (OnEdge(ea.edge), OnEdge(eb.edge)),
@@ -1649,6 +1652,7 @@ fn one_segment<T: Decide>(
                         .body
                         .split_root(e.edge, |_| false)
                         .map_err(BooleanError::SplitLineage)?,
+                    closed: false,
                 });
             }
         }
@@ -1725,9 +1729,13 @@ enum ClosedReach {
     On(Touch, Option<FaceKey>),
 }
 
+/// A closed edge's reading as ranked ([`ClosedReach::touch`]): the
+/// touch, and the face holding it where one does.
+type ClosedTouch = (Touch, Option<FaceKey>);
+
 impl ClosedReach {
     /// The reading ranked as an open edge's far end is ([`Touch`]).
-    fn touch(self) -> (Touch, Option<FaceKey>) {
+    fn touch(self) -> ClosedTouch {
         match self {
             Self::Off | Self::Beside => (Touch::Apart, None),
             Self::On(touch, face) => (touch, face),
@@ -1768,14 +1776,7 @@ fn closed_reach<T: Decide>(
     let p = curve.mid_point();
     let (mut reach, mut unread) = (ClosedReach::Off, false);
     for &face in faces {
-        match super::slit::carrier_on_surface(
-            body,
-            curve.carrier(),
-            curve.params(),
-            true,
-            face,
-            band,
-        )? {
+        match super::slit::carrier_on_surface(body, curve.carrier(), curve.params(), face, band)? {
             None => unread = true,
             Some(false) => {}
             Some(true) => match in_trim(body, face, p, band)? {
@@ -1798,6 +1799,7 @@ fn closed_reach<T: Decide>(
                 .body
                 .split_root(e.edge, |_| false)
                 .map_err(BooleanError::SplitLineage)?,
+            closed: true,
         });
     }
     Ok(Some(reach))
@@ -1883,17 +1885,17 @@ fn trim_read<T: Decide>(
 
 /// Whether the edge `e` of `side`, past the site, runs inside the face
 /// of `partner` the germ runs along: the face across the partner's own
-/// edge `pe` from its sector's face. Its midpoint is decided on that
-/// face's plane and inside its trim ([`on_planar_face`]); the sweep
-/// splits an edge at every crossing of the partner, so the midpoint
-/// speaks for the whole edge. `None`: undecided — a midpoint on the
-/// face's boundary, a face that is not a plane, or no single face across
-/// `pe`. A trim the walk cannot read is refused.
+/// edge `pe` from its sector's face. An open edge's midpoint is decided
+/// on that face's plane and inside its trim ([`on_planar_face`]): the
+/// sweep splits an edge where it crosses the partner's trim, so the
+/// midpoint speaks for the whole edge. A closed edge, `closed` its
+/// reading ([`closed_reach`]), answers by the face that reading holds it
+/// in. `None`: undecided — a midpoint or a closed edge on the face's
+/// boundary, a face that is not a plane, or no single face across `pe`.
+/// A trim the walk cannot read is refused.
 fn runs_in<T: Decide>(
-    side: GermSide<'_, T>,
-    e: Along,
-    partner: GermSide<'_, T>,
-    pe: Along,
+    (side, e, closed): (GermSide<'_, T>, Along, Option<ClosedTouch>),
+    (partner, pe): (GermSide<'_, T>, Along),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     let pb = partner.body;
@@ -1908,6 +1910,9 @@ fn runs_in<T: Decide>(
     let [face] = faces[..] else {
         return Ok(None);
     };
+    if let Some((_, held)) = closed {
+        return Ok(held.map(|held| held == face));
+    }
     let p = germ_curve(side.body, e.edge)?.mid_point();
     Ok(match on_planar_face(pb, face, p, band)? {
         PlaneRead::Inside => Some(true),

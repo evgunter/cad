@@ -4922,9 +4922,13 @@ impl Lone {
     }
 }
 
-/// The [`Lone`] chord of `halves`, where they are a null strut's: one
-/// loop, and one of `next(h2) = h1` and `next(h1) = h2` alone (both is a
-/// lone ring's null edge, neither two sites').
+/// The [`Lone`] chord of `halves`, where they could be a null strut's:
+/// one null edge in one loop, `next(h2) = h1` or `next(h1) = h2` but not
+/// both. Neither holds at two sites'; both at a pierce's lone ring
+/// ([`ChordJoiner::join_lone_ring`], before and after its promotion). A
+/// closed edge's lone ring, the edge and the null edge, holds one, but
+/// the adjacency skip drops the chord the edge stands in for, so its
+/// halves are no strut: a strut mints both chords ([`JoinPlan::of`]).
 fn strut_of<T: Real>(
     body: &Body<T>,
     (h1, h2): (HalfEdgeKey, HalfEdgeKey),
@@ -4999,13 +5003,27 @@ impl JoinPlan {
             }
             None => None,
         };
-        let strut = strut_of(body, halves)?;
         let mut skip = |b: &Body<T>, he| segment.is(b, he, face, band);
+        let mut plan = |strut| {
+            Ok::<_, SplitJoinError>((
+                first_chord(body, halves, face, (&shape, strut), &mut skip)?,
+                second_chord(body, halves, strut, &mut skip)?,
+            ))
+        };
+        // A chord the skip drops leaves no strut: the halves keep their
+        // own sites' chords.
+        let (strut, (first, second)) = match strut_of(body, halves)? {
+            Some(lone) => match plan(Some(lone))? {
+                (Some(first), Some(second)) => (Some(lone), (Some(first), Some(second))),
+                _ => (None, plan(None)?),
+            },
+            None => (None, plan(None)?),
+        };
         Ok(Self {
             halves,
             face,
-            first: first_chord(body, halves, face, (&shape, strut), &mut skip)?,
-            second: second_chord(body, halves, strut, &mut skip)?,
+            first,
+            second,
             locus,
             closed,
             strut,
@@ -5431,8 +5449,10 @@ impl ChordJoiner {
     ///
     /// The strut's face is a plane: the boolean joins a loop at a
     /// boundary vertex only in a planar face (`boolean::join`'s
-    /// `closes_at_its_site`), and the split's self-loops are pierces or
-    /// placeholders. Any other face is refused as this lane's invariant.
+    /// `closes_at_its_site`); a sphere takes a one-site loop only as a
+    /// lone ring, which is no strut ([`strut_of`]), even once promoted;
+    /// and the split's self-loops are pierces or placeholders. Any other
+    /// face is refused as this lane's invariant.
     fn place_strut<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,

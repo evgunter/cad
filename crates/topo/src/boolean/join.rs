@@ -5765,7 +5765,7 @@ fn holding_face_normal<T: Decide>(
 /// read a germ ([`seam_germ_side`]). A crossing's two flanks can both do
 /// that only where no region face offers an interior witness off it.
 /// One such face is curved
-/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
+/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 /// Another is planar, with an inward line from each edge's midpoint that
 /// meets no line or conic carrier beyond the band (`crate::stands`,
 /// rung 3), such as one whose nearest boundary there is a spline or a

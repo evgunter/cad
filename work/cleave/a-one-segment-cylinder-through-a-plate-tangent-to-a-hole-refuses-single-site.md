@@ -58,10 +58,12 @@ every op refused at the default ε, `1e-6` and `1e-12`:
   against the partner, for `germ_loci`'s one-sided and two-sided
   branches and the vertex-on-face pass: the edge's own carrier on each
   face's surface (`slit.rs` `carrier_on_surface`, shared with the rider
-  reading, at points spread over the whole turn; nine on a torus), and
-  on a plane its midpoint in the trim. A pair that reading does not take
-  refuses `GermEdgeCarrierUnsupported`; in the face the germ runs in,
-  a closed edge outside the trim is a `ClassificationInvariant`.
+  reading, at points equispaced over the carrier's turn; on a torus nine,
+  with the bound between them decided too), and on a plane its midpoint
+  in the trim; `runs_in` answers a closed edge from that reading. A pair
+  the reading does not take refuses `GermEdgeCarrierUnsupported` in its
+  closed-edge words; in the face the germ runs in, a closed edge outside
+  the trim is a `ClassificationInvariant`.
 - `chord_join.rs` `Lone` / `strut_of`: a null strut's two chords both
   run from its half leaving the ring's vertex, and `place_strut` reads
   the lone face against the old face's outer loop
