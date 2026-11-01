@@ -1714,7 +1714,7 @@ impl<T: Decide> Link<T> {
     }
 
     /// **Where the direction to `q` lies against the link's material**
-    /// ([`Link::reads_over`] on `band` alone); `None` where a reading it
+    /// ([`Cone::reads_over`] on `band` alone); `None` where a reading it
     /// needs is in band.
     pub fn reads(&self, q: Point3<T>, band: Band) -> Option<Material> {
         self.cone.reads_over(
