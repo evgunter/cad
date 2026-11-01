@@ -22,7 +22,8 @@
 //!    entry suffice. At a cone's apex there is no tangent plane, and the
 //!    interior is the fan of rulings between the bounds at every width,
 //!    so none of this holds there: that sector is read by
-//!    [`apex_corner_shape`], against the plane the split cuts with.
+//!    [`apex_corner_shape`], against a plane through the apex: the one
+//!    the split cuts with, or the face a Boolean's vertex pierces.
 //! 3. **If not definitely convex, where does it get subdivided?** Any
 //!    interior direction with both sub-angles < 180° is valid. Definite
 //!    reflex ⇒ `−normalize(â + b̂)` (the true bisector of the reflex

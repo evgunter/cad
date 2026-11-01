@@ -127,7 +127,7 @@ pub(crate) enum VertexFace<T: geom_core::Real> {
     /// cone's axis but definitely off its apex
     /// ([`ConePoint::NearAxis`]): read, ill-conditioned, for a lane that
     /// reads it (the split, as it did before the apex was read); the
-    /// Boolean refuses it.
+    /// Boolean refuses it under its own name.
     NearAxis(OutwardNormal<T>),
     /// The vertex is the apex of the face's cone.
     Apex(ConeApex<T>),
