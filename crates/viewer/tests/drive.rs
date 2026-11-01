@@ -53,6 +53,45 @@ mod driven {
         );
     }
 
+    /// **The picture is the window's**: as many pixels as the window
+    /// has, and inside the viewport the startup part is drawn — the
+    /// pane's pixels are not all the ground it is painted on.
+    #[test]
+    fn a_picture_shows_the_window_with_the_part_drawn() {
+        let driver = started("drive-picture");
+        let (device, queue) = pollster::block_on(viewer::app::drive::picture_device())
+            .expect("a device to render on");
+        let picture = driver.picture(&device, &queue).expect("the window renders");
+        let window = driver.window();
+        assert_eq!(
+            picture.size,
+            [window.x as u32, window.y as u32],
+            "one pixel per point at the driver's scale"
+        );
+        let viewport = driver.viewport().expect("the viewport was drawn");
+        let pixel = |x: f32, y: f32| {
+            let at = (y as usize * picture.size[0] as usize + x as usize) * 4;
+            &picture.rgba[at..at + 4]
+        };
+        // The corner is ground: the startup view frames the part with
+        // a margin around it.
+        let ground = pixel(viewport.left() + 2.0, viewport.top() + 2.0);
+        let (mut drawn, mut all) = (0_usize, 0_usize);
+        for y in (viewport.top() as u32..viewport.bottom() as u32).step_by(4) {
+            for x in (viewport.left() as u32..viewport.right() as u32).step_by(4) {
+                all += 1;
+                if pixel(x as f32, y as f32) != ground {
+                    drawn += 1;
+                }
+            }
+        }
+        assert!(
+            drawn * 10 > all,
+            "the startup part covers more than a tenth of the viewport: {drawn} of {all} \
+             sampled pixels are not the ground"
+        );
+    }
+
     #[test]
     fn a_label_not_on_screen_is_refused_with_what_was_meant() {
         let mut driver = started("drive-refusal");
