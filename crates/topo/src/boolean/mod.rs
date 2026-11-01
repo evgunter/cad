@@ -287,11 +287,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_sector_within"
         | "bool_flank_offset"
         | "bool_wedge_reflex"
-        | "bool_cone_arc"
-        | "bool_cone_arc_span"
-        | "bool_cone_within"
-        | "bool_cone_facing"
-        | "bool_cone_apart"
         | "bool_rider_wall_side"
         | slit::RIDER_WALL_BEND_ACROSS
         | "bool_rider_wall_coplanar"
@@ -302,7 +297,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_fate_corner_bend"
         | "bool_fate_corner_bend_straddle"
         | "bool_rim_face_opposed" => Coincide::Sectors.subject(),
-        "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
         // The census's edge-edge reading, which the result gate takes of
         // the result and ∖ of an operand part it reverts unjoined
         // (`census::collinear_overlaps`).

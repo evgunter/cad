@@ -925,6 +925,25 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
 
+**Roster change (ONEREAD): the boolean reads the other operand through
+one cone.** The boolean's vertex-vertex rows read each own edge through
+one cone of the other operand gathered at the vertex's point
+(`topo::link::Cone::gathered`, `boolean::vtxfac::cone_classes`), so the
+link's four cone readings take names of the cone rather than the
+census's, and are now sampled by both readers. The boolean's own cone
+reader retires with its names: `bool_cone_arc`, `bool_cone_arc_span`,
+`bool_cone_within`, `bool_cone_facing`, `bool_cone_apart`,
+`bool_cone_pointed` and `bool_corner_one_plane` (`sectors.rs`), and the
+layering of partners' cones, `bool_partner_half_plane` and
+`bool_partner_glued_side` (`vtxfac.rs`); their samples end there.
+
+| name | carrier | what it is |
+|---|---|---|
+| `link_plane` | a named `const` (`LINK_PLANE`) | renamed from `census_touch_plane`; pools with it |
+| `link_wedge` | a named `const` (`LINK_WEDGE`) | renamed from `census_touch_wedge`; pools with it |
+| `link_ahead` | a named `const` (`LINK_AHEAD`) | renamed from `census_touch_ahead`; pools with it |
+| `link_arc` | a named `const` (`LINK_ARC`) | renamed from `census_touch_arc`; pools with it |
+
 **Roster change (RESTREAD link reading): the census's touch analysis
 reads two links.** The touch analysis no longer certifies a plane or a
 complement; it reads each solid's whole link at the touch point and
