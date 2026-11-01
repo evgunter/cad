@@ -1135,12 +1135,15 @@ under its own name; `parting_side` against a reference side, of which
 `enters_material_order2`, a curve against a plane, and `tied_germ_turn`
 are cases): a surface pair along a declared tangency and the boolean's
 bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
-`slit`). A bound of a vertex's sector against a face is read through
-the one bound-side reading (`topo::bound_side`), taken by
-`topo::boolean::sectors` and `topo::splitting::neighborhood` alike: a
-conic edge against a plane descends through `conic_bend_side`, its lift
-certified from the carrier's curvature bounds less the first-order
-residue. An in-band second-order tie escalates. Readings of different equations are never
+`slit`). An edge bound of a vertex's sector against a face is read
+through the one bound-side reading (`topo::bound_side`), taken by
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
+so is a bisector bound in the boolean's sector passes; the split's
+subdivision bisectors (`wide_entries`, `split_bisector_side`) read
+their side of the plane outside it. A conic edge against a plane
+descends through `conic_bend_side`, its lift certified from the
+carrier's curvature bounds less the first-order residue. An in-band
+second-order tie escalates. Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed

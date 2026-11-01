@@ -2874,7 +2874,7 @@ fn unglued_flat_sector<T: Decide>(
 /// edge lies in it to the tolerance and the resolution is ε-true of it.
 /// A conic edge's On against a plane is as real: its height bound over
 /// the whole arc reads within the band (`Reach::Conic`,
-/// `sectors::conic_side`); a tie whose bend reads no side is lumped or
+/// `crate::bound_side::Tie::descend`); a tie whose bend reads no side is lumped or
 /// refuses before this runs. Against a curved face it is a first-order
 /// tie
 /// (`work/contacthold/conic-ties-outside-the-vertex-on-face-pass-still-read-first-order.md`).
