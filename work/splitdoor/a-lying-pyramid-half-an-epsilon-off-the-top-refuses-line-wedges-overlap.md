@@ -4,6 +4,8 @@ kind: issue
 title: The lying pyramid 0.5ε off the top refuses LineWedges Overlap since PR 6212 (a slow row red on main)
 status: open
 opened: 2026-11-01
+priority: P1
+cost: M
 ---
 
 
