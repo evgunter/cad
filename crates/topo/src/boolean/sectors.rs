@@ -2484,8 +2484,7 @@ pub(crate) fn fans<T: geom_core::Real>(
     sectors: &[BoolSector<T>],
     apex: Point3<T>,
 ) -> Vec<crate::link::Fan<T>> {
-    sectors
-        .chunk_by(|a, b| a.he == b.he)
+    corners(sectors)
         .map(|corner| {
             let mut rays = Vec::with_capacity(corner.len() + 1);
             for (k, s) in corner.iter().rev().enumerate() {
@@ -2501,6 +2500,20 @@ pub(crate) fn fans<T: geom_core::Real>(
             }
         })
         .collect()
+}
+
+/// Each corner's face, in [`fans`]' order.
+pub(crate) fn fan_faces<T: geom_core::Real>(
+    sectors: &[BoolSector<T>],
+) -> impl Iterator<Item = FaceKey> + '_ {
+    corners(sectors).map(|corner| corner[0].face)
+}
+
+/// A vertex's sectors by orbit corner, each one face's pieces.
+fn corners<T: geom_core::Real>(
+    sectors: &[BoolSector<T>],
+) -> impl Iterator<Item = &[BoolSector<T>]> {
+    sectors.chunk_by(|a, b| a.he == b.he)
 }
 
 #[cfg(test)]

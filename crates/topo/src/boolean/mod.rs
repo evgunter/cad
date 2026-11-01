@@ -623,6 +623,25 @@ pub struct UnreadPartner {
     /// Its partner, the other operand's vertex, in that operand's clone
     /// keys.
     pub partner: VertexKey,
+    /// The edge the cone read in band, and why.
+    pub in_band: EdgeInBand,
+}
+
+/// **An edge of a vertex the other solid's cone gathered at its point
+/// read nothing of** (`vtxfac::cone_classes`), and why: the face of the
+/// other solid whose sector there it lies in band of, where one face's
+/// reading refused it, and the K row of the reading that sat in band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgeInBand {
+    /// The edge, by its half-edge leaving the vertex, a key of its
+    /// operand's working copy.
+    pub edge: HalfEdgeKey,
+    /// The other solid's face, a key of its working copy; `None` where
+    /// the cone's parity arc refused rather than one face's reading.
+    pub face: Option<FaceKey>,
+    /// The K row that read in band; `None` where the band decided the
+    /// reading and the gathered corners' tie unsettled it.
+    pub predicate: Option<&'static str>,
 }
 
 /// A coincident vertex pair in the reduction's working set (`sonvv`):
@@ -3431,13 +3450,10 @@ pub enum BooleanError {
         /// Its first pierce, then its next read: a second pierce, or a
         /// pair; in pairs alone, its first two partners.
         reads: [SectorRead; 2],
-        /// The vertex's edge, by its half-edge leaving the vertex (a key
-        /// of the operand's working copy), that the gathered cone read in
-        /// band, where that is what refuses; `None` where the two reads
-        /// themselves are. The cone's reading names no one face it was in
-        /// band of, so a touch's `reads[1]` is its first partner, not
-        /// necessarily the one the edge reads against.
-        in_band: Option<HalfEdgeKey>,
+        /// The vertex's edge the gathered cone read in band, and why,
+        /// where that is what refuses; `None` where the two reads
+        /// themselves are.
+        in_band: Option<EdgeInBand>,
     },
     /// A vertex of `operand` touches `face` of the other solid and pairs
     /// with `partner`, a vertex of it whose link runs along that face,
@@ -6298,7 +6314,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             own,
             &edges,
             &touch.pairs,
-            Some((touch.datum.normal, &touch.classes)),
+            Some((touch.face, touch.datum.normal, &touch.classes)),
             band,
         )?
         .map_err(|edge| BooleanError::VertexReadTwice {
@@ -6318,11 +6334,12 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             vtxfac::cone_classes(own_point(operand, vertex), own, &edges, pairs, None, band)?;
         let classes = match (classes, pairs.as_slice()) {
             (Ok(classes), _) => classes,
-            (Err(_), [one]) => {
+            (Err(in_band), [one]) => {
                 unread_partners.push(UnreadPartner {
                     operand,
                     vertex,
                     partner: one.vertex,
+                    in_band,
                 });
                 Vec::new()
             }

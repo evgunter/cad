@@ -94,12 +94,12 @@ use super::sectors::{
 use super::tables::eq15_3_lump;
 use super::{AlongFace, Coincide, DeclarationRead};
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, EdgeInBand, NullEdgePairRecord, Operand, PairSite,
     PierceRingRecord, ReductionContacts, SectorRead, SideCode, VfContact,
 };
 use crate::body::{Body, WALKS_CLOSE};
 use crate::contact::GlueClass;
-use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
 use crate::null::NewVertexSide;
@@ -268,9 +268,10 @@ pub(crate) struct Partner<T: geom_core::Real> {
     pub sectors: Vec<BoolSector<T>>,
 }
 
-/// The face a vertex touches, as [`cone_classes`] reads it: its outward
-/// normal at the point, and the side each edge was read on against it.
-pub(crate) type Touched<'a, T> = (OutwardNormal<T>, &'a [(HalfEdgeKey, SideCode)]);
+/// The face a vertex touches, as [`cone_classes`] reads it: the face, its
+/// outward normal at the point, and the side each edge was read on
+/// against it.
+pub(crate) type Touched<'a, T> = (FaceKey, OutwardNormal<T>, &'a [(HalfEdgeKey, SideCode)]);
 
 /// **The classes of a vertex's edges against the other solid, read
 /// through one cone of it at the vertex's point `p`**
@@ -286,8 +287,9 @@ pub(crate) type Touched<'a, T> = (OutwardNormal<T>, &'a [(HalfEdgeKey, SideCode)
 /// ([`crate::bound_side::Reach::point`]): in the material `In`, outside it
 /// `Out`, on one face or along the material's boundary `On`. Where some
 /// edge reads in band, no edge is classed: the inner `Err` names the
-/// first such edge. Refuses as an invariant where an edge of `edges` is
-/// no edge of the vertex's own sectors (`own`).
+/// first such edge and why the cone read nothing of it ([`EdgeInBand`]).
+/// Refuses as an invariant where an edge of `edges` is no edge of the
+/// vertex's own sectors (`own`).
 pub(crate) fn cone_classes<T: Decide>(
     p: Point3<T>,
     own: &[BoolSector<T>],
@@ -295,7 +297,7 @@ pub(crate) fn cone_classes<T: Decide>(
     partners: &[Partner<T>],
     touched: Option<Touched<'_, T>>,
     band: Band,
-) -> Result<Result<Vec<(HalfEdgeKey, SideCode)>, HalfEdgeKey>, BooleanError> {
+) -> Result<Result<Vec<(HalfEdgeKey, SideCode)>, EdgeInBand>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
     let bounds = edges
         .iter()
@@ -310,13 +312,20 @@ pub(crate) fn cone_classes<T: Decide>(
         .iter()
         .flat_map(|partner| super::sectors::fans(&partner.sectors, partner.at))
         .collect();
-    let cone = crate::link::Cone::gathered(p, corners, touched.map(|(normal, _)| normal.vec()))
+    // Each sector's face, in the cone's order: the corners', then the
+    // touched face's disc.
+    let faces: Vec<FaceKey> = partners
+        .iter()
+        .flat_map(|partner| super::sectors::fan_faces(&partner.sectors))
+        .chain(touched.map(|(face, _, _)| face))
+        .collect();
+    let cone = crate::link::Cone::gathered(p, corners, touched.map(|(_, normal, _)| normal.vec()))
         .map_err(|_| invariant("a vertex's partners and touched face hold no face at its point"))?;
     let disc = cone.whole_planes().first().copied();
     let mut rows = Vec::with_capacity(bounds.len());
     for (he, q) in bounds {
         let given: Vec<_> = disc
-            .zip(touched.and_then(|(_, classes)| classes.iter().find(|&&(h, _)| h == he)))
+            .zip(touched.and_then(|(_, _, classes)| classes.iter().find(|&&(h, _)| h == he)))
             .map(|(disc, &(_, class))| {
                 let side = match class {
                     SideCode::In => Sign::Negative,
@@ -328,10 +337,24 @@ pub(crate) fn cone_classes<T: Decide>(
             .into_iter()
             .collect();
         let class = match cone.reads_tied(q, &given, band) {
-            Some(crate::link::Material::In) => SideCode::In,
-            Some(crate::link::Material::Out) => SideCode::Out,
-            Some(crate::link::Material::On(_) | crate::link::Material::Boundary) => SideCode::On,
-            None => return Ok(Err(he)),
+            Ok(crate::link::Material::In) => SideCode::In,
+            Ok(crate::link::Material::Out) => SideCode::Out,
+            Ok(crate::link::Material::On(_) | crate::link::Material::Boundary) => SideCode::On,
+            Err(unread) => {
+                return Ok(Err(EdgeInBand {
+                    edge: he,
+                    face: unread
+                        .sector
+                        .map(|k| {
+                            faces
+                                .get(k)
+                                .copied()
+                                .ok_or(invariant("a cone sector has no face"))
+                        })
+                        .transpose()?,
+                    predicate: unread.why.and_then(|why| why.predicate),
+                }));
+            }
         };
         rows.push((he, class));
     }
@@ -3243,6 +3266,7 @@ mod tests {
         ];
         let he: Vec<HalfEdgeKey> = own.iter().map(|s| s.he).collect();
         let face = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let touched_face = crate::entity::FaceKey::from(key(999));
         let pierced = [
             (he[0], Out),
             (he[1], Out),
@@ -3255,7 +3279,11 @@ mod tests {
         };
         let classes = |cs: &[SideCode]| he.iter().copied().zip(cs.iter().copied()).collect();
         assert_eq!(
-            read(&he, &[partner(1, 1.0)], Some((face, &pierced[..]))),
+            read(
+                &he,
+                &[partner(1, 1.0)],
+                Some((touched_face, face, &pierced[..]))
+            ),
             Ok(classes(&[In, Out, In, On, Out])),
             "touching the face beside the standing corner"
         );
@@ -3286,8 +3314,12 @@ mod tests {
                 band
             )
             .unwrap(),
-            Err(graze[1].he),
-            "an edge in band of a partner's face, named"
+            Err(EdgeInBand {
+                edge: graze[1].he,
+                face: Some(s.face),
+                predicate: Some("link_plane"),
+            }),
+            "an edge in band of a partner's face, named with the face and its reading"
         );
     }
 

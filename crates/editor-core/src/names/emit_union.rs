@@ -3846,6 +3846,11 @@ mod tests {
             operand: topo::Operand::B,
             vertex: corners.next().unwrap(),
             partner: corners.next().unwrap(),
+            in_band: topo::EdgeInBand {
+                edge: topo::HalfEdgeKey::default(),
+                face: None,
+                predicate: None,
+            },
         };
         let links = Links {
             pairs: Vec::new(),

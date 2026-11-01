@@ -729,7 +729,13 @@ fn read_edge(
         .collect();
     let he = probe.he;
     let classes = [(he, touched.map_or(SideCode::On, |(_, class)| class))];
-    let touched = touched.map(|(n, _)| (OutwardNormal::from_chart(n, true), &classes[..]));
+    let touched = touched.map(|(n, _)| {
+        (
+            crate::entity::FaceKey::default(),
+            OutwardNormal::from_chart(n, true),
+            &classes[..],
+        )
+    });
     let published = match cone_classes(o, &[probe], &[he], &partners, touched, band) {
         Ok(Ok(rows)) => match rows.as_slice() {
             &[(h, class)] if h == he => Ok(Some(class)),
@@ -738,7 +744,10 @@ fn read_edge(
         Ok(Err(_)) => Ok(None),
         Err(e) => Err(format!("{e:?}")),
     };
-    Read { cone, published }
+    Read {
+        cone: cone.ok(),
+        published,
+    }
 }
 
 /// What a decided class is wrong by, against the exact class `truth`,
