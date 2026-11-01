@@ -159,8 +159,10 @@ pub(crate) enum FaceBend<T: geom_core::Real> {
 impl<T: geom_core::Real> FaceBend<T> {
     /// How `surface` bends at its point `p`.
     pub(crate) fn at(surface: &geom::Surface<T>, p: Point3<T>) -> Self {
+        if surface.kind() == geom::SurfaceKind::Plane {
+            return Self::Plane;
+        }
         match surface {
-            geom::Surface::Plane { .. } => Self::Plane,
             geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => Self::Fitted,
             _ => {
                 // `dᵀ∇²F d` polarized on the axes: the form's matrix.
