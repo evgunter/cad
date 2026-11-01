@@ -85,3 +85,11 @@ Newest entries at the bottom; the tail is the program's live status.
   fix pass minted); three kernel refusals re-worded in the viewer; an
   `ADMITS` copy; `members()` materialises every member's env; no test
   reads the drawn note; a defined row drops its fault. (SPACES orchestrator)
+- 2026-11-01 — `a-patterns-value-rows-read-the-member-index-outside-a-member`
+  closed (PR 6208, green on `248d6f2f`). Second pass took every verifier
+  note; it made `members()` lazy, which reorders one refusal (an earlier
+  member's refusal now reports ahead of an inner count fault at a later
+  member) — accepted on the orchestrator's read, both are typed refusals
+  and in-order is the better answer. Main's concision red was CHROME's
+  and is fixed on main (6222, 6227); the duplicate row this PR had filed
+  is dropped before merge. (SPACES orchestrator)
