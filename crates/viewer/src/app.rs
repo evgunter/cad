@@ -1062,7 +1062,9 @@ impl ViewerApp {
         // one. A refusal is held by the cache and badged, not
         // announced; a superseded answer is nothing to say
         // (`pickcache::IndexLanding::Stale` is what restart-without-cancel
-        // produces, once per δ changed mid-build).
+        // produces, once per δ changed mid-build). A copy the index
+        // could not draw is not a refusal: the index draws the rest and
+        // holds the copy's reason (`PickIndex::undrawn`).
         let mut rebuilt = false;
         for landing in self.picks.pump() {
             match landing {
@@ -1078,11 +1080,16 @@ impl ViewerApp {
         }
         // The cache owns the retry policy: one attempt per (landed
         // generation, δ). A refused build is reported and held, not
-        // re-attempted every frame behind a stale picture.
+        // re-attempted every frame.
         //
-        // Every arm but `Current` leaves the viewport drawing the mesh
-        // it already has — an older picture, which the indexing
-        // indicator names and `pickcache::unindexed` refuses picks against.
+        // **A held refusal draws nothing**, never the picture from
+        // before it: that picture is of a run the index no longer
+        // describes, and every pick against it is refused. The arms that
+        // wait for a build (`Submitted`, `Indexing`) and the one with
+        // nothing settled to build (`Nothing`) leave the viewport
+        // drawing the mesh it already has — the one window an older
+        // picture stays, which the indexing indicator names and
+        // `pickcache::unindexed` refuses picks against.
         // **The index waits for the budget's answer.** A build
         // submitted at the δ in force while the fit is still pricing
         // the document IS the un-budgeted build the budget exists to
@@ -1099,8 +1106,11 @@ impl ViewerApp {
         // second on the frames just after a document opens.
         let settled = (!self.fit.busy()).then_some(self.delta);
         match self.picks.sync(self.session.index_inputs(), settled) {
-            pickcache::CacheStep::Held
-            | pickcache::CacheStep::Nothing
+            pickcache::CacheStep::Held => {
+                self.draw_nothing();
+                return;
+            }
+            pickcache::CacheStep::Nothing
             | pickcache::CacheStep::Submitted
             | pickcache::CacheStep::Indexing => return,
             pickcache::CacheStep::Current => {}
@@ -1152,6 +1162,22 @@ impl ViewerApp {
             // is true of the picture on screen until one succeeds.
             Err(error) => self.scene_fault = Some(error),
         }
+    }
+
+    /// Put the empty picture on screen, once: the scene under a pick
+    /// index refused as a whole. No index minted its ids, so it carries
+    /// no key, and a scene fault said about the picture it replaces is
+    /// no longer true of the one on screen.
+    fn draw_nothing(&mut self) {
+        if self.scene_key.is_none() && self.scene.positions().is_empty() {
+            return;
+        }
+        self.scene = Arc::new(SceneMesh::nothing(self.delta));
+        self.scene_key = None;
+        self.scene_display = None;
+        self.scene_focus = BTreeSet::new();
+        self.scene_fault = None;
+        self.revision = self.revision.wrapping_add(1);
     }
 
     /// Change δ to `delta`, rebuilding the picture from the evaluation
@@ -1899,8 +1925,8 @@ impl ViewerApp {
             // **The three display seams that hold a refusal.**
             // Each is a read of held state — the scene fault kept
             // until a rebuild lands, the pick cache's own held
-            // refusal, the projection the viewport could not form
-            // — so each stands for as long as the picture is stale
+            // refusal or the copies its index could not draw, the
+            // projection the viewport could not form — so each stands for as long as the picture is stale
             // rather than until the next acting batch sweeps a
             // line. What a pick aimed at the missing index gets is
             // still the line's, because that is an outcome
@@ -1909,7 +1935,7 @@ impl ViewerApp {
                 frame::scene_badge(self.scene_fault.as_ref()),
                 frame::index_badge(
                     self.picks.error(),
-                    self.session.doc(),
+                    self.picks.index(),
                     self.session.landed_pair(),
                 ),
                 frame::projection_badge(self.projection_fault.as_ref()),
