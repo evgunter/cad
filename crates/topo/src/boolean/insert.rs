@@ -1877,6 +1877,7 @@ fn mint_directed<T: Decide>(
         };
         let departure = proven(&body.half_edges, departure_he, EntityId::HalfEdge).edge;
         let facing = strut_faces_first(
+            body,
             (operand, sectors),
             (arrival, departure),
             (gf.cut, gf.cells),
@@ -2231,10 +2232,15 @@ fn strut_facing(
 /// exactly on its bound. Otherwise the walk orders the germs' cuts
 /// ([`walk_faces_first`]).
 ///
+/// `body` is read only to tell a wrap edge's tip from a closed edge's
+/// lone vertex, where arrival and departure are one edge
+/// ([`strut_facing`]'s `tip`).
+///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
 /// each caller states what it does then.
 pub(super) fn strut_faces_first<T: Decide>(
+    body: &Body<T>,
     (operand, sectors): (Operand, &[BoolSector<T>]),
     (arrival, departure): (EdgeKey, EdgeKey),
     first: (Cut<T>, Cells),
