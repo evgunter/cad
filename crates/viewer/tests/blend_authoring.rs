@@ -504,7 +504,11 @@ fn losing_the_target_voids_the_whole_set_and_says_so() {
     else {
         panic!("expected a lost target, got {notices:?}");
     };
-    assert_eq!(lost.node(), copy, "the picks were on the box, drawn unplaced");
+    assert_eq!(
+        lost.node(),
+        copy,
+        "the picks were on the box, drawn unplaced"
+    );
     assert_eq!(
         node.kind(),
         Some("Extrude"),
