@@ -81,16 +81,26 @@ three slit tests above. Over the whole topo suite, every held cut a
 tie's reading decides reads the same by the runs' codes (1015 of 1015;
 `work/honeone/germ-orders-about-a-normal-have-two-homes.md`).
 
-`strut_anchor` meets no tie anywhere in the topo suite. Its doc argues
-why two struts hung at one vertex cannot start along one direction
-whether or not the tie's reading orders them, and it refuses any
-such tie. `beside_order` reads two flankers on one side apart too,
-wherever their offsets from the line differ; it reads `Zero` only at
-one offset.
+`strut_anchor` meets no tie anywhere in the topo suite. Two struts
+hung at one vertex whose lower germs tie unread are an invariant break
+(their segments would start at one position), refused as before. A
+tie the reading orders is not: a strut along the line beside a ring's
+two edges, sharing its vertex with another pair's strut, would reach
+it. No pose does, so it refuses as a limit, in
+`ClassificationInvariant`'s voice until
+`a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug`'s
+typed limit lands, its text saying it is a limit.
+
+`beside_order` reads two flankers on one side apart too, wherever their
+offsets from the line differ. It reads `Zero` where a cut runs beside
+no edge, where either edge has no one flanker flush with the sector,
+or where the flush flankers lie at one offset.
 
 `tied_held`'s far-ends test reads one arc only where the far ends tie
-unread; far ends the tie's reading orders are nested runs, which no
-pose reaches, and refuse `ClassificationInvariant` rather than answer.
+unread. Far ends the tie's reading orders would be nested runs (not
+held); that state is not argued unreachable (two pieces touching along
+two lines, only the far one beside flush faces), no pose reaches it,
+and it refuses as a limit the same way.
 
 **The change.**
 - `insert::cut_order` is the orbit's one position order (`CutOrder::
@@ -100,7 +110,8 @@ pose reaches, and refuse `ClassificationInvariant` rather than answer.
   (`on_arc`), `tied_held`, `holds_whole` (`arc_holds`), `strut_anchor`
   and `walk_faces_first` read it.
 - `walk_faces_first` asks `cut_order` before the strut order where the
-  tie's reading can read the two (`Cut::tie_reads`), as main's order
+  tie's reading can read the two (`Cut::tie_flankers`, the one gate
+  `beside_order` reads too), as main's order
   did; every other pair reads the strut order alone.
 - A `Cut` carries its flankers; a `Germ` embeds its `Cut`; each solid's
   cuts are built once in `plan_null_pairs`. `strut_faces_first` takes
@@ -115,4 +126,5 @@ one order, `insert::cut_order`, whose tie arm reads the sides two cuts
 along one direction lie beside. The readers the row named are reached
 with such a tie by the three slit tests above and by the two pinch
 witnesses, which pin its direction; `strut_anchor` and `tied_held`'s
-far ends are not reached, and refuse a tie read apart there.
+far ends are not reached with a tie read apart, and refuse it as a
+limit.

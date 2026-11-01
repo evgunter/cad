@@ -281,11 +281,12 @@ impl<T: geom_core::Real> Cut<T> {
         }
     }
 
-    /// Whether the orbit's reading of a tie ([`CutOrder::Tied`]) can read
-    /// this cut and `other` apart at all: both run beside an edge of the
-    /// other solid ([`beside_order`]).
-    fn tie_reads(self, other: Self) -> bool {
-        self.beside.is_some() && other.beside.is_some()
+    /// The two cuts' flankers where the orbit's reading of a tie
+    /// ([`CutOrder::Tied`], [`beside_order`]) can read them at all: both
+    /// run beside an edge of the other solid. The one gate on that
+    /// reading.
+    fn tie_flankers(self, other: Self) -> Option<[[Vec3<T>; 2]; 2]> {
+        Some([self.beside?, other.beside?])
     }
 }
 
@@ -1512,10 +1513,14 @@ fn nested<T: Decide>(
 /// The far ends are one arc's only where they tie in the walk's own
 /// order ([`CutOrder::Tied`] with nothing reading the tie). Far ends
 /// along one direction that the tie's reading orders lie at two
-/// positions, so the runs nest and the longer holds the shorter's far
-/// cut strictly: not held here. No pose reaches that case (near ends
-/// the tie's reading leaves unread, far ends it reads), so it refuses
-/// rather than answer unwitnessed.
+/// positions, so the runs would nest and the longer hold the shorter's
+/// far cut strictly: not held. That case is not argued unreachable:
+/// near ends the tie's reading leaves unread with far ends it reads
+/// are two pieces touching along two lines, only the far one beside
+/// flush faces. No pose reaches it, and the answer is unwitnessed, so
+/// it refuses: a limit of the reading, in the invariant's voice until
+/// a typed limit lands
+/// (`work/cleave/a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug.md`).
 fn tied_held<T: Decide>(
     secs: &[BoolSector<T>],
     (own, own_leaves): (Cut<T>, bool),
@@ -1535,7 +1540,8 @@ fn tied_held<T: Decide>(
         CutOrder::Apart(_) => Ok(false),
         CutOrder::Tied(Sign::Zero) => Ok(true),
         CutOrder::Tied(_) => Err(BooleanError::ClassificationInvariant {
-            what: "two runs tied at one end, unread, whose other ends the tie's reading orders",
+            what: "a limit, not a broken invariant: two runs tied at one end, unread, whose \
+                   other ends the tie's reading orders",
         }),
     }
 }
@@ -1608,8 +1614,9 @@ fn walks_before<T: Decide>(
 }
 
 /// **Where `x` lies on the arc walked forward from `lo` to `hi`**, in
-/// one total order `before` round an orbit (a cut's, [`walks_before`];
-/// a walk position's, `<`): `[past lo, short of hi]`, each `None` where
+/// one order `before` round an orbit (a cut's, [`walks_before`], whose
+/// tie reads `None`; a walk position's, `<`): `[past lo, short of hi]`,
+/// each `None` where
 /// `x` ties that end. An arc whose `hi` comes before its `lo` wraps
 /// past the order's origin: a position not before `lo` is short of
 /// `hi`, and one before `lo` is past `lo` and read against `hi`. The
@@ -1658,17 +1665,18 @@ fn arc_holds<P: Copy, E>(
 /// [`walks_after`] of `d` and `oq − op`: flankers on two sides read
 /// apart, and so do two on one side at different offsets from the
 /// line. It reads no first-order direction: [`cut_order`] reads it at
-/// a tie. `Zero` where it cannot read them ([`Cut::tie_reads`]), or
-/// where the two flankers lie at one offset from the line (`oq − op`
-/// along `d`: one flanker, or two mirrored across the line's normal in
-/// the plane).
+/// a tie. `Zero` where a cut runs beside no edge ([`Cut::tie_flankers`]),
+/// where either edge has no one flanker flush with `s` (neither, or
+/// both), or where the two flush flankers lie at one offset from the
+/// line (`oq − op` along `d`: one flanker, or two mirrored across the
+/// line's normal in the plane).
 fn beside_order<T: Decide>(
     s: &BoolSector<T>,
     p: Cut<T>,
     q: Cut<T>,
     band: Band,
 ) -> Result<Sign, BooleanError> {
-    let (Some(bp), Some(bq)) = (p.beside, q.beside) else {
+    let Some([bp, bq]) = p.tie_flankers(q) else {
         return Ok(Sign::Zero);
     };
     let n = s.normal.vec();
@@ -2085,14 +2093,16 @@ fn orbit_step_at<T: geom_core::Real>(
 /// a strut's two). The struts [`reconcile_shared`] leaves in one corner
 /// hold none of each other's cuts unless one nests whole inside the
 /// other, which hangs at the other's tip, so the segments hung at one
-/// vertex are disjoint. Two lower germs along one direction are then an
-/// invariant whether or not the tie's reading orders them
-/// ([`CutOrder::Tied`]): unread, the two segments start at one
-/// position; read apart, the earlier segment holds the later's lower
+/// vertex are disjoint. Two lower germs tied unread ([`CutOrder::Tied`]
+/// `Zero`) are then an invariant: the two segments would start at one
+/// position. Read apart, the earlier segment holds the later's lower
 /// germ unless it ends between the two, its upper germ along that line
-/// too. That is a strut along the line, its germs beside a slit's or
-/// ring's two edges ([`leads`]), whose ring's vertex another pair's
-/// strut would share leaving the same line, and no pose reaches it.
+/// too: a strut along the line, its germs beside a slit's or ring's two
+/// edges ([`leads`]), sharing its vertex with another pair's strut that
+/// leaves the same line. That pose is not an invariant break, and no
+/// pose reaches it, so the read tie refuses unwitnessed: a limit, in
+/// the invariant's voice until a typed limit lands
+/// (`work/cleave/a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug.md`).
 fn strut_anchor<T: Decide>(
     body: &Body<T>,
     (operand, vertex): (Operand, VertexKey),
@@ -2112,9 +2122,15 @@ fn strut_anchor<T: Decide>(
         match cut_order(sectors, at, germ, band)? {
             CutOrder::Apart(true) => he = orbit_step_at(body, vertex, he),
             CutOrder::Apart(false) => break,
-            CutOrder::Tied(_) => {
+            CutOrder::Tied(Sign::Zero) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "two dangling null edges in one corner start along one direction",
+                });
+            }
+            CutOrder::Tied(_) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a limit, not a broken invariant: two dangling null edges in one \
+                           corner start along one direction on two sides of it",
                 });
             }
         }
@@ -2245,7 +2261,7 @@ pub(super) fn strut_faces_first<T: Decide>(
 /// strut order: it reads each germ's half-turn at the arrival edge's
 /// reach first, and two germs along one direction in band of that
 /// edge's line could read apart there, where the tie's reading orders
-/// them. Only cuts the tie's reading can read ([`Cut::tie_reads`]) ask
+/// them. Only cuts the tie's reading can read ([`Cut::tie_flankers`]) ask
 /// it, so every other pair reads the strut order alone.
 fn walk_faces_first<T: Decide>(
     body: &Body<T>,
@@ -2257,11 +2273,11 @@ fn walk_faces_first<T: Decide>(
     if first.entry != second.entry {
         return Ok(walks_before(sectors, first, second, band)? == Some(true));
     }
-    if first.tie_reads(second)
-        && let CutOrder::Tied(turn) = cut_order(sectors, first, second, band)?
-        && turn != Sign::Zero
+    if first.tie_flankers(second).is_some()
+        && let order @ CutOrder::Tied(_) = cut_order(sectors, first, second, band)?
+        && let Some(before) = order.before()
     {
-        return Ok(turn == Sign::Negative);
+        return Ok(before);
     }
     let s = &sectors[first.entry];
     // The arrival edge bounds the half of its corner that ends on it:
@@ -2924,14 +2940,18 @@ mod tests {
         }
     }
 
-    /// **One position order round a vertex** ([`walks_before`]), from
-    /// the orbit's first entry, and the arcs read off it ([`on_arc`]).
-    /// Four entries, the second a bisected twin of the first: across
-    /// entries the order is the entries', within one it is the turn
-    /// about the sector's normal, one direction tying (and refusing in
-    /// [`walk_order`]). An arc from entry 3 to entry 1 wraps past the
-    /// origin. An orbit whose first entry is a twin's second opens no
-    /// physical sector there, and refuses.
+    /// **One position order round a vertex** ([`cut_order`], read as
+    /// [`walks_before`]), from the orbit's first entry, and the arcs read
+    /// off it ([`on_arc`]). Four entries, the second a bisected twin of
+    /// the first: across entries the order is the entries', within one it
+    /// is the turn about the sector's normal, one direction tying (and
+    /// refusing in [`walk_order`]). Two along one direction, each beside
+    /// an edge whose one flush flanker lies on its side of the line, are
+    /// read apart by those sides ([`beside_order`]); beside one side, or
+    /// beside nothing, they tie. An arc from entry 3 to entry 1 wraps past
+    /// the origin, and an arc may end at a cut read beside the line. An
+    /// orbit whose first entry is a twin's second opens no physical
+    /// sector there, and refuses.
     #[test]
     fn walks_before_reads_one_order_from_the_orbits_first_entry() {
         use super::super::sectors::Reach;
@@ -2954,11 +2974,7 @@ mod tests {
             sector(Reach::Extent(1.0)),
             sector(Reach::Extent(1.0)),
         ];
-        let at = |entry: usize, dir: Vec3<f64>| Cut {
-            entry,
-            dir,
-            beside: None,
-        };
+        let at = Cut::apart;
         let before = |p, q| walks_before(&secs, p, q, band);
         assert_eq!(
             before(at(1, x), at(0, x)).unwrap(),

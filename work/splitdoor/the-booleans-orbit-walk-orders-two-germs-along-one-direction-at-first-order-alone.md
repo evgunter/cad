@@ -58,5 +58,6 @@ Every reader in the second bullet, and `walk_faces_first`, now asks
 the one place a first-order tie is read further (`beside_order`, a
 `Sign`, `Zero` where it reads nothing); `beside_tie` and
 `walks_before_beside` are gone. A one-order-down reading of the bend
-goes in that arm, and in `Cut::tie_reads`, which says which pairs
-`walk_faces_first` asks it about.
+goes in that arm. Which pairs the arm can read is one gate,
+`Cut::tie_flankers`, which `beside_order` and `walk_faces_first` both
+ask, so widening the arm to germs off any edge is one edit there.

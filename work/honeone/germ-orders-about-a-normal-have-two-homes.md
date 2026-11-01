@@ -134,3 +134,8 @@ reached 1476 times; with it, 461, all ties `beside_order` cannot read.
 
 One door for the tie would name which evidence decides and check the
 others against it.
+
+Unwitnessed (PR 6184's review): `beside_order` also reads two cuts
+whose flush flankers lie on one side of the line, at different offsets
+from it, apart. That reading comes from the far bounds' angles from
+the line, not from a side, and no test or pose reaches it.
