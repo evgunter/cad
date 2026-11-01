@@ -952,6 +952,24 @@ fn reading(
     )))
 }
 
+/// **What a reading nobody wrote shows**: its one value
+/// ([`computed_text`], in the working `notation`), the least and the
+/// greatest of its values per member ([`MemberValues::span`]), or
+/// [`NO_VALUE`] where it reads nothing. The one answer a driven slot's
+/// field ([`field_text`]) and a defined variable's list line
+/// (`crate::pane::properties::defined_line`) both say.
+pub fn reading_text(
+    value: &Result<Reading, SlotFault>,
+    dimension: Dimension,
+    notation: Notation,
+) -> String {
+    match value {
+        Ok(Reading::One(value)) => computed_text(dimension, value.as_f64(), notation),
+        Ok(Reading::PerMember(members)) => members.span(dimension, notation),
+        Err(_) => NO_VALUE.to_owned(),
+    }
+}
+
 /// What a slot's value field shows in its number's place.
 ///
 /// **A driven slot shows [`DRIVEN`] and the value its expression
@@ -968,8 +986,12 @@ fn reading(
 /// [`no_reading`] where that notation cannot name it ([`written`]).
 pub fn field_text(row: &SlotRow, notation: Notation) -> String {
     match (&row.driver, &row.value) {
-        (_, Ok(Reading::PerMember(members))) => {
-            format!("{DRIVEN} {}", members.span(row.dimension, notation))
+        (_, Ok(Reading::PerMember(_)))
+        | (SlotDriver::Expression { .. }, Ok(Reading::One(_)) | Err(_)) => {
+            format!(
+                "{DRIVEN} {}",
+                reading_text(&row.value, row.dimension, notation)
+            )
         }
         (SlotDriver::Literal, Ok(Reading::One(value))) => match row.unit {
             // **And the notation may not be able to name it**, which
@@ -996,13 +1018,6 @@ pub fn field_text(row: &SlotRow, notation: Notation) -> String {
                 row.slot
             ),
         },
-        (SlotDriver::Expression { .. }, Ok(Reading::One(value))) => {
-            format!(
-                "{DRIVEN} {}",
-                computed_text(row.dimension, value.as_f64(), notation)
-            )
-        }
-        (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
         (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),
     }
 }
