@@ -2071,11 +2071,6 @@ fn a_cone_frustum_and_its_cavity_hold_at_both_scalars() {
 
 // ------------------------------------- cap corners and twisted seams
 
-/// The row these pin:
-/// `work/clear/injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams.md`.
-const SEAMDIAG_ROW: &str =
-    "injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams";
-
 /// **Two faces of `body` asked alone**, each in its own window, at the
 /// default depth and the pair budget `budget`. No candidate is
 /// witnessed: the verdict is the certificates'.
@@ -2104,36 +2099,6 @@ fn pair_report<T: Scalar>(
     sweep.run(&window(a), &window(b), true, |_| {
         Err::<(), _>("no witness asked".to_owned())
     })
-}
-
-/// **The pair refuses `Uncertified { Departure }` across an edge it
-/// shares, at the depth budget**, not at the root.
-fn assert_refuses_at_depth<T: Scalar>(what: &str, body: &Body<T>, a: FaceKey, b: FaceKey) {
-    let report = pair_report(body, a, b, 8192);
-    println!(
-        "[seamdiag] {what}: {:?} {:?} deepest {}",
-        report.verdict, report.receipt, report.widths.deepest
-    );
-    assert!(
-        matches!(
-            report.verdict,
-            BoundVerdict::Refused(EngineRefusal::Uncertified {
-                a: ra,
-                b: rb,
-                shared: SharedCell::Edge(_),
-                arm: CertificateArm::Departure,
-            }) if (ra, rb) == (a, b)
-        ),
-        "{what}: {a:?} against {b:?} refuses Uncertified Departure across their shared edge \
-         ({SEAMDIAG_ROW}); a fix flips this row: {:?} {:?}",
-        report.verdict,
-        report.receipt
-    );
-    assert_eq!(
-        report.widths.deepest, DEFAULT_MAX_CELL_DEPTH,
-        "{what}: {a:?} against {b:?} refuses at the depth budget ({SEAMDIAG_ROW}): {:?}",
-        report.receipt
-    );
 }
 
 /// Whether `f` of `body` is a plane.
@@ -2280,8 +2245,8 @@ fn a_twisted_loft_holds_along_its_seams_at_both_scalars() {
 /// **The half-turn helix's caps hold against its walls, at both
 /// scalars.** `m8_14_long_turn_sweep`'s half-turn helix at 33 stations,
 /// a 0.16 square swept along it: CARVE's measurement found two of its
-/// top cap's four wall pairs refusing Departure at depth (the row
-/// [`SEAMDIAG_ROW`] names), on a branch from before the carried frame
+/// top cap's four wall pairs refusing Departure at depth
+/// (`injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams`), on a branch from before the carried frame
 /// and the clip sides' run-on past a corner. Every cap–wall pair now
 /// holds, at a depth far under the budget.
 #[test]
