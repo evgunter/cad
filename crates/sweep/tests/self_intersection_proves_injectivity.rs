@@ -845,31 +845,23 @@ fn an_arc_spine_past_a_full_turn_reads_violated() {
     }
 }
 
-/// **An arc spine short of a full turn is admitted and runs out of pair
-/// budget.** Its walls are admitted as the 9 and 13 rad ones are; each
-/// wall against itself then splits along an interior knot a few ulps off
-/// a bisection point
-/// (`work/clear/injectivity-monotone-arm-reads-a-sliver-knot-span-it-cannot-bound.md`),
-/// and refuses on the default budget too. The row asks at a sixteenth
-/// of it: the refusal at either is the budget's, and the default costs
-/// minutes a body. When that row lands, this one asks at the default
-/// budget and asserts `Holds`.
+/// **An arc spine short of a full turn holds within the default
+/// budget.** Its walls are admitted as the 9 and 13 rad ones are, and
+/// each carries interior knots a few ulps off a bisection point, which
+/// the monotone arm reads through ([`walls_hold_against_themselves`]).
 #[test]
-fn an_arc_spine_short_of_a_full_turn_runs_past_the_pair_budget() {
+fn an_arc_spine_short_of_a_full_turn_holds() {
     for curl in [3.5, 6.0] {
         let what = format!("the {curl} rad arc spine");
         let report = decided_at_both(
             &what,
             &arc_spine::<f64>(curl),
             &arc_spine::<Interval>(curl),
-            BUDGET / 16,
+            BUDGET,
         );
         assert!(
-            matches!(
-                report.verdict,
-                BoundVerdict::Refused(EngineRefusal::Budget(_))
-            ),
-            "{what}: refused on the pair budget: {:?}",
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what}: holds within the default budget: {:?}",
             report.verdict
         );
     }
@@ -929,6 +921,138 @@ fn the_carvetail_loft_reads_violated_over_every_face() {
     let mut walls = [role(&lofted, w.a), role(&lofted, w.b)];
     walls.sort();
     assert_eq!(walls, ["wall 0", "wall 3"], "{w:?}");
+}
+
+/// Each interior `v` knot of `wall`'s surface that lies within four ulps
+/// of the dyadic `m/2^d` (`d ≤ 6`) nearest it without being on it: the
+/// bisection lands on `m/2^d`, and a cell ending there meets the next
+/// span over those few ulps.
+fn knots_ulps_off_a_split<T: Scalar>(body: &Body<T>, wall: FaceKey) -> Vec<f64> {
+    let Surface::Nurbs(net) = surface(body, wall) else {
+        panic!("a loft wall is a spline")
+    };
+    net.knot_values_v()
+        .values()
+        .iter()
+        .map(|k| k.lo())
+        .filter(|&k| {
+            let split = (k * 64.0).round() / 64.0;
+            k != split && k.to_bits().abs_diff(split.to_bits()) <= 4
+        })
+        .collect()
+}
+
+/// **Each wall against itself holds where its knots sit ulps off its
+/// splits**: `body`'s walls, each alone, at the default budget; the
+/// count of those examined with such a knot. A derivative enclosure
+/// read off a cell's few-ulp meet with a span reads that meet's rounding
+/// as slope, never shrinks along the line, and the monotone arm splits
+/// the line until the budget refuses.
+fn walls_hold_against_themselves<T: Scalar>(
+    what: &str,
+    body: &Body<T>,
+    walls: &[FaceKey],
+) -> usize {
+    let mut examined = 0;
+    for &wall in walls {
+        let report = injective(body, Some(vec![wall]), BUDGET);
+        println!(
+            "[sliver] {what}: {wall:?} {} deepest {} {:?}",
+            class(&report.verdict),
+            report.widths.deepest,
+            report.receipt
+        );
+        assert!(
+            matches!(report.verdict, BoundVerdict::Holds),
+            "{what}: a wall against itself holds within the default budget, got {} {:?}",
+            class(&report.verdict),
+            report.receipt
+        );
+        if !knots_ulps_off_a_split(body, wall).is_empty() {
+            examined += 1;
+        }
+    }
+    examined
+}
+
+/// **An arc-spine loft's walls hold against themselves at the curls
+/// whose chord-length knots round a few ulps off `k/16`**: 3.2, 3.4,
+/// 3.5, 3.6 and 6.0 rad, at both scalars.
+#[test]
+fn arc_spine_walls_with_knots_ulps_off_their_splits_hold_against_themselves() {
+    for curl in [3.2, 3.4, 3.5, 3.6, 6.0] {
+        let float = arc_spine::<f64>(curl);
+        let walls: Vec<FaceKey> = float
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let what = format!("the {curl} rad arc spine");
+        assert!(
+            walls_hold_against_themselves(&what, &float.body, &walls) > 0,
+            "{what}: the row examines a wall with a knot a few ulps off a split point"
+        );
+        let twin = arc_spine::<Interval>(curl);
+        let walls: Vec<FaceKey> = twin
+            .side_faces
+            .iter()
+            .flatten()
+            .flatten()
+            .copied()
+            .collect();
+        let what = format!("{what} at Interval");
+        assert!(
+            walls_hold_against_themselves(&what, &twin.body, &walls) > 0,
+            "{what}: the row examines a wall with a knot a few ulps off a split point"
+        );
+    }
+}
+
+/// **The tour's S-duct walls hold against themselves**: the square swept
+/// along the tour's `skinned` S path (two quarter arcs of radius 2, 17
+/// points, cubic) at 13 stations. A regression row for a body the tour
+/// renders, not a sliver row: its interior knots are `k/12` with `½`
+/// exact, so none sits ulps off a split point.
+#[test]
+fn the_s_duct_walls_hold_against_themselves() {
+    fn duct<T: Scalar>() -> sweep::Lofted<T> {
+        let (r, h) = (2.0, 0.25);
+        let quarter = core::f64::consts::FRAC_PI_2;
+        let points: Vec<Point3<f64>> = (0..=8)
+            .map(|k| {
+                let th = quarter * f64::from(k) / 8.0;
+                Point3::new(0.0, r * (1.0 - th.cos()), r * th.sin())
+            })
+            .chain((1..=8).map(|k| {
+                let ph = quarter * f64::from(k) / 8.0;
+                Point3::new(0.0, r + r * ph.sin(), 2.0 * r - r * ph.cos())
+            }))
+            .collect();
+        let path = NurbsCurve3::interpolate(&points, 3).expect("the S path interpolates");
+        let place = plane_at(&normal_start_place(&path));
+        let profile = lifted(&quad([(-h, -h), (h, -h), (h, h), (-h, h)]));
+        sweep_body::<T>(&profile, place, &path, 13, 3, tol()).expect("the S path sweeps")
+    }
+    let float = duct::<f64>();
+    let walls: Vec<FaceKey> = float
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    walls_hold_against_themselves("the S duct", &float.body, &walls);
+    let twin = duct::<Interval>();
+    let walls: Vec<FaceKey> = twin
+        .side_faces
+        .iter()
+        .flatten()
+        .flatten()
+        .copied()
+        .collect();
+    walls_hold_against_themselves("the S duct at Interval", &twin.body, &walls);
 }
 
 /// **A big thin-walled cylinder shell**: the tube `r ∈ [0.96, 1]`, two

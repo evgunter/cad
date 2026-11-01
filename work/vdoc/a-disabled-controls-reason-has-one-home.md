@@ -33,9 +33,13 @@ Two clauses, each ruling on one family:
    refusal, read off the entry, not minted here*, so
    `CancelDoor::blocked` is a `Refusal`. It names what holds it:
    `gesture_table.rs`'s
-   `a_closed_door_says_what_its_own_operation_refuses`, and says
-   *"nothing structural stops a future door composing its own
-   sentence; that row is what would red."*
+   `a_closed_door_says_what_its_own_operation_refuses` (now
+   `a_door_is_closed_exactly_when_its_own_operation_refuses`: a cancel
+   door is no longer drawn disabled at rest, only while its gesture is
+   in flight, so its refusal decides whether it is drawn rather than
+   what a disabled control says), and says *"nothing structural stops
+   a future door composing its own sentence; that row is what would
+   red."*
 2. **`prefs::Unusable`**, in the preferences section: *"the store is
    the party that words the condition … and the chrome renders its
    words rather than composing its own"*, with the divergence held by

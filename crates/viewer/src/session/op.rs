@@ -1919,23 +1919,12 @@ impl OpOutcome {
 /// with nothing behind it. A cancel door is that remedy, and its
 /// absence is what made the refusal dishonest.
 ///
-/// **A door that cannot act says so rather than vanishing**, which is
-/// the posture `platform::ChooserBackend`'s two dialog controls take: the
-/// door is drawn whatever the selection, the standing and the
-/// evaluation are, and disabled rather than absent when it can do
-/// nothing.
-///
-/// **How it says so is where the two part company.** A dialog
-/// control's refusal is the environment's and comes before any
-/// operation: with no chooser backend no path is ever chosen, so the
-/// `SessionOp::Open` or `SessionOp::Save` a click would push is never
-/// built, and the control reads its words off the probe's value,
-/// `platform::ChooserBackend::unusable`. A cancel door's refusal is its
-/// operation's own, and follows [`crate::pane::create`]'s catalogue entry:
-/// *carrying the op's own refusal — read off the entry, not minted
-/// here*. So [`CancelDoor::blocked`] is a [`Refusal`] and not a
-/// sentence, and the disabled control's words are the refused
-/// operation's own.
+/// **A door is drawn while its gesture is in flight, and only then**:
+/// the toolbar is where a cancel goes, and a cancel with nothing to
+/// cancel is chrome a reader at rest has to read past. Whether it is in
+/// flight is [`CancelDoor::blocked`], the refusal its own operation
+/// gives with no gesture open — the operation's answer, not a second
+/// test beside it.
 #[derive(Debug)]
 pub struct CancelDoor {
     /// What the control is called.
@@ -1943,9 +1932,8 @@ pub struct CancelDoor {
     /// The operation a click emits.
     pub op: SessionOp,
     /// `None` while the gesture this door closes is in flight — the
-    /// one state the door can act in — and otherwise the refusal
-    /// [`CancelDoor::op`] answers with, which is the whole of what the
-    /// disabled control has to say.
+    /// one state the door can act in, and the one state it is drawn
+    /// in — and otherwise the refusal [`CancelDoor::op`] answers with.
     pub blocked: Option<Refusal>,
 }
 

@@ -312,6 +312,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermEdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                closed: false,
+            },
+        ),
+        (
+            "GermEdgeCarrierUnsupported (closed)",
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+                closed: true,
             },
         ),
         (

@@ -16,8 +16,9 @@ Replay with `cargo run --release -p viewer --features app --example drive -- scr
 
 ```text
 window 1280 1600
+click "Assemble parts"
 click "Add part…"   # in an assembly saved beside a part
-click "add" 2
+click "add" 1
 click "InstantiatePart 1 *"
 dump
 ```

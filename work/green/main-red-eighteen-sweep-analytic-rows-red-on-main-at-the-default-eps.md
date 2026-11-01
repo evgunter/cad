@@ -74,3 +74,16 @@ lands, both rows are pinned at 1e-6 to an earlier stop, the germ
 section's `Winds(Unseparated)`. That PR removes the two pins. With the
 pins gone, at 1e-6 both rows stop exactly as listed above, so all three
 ε now share this one red.
+
+## A topo fuzzer counterexample on main at 1e-6 (RESTCURVE, PR 6163, 2026-11-01)
+
+Not a sweep row, filed here as main-red evidence on the orchestrator's
+direction rather than as a new row. `topo`
+`chord_join::wall_ring_rows::a_spline_bounded_wall_island_re_homes_its_bystanders_as_the_ball_says`
+fails at ε 1e-6 under `CAD_FUZZ_SEED=0x9cb9baff9ceb8aeb CAD_FUZZ_EFFORT=1`:
+"asked 12, escalated 0: centre `(0.5, 0, 0)`, cuts `[0.3149597220281418]`:
+`RingHomingAmbiguous { ring: LoopKey(5v1) }`". It reproduces on main at
+`336465c3` with the same seed, in a clean worktree, so it is main's and
+not the region arm's. The test draws its seed per run, so it is red only
+on runs that draw this one. By the discipline's fuzzer rule, the
+counterexample is owed a pinned deterministic row beside its fix.
