@@ -4253,6 +4253,27 @@ fn centred(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option
     Some(middle + grad.dot(fx) * iv((x.0 - xm, x.1 - xm)) + grad.dot(fy) * iv((y.0 - ym, y.1 - ym)))
 }
 
+/// `ψ∘Φ` over a side `x × y` of the presentation. A linear `ψ` on a
+/// spline chart is the hull of its values at the side's restricted
+/// control points ([`geom::NurbsSurface::rect_net`]): `ψ` is affine and
+/// the side's points are convex combinations of those, so the hull
+/// encloses it, and an iso lying in `ψ`'s zero set reads zero at any
+/// width. Anywhere else, and where the net door refuses (a restricted
+/// weight not certified positive), the centred form.
+fn on_side(psi: &Psi, p: &Presented<'_>, x: (f64, f64), y: (f64, f64)) -> Option<Interval> {
+    let net = match (psi.linear(), &p.map, p.surface) {
+        (Some(_), Map::Chart, Surface::Nurbs(net)) => net.rect_net(x, y),
+        _ => None,
+    };
+    match net {
+        Some(points) => points
+            .into_iter()
+            .map(|q| psi.value(q))
+            .reduce(|a, b| Some(hull(a?, b?)))?,
+        None => centred(psi, p, x, y),
+    }
+}
+
 /// **The sign `ψ∘Φ` takes on the presentation's rectangle less its zero
 /// sides**, decided, or `None`.
 ///
@@ -4300,7 +4321,7 @@ fn sign_on(
     };
     let zero_on = |s: Side| {
         let (x, y) = side_of(s);
-        !checked || centred(psi, p, x, y).is_some_and(|v| is_zero(v, band))
+        !checked || on_side(psi, p, x, y).is_some_and(|v| is_zero(v, band))
     };
     let (fx, fy, fxy) = p.jet();
     let image = p.whole();
@@ -7021,6 +7042,161 @@ mod presentation_rows {
             None,
             "a free-form carrier"
         );
+    }
+
+    // ------------------------------------- a spline side off its iso net
+
+    /// The rational patch `S(u, v) = (a(u), v)`: `a` the quadratic arc on
+    /// `(1, 0), (1, 1), (0, 1)` with middle weight `w`, in `z = 0` and
+    /// `z = 1`. Its `v = 0` iso lies in the plane `z = 0`.
+    fn arc_wall(w: Interval) -> Surface<Interval> {
+        use geom_core::spline::{KnotVector, Knots};
+        let knots = |p: usize, k: Vec<f64>| {
+            Knots::from(KnotVector::clamped(k, p).unwrap()).lift(Interval::from_f64)
+        };
+        let p = |x: f64, y: f64, z: f64| Point3::new(iv0(x), iv0(y), iv0(z));
+        Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::new(
+                knots(2, vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0]),
+                knots(1, vec![0.0, 0.0, 1.0, 1.0]),
+                vec![
+                    p(1.0, 0.0, 0.0),
+                    p(1.0, 0.0, 1.0),
+                    p(1.0, 1.0, 0.0),
+                    p(1.0, 1.0, 1.0),
+                    p(0.0, 1.0, 0.0),
+                    p(0.0, 1.0, 1.0),
+                ],
+                vec![iv0(1.0), iv0(1.0), w, w, iv0(1.0), iv0(1.0)],
+            )
+            .unwrap(),
+        ))
+    }
+
+    /// `ψ = n·(p − q)`.
+    fn plane_psi(n: (f64, f64, f64), q: (f64, f64, f64)) -> Psi {
+        Psi::Linear {
+            n: Vec3::new(iv0(n.0), iv0(n.1), iv0(n.2)),
+            q: Point3::new(iv0(q.0), iv0(q.1), iv0(q.2)),
+        }
+    }
+
+    /// `ψ` over the `v = 0` side of `wall`'s cell `x × (0, 0.5)`.
+    fn on_iso(psi: &Psi, wall: &Surface<Interval>, x: (f64, f64)) -> Interval {
+        let p = Presented {
+            surface: wall,
+            map: Map::Chart,
+            x,
+            y: (0.0, 0.5),
+            zero: Zero::Side(Side::YLo),
+            corner: false,
+            cache: Cache::default(),
+        };
+        on_side(psi, &p, x, (0.0, 0.0)).expect("a linear separator has a value")
+    }
+
+    /// **A spline side reads `ψ` off its own restricted iso net**
+    /// ([`on_side`]). The iso lies in `z = 0`, so that plane reads zero
+    /// on a wide cell, where the centred form reads the patch's first
+    /// order, and [`sign_on`] certifies the cell off that side; a plane the iso crosses between its ends reads mixed; a
+    /// plane the cell's piece of the iso lies strictly beside reads that
+    /// sign though the whole iso crosses it; and every enclosure holds
+    /// the iso's own points inside the cell, a plane through the iso's
+    /// end that it only approaches included.
+    #[test]
+    fn a_spline_side_reads_a_plane_off_its_restricted_iso_net() {
+        let wall = arc_wall(iv0(std::f64::consts::FRAC_1_SQRT_2));
+        let cell = (0.2, 0.3);
+        let flat = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, 0.0));
+        let zero = on_iso(&flat, &wall, cell);
+        assert!(
+            is_zero(zero, band()),
+            "the iso in z = 0 reads zero: {zero:?}"
+        );
+        let p = Presented {
+            surface: &wall,
+            map: Map::Chart,
+            x: cell,
+            y: (0.0, 0.5),
+            zero: Zero::Side(Side::YLo),
+            corner: false,
+            cache: Cache::default(),
+        };
+        let first_order = centred(&flat, &p, cell, (0.0, 0.0)).unwrap();
+        assert!(
+            !is_zero(first_order, band()),
+            "the centred form does not read the side zero on this cell: {first_order:?}"
+        );
+        assert_eq!(
+            sign_on(&flat, &p, None, band()),
+            Some(Sign::Positive),
+            "the side zero, the wall departs z = 0 upward across it"
+        );
+        let chord = plane_psi((1.0, 1.0, 0.0), (0.6, 0.6, 0.0));
+        let crossed = on_iso(&chord, &wall, (0.0, 1.0));
+        assert!(
+            crossed.lo() < 0.0 && crossed.hi() > 0.0 && !is_zero(crossed, band()),
+            "x + y = 1.2 crosses the iso between its ends, which read -0.2: {crossed:?}"
+        );
+        assert_eq!(sign_of(crossed, DEPARTURE, band()), None, "mixed");
+        let half = plane_psi((1.0, 0.0, 0.0), (0.5, 0.0, 0.0));
+        let beside = on_iso(&half, &wall, (0.0, 0.1));
+        assert_eq!(
+            sign_of(beside, DEPARTURE, band()),
+            Some(Sign::Positive),
+            "the cell's piece of the iso is beyond x = 0.5, which the whole iso crosses: \
+             {beside:?}"
+        );
+        let below = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, -0.01));
+        assert_eq!(
+            sign_of(on_iso(&below, &wall, cell), DEPARTURE, band()),
+            Some(Sign::Positive),
+            "the iso 0.01 above z = -0.01"
+        );
+        let Surface::Nurbs(net) = &wall else {
+            panic!("a spline wall")
+        };
+        let grazing = (0.0, 1e-3, 1.0);
+        for (n, q, x) in [
+            ((0.0, 0.0, 1.0), (0.0, 0.0, 0.0), cell),
+            ((1.0, 1.0, 0.0), (0.6, 0.6, 0.0), (0.0, 1.0)),
+            ((1.0, 0.0, 0.0), (0.5, 0.0, 0.0), (0.0, 0.1)),
+            (grazing, (1.0, 0.0, 0.0), (0.0, 0.1)),
+        ] {
+            let psi = plane_psi(n, q);
+            let v = on_iso(&psi, &wall, x);
+            for k in 1..16 {
+                let u = x.0 + (x.1 - x.0) * f64::from(k) / 16.0;
+                let at = psi.value(net.eval(iv0(u), iv0(0.0))).unwrap();
+                assert!(
+                    v.lo() <= at.lo() && at.hi() <= v.hi(),
+                    "{n:?} through {q:?} on {x:?}: {v:?} holds the iso at u = {u}: {at:?}"
+                );
+            }
+        }
+    }
+
+    /// **A restricted weight the net cannot certify positive falls back
+    /// to the centred form** ([`on_side`]): the net door refuses it, and
+    /// the centred form, whose jet refuses it too, reads nothing.
+    #[test]
+    fn an_uncertified_weight_falls_back_off_the_iso_net() {
+        let unproven = Interval::from_bounds(-1.0, 1.0).sqrt() * iv0(0.0) + iv0(1.0);
+        assert!(
+            !unproven.is_certified() && unproven.lo() == 1.0 && unproven.hi() == 1.0,
+            "a weight of 1 not certified: {unproven:?}"
+        );
+        let wall = arc_wall(unproven);
+        let Surface::Nurbs(net) = &wall else {
+            panic!("a spline wall")
+        };
+        assert!(
+            net.rect_net((0.2, 0.3), (0.0, 0.0)).is_none(),
+            "the net door refuses the weight"
+        );
+        let flat = plane_psi((0.0, 0.0, 1.0), (0.0, 0.0, 0.0));
+        let v = on_iso(&flat, &wall, (0.2, 0.3));
+        assert!(!is_zero(v, band()), "nothing is read zero: {v:?}");
     }
 
     // ------------------------------------------------- the spiric wall
