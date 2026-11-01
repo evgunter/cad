@@ -1547,12 +1547,11 @@ index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
 
 **The index in hand is not always the index on screen.**
-`ViewerApp::sync_scene` marks the scene's `PictureKey` current
-only on a successful rebuild — a refused one must not consume the pair,
-or the stale picture stays marked as the current one and is never
-retried — so a landed index over a refused rebuild leaves a newer index
-beside an older picture, and nothing retries it while the display
-revision and the focus set hold still. The startup mesh is the same
+`ViewerApp::sync_scene` keys the scene to an index's `PictureKey`
+only on a successful rebuild; a refused one draws nothing and leaves the
+scene with no key, so a landed index over a refused rebuild is a newer
+index beside a picture no index minted, and nothing retries it while
+the display revision and the focus set hold still. The startup mesh is the same
 shape from the other end: `scene::scene_of` builds it before any index
 exists and every corner carries `IdMap::NOTHING`.
 
@@ -1567,8 +1566,9 @@ only where the feature tree draws no `Failed` or `Poisoned` row for it
 (`tree::cause_row`): that row is the notice for a copy with no value.
 The index refuses as a whole only for a fault of its own (`Ids`,
 `DrawnTwice`, `Names`), and `sync_scene` then puts
-`SceneMesh::nothing` on screen with no `PictureKey`, under the badge;
-the build-in-flight window is the one time an older picture stays.
+`SceneMesh::nothing` on screen with no `PictureKey`, under the badge,
+as it does under a refused scene rebuild; the build-in-flight window
+is the one time an older picture stays.
 
 **So a pane sorts its reads of the index by what they are about**, and
 the sorting is a rule about currency rather than about which fields

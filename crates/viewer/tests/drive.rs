@@ -128,7 +128,7 @@ mod driven {
             "the first revolve fails: {said:#?}"
         );
         assert!(
-            matches!(row("Revolve 2").status, viewer::tree::RowStatus::Ok { .. }),
+            matches!(row("Revolve 2").status, viewer::tree::RowStatus::Ok),
             "the second is the sphere: {said:#?}"
         );
         let (doc, _) = driver.session().landed_pair().expect("landed");

@@ -2604,8 +2604,9 @@ pub fn product_badge(fault: Option<&ProductError>, doc: &Doc<ProfileProgram>) ->
 /// from**, and `None` while the last rebuild stands.
 ///
 /// A read of held state: `ViewerApp` keeps the refusal until a rebuild
-/// succeeds, and it keeps drawing the mesh it already has — so the
-/// picture on screen is stale for exactly as long as this is `Some`.
+/// succeeds, and draws nothing meanwhile — never the picture from before
+/// the refusal — so the viewport is empty for exactly as long as this is
+/// `Some`.
 /// It was a line message, where an accepted act's
 /// [`RankedVerdict::Clear`] swept it off a picture that had not been
 /// rebuilt and the line then said nothing about a scene it still could

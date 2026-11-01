@@ -374,10 +374,10 @@ pub struct ViewerApp {
     /// **What the last scene rebuild refused**, held until one
     /// succeeds — the state [`crate::frame::scene_badge`] reads.
     ///
-    /// Held rather than announced: the viewport keeps drawing the mesh
-    /// it already has, so "the picture is older than the document and
-    /// the rebuild will not run" is true on every frame until a
-    /// rebuild lands, and a badge is a read of exactly this.
+    /// Held rather than announced: the viewport draws nothing under it,
+    /// so "the picture is missing and the rebuild will not run" is true
+    /// on every frame until a rebuild lands, and a badge is a read of
+    /// exactly this.
     scene_fault: Option<SceneError>,
     /// **What the last projection refused**, written by the viewport
     /// as it paints and read by [`crate::frame::projection_badge`].
@@ -1107,7 +1107,10 @@ impl ViewerApp {
         let settled = (!self.fit.busy()).then_some(self.delta);
         match self.picks.sync(self.session.index_inputs(), settled) {
             pickcache::CacheStep::Held => {
+                // The index's badge says it; a scene fault about the
+                // picture this replaces is no longer true of any.
                 self.draw_nothing();
+                self.scene_fault = None;
                 return;
             }
             pickcache::CacheStep::Nothing
@@ -1128,10 +1131,9 @@ impl ViewerApp {
         }
         match index.scene_focused(&self.session.display_view(), &focus) {
             Ok(mesh) => {
-                // Marked current ONLY on success: a refused build must
-                // not consume this (generation, display) pair, or the
-                // stale picture stays on screen marked as the current
-                // one and is never retried.
+                // The key is set ONLY on success: a refused build
+                // leaves the empty picture on screen with no key, so
+                // nothing reads its ids as this index's.
                 // Taken from the INDEX, not from the session: the
                 // pair that matters is the one whose id map is in this
                 // mesh, and reading the session's generation here would
@@ -1157,17 +1159,23 @@ impl ViewerApp {
                 // read of held state and so cannot be stale here or
                 // erased by anything the rest of the frame does.
             }
-            // Held, not announced: this pair is deliberately left
-            // unmarked above so the rebuild is retried, and the fault
-            // is true of the picture on screen until one succeeds.
-            Err(error) => self.scene_fault = Some(error),
+            // Held, not announced: the fault is true of the empty
+            // picture on screen until a rebuild succeeds — never of the
+            // picture from before it.
+            Err(error) => {
+                self.draw_nothing();
+                // Tried under these inputs: the next index, display or
+                // focus change retries it, and an unchanged frame does not.
+                self.scene_display = Some(display_revision);
+                self.scene_focus = focus;
+                self.scene_fault = Some(error);
+            }
         }
     }
 
     /// Put the empty picture on screen, once: the scene under a pick
-    /// index refused as a whole. No index minted its ids, so it carries
-    /// no key, and a scene fault said about the picture it replaces is
-    /// no longer true of the one on screen.
+    /// index or a scene rebuild refused as a whole. No index minted its
+    /// ids, so it carries no key.
     fn draw_nothing(&mut self) {
         if self.scene_key.is_none() && self.scene.positions().is_empty() {
             return;
@@ -1176,7 +1184,6 @@ impl ViewerApp {
         self.scene_key = None;
         self.scene_display = None;
         self.scene_focus = BTreeSet::new();
-        self.scene_fault = None;
         self.revision = self.revision.wrapping_add(1);
     }
 
