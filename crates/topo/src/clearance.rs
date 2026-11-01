@@ -96,9 +96,11 @@
 //! reaches the funnel. The second is the window door's [`refines`],
 //! whose bound compares decide which charts are ADMITTED to the sweep,
 //! never what a pair means: a chart admitted wrongly costs depth or
-//! budget, which the sweep refuses typed. The third is
-//! [`support_separation`]'s choice of direction, which picks which true
-//! lower bound is decided. Stated because a reviewer should meet them
+//! budget, which the sweep refuses typed. The third is the support
+//! test's: [`support_separation`]'s choice of direction, which picks
+//! which true lower bound is decided, and [`apart_along`]'s admission,
+//! which asks the funnel only where its own escalate threshold reads
+//! `Positive`, so no in-band support compare is ever logged. Stated because a reviewer should meet them
 //! here rather than find them.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -3607,14 +3609,16 @@ fn apart_along<T: Real>(
     band: Band,
 ) -> bool {
     support_separation((x, pair.a), (y, pair.b)).is_some_and(|d| {
-        matches!(
-            decide(
-                CLEARANCE_SUPPORT_GAP,
-                Margin::of(d - Interval::from_f64(c)),
-                band
-            ),
-            Ok(Sign::Positive)
-        )
+        let margin = d - Interval::from_f64(c);
+        // Asked only where the funnel decides `Positive`: no other
+        // outcome is read, and an in-band escalation here would cue a
+        // driver to bisect a parameter box that nothing here refines.
+        margin.is_certified()
+            && margin.lo() >= band.escalate()
+            && matches!(
+                decide(CLEARANCE_SUPPORT_GAP, Margin::of(margin), band),
+                Ok(Sign::Positive)
+            )
     })
 }
 

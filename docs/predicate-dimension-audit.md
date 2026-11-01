@@ -1495,8 +1495,13 @@ Flagged, NOT fixed here (dispositions):
     nonzero `n`, so `n` is a raw `f64` read of the cells' centre
     normals and centres, not a certified quantity, and the choice
     among three directions is a raw compare that decides nothing.
-  - Logged, like F17: it is a decision of the bound sweep, and its
-    population is the pairs F17 leaves indeterminate.
+  - Logged, like F17: it is a decision of the bound sweep. It is asked
+    only where its margin is certified and its lower end clears the
+    band's escalate threshold, the funnel's own `Positive` rule, so its
+    population is `Positive` verdicts and it never logs an escalation.
+    An in-band support compare is not refinable in a parameter box (it
+    is one-sided), and logged it would cue the driver to bisect leaves
+    no smaller box answers, as F28 measured for `min_separation`.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
