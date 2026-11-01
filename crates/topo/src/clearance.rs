@@ -2975,23 +2975,26 @@ fn iso_bounded_domain<T: Decide + CertifiedBounds>(
 /// carrier's enclosure — the door that turns a chart the subdivision
 /// could not refine into a typed refusal rather than a budget burn.
 ///
-/// BOTH axes must move a bound, and that is the admission rule rather
-/// than the refusal one: a chart that refines on `u` alone gives a
+/// BOTH axes must refine: a chart that refines on `u` alone gives a
 /// subdivision that can only ever narrow one direction, which for a
-/// two-dimensional window is not convergence. An analytic carrier's
-/// interval evaluation shrinks monotonically under sub-boxes (inclusion
-/// isotony), so an axis that does not move here never moves. A spline
-/// chart's enclosure ([`Surface::rect_enclosure`]) is a hull of the
-/// restricted control net, and a sub-rectangle's restricted net lies in
-/// the hull of the rectangle's: the premise holds there too, up to the
-/// rounding of the restriction's own interval steps, which can widen a
-/// sub-box's hull by ulps.
+/// two-dimensional window is not convergence. An axis refines when
+/// EITHER of its halves moves a bound of the whole window's box. One
+/// half alone says nothing: every extreme of a wall can be attained in
+/// its lower half, which then spans the whole box while the upper half
+/// narrows. Inclusion isotony (an analytic carrier's interval
+/// evaluation shrinks under sub-boxes; a spline chart's
+/// [`Surface::rect_enclosure`] hulls a restricted net lying in its
+/// parent's hull, up to the restriction's rounding) holds each half
+/// inside the whole, so an axis neither of whose halves moves is one
+/// the subdivision gives no evidence of narrowing.
+///
+/// This is an admission rule, not a certificate: a chart admitted that
+/// the subdivision then cannot decide costs depth or budget, which the
+/// sweep refuses typed.
 fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
     let boxed = |u, v| cell_box(&enclosure(surface, u, v));
     let whole = boxed(u, v);
-    let half_u = boxed((u.0, geom::mid_param(u.0, u.1)), v);
-    let half_v = boxed(u, (v.0, geom::mid_param(v.0, v.1)));
-    let narrower = |b: &Aabb| {
+    let narrower = |b: Aabb| {
         b.max_x < whole.max_x
             || b.max_y < whole.max_y
             || b.max_z < whole.max_z
@@ -2999,7 +3002,9 @@ fn refines(surface: &Surface<Interval>, u: (f64, f64), v: (f64, f64)) -> bool {
             || b.min_y > whole.min_y
             || b.min_z > whole.min_z
     };
-    narrower(&half_u) && narrower(&half_v)
+    let (mu, mv) = (geom::mid_param(u.0, u.1), geom::mid_param(v.0, v.1));
+    let on_u = narrower(boxed((u.0, mu), v)) || narrower(boxed((mu, u.1), v));
+    on_u && (narrower(boxed(u, (v.0, mv))) || narrower(boxed(u, (mv, v.1))))
 }
 
 /// The face's boundary enclosure, and the boundary itself lifted.
@@ -4251,5 +4256,87 @@ mod cone_window {
                 w.v
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod refines_rows {
+    use std::sync::Arc;
+
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Interval, Point3, Real};
+
+    use super::refines;
+
+    /// A patch over `[0, 1]²` linear in `v`, lifted to `Interval`: the
+    /// polyline `along` in `u` (degree 1, knots at the even splits),
+    /// raised by `v` in `z`.
+    fn ribbon(along: &[(f64, f64, f64)], rise: f64) -> Surface<Interval> {
+        let n = along.len();
+        let mut knots = vec![0.0];
+        knots.extend((0..n).map(|k| k as f64 / (n - 1) as f64));
+        knots.push(1.0);
+        let ku = KnotVector::clamped(knots, 1).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = along
+            .iter()
+            .flat_map(|&(x, y, z)| [Point3::new(x, y, z), Point3::new(x, y, z + rise)])
+            .map(|p| p.map(Interval::from_f64))
+            .collect();
+        let knots = |k: KnotVector| Knots::from(k).lift(Interval::from_f64);
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(knots(ku), knots(kv), control, vec![Interval::one(); 2 * n]).unwrap(),
+        ))
+    }
+
+    const WHOLE: (f64, f64) = (0.0, 1.0);
+
+    /// **A wall whose extremes all lie in its lower `u` half refines.**
+    /// The lower half spans the whole box; the upper half narrows it.
+    /// Red if the door reads only the lower halves, or asks both halves
+    /// to move.
+    #[test]
+    fn a_wall_reaching_its_extremes_in_its_lower_half_refines() {
+        let wall = ribbon(&[(0.0, 0.0, 0.0), (2.0, 2.0, 0.0), (1.0, 1.0, 0.0)], 1.0);
+        assert!(refines(&wall, WHOLE, WHOLE));
+    }
+
+    /// **A wall whose extremes all lie in its upper `u` half refines.**
+    /// Red if the door reads only the upper halves, or asks both halves
+    /// to move.
+    #[test]
+    fn a_wall_reaching_its_extremes_in_its_upper_half_refines() {
+        let wall = ribbon(&[(1.0, 1.0, 0.0), (2.0, 2.0, 0.0), (0.0, 0.0, 0.0)], 1.0);
+        assert!(refines(&wall, WHOLE, WHOLE));
+    }
+
+    /// **A bow-tie wall does not refine.** The degree-1 loft wall
+    /// between `(-1, -1, 0) → (1, -1, 0)` and the edge above it run
+    /// backwards, `(1, 1, 1) → (-1, 1, 1)`: the wall of the two-section
+    /// loft whose top faces down. Its `u` iso collapses to a point at
+    /// `v = ½`, so each `u` half spans the whole `x` range and neither
+    /// narrows the box, and the door refuses it whichever halves it
+    /// reads.
+    #[test]
+    fn a_bow_tie_wall_does_not_refine() {
+        let at = |x, y, z| Point3::new(x, y, z).map(Interval::from_f64);
+        let kv = || Knots::from(KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap());
+        let wall = Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                kv().lift(Interval::from_f64),
+                kv().lift(Interval::from_f64),
+                vec![
+                    at(-1.0, -1.0, 0.0),
+                    at(1.0, 1.0, 1.0),
+                    at(1.0, -1.0, 0.0),
+                    at(-1.0, 1.0, 1.0),
+                ],
+                vec![Interval::one(); 4],
+            )
+            .unwrap(),
+        ));
+        assert!(!refines(&wall, WHOLE, WHOLE));
     }
 }
