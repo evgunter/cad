@@ -19,8 +19,9 @@
 //!   nearest the seed.
 //! - [`Section::all`] answers every branch: each open branch between
 //!   crossings, each closed loop from the subdivision's seeds, and the
-//!   accounting that every cell of the product is excluded or lies in a
-//!   tube. Exhaustiveness is `all`'s obligation.
+//!   accounting that every cell of the product is excluded, lies in a
+//!   tube, or lies in the regions of the rows and corners handed in.
+//!   Exhaustiveness is `all`'s obligation.
 //!
 //! # The boundary pass
 //!
@@ -31,8 +32,38 @@
 //! coordinate held: those are the crossings, the only ends an open
 //! branch has. A face the walk cannot resolve — the section touching or
 //! running along a side, or through a corner, of either rectangle —
-//! refuses ([`SsiError::PairBoundaryUnresolved`]): this lane reports no
-//! side or corner region, where the plane × NURBS pass reports one.
+//! refuses ([`SsiError::PairBoundaryUnresolved`]), unless the caller
+//! handed it in as known:
+//!
+//! - **A shared row** ([`PairRow`]), a row on a side of both rectangles
+//!   with its two certified images, is a [`PairRegion::Side`]. Its
+//!   cover is the chain of boxes [`super::four::row_cover`] reads along
+//!   it, each at least [`COVER_FLOOR_CELLS`] accounting-floor cells wide
+//!   across it, over which the crossing reading is zero-free across the
+//!   first chart's coordinate along the row. Each slice of a box at that
+//!   coordinate holds at most one solution, so no closed loop lies in the
+//!   cover; where the row is an exact solution, it is that solution. Its
+//!   boxes are contact cells in the accounting, and the pass walks no
+//!   piece they hold.
+//! - **A shared corner** ([`PairCorner`]), a corner of both rectangles,
+//!   is read over a cell as deep along each coordinate (the widest of
+//!   the same rungs that reads it). The section's
+//!   direction there, the generalized cross product of the Jacobian,
+//!   must have every component one-signed over the cell, so every arc
+//!   in it is monotone in each coordinate. Where those signs point the
+//!   section into the domain along every coordinate, or out along every
+//!   one, a branch starts at the corner, a crossing the trace starts
+//!   from. Otherwise the corner is a [`PairRegion::Corner`], whose cell is
+//!   a contact cell. What the cell's reading proves is that no arc closes
+//!   in it: each is monotone in every coordinate. An arc may cross the
+//!   cell from one inner face to another without touching the domain's
+//!   boundary; it is then part of a component that runs on outside the
+//!   cell, which the trace and the accounting meet there. A component
+//!   lying wholly in the cell has both ends on the domain's boundary, and
+//!   the region stands for those.
+//!
+//! A row the caller does not hand in, or a cover or corner the reading
+//! does not certify, refuses as an unresolved face does.
 //!
 //! The selection's one unproven step, Newton's convergence to the
 //! component nearest the seed, is `super::handle`'s.
@@ -42,19 +73,23 @@ use std::cell::OnceCell;
 use geom::NurbsSurface;
 use geom_core::{Band, Point3, SupSpeed};
 
-use super::boundary::{BoundaryChart, BoundaryPoint, ChartEnd, ChartSide, Crossing};
+use super::boundary::{BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, Crossing};
 use super::certify::SsiTube;
 use super::enclose::Box3;
 use super::ends::Ends;
 use super::exhaust::{self, FloorKind, PairCell, SweepFloor};
-use super::four::{Box4, PAIR_BOUNDARY_PIECES, PairBoxes, face_roots};
+use super::four::{
+    Box4, PAIR_BOUNDARY_PIECES, PairBoxes, RowCrossing, covered, direction_over,
+    face_roots_outside, row_cover,
+};
 use super::handle::{Banked, foot, passed};
 use super::march::{MarchContext, MarchTol, Readout};
 use super::system::{Chart, LocalSystem, ParametricPairR4};
 use super::{
-    ChartAxis, ChartedNurbs, SSI_MAX_STEPS, SSI_NEWTON_ITERS, SSI_SPLINE_NOISE_ULPS, SsiBranch,
-    SsiDomain, SsiError, SsiOutcome, finite_net,
+    ChartAxis, ChartedNurbs, PairBoundaryCause, SSI_MAX_STEPS, SSI_NEWTON_ITERS,
+    SSI_SPLINE_NOISE_ULPS, SsiBranch, SsiDomain, SsiError, SsiOutcome, finite_net,
 };
+use crate::Pcurve;
 use geom_core::linalg::svd::Svd;
 
 /// What the section is read over: the two charts and the march, fixed
@@ -73,23 +108,165 @@ struct PairLane<'a> {
 /// run once, and every branch certified so far.
 pub struct Section<'a> {
     lane: PairLane<'a>,
-    /// The boundary pass's crossings, once a reading has run it.
-    crossings: OnceCell<Vec<Crossing>>,
+    /// The boundary pass, once a reading has run it.
+    pass: OnceCell<Pass>,
     banked: Banked<Box4>,
+    /// The rows handed in as known.
+    rows: Vec<PairRow>,
+    /// The corners handed in as known.
+    corners: Vec<PairCorner>,
+}
+
+/// What the boundary pass decided: the crossings, the regions of the
+/// handed-in rows and corners, and the boxes those regions hold.
+#[derive(Clone, Debug, Default)]
+struct Pass {
+    crossings: Vec<Crossing>,
+    regions: Vec<PairRegion>,
+    cells: Vec<Box4>,
+}
+
+/// How many accounting-floor cells wide a row's cover and a corner's cell
+/// are at the least, along each coordinate they reach into the domain
+/// (module docs). The accounting excludes a floor cell by its
+/// first-order enclosure, whose slack is a few cells' width beside a
+/// solution, so a cell beside the row that it cannot exclude lies within
+/// a few cells of the row; four holds those with one to spare. A
+/// structure choice (D9), not a bound the reading needs: a narrower
+/// cover only leaves the accounting more cells to refuse.
+pub(crate) const COVER_FLOOR_CELLS: f64 = 4.0;
+
+/// The widest a cover or a corner cell is first tried at, as a share of
+/// each coordinate's domain: wide enough that the boundary walk drops
+/// its pieces near the row within a few cuts, and still a share small
+/// enough that a transverse pair's crossing reading is zero-free over
+/// it. A structure choice (D9); a rung the reading cannot certify is
+/// given up and the next, half as wide, is tried.
+const COVER_TOP_SHARE: f64 = 1.0 / 8.0;
+
+/// **A row of both charts, handed in as a known solution**: each
+/// chart's image of one curve over one parameter span, each a row on a
+/// side of its chart's rectangle (`description::domain_side`). The
+/// caller certifies that the two images trace one curve on the two
+/// walls; the reading certifies the section beside it.
+#[derive(Clone, Debug)]
+pub struct PairRow {
+    images: [Pcurve<f64>; 2],
+    span: (f64, f64),
+    /// The side each image runs along, as `description::domain_side`
+    /// decided it.
+    sides: [ChartSide; 2],
+}
+
+/// Why [`PairRow::new`] admits no row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairRowRefusal {
+    /// That chart's image is not a row on a side of its rectangle.
+    NotOnASide(BoundaryChart),
+    /// The span is not an ordered, finite interval.
+    Span,
+}
+
+impl core::fmt::Display for PairRowRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotOnASide(chart) => write!(
+                f,
+                "a row handed to the spline pair's reading is not a row on a side of the \
+                 {chart:?} chart's rectangle"
+            ),
+            Self::Span => write!(
+                f,
+                "a row handed to the spline pair's reading has no ordered, finite span"
+            ),
+        }
+    }
+}
+
+impl PairRow {
+    /// The row with `image_a` on `a` and `image_b` on `b` over `span`.
+    ///
+    /// # Errors
+    ///
+    /// [`PairRowRefusal`], naming what it is not.
+    pub fn new(
+        (a, image_a): (&NurbsSurface<f64>, Pcurve<f64>),
+        (b, image_b): (&NurbsSurface<f64>, Pcurve<f64>),
+        span: (f64, f64),
+    ) -> Result<Self, PairRowRefusal> {
+        let side = |chart, image: &Pcurve<f64>, which| {
+            crate::description::domain_side(chart, image).ok_or(PairRowRefusal::NotOnASide(which))
+        };
+        let sides = [
+            side(a, &image_a, BoundaryChart::First)?,
+            side(b, &image_b, BoundaryChart::Second)?,
+        ];
+        if !(span.0.is_finite() && span.1.is_finite() && span.0 < span.1) {
+            return Err(PairRowRefusal::Span);
+        }
+        Ok(Self {
+            images: [image_a, image_b],
+            span,
+            sides,
+        })
+    }
+
+    /// Each image's coordinate along the row and coordinate held, as
+    /// state indices, chart `a`'s then `b`'s.
+    fn axes(&self) -> [(usize, usize); 2] {
+        core::array::from_fn(|i| {
+            let held = match self.sides[i].fixed {
+                ChartAxis::U => 0,
+                ChartAxis::V => 1,
+            };
+            (2 * i + (1 - held), 2 * i + held)
+        })
+    }
+}
+
+/// **A corner of both charts, handed in as a known solution**: chart
+/// `a`'s corner, then chart `b`'s, at which the caller has a shared
+/// vertex.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PairCorner(pub [ChartCorner; 2]);
+
+/// A region of the product's boundary the reading certified from what
+/// was handed in (module docs).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PairRegion {
+    /// A handed-in row: the section in its cover is the row, on these
+    /// sides of chart `a` and chart `b`.
+    Side {
+        /// Chart `a`'s side, then chart `b`'s.
+        sides: [ChartSide; 2],
+    },
+    /// A handed-in corner where the section leaves the domain: every
+    /// arc in its cell runs out of the domain along some coordinate.
+    Corner {
+        /// Chart `a`'s corner, then chart `b`'s.
+        corners: [ChartCorner; 2],
+    },
+}
+
+/// **The whole reading with its regions** ([`Section::read_all`]).
+#[derive(Clone, Debug)]
+pub struct PairReading {
+    /// Every branch and the accounting.
+    pub outcome: SsiOutcome,
+    /// The regions of the handed-in rows and corners.
+    pub regions: Vec<PairRegion>,
 }
 
 impl core::fmt::Debug for Section<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
-            lane,
-            crossings,
-            banked,
+            lane, pass, banked, ..
         } = self;
         f.debug_struct("Section")
             .field("domain", &lane.domain)
             .field("band", &lane.band)
             .field("speeds", &lane.speeds)
-            .field("crossings", &crossings.get().map(Vec::len))
+            .field("crossings", &pass.get().map(|p| p.crossings.len()))
             .field("branches", &banked.branches.len())
             .finish_non_exhaustive()
     }
@@ -121,12 +298,32 @@ impl<'a> Section<'a> {
         domain: SsiDomain,
         band: Band,
     ) -> Result<Self, SsiError> {
-        Self::of_charted(
+        Self::of_known(s1, s2, domain, band, (Vec::new(), Vec::new()))
+    }
+
+    /// **[`Section::of`] with `rows` and `corners` handed in as known**
+    /// (module docs): taken at construction, so no reading runs the
+    /// boundary pass without them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Section::of`].
+    pub fn of_known(
+        s1: &'a NurbsSurface<f64>,
+        s2: &'a NurbsSurface<f64>,
+        domain: SsiDomain,
+        band: Band,
+        (rows, corners): (Vec<PairRow>, Vec<PairCorner>),
+    ) -> Result<Self, SsiError> {
+        let mut section = Self::of_charted(
             (s1, ChartedNurbs::mint),
             (s2, ChartedNurbs::mint),
             domain,
             band,
-        )
+        )?;
+        section.rows = rows;
+        section.corners = corners;
+        Ok(section)
     }
 
     /// [`Section::of`] with each surface's chart had from `chart_1` and
@@ -203,8 +400,10 @@ impl<'a> Section<'a> {
                 band,
                 speeds,
             },
-            crossings: OnceCell::new(),
+            pass: OnceCell::new(),
             banked: Banked::new(Self::tube_of),
+            rows: Vec::new(),
+            corners: Vec::new(),
         })
     }
 }
@@ -227,17 +426,179 @@ impl<'a> PairLane<'a> {
 
     /// The boundary pass (module docs): every crossing, in face order
     /// and as each face's walk found them.
-    fn boundary_pass(&self) -> Result<Vec<Crossing>, SsiError> {
+    fn boundary_pass(&self, rows: &[PairRow], corners: &[PairCorner]) -> Result<Pass, SsiError> {
         let pair = self.boxes();
         let r = Box4::of_charts(self.a.surface(), self.b.surface());
+        let unresolved = |cause| SsiError::PairBoundaryUnresolved {
+            pieces: PAIR_BOUNDARY_PIECES,
+            cause,
+        };
+        let rungs = self.cover_rungs(r)?;
+        let mut pass = Pass::default();
+        for row in rows {
+            let cover = self.row_cover(row, &rungs)?;
+            pass.regions.push(PairRegion::Side { sides: row.sides });
+            pass.cells.extend(cover);
+        }
+        let covers = pass.cells.clone();
+        for &PairCorner(corners) in corners {
+            let at: [f64; 4] = core::array::from_fn(|k| {
+                let end = match (k % 2, corners[k / 2]) {
+                    (0, c) => c.u,
+                    (_, c) => c.v,
+                };
+                match end {
+                    ChartEnd::Low => r.0[k].0,
+                    ChartEnd::High => r.0[k].1,
+                }
+            });
+            // A corner a row's cover holds is that row's end.
+            if covered(Box4::at(at), &covers) {
+                continue;
+            }
+            let inward: [bool; 4] = core::array::from_fn(|k| at[k] == r.0[k].0);
+            // The widest rung whose cell reads every component of the
+            // section's direction one-signed.
+            let read = rungs.iter().find_map(|width| {
+                let cell = Box4(core::array::from_fn(|k| {
+                    let (lo, hi) = r.0[k];
+                    if inward[k] {
+                        (lo, (lo + width[k]).min(hi))
+                    } else {
+                        ((hi - width[k]).max(lo), hi)
+                    }
+                }));
+                let signs = direction_over(&pair, cell).map(super::section::sign);
+                let signs: Option<Vec<bool>> = signs.into_iter().collect();
+                signs.map(|s| (cell, s))
+            });
+            let Some((cell, signs)) = read else {
+                return Err(unresolved(PairBoundaryCause::CornerUnsigned));
+            };
+            let along: Vec<bool> = (0..4).map(|k| signs[k] == inward[k]).collect();
+            if along.iter().all(|&x| x) || along.iter().all(|&x| !x) {
+                pass.crossings.push(self.corner_crossing(at, corners[0])?);
+            } else {
+                pass.regions.push(PairRegion::Corner { corners });
+            }
+            pass.cells.push(cell);
+        }
         let roots =
-            face_roots(&pair, r, PAIR_BOUNDARY_PIECES).ok_or(SsiError::PairBoundaryUnresolved {
-                pieces: PAIR_BOUNDARY_PIECES,
-            })?;
-        roots
-            .into_iter()
-            .map(|(q, k, high)| self.settle_crossing(q, k, high))
-            .collect()
+            face_roots_outside(&pair, r, PAIR_BOUNDARY_PIECES, &pass.cells).map_err(unresolved)?;
+        for (q, k, high) in roots {
+            pass.crossings.push(self.settle_crossing(q, k, high)?);
+        }
+        Ok(pass)
+    }
+
+    /// **The widths a cover or a corner cell is tried at**, widest
+    /// first, in chart units per coordinate: [`COVER_TOP_SHARE`] of the
+    /// coordinate's domain, halved down to [`COVER_FLOOR_CELLS`]
+    /// accounting-floor cells, which is the last rung (module docs). A
+    /// wider cover lets the boundary pass's walk drop its pieces sooner;
+    /// the floor's holds every cell beside it the accounting cannot
+    /// exclude.
+    fn cover_rungs(&self, r: Box4) -> Result<Vec<[f64; 4]>, SsiError> {
+        let (root_cell, speed) = self.root_cell();
+        let floor = SweepFloor::pair(
+            root_cell,
+            self.domain.floor(self.band),
+            speed,
+            FloorKind::Accounting,
+        )?;
+        let least: [f64; 4] =
+            core::array::from_fn(|k| COVER_FLOOR_CELLS * floor.width() / root_cell.scale[k]);
+        let mut rungs = Vec::new();
+        let mut width: [f64; 4] = core::array::from_fn(|k| (r.0[k].1 - r.0[k].0) * COVER_TOP_SHARE);
+        while (0..4).any(|k| width[k] > least[k]) {
+            rungs.push(core::array::from_fn(|k| width[k].max(least[k])));
+            width = width.map(|w| 0.5 * w);
+        }
+        rungs.push(least);
+        Ok(rungs)
+    }
+
+    /// **A handed-in row's cover** (module docs): the boxes
+    /// [`row_cover`] reads along it at the widest of `rungs` it reads
+    /// clear (each but the last given up at its first unread piece, the
+    /// last read whole, where a turn is looked for), widened across it in chart `a`'s held coordinate, chart
+    /// `b`'s held coordinate and chart `b`'s coordinate along it, read
+    /// across chart `a`'s coordinate along it.
+    ///
+    /// # Errors
+    ///
+    /// [`SsiError::PairRowTangent`] where the walls' tangent planes
+    /// coincide at a state of the row, and
+    /// [`SsiError::PairBoundaryUnresolved`] where no rung reads every
+    /// piece's sign.
+    fn row_cover(&self, row: &PairRow, rungs: &[[f64; 4]]) -> Result<Vec<Box4>, SsiError> {
+        let [(along_a, held_a), (along_b, held_b)] = row.axes();
+        // Read across chart `a`'s coordinate along the row alone (module
+        // docs): the chord's other components are dropped.
+        let read = |lo: f64, hi: f64| {
+            let ends = |i: usize, k: usize| {
+                let at = |t: f64| {
+                    let p = row.images[i].eval(t);
+                    let c = if k == 0 { p.x } else { p.y };
+                    (c, c)
+                };
+                [at(lo), at(hi)]
+            };
+            let (state, chord) =
+                super::four::row_piece([ends(0, 0), ends(0, 1), ends(1, 0), ends(1, 1)]);
+            let mut along = [0.0; 4];
+            along[along_a] = chord[along_a];
+            (state, along)
+        };
+        let walls = (self.a.surface(), self.b.surface());
+        for (n, width) in rungs.iter().enumerate() {
+            let last = n + 1 == rungs.len();
+            let mut wide = [0.0; 4];
+            for k in [held_a, held_b, along_b] {
+                wide[k] = width[k];
+            }
+            let (crossing, boxes) = row_cover(walls, row.span, wide, !last, read)
+                .map_err(|super::four::RowUnreadable(_, refusal)| SsiError::ChartSpeed(refusal))?;
+            match crossing {
+                RowCrossing::Clear(_) => return Ok(boxes),
+                RowCrossing::Turns => return Err(SsiError::PairRowTangent),
+                RowCrossing::Unread => {}
+            }
+        }
+        Err(SsiError::PairBoundaryUnresolved {
+            pieces: PAIR_BOUNDARY_PIECES,
+            cause: PairBoundaryCause::CoverUnread,
+        })
+    }
+
+    /// **The crossing at a handed-in corner** where a branch starts:
+    /// the corner state itself, which must lie on the section within the
+    /// march's settling tolerance.
+    fn corner_crossing(&self, at: [f64; 4], corner: ChartCorner) -> Result<Crossing, SsiError> {
+        let side = ChartSide {
+            fixed: ChartAxis::U,
+            end: corner.u,
+        };
+        let tol = self.ctx.tol.settling();
+        if self
+            .sys
+            .residual(&at)
+            .iter()
+            .any(|v| v.is_nan() || v.abs() > tol)
+        {
+            return Err(SsiError::EndNotOnLocus {
+                side,
+                bracket: (at[1], at[1]),
+            });
+        }
+        Ok(Crossing {
+            at: BoundaryPoint {
+                chart: BoundaryChart::First,
+                side,
+                t: at[1],
+            },
+            state: at,
+        })
     }
 
     /// The crossing isolated in `q` on the face holding coordinate `k`
@@ -320,8 +681,15 @@ impl Section<'_> {
     /// and [`SsiError::EndNotOnLocus`] for a crossing that will not
     /// settle.
     pub fn crossings(&self) -> Result<Vec<BoundaryPoint>, SsiError> {
-        let pass = passed(&self.crossings, || self.lane.boundary_pass())?;
-        Ok(pass.iter().map(|c| c.at).collect())
+        let pass = self.pass()?;
+        Ok(pass.crossings.iter().map(|c| c.at).collect())
+    }
+
+    /// The boundary pass, run once.
+    fn pass(&self) -> Result<&Pass, SsiError> {
+        passed(&self.pass, || {
+            self.lane.boundary_pass(&self.rows, &self.corners)
+        })
     }
 
     /// The tube a certified branch proved, as ℝ⁴ boxes: the product of
@@ -365,8 +733,8 @@ impl Section<'_> {
         if let Some(i) = self.banked.holding(&x) {
             return Ok(&self.banked.branches[i]);
         }
-        let crossings = passed(&self.crossings, || lane.boundary_pass())?;
-        let i = self.banked.through(&lane.ends(), x, crossings)?;
+        let crossings = passed(&self.pass, || lane.boundary_pass(&self.rows, &self.corners))?;
+        let i = self.banked.through(&lane.ends(), x, &crossings.crossings)?;
         Ok(&self.banked.branches[i])
     }
 
@@ -381,7 +749,20 @@ impl Section<'_> {
     /// between crossings, of a closed loop's march where no tube holds
     /// its seed, and the accounting's ([`SsiError::ExhaustivenessInconclusive`],
     /// [`SsiError::CellBudget`], [`SsiError::FloorUnresolvable`]).
-    pub fn all(mut self) -> Result<SsiOutcome, SsiError> {
+    pub fn all(self) -> Result<SsiOutcome, SsiError> {
+        self.read_all().map(|reading| reading.outcome)
+    }
+
+    /// **[`Section::all`] with the regions of the rows and corners
+    /// handed in** ([`Section::of_known`]): their covers and cells are
+    /// contact cells in the accounting and hold no seed.
+    ///
+    /// # Errors
+    ///
+    /// As [`Section::all`], and a handed-in row's or corner's reading
+    /// ([`SsiError::PairRowTangent`], [`SsiError::PairBoundaryUnresolved`],
+    /// [`SsiError::EndNotOnLocus`]).
+    pub fn read_all(mut self) -> Result<PairReading, SsiError> {
         let lane = &self.lane;
         let pair = lane.boxes();
         let (root_cell, speed) = lane.root_cell();
@@ -394,8 +775,8 @@ impl Section<'_> {
         let ends = lane.ends();
 
         // ---- the open branches, between the crossings not yet ended ----
-        let crossings = passed(&self.crossings, || lane.boundary_pass())?;
-        for branch in ends.branches(&self.banked.open(crossings))? {
+        let pass = passed(&self.pass, || lane.boundary_pass(&self.rows, &self.corners))?.clone();
+        for branch in ends.branches(&self.banked.open(&pass.crossings))? {
             self.banked.bank(branch);
         }
 
@@ -403,14 +784,17 @@ impl Section<'_> {
         let seeds = exhaust::seed_pair(&pair, seed_floor)?;
         #[allow(clippy::cast_possible_truncation)]
         let seed_count = seeds.len() as u32;
-        self.banked.closed_loops(&ends, seeds, &[])?;
+        self.banked.closed_loops(&ends, seeds, &pass.cells)?;
 
-        let exhaustiveness = lane.account(&self.banked.tubes)?;
-        Ok(SsiOutcome {
-            branches: self.banked.branches,
-            boundary: Vec::new(),
-            exhaustiveness,
-            seeds: seed_count,
+        let exhaustiveness = lane.account(&self.banked.tubes, &pass.cells)?;
+        Ok(PairReading {
+            outcome: SsiOutcome {
+                branches: self.banked.branches,
+                boundary: Vec::new(),
+                exhaustiveness,
+                seeds: seed_count,
+            },
+            regions: pass.regions,
         })
     }
 }
@@ -430,7 +814,11 @@ impl PairLane<'_> {
 
     /// **The accounting**: every cell of the product excluded or inside
     /// one of `tubes`, at the domain's floor.
-    fn account(&self, tubes: &[Vec<Box4>]) -> Result<super::Exhaustiveness, SsiError> {
+    fn account(
+        &self,
+        tubes: &[Vec<Box4>],
+        regions: &[Box4],
+    ) -> Result<super::Exhaustiveness, SsiError> {
         let (root_cell, speed) = self.root_cell();
         let floor = SweepFloor::pair(
             root_cell,
@@ -446,8 +834,70 @@ impl PairLane<'_> {
                 scale: root_cell.scale,
             })
             .collect();
-        exhaust::account_pair(&self.boxes(), &cells, floor)
+        let regions: Vec<PairCell> = regions
+            .iter()
+            .map(|&b| PairCell {
+                b,
+                scale: root_cell.scale,
+            })
+            .collect();
+        exhaust::account_pair(&self.boxes(), &cells, &regions, floor)
     }
+}
+
+/// The most halvings [`branch_witness`] takes of a slice about the
+/// branch's middle before it gives up.
+const WITNESS_HALVINGS: u32 = 48;
+
+/// **A point of a certified branch, and how far it may stand from it**,
+/// in metres: the centre `q` of the first wall's enclosure over a root
+/// the Krawczyk test isolates ([`super::four::slice_root`]) on a slice
+/// through the fitted middle state, inside the limb-3 tube box that
+/// holds it, and that enclosure's half-widths summed. Limb 3 proves the
+/// section in the box one arc, the branch's, so the root is a point of
+/// the branch, its image on the first wall in the enclosure. The slice
+/// is held at each coordinate in turn and halved about the middle state
+/// from the box's own extent until one isolates a root. `None` where the
+/// certificate is not a two-chart tube or no slice isolates one.
+pub(crate) fn branch_witness(
+    (a, b): (&NurbsSurface<f64>, &NurbsSurface<f64>),
+    branch: &SsiBranch,
+) -> Option<(Point3<f64>, f64)> {
+    let (Some(pa), Some(pb), super::SsiTube::TwoChart { pad_a, pad_b, .. }) =
+        (&branch.pcurve_a, &branch.pcurve_b, branch.certificate.tube)
+    else {
+        return None;
+    };
+    let mid = 0.5 * (branch.params.0 + branch.params.1);
+    let (at_a, at_b) = (pa.eval(mid), pb.eval(mid));
+    let m = [at_a.x, at_a.y, at_b.x, at_b.y];
+    let chain = super::certify::pair_tube_chain((pa, pb), (pad_a, pad_b))?;
+    let (held, _) = chain.into_iter().find(|(x, _)| x.holds(&m))?;
+    let (ca, cb) = (ChartedNurbs::mint(a).ok()?, ChartedNurbs::mint(b).ok()?);
+    let (sa, sb) = (ca.speeds(), cb.speeds());
+    let pair = PairBoxes::new(&ca, &cb, [sa.u.get(), sa.v.get(), sb.u.get(), sb.v.get()]);
+    let mut half: [f64; 4] = core::array::from_fn(|k| held.0[k].1 - held.0[k].0);
+    for _ in 0..WITNESS_HALVINGS {
+        for k in 0..4 {
+            let slice = Box4(core::array::from_fn(|i| {
+                if i == k {
+                    (m[i], m[i])
+                } else {
+                    (m[i] - half[i], m[i] + half[i])
+                }
+            }))
+            .meet(held);
+            let Some(root) = slice.and_then(|x| super::four::slice_root(&pair, x, k)) else {
+                continue;
+            };
+            let [(u0, u1), (v0, v1), ..] = root.0;
+            let s = super::enclose::NurbsBoxes::new(a)
+                .rect_box(super::enclose::UvWindow::new(u0, u1, v0, v1)?);
+            return s.centre_and_reach();
+        }
+        half = half.map(|h| 0.5 * h);
+    }
+    None
 }
 
 #[cfg(test)]
@@ -455,9 +905,10 @@ impl PairLane<'_> {
 mod tests {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3};
+    use geom_core::{Band, Bounds, Point3};
 
     use super::Section;
+    use crate::ssi::enclose::Box3;
     use crate::ssi::{SsiDomain, SsiError};
 
     /// `z = (x − ½)²` over the unit square, and the plane `z = 0.04 +
@@ -477,6 +928,89 @@ mod tests {
         let trough = net((0.0, 1.0), &|i, _| [0.25, -0.25, 0.25][i]);
         let plane = net((-0.2, 1.2), &|_, j| 0.04 + 0.05 * (-0.2 + 0.7 * j as f64));
         (trough, plane)
+    }
+
+    /// The biquadratic standing over `xs × ys` on the unit square, `x`
+    /// along `u` and `y` along `v`, its height `z(x, y)` at each control
+    /// point, which a function bilinear in `x` and `y` reproduces.
+    fn sheet(xs: (f64, f64), ys: (f64, f64), z: &dyn Fn(f64, f64) -> f64) -> NurbsSurface<f64> {
+        let k = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let at = |(lo, hi): (f64, f64), i: usize| lo + 0.5 * (hi - lo) * i as f64;
+        let control = (0..9)
+            .map(|n| {
+                let (x, y) = (at(xs, n / 3), at(ys, n % 3));
+                Point3::new(x, y, z(x, y))
+            })
+            .collect();
+        NurbsSurface::new(k(), k(), control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **A corner where the section runs into both rectangles is a
+    /// crossing, not a region.** The sheet `z = 0.2·x·y` and the plane
+    /// `z = x − y/2` over `y ∈ [0, 1.5]` share the corner `(0, 0)` of both
+    /// rectangles, and the section leaves it increasing in every
+    /// coordinate: handed in, the corner is a crossing of the pass, and
+    /// no region. Red against the corner's signs read as leaving.
+    #[test]
+    fn a_corner_a_branch_starts_at_is_a_crossing() {
+        use crate::ssi::{BoundaryChart, ChartCorner, ChartEnd};
+        let flat = sheet((0.0, 1.0), (0.0, 1.0), &|x, y| 0.2 * x * y);
+        let enters = sheet((0.0, 1.0), (0.0, 1.5), &|x, y| x - 0.5 * y);
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 4.0,
+            extent: 2.0,
+            floor_scale: 1.0,
+        };
+        let low = ChartCorner {
+            u: ChartEnd::Low,
+            v: ChartEnd::Low,
+        };
+        let section = Section::of_known(
+            &flat,
+            &enters,
+            domain,
+            band,
+            (Vec::new(), vec![super::PairCorner([low, low])]),
+        )
+        .unwrap();
+        let pass = section.pass().expect("the pass reads the corner");
+        assert!(pass.regions.is_empty(), "no region: {:?}", pass.regions);
+        assert!(
+            pass.crossings
+                .iter()
+                .any(|c| c.state == [0.0; 4] && c.at.chart == BoundaryChart::First),
+            "the corner is a crossing: {:?}",
+            pass.crossings
+        );
+    }
+
+    /// **A witness's pad reaches every point of its enclosure.** Each
+    /// corner of a lopsided box stands within the pad of its centre, and
+    /// the farthest one more than half the pad off, so the pad is no
+    /// looser than twice the half-diagonal. Red against the pad dropped
+    /// and against the pad halved (the half-diagonal of a box exceeds half
+    /// its half-widths' sum).
+    #[test]
+    fn a_witness_pad_reaches_its_whole_enclosure() {
+        use geom_core::Interval;
+        let s = Box3 {
+            x: Interval::from_bounds(1.0, 1.0 + 3e-9),
+            y: Interval::from_bounds(-2.0, -2.0 + 4e-9),
+            z: Interval::from_bounds(0.5, 0.5 + 1e-9),
+        };
+        let (q, pad) = s.centre_and_reach().expect("a finite enclosure");
+        let corners = [s.x.lo(), s.x.hi()].into_iter().flat_map(|x| {
+            [s.y.lo(), s.y.hi()]
+                .into_iter()
+                .flat_map(move |y| [s.z.lo(), s.z.hi()].map(|z| Point3::new(x, y, z)))
+        });
+        let far = corners.map(|c| c.distance(q)).fold(0.0, f64::max);
+        assert!(
+            far <= pad && 0.5 * pad < far,
+            "the farthest corner stands {far:e} from the centre, against the pad {pad:e}"
+        );
     }
 
     /// **A section of charts minted once reads as one of fresh mints.**
@@ -579,19 +1113,258 @@ mod tests {
         assert_eq!(section.banked.tubes.len(), 2, "both branches certified");
         let whole = section
             .lane
-            .account(&section.banked.tubes)
+            .account(&section.banked.tubes, &[])
             .expect("both tubes close it");
         assert!(whole.accounted > 0, "{whole}");
         for dropped in 0..2 {
             let kept = vec![section.banked.tubes[1 - dropped].clone()];
             let e = section
                 .lane
-                .account(&kept)
+                .account(&kept, &[])
                 .expect_err("one branch's cells are left unaccounted");
             assert!(
                 matches!(e, SsiError::ExhaustivenessInconclusive(_)),
                 "dropping branch {dropped}: {e:?}"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation
+)]
+mod r2_line_rows {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Vec2};
+
+    use super::{PairRow, Section};
+    use crate::ssi::{BranchEnd, SsiDomain};
+
+    /// `z = k·y·(y − δ)` over the unit square, a biquadratic (exact).
+    fn wall(k: f64, delta: f64, (x0, x1): (f64, f64)) -> NurbsSurface<f64> {
+        let kn = || KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        // Bernstein coefficients in y of k·(y² − δ·y): b0 = 0, b1 = −kδ/2, b2 = k(1 − δ).
+        let b = [0.0, -0.5 * k * delta, k * (1.0 - delta)];
+        let control = (0..9)
+            .map(|n| {
+                Point3::new(
+                    x0 + (x1 - x0) * 0.5 * (n / 3) as f64,
+                    0.5 * (n % 3) as f64,
+                    b[n % 3],
+                )
+            })
+            .collect();
+        NurbsSurface::new(kn(), kn(), control, vec![1.0; 9]).unwrap()
+    }
+
+    /// **A second branch inside the widest rung's cover is traced, never
+    /// covered.** `z = 0` and `z = 20·y·(y − δ)` share their `v = 0` row
+    /// and meet again in the line `y = δ`, inside the first rungs' width
+    /// (an eighth of the chart, then a sixteenth). Handed the row, the
+    /// reading must still trace the line: one open branch.
+    #[test]
+    fn r2_a_second_branch_beside_a_shared_row_is_traced() {
+        let zero = geom_core::Tol::witness().eps();
+        let (a, b) = (wall(0.0, 0.0, (0.0, 1.0)), wall(20.0, 0.06, (-0.5, 1.5)));
+        let image = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(1.0, 0.0),
+        };
+        let image_b = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.25, 0.0),
+            pl: Vec2::new(0.5, 0.0),
+        };
+        let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
+        let band = Band::new(zero, 10.0 * zero).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 40.0,
+            extent: 80.0,
+            floor_scale: 1.0,
+        };
+        let r = Section::of_known(&a, &b, domain, band, (vec![row], Vec::new()))
+            .unwrap()
+            .read_all()
+            .expect("the pair reads");
+        let open = r
+            .outcome
+            .branches
+            .iter()
+            .filter(|b| matches!(b.end, BranchEnd::Rim { .. }))
+            .count();
+        assert_eq!(open, 1, "the line y = δ inside the cover is traced");
+    }
+
+    /// **A second branch within even the floor's cover refuses, never
+    /// covered: the cover reads no piece's sign.** `z = 0` and
+    /// `z = 20·y·(y − δ)`, `δ` a two-hundredth of a band, share their
+    /// `v = 0` row and cross again along `y = δ`, inside the narrowest
+    /// rung's cover all along the row (the floor is narrowest across the
+    /// second wall's steep `v`). Every piece of every rung holds the second line, so
+    /// none reads a sign: the given-up rungs give up, the last reads whole
+    /// and unread, and the pair refuses as a cover read nowhere
+    /// ([`PairBoundaryCause::CoverUnread`]), the reading's incapacity, not
+    /// a tangency. Red against a piece with no sign read as signed, at
+    /// depth on the last rung or on a given-up rung, with either sign:
+    /// every piece then reads one sign, the cover reads clear, and the
+    /// pass walks past the line's crossings inside it (it answers with
+    /// none, and the reading would list one `Side` region and no branch).
+    #[test]
+    fn a_second_branch_within_the_floor_cover_refuses_as_unread() {
+        let zero = geom_core::Tol::witness().eps();
+        let (a, b) = (
+            wall(0.0, 0.0, (0.0, 1.0)),
+            wall(20.0, 0.005 * zero, (-0.5, 1.5)),
+        );
+        let image = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(1.0, 0.0),
+        };
+        let image_b = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.25, 0.0),
+            pl: Vec2::new(0.5, 0.0),
+        };
+        let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
+        let band = Band::new(zero, 10.0 * zero).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 40.0,
+            extent: 80.0,
+            floor_scale: 1.0,
+        };
+        // The boundary pass reads the covers before it walks a face, so
+        // the pass alone answers.
+        let pass = Section::of_known(&a, &b, domain, band, (vec![row], Vec::new()))
+            .unwrap()
+            .crossings();
+        assert!(
+            matches!(
+                pass,
+                Err(crate::ssi::SsiError::PairBoundaryUnresolved {
+                    cause: crate::ssi::PairBoundaryCause::CoverUnread,
+                    ..
+                })
+            ),
+            "the line within the floor's cover leaves every piece unread: {pass:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation
+)]
+mod r2_ellipse_rows {
+    use geom::NurbsSurface;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Band, Point2, Point3, Vec2};
+
+    use super::{PairRow, Section};
+    use crate::ssi::{BranchEnd, SsiDomain, SsiError};
+
+    fn binom(n: usize, k: usize) -> f64 {
+        (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
+    }
+
+    /// `z = Σ c[m][n] u^m y^n` over `x = x0 + l·u`, `u ∈ [0, 1]`, and
+    /// `y ∈ [0, s]` (`v = y / s`), exactly: a biquadratic in `u` by cubic
+    /// in `v`.
+    fn poly(c: [[f64; 4]; 3], (x0, l): (f64, f64), s: f64) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let mut control = Vec::new();
+        for i in 0..3 {
+            for j in 0..4 {
+                let mut b = 0.0;
+                for m in 0..=i {
+                    for n in 0..=j {
+                        b += c[m][n] * s.powi(n as i32) * binom(i, m) / binom(2, m) * binom(j, n)
+                            / binom(3, n);
+                    }
+                }
+                control.push(Point3::new(x0 + l * i as f64 / 2.0, s * j as f64 / 3.0, b));
+            }
+        }
+        NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap()
+    }
+
+    /// **A loop inside the widest rung's cover is traced, never covered:
+    /// the cover's claim (the section in it is the row) read where it
+    /// would be false.** `z = 0` and `z = K·y·(((x − ½)/a)² + ((y − δ)/r)² − 1)`
+    /// share their `v = 0` row and meet again in a thin ellipse inside the
+    /// first rungs' width on both charts. The rungs whose cover holds the
+    /// ellipse read pieces with no sign and are given up; the first that
+    /// clears it covers the row alone, and the ellipse is traced. Limb 3
+    /// does not yet prove so thin a loop's tube (and at a coarse ε the
+    /// march reads its two long sides as one locus crossing itself), so
+    /// the reading either lists one loop beside one `Side` region, or
+    /// refuses that loop's tube or its march: either way the trace reached
+    /// it. Red against a piece with no
+    /// sign read as signed, at depth on the last rung or on a given-up
+    /// rung, either sign: the cover reads clear and swallows the loop (no
+    /// loop, no tube refusal), or reads a turn and refuses as a tangency
+    /// along the row.
+    #[test]
+    fn r2_a_loop_inside_the_first_cover_is_traced() {
+        let zero = geom_core::Tol::witness().eps();
+        let (k, aa, d, r, s) = (0.25, 0.3, 0.008, 0.004, 0.125);
+        let mut c = [[0.0; 4]; 3];
+        c[2][1] = k / (aa * aa);
+        c[1][1] = -k / (aa * aa);
+        c[0][1] = k * (0.25 / (aa * aa) + d * d / (r * r) - 1.0);
+        c[0][2] = -2.0 * k * d / (r * r);
+        c[0][3] = k / (r * r);
+        let (a, b) = (poly([[0.0; 4]; 3], (0.0, 1.0), 1.0), poly(c, (0.0, 1.0), s));
+        let image = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(1.0, 0.0),
+        };
+        let row = PairRow::new((&a, image.clone()), (&b, image), (0.0, 1.0)).unwrap();
+        let band = Band::new(zero, 10.0 * zero).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 40.0,
+            extent: 80.0,
+            floor_scale: 1.0,
+        };
+        let read = Section::of_known(&a, &b, domain, band, (vec![row], Vec::new()))
+            .unwrap()
+            .read_all();
+        match read {
+            Ok(r) => {
+                let loops = r
+                    .outcome
+                    .branches
+                    .iter()
+                    .filter(|b| b.end == BranchEnd::Closed)
+                    .count();
+                assert_eq!(loops, 1, "the ellipse inside the cover is traced: {r:?}");
+                assert!(
+                    matches!(r.regions.as_slice(), [super::PairRegion::Side { .. }]),
+                    "the row is one Side region: {:?}",
+                    r.regions
+                );
+            }
+            Err(
+                SsiError::TubeStraddles { .. }
+                | SsiError::TubeNotOneArc { .. }
+                | SsiError::SelfCrossingLocus { .. },
+            ) => {}
+            Err(e) => panic!("the ellipse is traced, listed or its tube refused: {e:?}"),
         }
     }
 }
