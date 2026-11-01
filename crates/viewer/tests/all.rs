@@ -88,6 +88,8 @@ mod doc_io;
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
+#[path = "drive.rs"]
+mod drive;
 #[path = "duplicate_beside.rs"]
 mod duplicate_beside;
 #[path = "edge_pick.rs"]

@@ -1001,6 +1001,7 @@ mod kernel {
         /// `ShellError`'s arms, for the `Shell/` rows.
         pub(super) const SHELL_ERROR: ShellError = [
             Band, Thickness, NoSolid, Roles, Partition, WallClearance, OffsetsCross,
+            CavityCrosses, CavityUncertified,
             ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
             OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
             Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
@@ -1221,6 +1222,8 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 | S::Partition { .. }
                 | S::WallClearance { .. }
                 | S::OffsetsCross { .. }
+                | S::CavityCrosses { .. }
+                | S::CavityUncertified { .. }
                 | S::ChartSenseMixed { .. }
                 | S::OpenFaceStale { .. }
                 | S::OpenFaceRepeated { .. }
@@ -5492,6 +5495,26 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                     other,
                     overlap: 0.001,
                     thickness: 0.002,
+                },
+            ),
+            (
+                "CavityCrosses",
+                S::CavityCrosses {
+                    face,
+                    other,
+                    stations: [(0.5, 0.25), (0.75, 0.5)],
+                    distance: 1e-16,
+                },
+            ),
+            (
+                "CavityUncertified",
+                S::CavityUncertified {
+                    refusal: topo::clearance::EngineRefusal::Uncertified {
+                        a: face,
+                        b: other,
+                        shared: topo::clearance::SharedCell::Edge(topo::EdgeKey::default()),
+                        arm: topo::clearance::CertificateArm::Departure,
+                    },
                 },
             ),
             ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
