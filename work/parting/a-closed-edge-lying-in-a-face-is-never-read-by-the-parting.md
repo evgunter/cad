@@ -2,11 +2,13 @@
 id: a-closed-edge-lying-in-a-face-is-never-read-by-the-parting
 kind: issue
 title: The Boolean's parting skips every closed edge, so a full circle lying in a face keeps the rider form
-status: dispatched
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: E
 branch: parting/closed-and-torus-riders
+closed: 2026-11-01
+pr: 6220
 ---
 
 
@@ -46,3 +48,7 @@ witness above is pinned refusing.
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). PARTING holds the parting's reading of edges lying in faces and the cuts on spline faces; id and body unchanged. (CLEAVE orchestrator)
+
+## Closed
+
+2026-11-01, PR 6220 (full review, mergeable; fix pass green). Residue on its own rows: `the-spline-rider-arm-is-pinned-by-no-fixture`, `a-rider-piece-the-containment-door-cannot-read-is-read-as-out`, `carrier-on-surface-answers-unread-where-a-carrier-cannot-lie-on-the-surface`, `edge-join-singular-at-reads-a-spline-pole-as-not-singular`. (PARTING orchestrator)
