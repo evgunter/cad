@@ -1944,7 +1944,7 @@ prefix `doors/`; tag `(DOORS orchestrator)`; ab_band `10600-10699`.
 |---|---|---|---|---|---|---|---|
 | P0 | `a-mate-on-a-taken-over-copys-face-goes-stale` | issue | M | dispatched | A mate another placement seats on a face of a body's copy goes stale when a fillet or mirror takes that copy over: the mated part is no longer placed |  |  |
 | P0 | `a-split-of-a-drawn-body-is-drawn-unsplit` | issue | M | parked | Splitting a drawn body leaves the picture showing the unsplit body: add_split takes nothing over, so its halves are reachable only in the tree | #6209 |  |
-| P1 | `the-gui-has-no-clearance-consumer` | issue | H +design | open | the GUI has no clearance consumer: no verdict, no witness, no refusal |  |  |
+| P1 | `the-gui-has-no-clearance-consumer` | issue | H | open | the GUI has no clearance consumer: no verdict, no witness, no refusal |  |  |
 | P1 | `the-create-pane-has-no-extrude-side` | issue | M | dispatched | The extrude form has no side control, so a ruled depth-and-side extrude cannot be authored from the GUI |  |  |
 | P1 | `a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere` | issue | M | parked | A fillet on an operand of a drawn union (a tree pick) is inserted and drawn nowhere: the takeover re-points placements only | #6209 |  |
 | P1 | `the-mirror-keeps-two-pieces-and-mirrors-across-another-spaces-face-after-dprime3` | issue | M | parked | After D′3 the mirror tool gains its two-pieces output (B ⊔ image) and a world-level mirror across another space's face | #6209 |  |
