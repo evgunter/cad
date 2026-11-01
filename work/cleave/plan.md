@@ -5,6 +5,30 @@ item files beside this plan.
 
 Branch prefix **`cleave/`**; away-channel tag `(CLEAVE orchestrator)`.
 
+## State at hand-back (2026-11-01)
+
+No orchestrator: the track is `ready`. The sitting that split CLEAVE
+ended when its P1 rows were done (PRs 6177, 6184, 6185, 6237 merged).
+
+- **No P0 or P1 row is dispatchable.** The one live P1,
+  `three-corners-alternating-round-a-corner-refuse-at-the-join`, is
+  parked on `shared-vertex-crossings-that-tie-or-interleave-are-unprobed`.
+- **The slate is P2 and P3**, around one story: where solids meet along a
+  line. That covers the `LineWedges` overlaps; an edge running past a
+  face along coincident edges; the fate cut's placement voice; the touch
+  end on an edge of a division; the sliver, pinch-ray and slit-face tail.
+- **Rows still here only until their claimants' tracker PRs land:**
+  - the two cylinder-tangent rows, claimed by TANGRIM on
+    `tangrim/orchestrator`;
+  - `a-conic-on-a-cone-face-is-read-at-five-samples-unbounded-between`,
+    claimed by PARTING on `parting/orchestrator`.
+
+  Load is about 33/30 once they move. A successor splits it on its seams
+  if it grows: the fate-cut placement rows against the line-wedge rows.
+- **Main red to know about:** a loft-cap injectivity pin at 1e-6
+  (`self_intersection_proves_injectivity::a_lens_loft_cap_refuses_departure_at_its_tip_at_both_scalars`),
+  named in CLEAR's departure row. It is not CLEAVE's.
+
 ## The 2026-11-01 split
 
 CLEAVE measured 114 budget points against 30, and Ev suggested (in
