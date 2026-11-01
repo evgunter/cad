@@ -104,7 +104,9 @@ impl<T: Decide> Reach<T> {
     pub(crate) fn departure(self, dir: Vec3<T>, n: Vec3<T>) -> T {
         match self {
             Self::Chord { base, far } => crate::sector_shape::plane_offset(base, n, far),
-            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l, _) => rise(dir, n, l),
+            Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l, _) => {
+                rise(dir, n, l)
+            }
         }
     }
 }
@@ -627,8 +629,13 @@ impl<T: Decide> Tie<T> {
         let own = match (face.bend, reach) {
             (FaceBend::Fitted, _) | (_, Reach::Bisector(_, None)) => return Err(self.unbent(band)),
             (FaceBend::Plane, Reach::Conic { extent, bend }) => {
-                return match geom_brep::conic_bend_side(self.dir, extent, bend, face.reference, band)
-                {
+                return match geom_brep::conic_bend_side(
+                    self.dir,
+                    extent,
+                    bend,
+                    face.reference,
+                    band,
+                ) {
                     Ok(verdict) => {
                         Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Leaves))
                     }
@@ -649,7 +656,9 @@ impl<T: Decide> Tie<T> {
         let Some(section) = face.bend.section(self.dir.normalize(), n) else {
             return Err(self.unbent(band));
         };
-        let arm = face.lever.map_or(reach.length(), |lever| reach.length().min(lever));
+        let arm = face
+            .lever
+            .map_or(reach.length(), |lever| reach.length().min(lever));
         match geom_brep::parting_side(own - n * section, face.reference, arm, band) {
             Ok(verdict) => Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Leaves)),
             Err(escalation) => Err(ReadFault::Parting(escalation)),

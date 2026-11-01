@@ -2331,7 +2331,12 @@ mod tests {
         };
         let reference = [BoolSector {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
-            ..twin(bis, Reach::straight_bisector(1.0), bis, Reach::straight_bisector(1.0))
+            ..twin(
+                bis,
+                Reach::straight_bisector(1.0),
+                bis,
+                Reach::straight_bisector(1.0),
+            )
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
         let bracket = geom_core::k_stats::Bracket::open();

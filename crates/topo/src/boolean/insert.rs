@@ -3563,7 +3563,12 @@ mod tests {
         };
         let sectors = [
             sector(0.0, Reach::Extent(1.0), 90.0, Reach::straight_bisector(1.0)),
-            sector(90.0, Reach::straight_bisector(1.0), 180.0, Reach::Extent(1.0)),
+            sector(
+                90.0,
+                Reach::straight_bisector(1.0),
+                180.0,
+                Reach::Extent(1.0),
+            ),
         ];
         for inside in [10.0, 45.0, 80.0] {
             let along = Cut::apart(0, e);

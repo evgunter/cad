@@ -693,7 +693,9 @@ pub(super) fn bound_read<T: Decide>(
             tie: None,
         }),
         FirstOrder::Tied(tie) => {
-            let descent = tie.descend(band).map_err(|fault| read_refusal(fault, band))?;
+            let descent = tie
+                .descend(band)
+                .map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
                 BoundSide::Off(side) | BoundSide::Leaves(side) => code_of(side),
                 BoundSide::Rides => SideCode::On,
@@ -2782,9 +2784,7 @@ pub(super) fn cone_read<T: Decide>(
     let away = match decide("bool_cone_pointed", Margin::levered(mean.norm(), arm), band) {
         // An in-band `−c` labels nothing, as no side read does: the cone
         // is the material.
-        Ok(Sign::Positive) => {
-            cone_side(-mean, Reach::Extent(arm), other, band).unwrap_or_default()
-        }
+        Ok(Sign::Positive) => cone_side(-mean, Reach::Extent(arm), other, band).unwrap_or_default(),
         Ok(Sign::Zero | Sign::Negative) | Err(_) => None,
     };
     let (met, pointed) = match away {
@@ -7162,7 +7162,14 @@ mod tests {
             (Vec3::new(-s, (1.0 - s * s).sqrt(), 0.0), s * 0.01 / 2.0)
         };
         assert_eq!(
-            side_code(d, Reach::straight_bisector(peak * 1e6), n, NO_CURVATURE::<f64>(), b).unwrap(),
+            side_code(
+                d,
+                Reach::straight_bisector(peak * 1e6),
+                n,
+                NO_CURVATURE::<f64>(),
+                b
+            )
+            .unwrap(),
             SideCode::Out,
             "against a plane the first-order reading is the truth"
         );

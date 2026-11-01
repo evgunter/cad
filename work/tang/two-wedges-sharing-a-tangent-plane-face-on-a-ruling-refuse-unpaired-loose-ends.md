@@ -2,10 +2,12 @@
 id: two-wedges-sharing-a-tangent-plane-face-on-a-ruling-refuse-unpaired-loose-ends
 kind: issue
 title: Two wedges sharing a wall's tangent-plane face, apex edges on its ruling, refuse Join(UnpairedLooseEnds) in every op and order: an untyped join refusal with no recourse (D4)
-status: open
+status: closed
 opened: 2026-10-16
 priority: P2
 cost: M
+closed: 2026-11-01
+pr: 6253
 ---
 
 
@@ -46,3 +48,15 @@ in that file, which asserts the exact refusal, so it flips when fixed.
 
 A typed answer: build, or a typed refusal with a recourse; the pinned
 row is then re-baselined to it.
+
+## Closed
+
+2026-11-01, PR 6253 (`tangrim/sector-passes-descend`), by TANGRIM's
+stage 2 of the one bound-side reading: every op in both orders builds,
+tier 3 clean, at the closed form
+(`a_minted_vertex_on_a_curved_face.rs`
+`two_wedges_sharing_the_tangent_plane_face_answer_every_op`, which
+replaces the refusal pin). The sector passes now read a bound tied with
+the wall's tangent plane one order down against the cylinder itself,
+where they read every face as its tangent plane and keyed the gateways
+on the first-order `On`.
