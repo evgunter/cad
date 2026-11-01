@@ -1595,7 +1595,7 @@ pub(crate) fn slot_doors(
 }
 
 /// **What a slot has to SAY, under its row**: the fault a slot that
-/// did not evaluate carries, a driven slot's expression
+/// did not evaluate carries or its value at each member, a driven slot's expression
 /// (`label = source`, which its field does not show — [`slot_showing`]),
 /// the expression-driven refusal's affordance and its edit doors, and
 /// the range `reading` when one has been taken for this field.
@@ -1623,13 +1623,28 @@ fn slot_notes(
     reading: Option<&str>,
     notation: Notation,
 ) -> Option<VarId> {
-    if let Err(error) = &row.value {
-        crate::widgets::message_toned(
+    match &row.value {
+        Ok(_) => {}
+        Err(props::SlotFault::PerMember(members)) => {
+            crate::widgets::message_toned(
             ui,
-            format!("{}: {error}", row.slot.label()),
+            format!(
+                "{} at each member: {}",
+                row.slot.label(),
+                members.spelled(row.dimension, notation)
+            ),
             theme,
             Tone::Advisory,
         );
+        }
+        Err(error) => {
+            crate::widgets::message_toned(
+                ui,
+                format!("{}: {error}", row.slot.label()),
+                theme,
+                Tone::Advisory,
+            );
+        }
     }
     let mut clicked = None;
     if let SlotDriver::Expression { variables } = &row.driver {

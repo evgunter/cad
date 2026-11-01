@@ -130,10 +130,11 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use editor_core::repetition::Reached;
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, FreeValue, FreeVar, Node,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName,
+    NodeErrorKind, ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName,
     VectorSlot, eval, eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
@@ -537,7 +538,7 @@ impl SlotDriver {
     }
 }
 
-/// Why a slot has no value to show.
+/// Why a slot has no one value to show.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SlotFault {
     /// The expression did not evaluate — the kernel's own typed reason
@@ -547,6 +548,28 @@ pub enum SlotFault {
     /// A broken `Node::slots`/`Node::expr` postcondition, reported
     /// rather than skipped; see [`slot_row`].
     NoExpression,
+    /// The expression reads an index, which has a value in one member
+    /// alone: the slot has one value per member, and these are they.
+    PerMember(MemberValues),
+    /// The expression reads an index whose count did not evaluate, so
+    /// there are no members to read it at.
+    IndexCount {
+        /// The index.
+        index: SpokenVar,
+        /// Why its count did not evaluate.
+        source: EvalError,
+    },
+    /// The expression reads an index whose count is below zero or past
+    /// the members an index holds.
+    IndexCountOutOfRange {
+        /// The index.
+        index: SpokenVar,
+        /// Its count.
+        count: i64,
+    },
+    /// The expression reads two indices neither of which is within the
+    /// other, which no member binds together.
+    UnrelatedIndices(SpokenVar, SpokenVar),
 }
 
 impl core::fmt::Display for SlotFault {
@@ -557,7 +580,107 @@ impl core::fmt::Display for SlotFault {
                 f,
                 "the node lists this slot but carries no expression for it"
             ),
+            Self::PerMember(members) => write!(
+                f,
+                "one value per member of {} ({} members)",
+                members.indices(),
+                members.members.len()
+            ),
+            Self::IndexCount { index, source } => {
+                write!(f, "the count of index {index} did not evaluate: {source}")
+            }
+            Self::IndexCountOutOfRange { index, count } => write!(
+                f,
+                "index {index} counts {count} members, outside 0 to {}",
+                u32::MAX
+            ),
+            Self::UnrelatedIndices(a, b) => write!(
+                f,
+                "it reads indices {a} and {b}, neither within the other, so no member binds both"
+            ),
         }
+    }
+}
+
+/// **A slot's value at each member** of the indices its expression
+/// reaches ([`SlotFault::PerMember`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct MemberValues {
+    /// The indices, outermost first.
+    pub over: Vec<SpokenVar>,
+    /// Each member in index order: its index values, one per index of
+    /// [`Self::over`], and the slot's value there or why it has none.
+    pub members: Vec<(Vec<i64>, Result<SlotValue, EvalError>)>,
+}
+
+impl MemberValues {
+    /// How many members [`Self::spelled`] names before it counts the
+    /// rest.
+    pub const SPELLED: usize = 6;
+
+    /// The indices, as a sentence names them.
+    fn indices(&self) -> String {
+        let names: Vec<String> = self.over.iter().map(SpokenVar::to_string).collect();
+        names.join(", ")
+    }
+
+    /// One member's value in the working `notation`, or [`NO_VALUE`].
+    fn value_text(
+        value: &Result<SlotValue, EvalError>,
+        dimension: Dimension,
+        notation: Notation,
+    ) -> String {
+        value.as_ref().map_or_else(
+            |_| NO_VALUE.to_owned(),
+            |value| computed_text(dimension, value.as_f64(), notation),
+        )
+    }
+
+    /// **The first member's value and the last's**, in the working
+    /// `notation`: what a driven field shows in its number's place.
+    #[must_use]
+    pub fn span(&self, dimension: Dimension, notation: Notation) -> String {
+        match self.members.as_slice() {
+            [] => "no members".to_owned(),
+            [(_, one)] => Self::value_text(one, dimension, notation),
+            [(_, first), .., (_, last)] => format!(
+                "{} … {}",
+                Self::value_text(first, dimension, notation),
+                Self::value_text(last, dimension, notation)
+            ),
+        }
+    }
+
+    /// **Each member and its value**, the first [`Self::SPELLED`] of
+    /// them, then how many more: `k = 0: 0 mm, k = 1: 70 mm`. A member
+    /// whose value refused says its refusal.
+    #[must_use]
+    pub fn spelled(&self, dimension: Dimension, notation: Notation) -> String {
+        let mut parts: Vec<String> = self
+            .members
+            .iter()
+            .take(Self::SPELLED)
+            .map(|(at, value)| {
+                let at: Vec<String> = self
+                    .over
+                    .iter()
+                    .zip(at)
+                    .map(|(index, value)| format!("{index} = {value}"))
+                    .collect();
+                let value = match value {
+                    Ok(_) => Self::value_text(value, dimension, notation),
+                    Err(error) => format!("{NO_VALUE} ({error})"),
+                };
+                format!("{}: {value}", at.join(", "))
+            })
+            .collect();
+        if let Some(more) = self.members.len().checked_sub(Self::SPELLED).filter(|&n| n > 0) {
+            parts.push(format!("and {more} more"));
+        }
+        if parts.is_empty() {
+            return format!("{} has no members", self.indices());
+        }
+        parts.join("; ")
     }
 }
 
@@ -647,25 +770,66 @@ fn slot_row(
             source: None,
         };
     };
-    let env = doc.var_env::<f64>();
-    let value = if slot.expr_dimension() == Dimension::Count {
-        eval_count(&expr, &env)
-            .map(SlotValue::Count)
-            .map_err(SlotFault::Eval)
-    } else {
-        eval::<f64>(&expr, &env)
-            .map(SlotValue::Continuous)
-            .map_err(SlotFault::Eval)
-    };
     SlotRow {
         slot,
         dimension: slot.expr_dimension(),
         structural: slot.is_structural(),
         driver: SlotDriver::of(doc, &expr),
-        value,
+        value: slot_value(doc, &expr, slot.expr_dimension()),
         unit: expr.display_unit(),
         source: Some(doc.unparse(&expr)),
     }
+}
+
+/// **What `expr` evaluates to under the document's variables** — or,
+/// where it reaches an index, which has a value in one member alone,
+/// what it evaluates to at each member ([`SlotFault::PerMember`]).
+fn slot_value(
+    doc: &Doc<ProfileProgram>,
+    expr: &Formula,
+    dimension: Dimension,
+) -> Result<SlotValue, SlotFault> {
+    let at = |env: &VarEnv<f64>| {
+        if dimension == Dimension::Count {
+            eval_count(expr, env).map(SlotValue::Count)
+        } else {
+            eval::<f64>(expr, env).map(SlotValue::Continuous)
+        }
+    };
+    let chain = match doc.expr_reach(expr) {
+        Reached::Chain(chain) if chain.is_empty() => {
+            return at(&doc.var_env()).map_err(SlotFault::Eval);
+        }
+        Reached::Chain(chain) => chain,
+        Reached::Unrelated(a, b) => {
+            return Err(SlotFault::UnrelatedIndices(
+                doc.spoken_var(a),
+                doc.spoken_var(b),
+            ));
+        }
+    };
+    let members = doc
+        .member_envs::<f64>(&chain)
+        .map_err(|kind| match kind {
+            NodeErrorKind::IndexCount { index, source } => SlotFault::IndexCount {
+                index: doc.spoken_var(index),
+                source,
+            },
+            NodeErrorKind::IndexCountOutOfRange { index, count, .. } => {
+                SlotFault::IndexCountOutOfRange {
+                    index: doc.spoken_var(index),
+                    count,
+                }
+            }
+            other => unreachable!("listing members refuses an index's count alone, not {other:?}"),
+        })?;
+    Err(SlotFault::PerMember(MemberValues {
+        over: chain.iter().map(|&index| doc.spoken_var(index)).collect(),
+        members: members
+            .into_iter()
+            .map(|(values, env)| (values, at(&env)))
+            .collect(),
+    }))
 }
 
 /// What a slot's value field shows in its number's place.
@@ -674,7 +838,9 @@ fn slot_row(
 /// equals** ([`computed_text`], in the working `notation`), not its source: the value is bounded
 /// and carries its unit, and the source is said under the row and
 /// opens the field's keyboard edit ([`field_source`]). A driven slot
-/// that did not evaluate shows [`NO_VALUE`] after the mark.
+/// that did not evaluate shows [`NO_VALUE`] after the mark, and one
+/// with a value per member its first member's and its last's
+/// ([`MemberValues::span`]).
 ///
 /// A literal whose value did not evaluate shows its source, which is
 /// a literal's and so a number and its unit. A literal that evaluated
@@ -712,6 +878,9 @@ pub fn field_text(row: &SlotRow, notation: Notation) -> String {
                 "{DRIVEN} {}",
                 computed_text(row.dimension, value.as_f64(), notation)
             )
+        }
+        (SlotDriver::Expression { .. }, Err(SlotFault::PerMember(members))) => {
+            format!("{DRIVEN} {}", members.span(row.dimension, notation))
         }
         (SlotDriver::Expression { .. }, Err(_)) => format!("{DRIVEN} {NO_VALUE}"),
         (SlotDriver::Literal, Err(_)) => row.source.clone().unwrap_or_default(),

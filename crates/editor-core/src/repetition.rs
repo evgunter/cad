@@ -268,6 +268,48 @@ impl<P: crate::ProfilePayload> Doc<P> {
         Reach::new(self).node(id)
     }
 
+    /// **The indices `expr` reaches**, ordered outermost first: those
+    /// the variables it reads reach ([`Reach`]).
+    #[must_use]
+    pub fn expr_reach(&self, expr: &crate::ExprTree<impl crate::LeafSet>) -> Reached {
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        let mut reach = Reach::new(self);
+        let set = reads
+            .into_iter()
+            .flat_map(|(read, _)| reach.of_var(read))
+            .collect();
+        reach.order(&set)
+    }
+
+    /// **Each member of the indices `chain`**, ordered outermost first
+    /// as a [`Reached::Chain`] orders them: its index values, and the
+    /// environment its readers evaluate in, each index bound to its
+    /// value and every definition reaching one bound again — what an
+    /// operation reaching `chain` is evaluated over, once per member.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NodeErrorKind::IndexCount`] where an index's count does
+    /// not evaluate, and [`crate::NodeErrorKind::IndexCountOutOfRange`]
+    /// where it evaluates below zero or past `u32::MAX`.
+    pub fn member_envs<T: geom_core::Decide>(
+        &self,
+        chain: &[VarId],
+    ) -> Result<Vec<(Vec<i64>, crate::VarEnv<T>)>, crate::NodeErrorKind> {
+        let outside = self.var_env::<T>();
+        let tuples = crate::eval::members::tuples(self, &outside, chain)?;
+        Ok(tuples
+            .into_iter()
+            .map(|values| {
+                let at: Vec<(VarId, i64)> = chain.iter().copied().zip(values.iter().copied()).collect();
+                let mut env = outside.clone();
+                self.bind_member(&mut env, &at);
+                (values, env)
+            })
+            .collect())
+    }
+
     /// **Every operation reading two indices neither of which is within
     /// the other**, in id order, with the two (D10 `[repetition]`): what
     /// the edit door refuses and the evaluation refuses typed.

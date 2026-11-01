@@ -36,7 +36,8 @@ use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};
 use pncad::quantity::{UnitDef, WrittenLength, unit_by_symbol};
 use viewer::props::{
-    self, Notation, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
+    self, MemberValues, Notation, SlotFault, SlotGroup, SlotUnitFault, SlotValue, from_written,
+    in_written, rendering_unit,
 };
 use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
 
@@ -1113,5 +1114,90 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     assert_eq!(
         props::doc_variable(Dimension::Count, SlotValue::Count(6), None),
         FreeVar::Count { value: 6 }
+    );
+}
+
+/// **A slot that reads a pattern's member index shows its value at
+/// each member**, not a refusal: outside a member the index has no
+/// value, so the row says the one it has in each. The other rows of
+/// the same placement read no index and keep their one value.
+#[test]
+fn a_patterns_member_indexed_rows_show_each_members_value() {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("pattern-rows", tol), tol);
+    let body = common::xy_box_in(&mut session, [0.02, 0.02, 0.01]);
+    let pattern = common::session_insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: body.into(),
+            count: 3,
+            rule: viewer::session::PatternRuleSpec::Linear {
+                direction: common::scl3([1.0, 0.0, 0.0]),
+                spacing: common::len(0.07),
+            },
+        },
+    );
+    let selected = session.perform(SessionOp::Select(Selection::Node(pattern)));
+    assert!(selected.refusal.is_none(), "{:?}", selected.refusal);
+    let rows = session.slot_rows();
+    let refused: Vec<_> = rows
+        .iter()
+        .filter(|row| !matches!(row.value, Ok(_) | Err(SlotFault::PerMember(_))))
+        .collect();
+    assert!(refused.is_empty(), "rows that refused: {refused:?}");
+    let per_member: Vec<&MemberValues> = rows
+        .iter()
+        .filter_map(|row| match &row.value {
+            Err(SlotFault::PerMember(members)) => Some(members),
+            _ => None,
+        })
+        .collect();
+    let [members] = per_member.as_slice() else {
+        panic!("the one slide that reads the index has a value per member: {rows:?}");
+    };
+    let values: Vec<_> = members
+        .members
+        .iter()
+        .map(|(at, value)| (at.clone(), value.clone()))
+        .collect();
+    let expected: Vec<_> = (0..3_i64)
+        .map(|k| {
+            #[allow(clippy::cast_precision_loss)]
+            let slide = k as f64 * 0.07;
+            (vec![k], Ok(SlotValue::Continuous(slide)))
+        })
+        .collect();
+    assert_eq!(values, expected, "each member slides k spacings");
+    let row = rows
+        .iter()
+        .find(|row| matches!(row.value, Err(SlotFault::PerMember(_))))
+        .expect("found above");
+    let notation = Notation::DEFAULT;
+    assert_eq!(
+        props::field_text(row, notation),
+        format!(
+            "{} {} … {}",
+            props::DRIVEN,
+            props::computed_text(Dimension::Length, 0.0, notation),
+            props::computed_text(Dimension::Length, 2.0 * 0.07, notation)
+        ),
+        "the field shows the first member's value and the last's"
+    );
+    let spelled: Vec<String> = expected
+        .iter()
+        .map(|(at, value)| {
+            let value = value.as_ref().map(|v| v.as_f64()).expect("built Ok");
+            format!(
+                "{} = {}: {}",
+                members.over[0],
+                at[0],
+                props::computed_text(Dimension::Length, value, notation)
+            )
+        })
+        .collect();
+    assert_eq!(
+        members.spelled(Dimension::Length, notation),
+        spelled.join("; "),
+        "the note under the row names each member and its value"
     );
 }

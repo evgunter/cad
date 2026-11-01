@@ -94,7 +94,7 @@ impl<T: Decide> Members<T> {
 /// evaluate, and [`NodeErrorKind::IndexCountOutOfRange`] where it
 /// evaluates below zero or past `u32::MAX`. A count of zero gives no
 /// value.
-fn tuples<P: crate::ProfilePayload, T: Decide>(
+pub(crate) fn tuples<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     env: &crate::expr::VarEnv<T>,
     chain: &[VarId],
