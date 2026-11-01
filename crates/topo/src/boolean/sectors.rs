@@ -698,7 +698,7 @@ pub(super) fn bound_read<T: Decide>(
                 .map_err(|fault| read_refusal(fault, band))?;
             let code = match descent {
                 BoundSide::Off(side) | BoundSide::Leaves(side) => code_of(side),
-                BoundSide::Rides => SideCode::On,
+                BoundSide::Rides | BoundSide::Unresolved => SideCode::On,
             };
             Ok(BoundRead {
                 code,

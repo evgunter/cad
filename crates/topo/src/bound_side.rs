@@ -313,6 +313,13 @@ pub(crate) enum BoundSide {
     /// face to the orders read (a line edge in a plane, a conic whose
     /// whole edge lies within the band of a plane).
     Rides,
+    /// Tied at first order, and the parting at the bound's reach lies
+    /// between the zero band and the escalation band: the leading term
+    /// is too small there to decide, and a witness point at the edge's
+    /// extent is what would (`a-leaves-verdict-carries-no-witness-point`).
+    /// Until that witness reads it, the consumers read it as the first
+    /// order's tie, `On`; this arm goes when the witness lands.
+    Unresolved,
 }
 
 /// The first order of [`read`]: a side, or a tie [`Tie::descend`] reads
@@ -628,7 +635,8 @@ impl<T: Decide> Tie<T> {
     /// bound's bend past the face's normal section along it, at the
     /// shorter of the bound's reach and the face's lever: a side the
     /// bound leaves to, [`BoundSide::Leaves`], or tied there too,
-    /// [`BoundSide::Rides`]. The bound's bend is a conic's curvature, a
+    /// [`BoundSide::Rides`]; between the two bands,
+    /// [`BoundSide::Unresolved`]. The bound's bend is a conic's curvature, a
     /// bisector's sector face's normal section along it, and nothing for
     /// a line edge or a probe, which are straight; a plane's section is
     /// nothing.
@@ -642,8 +650,8 @@ impl<T: Decide> Tie<T> {
     ///
     /// [`BoundSideFault::Bend`]: a conic's lift against a plane in the
     /// band of its first-order residue, or a spiric's or a spline's,
-    /// which certify no bend. [`BoundSideFault::Parting`]: the parting in
-    /// the band. [`BoundSideFault::Unbent`]: a spline face, a bisector
+    /// which certify no bend. [`ReadFault::Parting`]: the parting's arm
+    /// in the band. [`BoundSideFault::Unbent`]: a spline face, a bisector
     /// of one, or a spiric or spline edge against a curved face, whose
     /// bend is not certified.
     pub(crate) fn descend(self, band: Band) -> Result<BoundSide, ReadFault<T>> {
@@ -683,6 +691,9 @@ impl<T: Decide> Tie<T> {
             .map_or(reach.length(), |lever| reach.length().min(lever));
         match geom_brep::parting_side(own - n * section, face.reference, arm, band) {
             Ok(verdict) => Ok(Side::of(verdict).map_or(BoundSide::Rides, BoundSide::Leaves)),
+            Err(escalation) if escalation.rung() == geom_brep::LeverRung::Reading => {
+                Ok(BoundSide::Unresolved)
+            }
             Err(escalation) => Err(ReadFault::Parting(escalation)),
         }
     }
@@ -784,7 +795,8 @@ mod tests {
     /// ladder**: a unit line in a ball's tangent plane parts from it by
     /// `l²/2R` at `l = 1`, so the radius sets the parting. Within the
     /// zero band it rides the ball; between the zero band and the
-    /// escalation band it refuses; past the escalation band it leaves.
+    /// escalation band it is unresolved; past the escalation band it
+    /// leaves.
     #[test]
     fn a_ties_parting_reads_zero_gap_and_decided_as_first_order_does() {
         let b = band();
@@ -812,11 +824,9 @@ mod tests {
             BoundSide::Rides,
             "within the zero band"
         );
-        assert!(
-            matches!(
-                parting_at(0.5 * (zero + escalate)),
-                Err(ReadFault::Parting(_))
-            ),
+        assert_eq!(
+            parting_at(0.5 * (zero + escalate)).unwrap(),
+            BoundSide::Unresolved,
             "in the gap"
         );
         assert_eq!(
