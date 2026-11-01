@@ -1348,7 +1348,7 @@ mod tests {
             driver: SlotDriver::Expression {
                 variables: Vec::new(),
             },
-            value: Ok(SlotValue::Continuous(HEIGHT)),
+            value: Ok(crate::props::Reading::One(SlotValue::Continuous(HEIGHT))),
             unit: None,
             source: Some("height".to_owned()),
         };
