@@ -978,7 +978,6 @@ fn curved_flank_membership(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(y, true),
         arm,
         bend: crate::bound_side::FaceBend::Plane,
-        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
     };
     let corner = |face| [sector(z, x, face), sector(x, z, face)];
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
@@ -1022,7 +1021,6 @@ fn pierce_germ_line() -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
         bend: crate::bound_side::FaceBend::Plane,
-        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
     };
     super::super::vtxfac::pierce_germ_dir(
         &s,
@@ -1072,7 +1070,6 @@ fn within_a_quarter(dir: Vec3<f64>) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
         arm: 1.0,
         bend: crate::bound_side::FaceBend::Plane,
-        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
     };
     super::super::sectors::within(&s, dir, false, DeclarationRead::Moot, band()).map(|_| ())
 }
@@ -1129,7 +1126,6 @@ fn partners_along_x(tilt: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(x.cross(end), true),
         arm: 1.0,
         bend: crate::bound_side::FaceBend::Plane,
-        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
     };
     let partner = |end| PairRead {
         partner: VertexKey::default(),
@@ -1575,7 +1571,6 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
         normal: OutwardNormal::from_chart(y, true),
         arm,
         bend: crate::bound_side::FaceBend::Plane,
-        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
     };
     let flank = if against { -x } else { x };
     let decls = Glue {
@@ -1638,7 +1633,6 @@ fn shared_side_plane(arm: f64) -> Result<(), BooleanError> {
         normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
         arm,
         bend: crate::bound_side::FaceBend::Plane,
-        lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
     };
     let declared = GluedPairs::<f64>::without_struts(&Glue::none(), Default::default());
     super::super::recl::require_same(
@@ -2992,7 +2986,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",
-        "read_refusal",
+        "bound_refusal",
         "BooleanDecision::ConicBend",
         1,
     ),
@@ -3021,9 +3015,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PierceCurvature",
         1,
     ),
-    ("sectors.rs", "read_refusal", "Coincide::SectorSide", 1),
-    ("sectors.rs", "read_refusal", "LeverArm::SectorCurving", 1),
-    ("sectors.rs", "read_refusal", "LeverArm::SectorSide", 1),
+    ("sectors.rs", "bound_refusal", "Coincide::SectorSide", 1),
+    ("sectors.rs", "bound_refusal", "LeverArm::SectorSide", 1),
     ("sectors.rs", "runs_into", "Coincide::Sectors", 2),
     ("sectors.rs", "sector_overlap", "Coincide::Sectors", 1),
     ("sectors.rs", "tangent_lump", "Coincide::TangentLocus", 1),

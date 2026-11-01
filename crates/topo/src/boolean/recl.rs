@@ -576,7 +576,7 @@ fn flank_key<T: Decide>(
     } else {
         (s.end, s.end_reach)
     };
-    super::sectors::bound_read(bound, reach, reference.datum(reach.length()), band)
+    super::sectors::bound_read(bound, reach, reference.datum(), band)
 }
 
 /// Rewrites EVERY On code of a surviving germ record to the transition
@@ -1661,8 +1661,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         };
         let mut halves = [Half::Off(true); 2];
         for (inside, &(oi, (ow, _))) in halves.iter_mut().zip(other) {
-            let datum = other_secs[oi].datum(reach.length());
-            let read = super::sectors::bound_read(w, reach, datum, band)?;
+            let read = super::sectors::bound_read(w, reach, other_secs[oi].datum(), band)?;
             match (read.code, read.tie) {
                 (code, None) => *inside = Half::Off(code == SideCode::In),
                 (code, Some(tie)) => {
@@ -2253,7 +2252,6 @@ mod tests {
             normal: OutwardNormal::from_chart(v(normal), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         // Material lies off the first plane's +y side; `second` and its
         // outward normal bound the wedge's other side.
@@ -2313,7 +2311,6 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 1.0, 0.0), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let bis = Vec3::new(0.0, 0.0, -1.0);
         let twins = |far_end: [f64; 3], far_start: [f64; 3]| {
@@ -2477,7 +2474,6 @@ mod tests {
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
         let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
@@ -2620,7 +2616,6 @@ mod tests {
             normal: OutwardNormal::from_chart(y, true),
             arm,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let run = |a: (&crate::body::Body<f64>, FaceKey),
                    b: (&crate::body::Body<f64>, FaceKey),
@@ -2809,7 +2804,6 @@ mod tests {
             normal: OutwardNormal::from_chart(y, true),
             arm,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let corner = [sector(z, x), sector(x, z)];
         let mut records = vec![rec(0, 0, (On, Out), (On, Out))];
@@ -2903,7 +2897,6 @@ mod tests {
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         // Each corner's two faces through the line, the wedge between
         // `p` and `q` its material.
@@ -3016,11 +3009,7 @@ mod tests {
             assert_eq!(along(err), super::super::AlongFace::Flush, "{op:?}");
             let curved = HeldFace {
                 datum: PierceDatum {
-                    bend: crate::bound_side::FaceBend::cylinder(
-                        Vec3::new(0.0, 1.0, 0.0),
-                        z,
-                        1.0,
-                    ),
+                    bend: crate::bound_side::FaceBend::ball(Vec3::new(0.0, 0.0, 1.0), 1.0),
                     ..flat.datum
                 },
                 ..flat
@@ -3221,7 +3210,6 @@ mod tests {
             normal: OutwardNormal::from_chart(normal, true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let at = |deg: f64| {
             let (s, c) = deg.to_radians().sin_cos();
@@ -3416,7 +3404,6 @@ mod tests {
                 normal: geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
                 arm: 1.0,
                 bend: crate::bound_side::FaceBend::Plane,
-                lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
             }
         };
         // Two halved sectors, one split across the wrap.

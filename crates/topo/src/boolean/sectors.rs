@@ -109,10 +109,6 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     /// How the face bends at the base vertex: what a bound tied with its
     /// tangent plane is read against one order down.
     pub bend: FaceBend<T>,
-    /// The face's curvature lever at the base vertex
-    /// ([`PierceLever::of`]): what a definite side of it is charged at.
-    /// A spline face's is not read here, and takes no charge.
-    pub lever: PierceLever<T>,
     /// The metering arm: the shorter of its bounds' reaches, in metres.
     pub arm: T,
 }
@@ -132,11 +128,10 @@ impl FaceShape {
 }
 
 impl<T: Decide> BoolSector<T> {
-    /// The sector's face as a bound reaching `reach` from the vertex
-    /// reads its side: its outward normal, its bend, and its lever
-    /// within that reach.
-    pub(super) fn datum(&self, reach: T) -> FaceDatum<T> {
-        FaceDatum::of_face(self.normal, self.bend, self.lever.within(reach))
+    /// The sector's face as a bound's side is read against it: its
+    /// outward normal and its bend at the vertex.
+    pub(super) fn datum(&self) -> FaceDatum<T> {
+        FaceDatum::of_face(self.normal, self.bend, NO_CURVATURE())
     }
 }
 
@@ -217,8 +212,6 @@ pub(super) struct OrbitCorner<T: geom_core::Real> {
     pub normal: OutwardNormal<T>,
     /// How the face bends at the vertex.
     pub bend: FaceBend<T>,
-    /// The face's curvature lever at the vertex.
-    pub lever: PierceLever<T>,
 }
 
 /// Builds the sector array of `vertex`'s neighborhood (module docs).
@@ -249,7 +242,6 @@ pub(super) fn build_sectors<T: Decide>(
             face,
             normal,
             bend,
-            lever,
         } = corner?;
         // The three sector-shape rungs — metering arm, wideness, and
         // the subdivision direction (PR 2's derivation: the cone
@@ -274,7 +266,6 @@ pub(super) fn build_sectors<T: Decide>(
                     face,
                     normal,
                     bend,
-                    lever,
                 );
                 continue;
             }
@@ -310,7 +301,6 @@ pub(super) fn build_sectors<T: Decide>(
                 normal,
                 bend,
                 arm,
-                lever,
             }),
             Some(b) => {
                 let bisector = Reach::bisector(arm, b.normalize(), normal.vec(), bend);
@@ -326,7 +316,6 @@ pub(super) fn build_sectors<T: Decide>(
                     normal,
                     bend,
                     arm,
-                    lever,
                 });
                 sectors.push(BoolSector {
                     he,
@@ -338,7 +327,6 @@ pub(super) fn build_sectors<T: Decide>(
                     normal,
                     bend,
                     arm,
-                    lever,
                 });
             }
         }
@@ -360,7 +348,6 @@ fn push_full_turn<T: Decide>(
     face: FaceKey,
     normal: OutwardNormal<T>,
     bend: FaceBend<T>,
-    lever: PierceLever<T>,
 ) {
     let [q1, q2, q3] = turn.quarters(TurnOrder::FromNext);
     let bounds = [turn.unit_next, q1, q2, q3, turn.unit_own];
@@ -377,7 +364,6 @@ fn push_full_turn<T: Decide>(
             normal,
             bend,
             arm: turn.arm,
-            lever,
         });
     }
 }
@@ -452,13 +438,10 @@ pub(super) fn orbit_corners<T: Decide>(
         let (start, start_reach) = departure(orbit[(i + 1) % n]); // CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he, band)?;
         let face_data = proven(&body.faces, face, EntityId::Face);
-        let surface = body.face_surface_linked(face, face_data);
-        let p = body.resolve_vertex_point(vertex, Proven);
-        let bend = FaceBend::at(surface, p);
-        let lever = match bend {
-            FaceBend::Fitted => PierceLever::Everywhere(NO_CURVATURE()),
-            FaceBend::Plane | FaceBend::Implicit { .. } => PierceLever::of(surface, p),
-        };
+        let bend = FaceBend::at(
+            body.face_surface_linked(face, face_data),
+            body.resolve_vertex_point(vertex, Proven),
+        );
         Ok(OrbitCorner {
             he,
             start,
@@ -468,7 +451,6 @@ pub(super) fn orbit_corners<T: Decide>(
             face,
             normal,
             bend,
-            lever,
         })
     })
 }
@@ -2439,7 +2421,7 @@ pub(super) fn sector_code<T: Decide>(
     face: &BoolSector<T>,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    datum_code(dir, reach, face.datum(reach.length()), band)
+    datum_code(dir, reach, face.datum(), band)
 }
 
 /// One sector's two side codes, `(start, end)`.
@@ -2631,13 +2613,13 @@ pub(super) fn wedge_read<T: Decide>(
     let cone = |read: Result<Option<WedgeRead>, BooleanError>| {
         read.map(|r| r.ok_or(UnreadNeighbourhood::ConeUnread))
     };
-    let mut faces: Vec<(FaceKey, OutwardNormal<T>, &BoolSector<T>)> = Vec::new();
+    let mut faces: Vec<(FaceKey, OutwardNormal<T>, FaceDatum<T>)> = Vec::new();
     for s in other {
         if !faces.iter().any(|&(f, ..)| f == s.face) {
-            faces.push((s.face, s.normal, s));
+            faces.push((s.face, s.normal, s.datum()));
         }
     }
-    let code = |dir, reach, face| sector_code(dir, reach, face, band);
+    let code = |dir, reach, face| datum_code(dir, reach, face, band);
     // The farthest the reading reaches: the edges it classes, and the
     // corner's own sectors.
     let reach = own
@@ -2673,7 +2655,7 @@ pub(super) fn wedge_read<T: Decide>(
             let Some((dir, reach)) = inside else {
                 return Ok(Err(UnreadNeighbourhood::NoBisector));
             };
-            match code(dir, reach, d1) {
+            match code(dir, reach, *d1) {
                 Ok(SideCode::In) => true,
                 Ok(SideCode::Out) => false,
                 Ok(SideCode::On) | Err(BooleanError::Escalated { .. }) if one_plane(*n0, *n1) => {
@@ -3212,7 +3194,6 @@ mod tests {
                 normal: OutwardNormal::from_chart(n, true),
                 arm: 1.0,
                 bend: crate::bound_side::FaceBend::Plane,
-                lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
             };
         let up = Vec3::new(0.0, 0.0, 1.0);
         let flat: Vec<_> = [0.0, 120.0, 240.0]
@@ -3270,7 +3251,6 @@ mod tests {
                     normal: OutwardNormal::from_chart(normal.normalize(), true),
                     arm: 1.0,
                     bend: crate::bound_side::FaceBend::Plane,
-                    lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
                 }
             })
             .collect();
@@ -3299,7 +3279,6 @@ mod tests {
                 normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
                 arm: 1.0,
                 bend: crate::bound_side::FaceBend::Plane,
-                lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
             })
             .collect()
     }
@@ -3624,7 +3603,6 @@ mod tests {
                 normal: OutwardNormal::from_chart(normal, true),
                 arm: 1.0,
                 bend: crate::bound_side::FaceBend::Plane,
-                lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
             },
         )
         .to_vec()
@@ -3768,7 +3746,6 @@ mod tests {
                     face: FaceKey::from(key(1000 + f[18] as u64)),
                     arm: f[17],
                     bend: crate::bound_side::FaceBend::Plane,
-                    lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
                 }
             })
             .collect()
@@ -3868,7 +3845,6 @@ mod tests {
                 normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
                 arm: l,
                 bend: crate::bound_side::FaceBend::Plane,
-                lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
             };
             let arc = GreatArc {
                 dir: at(d),
@@ -3913,7 +3889,6 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: far,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let arc = GreatArc {
             dir: d_far,
@@ -6161,7 +6136,6 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         };
         let err = within(
             &s,
@@ -6427,7 +6401,6 @@ mod tests {
             normal: OutwardNormal::from_chart(Vec3::from_array(normal), true),
             arm: 1.0,
             bend: crate::bound_side::FaceBend::Plane,
-            lever: crate::boolean::sectors::PierceLever::Everywhere(f64::MAX),
         }
     }
 
@@ -6785,8 +6758,8 @@ mod tests {
             );
             assert_eq!(
                 side_code(dir, reach, n, NO_CURVATURE(), b).unwrap(),
-                want,
-                "the sector passes read the side it bends to: {bend:?}"
+                SideCode::On,
+                "the sector passes read the first order: {bend:?}"
             );
             assert_eq!(
                 pierce_side(dir, reach, n, FaceBend::Plane, NO_CURVATURE(), b).unwrap(),

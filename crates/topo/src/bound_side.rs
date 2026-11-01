@@ -220,22 +220,6 @@ impl FaceBend<f64> {
             ),
         }
     }
-
-    /// A cylinder of `radius` about the unit `axis` whose implicit
-    /// gradient at the vertex is the unit `gradient`, read as
-    /// [`Self::ball`] is: it holds a line along `axis`.
-    pub(crate) fn cylinder(gradient: Vec3<f64>, axis: Vec3<f64>, radius: f64) -> Self {
-        let k = 1.0 / radius;
-        let col = |e: Vec3<f64>| (e - axis * axis.dot(e)) * k;
-        Self::Implicit {
-            gradient,
-            hessian: Mat3::from_cols(
-                col(Vec3::new(1.0, 0.0, 0.0)),
-                col(Vec3::new(0.0, 1.0, 0.0)),
-                col(Vec3::new(0.0, 0.0, 1.0)),
-            ),
-        }
-    }
 }
 
 /// **A face at the vertex, as a bound's side is read against it**: the
