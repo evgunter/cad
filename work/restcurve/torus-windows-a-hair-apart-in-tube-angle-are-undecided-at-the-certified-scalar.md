@@ -2,12 +2,14 @@
 id: torus-windows-a-hair-apart-in-tube-angle-are-undecided-at-the-certified-scalar
 kind: issue
 title: Two torus windows a hair apart in tube angle are refused undecided at the certified scalar (1e-6, 1e-12)
-status: dispatched
+status: closed
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [validate-tier3-curved-boundary-containment]
 branch: restcurve/hair-gap
+closed: 2026-11-01
+pr: 6244
 ---
 
 ## What
