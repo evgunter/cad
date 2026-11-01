@@ -2,12 +2,12 @@
 id: the-boolean-reads-the-other-operand-through-one-cone
 kind: unit
 title: The boolean reads each own edge at a point through one Cone of the other operand gathered across keys, and its cone reader and vtxfac's layering go
-status: parked
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: H
 parent: the-booleans-cone-reader-is-a-second-link
-blocked_on: [the-link-splits-into-a-cone-and-a-link]
+branch: oneread/boolean-one-cone
 ---
 
 

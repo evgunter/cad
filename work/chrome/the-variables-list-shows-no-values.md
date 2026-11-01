@@ -2,9 +2,11 @@
 id: the-variables-list-shows-no-values
 kind: issue
 title: the variables list shows each variable's name and not its value
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
+cost: E
+branch: chrome/variable-values
 ---
 
 ## Finding

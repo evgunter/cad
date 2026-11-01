@@ -2,9 +2,11 @@
 id: the-split-tools-plane-is-typed-blind
 kind: issue
 title: the split tool's plane is typed blind, its default lies on the body, and a split leaves the picture unchanged
-status: open
+status: dispatched
 opened: 2026-10-31
 priority: P1
+cost: H
+branch: chrome/split-plane
 ---
 
 ## Finding
