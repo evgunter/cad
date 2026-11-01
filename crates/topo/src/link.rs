@@ -1238,7 +1238,8 @@ impl<T: Decide> Cone<T> {
     /// widened from the band's zero to `q`'s own distance from the plane
     /// ([`Cone::crossing`]). Otherwise `q` is
     /// read along the minor arc to a reference `w`, a wedge's centroid on
-    /// one sector `T` carried out to `q`'s distance (planes are read at
+    /// one sector `T` (or, where that reads nothing, its rays' bisector)
+    /// carried out to `q`'s distance (planes are read at
     /// one scale; rays at their own, [`wedge_side`]), where the link's
     /// material is the side behind `T`:
     /// the material holds `q` iff `q` lies behind `T` and the arc crosses
@@ -1335,11 +1336,16 @@ impl<T: Decide> Cone<T> {
             .unzip();
         for (t, s0) in self.sectors.iter().enumerate() {
             let Some(base) = sides[t] else { continue };
-            'reference: for &(a, b) in &s0.wedges {
-                // The wedge's centroid, carried along its ray to `q`'s
-                // distance: a plane is a surface, read at one scale for
-                // both ends of the arc.
-                let c = (a - p) + (b - p);
+            // Each wedge's centroid, then its rays' bisector: a needle
+            // wedge's centroid lies along its long ray, within the band
+            // of the sector across it.
+            let references = s0
+                .wedges
+                .iter()
+                .flat_map(|&(a, b)| [(a - p) + (b - p), (a - p).normalize() + (b - p).normalize()]);
+            'reference: for c in references {
+                // Carried along its ray to `q`'s distance: a plane is a
+                // surface, read at one scale for both ends of the arc.
                 let w = p + c * ((q - p).norm() / c.norm());
                 let half = ((q - p).normalize() + (w - p).normalize()).normalize();
                 for x in [q, w] {
@@ -3673,6 +3679,49 @@ mod tests {
     ///   toward a read one (`lowest_on`); that is checked by reading.
     /// - A caller outside topo: `Gap`'s cell arms only call
     ///   [`Link::offset`] and [`Link::lowest_on`].
+    /// **A needle wedge is read off its rays' bisector where its centroid
+    /// reads nothing**: the corner a needle channel's leaning fill face
+    /// meets two walls at (`tests/shell_role_reader.rs`,
+    /// `a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam`),
+    /// the fill face's wedge 30ε across one way and a unit long the
+    /// other. The wedge's centroid lies along its long ray, within the
+    /// band of the floor's plane, so the only reference the parity has
+    /// passes over; its rays' bisector reads the edge leaving along the
+    /// wall's line behind the vertex, decidedly in front of the fill face,
+    /// `Out`.
+    #[test]
+    fn a_needle_wedge_is_read_off_its_rays_bisector() {
+        let p = Point3::new(1.0, 0.500_000_03, 0.5);
+        let (y, tip) = (
+            Point3::new(1.0, 0.8, 0.5),
+            Point3::new(1.0, 0.500_000_045_000_000_1, 0.500_000_03),
+        );
+        let far = Point3::new(0.0, 0.500_000_03, 0.5);
+        let fan = |outward: Vec3<f64>, rays: Vec<Point3<f64>>| Fan {
+            outward,
+            apex: p,
+            rays,
+        };
+        let cone = Cone::gathered(
+            p,
+            [
+                fan(Vec3::new(1.0, 0.0, 0.0), vec![y, tip]),
+                fan(Vec3::new(0.0, 0.0, -1.0), vec![far, y]),
+                fan(
+                    Vec3::new(0.0, -0.894_427_190_999_915_7, 0.447_213_595_499_957_87),
+                    vec![tip, far],
+                ),
+            ],
+            Vec::new(),
+        )
+        .expect("a cone");
+        assert_eq!(
+            cone.reads_tied(Point3::new(1.0, 0.5, 0.5), &[], band()),
+            Some(Material::Out),
+            "the edge along the wall's line behind the vertex"
+        );
+    }
+
     #[test]
     fn the_link_decides_only_through_its_doors() {
         use test_utils::source::{balanced_end, code_only};
