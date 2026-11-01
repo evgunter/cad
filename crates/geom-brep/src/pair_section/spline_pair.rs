@@ -28,13 +28,19 @@
 //! The fitted carriers are not kept: no reader carries a spline pair's
 //! section ([`UNCARRIED`]).
 //!
-//! A refusal maps by name: a tangency the reading reports (the march's
-//! transversality, a tangency along a handed-in row) and an unresolved
-//! face of the boundary pass (the section touching or running along a
-//! side, or through a corner, that nothing handed in covers) are a pinch
-//! named by its decision, an escalation is the value's escalation, and
-//! any other refusal, an accounting that did not close among them, is
-//! [`SectionError::Unaccounted`], carrying its cause.
+//! A refusal maps by name, as the plane × spline lane's does
+//! (`pair_section::whole_reading_refused`, the one classification): a
+//! tangency the reading reports ([`crate::ssi::SsiError::tangency`]: the
+//! march's transversality, a tangency along a handed-in row, an
+//! unresolved face of the boundary pass where the section touches or
+//! runs along a side, or through a corner, that nothing handed in covers)
+//! is a pinch named by its decision; an escalation is the value's
+//! escalation; and any other refusal, the pass's incapacity
+//! ([`crate::ssi::PairBoundaryCause`]) and an accounting that did not
+//! close among them, is [`SectionError::Unaccounted`], carrying its
+//! cause. A row the caller hands in that is no row on a side of each
+//! chart is refused the same way, naming why
+//! ([`crate::ssi::PairRowRefusal`]).
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Band, Decide, Point3, Real};
@@ -46,7 +52,7 @@ use super::{
 use crate::ExtentBall;
 use crate::Pcurve;
 use crate::intersect::SectionError;
-use crate::ssi::{BoundaryChart, BranchEnd, PairCorner, PairRegion, PairRow, SsiError};
+use crate::ssi::{BoundaryChart, BranchEnd, PairCorner, PairRegion, PairRow};
 
 /// **A row the caller hands in as known**: each wall's image of one
 /// curve over one parameter span, the first wall's then the second's, in
@@ -60,6 +66,26 @@ pub struct KnownRow<T: Real> {
     pub span: (T, T),
 }
 
+/// **What a caller hands a spline pair's reading as known**: the rows and
+/// the corners the two walls share, each in the order the pose is asked
+/// of. The interior-loop guard builds it from the faces' edges.
+#[derive(Clone, Debug)]
+pub struct KnownPair<T: Real> {
+    /// The shared rows.
+    pub rows: Vec<KnownRow<T>>,
+    /// The shared corners.
+    pub corners: Vec<PairCorner>,
+}
+
+impl<T: Real> Default for KnownPair<T> {
+    fn default() -> Self {
+        Self {
+            rows: Vec::new(),
+            corners: Vec::new(),
+        }
+    }
+}
+
 /// **Two spline walls**, in the order the section was asked of, with the
 /// rows and corners the caller handed in as known.
 #[derive(Clone, Debug)]
@@ -67,8 +93,7 @@ pub struct SplinePairPose<T: Real> {
     a: Surface<T>,
     b: Surface<T>,
     nets: [NurbsSurface<T>; 2],
-    rows: Vec<KnownRow<T>>,
-    corners: Vec<PairCorner>,
+    known: KnownPair<T>,
 }
 
 impl<T: Real> SplinePairPose<T> {
@@ -80,18 +105,14 @@ impl<T: Real> SplinePairPose<T> {
             nets: [a.spline_chart()?.clone(), b.spline_chart()?.clone()],
             a: a.clone(),
             b: b.clone(),
-            rows: Vec::new(),
-            corners: Vec::new(),
+            known: KnownPair::default(),
         })
     }
 
-    /// The pose with `rows` and `corners` handed in as known
-    /// ([`crate::ssi::Section::with_known`]), each in the order the pose
-    /// was asked of.
+    /// The pose with `known` handed in ([`crate::ssi::Section::of_known`]).
     #[must_use]
-    pub fn with_known(mut self, rows: Vec<KnownRow<T>>, corners: Vec<PairCorner>) -> Self {
-        self.rows = rows;
-        self.corners = corners;
+    pub fn with_known(mut self, known: KnownPair<T>) -> Self {
+        self.known = known;
         self
     }
 
@@ -160,7 +181,7 @@ const REGION: &str = "a Side or Corner region of a handed-in row or corner: the 
 pub(super) fn classified<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
-    (rows, corners): (Vec<KnownRow<T>>, Vec<PairCorner>),
+    known: KnownPair<T>,
     lane: Option<SsiLane<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
@@ -168,7 +189,7 @@ pub(super) fn classified<T: Decide>(
         .ok_or(SectionError::WrongLane {
             expected: "two NURBS or approximating surfaces",
         })?
-        .with_known(rows, corners);
+        .with_known(known);
     let lane = lane.ok_or(SectionError::NoMarch { scalar: T::NAME })?;
     (lane.spline_pair)(pose, band)
 }
@@ -188,47 +209,31 @@ pub(super) fn section(
         nets: [pose.nets[1].clone(), pose.nets[0].clone()],
         a: pose.b.clone(),
         b: pose.a.clone(),
-        rows: Vec::new(),
-        corners: Vec::new(),
+        known: KnownPair::default(),
     }
     .ball();
     let reach = ball.center().distance(other.center()) + ball.radius() + other.radius();
     let domain = super::domain_about(ball.center(), reach, 2.0 * reach);
     let [na, nb] = &pose.nets;
-    // A row that is not a row on a side of each chart is not admitted:
-    // the section along it is then the boundary pass's to read.
+    // A row the caller hands in that is not a row on a side of each
+    // chart is the caller's defect, refused naming it.
     let rows = pose
+        .known
         .rows
         .iter()
-        .filter_map(|r| {
+        .map(|r| {
             let [ia, ib] = r.images.clone();
-            PairRow::new((na, ia), (nb, ib), r.span)
+            PairRow::new((na, ia), (nb, ib), r.span).map_err(|e| SectionError::Unaccounted {
+                cause: e.to_string(),
+            })
         })
-        .collect();
-    let reading = crate::ssi::Section::of(na, nb, domain, band)
-        .map_err(refused)?
-        .with_known(rows, pose.corners.clone())
-        .read_all()
-        .map_err(refused)?;
+        .collect::<Result<Vec<_>, _>>()?;
+    let reading =
+        crate::ssi::Section::of_known(na, nb, domain, band, (rows, pose.known.corners.clone()))
+            .map_err(super::whole_reading_refused)?
+            .read_all()
+            .map_err(super::whole_reading_refused)?;
     listed(pose, reading)
-}
-
-/// The whole reading's refusal as the section value's (module docs).
-fn refused(e: SsiError) -> SectionError {
-    if let Some(predicate) = e.tangency() {
-        return SectionError::Pinched { predicate };
-    }
-    match e {
-        SsiError::PairBoundaryUnresolved { .. } => SectionError::Pinched {
-            predicate: "ssi_pair_boundary",
-        },
-        SsiError::Escalated { cause, .. } | SsiError::CertificateEscalated { cause, .. } => {
-            SectionError::Escalated(cause)
-        }
-        other => SectionError::Unaccounted {
-            cause: other.to_string(),
-        },
-    }
 }
 
 /// **The whole reading as the section's components** (module docs).

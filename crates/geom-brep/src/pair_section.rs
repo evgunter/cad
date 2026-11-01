@@ -107,7 +107,7 @@ pub mod winds;
 pub use cylinders::{CcDecision, CcNode, CcStance, CylinderCylinderPose, RegionPlacement};
 pub use gap::Gap;
 pub use plane_spline::PlaneSplinePose;
-pub use spline_pair::{KnownRow, SplinePairPose};
+pub use spline_pair::{KnownPair, KnownRow, SplinePairPose};
 pub use torus::{
     AxisPose, CtStance, CylinderTorusPose, Ring, SphereTorusPose, StStance, TorusGap,
     TorusPoseRefusal, TorusQuestion, TorusTorusPose, TtStance, Turn, axis_pose,
@@ -914,6 +914,29 @@ fn domain_about(center: Point3<f64>, half_extent: f64, extent: f64) -> SsiDomain
     }
 }
 
+/// **A whole reading's refusal as the section value's**, for both spline
+/// lanes (plane × spline, two spline walls): a tangency the reading
+/// reports ([`SsiError::tangency`]: the march's transversality, a graze
+/// or a side held tangent, a tangency along a handed-in row, a section
+/// touching a side of two charts that nothing handed in covers) is a
+/// pinch named by its decision; an escalation is the value's escalation,
+/// as the analytic arms' in-band readings are; and any other refusal,
+/// the reading's incapacity among them, is [`SectionError::Unaccounted`],
+/// carrying its cause.
+pub(crate) fn whole_reading_refused(e: SsiError) -> SectionError {
+    if let Some(predicate) = e.tangency() {
+        return SectionError::Pinched { predicate };
+    }
+    match e {
+        SsiError::Escalated { cause, .. } | SsiError::CertificateEscalated { cause, .. } => {
+            SectionError::Escalated(cause)
+        }
+        other => SectionError::Unaccounted {
+            cause: other.to_string(),
+        },
+    }
+}
+
 /// What [`pair_section`] answers.
 #[derive(Clone, Debug)]
 pub enum SectionRead<T: Real> {
@@ -999,7 +1022,7 @@ pub fn pair_section<T: Decide>(
             plane_spline::classified(a, b, lane, band).map(SectionRead::Built)
         }
         (Nurbs | Approx, Nurbs | Approx) => {
-            spline_pair::classified(a, b, (Vec::new(), Vec::new()), lane, band)
+            spline_pair::classified(a, b, spline_pair::KnownPair::default(), lane, band)
                 .map(SectionRead::Built)
         }
         (Plane, Plane | Cylinder | Cone | Sphere | Torus)
@@ -1014,7 +1037,7 @@ pub fn pair_section<T: Decide>(
 }
 
 /// **[`pair_section`] of two spline walls with rows and corners handed in
-/// as known** ([`spline_pair`], [`crate::ssi::Section::with_known`]), each
+/// as known** ([`spline_pair`], [`crate::ssi::Section::of_known`]), each
 /// in the order `a`, `b`: the door the interior-loop guard reads a pair
 /// of spline faces through, the rows and vertices they share handed in.
 ///
@@ -1024,7 +1047,7 @@ pub fn pair_section<T: Decide>(
 pub fn spline_pair_section<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
-    known: (Vec<spline_pair::KnownRow<T>>, Vec<crate::ssi::PairCorner>),
+    known: spline_pair::KnownPair<T>,
     lane: Option<SsiLane<T>>,
     band: Band,
 ) -> Result<PairSection<T>, SectionError> {
@@ -1035,10 +1058,11 @@ pub fn spline_pair_section<T: Decide>(
 /// kind pair `kind` is a side of** — the filter a reader scanning many
 /// pairs applies before it asks [`pair_section`]. Exhaustive, as
 /// `pair_section`'s match is, and a second spelling of it
-/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A plane and
-/// a spline are not among them: their section is a whole reading, read
-/// per pair through [`pair_section`]'s march door by the reader that asks
-/// it.
+/// (`work/sectrung/the-c5-kind-dispatch-is-spelled-twice.md`). A spline
+/// is not among them, whether against a plane or another spline: its
+/// section is a whole reading, read per pair through [`pair_section`]'s
+/// march door ([`spline_pair_section`] where rows are handed in) by the
+/// reader that asks it.
 #[must_use]
 pub fn serves(kind: SurfaceKind) -> bool {
     use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};

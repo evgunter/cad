@@ -56,7 +56,7 @@ corner of BOTH rectangles. The pair lane's handed-in corner
 corner state as a crossing. The trace from it then refuses in limb 3:
 "the walk at an end of the carrier resolved nothing, and that end lies on
 4 domain sides at once, where no face's walk isolates its root". Witness:
-`topo` `section_cert_spline_pair_rows::a_shared_corner_is_a_region_or_a_crossing`.
+`topo` `section_cert_spline_pair_rows::a_shared_corner_the_section_leaves_is_a_region_and_one_it_enters_refuses`.
 That is the sheet `z = 0.2xy` against `z = x − y/2` over `y ∈ [0, 1.5]`,
 sharing the corner `(0, 0)` of both. The row pins the refusal (R-reach
 at the guard). The corner reading already holds the corner cell's

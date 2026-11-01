@@ -1011,12 +1011,12 @@ fn half_edge_curve<T: Real>(
         .ok_or(PcurveMintError::NoCarrier { half_edge })
 }
 
-/// **The image on `wall`'s chart of a carrier that runs along a whole
-/// side of it**, over `[t0, t1]`, admitted by a shared row's one test
-/// ([`geom_brep::side_row_certifies`]): a circle's arc rim
-/// ([`geom_brep::pick_arc_rim`]), any other carrier's boundary row or
-/// column traversing the chart's whole domain along its moving axis, in
-/// either direction ([`probe_pick`]). `None` where no candidate
+/// **The image on `wall`'s chart of a carrier that runs along a side of
+/// it**, over `[t0, t1]`, admitted by a shared row's one test
+/// ([`geom_brep::side_row_certifies`]): a circle's arc rim over the whole
+/// side or part of it ([`geom_brep::pick_arc_rim`]), any other carrier's
+/// boundary row or column traversing the chart's whole domain along its
+/// moving axis, in either direction ([`probe_pick`]). `None` where no candidate
 /// certifies. The image is on the carrier's own parameter, so a second
 /// wall's image of one edge's carrier is stated over that edge.
 pub(crate) fn side_image_of<T: Decide>(

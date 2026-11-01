@@ -3,7 +3,7 @@
 //!
 //! - **A shared row** is an edge of `F` whose image on its wall
 //!   ([`crate::pcurves::pcurve_of`]) is an iso row, whose carrier also
-//!   runs along a whole side of `G`'s chart: `G`'s image of it, stated
+//!   runs along a side of `G`'s chart, whole or in part: `G`'s image of it, stated
 //!   on the same carrier parameter, certifies on `G`'s wall
 //!   ([`crate::pcurves::side_image_of`]). Both images pass the one test a
 //!   seam's shared row passes at the result
@@ -12,8 +12,8 @@
 //!   one curve, each on its own wall. The reading admits only a row on a side of each chart
 //!   ([`geom_brep::ssi::PairRow`]).
 //! - **A shared corner** is a vertex of `F` at a corner of its wall's
-//!   rectangle and one of `G` at a corner of its own, their distance not
-//!   decided past the band. The reading of a corner holds whether or not the
+//!   rectangle and one of `G` at a corner of its own, their gap not
+//!   decided past the band (`spline_pair_shared_corner`). The reading of a corner holds whether or not the
 //!   corner is a point of the section, so the pairing only chooses which
 //!   corners are read.
 //!
@@ -21,9 +21,10 @@
 //! the section running along a side or through a corner refuses.
 
 use geom::Surface;
-use geom_core::{Band, Decide, Point2, Sign};
+use geom_brep::KnownPair;
+use geom_core::k_stats::{Magnitude, decide_magnitude};
+use geom_core::{Band, Decide, Margin, Point2};
 
-use super::section_cert::Known;
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey};
 use crate::live::{BoundaryMember, proven};
@@ -36,8 +37,8 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
     (a, f, sf): (&Body<T>, FaceKey, &Surface<T>),
     (b, g, sg): (&Body<T>, FaceKey, &Surface<T>),
     band: Band,
-) -> Known<T> {
-    let mut known = Known::default();
+) -> KnownPair<T> {
+    let mut known = KnownPair::default();
     let (Some(na), Some(nb)) = (sf.spline_chart(), sg.spline_chart()) else {
         return known;
     };
@@ -47,11 +48,6 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
         let Ok((carrier, t0, t1)) = crate::pcurves::half_edge_carrier(a, *ha) else {
             continue;
         };
-        // `G` holds an edge along a side of its own chart, and `F`'s
-        // carrier runs along a side of `G`'s chart too.
-        if rows_g.is_empty() {
-            continue;
-        }
         // `F`'s image passes the shared row's test on its own wall too.
         if !geom_brep::side_row_certifies(sf, ia, (&carrier, (t0, t1)), band) {
             continue;
@@ -66,10 +62,13 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
     let (corners_f, corners_g) = (corners(&rows_f, na, a), corners(&rows_g, nb, b));
     for &(cf, pf) in &corners_f {
         for &(cg, pg) in &corners_g {
-            // Within the band of each other: the gap not decided past it.
+            // One point, as two vertices of one body meet (`vertices_meet`,
+            // whose decision this is): their gap decided Zero. A gap in
+            // the band is read too, since a corner's reading holds
+            // whether or not the corner lies on the section.
             let apart = matches!(
-                (pf - pg).norm().sign_within(band),
-                Ok(d) if d.sign == Sign::Positive
+                decide_magnitude("spline_pair_shared_corner", Margin::norm3(pf - pg), band),
+                Ok(Magnitude::Positive)
             );
             if !apart {
                 let pair = geom_brep::ssi::PairCorner([cf, cg]);

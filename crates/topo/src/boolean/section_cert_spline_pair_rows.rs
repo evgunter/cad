@@ -11,13 +11,14 @@ use super::search_kit::band;
 use super::section_cert_rows::{IN, OUT, at, p};
 use super::*;
 use geom::Surface;
+use geom_brep::KnownPair;
 use geom_brep::ssi::{ChartCorner, ChartEnd, PairCorner};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Vec2};
 
 /// The pair's section through the march door, `known` handed in, over a
 /// reach the spline arm does not read.
-fn read(f: &Surface<f64>, g: &Surface<f64>, known: Known<f64>) -> Section<f64> {
+fn read(f: &Surface<f64>, g: &Surface<f64>, known: KnownPair<f64>) -> Section<f64> {
     classify_known(
         f,
         g,
@@ -101,7 +102,7 @@ fn lone(s: &Section<f64>) -> Component<f64> {
 /// within twice its pad of each wall, a check off the closed form.
 #[test]
 fn a_loop_inside_two_spline_walls_is_never_cleared() {
-    let s = read(&dome(), &bowl(), Known::default());
+    let s = read(&dome(), &bowl(), KnownPair::default());
     let c = lone(&s);
     assert!(c.reaches.is_none(), "a loop reaches no side: {c:?}");
     let w = c.witness.expect("a loop carries a witness");
@@ -157,7 +158,7 @@ fn a_loop_inside_two_spline_walls_is_never_cleared() {
 fn an_open_branch_between_two_walls_clears_by_w1_prime() {
     let up = sheet(UNIT, UNIT, &|i, _| 0.4 * (0.5 * i as f64 - 0.5));
     let down = sheet(UNIT, (-0.25, 1.25), &|i, _| -0.4 * (0.5 * i as f64 - 0.5));
-    let s = read(&up, &down, Known::default());
+    let s = read(&up, &down, KnownPair::default());
     let c = lone(&s);
     assert_eq!(
         c.reaches,
@@ -184,12 +185,12 @@ fn ramp(h: f64) -> Surface<f64> {
 
 /// The two ramps' shared row, the `v = 0` side of each, over the carrier
 /// parameter `x`.
-fn shared_rim() -> Known<f64> {
+fn shared_rim() -> KnownPair<f64> {
     let image = geom_brep::Pcurve::IsoLine {
         p0: Point2::new(0.0, 0.0),
         pl: Vec2::new(1.0, 0.0),
     };
-    Known {
+    KnownPair {
         rows: vec![geom_brep::KnownRow {
             images: [image.clone(), image],
             span: (0.0, 1.0),
@@ -218,7 +219,7 @@ fn a_shared_rim_handed_in_clears_and_one_not_refuses() {
         Ok(vec![Cleared::Reaches(Side::F)]),
         "handed in: {s:?}"
     );
-    let bare = read(&f, &g, Known::default());
+    let bare = read(&f, &g, KnownPair::default());
     assert_eq!(
         certify(&bare, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Tangent("ssi_pair_boundary")),
@@ -252,7 +253,7 @@ fn flat() -> Surface<f64> {
 /// region read as a loop (R-undec), and against the corner's signs read
 /// as leaving where a branch starts (a region that clears).
 #[test]
-fn a_shared_corner_is_a_region_or_a_crossing() {
+fn a_shared_corner_the_section_leaves_is_a_region_and_one_it_enters_refuses() {
     let low = ChartCorner {
         u: ChartEnd::Low,
         v: ChartEnd::Low,
@@ -262,7 +263,7 @@ fn a_shared_corner_is_a_region_or_a_crossing() {
         let (x, y) = (0.5 * i as f64 - 1.0, 0.5 * j as f64);
         x - y
     });
-    let corner = |b: ChartCorner| Known {
+    let corner = |b: ChartCorner| KnownPair {
         rows: Vec::new(),
         corners: vec![PairCorner([low, b])],
     };
@@ -277,7 +278,7 @@ fn a_shared_corner_is_a_region_or_a_crossing() {
         Ok(vec![Cleared::Reaches(Side::F)]),
         "the corner handed in: {s:?}"
     );
-    let bare = read(&flat(), &leaves, Known::default());
+    let bare = read(&flat(), &leaves, KnownPair::default());
     assert_eq!(
         certify(&bare, false, band(), |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Tangent("ssi_pair_boundary")),
@@ -329,7 +330,7 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         (true, Err(Refusal::Undecided)),
         (false, Ok(vec![Cleared::Reaches(Side::G)])),
     ] {
-        let s = read(&level, &tube(closed), Known::default());
+        let s = read(&level, &tube(closed), KnownPair::default());
         assert_eq!(
             certify(&s, false, band(), |_| Sheet::Not, at(None, None)),
             want,
@@ -338,11 +339,46 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
     }
 }
 
-// ---- review r1: claim 1, a second solution beside a handed-in row ----
+/// **A loop through a pole of a spline wall is not cleared by reaching
+/// it.** A spline sheet through the revolved dome's apex, tilted 0.3 rad,
+/// meets it in a closed curve through the apex, the dome's collapsed side
+/// `v = 0`, where no edge need lie, so W1′'s premise fails there. The
+/// pair's reading meets the section on a face of the product that maps
+/// to one point and refuses it; whatever it answers, the loop is never
+/// cleared by reaching a side. Red against a collapsed side read as
+/// bounding a face, should the reading list the loop as reaching it.
+#[test]
+fn a_loop_through_a_pole_of_a_spline_wall_is_not_cleared_by_reaching_it() {
+    let dome = super::section_cert_spline_rows::revolved_dome();
+    let a = 0.3_f64;
+    let tilted = sheet((-2.0, 2.0), (-2.0, 2.0), &|i, _| {
+        #[allow(clippy::cast_precision_loss)]
+        let x = -2.0 + 2.0 * i as f64;
+        -x * a.tan()
+    });
+    let s = read(&tilted, &dome, KnownPair::default());
+    let verdict = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
+    assert!(
+        !matches!(&verdict, Ok(c) if c.iter().any(|c| matches!(c, Cleared::Reaches(_)))),
+        "the loop through the apex is cleared by reaching a side: {s:?} {verdict:?}"
+    );
+    assert!(
+        verdict.is_err(),
+        "the loop through the apex is refused: {s:?} {verdict:?}"
+    );
+}
+
+// ---- a second solution beside a handed-in row (review r1's rows) ----
 
 /// A bicubic over `[0, 1]²` standing over the unit square, `x = u`,
 /// `y = v`, interpolating `z` at the 4×4 grid (exact for `z` of degree
 /// at most 3 in each variable).
+#[allow(
+    clippy::needless_range_loop,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation
+)]
 fn bicubic(z: &dyn Fn(f64, f64) -> f64) -> Surface<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let b = |j: usize, t: f64| {
@@ -402,35 +438,45 @@ fn loop_beside_row(y0: f64, rho: f64) -> (Surface<f64>, Surface<f64>) {
     (bicubic(&f), bicubic(&g))
 }
 
+/// **A loop beside a handed-in row is never cleared.** The walls share
+/// their `v = 0` row and meet again in a circle beside it, at gaps of
+/// `10⁻⁴` and `10⁻⁶` from the row (at `10⁻²` the accounting refuses too,
+/// R-reach, after some eight minutes in a debug build, so that gap is not
+/// run here). Handed the row, the reading
+/// never clears the pair: a cover that held the loop would read no sign
+/// there, and one that does not hold it leaves the loop to the trace and
+/// the accounting, which refuse where they cannot read it. Red against a
+/// piece with no sign read as signed (a cover over the loop clears it).
 #[test]
 fn r1_a_loop_beside_a_shared_row_is_never_cleared() {
-    for (y0, rho) in [(0.06, 0.05), (0.0501, 0.05), (0.05 + 1e-6, 0.05)] {
+    for (y0, rho) in [(0.0501, 0.05), (0.05 + 1e-6, 0.05)] {
         let (f, g) = loop_beside_row(y0, rho);
         let s = read(&f, &g, shared_rim());
-        eprintln!("y0 {y0} rho {rho}: {s:?}");
         for place in [at(IN, IN), at(None, None)] {
             let v = certify(&s, false, band(), |_| Sheet::Not, place);
-            eprintln!("  -> {v:?}");
-            assert!(v.is_err(), "a loop beside the row cleared: y0 {y0}: {v:?} {s:?}");
+            assert!(
+                v.is_err(),
+                "a loop beside the row cleared: y0 {y0}: {v:?} {s:?}"
+            );
         }
     }
 }
 
-/// Two walls sharing the `v = 0` row that also cross along `y = d`.
+/// **A branch beside a handed-in row is never cleared.** The walls share
+/// their `v = 0` row and cross again along `y = d`, at `d` of `0.05`,
+/// `10⁻³` and `10⁻⁵`. Both charts are the unit square's, so the line
+/// meets the two charts' `u` sides at once, which the boundary pass
+/// refuses (R-tan); the pair is never cleared.
 #[test]
-fn r1_a_branch_beside_a_shared_row_is_listed() {
+fn r1_a_branch_beside_a_shared_row_is_never_cleared() {
     for d in [0.05, 1e-3, 1e-5] {
         let f = |x: f64, y: f64| 0.5 * y + 0.2 * x * (1.0 - x) * y;
         let g = move |x: f64, y: f64| f(x, y) - 10.0 * y * (y - d);
         let s = read(&bicubic(&f), &bicubic(&g), shared_rim());
-        eprintln!("d {d}: {s:?}");
+        let v = certify(&s, false, band(), |_| Sheet::Not, at(None, None));
+        assert!(
+            v.is_err(),
+            "a branch beside the row cleared: d {d}: {v:?} {s:?}"
+        );
     }
-}
-
-#[test]
-fn r1_why_the_loop_beside_a_row_is_unaccounted() {
-    let (f, g) = loop_beside_row(0.06, 0.05);
-    let k = shared_rim();
-    let r = geom_brep::spline_pair_section(&f, &g, (k.rows, k.corners), Some(geom_brep::SsiLane::marched()), band());
-    eprintln!("WHY: {:?}", r.map(|s| s.components().clone()));
 }

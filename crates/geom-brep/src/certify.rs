@@ -4605,45 +4605,20 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
         // lies in the hull of its two ends' images.
         let read = |lo: f64, hi: f64| {
             let (lo_t, hi_t) = (T::from_computed(lo), T::from_computed(hi));
-            let ends = |image: &Pcurve<T>| (image.eval(lo_t), image.eval(hi_t));
-            // A `NaN` bracket end poisons what it feeds, which the cover
-            // then reads as no sign (`f64::min`, `max` and a comparison
-            // would each drop it).
-            let nan = |p: T, q: T| [p.lo(), p.hi(), q.lo(), q.hi()].iter().any(|v| v.is_nan());
-            let hull = |p: T, q: T| {
-                if nan(p, q) {
-                    (f64::NAN, f64::NAN)
-                } else {
-                    (p.lo().min(q.lo()), p.hi().max(q.hi()))
-                }
+            let bracket = |x: T| (x.lo(), x.hi());
+            let ends = |image: &Pcurve<T>, k: usize| {
+                let at = |t: T| {
+                    let p = image.eval(t);
+                    bracket(if k == 0 { p.x } else { p.y })
+                };
+                [at(lo_t), at(hi_t)]
             };
-            let mid = |x: T| x.lo() * 0.5 + x.hi() * 0.5;
-            let ((a0, a1), (b0, b1)) = (ends(image_a), ends(image_b));
-            let state = [
-                hull(a0.x, a1.x),
-                hull(a0.y, a1.y),
-                hull(b0.x, b1.x),
-                hull(b0.y, b1.y),
-            ];
-            // A component is the step between its ends' brackets where
-            // they are apart, so of its coordinate's sign, and zero
-            // otherwise ([`crate::ssi::row_crossing`]'s turn reads that).
-            let step = |p: T, q: T| {
-                if nan(p, q) {
-                    f64::NAN
-                } else if p.hi() < q.lo() || q.hi() < p.lo() {
-                    mid(q) - mid(p)
-                } else {
-                    0.0
-                }
-            };
-            let chord = [
-                step(a0.x, a1.x),
-                step(a0.y, a1.y),
-                step(b0.x, b1.x),
-                step(b0.y, b1.y),
-            ];
-            (crate::ssi::RowBox(state), chord)
+            crate::ssi::row_piece([
+                ends(image_a, 0),
+                ends(image_a, 1),
+                ends(image_b, 0),
+                ends(image_b, 1),
+            ])
         };
         let crossing = crate::ssi::row_crossing((a, b), span, read).map_err(
             |crate::ssi::RowUnreadable(wall, refusal)| CertifyError::Row {

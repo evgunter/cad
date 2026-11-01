@@ -491,50 +491,67 @@ pub(crate) fn face_roots<T: CertifiedBounds>(
 /// [`face_roots`] outside `skip`: a piece the boxes of `skip` cover
 /// together ([`covered`]) is dropped unread, its solutions the caller's
 /// to account (the pair lane's handed-in rows and corners).
+///
+/// # Errors
+///
+/// [`super::PairBoundaryCause::Unresolved`] for a piece no cut resolved
+/// within [`EXIT_DEPTH`], and [`super::PairBoundaryCause::Budget`] past
+/// `budget` pieces (or for a piece that is no box).
 pub(crate) fn face_roots_outside<T: CertifiedBounds>(
     pair: &PairBoxes<'_, T>,
     r: Box4,
     budget: u32,
     skip: &[Box4],
-) -> Option<Vec<(Box4, usize, bool)>> {
-    walk_faces(pair, r, budget, skip).ok()
+) -> Result<Vec<(Box4, usize, bool)>, super::PairBoundaryCause> {
+    walk_faces(pair, r, budget, skip).map_err(|stopped| match stopped {
+        Some(_) => super::PairBoundaryCause::Unresolved,
+        None => super::PairBoundaryCause::Budget,
+    })
 }
 
-/// The most cuts [`covered`] takes against one box before it answers no.
-const COVER_CUTS: u32 = 64;
+/// The most cuts [`covered`] takes in all, over every piece of one
+/// question, before it answers no.
+const COVER_CUTS: u32 = 256;
 
 /// **Whether the boxes of `cover` together hold `x`**, sides included:
 /// `x` inside one of them, or cut along a side of one that meets it into
-/// pieces each held. `false` past [`COVER_CUTS`] cuts, which only ever
-/// leaves a piece to be read.
+/// pieces each held. Past [`COVER_CUTS`] cuts in total it answers `false`,
+/// which only ever leaves a piece to be read.
 pub(crate) fn covered(x: Box4, cover: &[Box4]) -> bool {
-    fn go(x: Box4, cover: &[Box4], cuts: u32) -> bool {
+    let mut work = vec![x];
+    let mut cuts = 0u32;
+    while let Some(x) = work.pop() {
         if cover.iter().any(|c| x.contained_in(*c)) {
-            return true;
-        }
-        if cuts == 0 {
-            return false;
+            continue;
         }
         // A box that meets `x` with a side strictly inside it: cut there.
-        for c in cover {
-            if x.meet(*c).is_none() {
-                continue;
-            }
-            for k in 0..4 {
-                let (lo, hi) = x.0[k];
-                for cut in [c.0[k].0, c.0[k].1] {
-                    if lo < cut && cut < hi {
-                        let (mut l, mut h) = (x, x);
-                        l.0[k] = (lo, cut);
-                        h.0[k] = (cut, hi);
-                        return go(l, cover, cuts - 1) && go(h, cover, cuts - 1);
-                    }
-                }
-            }
+        let cut = cover
+            .iter()
+            .filter(|c| x.meet(**c).is_some())
+            .find_map(|c| {
+                (0..4).find_map(|k| {
+                    let (lo, hi) = x.0[k];
+                    [c.0[k].0, c.0[k].1]
+                        .into_iter()
+                        .find(|&t| lo < t && t < hi)
+                        .map(|t| (k, t))
+                })
+            });
+        let Some((k, t)) = cut else {
+            return false;
+        };
+        cuts += 1;
+        if cuts > COVER_CUTS {
+            return false;
         }
-        false
+        let (lo, hi) = x.0[k];
+        let (mut l, mut h) = (x, x);
+        l.0[k] = (lo, t);
+        h.0[k] = (t, hi);
+        work.push(h);
+        work.push(l);
     }
-    go(x, cover, COVER_CUTS)
+    true
 }
 
 /// [`face_roots`], with the piece its walk stopped in where it stopped
@@ -857,6 +874,41 @@ pub(crate) fn scaled_unit(raw: [f64; 4], speeds: [f64; 4]) -> Option<[f64; 4]> {
     let scaled: [f64; 4] = core::array::from_fn(|k| raw[k] * speeds[k]);
     let n = scaled.iter().map(|v| v.powi(2)).sum::<f64>().sqrt();
     (n.is_finite() && n > 0.0).then(|| scaled.map(|v| v / n))
+}
+
+/// **A row piece's state box and chord, from its ends' brackets**: for
+/// each state coordinate `k`, `ends[k]` is the coordinate's bracket at
+/// the piece's two ends. The box is each coordinate's hull of its two
+/// brackets (a row image moves monotonically along one coordinate,
+/// `description::row_of`, so over a piece it lies in that hull); the
+/// chord's component is the step between its ends' brackets' middles
+/// where they are apart, so of its coordinate's sign, and zero otherwise
+/// ([`row_crossing`]'s turn reads that). A `NaN` bracket end poisons what
+/// it feeds, which the cover then reads as no sign (`f64::min`, `max` and
+/// a comparison would each drop it). The one reader of a piece, for the
+/// rim's certificate and the pair lane's cover alike.
+pub(crate) fn row_piece(ends: [[(f64, f64); 2]; 4]) -> (Box4, [f64; 4]) {
+    let nan = |[p, q]: [(f64, f64); 2]| [p.0, p.1, q.0, q.1].iter().any(|v| v.is_nan());
+    let state = ends.map(|e| {
+        let [p, q] = e;
+        if nan(e) {
+            (f64::NAN, f64::NAN)
+        } else {
+            (p.0.min(q.0), p.1.max(q.1))
+        }
+    });
+    let mid = |x: (f64, f64)| x.0 * 0.5 + x.1 * 0.5;
+    let chord = ends.map(|e| {
+        let [p, q] = e;
+        if nan(e) {
+            f64::NAN
+        } else if p.1 < q.0 || q.1 < p.0 {
+            mid(q) - mid(p)
+        } else {
+            0.0
+        }
+    });
+    (Box4(state), chord)
 }
 
 /// Why [`row_crossing`] gave no reading: wall `0` or `1` has no chart

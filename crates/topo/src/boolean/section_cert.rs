@@ -741,27 +741,7 @@ pub(crate) fn classify<T: Decide>(
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
-    classify_known(f, g, reach, lane, band, Known::default())
-}
-
-/// **What the boolean hands a spline pair's reading as known**: the rows
-/// and vertices the two faces share, each in the order `[F, G]`
-/// ([`geom_brep::spline_pair_section`]).
-#[derive(Clone, Debug)]
-pub(crate) struct Known<T: Real> {
-    /// The shared rows.
-    pub rows: Vec<geom_brep::KnownRow<T>>,
-    /// The shared corners.
-    pub corners: Vec<geom_brep::ssi::PairCorner>,
-}
-
-impl<T: Real> Default for Known<T> {
-    fn default() -> Self {
-        Self {
-            rows: Vec::new(),
-            corners: Vec::new(),
-        }
-    }
+    classify_known(f, g, reach, lane, band, geom_brep::KnownPair::default())
 }
 
 /// [`classify`] with what the boolean knows of a spline pair handed in
@@ -772,7 +752,7 @@ pub(crate) fn classify_known<T: Decide>(
     reach: Reach<T>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
-    known: Known<T>,
+    known: geom_brep::KnownPair<T>,
 ) -> Section<T> {
     use geom::Surface as S;
     let marched = move |s: &geom_brep::PairSection<T>| of_carried(s.carry(lane, band).as_ref());
@@ -853,11 +833,11 @@ pub(crate) fn classify_known<T: Decide>(
 fn spline_pair<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    known: Known<T>,
+    known: geom_brep::KnownPair<T>,
     lane: Option<geom_brep::SsiLane<T>>,
     band: Band,
 ) -> Section<T> {
-    let read = geom_brep::spline_pair_section(f, g, (known.rows, known.corners), lane, band);
+    let read = geom_brep::spline_pair_section(f, g, known, lane, band);
     of_pair_section(&read, band, |_| Section::Unmarched)
 }
 

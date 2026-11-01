@@ -19,8 +19,9 @@
 //!   nearest the seed.
 //! - [`Section::all`] answers every branch: each open branch between
 //!   crossings, each closed loop from the subdivision's seeds, and the
-//!   accounting that every cell of the product is excluded or lies in a
-//!   tube. Exhaustiveness is `all`'s obligation.
+//!   accounting that every cell of the product is excluded, lies in a
+//!   tube, or lies in the regions of the rows and corners handed in.
+//!   Exhaustiveness is `all`'s obligation.
 //!
 //! # The boundary pass
 //!
@@ -51,9 +52,14 @@
 //!   in it is monotone in each coordinate. Where those signs point the
 //!   section into the domain along every coordinate, or out along every
 //!   one, a branch starts at the corner, a crossing the trace starts
-//!   from. Otherwise every arc in the cell leaves the domain along one
-//!   coordinate whichever way it runs, so none closes in it: a
-//!   [`PairRegion::Corner`], whose cell is a contact cell.
+//!   from. Otherwise the corner is a [`PairRegion::Corner`], whose cell is
+//!   a contact cell. What the cell's reading proves is that no arc closes
+//!   in it: each is monotone in every coordinate. An arc may cross the
+//!   cell from one inner face to another without touching the domain's
+//!   boundary; it is then part of a component that runs on outside the
+//!   cell, which the trace and the accounting meet there. A component
+//!   lying wholly in the cell has both ends on the domain's boundary, and
+//!   the region stands for those.
 //!
 //! A row the caller does not hand in, or a cover or corner the reading
 //! does not certify, refuses as an unresolved face does.
@@ -64,7 +70,7 @@
 use std::cell::OnceCell;
 
 use geom::NurbsSurface;
-use geom_core::{Band, Bounds, Point3, SupSpeed};
+use geom_core::{Band, Point3, SupSpeed};
 
 use super::boundary::{BoundaryChart, BoundaryPoint, ChartCorner, ChartEnd, ChartSide, Crossing};
 use super::certify::SsiTube;
@@ -79,8 +85,8 @@ use super::handle::{Banked, foot, passed};
 use super::march::{MarchContext, MarchTol, Readout};
 use super::system::{Chart, LocalSystem, ParametricPairR4};
 use super::{
-    ChartAxis, ChartedNurbs, SSI_MAX_STEPS, SSI_NEWTON_ITERS, SSI_SPLINE_NOISE_ULPS, SsiBranch,
-    SsiDomain, SsiError, SsiOutcome, finite_net,
+    ChartAxis, ChartedNurbs, PairBoundaryCause, SSI_MAX_STEPS, SSI_NEWTON_ITERS,
+    SSI_SPLINE_NOISE_ULPS, SsiBranch, SsiDomain, SsiError, SsiOutcome, finite_net,
 };
 use crate::Pcurve;
 use geom_core::linalg::svd::Svd;
@@ -102,7 +108,7 @@ struct PairLane<'a> {
 pub struct Section<'a> {
     lane: PairLane<'a>,
     /// The boundary pass, once a reading has run it.
-    crossings: OnceCell<Pass>,
+    pass: OnceCell<Pass>,
     banked: Banked<Box4>,
     /// The rows handed in as known.
     rows: Vec<PairRow>,
@@ -120,37 +126,87 @@ struct Pass {
 }
 
 /// How many accounting-floor cells wide a row's cover and a corner's cell
-/// are, along each coordinate they reach into the domain (module docs):
-/// a floor cell beside the row that its enclosures cannot exclude lies
-/// inside them.
-pub const COVER_FLOOR_CELLS: f64 = 4.0;
+/// are at the least, along each coordinate they reach into the domain
+/// (module docs). The accounting excludes a floor cell by its
+/// first-order enclosure, whose slack is a few cells' width beside a
+/// solution, so a cell beside the row that it cannot exclude lies within
+/// a few cells of the row; four holds those with one to spare. A
+/// structure choice (D9), not a bound the reading needs: a narrower
+/// cover only leaves the accounting more cells to refuse.
+pub(crate) const COVER_FLOOR_CELLS: f64 = 4.0;
+
+/// The widest a cover or a corner cell is first tried at, as a share of
+/// each coordinate's domain: wide enough that the boundary walk drops
+/// its pieces near the row within a few cuts, and still a share small
+/// enough that a transverse pair's crossing reading is zero-free over
+/// it. A structure choice (D9); a rung the reading cannot certify is
+/// given up and the next, half as wide, is tried.
+const COVER_TOP_SHARE: f64 = 1.0 / 8.0;
 
 /// **A row of both charts, handed in as a known solution**: each
 /// chart's image of one curve over one parameter span, each a row on a
-/// side of its chart's rectangle (`description::on_domain_side`). The
+/// side of its chart's rectangle (`description::domain_side`). The
 /// caller certifies that the two images trace one curve on the two
 /// walls; the reading certifies the section beside it.
 #[derive(Clone, Debug)]
 pub struct PairRow {
     images: [Pcurve<f64>; 2],
     span: (f64, f64),
+    /// The side each image runs along, as `description::domain_side`
+    /// decided it.
+    sides: [ChartSide; 2],
+}
+
+/// Why [`PairRow::new`] admits no row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairRowRefusal {
+    /// That chart's image is not a row on a side of its rectangle.
+    NotOnASide(BoundaryChart),
+    /// The span is not an ordered, finite interval.
+    Span,
+}
+
+impl core::fmt::Display for PairRowRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotOnASide(chart) => write!(
+                f,
+                "a row handed to the spline pair's reading is not a row on a side of the \
+                 {chart:?} chart's rectangle"
+            ),
+            Self::Span => write!(
+                f,
+                "a row handed to the spline pair's reading has no ordered, finite span"
+            ),
+        }
+    }
 }
 
 impl PairRow {
     /// The row with `image_a` on `a` and `image_b` on `b` over `span`.
-    /// `None` where an image is not a row on a side of its chart, or the
-    /// span is not an ordered finite interval.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// [`PairRowRefusal`], naming what it is not.
     pub fn new(
         (a, image_a): (&NurbsSurface<f64>, Pcurve<f64>),
         (b, image_b): (&NurbsSurface<f64>, Pcurve<f64>),
         span: (f64, f64),
-    ) -> Option<Self> {
-        let sided = crate::description::on_domain_side(a, &image_a)
-            && crate::description::on_domain_side(b, &image_b);
-        (sided && span.0.is_finite() && span.1.is_finite() && span.0 < span.1).then_some(Self {
+    ) -> Result<Self, PairRowRefusal> {
+        let side = |chart, image: &Pcurve<f64>, which| {
+            crate::description::domain_side(chart, image).ok_or(PairRowRefusal::NotOnASide(which))
+        };
+        let sides = [
+            side(a, &image_a, BoundaryChart::First)?,
+            side(b, &image_b, BoundaryChart::Second)?,
+        ];
+        if !(span.0.is_finite() && span.1.is_finite() && span.0 < span.1) {
+            return Err(PairRowRefusal::Span);
+        }
+        Ok(Self {
             images: [image_a, image_b],
             span,
+            sides,
         })
     }
 
@@ -158,29 +214,11 @@ impl PairRow {
     /// state indices, chart `a`'s then `b`'s.
     fn axes(&self) -> [(usize, usize); 2] {
         core::array::from_fn(|i| {
-            let along_u = crate::description::row_of(&self.images[i]).is_some_and(|r| r.0);
-            let (along, fixed) = if along_u { (0, 1) } else { (1, 0) };
-            (2 * i + along, 2 * i + fixed)
-        })
-    }
-
-    /// The side each image runs along, chart `a`'s then `b`'s.
-    fn sides(&self, r: Box4) -> [ChartSide; 2] {
-        self.axes().map(|(_, fixed)| {
-            let at = self.images[fixed / 2].eval(self.span.0);
-            let c = if fixed.is_multiple_of(2) { at.x } else { at.y };
-            ChartSide {
-                fixed: if fixed.is_multiple_of(2) {
-                    ChartAxis::U
-                } else {
-                    ChartAxis::V
-                },
-                end: if c == r.0[fixed].0 {
-                    ChartEnd::Low
-                } else {
-                    ChartEnd::High
-                },
-            }
+            let held = match self.sides[i].fixed {
+                ChartAxis::U => 0,
+                ChartAxis::V => 1,
+            };
+            (2 * i + (1 - held), 2 * i + held)
         })
     }
 }
@@ -221,16 +259,13 @@ pub struct PairReading {
 impl core::fmt::Debug for Section<'_> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self {
-            lane,
-            crossings,
-            banked,
-            ..
+            lane, pass, banked, ..
         } = self;
         f.debug_struct("Section")
             .field("domain", &lane.domain)
             .field("band", &lane.band)
             .field("speeds", &lane.speeds)
-            .field("crossings", &crossings.get().map(|p| p.crossings.len()))
+            .field("crossings", &pass.get().map(|p| p.crossings.len()))
             .field("branches", &banked.branches.len())
             .finish_non_exhaustive()
     }
@@ -262,12 +297,32 @@ impl<'a> Section<'a> {
         domain: SsiDomain,
         band: Band,
     ) -> Result<Self, SsiError> {
-        Self::of_charted(
+        Self::of_known(s1, s2, domain, band, (Vec::new(), Vec::new()))
+    }
+
+    /// **[`Section::of`] with `rows` and `corners` handed in as known**
+    /// (module docs): taken at construction, so no reading runs the
+    /// boundary pass without them.
+    ///
+    /// # Errors
+    ///
+    /// As [`Section::of`].
+    pub fn of_known(
+        s1: &'a NurbsSurface<f64>,
+        s2: &'a NurbsSurface<f64>,
+        domain: SsiDomain,
+        band: Band,
+        (rows, corners): (Vec<PairRow>, Vec<PairCorner>),
+    ) -> Result<Self, SsiError> {
+        let mut section = Self::of_charted(
             (s1, ChartedNurbs::mint),
             (s2, ChartedNurbs::mint),
             domain,
             band,
-        )
+        )?;
+        section.rows = rows;
+        section.corners = corners;
+        Ok(section)
     }
 
     /// [`Section::of`] with each surface's chart had from `chart_1` and
@@ -344,24 +399,11 @@ impl<'a> Section<'a> {
                 band,
                 speeds,
             },
-            crossings: OnceCell::new(),
+            pass: OnceCell::new(),
             banked: Banked::new(Self::tube_of),
             rows: Vec::new(),
             corners: Vec::new(),
         })
-    }
-
-    /// **The section with `rows` and `corners` handed in as known**
-    /// (module docs), before any reading runs the boundary pass.
-    #[must_use]
-    pub fn with_known(mut self, rows: Vec<PairRow>, corners: Vec<PairCorner>) -> Self {
-        debug_assert!(
-            self.crossings.get().is_none(),
-            "known solutions are handed in before the boundary pass"
-        );
-        self.rows = rows;
-        self.corners = corners;
-        self
     }
 }
 
@@ -386,16 +428,15 @@ impl<'a> PairLane<'a> {
     fn boundary_pass(&self, rows: &[PairRow], corners: &[PairCorner]) -> Result<Pass, SsiError> {
         let pair = self.boxes();
         let r = Box4::of_charts(self.a.surface(), self.b.surface());
-        let unresolved = || SsiError::PairBoundaryUnresolved {
+        let unresolved = |cause| SsiError::PairBoundaryUnresolved {
             pieces: PAIR_BOUNDARY_PIECES,
+            cause,
         };
         let rungs = self.cover_rungs(r)?;
         let mut pass = Pass::default();
         for row in rows {
             let cover = self.row_cover(row, &rungs)?;
-            pass.regions.push(PairRegion::Side {
-                sides: row.sides(r),
-            });
+            pass.regions.push(PairRegion::Side { sides: row.sides });
             pass.cells.extend(cover);
         }
         let covers = pass.cells.clone();
@@ -431,7 +472,7 @@ impl<'a> PairLane<'a> {
                 signs.map(|s| (cell, s))
             });
             let Some((cell, signs)) = read else {
-                return Err(unresolved());
+                return Err(unresolved(PairBoundaryCause::CornerUnsigned));
             };
             let along: Vec<bool> = (0..4).map(|k| signs[k] == inward[k]).collect();
             if along.iter().all(|&x| x) || along.iter().all(|&x| !x) {
@@ -441,8 +482,8 @@ impl<'a> PairLane<'a> {
             }
             pass.cells.push(cell);
         }
-        let roots = face_roots_outside(&pair, r, PAIR_BOUNDARY_PIECES, &pass.cells)
-            .ok_or_else(unresolved)?;
+        let roots =
+            face_roots_outside(&pair, r, PAIR_BOUNDARY_PIECES, &pass.cells).map_err(unresolved)?;
         for (q, k, high) in roots {
             pass.crossings.push(self.settle_crossing(q, k, high)?);
         }
@@ -450,7 +491,7 @@ impl<'a> PairLane<'a> {
     }
 
     /// **The widths a cover or a corner cell is tried at**, widest
-    /// first, in chart units per coordinate: an eighth of the
+    /// first, in chart units per coordinate: [`COVER_TOP_SHARE`] of the
     /// coordinate's domain, halved down to [`COVER_FLOOR_CELLS`]
     /// accounting-floor cells, which is the last rung (module docs). A
     /// wider cover lets the boundary pass's walk drop its pieces sooner;
@@ -467,7 +508,7 @@ impl<'a> PairLane<'a> {
         let least: [f64; 4] =
             core::array::from_fn(|k| COVER_FLOOR_CELLS * floor.width() / root_cell.scale[k]);
         let mut rungs = Vec::new();
-        let mut width: [f64; 4] = core::array::from_fn(|k| (r.0[k].1 - r.0[k].0) / 8.0);
+        let mut width: [f64; 4] = core::array::from_fn(|k| (r.0[k].1 - r.0[k].0) * COVER_TOP_SHARE);
         while (0..4).any(|k| width[k] > least[k]) {
             rungs.push(core::array::from_fn(|k| width[k].max(least[k])));
             width = width.map(|w| 0.5 * w);
@@ -491,27 +532,22 @@ impl<'a> PairLane<'a> {
     /// piece's sign.
     fn row_cover(&self, row: &PairRow, rungs: &[[f64; 4]]) -> Result<Vec<Box4>, SsiError> {
         let [(along_a, held_a), (along_b, held_b)] = row.axes();
-        let coordinate =
-            |p: geom_core::Point2<f64>, k: usize| if k.is_multiple_of(2) { p.x } else { p.y };
+        // Read across chart `a`'s coordinate along the row alone (module
+        // docs): the chord's other components are dropped.
         let read = |lo: f64, hi: f64| {
-            let ends = |i: usize| (row.images[i].eval(lo), row.images[i].eval(hi));
-            let ((a0, a1), (b0, b1)) = (ends(0), ends(1));
-            let hull = |p: f64, q: f64| {
-                if p.is_nan() || q.is_nan() {
-                    (f64::NAN, f64::NAN)
-                } else {
-                    (p.min(q), p.max(q))
-                }
+            let ends = |i: usize, k: usize| {
+                let at = |t: f64| {
+                    let p = row.images[i].eval(t);
+                    let c = if k == 0 { p.x } else { p.y };
+                    (c, c)
+                };
+                [at(lo), at(hi)]
             };
-            let state = Box4([
-                hull(a0.x, a1.x),
-                hull(a0.y, a1.y),
-                hull(b0.x, b1.x),
-                hull(b0.y, b1.y),
-            ]);
-            let mut chord = [0.0; 4];
-            chord[along_a] = coordinate(a1, along_a) - coordinate(a0, along_a);
-            (state, chord)
+            let (state, chord) =
+                super::four::row_piece([ends(0, 0), ends(0, 1), ends(1, 0), ends(1, 1)]);
+            let mut along = [0.0; 4];
+            along[along_a] = chord[along_a];
+            (state, along)
         };
         let walls = (self.a.surface(), self.b.surface());
         for (n, width) in rungs.iter().enumerate() {
@@ -530,6 +566,7 @@ impl<'a> PairLane<'a> {
         }
         Err(SsiError::PairBoundaryUnresolved {
             pieces: PAIR_BOUNDARY_PIECES,
+            cause: PairBoundaryCause::CoverUnread,
         })
     }
 
@@ -649,7 +686,7 @@ impl Section<'_> {
 
     /// The boundary pass, run once.
     fn pass(&self) -> Result<&Pass, SsiError> {
-        passed(&self.crossings, || {
+        passed(&self.pass, || {
             self.lane.boundary_pass(&self.rows, &self.corners)
         })
     }
@@ -695,9 +732,7 @@ impl Section<'_> {
         if let Some(i) = self.banked.holding(&x) {
             return Ok(&self.banked.branches[i]);
         }
-        let crossings = passed(&self.crossings, || {
-            lane.boundary_pass(&self.rows, &self.corners)
-        })?;
+        let crossings = passed(&self.pass, || lane.boundary_pass(&self.rows, &self.corners))?;
         let i = self.banked.through(&lane.ends(), x, &crossings.crossings)?;
         Ok(&self.banked.branches[i])
     }
@@ -718,7 +753,7 @@ impl Section<'_> {
     }
 
     /// **[`Section::all`] with the regions of the rows and corners
-    /// handed in** ([`Section::with_known`]): their covers and cells are
+    /// handed in** ([`Section::of_known`]): their covers and cells are
     /// contact cells in the accounting and hold no seed.
     ///
     /// # Errors
@@ -739,10 +774,7 @@ impl Section<'_> {
         let ends = lane.ends();
 
         // ---- the open branches, between the crossings not yet ended ----
-        let pass = passed(&self.crossings, || {
-            lane.boundary_pass(&self.rows, &self.corners)
-        })?
-        .clone();
+        let pass = passed(&self.pass, || lane.boundary_pass(&self.rows, &self.corners))?.clone();
         for branch in ends.branches(&self.banked.open(&pass.crossings))? {
             self.banked.bank(branch);
         }
@@ -812,18 +844,6 @@ impl PairLane<'_> {
     }
 }
 
-/// **An enclosure's centre, and how far every point of it may stand from
-/// that centre**, in metres: its half-widths summed, rounded up, which
-/// bounds the half-diagonal. `None` for an enclosure with no finite
-/// reach.
-fn centre_and_reach(s: Box3) -> Option<(Point3<f64>, f64)> {
-    let centre = |x: geom_core::Interval| 0.5 * (x.lo() + x.hi());
-    let q = Point3::new(centre(s.x), centre(s.y), centre(s.z));
-    let reach = |x: geom_core::Interval| (x.hi() - centre(x)).max(centre(x) - x.lo()).next_up();
-    let pad = (reach(s.x) + reach(s.y) + reach(s.z)).next_up();
-    pad.is_finite().then_some((q, pad))
-}
-
 /// The most halvings [`branch_witness`] takes of a slice about the
 /// branch's middle before it gives up.
 const WITNESS_HALVINGS: u32 = 48;
@@ -872,7 +892,7 @@ pub(crate) fn branch_witness(
             let [(u0, u1), (v0, v1), ..] = root.0;
             let s = super::enclose::NurbsBoxes::new(a)
                 .rect_box(super::enclose::UvWindow::new(u0, u1, v0, v1)?);
-            return centre_and_reach(s);
+            return s.centre_and_reach();
         }
         half = half.map(|h| 0.5 * h);
     }
@@ -946,9 +966,14 @@ mod tests {
             u: ChartEnd::Low,
             v: ChartEnd::Low,
         };
-        let section = Section::of(&flat, &enters, domain, band)
-            .unwrap()
-            .with_known(Vec::new(), vec![super::PairCorner([low, low])]);
+        let section = Section::of_known(
+            &flat,
+            &enters,
+            domain,
+            band,
+            (Vec::new(), vec![super::PairCorner([low, low])]),
+        )
+        .unwrap();
         let pass = section.pass().expect("the pass reads the corner");
         assert!(pass.regions.is_empty(), "no region: {:?}", pass.regions);
         assert!(
@@ -974,7 +999,7 @@ mod tests {
             y: Interval::from_bounds(-2.0, -2.0 + 4e-9),
             z: Interval::from_bounds(0.5, 0.5 + 1e-9),
         };
-        let (q, pad) = super::centre_and_reach(s).expect("a finite enclosure");
+        let (q, pad) = s.centre_and_reach().expect("a finite enclosure");
         let corners = [s.x.lo(), s.x.hi()].into_iter().flat_map(|x| {
             [s.y.lo(), s.y.hi()]
                 .into_iter()
@@ -1105,7 +1130,15 @@ mod tests {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation
+)]
 mod r2_line_rows {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
@@ -1138,10 +1171,7 @@ mod r2_line_rows {
     /// reading must still trace the line: one open branch.
     #[test]
     fn r2_a_second_branch_beside_a_shared_row_is_traced() {
-        let zero: f64 = std::env::var("R2_ZERO")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(1e-9);
+        let zero = geom_core::Tol::witness().eps();
         let (a, b) = (wall(0.0, 0.0, (0.0, 1.0)), wall(20.0, 0.06, (-0.5, 1.5)));
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
@@ -1159,20 +1189,10 @@ mod r2_line_rows {
             extent: 80.0,
             floor_scale: 1.0,
         };
-        let t = std::time::Instant::now();
-        let got = Section::of(&a, &b, domain, band)
+        let r = Section::of_known(&a, &b, domain, band, (vec![row], Vec::new()))
             .unwrap()
-            .with_known(vec![row], Vec::new())
-            .read_all();
-        eprintln!(
-            "zero {zero}: {:?} ({:?})",
-            got.as_ref().map(|r| (
-                r.outcome.branches.iter().map(|b| b.end).collect::<Vec<_>>(),
-                &r.regions
-            )),
-            t.elapsed()
-        );
-        let r = got.expect("the pair reads");
+            .read_all()
+            .expect("the pair reads");
         let open = r
             .outcome
             .branches
@@ -1181,24 +1201,88 @@ mod r2_line_rows {
             .count();
         assert_eq!(open, 1, "the line y = δ inside the cover is traced");
     }
+
+    /// **A second branch within even the floor's cover refuses, never
+    /// covered: the cover reads no piece's sign.** `z = 0` and
+    /// `z = 20·y·(y − δ)`, `δ` a two-hundredth of a band, share their
+    /// `v = 0` row and cross again along `y = δ`, inside the narrowest
+    /// rung's cover all along the row (the floor is narrowest across the
+    /// second wall's steep `v`). Every piece of every rung holds the second line, so
+    /// none reads a sign: the given-up rungs give up, the last reads whole
+    /// and unread, and the pair refuses as a cover read nowhere
+    /// ([`PairBoundaryCause::CoverUnread`]), the reading's incapacity, not
+    /// a tangency. Red against a piece with no sign read as signed, at
+    /// depth on the last rung or on a given-up rung, with either sign:
+    /// every piece then reads one sign, the cover reads clear, and the
+    /// pass walks past the line's crossings inside it (it answers with
+    /// none, and the reading would list one `Side` region and no branch).
+    #[test]
+    fn a_second_branch_within_the_floor_cover_refuses_as_unread() {
+        let zero = geom_core::Tol::witness().eps();
+        let (a, b) = (
+            wall(0.0, 0.0, (0.0, 1.0)),
+            wall(20.0, 0.005 * zero, (-0.5, 1.5)),
+        );
+        let image = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.0, 0.0),
+            pl: Vec2::new(1.0, 0.0),
+        };
+        let image_b = crate::Pcurve::IsoLine {
+            p0: Point2::new(0.25, 0.0),
+            pl: Vec2::new(0.5, 0.0),
+        };
+        let row = PairRow::new((&a, image), (&b, image_b), (0.0, 1.0)).unwrap();
+        let band = Band::new(zero, 10.0 * zero).unwrap();
+        let domain = SsiDomain {
+            center: Point3::new(0.5, 0.5, 0.0),
+            half_extent: 40.0,
+            extent: 80.0,
+            floor_scale: 1.0,
+        };
+        // The boundary pass reads the covers before it walks a face, so
+        // the pass alone answers.
+        let pass = Section::of_known(&a, &b, domain, band, (vec![row], Vec::new()))
+            .unwrap()
+            .crossings();
+        assert!(
+            matches!(
+                pass,
+                Err(crate::ssi::SsiError::PairBoundaryUnresolved {
+                    cause: crate::ssi::PairBoundaryCause::CoverUnread,
+                    ..
+                })
+            ),
+            "the line within the floor's cover leaves every piece unread: {pass:?}"
+        );
+    }
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::needless_range_loop,
+    clippy::cast_precision_loss,
+    clippy::cast_possible_wrap,
+    clippy::cast_possible_truncation
+)]
 mod r2_ellipse_rows {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Point2, Point3, Vec2};
 
     use super::{PairRow, Section};
-    use crate::ssi::{BranchEnd, SsiDomain};
+    use crate::ssi::{BranchEnd, SsiDomain, SsiError};
 
     fn binom(n: usize, k: usize) -> f64 {
         (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
     }
 
-    /// `z = Σ a[m][n] x^m y^n` over `x ∈ [0, 1]`, `y ∈ [0, s]`, exactly.
-    fn poly(a: [[f64; 4]; 3], s: f64) -> NurbsSurface<f64> {
+    /// `z = Σ c[m][n] u^m y^n` over `x = x0 + l·u`, `u ∈ [0, 1]`, and
+    /// `y ∈ [0, s]` (`v = y / s`), exactly: a biquadratic in `u` by cubic
+    /// in `v`.
+    fn poly(c: [[f64; 4]; 3], (x0, l): (f64, f64), s: f64) -> NurbsSurface<f64> {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         let mut control = Vec::new();
@@ -1207,26 +1291,33 @@ mod r2_ellipse_rows {
                 let mut b = 0.0;
                 for m in 0..=i {
                     for n in 0..=j {
-                        b += a[m][n] * s.powi(n as i32) * binom(i, m) / binom(2, m) * binom(j, n)
+                        b += c[m][n] * s.powi(n as i32) * binom(i, m) / binom(2, m) * binom(j, n)
                             / binom(3, n);
                     }
                 }
-                control.push(Point3::new(i as f64 / 2.0, s * j as f64 / 3.0, b));
+                control.push(Point3::new(x0 + l * i as f64 / 2.0, s * j as f64 / 3.0, b));
             }
         }
         NurbsSurface::new(ku, kv, control, vec![1.0; 12]).unwrap()
     }
 
-    /// **A loop inside the widest rung's cover is traced, never covered.**
-    /// `z = 0` and `z = K·y·(((x − ½)/a)² + ((y − δ)/r)² − 1)` share
-    /// their `v = 0` row and meet again in an ellipse inside the first
-    /// rungs' width on both charts.
+    /// **A loop inside the widest rung's cover is traced, never covered:
+    /// the cover's claim (the section in it is the row) read where it
+    /// would be false.** `z = 0` and `z = K·y·(((x − ½)/a)² + ((y − δ)/r)² − 1)`
+    /// share their `v = 0` row and meet again in a thin ellipse inside the
+    /// first rungs' width on both charts. The rungs whose cover holds the
+    /// ellipse read pieces with no sign and are given up; the first that
+    /// clears it covers the row alone, and the ellipse is traced. Limb 3
+    /// does not yet prove so thin a loop's tube, so the reading either
+    /// lists one loop beside one `Side` region, or refuses that loop's
+    /// tube: either way the trace reached it. Red against a piece with no
+    /// sign read as signed, at depth on the last rung or on a given-up
+    /// rung, either sign: the cover reads clear and swallows the loop (no
+    /// loop, no tube refusal), or reads a turn and refuses as a tangency
+    /// along the row.
     #[test]
     fn r2_a_loop_inside_the_first_cover_is_traced() {
-        let zero: f64 = std::env::var("R2_ZERO")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(1e-9);
+        let zero = geom_core::Tol::witness().eps();
         let (k, aa, d, r, s) = (0.25, 0.3, 0.008, 0.004, 0.125);
         let mut c = [[0.0; 4]; 3];
         c[2][1] = k / (aa * aa);
@@ -1234,7 +1325,7 @@ mod r2_ellipse_rows {
         c[0][1] = k * (0.25 / (aa * aa) + d * d / (r * r) - 1.0);
         c[0][2] = -2.0 * k * d / (r * r);
         c[0][3] = k / (r * r);
-        let (a, b) = (poly([[0.0; 4]; 3], 1.0), poly(c, s));
+        let (a, b) = (poly([[0.0; 4]; 3], (0.0, 1.0), 1.0), poly(c, (0.0, 1.0), s));
         let image = crate::Pcurve::IsoLine {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(1.0, 0.0),
@@ -1247,27 +1338,26 @@ mod r2_ellipse_rows {
             extent: 80.0,
             floor_scale: 1.0,
         };
-        let t = std::time::Instant::now();
-        let got = Section::of(&a, &b, domain, band)
+        let read = Section::of_known(&a, &b, domain, band, (vec![row], Vec::new()))
             .unwrap()
-            .with_known(vec![row], Vec::new())
             .read_all();
-        eprintln!(
-            "ellipse zero {zero}: {:?} ({:?})",
-            got.as_ref().map(|r| (
-                r.outcome.branches.iter().map(|b| b.end).collect::<Vec<_>>(),
-                &r.regions
-            )),
-            t.elapsed()
-        );
-        if let Ok(r) = got {
-            let loops = r
-                .outcome
-                .branches
-                .iter()
-                .filter(|b| b.end == BranchEnd::Closed)
-                .count();
-            assert_eq!(loops, 1, "the ellipse inside the cover is traced");
+        match read {
+            Ok(r) => {
+                let loops = r
+                    .outcome
+                    .branches
+                    .iter()
+                    .filter(|b| b.end == BranchEnd::Closed)
+                    .count();
+                assert_eq!(loops, 1, "the ellipse inside the cover is traced: {r:?}");
+                assert!(
+                    matches!(r.regions.as_slice(), [super::PairRegion::Side { .. }]),
+                    "the row is one Side region: {:?}",
+                    r.regions
+                );
+            }
+            Err(SsiError::TubeStraddles { .. } | SsiError::TubeNotOneArc { .. }) => {}
+            Err(e) => panic!("the ellipse is traced, listed or its tube refused: {e:?}"),
         }
     }
 }
