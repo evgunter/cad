@@ -283,8 +283,7 @@ fn stacks(lower: Outline, upper: Outline) -> Vec<(String, topo::BooleanBody<f64>
 /// builds ([`two_cylinders_tangent_along_a_ruling_cover_the_stack`]
 /// meters it). The difference is its minuend and the intersection is
 /// nothing: the no-crossings path defers the continued walls' settled
-/// pairs, no edge of either plate runs inside the other's walls, and
-/// each plate's side (`Out` the other) stands. Each difference is valid
+/// pairs, and each plate's side (`Out` the other) stands. Each difference is valid
 /// at tier 3 and 3′ at its outline's closed-form area.
 #[test]
 fn the_arc_joint_stacks_build_every_op() {

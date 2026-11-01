@@ -56,8 +56,9 @@ Replay with `cargo run --release -p viewer --features app --example drive -- scr
 click "New…"
 click "document name"
 type "bracket"
-click "Create" 0
+click "Create document"
 click "Add feature"
+click "Add profile…"
 click "rectangle"
 click "0.0100" 0
 type "0.06"
@@ -66,6 +67,7 @@ click "0.0100" 0
 type "0.04"
 key Enter
 click "Add profile"
+click "Add profile…"
 click "Profile 1 Profile bf935d4a4c62"
 click "0.0100" 0
 type "0.005"
@@ -81,6 +83,7 @@ click "0.0100" 0
 type "0.03"
 key Enter
 click "Add profile"
+click "Add profile…"
 click "on the picked face"
 click "circle"
 click "0.0000" 1
@@ -90,6 +93,7 @@ click "0.0100" 0
 type "0.003"
 key Enter
 click "Add profile"
+click "Add profile…"
 tree
 dump
 ```

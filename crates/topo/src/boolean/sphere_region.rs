@@ -39,7 +39,7 @@
 //! # Which rays
 //!
 //! First the rays aimed at points of the boundary — three points of every
-//! arc, in loop order — each of which meets the boundary somewhere; then
+//! arc, in walk order — each of which meets the boundary somewhere; then
 //! the fixed schedule's directions projected onto the tangent plane at
 //! `p` (`splitting::containment::SCHEDULE`), for the points where every
 //! aimed ray runs along an arc: a point a hair off a vertex sees every
@@ -329,6 +329,10 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
         &self.edges
     }
 
+    fn edges_mut(&mut self) -> &mut Vec<Arc<T>> {
+        &mut self.edges
+    }
+
     fn outer(&self) -> LoopKey {
         self.outer
     }
@@ -426,6 +430,7 @@ mod tests {
             edges: vec![RegionEdge {
                 edge: EdgeKey::from(KeyData::from_ffi(1)),
                 r#loop: LoopKey::default(),
+                cycle: 0,
                 carrier: geom::Curve3::Circle {
                     center: Point3::new(0.0, 0.0, 0.5),
                     axis: Vec3::new(0.0, 0.0, 1.0),
@@ -495,6 +500,7 @@ mod tests {
         let meridian = |az: f64, forward: bool, key: u64| RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::origin(),
                 axis: Vec3::new(-az.sin(), az.cos(), 0.0),
@@ -533,6 +539,7 @@ mod tests {
         RegionEdge {
             edge: EdgeKey::from(KeyData::from_ffi(key)),
             r#loop: LoopKey::default(),
+            cycle: 0,
             carrier: geom::Curve3::Circle {
                 center: Point3::origin() + pole * theta.cos(),
                 axis: pole,

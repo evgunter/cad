@@ -243,7 +243,7 @@ impl<T: Real> SharedRow<T> {
 /// (the only way an arc-rim image is stated or certified), its chart
 /// parameter increasing with the carrier's with a positive derivative on
 /// every sub-arc ([`Pcurve::IsoArc`]'s map).
-fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
+pub(crate) fn row_of<T: Real>(image: &Pcurve<T>) -> Option<(bool, T)> {
     let zero = |x: T| geom_core::is_exact_zero(x);
     match image {
         Pcurve::IsoLine { p0, pl } if zero(pl.y) && !zero(pl.x) => Some((true, p0.y)),
@@ -265,14 +265,37 @@ fn is_row<T: Real>(image: &Pcurve<T>) -> bool {
 /// states its side as data: the rows the walls' picks offer are read off
 /// the domain ends themselves.
 pub(crate) fn on_domain_side<T: Real>(chart: &geom::NurbsSurface<T>, image: &Pcurve<T>) -> bool {
-    row_of(image).is_some_and(|(along_u, fixed)| {
-        let (lo, hi) = if along_u {
-            chart.knot_values_v().domain()
-        } else {
-            chart.knot_values_u().domain()
-        };
-        geom_core::is_exact_zero(fixed - lo) || geom_core::is_exact_zero(fixed - hi)
-    })
+    domain_side(chart, image).is_some()
+}
+
+/// **The side of `chart` a row image runs along**: [`on_domain_side`]'s
+/// decision, with the side it found. `None` where it is no row on a
+/// domain side.
+pub(crate) fn domain_side<T: Real>(
+    chart: &geom::NurbsSurface<T>,
+    image: &Pcurve<T>,
+) -> Option<crate::ssi::ChartSide> {
+    use crate::ssi::{ChartAxis, ChartEnd, ChartSide};
+    let (along_u, fixed) = row_of(image)?;
+    let (lo, hi) = if along_u {
+        chart.knot_values_v().domain()
+    } else {
+        chart.knot_values_u().domain()
+    };
+    let axis = if along_u { ChartAxis::V } else { ChartAxis::U };
+    if geom_core::is_exact_zero(fixed - lo) {
+        Some(ChartSide {
+            fixed: axis,
+            end: ChartEnd::Low,
+        })
+    } else if geom_core::is_exact_zero(fixed - hi) {
+        Some(ChartSide {
+            fixed: axis,
+            end: ChartEnd::High,
+        })
+    } else {
+        None
+    }
 }
 
 /// The canonical edge description (module docs): D2's two intrinsic

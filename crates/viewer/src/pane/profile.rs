@@ -298,17 +298,16 @@ pub(crate) fn edit_door_ui(
     let differs = edit.differs_from_base();
     let stranded = if differs {
         let base = edit.base().clone();
-        edit.report(session.history().current(), |loops, ids| {
+        let report = edit.report(session.history().current(), |loops, ids| {
             // A program the door refuses strands nothing yet; its
             // refusal is the preview's to show, or Apply's to get.
             session
                 .edit_profile_report(node, &base, loops, ids)
                 .unwrap_or_default()
-        })
-        .iter()
-        .filter_map(frame::maintenance_notice)
-        .map(|notice| notice.text().to_owned())
-        .collect()
+        });
+        frame::maintenance_notices(report)
+            .map(|notice| notice.text().to_owned())
+            .collect()
     } else {
         Vec::new()
     };
@@ -643,7 +642,7 @@ const UNTOUCHED: &str = "the steps and numbers are the committed profile's";
 /// **Apply says what it strands before it is clicked** — a fillet on a
 /// dropped step's edge is the fillet the person is about to lose — so
 /// the count is on the button, as a delete's cascade is, and each
-/// `stranded` row's own sentence ([`frame::maintenance_notice`]) is on
+/// `stranded` row's own sentence ([`frame::maintenance_notices`]) is on
 /// its hover.
 ///
 /// Answers whether each was clicked — Apply, then Revert — which a
@@ -1616,7 +1615,7 @@ mod tests {
         }];
         // Beside the strand, the outcome carries the anonymous
         // variables the rewritten arguments were written in, which the
-        // status line does not say (`frame::maintenance_notice`).
+        // status line does not say (`frame::maintenance_notices`).
         let (anonymous, named): (Vec<_>, Vec<_>) = out
             .maintenance
             .iter()
@@ -1733,7 +1732,10 @@ mod tests {
         assert_eq!(row.source.as_deref(), Some("w"), "by the same expression");
         let moved = row_of(&session, profile, corner(3, StepArg::TargetY));
         assert_eq!(
-            moved.value.map(|value| value.as_f64()).ok(),
+            moved
+                .value
+                .map(|value| value.one().expect("one value").as_f64())
+                .ok(),
             Some(0.02),
             "the moved number landed"
         );
@@ -1766,7 +1768,12 @@ mod tests {
         let out = session.perform(formed.expect("Apply formed the op"));
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
         let row = row_of(&session, profile, slot);
-        assert_eq!(row.value.map(|value| value.as_f64()).ok(), Some(0.012));
+        assert_eq!(
+            row.value
+                .map(|value| value.one().expect("one value").as_f64())
+                .ok(),
+            Some(0.012)
+        );
         assert_eq!(
             row.unit,
             Some(pncad::quantity::MM.def()),

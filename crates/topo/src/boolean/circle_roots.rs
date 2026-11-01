@@ -306,6 +306,44 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     rows: &FirstHarmonicRows,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    harmonic_roots(h, speed, Some((t0, t1)), rows, band)
+}
+
+/// **The roots of a first harmonic in a leg's own parameter over its
+/// whole turn**, as [`first_harmonic_roots_in_band`] reads them over
+/// `[0, τ]`, except where the leg's start lies on the plane: its residual
+/// at `s = 0` within the band's zero. Such a leg has a root at its start,
+/// at the cut of the whole turn's branch about `π`, where unwinding moves
+/// it by a turn either way and an enclosing scalar holds it as a whole
+/// turn's hull (`Real::periodic_branch`'s tie). There each root is left
+/// as computed, `φ ± acos(−c₀/A₁)`, a representative modulo a turn, which
+/// a reader that takes a root as the point it gives (`cos s`, `sin s`)
+/// reads alike. The pick is arithmetic (`Real::select_le_zero`), with no
+/// decision of its own.
+///
+/// # Errors
+///
+/// As [`first_harmonic_roots_in_band`].
+pub(super) fn first_harmonic_leg_roots<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    harmonic_roots(h, speed, None, rows, band)
+}
+
+/// The one body of [`first_harmonic_roots_in_band`] and
+/// [`first_harmonic_leg_roots`]: the roots on the branch of `window`'s
+/// middle, or, with none, a leg's over `[0, τ]` unwound where its start
+/// lies on the plane.
+fn harmonic_roots<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    window: Option<(T, T)>,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -364,10 +402,19 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // either end. None reads
     // a root as an identity, which is why the floor stays: a structural
     // pick would decide nothing a reader uses.
-    Ok(Roots::all([
-        near_span(phi - half_chord, (t0, t1)),
-        near_span(phi + half_chord, (t0, t1)),
-    ]))
+    let (a, b) = (phi - half_chord, phi + half_chord);
+    Ok(Roots::all(match window {
+        Some(span) => [near_span(a, span), near_span(b, span)],
+        None => {
+            let turn = (T::zero(), T::tau());
+            let at_start =
+                ((lo_value + hi_value) / two + cos_part).abs() - T::from_f64(band.zero());
+            [
+                at_start.select_le_zero(a, near_span(a, turn)),
+                at_start.select_le_zero(b, near_span(b, turn)),
+            ]
+        }
+    }))
 }
 
 /// **An angle on the branch of a span's middle**: `raw` moved by whole

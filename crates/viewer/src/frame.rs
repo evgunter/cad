@@ -943,7 +943,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// reads it without asking what refused. **Which kinds ride is not
 /// listed here**, on purpose: each door that makes a notice answers
 /// for its own arms and gives its reasons there — [`Withdrawal::notice`],
-/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// [`maintenance_notices`], [`tool_notice`], [`refusal_message`], and
 /// every typed refusal door with its own one-line reason. A census here
 /// would be a second copy that nothing checks against the first.
 ///
@@ -1398,8 +1398,7 @@ impl<'a> Withdrawal<'a> {
 /// both true of the document it left: what the transition WITHDREW
 /// from the display state ([`Withdrawal::all`]), then what the
 /// committed edits did that the user did not ask for by name
-/// ([`maintenance_notice`], one notice per row in the outcome's own
-/// order). They are notices rather than a verdict for [`Withdrawal`]'s
+/// ([`maintenance_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
 /// reason: the edit that produced them was accepted, so the same
 /// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
@@ -1424,7 +1423,21 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
-        .chain(maintenance.iter().filter_map(maintenance_notice))
+        .chain(maintenance_notices(maintenance))
+}
+
+/// **One edit's maintenance rows as notices**: each row
+/// [`maintenance_notice`] words, in the rows' own order, then one
+/// notice per placement whose values the edit dropped
+/// ([`Maintenance::values_dropped`]) — an edit that drops four values
+/// is one thing to say, not four.
+pub fn maintenance_notices(rows: &[Maintenance]) -> impl Iterator<Item = Message> + '_ {
+    rows.iter().filter_map(maintenance_notice).chain(
+        // Nothing evaluates differently in a way that names it: the
+        // copy simply stops reading the values.
+        Maintenance::values_dropped(rows)
+            .map(|said| Message::new(Subject::Document, said.to_string(), Retold::Never)),
+    )
 }
 
 /// **What a landing's prune withdrew, as notices** — the same notices
@@ -1451,10 +1464,9 @@ pub fn withdrawal_notices(
 /// **Every arm DM7 makes the door report is worded**: a stranded
 /// payload name and a stranded appearance key.
 ///
-/// **The mate door's offset clear is not**: it is what inserting the
-/// mate means, and where the joined group now sits is what the picture
-/// draws. It still rides [`OpOutcome::maintenance`], where a reader of
-/// the API sees it.
+/// **A dropped value is not worded alone**: a mate drops one row per
+/// freedom it fixes, and [`maintenance_notices`] says them once per
+/// placement.
 ///
 /// **Each worded arm answers [`Retold`] for itself**, and each
 /// answers [`Retold::Never`]: none can show a retelling.
@@ -1467,7 +1479,7 @@ pub fn withdrawal_notices(
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
@@ -1481,9 +1493,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // landing, naming the read.
         Maintenance::ProductOutsideWorld { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // Nothing evaluates differently in a way that names it: the
-        // copy simply stops reading the value.
-        Maintenance::ValueDropped { .. } => Retold::Never,
+        // Said once per placement, with the edit's other dropped
+        // values ([`maintenance_notices`]).
+        Maintenance::ValueDropped { .. } => return None,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
