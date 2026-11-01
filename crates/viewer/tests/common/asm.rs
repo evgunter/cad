@@ -263,6 +263,31 @@ pub fn store_union(bench: &Bench, members: &[RecipeNodeId], tol: Tol) -> RecipeN
     union
 }
 
+/// **`body` placed into the world by hand in the bench's stored
+/// assembly**, by the identity bundle, answering the placement: a
+/// person's placement, which no creation writes for them.
+pub fn store_world_copy(bench: &Bench, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
+    let text = std::fs::read_to_string(&bench.asm_path).expect("the assembly reads");
+    let mut doc = pncad::document::load(&text, tol)
+        .expect("the assembly loads")
+        .doc;
+    let placement = insert_into(
+        &mut doc,
+        Node::place(
+            pncad::document::BodyRead::plain(pncad::document::Operand::Node(body)),
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    std::fs::write(
+        &bench.asm_path,
+        pncad::document::save(&doc, &[], tol).expect("the assembly saves"),
+    )
+    .expect("the assembly writes");
+    placement
+}
+
 /// A session opened on the bench's assembly through the typed `Open`
 /// door (which is what wires the resolver), evaluated and landed.
 pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {

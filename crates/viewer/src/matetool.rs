@@ -700,7 +700,19 @@ impl MateTool {
             }
             _ => (picked_on.clone(), picked_on.into()),
         };
-        let target = pose_of(choice.kind, picked_to.clone().into());
+        // A face on a drawn operation that defines several outputs (a
+        // split's halves) is read on the output it was picked on.
+        let to_read = match doc.node(to.node) {
+            Some(Node::Place { .. } | Node::InstantiatePart { .. }) => picked_to.clone().into(),
+            _ => match crate::world::seat_read(doc, to.node, Some(to.body)) {
+                (at, Some(port)) => pncad::document::Operand::select(
+                    pncad::document::Operand::output(at, port),
+                    vec![picked_to.name.clone().into_name()],
+                ),
+                (_, None) => picked_to.clone().into(),
+            },
+        };
+        let target = pose_of(choice.kind, to_read);
         let target = if choice.flip {
             pncad::document::Operand::Pose(Box::new(pose::PoseDef::Flip {
                 pose: pose::RoleRead::plain(target),

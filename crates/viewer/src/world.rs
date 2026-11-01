@@ -664,20 +664,6 @@ pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
     }
 }
 
-/// **The node a creation made**, out of the ids its action minted: the
-/// last one that is not a placement — a creation gesture places
-/// what it made after making it, and the placement is the world's, not
-/// the thing a label or a form is about — or, for a gesture whose
-/// creation IS a placement (the transform's), the first it minted.
-pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<RecipeNodeId> {
-    minted
-        .iter()
-        .rev()
-        .copied()
-        .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
-        .or_else(|| minted.first().copied())
-}
-
 /// **The bodies the product reads** (D10 `[operations]`): the
 /// operands of the `⊔` the product slot reads, in order, or the one
 /// body it reads; empty where it reads nothing or a body that is gone.

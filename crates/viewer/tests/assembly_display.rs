@@ -916,44 +916,51 @@ fn landed_superseded(session: &mut DocSession) -> Vec<viewer::display::Withdrawn
         .collect()
 }
 
-/// **An undo under a value drag drops a frame at the edit**: frames are
-/// asked of the document alone, so an undo that takes post_b's own
-/// space says so at once, and the scratch landing of a drag opened
-/// after it has nothing left to say.
+/// **An undo under a value drag keeps a frame for the redo**: an undo
+/// that takes post_b's own space withdraws nothing, since only a redo
+/// of the edit that minted the space mints it again (IDENTITY DI1); the
+/// scratch landing of a drag opened after it has nothing to say either,
+/// and the redo draws the space under its frame again.
 #[test]
-fn an_undo_before_a_value_drag_drops_the_frame_on_the_edit() {
+fn an_undo_before_a_value_drag_keeps_the_frame_for_the_redo() {
     let tol = Tol::witness();
     let bench = asm::bench("fmovertaken", tol);
     let mut session = asm::open_bench(&bench, tol);
     let dragged = drag_slot(&mut session, &bench);
     let own = asm::unpin(&mut session, bench.post_b);
     commit_frame(&mut session, bench.post_b);
+    let frame = session.display().free_move_of(own).copied();
 
     // The space taken back, and then a drag.
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
-        panic!(
-            "the undo drops the frame: {:?}",
-            outcome.withdrawn.superseded
-        )
-    };
-    assert_eq!(withdrawn.held, viewer::display::Held::Node(bench.post_b));
     assert!(
-        matches!(
-            &withdrawn.cause,
-            AdmissionFault::NoSuchSpace { space, .. } if space.id() == own
-        ),
-        "{}",
-        withdrawn.cause
+        session.committed_doc().var(own).is_none(),
+        "the undo took the space"
     );
-    assert!(session.display().free_move_of(own).is_none());
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the undo withdraws nothing: {:?}",
+        outcome.withdrawn.superseded
+    );
     drag_and_land(&mut session, dragged);
     assert!(
         landed_superseded(&mut session).is_empty(),
-        "and the scratch landing has nothing left to say"
+        "and the scratch landing has nothing to say"
     );
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
+    assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    session.pump();
+    assert_eq!(
+        session.committed_doc().node_space(bench.post_b),
+        Some(own),
+        "the redo brings the same space back"
+    );
+    assert_eq!(
+        session.display().free_move_of(own).copied(),
+        frame,
+        "under the frame it was moved by"
+    );
 }
 
 /// **A frame whose copy is deleted goes at the edit**, typed: the
@@ -1529,6 +1536,7 @@ fn a_frame_whose_bodies_are_fused_goes_once_nothing_draws_them() {
     let tol = Tol::witness();
     let bench = asm::bench("fmfuse", tol);
     let union = asm::store_union(&bench, &[bench.shelf_i, bench.post_b], tol);
+    asm::store_world_copy(&bench, union, tol);
     let mut session = asm::open_bench(&bench, tol);
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
@@ -1537,19 +1545,8 @@ fn a_frame_whose_bodies_are_fused_goes_once_nothing_draws_them() {
     );
     session.pump();
     let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-        .expect("the mated post is in the shelf's space");
+        .expect("the mated post is in the shelf's space: the product draws it as its piece");
     commit_frame(&mut session, bench.post_b);
-    assert!(session.display().free_move_of(space).is_some());
-
-    let outcome = session.perform(SessionOp::Duplicate {
-        input: union.into(),
-        beside: None,
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "the product still draws the shelf and the post as its pieces"
-    );
     assert!(session.display().free_move_of(space).is_some());
 
     let outcome = session.perform(SessionOp::SetProduct { bodies: vec![] });

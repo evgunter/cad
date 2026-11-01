@@ -138,8 +138,12 @@ mod driven {
             "the second is the sphere: {said:#?}"
         );
         let (doc, _) = driver.session().landed_pair().expect("landed");
-        let copies = crate::common::drawn_copies(doc);
-        assert_eq!(copies.len(), 2, "one copy per revolve: {said:#?}");
+        // Each revolve lands unplaced and is drawn itself.
+        let copies: Vec<_> = viewer::world::drawn_nodes(doc)
+            .into_iter()
+            .filter(|&node| matches!(doc.node(node), Some(pncad::document::Node::Revolve { .. })))
+            .collect();
+        assert_eq!(copies.len(), 2, "both revolves are drawn: {said:#?}");
         let index = driver
             .index()
             .expect("the index builds over the failed copy");
@@ -186,10 +190,10 @@ mod driven {
     /// **After a duplicate, a click on either body reaches the tool** —
     /// the replay of
     /// `work/chrome/after-a-duplicate-the-original-cannot-be-picked-into-a-tool.md`.
-    /// The duplicate's copy lands beside the plate, so the plate's body
-    /// is read by two placements. With the boolean tool open, a click on
-    /// the original's material seats the plate's extrude, as it does with
-    /// no duplicate, and a click on the copy seats the copy's placement.
+    /// The duplicate is one more copy of the plate's body beside the
+    /// plate's copy, so the body is read by two placements. With the
+    /// boolean tool open, a click on either copy's material seats the
+    /// plate's extrude, the body both copy (A10).
     /// The replay's own point, framed with both bodies in view, falls in
     /// the original's hole: a miss, which seats nothing.
     #[test]
@@ -242,8 +246,8 @@ mod driven {
         vclick(&mut driver, 0.7, 0.55);
         let picked = members(&driver);
         assert!(
-            picked.contains("member 2: Place \"Part 1\""),
-            "a click on the copy seats the copy's placement: {picked}"
+            picked.contains("member 2: Extrude "),
+            "a click on the copy seats the body it copies: {picked}"
         );
     }
 

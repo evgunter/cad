@@ -335,14 +335,14 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
-/// **Perform one authoring op and answer the node it made**: the node
-/// is its first committed insert that is not a placement — or its first
-/// insert, for an op whose node is one — and every other edit places
-/// bodies (A10, D10): the operands a combine places against its first
-/// operand's root before it reads them, the new body's world placement
-/// and the bundle that places it, or the target's placements
-/// re-pointed or withdrawn — or declares the index a pattern's
-/// placement reads.
+/// **Perform one authoring op and answer the node it made**
+/// (`OpOutcome::made`), holding the session's contract on the rest of
+/// the action: every other edit inserts what the node is made of or
+/// read through (a `new_space()`, the operands a combine places against
+/// its first operand's root, a mirror's image, a `⊔` over a family),
+/// takes over what read its input (a source, a `⊔` operand, the product
+/// slot) or withdraws a copy, writes a bundle, or declares the index a
+/// pattern's placement reads.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -353,50 +353,32 @@ use viewer::session::{DocSession, FaceSelection, SessionOp};
 pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let inserts: Vec<&pncad::document::AuthoredNode> = outcome
-        .committed
-        .iter()
-        .filter_map(|edit| match edit {
-            DocEdit::InsertNode { node, .. } => Some(&**node),
-            _ => None,
-        })
-        .collect();
-    assert!(!inserts.is_empty(), "the op inserts its node: {outcome:?}");
-    let at = inserts
-        .iter()
-        .position(|node| !matches!(node, Node::Place { .. }))
-        .unwrap_or(0);
-    let mut seen = 0;
     for edit in &outcome.committed {
-        if let DocEdit::InsertNode { .. } = edit {
-            seen += 1;
-            if seen == at + 1 {
-                continue;
-            }
-        }
         assert!(
             matches!(
                 edit,
-                DocEdit::InsertNode { node, .. } if matches!(**node, Node::Place { .. })
-            ) || matches!(
-                edit,
-                DocEdit::SetParam {
-                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Source),
-                    ..
-                } | DocEdit::SetParam {
-                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
-                    ..
-                } | DocEdit::DeleteNode { .. }
+                DocEdit::InsertNode { .. }
+                    | DocEdit::SetParam {
+                        slot: pncad::document::SlotId::Operand(
+                            pncad::document::OperandSlot::Source
+                                | pncad::document::OperandSlot::Space
+                                | pncad::document::OperandSlot::Member(_)
+                                | pncad::document::OperandSlot::Members
+                        ),
+                        ..
+                    }
+                    | DocEdit::SetProduct { .. }
+                    | DocEdit::DeleteNode { .. }
                     | DocEdit::DeclareVar { .. }
                     | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
                     | DocEdit::RemoveConstraint { .. }
                     | DocEdit::RemoveConstraints { .. }
             ),
-            "every other edit places bodies: {edit:?}"
+            "every other edit makes, reads or takes over: {edit:?}"
         );
     }
-    *outcome.minted.get(at).expect("the insert minted its node")
+    outcome.made.expect("an authoring op made a node")
 }
 
 /// **Add an instance of the part `id` through the session**, pump the
@@ -752,21 +734,60 @@ pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
         .collect()
 }
 
-/// **The one world placement of `body`**: the node its drawn copy is
-/// picked on (A10) — an instance itself, which is a placement.
+/// **The node `body` is drawn and picked on**: its one copy (A10), an
+/// instance itself, which is a placement, or — a new body lands
+/// unplaced — the body itself where nothing copies it.
 ///
 /// # Panics
 ///
-/// Unless exactly one placement places `body`.
+/// Where several placements copy `body`.
 pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
     // An instance is a placement: its copies are drawn on it.
     if matches!(doc.node(body), Some(Node::InstantiatePart { .. })) {
         return body;
     }
-    let [copy] = viewer::world::placements_of(doc, body)[..] else {
-        panic!("{body:?} is placed once")
-    };
-    copy
+    match viewer::world::placements_of(doc, body)[..] {
+        [] => body,
+        [copy] => copy,
+        _ => panic!("{body:?} is placed more than once"),
+    }
+}
+
+/// **`body`'s one world copy, placed by hand where nothing copies it**:
+/// a new body lands unplaced, so a row about a copy in the world writes
+/// that placement as a person would — a `Place` into the world by the
+/// identity bundle, the product left as it was — unless `doc` holds one
+/// already. Answers the document and the copy.
+pub fn world_copy(
+    doc: &Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    match viewer::world::placements_of(doc, body)[..] {
+        [] if !matches!(doc.node(body), Some(Node::InstantiatePart { .. })) => inserted(
+            doc,
+            Node::place(
+                pncad::document::BodyRead::plain(pncad::document::Operand::Node(body)),
+                pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+                pncad::document::stand().bundle(),
+            ),
+            tol,
+        ),
+        _ => (doc.clone(), copy_of(doc, body)),
+    }
+}
+
+/// [`world_copy`] in a session: a landed session over the document
+/// that holds the copy, and the copy.
+pub fn world_copy_in(
+    session: &DocSession,
+    body: RecipeNodeId,
+    tol: Tol,
+) -> (DocSession, RecipeNodeId) {
+    let (doc, copy) = world_copy(session.committed_doc(), body, tol);
+    let mut session = inline_without_door(doc, tol);
+    session.pump();
+    (session, copy)
 }
 
 /// **The node `node`'s body is drawn under**: its one world placement

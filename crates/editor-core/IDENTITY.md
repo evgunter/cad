@@ -152,8 +152,10 @@ repositions the picture of one shown space and changes no geometry in any
 space: releasing the gesture writes nothing to the document, and the
 release leaves the display frame where it is. The frame is a held value
 like any other on this page, so it names the space it was drawn for: it is
-keyed by that space, and it is dropped when that key stops naming a shown
-space (an undo or an edit removes it; `DisplayState::prune`).
+keyed by that space, and it is dropped when that space stands and is no
+longer shown (an edit empties it; `DisplayState::prune`). A space an undo
+took keeps its frame: only a redo of the insert that minted it mints it
+again (DI1), and the frame is drawn there again.
 Consequences:
 
 - Keeping a relation means stating it: a placement's mates read poses off

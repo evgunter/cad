@@ -45,15 +45,12 @@ use crate::widgets::{
 pub(crate) const MIN_PART_INSTANCE: i64 = 0;
 
 /// **What a projection does to the picture**, said on the panel
-/// before the click: the projected body is placed in the world, so it
-/// is drawn beside whatever is drawn already (A10).
-///
-/// The pattern it reads is never drawn itself — it defines several
-/// bodies, which no world placement reads — so it is reached from the
-/// feature tree, and a person who wants another of its copies projects
-/// that one too.
-pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is placed in the world and drawn: the pattern it is read out of is not \
-     drawn itself — to project another of its copies, pick it again in the feature tree";
+/// before the click: the projected member is read alone, a body of its
+/// own drawn where it stands in the pattern, and the pattern draws the
+/// rest of its members.
+pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is read out of the pattern as a body of its own, drawn where it \
+     stands: the pattern draws its other copies, and a pick on any of them in the viewport \
+     seats that copy";
 
 /// **The part form's rows**: the instance index, and what committing it
 /// does to the picture ([`PROJECTION_IS_PLACED`]).
@@ -2167,18 +2164,19 @@ mod tests {
     }
 
     /// **The projection panel says what a projection does to the
-    /// picture** — the copy it selects is placed and drawn, and a person
-    /// should hear that before the click, not discover it after.
+    /// picture** — the copy it selects is read alone and drawn where it
+    /// stands, and a person should hear that before the click, not
+    /// discover it after.
     #[test]
-    fn the_part_form_says_the_projection_is_placed() {
+    fn the_part_form_says_what_the_projection_draws() {
         let mut instance = 1_i64;
         let drawn = painted_text(|ui| part_selector_rows(ui, &Theme::DEFAULT, &mut instance));
         assert!(
-            drawn.contains("the selected copy is placed in the world and drawn"),
+            drawn.contains("the selected copy is read out of the pattern as a body of its own"),
             "{drawn}"
         );
         assert!(
-            drawn.contains("pick it again in the feature tree"),
+            drawn.contains("a pick on any of them in the viewport"),
             "and where the rest can still be reached from: {drawn}"
         );
     }
@@ -2506,12 +2504,12 @@ mod creation_nouns {
     use crate::session::{DocSession, SessionOp};
     use crate::test_support::{len, square_profile};
 
-    /// The node `op` made on `session` ([`crate::world::made`]), by its
-    /// kind noun.
+    /// The node `op` made on `session` ([`crate::session::OpOutcome::made`]),
+    /// by its kind noun.
     fn minted_noun(session: &mut DocSession, op: SessionOp) -> &'static str {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let node = crate::world::made(session.doc(), &outcome.minted).expect("the op made a node");
+        let node = outcome.made.expect("the op made a node");
         node_kind_noun(session.doc().node(node).expect("the minted node is live"))
     }
 

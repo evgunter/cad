@@ -119,9 +119,53 @@ fn open_at(path: &Path, tol: Tol) -> DocSession {
     session
 }
 
+/// **The session's document, written by hand and reopened**: `write`
+/// over it — what a person writes where no gesture writes it for them
+/// (a placement into the world, the product) — saved to `path` and
+/// opened through the typed door, landed.
+fn reopened_with(
+    session: &mut DocSession,
+    path: &Path,
+    write: impl FnOnce(&Doc<pncad::document::ProfileProgram>) -> Doc<pncad::document::ProfileProgram>,
+    tol: Tol,
+) {
+    let doc = write(session.committed_doc());
+    std::fs::write(
+        path,
+        pncad::document::save(&doc, &[], tol).expect("the document saves"),
+    )
+    .expect("the document writes");
+    let opened = session.perform(SessionOp::Open(path.to_path_buf()));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    session.pump();
+}
+
+/// `node` placed into the world by hand in `doc`: re-targeted there, the
+/// copy it makes now standing in the world.
+fn into_world(
+    doc: &Doc<pncad::document::ProfileProgram>,
+    node: RecipeNodeId,
+    tol: Tol,
+) -> Doc<pncad::document::ProfileProgram> {
+    common::edited(
+        doc,
+        pncad::document::DocEdit::SetParam {
+            node,
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
+            value: pncad::document::SlotValue::Read(pncad::document::Operand::Var(
+                pncad::document::VarId::WORLD,
+            )),
+            fresh: Vec::new(),
+        },
+        tol,
+    )
+    .0
+}
+
 /// Author one box part through the creation ops — a new document, one
-/// centred rectangle, one extrude, the box's copy its product — assert
-/// its volume, and save it. Answers the part's document id.
+/// centred rectangle, one extrude, the box placed into the world by hand
+/// and its copy the product — assert its volume, and save it. Answers
+/// the part's document id.
 fn author_box_part(
     session: &mut DocSession,
     name: &str,
@@ -138,8 +182,22 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
-    let copy = common::copy_of(session.committed_doc(), extrude);
-    common::product_is(session, &[copy]);
+    reopened_with(
+        session,
+        file,
+        |doc| {
+            let (doc, copy) = common::world_copy(doc, extrude, tol);
+            common::edited(
+                &doc,
+                pncad::document::DocEdit::SetProduct {
+                    product: Some(pncad::document::Operand::Node(copy)),
+                },
+                tol,
+            )
+            .0
+        },
+        tol,
+    );
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -287,8 +345,8 @@ fn the_windmill_story() {
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
     assert_eq!(
         session.doc().ids().len(),
-        1,
-        "the slip is off the path: the tower, its own placement"
+        2,
+        "the slip is off the path: the tower and its own space"
     );
     let abandoned = session
         .history()
@@ -313,13 +371,13 @@ fn the_windmill_story() {
     );
     assert_eq!(
         history.entry(abandoned).doc().len(),
-        2,
-        "the abandoned two-tower document is intact, each tower its own placement"
+        4,
+        "the abandoned two-tower document is intact, each tower in its own space"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().ids().len(), 1);
+    assert_eq!(session.doc().ids().len(), 2);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -334,8 +392,16 @@ fn the_windmill_story() {
         other => panic!("expected the self-instance refusal, got {other:?}"),
     }
 
-    // ── 4. RESOLVE: two instance rows, both ok.
+    // ── 4. RESOLVE: two instance rows, both ok. The tower is then
+    // placed into the world by hand — it stands where the product is
+    // made, and an inserted part lands in a space of its own.
     session.pump();
+    reopened_with(
+        &mut session,
+        &asm_path,
+        |doc| into_world(doc, tower_i, tol),
+        tol,
+    );
     let rows = common::asm::instance_rows(&session);
     assert_eq!(rows.len(), 2);
     for row in &rows {

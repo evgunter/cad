@@ -2431,6 +2431,51 @@ fn placement(display: &DisplayView, part: &NodePick) -> impl Fn(Point3<f64>) -> 
     }
 }
 
+/// **Where an inserted space is drawn, clear of what is drawn**: the
+/// display frame that stands `space`'s drawn bodies one quarter of the
+/// wider width past everything else drawn, along the world's `x`
+/// ([`crate::combine::STEP_DIRECTION`]), each part as `display` draws
+/// it. `None` where nothing else is drawn or `space` draws nothing, and
+/// for a picture that does not build: the space then stands at the
+/// identity.
+///
+/// The bodies are measured off a coarse tessellation
+/// ([`crate::scene::SCALE_PROBE_DELTA`]): its sag is a share of a
+/// body's extent well under the gap, so the step clears.
+pub fn clear_of_drawn(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    display: &DisplayView,
+    space: VarId,
+    tol: Tol,
+) -> Option<Frame> {
+    let delta = DisplayTolerance::new(crate::scene::SCALE_PROBE_DELTA).ok()?;
+    let index = PickIndex::build(doc, eval, PictureKey::of(Generation::FIRST, delta), tol).ok()?;
+    let (mut inserted, mut others) = (Vec::new(), Vec::new());
+    for part in index.parts() {
+        if display.hides(part.node(), part.body()) {
+            continue;
+        }
+        let map = drawn(display, part);
+        let into = if index.spaces.get(&part.node()) == Some(&space) {
+            &mut inserted
+        } else {
+            &mut others
+        };
+        into.extend(
+            part.mesh()
+                .positions
+                .iter()
+                .map(|&p| map.map_or(p, |map| map.transform_point(p))),
+        );
+    }
+    let inserted = bvh::Aabb::from_points(inserted)?;
+    let others = bvh::Aabb::from_points(others)?;
+    let width = (inserted.max_x - inserted.min_x).max(others.max_x - others.min_x);
+    let step = others.max_x - inserted.min_x + width * crate::combine::DUPLICATE_GAP;
+    (step.is_finite() && step > 0.0).then(|| Frame::translation([step, 0.0, 0.0]))
+}
+
 /// **Where a drawn part's tessellation is drawn**: its body's frame
 /// composed into its space ([`pncad::document::in_space`], the picture's
 /// one composing door), then the free-move probe frame the display view

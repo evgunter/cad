@@ -1404,15 +1404,16 @@ impl<'a> Withdrawal<'a> {
 ///
 /// **Destructured rather than field-read**, so a field added to
 /// [`OpOutcome`] is E0027 here and its author decides whether the
-/// line says it. The four this does not word are not news the line
-/// owes: `committed` and `previewed` are the act itself, `minted` is
-/// an id a form reads back, and `refusal` is ranked by [`frame_status`]
+/// line says it. The five this does not word are not news the line
+/// owes: `committed` and `previewed` are the act itself, `minted` and
+/// `made` are ids a form reads back, and `refusal` is ranked by [`frame_status`]
 /// on its own, ahead of these.
 pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
     let OpOutcome {
         committed: _,
         previewed: _,
         minted: _,
+        made: _,
         refusal: _,
         withdrawn,
         maintenance,

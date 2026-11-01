@@ -2077,10 +2077,13 @@ each other (Ev, PR 6209: one way to store where something is
 displayed, not a derived layout beside it).
 
 A free-move frame is display state keyed by a shown space's `Space`
-variable and moves every body drawn in it; it is dropped when the space
-is no longer shown or is gone once the next evaluation has settled
-(`display::space_check`), so an undo and redo of the gesture that made
-the space keeps its frame. The world is
+variable and moves every body drawn in it; it is dropped when its space
+stands and is no longer shown (`display::space_check`). A space that is
+gone keeps its frame, since only the insert that minted it mints it
+again (IDENTITY DI1), so an undo and redo of the gesture that made the
+space keeps its frame. The "Add part…" gesture's frame is written once
+the evaluation answering the insert lands (`pickindex::clear_of_drawn`),
+which is when what is drawn can be measured. The world is
 the frame the other spaces move against: a frame on it would be the
 camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is

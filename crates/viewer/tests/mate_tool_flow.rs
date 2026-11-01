@@ -1049,11 +1049,12 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
 }
 
 /// **A face on a split's second half is mated on that half**: a block
-/// split at mid-height, its lower half placed 0.1 m along x, rested by
-/// its underside on the whole block's top. The mate's `on` side reads
-/// the face on the split's LOWER output by its port — read alone, the
-/// split is two bodies and the commit refuses — and the half is drawn
-/// seated on the top.
+/// split at mid-height — the split takes the unplaced block over, so its
+/// upper half is drawn where the block stood — its lower half placed
+/// 0.1 m along x and rested by its underside on the upper half's top.
+/// The mate's `on` side reads the face on the split's LOWER output by
+/// its port — read alone, the split is two bodies and the commit
+/// refuses — and the half is drawn seated on the top.
 #[test]
 fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     let tol = Tol::witness();
@@ -1062,22 +1063,35 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     let below = pncad::select::SplitHalf::Below;
     let at = common::drawn::translated([0.1, 0.0, 0.0]);
     let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
-    // The split itself is drawn whole in the block's own space, over the
-    // block's world copy: hidden, so the rays meet the copies alone.
-    let hidden = session.perform(SessionOp::SetBodyHidden {
-        node: split,
-        hidden: true,
-    });
-    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
+    assert!(
+        !viewer::world::is_drawn(session.committed_doc(), block),
+        "the split took the block over"
+    );
     let underside = asm::pick_face(&session, &common::up_at(0.1, 0.0));
     let top = asm::pick_face(&session, &common::down_at(0.0, 0.0));
     assert_eq!(underside.node, half, "the ray met the lower half's copy");
     assert_eq!(
-        top.node,
-        common::copy_of(session.committed_doc(), block),
-        "and the block's top"
+        top.node, split,
+        "and the upper half's top, drawn by the split"
     );
-    common::drawn::rest_on(&mut session, underside, top);
+    // The upper half is drawn in the block's own space, so the rest
+    // moves the half into it by name.
+    let mut mate = viewer::matetool::MateTool::new();
+    mate.pick(session.doc(), underside);
+    mate.pick(session.doc(), top);
+    let proposal = {
+        let (doc, _) = session.landed_pair().expect("landed");
+        mate.proposal(
+            doc,
+            viewer::matetool::MateChoice {
+                kind: pncad::document::VarKind::Plane,
+                flip: true,
+                values: Vec::new(),
+            },
+        )
+        .expect("a rest proposes")
+    };
+    common::commit_mate(&mut session, proposal.op_into_target_space());
     let (x, y, z) = (size[0] / 2.0, size[1] / 2.0, size[2]);
     common::drawn::assert_drawn(
         &mut session,

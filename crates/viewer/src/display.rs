@@ -965,6 +965,11 @@ pub struct DisplayState {
     /// stated at
     /// [`crate::session::SessionOp::permitted_during_value_gesture`].
     free_move: g1::Slot<Probe, Frame>,
+    /// **An inserted space whose frame waits for its picture**: the
+    /// "Add part…" gesture's space and instance, until the evaluation
+    /// answering the insert lands and the frame clear of what is drawn
+    /// can be measured ([`DisplayState::settle_insert`]).
+    inserted: Option<Probe>,
     /// Bumped on every visible change — the chrome's cheap "does the
     /// drawn scene need rebuilding" key, beside the evaluation
     /// generation and δ.
@@ -1057,6 +1062,31 @@ impl DisplayState {
             hidden_drawn,
             shown_drawn,
             moved_nodes,
+        }
+    }
+
+    /// **Book the frame of an inserted space**: `space`, holding
+    /// `node`, is drawn clear of what is drawn once its picture is
+    /// known ([`DisplayState::settle_insert`]).
+    pub(crate) fn insert_space(&mut self, space: VarId, node: RecipeNodeId) {
+        self.inserted = Some(Probe { space, node });
+    }
+
+    /// **The inserted space waiting for its frame**, if any.
+    pub(crate) fn inserted(&self) -> Option<(VarId, RecipeNodeId)> {
+        self.inserted.map(|probe| (probe.space, probe.node))
+    }
+
+    /// **The inserted space's frame, written**: the display metadata the
+    /// "Add part…" gesture writes, of the kind a free-move commits
+    /// (IDENTITY DI5). `None` leaves the space at the identity.
+    pub(crate) fn settle_insert(&mut self, frame: Option<Frame>) {
+        let Some(Probe { space, node }) = self.inserted.take() else {
+            return;
+        };
+        if let Some(frame) = frame {
+            self.moves.insert(space, Moved { frame, node });
+            self.revision += 1;
         }
     }
 
@@ -1233,10 +1263,11 @@ impl DisplayState {
     }
 
     /// Reconcile this state with a document: DISCARD every committed
-    /// frame whose space is no longer shown (it holds no drawn body, or
-    /// it is gone; DI5), drop hidden entries whose body or space is
-    /// gone, and kill an in-flight gesture whose node is gone or whose
-    /// body is no longer in the space it moves.
+    /// frame whose space stands and is no longer shown (it holds no
+    /// drawn body; DI5) — a space that is gone keeps its frame, for
+    /// the redo that brings it back — drop hidden entries whose body or
+    /// space is gone, and kill an in-flight gesture whose node is gone
+    /// or whose body is no longer in the space it moves.
     ///
     /// `eval` is an evaluation of `doc` itself, or `None`. The session
     /// prunes twice: when the document changes, with no evaluation,
@@ -1296,9 +1327,19 @@ impl DisplayState {
     ) -> PruneReport {
         let shown = crate::world::shown_spaces(doc);
         let mut superseded = Vec::new();
+        if self
+            .inserted
+            .is_some_and(|probe| doc.var(probe.space).is_none())
+        {
+            self.inserted = None;
+        }
+        // A space the document no longer defines keeps its frame: only
+        // the insert that minted it mints it again (IDENTITY DI1), so the
+        // frame is drawn again exactly when an undo is redone.
         self.moves.retain(
             |&space, held| match shown_check(doc, &shown, space, held.node) {
                 Ok(()) => true,
+                Err(AdmissionFault::NoSuchSpace { .. }) => true,
                 Err(cause) => {
                     superseded.push(Withdrawn {
                         held: Held::Node(held.node),
@@ -1419,6 +1460,7 @@ impl DisplayState {
             hidden_spaces,
             moves,
             free_move,
+            inserted,
             revision,
         } = self;
         if !hidden_bodies.is_empty()
@@ -1432,5 +1474,6 @@ impl DisplayState {
         hidden_spaces.clear();
         moves.clear();
         free_move.discard();
+        *inserted = None;
     }
 }
