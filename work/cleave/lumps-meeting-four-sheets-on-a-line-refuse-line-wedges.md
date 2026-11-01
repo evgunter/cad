@@ -54,4 +54,4 @@ that line, from `(0, 0, 0.5)` to `(±1, 0, 0.5)`, at four notches
 there less the brick's 90° is two wedges, 40° and 110° at the
 −40°–200° notch, which do not overlap. The other five ops build at
 their volumes. Pinned as the refusal it is by
-`union_flush_onto_edge_contact::two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_every_op`.
+`union_flush_onto_edge_contact::two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_all_but_one_op`.

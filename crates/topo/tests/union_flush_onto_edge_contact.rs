@@ -967,10 +967,14 @@ fn a_pinch_line_flat_in_the_shared_corners_face_builds_in_every_op() {
 /// the pinch's two edges, and the corner's orbit orders them by the
 /// side of the line each edge's flush face lies on wherever it reads a
 /// position: the runs' ends and the cuts each holds
-/// (`insert::walks_before`). Each op, in both operand orders, builds at
+/// (`insert::cut_order`). Each op, in both operand orders, builds at
 /// the volume a polygon clip of the sheared triangle against each
 /// brick's square gives, and passes 3′ with the pinch's records
-/// carried.
+/// carried. What it pins is the direction of that reading: red if
+/// `insert::beside_order` reads the two sides the other way round where
+/// a run's held cuts are read (`pinch ∪ cutter` refuses
+/// `SharedVertexCrossings`). The runs' codes (`insert::tied_held`) read
+/// the same tie alike, so it builds without the reading too.
 #[test]
 fn a_pinch_line_in_a_face_flush_with_both_bricks_builds_in_every_op() {
     let tol = Tol::witness();
@@ -1369,7 +1373,7 @@ fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
 /// the face's orbit orders them by the side of the line each edge's
 /// flush face lies on wherever it reads a position: the struts' ends,
 /// the cuts each holds and whether one holds the other whole
-/// (`insert::walks_before`). Every op but `prism ∖ pinch`, in both
+/// (`insert::cut_order`). Every op but `prism ∖ pinch`, in both
 /// operand orders and at four notches, builds at the volume a polygon
 /// clip of the prism's rectangle against each brick's square gives, and
 /// passes 3′ with the pinch's records carried. `prism ∖ pinch` refuses
@@ -1378,8 +1382,14 @@ fn two_dangling_null_edges_meeting_on_the_pinch_line_build_in_every_op() {
 /// meet there, and the prism's 240° less the brick's 90° is two wedges
 /// of 40° and 110°, which the result's edges do not pair as
 /// (`work/cleave/lumps-meeting-four-sheets-on-a-line-refuse-line-wedges.md`).
+/// What it pins is the direction of the tie's reading: red if
+/// `insert::beside_order` reads the two sides the other way round where
+/// a run's held cuts and a held strut are read (`pinch ∪ prism`
+/// refuses `SharedVertexCrossings`). The runs' codes
+/// (`insert::tied_held`) read the same tie alike, so it builds without
+/// the reading too.
 #[test]
-fn two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_every_op() {
+fn two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_all_but_one_op() {
     for footing in [Footing::Flush, Footing::FlushBack] {
         for notch in [
             (-40.0, 200.0),
@@ -1477,38 +1487,37 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), footing: Foo
             (
                 "pinch ∪ prism",
                 union_in(&pinch.body, &prism, &ab, tol),
-                2.0 + prism_volume - common,
+                Some(2.0 + prism_volume - common),
             ),
             (
                 "pinch ∖ prism",
                 subtract_in(&pinch.body, &prism, &ab, tol),
-                2.0 - common,
+                Some(2.0 - common),
             ),
             (
                 "pinch ∩ prism",
                 intersect_in(&pinch.body, &prism, &ab, tol),
-                common,
+                Some(common),
             ),
             (
                 "prism ∪ pinch",
                 union_in(&prism, &pinch.body, &ba, tol),
-                2.0 + prism_volume - common,
+                Some(2.0 + prism_volume - common),
             ),
             (
                 "prism ∖ pinch",
                 subtract_in(&prism, &pinch.body, &ba, tol),
-                prism_volume - common,
+                (footing == Footing::Diagonal).then_some(prism_volume - common),
             ),
             (
                 "prism ∩ pinch",
                 intersect_in(&prism, &pinch.body, &ba, tol),
-                common,
+                Some(common),
             ),
         ]
     }) {
-        let refuses = footing != Footing::Diagonal && op == "prism ∖ pinch";
         let op = format!("{op} (notch {notch:?}, {footing:?})");
-        if refuses {
+        let Some(want) = want else {
             assert!(
                 matches!(
                     got,
@@ -1521,7 +1530,7 @@ fn dangling_null_edges_meeting_on_the_pinch_line(notch: (f64, f64), footing: Foo
                 got.map(|_| ())
             );
             continue;
-        }
+        };
         let BooleanResult::Body(out) = got.unwrap_or_else(|e| panic!("{op} refused: {e:?}")) else {
             panic!("{op} came back empty");
         };
@@ -2245,7 +2254,7 @@ fn every_tied_strut_witness_holds_with_its_vertex_pairs_reversed() {
         ),
         (
             "two dangling null edges meeting beside the pinch line",
-            two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_every_op,
+            two_dangling_null_edges_meeting_beside_the_pinch_line_build_in_all_but_one_op,
         ),
         (
             "three pieces, two of whose cuts tie",

@@ -96,7 +96,8 @@ as before.
 The last bullet above is stale since `119e857190` (PR 5812): the orbit
 walk's tie of two germs along one direction in one entry, each along
 one of the other solid's coincident edges, is read one order further by
-`insert::beside_order` (`walks_before_beside`): each germ lies on the
+`insert::beside_order` (through `insert::cut_order`, the orbit's one
+position order, since PR 6184): each germ lies on the
 side of the line where the other solid's face flush with the sector
 borders its edge (`bool_beside_flush`), read by `walks_after`. That is a
 second home for "which cone's copy lies on which side of the ray",
@@ -105,3 +106,31 @@ one ray, by their chords' nesting). Since PR 6170 the join reads the
 ring's tie too: `PierceRingRecord::ties` keeps each tie's two strut
 halves in the ring's order, and `join::tie_winding` winds a ring run of
 no area by it, so one door would also serve that reader.
+
+## Three rules for which side of the line a tied cut lies on (2026-11-01, CLEAVE `cleave/orbit-readings-read-the-beside-tie`, PR 6184)
+
+Two cuts tied at first order at a vertex now meet three rules, each
+answering the same question, which side of the shared line each copy
+lies on, from different evidence:
+
+- `insert::beside_order`: the side of the other solid's face flush with
+  the sector beside each cut's edge (its flankers). Since PR 6184 every
+  position reader of the orbit asks it, through `insert::cut_order`.
+- `insert::tied_held`: the side each pair's run leaves the line to, read
+  off its own piece's codes. Reached since PR 6184 only where
+  `beside_order` reads nothing (no flush flanker, or one offset).
+- `vtxfac::tie_breaks_after`: the side each pierce germ's partner lies
+  on, by the chords' nesting.
+
+Nothing makes them agree. Measured on PR 6184's branch over the whole
+`topo` integration suite (1211 tests, ε default): at every `held_cut`
+call where `beside_order` decided a tie (1015 calls, in the slit tests
+of `a_keel_on_the_floor_subtracts_as_a_slit` and the flush pinch
+witnesses of `union_flush_onto_edge_contact`), the run's held cut read
+the same with the tie read by the codes instead (`tied_held`, as main
+read it): 1015 of 1015 agree. Without `beside_order`, `tied_held` is
+reached 1476 times; with it, 461, all ties `beside_order` cannot read.
+`tie_breaks_after` was not compared: its germs carry no flankers.
+
+One door for the tie would name which evidence decides and check the
+others against it.
