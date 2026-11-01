@@ -2,11 +2,12 @@
 id: main-red-a-partner-tipped-off-the-face-refuses-line-wedges-overlap
 kind: issue
 title: Main red (slow set): a partner tipped 0.5ε off the face refuses LineWedges Overlap where it must build or refuse typed
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [6247]
+branch: oneread/partner-tipped-off-the-face
 ---
 
 
