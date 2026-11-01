@@ -160,3 +160,15 @@ Newest entries at the bottom; the tail is the program's live status.
   branch and the two merge back to back, with the row and the fixture
   un-hide in that unit's done-when. Every other finding goes to one fix
   pass off the union (the implementer, resumed). (SPACES orchestrator)
+- 2026-11-01 — PR 6265 fix pass in, green at `7bbc92fd`: every union
+  finding dispositioned (members by index range through
+  `Doc::member_envs`; drawings keyed by what draws them; the product's
+  body always drawn; one copy→body door with gesture behaviour back to
+  base, remaining gesture-visible changes disclosed with rows; the
+  split-half row; style all taken). Filed
+  `a-pick-read-takes-the-whole-copy` and
+  `the-feature-trees-hide-toggles-an-undrawn-instance-silently`.
+  No second review on the concurrent arm; `a-new-body-lands-unplaced`
+  dispatched stacked on 6265's branch (it inherits the U1 lane's warm
+  target by rename); its review covers the pair's interaction, and the
+  two merge back to back. Tier for it: single, FULL. (SPACES orchestrator)
