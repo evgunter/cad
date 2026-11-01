@@ -7,7 +7,7 @@ opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/product-door
-blocked_on: [the-picture-draws-bodies]
+blocked_on: [a-new-body-lands-unplaced]
 refs: [6209]
 ---
 
