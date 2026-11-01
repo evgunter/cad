@@ -2,12 +2,14 @@
 id: edge-in-face-spans-are-re-derived-in-the-carry-because-the-sweep-skips-coplanar-edge-face-pairs
 kind: issue
 title: An edge-in-face span is re-derived in the carry by midpoint containment, because the reduction sweep skips coplanar edge–face pairs rather than deciding them
-status: dispatched
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
 parent: the-parting-reads-no-edge-lying-in-a-face-no-record-names
 branch: parting/sweep-records-edge-in-face
+closed: 2026-11-01
+pr: 6225
 ---
 
 
@@ -42,3 +44,7 @@ one edge-face record per piece the face holds, cited by that decision;
 `an-edge-face-record-off-a-line-and-a-plane-has-no-curve-touch-lane`,
 since a curved edge-face record the census cannot confirm refuses at the
 carry. (PARTING orchestrator)
+
+## Closed
+
+2026-11-01, PR 6225 (full review, fix pass, delta review, final pass). The reduction sweep records an edge-face record per piece of a line edge lying in a plane face, each citing the records that place its own two ends on the face; `record_spans` and `RestPieceUnread` retire. Conics in planes and curved faces wait on ContactHold's curve-touch lane. Residue: `contact-record-insertion-and-cell-mapping-have-several-homes`. (PARTING orchestrator)

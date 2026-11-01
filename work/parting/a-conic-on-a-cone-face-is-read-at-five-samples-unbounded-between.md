@@ -37,3 +37,7 @@ Decide the equation's samples, bounded by the degree-2 Lebesgue
 constant, over a certified lower bound of `ρ cos α + s sin α` along the
 conic, as the torus's bound does with `(ρ + R)² + h² − r²`; or refuse
 typed where that bound cannot meet the band.
+
+## Claimed by PARTING (2026-11-01)
+
+Moved from `work/cleave/` on CLEAVE's hand-off after PR 6177: `slit::carrier_on_surface` is the parting's reader. (PARTING orchestrator)
