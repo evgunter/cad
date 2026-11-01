@@ -58,9 +58,7 @@ use topo::{
     ValidationError,
 };
 
-use crate::common::differential::{
-    VOLUME_CLAIM, VOLUME_PAD_BUDGET, every_op_both_orders, outcome,
-};
+use crate::common::differential::{VOLUME_CLAIM, VOLUME_PAD_BUDGET, every_op_both_orders, outcome};
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
 

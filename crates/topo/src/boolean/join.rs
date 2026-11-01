@@ -1227,12 +1227,15 @@ fn site_cell<T: Decide>(
             let edge = body
                 .get_edge(e)
                 .ok_or(desync("a germ's closed edge no longer resolves"))?;
-            let conic = body.edge_curve_linked(e, edge).certified().is_some_and(|c| {
-                matches!(
-                    c.carrier(),
-                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
-                )
-            });
+            let conic = body
+                .edge_curve_linked(e, edge)
+                .certified()
+                .is_some_and(|c| {
+                    matches!(
+                        c.carrier(),
+                        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }
+                    )
+                });
             return Ok(SiteCell::Closed(conic.then_some(e)));
         }
     };

@@ -74,3 +74,12 @@ Building the touch alone does not settle that row. There the glue door decides t
 - **The read.** For the inner rim against the outer wall, and the outer rim against two of the inner rod's faces, `carrier_cross::boundary_crossing` answers `Touch`, measured at 1e-9. It does not answer `Unread`. `reduce.rs`'s `interior` then reads the edge `Unseen`, the curved arm defers it, and every op refuses `CurvedPierceUnsupported { operand: A, face: FaceKey(4v1), edge: EdgeKey(12v1) }` at 1e-6, 1e-9 and 1e-12.
 - **Cut flat.** The rims are circles, the crossing reads `At`, and both ops build at their closed forms, tiers 3 and 3′ included.
 - **What it blocks.** The two rims are coplanar here, so the touch is read before the walls' parting is asked. Two elliptical rims in two planes (the inner rod cut below `z = y·tan t_a`, the outer above `z = y·tan t_b`, `t_a ≠ t_b`) cross transversally at the same point instead. There `boundary_crossing` reads `At`, `sheets_part` reads an ellipse on both sides, and the ops build or refuse on other grounds (`sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`). Only the coplanar, tangent pose stops at this unit's touch. Once the touch places, the pin moves.
+
+## Evidence: tier 3′ escalates on built unions at the touch (2026-11-01, `tangrim/one-segment-ellipse-rims`)
+
+`crates/sweep/tests/a_closed_conic_in_the_partners_face.rs`
+`ellipse_rims_tangent_outside_build_every_op`:
+- **The fixture.** A boss `r = 0.3` standing on a plate over a hole `r = 0.1` about `(0.4, 0)`, both cylinders tilted `0.3` rad about `x` and cut by `z = 0`. The two rims are ellipses in the plate's top plane, tangent outside at `(0.3, 0, 0)`.
+- **The read.** Both unions, in both forms (one segment with either or both vertices at the touch, and two arcs), at rest and turned, build at their closed forms and pass tiers 1–3 and the certificate. `validate_pseudomanifold` returns `CensusEscalated { predicate: "curve_pair_coplanar_sub_side" }`, margins `2.6ε` and `2.3ε` (one per order) at ε = 1e-9, about `2.5ε` and `1.6ε` at 1e-6, and in band at 1e-12. The differences, which keep only one rim each, pass tier 3′. Measured on `main` `7979553590` for the two-arc form and on the branch for both.
+- **Cut flat.** At tilt `0` (circle rims) every op passes tier 3′.
+- **What it blocks.** The tier-3′ half of `work/tangrim/one-segment-ellipse-rims-tangent-at-a-point-refuse-where-circles-build.md` (P1). The pin asserts this escalation; once the touch places, it moves.

@@ -4615,7 +4615,9 @@ fn closed_edge_spec<T: Decide>(
         return Err(invariant("the segment's edge carries no certified curve"));
     };
     let (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }) = curve.carrier() else {
-        return Err(invariant("a closed segment edge that is not a circle or an ellipse"));
+        return Err(invariant(
+            "a closed segment edge that is not a circle or an ellipse",
+        ));
     };
     let forward = closed_chord_runs_forward(body, edge, site, face)?;
     let surface = body
