@@ -210,9 +210,18 @@ toolchain, `-Zbuild-std`, `wasm-bindgen-rayon`, or cross-origin
 isolation; the pinned stable toolchain builds it as it stands.
 
 **It has been built and linked, and nothing beyond that is verified** —
-no first light on real hardware. It is also not CI-guarded: the wasm32
-step excludes `viewer` (Toolkit and CI posture, below), so a dependency bump
-can break this build with every check green.
+no first light on real hardware. The per-PR gate does not link it:
+ci.yml's viewer row runs wasm32 clippy, which type-checks the entry
+point and stops there, so a dependency bump can break the link with
+every PR check green.
+
+**A hosted copy** is published to GitHub Pages once a day by
+`.github/workflows/pages.yml`, built from main with the same command as
+`local-scripts/serve-wasm.sh`, at <https://evgunter.github.io/cad/>. That workflow is
+the one place the browser build is linked in CI, so a link break turns
+it red rather than the nightly. Pages serves over https, which is a
+secure context, so a browser with WebGPU gets the WebGPU path there,
+where the script's plain-http LAN server only ever reaches WebGL2.
 
 Three things are known-absent by design:
 
