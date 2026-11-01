@@ -13,7 +13,7 @@ use crate::camera::{self, Camera, CameraOp};
 use crate::display::DisplayView;
 use crate::drafts::ProfileDoors;
 use crate::frame;
-use crate::gpu::{IdQuery, ViewportCallback};
+use crate::gpu::{ID_PASS_ASKED, IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
 use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
@@ -1254,7 +1254,9 @@ impl ViewerBehavior<'_> {
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all. A ray path that could not be
         // asked — no evaluation to ask it of — is no comparison either.
-        let outstanding = self.id_log.outstanding();
+        // A build that asks the id pass nothing has no answer coming
+        // to compare, so it casts no ray for one ([`ID_PASS_ASKED`]).
+        let outstanding = self.id_log.outstanding().filter(|_| ID_PASS_ASKED);
         let said = outstanding.and_then(|_| {
             let (doc, eval) = self.session.landed_pair()?;
             let question = RayQuestion {
@@ -1305,7 +1307,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         let id_query = match (step, cursor_px) {
-            (IdStep::Ask { serial }, Some(cursor)) => viewport
+            (IdStep::Ask { serial }, Some(cursor)) if ID_PASS_ASKED => viewport
                 .ndc_of(cursor)
                 .and_then(|ndc| ndc.narrow())
                 .map(|cursor_ndc| IdQuery {
