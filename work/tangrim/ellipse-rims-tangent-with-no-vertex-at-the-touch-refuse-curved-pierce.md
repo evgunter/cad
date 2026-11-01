@@ -2,10 +2,12 @@
 id: ellipse-rims-tangent-with-no-vertex-at-the-touch-refuse-curved-pierce
 kind: issue
 title: Ellipse rims tangent at a point with no vertex at the touch refuse every op CurvedPierceUnsupported, where circles build
-status: open
+status: closed
 opened: 2026-11-01
 priority: P2
 cost: M
+closed: 2026-11-01
+pr: 6257
 ---
 
 
@@ -64,3 +66,7 @@ This row's cause was the coplanar ellipse touch. With `two-coplanar-ellipses-hav
 **The pin.** `a_closed_conic_in_the_partners_face.rs` `ellipse_rims_tangent_outside_build_every_op` now takes this pose (`"neither there"`) at rest and turned. That runs every op `SOUND`, tier 3′ included, with point-in-solid against analytic membership, at ε = 1e-6, 1e-9 and 1e-12.
 
 **The inside pose.** The hole about `(0.2, 0)` builds both differences. Its unions refuse `TangentCrescentUnsupported`, as at tilt `0` (`a-union-across-a-tangent-crescent-refuses-unbuilt`). Nothing of this row is left.
+
+## Closed
+
+2026-11-01, PR 6257: with the coplanar touch placed, the "neither there" pose builds every op SOUND (pinned in `ellipse_rims_tangent_outside_build_every_op`).

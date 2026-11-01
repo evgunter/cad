@@ -2,11 +2,13 @@
 id: two-coplanar-ellipses-have-no-meeting-method
 kind: unit
 title: The curve-pair reader refuses two coplanar ellipses that are not one curve, and refuses a near-tangent coplanar circle and ellipse instead of placing the touch
-status: open
+status: closed
 opened: 2026-10-14
 priority: P1
 cost: M
 refs: [5227]
+closed: 2026-11-01
+pr: 6257
 ---
 
 Found while building the curve-pair reader (`the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227), stage (b)).
@@ -113,3 +115,7 @@ Building the touch alone does not settle that row. There the glue door decides t
 - **`sheets_part_on_slanted_rims::rims_crossing_on_tangent_walls_build_every_op`.** `A ∪ B` and `B ∖ A` pass tier 3′ at three ε.
 - **`sheets_part_on_slanted_rims::two_slanted_rims_tangent_on_the_ruling_build_at_their_touch`** (was `…_refuse_at_their_touch`). At tilt `0.3` the union and `A ∖ B` build at their closed forms, tiers 3 and 3′, where they refused `CurvedPierceUnsupported`.
 - **Unchanged.** `census::curved::tests::the_reading_answers_a_meeting_on_every_kind` and the five sweep rows of the 2026-10-16 evidence pass.
+
+## Closed
+
+2026-11-01, PR 6257 (second bullet; the first was done 2026-10-16). `half_angle::certified_subdivision_touching` places the near-tangent touch of two coplanar conics on a piece certified convex, by the circle pair's root-gap argument, read at the least depth and slope the noise allows (`roots::past_noise`); roots only the noise parts are one meeting, crossings parted above the noise are never collapsed (pinned: `ellipses_crossing_near_a_touch_read_one_meeting_only_where_the_noise_parts_them`). `certified_subdivision` keeps its answers. Full review: all claims held; fix pass charged the slope's rounding and rewrote the certificate's docs to what is certified.
