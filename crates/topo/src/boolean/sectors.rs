@@ -1303,6 +1303,37 @@ pub(super) fn exact_lever<T: geom_core::Real>(bound: T, own: Option<T>) -> T {
     reading_lever(LeverBounds::Exact(bound), own.map(LeverBounds::Exact)).below()
 }
 
+/// A unit direction with its **lean**: `|n_a × n_b| = sin φ` for two
+/// faces' line (a germ the faces' normals cross into), `1` for an edge,
+/// a bound, a tangent locus or any direction read off one carrier.
+pub(super) type Leaned<T> = (Vec3<T>, T);
+
+/// The lean of a direction read off one carrier ([`Leaned`]).
+pub(super) fn upright<T: geom_core::Real>() -> T {
+    T::from_f64(1.0)
+}
+
+/// **The lever a reading of two directions' sides carries, given their
+/// leans**: `lever · min(lean₀, lean₁)` ([`Leaned`]).
+///
+/// A unit face line is steeper than its faces' own tilt: a tilt `δ` of
+/// either face, a displacement `δ·L ≤ zero` at the reach `L` it governs,
+/// turns their line in the reading's plane by up to `δ / sin φ`. A side
+/// read at `lever` therefore carries noise up to
+/// `lever · (δ₀ / s₀ + δ₁ / s₁)`, `sᵢ` each direction's lean (an edge's
+/// `δ` its own departure, its lean 1). Levered at `lever · min(s₀, s₁)`
+/// that noise is at most `lever · (δ₀ + δ₁)`: the two directions' own
+/// tolerances, whatever the faces' angle, so a tilt within the zero
+/// decides as the upright pose. Against an edge the reading is exactly
+/// the plane-offset form: `lever · s · sin θ` is the edge's far end's
+/// offset from the face line's other face ([`rays_within`]). The
+/// harmonic mean of the leans meets the same bound where the two
+/// tolerances are equal, with a wider margin, but it does not reduce to
+/// that form beside an edge.
+pub(super) fn leaned_lever<T: geom_core::Real>(lever: T, (l0, l1): (T, T)) -> T {
+    lever * l0.min(l1)
+}
+
 /// [`within_reaching`]'s two readings of `dir` against `s`'s bounds:
 /// which side of `start`, then of `end`, it lies on, `Positive` toward
 /// the other.
