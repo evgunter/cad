@@ -2425,8 +2425,9 @@ fn record_germ_dir<T: Decide>(
 /// ambiguous or coplanar configuration refuses loudly.
 ///
 /// The sign is the membership `sectors::pair_search` made this crossing
-/// record on: the same `within` readings of the same line at the same
-/// reaches, so they single out the ray they found there. `±(n_a × n_b)` is
+/// record on: the same readings of the same line at the same reaches
+/// (`sectors::face_line_rays`, the bounds' offsets from the other
+/// face's plane), so they single out the ray they found there. `±(n_a × n_b)` is
 /// a LINE and membership picks the ray, so neither normal's sign
 /// survives into it; they arrive outward from `sectors::sector_face`
 /// and nothing is multiplied here. (A pierce germ is signed by its
@@ -2460,9 +2461,7 @@ fn germ_dir<T: Decide>(
         }
     }
     let d = int.normalize();
-    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
-    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
-    match (plus, minus) {
+    match super::sectors::face_line_rays(sa, sb, read, band)? {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),
         _ => Err(BooleanError::ClassificationInvariant {

@@ -1305,6 +1305,29 @@ fn within_signs<T: Decide>(
     ))
 }
 
+/// **Which rays of two sector faces' line lie within both sectors**:
+/// `(+m, −m)`, `m = n_a × n_b`, each `true` where [`within`] holds it in
+/// both. The line is read un-normalized, so each reading of it against a
+/// bound `e` of `a`'s sector at `e`'s reach `L` measures, by
+/// `(m × e)·n_a = (n_a·e) cos φ − n_b·e`, the bound's far end's offset
+/// from `b`'s plane — what its side code reads ([`side_code`]) — plus
+/// its own departure from `a`'s, foreshortened by `cos φ`. The unit
+/// line would divide that by `|m| = sin φ`, so a far end within the zero
+/// of both planes would read off their line wherever the two faces are
+/// near parallel.
+pub(super) fn face_line_rays<T: Decide>(
+    sa: &BoolSector<T>,
+    sb: &BoolSector<T>,
+    read: DeclarationRead,
+    band: Band,
+) -> Result<(bool, bool), BooleanError> {
+    let m = sa.normal.vec().cross(sb.normal.vec());
+    let holds = |d| -> Result<bool, BooleanError> {
+        Ok(within(sa, d, false, read, band)? && within(sb, d, false, read, band)?)
+    };
+    Ok((holds(m)?, holds(-m)?))
+}
+
 /// A half-plane a sector's face leaves an edge in ([`half_planes`]): its
 /// unit direction square to the edge, and the sector.
 pub(super) type HalfPlane<'s, T> = (Vec3<T>, &'s BoolSector<T>);
@@ -2486,10 +2509,8 @@ pub(super) fn pair_search<T: Decide>(
             let hit = if coplanar {
                 sector_overlap(sa, sb, band)?
             } else {
-                let d = int.normalize();
-                let moot = DeclarationRead::Moot;
-                (within(sa, d, false, moot, band)? && within(sb, d, false, moot, band)?)
-                    || (within(sa, -d, false, moot, band)? && within(sb, -d, false, moot, band)?)
+                let (plus, minus) = face_line_rays(sa, sb, DeclarationRead::Moot, band)?;
+                plus || minus
             };
             if !hit {
                 if coplanar {
@@ -6421,6 +6442,142 @@ mod tests {
         assert_eq!(codes, (SideCode::Out, SideCode::Out), "the floor's codes");
         let found = pair_search(&[floor], &[wall], b).unwrap();
         assert!(found.records.is_empty(), "records: {:?}", found.records);
+    }
+
+    /// Two upright faces through the z axis 10° apart, as a tilted
+    /// prism's side face meets its neighbour's (`three_solids_on_one_line`):
+    /// `a`'s normal at 20°, tipped by `tilt` so its bound down the axis
+    /// leaves its plane by `tilt` at its reach, against `b`'s at 30°.
+    fn faces_ten_degrees_apart(tilt: f64) -> (BoolSector<f64>, BoolSector<f64>) {
+        let at = |deg: f64| {
+            let (s, c) = deg.to_radians().sin_cos();
+            Vec3::new(c, s, 0.0)
+        };
+        let down = Vec3::new(0.0, 0.0, -1.0);
+        let n_a = at(20.0) + Vec3::new(0.0, 0.0, -tilt);
+        let a = BoolSector {
+            start: at(290.0),
+            end: down,
+            start_reach: Reach::Extent(0.11),
+            end_reach: Reach::Extent(1.23),
+            arm: 0.11,
+            ..sector([0.0; 3], [0.0; 3], n_a.normalize().to_array())
+        };
+        let b = BoolSector {
+            start: down,
+            end: at(120.0),
+            start_reach: Reach::Extent(1.23),
+            end_reach: Reach::Extent(0.4),
+            arm: 0.4,
+            ..sector([0.0; 3], [0.0; 3], at(30.0).to_array())
+        };
+        (a, b)
+    }
+
+    /// **A face tilted within the zero against a face near parallel to it
+    /// decides as upright**: `a`'s bound down the axis leaves `a`'s plane
+    /// by a quarter of the zero at its reach, and the faces' line, ten
+    /// times as steep (`1/sin 10°`), would read in band against it at
+    /// that reach; read off `b`'s plane, as its code reads it, it grazes.
+    #[test]
+    fn a_tilt_within_the_zero_between_near_parallel_faces_decides_as_upright() {
+        let b = band();
+        let tilt = 0.2 * b.zero();
+        let (ua, ub) = faces_ten_degrees_apart(0.0);
+        let (ta, tb) = faces_ten_degrees_apart(tilt);
+        let unit = ta.normal.vec().cross(tb.normal.vec()).normalize();
+        let steep = unit.cross(ta.end).dot(ta.normal.vec()) * 1.23;
+        assert!(
+            steep > b.zero(),
+            "the unit line reads {steep:e} off the long bound, past the zero {:e}",
+            b.zero()
+        );
+        let read = |a, b_: BoolSector<f64>| {
+            let found = pair_search(&[a], &[b_], b).unwrap_or_else(|e| panic!("refused: {e:?}"));
+            let records: Vec<_> = found.records.iter().map(|r| (r.sa, r.sb)).collect();
+            (records, found.touching)
+        };
+        let upright = read(ua.clone(), ub.clone());
+        assert_eq!(upright.0.len(), 1, "upright: one record, {upright:?}");
+        assert_eq!(read(ta.clone(), tb.clone()), upright, "tilted as upright");
+        assert_eq!(
+            face_line_rays(&ta, &tb, DeclarationRead::Moot, b).unwrap(),
+            face_line_rays(&ua, &ub, DeclarationRead::Moot, b).unwrap(),
+            "the rays the germ reads"
+        );
+    }
+
+    /// Faces `φ` apart about the x axis — `b` the plane z = 0, `a` tipped
+    /// about x — and a sector of `a` between the bounds at `θ0` and `θ1`
+    /// from +x in `a`'s plane, every reach 1: a bound at `θ` lies
+    /// `sin θ sin φ` off `b`'s plane at its far end.
+    fn faces_phi_apart(phi: f64, (t0, t1): (f64, f64)) -> (BoolSector<f64>, BoolSector<f64>) {
+        let (sp, cp) = phi.sin_cos();
+        let w = Vec3::new(0.0, cp, sp);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let at = |t: f64| x * t.cos() + w * t.sin();
+        let a = BoolSector {
+            start: at(t0),
+            end: at(t1),
+            ..sector([0.0; 3], [0.0; 3], [0.0, -sp, cp])
+        };
+        let (s, c) = 60f64.to_radians().sin_cos();
+        let b = sector([c, -s, 0.0], [c, s, 0.0], [0.0, 0.0, 1.0]);
+        (a, b)
+    }
+
+    /// **The plane-offset reading refuses only where a bound's code reads
+    /// in band**: a bound a small angle off the line of two faces near
+    /// parallel, its far end three zeros off the other's plane, reads in
+    /// band at `within` where the unit line read it definite. Where the
+    /// unit line read the line within, the codes refused it next; where
+    /// it read the line outside, the pair was no record, though the
+    /// bound's code against the other face reads in band. Both
+    /// refusals end on one recourse (`refusal_routes`, `Sectors` and
+    /// `SectorSide` alike).
+    #[test]
+    fn a_bound_in_band_off_the_others_plane_refuses_at_the_line() {
+        let b = band();
+        let theta = 0.05f64;
+        let phi = 3.0 * b.zero() / theta.sin();
+        let moot = DeclarationRead::Moot;
+        for (what, span, unit_within) in [
+            ("the line inside", (-theta, theta), true),
+            ("the line outside", (theta, 3.0 * theta), false),
+        ] {
+            let (sa, sb) = faces_phi_apart(phi, span);
+            let unit = sa.normal.vec().cross(sb.normal.vec()).normalize();
+            let reads = |d| {
+                within(&sa, d, false, moot, b).unwrap() && within(&sb, d, false, moot, b).unwrap()
+            };
+            assert_eq!(
+                reads(unit) || reads(-unit),
+                unit_within,
+                "{what}: the unit line"
+            );
+            let code = plane_side_code(sa.start, sa.start_reach, sb.normal, b);
+            assert!(
+                code.is_err(),
+                "{what}: the bound's code reads in band: {code:?}"
+            );
+            let found = pair_search(&[sa.clone()], &[sb.clone()], b).map(|f| f.records.len());
+            let Err(e) = found else {
+                panic!("{what}: the plane-offset reading refuses, got {found:?}")
+            };
+            assert!(
+                format!("{e:?}").contains("bool_sector_within"),
+                "{what}: refused at the line: {e:?}"
+            );
+            if unit_within {
+                let Err(codes) = pair_codes(&sa, &sb, b) else {
+                    panic!("{what}: the codes refuse next")
+                };
+                assert!(
+                    format!("{codes:?}").contains("Coincidence(SectorSide"),
+                    "{what}: the codes' refusal: {codes:?}"
+                );
+            }
+        }
     }
 
     /// `within`: interior yes, exterior no, boundary graze counts
