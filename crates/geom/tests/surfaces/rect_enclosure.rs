@@ -356,9 +356,6 @@ fn a_few_ulp_meet_past_a_full_multiplicity_knot_is_enclosed_tightly() {
     );
 }
 
-#[path = "../../../geom-core/tests/exact_q/mod.rs"]
-mod exact_q;
-
 /// **`rect_jet` against the exact partials.** Rational nets with weights
 /// from `1e-3` to `1e3`, interior knots of every multiplicity up to the
 /// degree, moved off the origin by up to `1e3`; cells `2⁻³` to `2⁻⁴⁰`
@@ -427,8 +424,8 @@ fn rect_jet_contains_the_exact_partials_of_translated_rational_nets() {
 /// reads the control point, the homogeneous sums and the partial alike.
 #[allow(clippy::needless_range_loop)]
 mod exact {
-    use super::exact_q::Q;
     use super::{translation, ulps};
+    use crate::exact_q::Q;
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
     use geom_core::{Interval, Point3, Real};
