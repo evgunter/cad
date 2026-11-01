@@ -2423,7 +2423,7 @@ fn wall_against_wall<T: Scalar>(
 /// 0.5 rad, hold under the strict question at both scalars, upright
 /// (`phi = 0`, the walls facing within 0.5 rad of `x`) and turned 45°
 /// about `y`. Each examines at most 512 cell pairs, and the turned pair
-/// at most 1.5 times the upright one's. Red where the distance arm
+/// at most 1.5 times the upright one's, at each scalar. Red where the distance arm
 /// separates axis-aligned boxes only: the boxes of walls tilted against
 /// the axes stay apart only for cells about as small as the gap.
 #[test]
@@ -2455,15 +2455,19 @@ fn near_parallel_walls_cost_the_same_pairs_turned_45_degrees() {
                 r.receipt
             );
         }
-        counts.push(examined(&report));
+        counts.push([examined(&report), examined(&interval)]);
     }
     let [upright, turned] = counts[..] else {
         unreachable!("two turns")
     };
-    assert!(
-        2 * turned <= 3 * upright,
-        "the turned walls examine at most 1.5× the upright walls' pairs: {turned} against {upright}"
-    );
+    for (k, what) in ["f64", "Interval"].iter().enumerate() {
+        let (upright, turned) = (upright[k], turned[k]);
+        assert!(
+            2 * turned <= 3 * upright,
+            "the turned walls examine at most 1.5× the upright walls' pairs at {what}: {turned} \
+             against {upright}"
+        );
+    }
 }
 
 /// **A wall pair closer than the bound is never separated.** The slab's
@@ -2504,4 +2508,115 @@ fn a_wall_pair_closer_than_the_bound_is_violated_not_separated() {
         report.verdict,
         report.receipt
     );
+}
+
+/// The bound question between `walls[0]` and `walls[1]` of `body`, with
+/// a verifier that confirms no witness: no candidate ends the walk, so
+/// every pair the support does not separate is refined.
+fn wall_against_wall_unwitnessed<T: Scalar>(
+    body: &Body<T>,
+    walls: [FaceKey; 2],
+    bound: ClearanceBound,
+    budget: usize,
+) -> BoundReport<()> {
+    let window = |f, which| {
+        Side {
+            body,
+            faces: vec![f],
+        }
+        .windows(which)
+        .expect("a wall has a window")
+    };
+    let sweep = Sweep {
+        bound,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: budget,
+        },
+    };
+    let report = sweep.run(
+        &window(walls[0], Which::First),
+        &window(walls[1], Which::Second),
+        true,
+        |_| Err::<(), _>("no witness confirmed".to_owned()),
+    );
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
+    report
+}
+
+/// **The support at depth never separates a pair closer than the
+/// bound.** The slab's walls turned 45° are `0.05` apart. With no
+/// witness confirmed, the exhibit arm ends nothing, so the walk refines
+/// every pair the support does not separate. `AtLeast(0.045)` holds
+/// below the root, and `AtLeast(0.08)`, at a 2048-pair budget, does not
+/// hold, refined below the root. Red if the support gap is compared
+/// without the bound, or if it reads a pair farther apart than it is.
+#[test]
+fn the_support_at_depth_never_separates_a_pair_closer_than_the_bound() {
+    let phi = core::f64::consts::FRAC_PI_4;
+    let (float, walls) = slab_wall_pair::<f64>(0.05, 0.3, phi);
+    let held =
+        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::AtLeast(0.045), BUDGET);
+    println!(
+        "[dirsupport] held at depth: {:?} {:?} deepest {}",
+        held.verdict, held.receipt, held.widths.deepest
+    );
+    assert!(
+        matches!(held.verdict, BoundVerdict::Holds) && held.receipt.splits > 0,
+        "walls 0.05 apart hold AtLeast(0.045) below the root: {:?} {:?}",
+        held.verdict,
+        held.receipt
+    );
+    let broken =
+        wall_against_wall_unwitnessed(&float.body, walls, ClearanceBound::AtLeast(0.08), 2048);
+    println!(
+        "[dirsupport] broken at depth: {:?} {:?} deepest {}",
+        broken.verdict, broken.receipt, broken.widths.deepest
+    );
+    assert!(
+        !matches!(broken.verdict, BoundVerdict::Holds) && broken.receipt.splits > 0,
+        "walls 0.05 apart do not hold AtLeast(0.08), read at depth: {:?} {:?}",
+        broken.verdict,
+        broken.receipt
+    );
+}
+
+/// **A gap over a metre is read in metres.** The slab's walls `1.6`
+/// apart, upright and turned 45°, read `Violated` under `AtLeast(1.62)`
+/// with a verified witness closer than `1.62`, at both scalars. The
+/// line between two cells' centres is about `1.6` long here, so a
+/// support gap read along it and not divided by its length would read
+/// the walls `1.6` times as far apart as they are, and hold.
+#[test]
+fn a_gap_over_a_metre_is_read_in_metres() {
+    for phi in [0.0, core::f64::consts::FRAC_PI_4] {
+        let (float, walls) = slab_wall_pair::<f64>(1.6, 0.3, phi);
+        let (twin, twin_walls) = slab_wall_pair::<Interval>(1.6, 0.3, phi);
+        for (what, report) in [
+            (
+                "f64",
+                wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(1.62)),
+            ),
+            (
+                "Interval",
+                wall_against_wall(&twin.body, twin_walls, ClearanceBound::AtLeast(1.62)),
+            ),
+        ] {
+            let BoundVerdict::Violated(w) = report.verdict else {
+                panic!(
+                    "{what}: walls 1.6 apart turned {phi} violate AtLeast(1.62): {:?} {:?}",
+                    report.verdict, report.receipt
+                )
+            };
+            assert!(
+                w.d < 1.62,
+                "{what} turned {phi}: the witness is closer than the bound: {w:?}"
+            );
+        }
+    }
 }

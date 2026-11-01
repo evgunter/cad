@@ -96,12 +96,10 @@
 //! reaches the funnel. The second is the window door's [`refines`],
 //! whose bound compares decide which charts are ADMITTED to the sweep,
 //! never what a pair means: a chart admitted wrongly costs depth or
-//! budget, which the sweep refuses typed. The third is the support
-//! test's: [`support_separation`]'s choice of direction, which picks
-//! which true lower bound is decided, and [`apart_along`]'s admission,
-//! which asks the funnel only where its own escalate threshold reads
-//! `Positive`, so no in-band support compare is ever logged. Stated because a reviewer should meet them
-//! here rather than find them.
+//! budget, which the sweep refuses typed. The third is
+//! [`support_separation`]'s choice of direction, which picks which true
+//! lower bound is decided and decides nothing itself. Stated because a
+//! reviewer should meet them here rather than find them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
@@ -1535,7 +1533,7 @@ where
                 if meet || sh.is_empty() {
                     false
                 } else {
-                    let s = apart_along(pair, x, y, bound.c(), band);
+                    let s = separated_by_support(pair, x, y, bound.c(), band);
                     along = Some(s);
                     s
                 }
@@ -1659,7 +1657,17 @@ where
                 strict,
             })
         };
-        match decide(bound.predicate(), Margin::of(margin), band) {
+        let outcome = decide(bound.predicate(), Margin::of(margin), band);
+        // **Apart along a direction.** Where the boxes leave the margin
+        // indeterminate, the cells' supports may still separate them.
+        let indeterminate = matches!(&outcome, Err(source) if !source.margin.is_invalid());
+        let separated =
+            indeterminate && along.unwrap_or_else(|| separated_by_support(pair, x, y, c, band));
+        if separated {
+            discharge(&mut walk.receipt, &mut self.widths);
+            return ControlFlow::Continue(());
+        }
+        match outcome {
             Ok(Sign::Positive) => discharge(&mut walk.receipt, &mut self.widths),
             Ok(Sign::Zero) if bound.zero_discharges() => {
                 discharge(&mut walk.receipt, &mut self.widths);
@@ -1679,12 +1687,6 @@ where
                             .get_or_insert(EngineRefusal::WitnessUnverified { what });
                     }
                 }
-            }
-            Err(source)
-                if !source.margin.is_invalid()
-                    && along.unwrap_or_else(|| apart_along(pair, x, y, c, band)) =>
-            {
-                discharge(&mut walk.receipt, &mut self.widths);
             }
             Err(source) => {
                 // **The exhibit arm.** An indeterminate margin
@@ -3601,7 +3603,12 @@ fn separation(a: &Point3<Interval>, b: &Point3<Interval>) -> Interval {
 /// [`CLEARANCE_SUPPORT_GAP`] (audit row F29). Only that sign is read:
 /// the support gap bounds the separation from below and from nowhere
 /// above, so no other sign says anything about the pair.
-fn apart_along<T: Real>(
+///
+/// The margin is first read at the same site in the unlogged scope, and
+/// logged only where that reading is `Positive`: an in-band escalation
+/// here would cue a driver to bisect a parameter box that nothing here
+/// refines (F29).
+fn separated_by_support<T: Real>(
     pair: CellPair,
     x: &Window<'_, T>,
     y: &Window<'_, T>,
@@ -3610,28 +3617,28 @@ fn apart_along<T: Real>(
 ) -> bool {
     support_separation((x, pair.a), (y, pair.b)).is_some_and(|d| {
         let margin = d - Interval::from_f64(c);
-        // Asked only where the funnel decides `Positive`: no other
-        // outcome is read, and an in-band escalation here would cue a
-        // driver to bisect a parameter box that nothing here refines.
-        margin.is_certified()
-            && margin.lo() >= band.escalate()
-            && matches!(
-                decide(CLEARANCE_SUPPORT_GAP, Margin::of(margin), band),
-                Ok(Sign::Positive)
-            )
+        matches!(
+            k_stats::check_unlogged(CLEARANCE_SUPPORT_GAP, margin, band, "F29"),
+            Ok(Sign::Positive)
+        ) && matches!(
+            decide(CLEARANCE_SUPPORT_GAP, Margin::of(margin), band),
+            Ok(Sign::Positive)
+        )
     })
 }
 
 /// **What a cell's support along a direction is read off**: the
-/// control points of its carrier restricted to it, a plane's own affine
-/// form, or, for any other carrier and any net [`NurbsSurface::rect_net`]
-/// refuses, the cell's box.
+/// control points of its carrier restricted to it, a plane's first-order
+/// expansion, or, for any other carrier and any net
+/// [`NurbsSurface::rect_net`] refuses, the cell's box.
 enum Hull {
     Net(Vec<Point3<Interval>>),
+    /// A plane's point and partials at the cell's low corner, and the
+    /// cell's extent from it along each axis.
     Plane {
-        origin: Point3<Interval>,
-        u_ref: Vec3<Interval>,
-        v_ref: Vec3<Interval>,
+        at: Point3<Interval>,
+        du: Vec3<Interval>,
+        dv: Vec3<Interval>,
         u: Interval,
         v: Interval,
     },
@@ -3640,18 +3647,15 @@ enum Hull {
 
 impl Hull {
     fn of(surface: &Surface<Interval>, c: Cell) -> Self {
-        if let &Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-        } = surface
-        {
+        if let Surface::Plane { .. } = surface {
+            let point = |x: f64| Interval::from_bounds(x, x);
+            let j = surface.jet(point(c.u.0), point(c.v.0));
             return Self::Plane {
-                origin,
-                u_ref,
-                v_ref: normal.cross(u_ref),
-                u: Interval::from_bounds(c.u.0, c.u.1),
-                v: Interval::from_bounds(c.v.0, c.v.1),
+                at: j.point,
+                du: j.du,
+                dv: j.dv,
+                u: Interval::from_bounds(c.u.0, c.u.1) - point(c.u.0),
+                v: Interval::from_bounds(c.v.0, c.v.1) - point(c.v.0),
             };
         }
         match surface
@@ -3668,10 +3672,12 @@ impl Hull {
     /// With every restricted weight certified positive (which
     /// [`NurbsSurface::rect_net`] requires), each point of the cell is a
     /// convex combination of one knot cell's restricted points, so the
-    /// linear `⟨P, n⟩` lies in the hull of its values at them. A plane
-    /// point is `o + u·u_ref + v·v_ref`, so the form is affine in the
-    /// two parameter intervals and exact up to rounding. A box holds the
-    /// cell, so its own support does.
+    /// linear `⟨P, n⟩` lies in the hull of its values at them. A plane is
+    /// its own first-order expansion, so its point over the cell is the
+    /// corner's jet point plus the two partials times the parameter
+    /// offsets ([`Surface::jet`]), and the form is affine in the two
+    /// offset intervals and exact up to rounding. A box holds the cell,
+    /// so its own support does.
     fn support(&self, n: Vec3<Interval>) -> Interval {
         let dot = |p: Vec3<Interval>| p.x * n.x + p.y * n.y + p.z * n.z;
         let at = |p: Point3<Interval>| dot(Vec3::new(p.x, p.y, p.z));
@@ -3682,12 +3688,12 @@ impl Hull {
                 .reduce(geom_core::SpanLocate::enclosure_hull)
                 .unwrap_or_else(|| unreachable!("`rect_net` answers no empty net")),
             Self::Plane {
-                origin,
-                u_ref,
-                v_ref,
+                at: p,
+                du,
+                dv,
                 u,
                 v,
-            } => at(origin) + u * dot(u_ref) + v * dot(v_ref),
+            } => at(p) + u * dot(du) + v * dot(dv),
             Self::Box(enc) => at(enc),
         }
     }
@@ -3700,8 +3706,9 @@ impl Hull {
 /// from below, whichever way `n` points. `n` is the best of three
 /// directions by that bound — each cell's normal at its centre, and the
 /// line between the two boxes' centres — and only chooses: the bound is
-/// true along any `n`, so `n` itself is not certified, and the choice
-/// is the one raw compare here. `None` where no direction is finite.
+/// true along any `n`, so `n` itself is not certified. The raw compares
+/// here are that choice and each direction's choice of orientation;
+/// neither decides anything. `None` where no direction is finite.
 fn support_separation(
     (x, a): (&Window<'_, impl Real>, Cell),
     (y, b): (&Window<'_, impl Real>, Cell),
@@ -4955,8 +4962,13 @@ mod support_rows {
     use geom_core::spline::{KnotVector, Knots};
     use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 
-    use super::{Cell, Hull, poisoned};
+    use super::{
+        CLEARANCE_SUPPORT_GAP, Cell, CellPair, Hull, Which, poisoned, separated_by_support,
+        window_of,
+    };
     use crate::test_support_fixtures::trv;
+    use geom_core::k_stats::Bracket;
+    use geom_core::{Band, Tol};
 
     /// The quarter of the unit cylinder from `x` to `y`, `z ∈ [0, 1]`:
     /// a rational quadratic arc in `u`, its middle weight `middle`,
@@ -5061,6 +5073,79 @@ mod support_rows {
                 poisoned(hull.support(n)),
                 refused,
                 "the support certifies where every weight does: {refused}"
+            );
+        }
+    }
+
+    /// **The support compare logs only what discharges.** The unit
+    /// cube's `+x` face and its copy's `-x` face are `1` apart, and
+    /// their planes' supports read that exactly. Against a bound `1 − m`
+    /// with `m` inside the band, the margin is in band: nothing is
+    /// separated and nothing is logged at the site. Against `0.5` the
+    /// pair is separated and one `Positive` verdict is logged. Red if
+    /// the unlogged reading that gates the logged decision is dropped.
+    #[test]
+    fn the_support_compare_logs_only_what_discharges() {
+        let brick = |x| {
+            crate::test_support_fixtures::brick::<Interval>(
+                x,
+                (0.0, 1.0),
+                (0.0, 1.0),
+                Tol::witness(),
+            )
+        };
+        let (a, b) = (brick((0.0, 1.0)), brick((2.0, 3.0)));
+        fn facing(
+            body: &crate::Body<Interval>,
+            x: f64,
+            which: Which,
+        ) -> super::Window<'_, Interval> {
+            body.faces()
+                .find_map(|(f, _)| {
+                    let w = window_of(body, f, which).ok()?;
+                    let p = w.surface.eval(
+                        Interval::from_bounds(w.u.0, w.u.0),
+                        Interval::from_bounds(w.v.0, w.v.0),
+                    );
+                    let normal = w.surface.normal(
+                        Interval::from_bounds(w.u.0, w.u.0),
+                        Interval::from_bounds(w.v.0, w.v.0),
+                    );
+                    ((p.x.lo() - x).abs() < 1e-9 && normal.x.lo().abs() > 0.5).then_some(w)
+                })
+                .expect("the facing face")
+        }
+        let (wa, wb) = (
+            facing(&a, 1.0, Which::First),
+            facing(&b, 2.0, Which::Second),
+        );
+        let pair = CellPair {
+            a: Cell::of(&wa),
+            b: Cell::of(&wb),
+            depth: 0,
+            fresh: false,
+        };
+        let band = Band::linear(Tol::witness()).unwrap();
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        for (c, separated) in [(1.0 - in_band, false), (0.5, true)] {
+            let bracket = Bracket::open();
+            let read = separated_by_support(pair, &wa, &wb, c, band);
+            let recorded = bracket.finish();
+            assert_eq!(read, separated, "separated against {c}");
+            let escalations = recorded
+                .escalations
+                .iter()
+                .filter(|e| e.predicate() == CLEARANCE_SUPPORT_GAP)
+                .count();
+            let verdicts = recorded
+                .verdicts
+                .iter()
+                .filter(|v| v.predicate == CLEARANCE_SUPPORT_GAP)
+                .count();
+            assert_eq!(
+                (escalations, verdicts),
+                (0, usize::from(separated)),
+                "against {c}: the site logs only the discharge: {recorded:?}"
             );
         }
     }
