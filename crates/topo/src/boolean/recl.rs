@@ -2069,7 +2069,7 @@ fn resolve_edge_sector<T: Decide>(
     // the other way, the edge is the transition. Where the bound rides
     // the locus or reads in band, the On stands, and Table III's rule
     // reads the pair whole (`tangent_lump`).
-    let key = |idx: usize, key_from_start: bool| {
+    let key = |idx: usize, key_from_start: bool| -> Result<SideCode, BooleanError> {
         let first = flank_key(own_secs, idx, key_from_start, ref_sector.normal, band)?;
         let own_sec = &own_secs[idx];
         if first != SideCode::On
