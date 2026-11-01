@@ -2555,4 +2555,21 @@ Signed (CHROME orchestrator).
 - 2026-11-01 — Duplicate-pick lane: the row's premise is false. After a duplicate both bodies seat; the walk's click landed in the plate's 12 mm hole once zoom-to-fit reframed two bodies, a true miss. The lane's sweep for one-placement-per-body readers found no hits. What is real: with a seated tool open, a viewport click on nothing is silent. Ruled B: the miss says so on the line, and a tree deselect stays quiet. The fact that it was a viewport pick lives at the viewport's miss path, not as a flag threaded through `Tools::feed`. Hover preview (C) to be filed as a P3. (CHROME orchestrator)
 - 2026-11-01 — #6239 merges and closes `after-a-duplicate-the-original-cannot-be-picked-into-a-tool` (P1; retitled, id kept). The premise was false; the real defect was a silent miss with a tool open, ruled B. It had a style review with a correctness arm (five claims, all held) and one fix pass. The pass replaced a false sentence under the edges-only blend tool with words derived from the pick kind, moved the miss into `ToolNotice` (the tool's vocabulary, out of the pane), pinned the negative half in rows, and added `Subject::Tool`: the miss had outlived a cancelled tool. The expiry-issuer roster now has three entries. (CHROME orchestrator)
 - 2026-11-01 — #6242 merges and closes `the-variables-list-shows-no-values` (P1). It had a style review and one fix pass. That pass gave one home to the reading-to-text mapping (the PR had minted a third copy), made a failing definition's reason appear once, gave a partly refused per-member definition its refusals, and merged the reviewer's two rows for claims the PR's tests could not fail on. A free variable reads in its declared unit rather than the working notation, by #3639's rule that the working notation is for values no author wrote. (CHROME orchestrator)
+- 2026-11-01 — **Track handed back** (`active` → `ready`) per the sitting rule: no CHROME P0 or P1 is dispatchable. Sitting summary:
+  - **The 2026-11-01 cut:** two new tracks, SPACES and PLACING, plus CHROME (6195).
+  - **Wave 10:** P0 plus five P1s.
+  - **Wave 11:** three P1s.
+  - **Main's red** from this prefix, fixed (6227).
+  - **One three-designer fork,** ruled by Ev on 6197.
+  - **Left for a successor:**
+    - The held-face P1 is parked on DOORS' takeover P0, which has a decided design and no orchestrator. That P0 is the highest-value unstaffed row this program waits on.
+    - SPACES' `[ev]` #6209, the drawn-bodies rule, also governs the split result being drawn nowhere (evidence on SPACES' row).
+    - Lane and review sessions from this sitting are idle, not archived; archiving waits on Ev.
+  - **Process notes for whoever picks this up:**
+    - Reviews found something every time, including a fresh instance of the defect being closed on two PRs.
+    - Lanes stopped correctly on forks four times; two of those were false premises.
+    - GitHub twice failed to create `gate ok` on all-green runs, and this integration cannot re-run workflows.
+    - Unit state rides the unit branch only.
+
+  (CHROME orchestrator)
 - 2026-11-01 — #6240 merges and closes `the-split-tools-plane-is-typed-blind` (P1). It got a style review with a correctness arm and one fix pass. The review falsified claim 2: a staged verdict survived Open, because every new history restarts at `HistoryId(0)`. The fix moved the stage into `Derived`. The pass also woke the frame loop when a verdict lands and on edits; rewrote the tests to go through the real panel and preview paths; gave the threaded handle one generic home (`Cancelling`), since the stager had copied the prover's; made `split_reading` refuse a value that is not a split; took `through` from the pick's kind; and reset the seed for a target with no corner. **Wave 11 complete** (6239, 6242, 6240). (CHROME orchestrator)
