@@ -45,3 +45,29 @@ body holds its own records.
 
 A fillet of an edge clear of a pinch union's touch carries the union's
 records onto its result, read by a reader of the fillet.
+
+## Findings (branch `wire/a-blend-carries-its-operands-contacts`)
+
+- The carry is built from the birth records alone: the lineage moved
+  onto `sweep::blend::naming::BlendNaming::lineage`, with
+  `BlendNaming::carry_contacts` beside it taking the blended body by
+  reference; `Blended::lineage` and `Blended::carry_contacts` delegate.
+  `VerbOut` is unchanged. `wire_blend` reads the operand's records as
+  its door kept them (`Carry::kept`), carries them, refuses a carry
+  refusal as `NodeErrorKind::ContactCarry`, and holds them citing the
+  operand's read.
+- Witness `crates/editor-core/tests/blend_carries_contacts.rs`: a fillet
+  and a chamfer of the pinch plate's left bottom edge hold the union's
+  two records, read by a one-member union of the blend (red on main:
+  0 of 2).
+- A blend bounded by a recorded cell, read in the document: the pinch's
+  second block's top edges end on its corner that rests on the first
+  block's edge (record 0's vertex); both blends refuse
+  `FaceClearance` before any carry (bandrule's strip rule), so no record
+  on a bounded cell reaches the carry from a document. The first
+  block's top edge along `y` ends on the top of the recorded edge;
+  the edge keeps its key and both records ride on the union's own cells.
+- Sweep of body-from-body lowerings in `crates/editor-core/src/eval/`
+  (`OpOut::plain` / `per_output` / `Carry::default()` / `NodeValue {`):
+  every one carries or holds its operand's records now; the blend was
+  the last.

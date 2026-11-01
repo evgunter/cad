@@ -430,7 +430,7 @@ where
             &crate::verbs::blend::fillet(),
             id,
             &select(doc, results, O::Selection, *selection)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -438,7 +438,7 @@ where
             &crate::verbs::blend::chamfer(),
             id,
             &select(doc, results, O::Selection, *selection)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -1747,6 +1747,8 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 /// the op itself is [`NodeErrorKind::Blend`], carrying
 /// the kernel's error unaltered; the input body is never passed
 /// through, so a blend that did not happen reads as a failed node.
+/// An operand record the carry onto the blended body refuses is
+/// [`NodeErrorKind::ContactCarry`].
 ///
 /// # Naming
 ///
@@ -1761,7 +1763,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     selection: &Selected<topo::EdgeKey>,
-    results: &Results<T>,
+    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -1788,6 +1790,19 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             verb.no_records
         )
     };
+    // The operand's records, as its door kept them, ride the blended
+    // body through the lineage its birth records state. Caller-side,
+    // until the blend's door carries them itself onto a finished body
+    // that holds its records (heldrecords' ratified unit
+    // `a-finished-body-holds-its-contact-records-at-every-door`).
+    let carried = rec
+        .carry_contacts(
+            &value_of(results, target)?.carry.kept(doc, tol).contacts,
+            &out.body,
+            band(tol)?,
+            T::region_lane(),
+        )
+        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
     let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
     let inputs = crate::coincide::RowInputs {
@@ -1801,6 +1816,10 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             operand.frame().clone(),
         )),
         table,
+    )
+    .holding(
+        Arc::new(carried),
+        vec![crate::coincide::CitedInput::Read(target_read)],
     )
     .recording(&out.coincidences, &inputs)
 }

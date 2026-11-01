@@ -1486,8 +1486,9 @@ pub enum NodeErrorKind {
     /// **Its operand's contact records do not carry onto what it
     /// built**, through the kernel's carry for its op
     /// ([`topo::SplitResult::carry_contacts`],
-    /// [`topo::Shelled::carry_contacts`]): the carry's refusal,
-    /// unaltered, citing the operand's record.
+    /// [`topo::Shelled::carry_contacts`],
+    /// [`sweep::blend::naming::BlendNaming::carry_contacts`]): the
+    /// carry's refusal, unaltered, citing the operand's record.
     ContactCarry {
         /// The carry's refusal.
         refusal: topo::CarryRefusal,
