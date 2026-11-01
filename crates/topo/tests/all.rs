@@ -81,6 +81,8 @@ mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
 #[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
 mod a_trace_reads_a_piece_against_its_carrier;
+#[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
+mod a_zero_vertex_pair_keeps_the_kept_sides_point;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]

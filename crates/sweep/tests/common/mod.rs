@@ -302,7 +302,7 @@ pub mod oblique;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -316,6 +316,32 @@ use topo::Body;
 /// the map is not rigid.
 pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
     SketchPlane::from_frame(geom_core::test_support::rigid(map, Tol::witness()))
+}
+
+/// `stations` sections placed along a planar circular arc of UNIT
+/// RADIUS turning through `curl` toward `+z`, each section's plane
+/// normal the spine's own tangent there: lily's leaf-A spine with a
+/// constant section (`demos/tour/src/lily.rs::lofted_blade`). Station
+/// `i` sits at `θ = curl·i/(stations − 1)`, at `(sin θ, 0, 1 − cos θ)`
+/// with tangent `(cos θ, 0, sin θ)`. A slab's displacement makes an
+/// angle of half the slab's turn with its base tangent, so the slab
+/// margin goes negative exactly when the SLAB turns past π; and the
+/// spine closes on itself at `curl = 2π`, past which the body passes
+/// through itself.
+pub fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
+    (0..stations)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let theta = curl * (i as f64) / ((stations - 1) as f64);
+            let (s, c) = theta.sin_cos();
+            let linear = Mat3::from_cols(
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                Vec3::new(c, 0.0, s),
+            );
+            plane_of(&Affine3::from_parts(linear, Vec3::new(s, 0.0, 1.0 - c)))
+        })
+        .collect()
 }
 
 /// The placement a path sweep starts from, read off the path's start:

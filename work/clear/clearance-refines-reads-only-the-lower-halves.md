@@ -2,10 +2,13 @@
 id: clearance-refines-reads-only-the-lower-halves
 kind: issue
 title: The clearance window door's refines() halves only toward the lower ends, so a loft wall whose enclosure extremes all lie in its lower u- or v-half is refused as a chart that does not refine
-status: open
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: E
+branch: clear/refines
+pr: 6206
+closed: 2026-11-01
 ---
 
 

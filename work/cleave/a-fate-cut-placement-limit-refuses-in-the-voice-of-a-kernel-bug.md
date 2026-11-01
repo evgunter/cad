@@ -60,3 +60,20 @@ A typed refusal for a fate cut's placement limit (a `BooleanError`
 variant or a typed reason on an existing one), carrying the `Limit`,
 whose words say the cut was not placed rather than that an invariant
 broke; `ClassificationInvariant` kept for what is one.
+
+## Two more limits in the voice (2026-11-01, CLEAVE `cleave/orbit-readings-read-the-beside-tie`, PR 6184)
+
+`boolean/insert.rs` refuses two states of the orbit's tie reading as
+`ClassificationInvariant`, each a limit, not a broken invariant, and
+each saying so in its text ("a limit, not a broken invariant: …"):
+
+- `strut_anchor`: two struts hung at one vertex whose lower germs lie
+  along one direction on two sides of it (`CutOrder::Tied`, read). A
+  strut along the line beside a ring's two edges, sharing its vertex
+  with another pair's strut, would reach it; no pose does.
+- `tied_held`: two runs tied at one end unread whose far ends the tie's
+  reading orders. The doc argues the answer (nested, not held); no pose
+  reaches it.
+
+Neither is raised over the whole topo suite (PR 6184's reviews). A
+typed limit here would move them with the rest.

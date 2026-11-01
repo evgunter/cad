@@ -84,7 +84,7 @@ use crate::intersect::SectionError;
 use crate::ssi::boundary::BoundaryPass;
 use crate::ssi::enclose::{Box3, NurbsBoxes, UvWindow};
 use crate::ssi::exhaust::UvRect;
-use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiError, SsiTube};
+use crate::ssi::{BranchEnd, SsiBoundaryContact, SsiBranch, SsiDomain, SsiTube};
 
 mod sweep;
 
@@ -556,31 +556,9 @@ fn bracket(
     )?;
     let reach = (-low).max(high).max(0.0)
         * (du.abs() * boxes.speed_sup(span, true) + dv.abs() * boxes.speed_sup(span, false));
-    let s = at_box(at)?;
-    let centre = |x: Interval| 0.5 * (x.lo() + x.hi());
-    let q = Point3::new(centre(s.x), centre(s.y), centre(s.z));
-    let half = |x: Interval| (x.hi() - centre(x)).max(centre(x) - x.lo()).next_up();
-    let pad = (reach + half(s.x) + half(s.y) + half(s.z)).next_up();
+    let (q, half) = at_box(at)?.centre_and_reach()?;
+    let pad = (reach + half).next_up();
     pad.is_finite().then_some((q, pad))
-}
-
-/// The whole reading's refusal as the section value's (module docs): a
-/// tangency the reading reports ([`SsiError::tangency`]) is a pinch named
-/// by its decision, an escalation is the value's escalation, as the
-/// analytic arms' in-band readings are, and any other refusal is
-/// [`SectionError::Unaccounted`].
-fn refused(e: SsiError) -> SectionError {
-    if let Some(predicate) = e.tangency() {
-        return SectionError::Pinched { predicate };
-    }
-    match e {
-        SsiError::Escalated { cause, .. } | SsiError::CertificateEscalated { cause, .. } => {
-            SectionError::Escalated(cause)
-        }
-        other => SectionError::Unaccounted {
-            cause: other.to_string(),
-        },
-    }
 }
 
 /// **The pair's classification before any lane is read**: stage 1,
@@ -626,9 +604,9 @@ pub(super) fn section(
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
     let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
-        .map_err(refused)?;
+        .map_err(super::whole_reading_refused)?;
     let (reach, pass) = {
-        let pass = reading.pass().map_err(refused)?;
+        let pass = reading.pass().map_err(super::whole_reading_refused)?;
         let reach = pass
             .crossings
             .iter()
@@ -640,7 +618,7 @@ pub(super) fn section(
     if let sweep::Sweep::Declined(_) =
         sweep::sweep(&reading, &pivot, read_band, pose.domain().extent)
     {
-        let out = reading.all().map_err(refused)?;
+        let out = reading.all().map_err(super::whole_reading_refused)?;
         return listed(pose, &pivot, out);
     }
     drop(reading);
@@ -667,12 +645,16 @@ pub(super) fn whole(
     let pivot = pose.pivot();
     let read_band = pivot.band(band)?;
     let reading = crate::PlaneSection::of(&pivot.plane, pose.net(), pose.domain(), read_band)
-        .map_err(refused)?;
+        .map_err(super::whole_reading_refused)?;
     let reading = match &pose.pass {
         Some(pass) => reading.with_pass(BoundaryPass::clone(pass)),
         None => reading,
     };
-    listed(pose.clone(), &pivot, reading.all().map_err(refused)?)
+    listed(
+        pose.clone(),
+        &pivot,
+        reading.all().map_err(super::whole_reading_refused)?,
+    )
 }
 
 /// The sides a boundary region reaches.

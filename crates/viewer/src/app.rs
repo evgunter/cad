@@ -7169,6 +7169,8 @@ mod properties_pane_tests {
                     .row(profile(), outline(step as u32, StepArg::TargetX))
                     .value
                     .expect("reads")
+                    .one()
+                    .expect("one value")
                     .as_f64()
             }
         }
@@ -7293,7 +7295,9 @@ mod properties_pane_tests {
                 eprintln!(
                     "  {} = {:?} src {:?}",
                     row.slot.label(),
-                    row.value.as_ref().map(|v| v.as_f64()),
+                    row.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64()),
                     row.source
                 );
             }
@@ -7459,8 +7463,14 @@ mod properties_pane_tests {
                 let rx = driven.row(profile(), outline(1, StepArg::TargetX));
                 let ry = driven.row(profile(), outline(1, StepArg::TargetY));
                 let (lx, ly) = (
-                    rx.value.as_ref().map(|v| v.as_f64()).ok(),
-                    ry.value.as_ref().map(|v| v.as_f64()).ok(),
+                    rx.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64())
+                        .ok(),
+                    ry.value
+                        .as_ref()
+                        .map(|v| v.one().expect("one value").as_f64())
+                        .ok(),
                 );
                 eprintln!(
                     "{i}: said {said:?} x {lx:?} {:?} y {ly:?} {:?}",
@@ -7580,7 +7590,13 @@ mod properties_pane_tests {
                 assert_eq!(row.source.as_deref(), Some("w"), "step {step} kept w");
             }
             let moved = driven.row(profile(), outline(3, StepArg::TargetY));
-            assert_eq!(moved.value.map(|v| v.as_f64()).ok(), Some(0.05));
+            assert_eq!(
+                moved
+                    .value
+                    .map(|v| v.one().expect("one value").as_f64())
+                    .ok(),
+                Some(0.05)
+            );
             assert!(
                 !driven
                     .app
@@ -7609,7 +7625,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(2, StepArg::TargetX))
                     .value
-                    .map(|v| v.as_f64())
+                    .map(|v| v.one().expect("one value").as_f64())
             );
             let painted = driven.quiet();
             eprintln!(
@@ -7629,7 +7645,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(2, StepArg::TargetX))
                     .value
-                    .map(|v| v.as_f64())
+                    .map(|v| v.one().expect("one value").as_f64())
             );
             perform(&mut driven, SessionOp::Undo);
             driven.quiet();
@@ -7638,7 +7654,7 @@ mod properties_pane_tests {
                 driven
                     .row(profile(), outline(3, StepArg::TargetY))
                     .value
-                    .map(|v| v.as_f64()),
+                    .map(|v| v.one().expect("one value").as_f64()),
                 driven.row(profile(), outline(2, StepArg::TargetX)).source,
                 held_point(&driven, 3).y
             );
