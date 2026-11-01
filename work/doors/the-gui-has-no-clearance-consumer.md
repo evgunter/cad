@@ -28,27 +28,32 @@ the first verified violation. Yet its only door,
 
 ## The design (ratified by Ev on PR 6261)
 
-- **The document.** An E10 assertion may state a relation on
-  `clearance(a, b)`: `≥`, `≤` or `=`, against a length formula `c`
-  (ERROR-DESIGN E3).
-  - `a` and `b` take the reference seats `min_clearance` has today: a
-    body or a face each.
-  - No clearance value exists. `min_clearance` leaves the measure
-    primitives, so a computed minimum and arithmetic over a clearance
-    cannot be written.
-  - Python's constructor becomes the assertion's.
-- **Evaluation.** At a certifying scalar, the assertion resolves its two
-  seats and runs `Sweep` at `c`. There `c` is an enclosure, so the
-  sweep's bound changes from `f64` to an enclosure. Each relation is
-  decided with the margin every assertion carries:
-  - `≥ c`: `Holds` when every pair is certified clear of `c`. Otherwise
-    `Violated` with a violating pair: two face points that the `f64`
-    rebuild (`LaneEnv::nominal_results`, whose build condition widens)
-    decides are closer than `c`, together with their distance.
-  - `≤ c`: the same sweep read inverted. A verified pair within `c`
-    proves it, and that pair is shown. `Violated` when every pair is
-    certified clear of `c`.
-  - `= c`: both.
+- **The document.** An E10 assertion may bound `clearance(a, b)` with
+  length formulas (ERROR-DESIGN E3):
+  - from below (`≥ c`);
+  - from above (`≤ c`);
+  - from both sides (`= c`, or a band `lo ≤ clearance(a, b) ≤ hi`).
+
+  `a` and `b` take the reference seats `min_clearance` has today: a
+  body or a face each. No clearance value exists. `min_clearance`
+  leaves the measure primitives, so neither a computed minimum nor
+  arithmetic over a clearance can be written. Python's constructor
+  becomes the assertion's.
+- **Evaluation.** At a certifying scalar the assertion resolves its two
+  seats and runs `Sweep` at its bounds. The bounds are enclosures
+  there, so the sweep's bound changes from an `f64` to an enclosure. Each
+  bound is decided with the margin every assertion carries.
+  - A lower bound holds when every pair is certified clear of it.
+    Otherwise it is `Violated` with a violating pair: two face points
+    that the `f64` rebuild (`LaneEnv::nominal_results`, whose build
+    condition widens) decides are closer than the bound, together with
+    their distance.
+  - An upper bound holds when a verified pair lies within it; that
+    pair is shown. It is `Violated` when every pair is certified clear
+    of it.
+  - **Two bounds run as ONE fused sweep** (Ev, PR 6261): each cell pair
+    is classified against both bounds in one subdivision, never as two
+    searches. `= c` is the band with `lo = hi = c`.
 
   A typed refusal (sliver, budget, unsupported carrier, …) is the
   verdict's third state, with its recourse. At `f64` the assertion
@@ -76,8 +81,8 @@ the first verified violation. Yet its only door,
   - A witness pair is drawn as a leg, with its two faces lit, while the
     row is selected or hovered.
   - There is no bracket.
-  - The create pane gains "add a clearance requirement": two seats, a
-    relation and a bound.
+  - The create pane gains "add a clearance requirement": two seats and
+    a bound on either side, or both.
 - `crates/viewer/README.md`'s clause that a landing is "taken in that
   pair's single `land`" is reworded: a landing may owe answers that
   settle later.

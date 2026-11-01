@@ -183,21 +183,28 @@ content-key cached like everything.
 **E3 amendments (revision E12, 2026-09-03).**
 
 - **A clearance is a requirement, not a measurement.** An E10
-  assertion may state a relation on `clearance(a, b)`: `clearance(a,
-  b) ≥ c`, `≤ c` or `= c`. Each of `a` and `b` selects which faces of
-  which body: a body reference means all of its faces, a face
-  reference means that one face. `c` is a length formula. The
-  assertion reads like an equation, though no clearance value exists.
-  - **Its verdict** comes from E7's sweep at `c`, never from the
-    minimum. Each relation is decided with the margin every assertion
+  assertion may bound `clearance(a, b)`:
+  - from below, `≥ c`;
+  - from above, `≤ c`;
+  - or from both sides at once: `= c`, or a band `lo ≤ clearance(a, b)
+    ≤ hi`.
+
+  Each of `a` and `b` selects which faces of which body: a body
+  reference means all of its faces, a face reference means that one
+  face. The bounds are length formulas. The assertion reads like an
+  equation, though no clearance value exists.
+  - **Its verdict** comes from E7's sweep at the bounds, never from the
+    minimum. Each bound is decided with the margin every assertion
     carries.
-    - `≥ c` holds when every pair is certified clear of `c`. It is
-      violated by a violating pair: two face points that the `f64`
-      rebuild decides are closer than `c`.
-    - `≤ c` is the same sweep read the other way. A verified pair
-      within `c` proves it, and that pair is its witness. It is
-      violated when every pair is certified clear of `c`.
-    - `= c` holds when both of the above hold.
+    - A lower bound holds when every pair is certified clear of it. A
+      violating pair breaks it: two face points that the `f64` rebuild
+      decides are closer than the bound.
+    - An upper bound holds when a verified pair lies within it, and
+      that pair is its witness. It is violated when every pair is
+      certified clear of it.
+    - **Two bounds are one fused sweep**, never two searches. Each cell
+      pair is classified against both bounds in one subdivision. `= c`
+      is the band with `lo = hi = c`.
     - A refusal, typed, is the verdict's third state.
   - **The minimum is never computed.** No node holds a clearance
     value, so a definition's arithmetic over a clearance cannot be
