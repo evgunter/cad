@@ -1927,3 +1927,11 @@ Signed (CLEAVE orchestrator).
 - 2026-11-01: Dispatched `a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece` (P1 M, the last dispatchable P1) to lane `cleave-fateedge` on `cleave/fate-cut-end-on-a-division-edge`.
   - The pierced corner on a division edge reads the piece by the dropped sector's direction, or refuses as a typed `fate::Limit` that `fallback_fates` keeps uncut.
   - Review tier: full, since it touches the placement reading. (CLEAVE orchestrator)
+
+- 2026-11-01: The 6177 second fix pass handed back green (`297c20013d`).
+  - The torus reading decides Λ₉·max|F/2r|/(R²−r²) on the band, where F is the torus's quartic along the conic, a degree-4 trig polynomial. Λ₉ is 2.3619. A near miss reads unread (`None`), never on.
+  - The sphere and cylinder per-sample reading is sound with Λ₅ 1.99 < K. The cone has no bound, filed as a P3.
+  - Near-miss and Villarceau rows are at r/R 0.98. `runs_in` answers closed edges from `closed_reach`. `JoinPlan` takes a strut only when both chords are planned. `GermEdgeCarrierUnsupported{closed}` has its own text.
+  - The validator gap went to RESTFRONT (P2).
+  - Orchestrator's read: I checked the bound (F = ((ρ−R)²+h²−r²)((ρ+R)²+h²−r²), G ≥ R²−r²) in `slit.rs::torus_between`. The outcome diff is unchanged cell for cell.
+  - I merged main: the slow-set filter conflict resolved as the union of both sides, dropping the old name of `reach_continuation`'s test, which main renamed to `…_build_every_op`. Head `aeda3f1d76`. It merges on green. (CLEAVE orchestrator)
