@@ -59,3 +59,13 @@ Newest entries at the bottom; the tail is the program's live status.
   `doctail/a-profile-reshaping-replays-a-member-indexed-step-outside-a-member`
   and `chrome/selecting-an-index-variable-shows-no-row`. (SPACES orchestrator)
 - 2026-11-01 — Fork row renumbered 228 → 230 at the merge of main into PR 6209 (CHROME and TANGRIM took 228 and 229 first). (SPACES orchestrator)
+- 2026-11-01 — PR 6208 review (single, style + correctness): MERGEABLE-WITH-FIXES,
+  1 MAJOR (a refused member past the sixth is hidden behind the spelled
+  cap and a first…last span), 1 MINOR (tests cover one shape only), 8
+  style. Claims 1, 3, 4, 5, 6 held under executed probes. All taken in one
+  fix pass by the implementer. Class noted: the unit's fix minted two
+  copies of what it centralised (member-env construction beside
+  `eval_family`; an expression's reach beside `index_within`) — the
+  reviewer-style-lane trap, caught by review; and a reading carried as a
+  fault type, with every `Err` reader treating it as "did not evaluate".
+  (SPACES orchestrator)
