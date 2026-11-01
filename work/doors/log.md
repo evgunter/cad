@@ -66,3 +66,10 @@ AUTHOR's narrative is recoverable from
   - (c) "Which node do the words already name", re-stated outside the names layer's walk.
 
   The fix pass, sent to the same lane, takes everything and sweeps (a).
+- 2026-11-01 — (DOORS orchestrator) PR 6264 reviews:
+  - **Style:** duplicates the unit minted. There is now a third rebind loop off the `name_carriers` enumeration, and the carrier rule restates `merged.rs`. The `Place`-copies-taken predicate exists three times, and the Face/Edge twin was minted again. The held-pick re-seat has two homes, and the `SegRewrite` census is stale. Prose rot is in `refactor.rs`'s header and `create`.
+  - **Correctness:** soundness holds on the fragment/merge boundaries, and rebinds cannot chain.
+    - **MAJOR:** a part-spelled takeover now refuses the whole gesture (`NameStepNeverMinted`).
+    - **Minors:** `reseated`'s read-order dependence is unguarded and silent, and the door evaluates on the UI thread at every stage preview, which the background run then repeats (379 ms on the die union, debug build).
+
+  **Class, recorded here as its home:** name-step and liveness checks that walk embedded names are exempted only on the outer node (`Rebind`, appearance, insert liveness, `InterfaceRecord` outers). The fix pass, sent to the same lane, takes everything and sweeps that class.
