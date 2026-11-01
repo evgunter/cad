@@ -1,0 +1,91 @@
+diff --git a/crates/topo/src/boolean/circle_roots.rs b/crates/topo/src/boolean/circle_roots.rs
+index be4a18b20..5925b1f04 100644
+--- a/crates/topo/src/boolean/circle_roots.rs
++++ b/crates/topo/src/boolean/circle_roots.rs
+@@ -357,6 +357,18 @@ pub(super) fn first_harmonic_root_directions<T: Decide>(
+             let amplitude = (h.cos_part.powi(2) + h.sin_part.powi(2)).sqrt();
+             let (pc, ps) = (h.cos_part / amplitude, h.sin_part / amplitude);
+             let (sin, cos) = half_chord.sin_cos();
++            if super::region::mutant(3) {
++                return Ok(Roots::all([
++                    (pc * cos - ps * sin, ps * cos + pc * sin),
++                    (pc * cos - ps * sin, ps * cos + pc * sin),
++                ]));
++            }
++            if super::region::mutant(8) {
++                let phi = h.sin_part.atan2(h.cos_part);
++                let (s1, c1) = (phi - half_chord).sin_cos();
++                let (s2, c2) = (phi + half_chord).sin_cos();
++                return Ok(Roots::all([(c1, s1), (c2, s2)]));
++            }
+             Roots::all([
+                 (pc * cos + ps * sin, ps * cos - pc * sin),
+                 (pc * cos - ps * sin, ps * cos + pc * sin),
+diff --git a/crates/topo/src/boolean/region.rs b/crates/topo/src/boolean/region.rs
+index 954f1dc8a..699690fd1 100644
+--- a/crates/topo/src/boolean/region.rs
++++ b/crates/topo/src/boolean/region.rs
+@@ -143,7 +143,7 @@ pub(crate) fn span_from_middle<T: Decide>(
+     band: Band,
+ ) -> Result<Option<bool>, Fault> {
+     let near = decide(row, Margin::of(lever * (half - off)), band).map_err(in_band)?;
+-    let far = decide(row, Margin::of(lever * (half + off)), band).map_err(in_band)?;
++    let far = if mutant(4) { Sign::Positive } else { decide(row, Margin::of(lever * (half + off)), band).map_err(in_band)? };
+     Ok((near != Sign::Negative && far != Sign::Negative)
+         .then_some(near == Sign::Zero || far == Sign::Zero))
+ }
+@@ -152,6 +152,10 @@ pub(crate) fn span_from_middle<T: Decide>(
+ /// `[0, π]`: `2·atan2(|a − b|, |a + b|)`, both arguments norms, so no
+ /// cut lies anywhere on it and an enclosure of it is as tight at `π` as
+ /// at `0`.
++pub(crate) fn mutant(n: u32) -> bool {
++    std::env::var("MUT").ok().and_then(|v| v.parse::<u32>().ok()) == Some(n)
++}
++
+ pub(crate) fn between<T: Decide>(a: Vec3<T>, b: Vec3<T>) -> T {
+     (a - b).norm().atan2((a + b).norm()) * T::from_f64(2.0)
+ }
+@@ -764,6 +768,9 @@ impl<T: Decide> Round<T> {
+     /// the circle, the shorter way, in `[0, π]` ([`between`]).
+     fn swept(&self, y: Point3<T>) -> T {
+         let w = y - self.center;
++        if mutant(1) {
++            return w.dot(self.e2).atan2(w.dot(self.e1)).abs();
++        }
+         between(w / w.norm(), self.e1)
+     }
+ 
+@@ -773,6 +780,9 @@ impl<T: Decide> Round<T> {
+     pub(crate) fn arc(&self, y: Point3<T>) -> T {
+         let s = self.swept(y);
+         let ahead = (y - self.center).dot(self.e2);
++        if mutant(6) {
++            return self.radius * (T::zero() - ahead).select_le_zero(T::tau() - s, s);
++        }
+         self.radius * (T::zero() - ahead).select_le_zero(s, T::tau() - s)
+     }
+ }
+diff --git a/crates/topo/src/boolean/sphere_region.rs b/crates/topo/src/boolean/sphere_region.rs
+index 884548816..0572de290 100644
+--- a/crates/topo/src/boolean/sphere_region.rs
++++ b/crates/topo/src/boolean/sphere_region.rs
+@@ -412,7 +412,18 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
+             // the middle leaves undecided, and that one lies at a whole
+             // turn's ends, sideless.
+             let ahead = middle.cross(toward).dot(axis);
+-            let theta = (T::zero() - ahead).select_le_zero(mid + off, mid - off);
++            let theta = if region::mutant(2) {
++                (T::zero() - ahead).select_le_zero(mid - off, mid + off)
++            } else {
++                (T::zero() - ahead).select_le_zero(mid + off, mid - off)
++            };
++            if region::mutant(5) {
++                let raw = sin.atan2(cos);
++                let th = super::circle_roots::near_span(raw, (arc.t0, arc.t1));
++                let Some(sl) = region::span("bool_sphere_region_span", th, (arc.t0, arc.t1), radius, band)? else { continue; };
++                out.push((center + toward * radius, th, sl));
++                continue;
++            }
+             out.push((center + toward * radius, theta, sideless));
+         }
+         Ok(out)
