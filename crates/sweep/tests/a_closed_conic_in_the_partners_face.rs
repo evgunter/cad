@@ -825,24 +825,26 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 ///
 /// The same crescent between faces aligned (a holed plate standing on
 /// `z = 0` beside the boss, its hole tangent inside the boss's rim)
-/// overlaps the operands, and every op refuses at the join. In the
-/// one-segment form the plate's top cuts the boss's wall at the hole's
-/// vertex, and the piece of wall between the two floors has every edge
-/// on the plate's boundary: its rims in the plate's top and floor, its
-/// wrap edge along the hole's wall. No witness reads that curved face's
-/// interior, and the boss's floor is flush with the plate's, so neither
-/// loop of the floor rim's section reads a side.
+/// overlaps the operands. In the one-segment form the plate's top cuts
+/// the boss's wall at the hole's vertex, and the piece of wall between
+/// the two floors has every edge on the plate's boundary: its rims in
+/// the plate's top and floor, its wrap edge along the hole's wall. No
+/// witness reads that curved face's interior, and the boss's floor is
+/// flush with the plate's, so the join reads the floor rim's section
+/// loops at their seam (`boolean::join`'s `seam_germ_side`), its closed
+/// rim chords levered by their length. The unions build at their closed
+/// form, `SOUND`. The intersections refuse `MixedSeam` and the
+/// differences `EdgeUndescribed`, typed, past the join. The two-arc
+/// form refuses at the join, `UnpairedLooseEnds`.
 #[test]
 fn a_boss_over_a_hole_by_pose() {
-    use Reads::{LoopsUndecided, Loose};
+    use Reads::{Loose, Sound};
     for pose in poses() {
         by_pose(pose, None);
     }
-    // Pinned red: the one-segment form's refusal is the witness
-    // ladder's,
-    // `work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`.
-    for (form, refusal) in [(true, LoopsUndecided), (false, Loose(4))] {
-        let what = if form { "one segment" } else { "two arcs" };
+    // The one segment form reads its section loops at the seam; the two
+    // arc form refuses at the join.
+    let aligned = |form: bool| {
         let boss = fin(
             "the boss",
             extruded(vec![rim(form, 0.0, 0.3, 0.0)], 0.0, 1.0),
@@ -851,9 +853,25 @@ fn a_boss_over_a_hole_by_pose() {
             "the plate beside",
             extruded(vec![square(), rim(form, 0.2, 0.1, 0.0)], 0.0, 0.5),
         );
-        for (op, r, _) in every_op_both_orders(&boss, &beside, (0.0, 0.0, 0.0), tol()) {
-            reads_as(&format!("aligned, {what}: {op}"), r, 0.0, refusal);
+        let v = (PI * 0.09, (4.0 - PI * 0.01) * 0.5, PI * 0.04);
+        every_op_both_orders(&boss, &beside, v, tol())
+    };
+    for (op, r, want) in aligned(true) {
+        let row = format!("aligned, one segment: {op}");
+        match op {
+            "A ∪ B" | "B ∪ A" => reads_as(&row, r, want, Sound(1)),
+            "A ∩ B" | "B ∩ A" => assert!(
+                matches!(r, Err(BooleanError::MixedSeam { .. })),
+                "{row}: {r:?}"
+            ),
+            _ => assert!(
+                matches!(r, Err(BooleanError::EdgeUndescribed { .. })),
+                "{row}: {r:?}"
+            ),
         }
+    }
+    for (op, r, _) in aligned(false) {
+        reads_as(&format!("aligned, two arcs: {op}"), r, 0.0, Loose(4));
     }
 }
 
