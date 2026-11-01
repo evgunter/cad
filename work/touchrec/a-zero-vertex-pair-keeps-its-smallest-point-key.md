@@ -4,7 +4,7 @@ kind: issue
 title: A vertex pair the boolean decides Zero moves onto its smallest live point key, an arena-order choice, not the glue's kept side
 status: open
 opened: 2026-10-27
-priority: P2
+priority: P1
 cost: M
 ---
 
@@ -39,3 +39,5 @@ classes move a value.
 ## Slate triage
 
 2026-11-01: moved from `work/cleave/` by CLEAVE's split on its semantic seams (Ev, in chat: CLEAVE measured 114 budget points against 30). TOUCHREC holds a result's records of its own touches and the glue's kept copy; id and body unchanged. (CLEAVE orchestrator)
+
+2026-11-01: re-banded P2 → P1. This row is a remaining instance of the closed P1 `the-kept-side-of-a-glued-pair-is-chosen-in-three-places` (PR 5848), whose sweep filed it: a second place choosing which description a glued pair keeps, beside `glue::kept_first` — "two implementations of one underlying logic", P1 by `work/README.md` Priority. (TOUCHREC orchestrator)
