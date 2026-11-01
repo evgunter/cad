@@ -92,13 +92,12 @@ fn flipped(link: Link<f64>) -> Link<f64> {
     let sectors = link
         .into_faces()
         .into_iter()
-        .map(|FaceSector { sector: s, face }| FaceSector {
-            sector: Sector {
+        .map(|f| {
+            f.map_sector(|s| Sector {
                 outward: -s.outward,
                 wedges: s.wedges.iter().rev().map(|&(a, b)| (b, a)).collect(),
                 ..s
-            },
-            face,
+            })
         })
         .collect();
     Link::of(P::origin(), sectors).unwrap()
@@ -228,9 +227,8 @@ fn a_doubled_sheet_or_an_open_link_is_not_read() {
         TouchVerdict::Unread(TouchUnread::Degenerate),
         "doubled"
     );
-    let mut open = cone(&square(0.5, -1.0), true);
-    open.cone.sectors.truncate(1);
-    open.faces.truncate(1);
+    let open = cone(&square(0.5, -1.0), true);
+    let open = Link::of(P::origin(), open.into_faces().into_iter().take(1).collect()).unwrap();
     let got = rest::one_material(&whole(vec![cone(&square(0.5, 1.0), true), open]), band());
     assert_eq!(got, TouchVerdict::Unread(TouchUnread::Unanalysed), "open");
 }

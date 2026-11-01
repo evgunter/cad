@@ -329,23 +329,28 @@ pub(crate) struct Sector<T: Real> {
 /// whose wedges are real points of the face, or the disc its edges clear
 /// ([`FaceSector::cleared`]), the face's own inside `clear` and carried
 /// past the face beyond it.
+///
+/// Its fields are this module's: a face sector is built only by its
+/// builders off a face ([`FaceSector::of_face`], [`FaceSector::cleared`]),
+/// so a cone that is not a body's faces (a tangent cone) can be a
+/// [`Cone`] and never a [`Link`].
 pub(crate) struct FaceSector<T: Real> {
-    pub(crate) sector: Sector<T>,
-    pub(crate) face: LinkFace<T>,
+    sector: Sector<T>,
+    face: LinkFace<T>,
 }
 
 /// **What a link holds of a sector's face** beyond the cone: its surface
 /// and sense, which a coplanar pair of faces is read by ([`pairing`]),
 /// and how far its wedges are the face's own.
 pub(crate) struct LinkFace<T: Real> {
-    pub(crate) surface: geom::Surface<T>,
+    surface: geom::Surface<T>,
     /// `Face::sense`, the bit [`geom_brep::classify_material_pairing_as`]
     /// takes.
-    pub(crate) sense: bool,
+    sense: bool,
     /// Where the wedges run past the face (a cleared disc): the radius
     /// about `p` inside which they are the face's own. `None` where every
     /// wedge is real points of the face.
-    pub(crate) clear: Option<T>,
+    clear: Option<T>,
 }
 
 /// Where a point on a sector's plane lies against the sector.
@@ -361,9 +366,12 @@ pub(crate) enum Place {
 /// **A cone of directions at a point `p`**: its sectors, each a plane
 /// and a fan of rays. Its material near `p` is the set of directions an
 /// odd number of its sectors separate from outside ([`Cone::reads_over`]),
-/// where its sectors pair up at their bounds ([`Cone::closes`]). A cone
-/// makes no claim about how far its sectors are a body's faces, so
-/// nothing at a scale is read off it: that is a [`Link`]'s.
+/// where its sectors pair up at their bounds ([`Cone::closes`]). Its one
+/// claim of scale is each ray's: a ray is fixed by its point, and a
+/// point read against a ray is drawn in no further out than that point
+/// ([`wedge_side`]); planes are read at any distance. It makes no claim
+/// about how far its sectors are a body's faces — the ball they fill, a
+/// point's offset, a coplanar pair of faces: those are a [`Link`]'s.
 pub(crate) struct Cone<T: Real> {
     pub(crate) p: Point3<T>,
     pub(crate) sectors: Vec<Sector<T>>,
@@ -377,12 +385,16 @@ pub(crate) struct Cone<T: Real> {
 /// faces' real points, or a cleared disc's ([`FaceSector::cleared`]),
 /// read at their scale: the ball they fill, a point's offset from the
 /// cone, and the touch analysis ([`rest`]).
+///
+/// Its fields are this module's, set once by [`Link::of`]: the cone's
+/// sectors and their faces stay index-aligned, and `reach` and `ball`
+/// stay the cone's.
 pub struct Link<T: Real> {
-    pub(crate) cone: Cone<T>,
+    cone: Cone<T>,
     /// Each sector's face, by the sector's index in the cone.
-    pub(crate) faces: Vec<LinkFace<T>>,
+    faces: Vec<LinkFace<T>>,
     /// The farthest wedge point from `p`.
-    pub(crate) reach: T,
+    reach: T,
     /// The radius of the ball about `p` the link's wedges fill: the
     /// least distance from `p` to a wedge's far side, or to a cleared
     /// sector's edge of the face ([`LinkFace::clear`]). Inside it each
@@ -390,7 +402,7 @@ pub struct Link<T: Real> {
     /// that reaches into the ball without being tied to the point is
     /// not in the link, and is the backstop's to answer for (its
     /// material probe and findings).
-    pub(crate) ball: T,
+    ball: T,
 }
 
 /// Where a direction from `p` lies against a link's material.
@@ -400,15 +412,38 @@ pub enum Material {
     In,
     /// Outside it.
     Out,
-    /// On the link's sector with this index.
+    /// On the link's sector with this index: on its plane, strictly
+    /// inside it, and on no other sector.
     On(usize),
+    /// On the material's boundary where no one sector holds the
+    /// direction: along a bound of a sector (an edge the sectors meet
+    /// at), or inside two sectors at once (a slit or a doubled face).
+    Boundary,
+}
+
+/// **`q` against one sector, for an arc from `q`** ([`Cone::against`]).
+#[derive(Clone, Copy)]
+enum Against<T> {
+    /// Decidedly on this side of the sector's plane.
+    Side(Sign),
+    /// On the plane, or in band of it, decidedly outside the sector: no
+    /// arc from `q` crosses the plane inside the sector within `reach` of
+    /// `q`'s own distance from the plane (`None` where it is on it, within
+    /// the band's zero).
+    Off(Option<T>),
+    /// On the plane, strictly inside the sector.
+    Inside,
+    /// On the plane, on one of the sector's bounds.
+    Bound,
 }
 
 /// Two outward normals against each other, aligned or opposed, through
 /// the one classifier of that question under the K row `name`: two
-/// coplanar faces', one of each link ([`TOUCH_NORMAL`]). The magnitude
-/// is about 1 wherever it is asked (the faces lie on one plane), and
-/// only its sign is read.
+/// coplanar faces', one of each link ([`TOUCH_NORMAL`]). It is asked only
+/// where a piece of one face lies on the other's plane end to end and a
+/// point of it reads on that face alone ([`rest::judge`]), so the faces
+/// lie on one plane there, the magnitude is about 1, and only its sign is
+/// read.
 /// `None` is every refusal — in band, decided zero, or poisoned — and
 /// each reads as in band, ending as the touch's one in-band refusal
 /// (`TouchInBand`), which carries no margin.
@@ -813,6 +848,15 @@ fn on_ray<T: Decide>(c: Point3<T>, m: Vec3<T>, q: Point3<T>, x: Point3<T>, rd: R
 }
 
 impl<T: Real> FaceSector<T> {
+    /// The same face with its sector replaced by `f` of it.
+    #[cfg(test)]
+    pub(crate) fn map_sector(self, f: impl FnOnce(Sector<T>) -> Sector<T>) -> Self {
+        Self {
+            sector: f(self.sector),
+            face: self.face,
+        }
+    }
+
     /// A face sector on the plane of `sector` through its apex, its
     /// sense `true`, every wedge real points of the face: for rows that
     /// state a cone by hand rather than build a body.
@@ -1089,11 +1133,35 @@ impl<T: Decide> Cone<T> {
             .collect()
     }
 
+    /// **`q` against sector `s`, for an arc from `q`**: its strict side
+    /// of the plane, or where on the plane it lies — and a plane `q` lies
+    /// in band of but decidedly outside its sector is read as one no arc
+    /// from `q` crosses inside the sector short of `q`'s own distance
+    /// from the plane, the slack added (the wide parity). `None` where `q`
+    /// is in band of the plane and not decidedly outside the sector, or
+    /// its place on the plane is in band.
+    fn against(&self, s: &Sector<T>, q: Point3<T>, rd: Reading<T>) -> Option<Against<T>> {
+        let p = self.p;
+        match self.side(s, q, rd) {
+            Some(Sign::Zero) => Some(match s.place(p, q, rd)? {
+                Place::Inside => Against::Inside,
+                Place::Bound => Against::Bound,
+                Place::Outside => Against::Off(None),
+            }),
+            Some(sign) => Some(Against::Side(sign)),
+            None => (s.place(p, q, rd) == Some(Place::Outside))
+                .then(|| Against::Off(Some(s.outward.dot(q - p).abs() + rd.slack()))),
+        }
+    }
+
     /// **Where the direction to `q` lies against the cone's material**,
-    /// by arc crossing-parity, no convexity assumed. `q` on a sector's
-    /// plane inside it, or on its bound, is [`Material::On`] that sector:
-    /// in a cone that closes, a bound is one an even number of sectors
-    /// share, and a direction along it lies on the material's boundary. A
+    /// by arc crossing-parity, no convexity assumed. Every sector is read
+    /// first ([`Cone::against`]), so the answer does not depend on their
+    /// order: `q` on one sector's plane strictly inside it and on no other
+    /// sector is [`Material::On`] that sector; `q` on a sector's bound, or
+    /// inside two sectors, is [`Material::Boundary`] — in a cone that
+    /// closes ([`Cone::closes`]) a bound is shared by an even number of
+    /// sectors, so the direction runs along an edge of the material. A
     /// plane `q` lies in band of but decidedly outside its sector is one
     /// no arc from `q` crosses inside that sector, its crossing stretch
     /// widened from the band's zero to `q`'s own distance from the plane
@@ -1113,33 +1181,36 @@ impl<T: Decide> Cone<T> {
     /// is in band, on a sector's bound, or on a second sector at `w` is
     /// passed over for the next; `None` where none reads, or where `q`
     /// itself is in band of a plane it is not decidedly outside the
-    /// sector of.
+    /// sector of, or its place on a plane is in band.
     pub(crate) fn reads_over(&self, q: Point3<T>, rd: Reading<T>) -> Option<Material> {
         let p = self.p;
-        // `q`'s strict side of each plane; `None` for a plane `q` lies
-        // on outside its sector, which no arc from `q` crosses inside it.
-        let mut sides = Vec::with_capacity(self.sectors.len());
-        // Where such a plane was read in band, how far `q` may stand
-        // off it.
-        let mut reach: Vec<Option<T>> = vec![None; self.sectors.len()];
-        for (k, s) in self.sectors.iter().enumerate() {
-            let side = match self.side(s, q, rd) {
-                Some(side) => side,
-                None if s.place(p, q, rd) == Some(Place::Outside) => {
-                    reach[k] = Some(s.outward.dot(q - p).abs() + rd.slack());
-                    sides.push(None);
-                    continue;
-                }
-                None => return None,
-            };
-            sides.push(match side {
-                Sign::Zero => match s.place(p, q, rd)? {
-                    Place::Inside | Place::Bound => return Some(Material::On(k)),
-                    Place::Outside => None,
-                },
-                sign => Some(sign),
-            });
+        // Every sector is read before any answer is taken, so the answer
+        // does not depend on the sectors' order.
+        let against: Vec<Against<T>> = self
+            .sectors
+            .iter()
+            .map(|s| self.against(s, q, rd))
+            .collect::<Option<_>>()?;
+        let mut on = against
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| matches!(a, Against::Inside | Against::Bound));
+        match (on.next(), on.next()) {
+            (Some((k, Against::Inside)), None) => return Some(Material::On(k)),
+            (Some(_), _) => return Some(Material::Boundary),
+            (None, _) => {}
         }
+        // `q`'s strict side of each plane; `None` for a plane `q` lies
+        // on, or in band of, outside its sector, and how far `q` may then
+        // stand off it.
+        let (sides, reach): (Vec<Option<Sign>>, Vec<Option<T>>) = against
+            .iter()
+            .map(|a| match *a {
+                Against::Side(sign) => (Some(sign), None),
+                Against::Off(reach) => (None, reach),
+                Against::Inside | Against::Bound => (None, None),
+            })
+            .unzip();
         for (t, s0) in self.sectors.iter().enumerate() {
             let Some(base) = sides[t] else { continue };
             'reference: for &(a, b) in &s0.wedges {
@@ -1227,7 +1298,10 @@ impl<T: Decide> Cone<T> {
     /// reaches `on` from `w`'s, and the material behind a sector winds
     /// one more than the side in front of it. `None` where a reading is
     /// in band, the arc is not under half a turn, an end lies on the
-    /// other's plane, or `q` lies on a third sector, or on its bound.
+    /// other's plane, or `q` lies on a third sector, or on its bound. A
+    /// third plane `q` lies in band of, decidedly outside its sector, is
+    /// read as [`Cone::reads_over`] reads it ([`Cone::against`]): the
+    /// crossing it adds is [`Cone::crossing`]'s on the widened stretch.
     fn winds(
         &self,
         (on, q): (usize, Point3<T>),
@@ -1256,14 +1330,12 @@ impl<T: Decide> Cone<T> {
             if k == on || k == from {
                 continue;
             }
-            let sq = match self.side(s, q, rd)? {
-                Sign::Zero => match s.place(p, q, rd)? {
-                    Place::Outside => None,
-                    Place::Inside | Place::Bound => return None,
-                },
-                sign => Some(sign),
+            let (sq, reach) = match self.against(s, q, rd)? {
+                Against::Side(sign) => (Some(sign), None),
+                Against::Off(reach) => (None, reach),
+                Against::Inside | Against::Bound => return None,
             };
-            n += self.crossing(s, sq, q, w, None, rd)?;
+            n += self.crossing(s, sq, q, w, reach, rd)?;
         }
         Some(n)
     }
@@ -1288,6 +1360,12 @@ impl<T: Decide> Link<T> {
             reach,
             ball,
         })
+    }
+
+    /// The link's cone.
+    #[cfg(test)]
+    pub(crate) fn cone(&self) -> &Cone<T> {
+        &self.cone
     }
 
     /// The link's faces' sectors, as [`Link::of`] takes them.
@@ -1771,8 +1849,8 @@ impl<T: Decide> Link<T> {
         match self.cone.reads_over(q, rd) {
             Some(Material::In) => Ok((d, Some(true))),
             Some(Material::Out | Material::On(_)) => Ok((d, Some(false))),
-            None if self.touches(q, rd) => Ok((either(d, -d), None)),
-            None => Err(self.refusal(q, rd)),
+            Some(Material::Boundary) | None if self.touches(q, rd) => Ok((either(d, -d), None)),
+            Some(Material::Boundary) | None => Err(self.refusal(q, rd)),
         }
     }
 
@@ -2393,10 +2471,13 @@ pub(crate) mod rest {
     ///    along a ray inside both — its two ends decidedly on opposite
     ///    sides of the face's plane, the point between them on that plane
     ///    inside the face's sector and on no ray of either link lying on
-    ///    the face ([`crosses`]) — or if a piece's
-    ///    probe (its middle) lies on a face of the other link inside it
-    ///    with the two outward normals aligned: coplanar sectors facing
-    ///    the same way, overlapping in their plane.
+    ///    the face ([`crosses`]) — or if a piece lies on a face of the
+    ///    other link's plane end to end, a point of it reads on that face
+    ///    alone ([`Material::On`]), and the two outward normals are
+    ///    aligned: coplanar sectors facing the same way, overlapping in
+    ///    their plane. A point read on a bound or on two faces at once
+    ///    ([`Material::Boundary`]), or on a face whose plane the piece
+    ///    leaves, is no one face's coplanar pair, and reads in band.
     /// 2. Otherwise **Crossing** if any piece's probe reads inside the
     ///    other link's material ([`Cone::reads_over`]).
     /// 3. Otherwise **Rest**.
@@ -2409,7 +2490,9 @@ pub(crate) mod rest {
     /// behind its face (no other face of either link reaches the ray: on
     /// `S`'s side the piece is cut at every ray, on `T`'s the point is off
     /// them), and two half-spaces through one line overlap in a wedge; aligned coplanar faces put both
-    /// materials behind one plane. (2): the probe lies inside a piece,
+    /// materials behind one plane, and opposed ones put them on its two
+    /// sides, the piece's own side of it outside the other's (no other
+    /// face of the other link holds the point). (2): the probe lies inside a piece,
     /// off every face of the other link, so the direction just off it
     /// on its own material side reads as the probe does, and lies in
     /// both materials.
@@ -2535,14 +2618,34 @@ pub(crate) mod rest {
                     // Every point strictly inside the piece reads its one
                     // cell, so any one that decides is the piece's
                     // reading, tried along the far side ([`ladder`]).
+                    // A point on a face of the other link is that face's
+                    // only where the whole piece lies on its plane, so the
+                    // two faces are coplanar there and their pairing is the
+                    // question; on a bound or two faces at once, no one
+                    // face's. Either other reading is in band.
+                    let on_plane = |j: usize| {
+                        let t = &other.cone.sectors[j];
+                        [c0, c1]
+                            .iter()
+                            .all(|&c| other.cone.side(t, c, rd) == Some(Sign::Zero))
+                    };
+                    let cell = |q: Point3<T>| match other.cone.reads_over(q, rd)? {
+                        Material::Boundary => None,
+                        Material::On(j) if !on_plane(j) => None,
+                        m => Some(m),
+                    };
                     let read = ladder::<T>().into_iter().find_map(|t| {
                         let q = c0 + (c1 - c0) * t;
-                        other.cone.reads_over(q, rd).map(|m| (q, m))
+                        cell(q).map(|m| (q, m))
                     });
                     let full = read.map(|(_, m)| m);
                     let overlaps = match full {
                         Some(Material::In) => true,
                         Some(Material::Out) => false,
+                        Some(Material::Boundary) | None => {
+                            notes.in_band = true;
+                            false
+                        }
                         Some(Material::On(j)) => {
                             let (s, t) = (&own.faces[*k], &other.faces[j]);
                             match pairing(
@@ -2561,14 +2664,10 @@ pub(crate) mod rest {
                                 }
                             }
                         }
-                        None => {
-                            notes.in_band = true;
-                            false
-                        }
                     };
                     // Confirmed inside the ball: the same reading there.
                     if let (true, Some((q, _))) = (overlaps, read) {
-                        if other.cone.reads_over(near(q), rd) == full {
+                        if cell(near(q)) == full {
                             return TouchVerdict::Crossing;
                         }
                         notes.in_band = true;
@@ -2905,8 +3004,11 @@ pub(crate) mod rest {
     /// quarter and sixteenth points from each end. A point stands in band
     /// of a plane only on a stretch of the piece (the distance is affine
     /// along it), and these sit at five distinct places, nearer each end
-    /// in turn. The ladder chooses only how often a piece refuses, never
-    /// what one that reads says.
+    /// in turn. Every point strictly inside a piece off the other link's
+    /// faces reads the piece's one cell, and every point of a piece lying
+    /// on one face of it reads that face, so the ladder chooses only how
+    /// often a piece refuses, never what one that reads says: a point read
+    /// on a face the piece does not lie on is passed over.
     fn ladder<T: Decide>() -> [T; 5] {
         [
             T::from_f64(0.5),
@@ -3260,38 +3362,154 @@ mod tests {
         );
     }
 
-    /// **A direction along a bound two sectors share reads `On`**, one
-    /// of the sectors whose plane holds it: along each edge of a block's
-    /// corner, a hole's and a ridge. Red if a direction on the material's
-    /// boundary refuses, reads In or Out, or names a sector it is off.
+    /// **A direction along a bound two sectors share reads `Boundary`,
+    /// in either order of the sectors, and one in band of it reads nothing
+    /// decided**: along each edge of a block's corner, a hole's and a
+    /// ridge, and moved off the edge square to it by half the band's zero
+    /// (still on both planes and on the ray) or by half its escalation (in
+    /// band of both). Red if a direction on the material's boundary reads
+    /// In, Out or one sector, if reversing the sectors moves a reading, or
+    /// if an in-band direction reads In, Out or `On`.
     #[test]
-    fn a_direction_along_a_shared_bound_reads_on() {
+    fn a_direction_along_a_shared_bound_reads_boundary() {
         let b = band();
         let rows = [
             (
                 "block",
                 corner(false),
-                vec![p(-1.0, 0.0, 0.0), p(0.0, -2.0, 0.0), p(0.0, 0.0, -0.5)],
+                corner(false),
+                [v(-1.0, 0.0, 0.0), v(0.0, -2.0, 0.0), v(0.0, 0.0, -0.5)],
             ),
             (
                 "hole",
                 corner(true),
-                vec![p(1.0, 0.0, 0.0), p(0.0, 2.0, 0.0), p(0.0, 0.0, 0.5)],
+                corner(true),
+                [v(1.0, 0.0, 0.0), v(0.0, 2.0, 0.0), v(0.0, 0.0, 0.5)],
             ),
-            ("ridge", ridge(), vec![p(0.0, 1.0, 0.0), p(0.0, -3.0, 0.0)]),
+            (
+                "ridge",
+                ridge(),
+                ridge(),
+                [v(0.0, 1.0, 0.0), v(0.0, -3.0, 0.0), v(0.0, 0.5, 0.0)],
+            ),
         ];
-        for (what, link, dirs) in rows {
-            for q in dirs {
-                match link.reads(q, b) {
-                    Some(Material::On(k)) => close(
-                        link.cone.sectors[k].outward.dot(q - O),
-                        0.0,
-                        &format!("{what} at {q:?}: the sector it is on holds it"),
-                    ),
-                    got => panic!("{what} at {q:?}: reads {got:?}, not On"),
+        for (what, link, again, dirs) in rows {
+            let flipped = reversed(again);
+            for d in dirs {
+                let u = d.normalize();
+                // Two unit directions square to the edge.
+                let a = u.cross(if u.x.abs() < 0.5 {
+                    v(1.0, 0.0, 0.0)
+                } else {
+                    v(0.0, 1.0, 0.0)
+                });
+                let (a, c) = (a.normalize(), u.cross(a).normalize());
+                let q = O + d;
+                for l in [&link, &flipped] {
+                    assert_eq!(
+                        l.reads(q, b),
+                        Some(Material::Boundary),
+                        "{what} along {d:?}: on the boundary"
+                    );
+                    for (k, m) in [(0.5 * b.zero(), true), (0.5 * b.escalate(), false)] {
+                        for off in [a + c, a - c, c - a, -a - c] {
+                            let got = l.reads(q + off * (k / off.norm()), b);
+                            let ok = if m {
+                                got == Some(Material::Boundary)
+                            } else {
+                                matches!(got, None | Some(Material::Boundary))
+                            };
+                            assert!(ok, "{what} along {d:?}, {k:e} off it: reads {got:?}");
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// `link` with its faces in reverse order.
+    fn reversed(link: Link<f64>) -> Link<f64> {
+        let mut faces = link.into_faces();
+        faces.reverse();
+        Link::of(O, faces).expect("the same link")
+    }
+
+    /// **A probe within the band of a cut ray reads no face's pairing**:
+    /// a half-space `z ≥ 0` folded up from the `x` axis by a sliver
+    /// `f·zero` wide, against a block's corner `z ≤ 0`, the sliver's
+    /// piece's ladder points landing within the band of the block's edge
+    /// along `x`. The two materials only touch. Red if any width reads a
+    /// crossing.
+    #[test]
+    fn a_shared_bound_reading_certifies_no_crossing() {
+        let b = band();
+        let block = corner(false);
+        let s = core::f64::consts::FRAC_1_SQRT_2;
+        for f in [10.0, 12.0, 14.0, 16.0] {
+            let w = f * b.zero();
+            let a = of_fans(
+                O,
+                &[
+                    (
+                        v(0.0, s, -s),
+                        vec![
+                            p(-1.0, 0.0, 0.0),
+                            p(-1.0, w * s, w * s),
+                            p(0.0, s, s),
+                            p(1.0, 0.0, 0.0),
+                        ],
+                    ),
+                    (
+                        v(0.0, 0.0, -1.0),
+                        vec![p(1.0, 0.0, 0.0), p(0.0, -1.0, 0.0), p(-1.0, 0.0, 0.0)],
+                    ),
+                ],
+            );
+            assert_ne!(
+                rest::judge(&a, &block, b),
+                TouchVerdict::Crossing,
+                "f {f}: z ≥ 0 against z ≤ 0"
+            );
+        }
+    }
+
+    /// **A piece read on a face it is not coplanar with is not a coplanar
+    /// pair**: a reflex corner against a hole's corner turned by a few
+    /// band widths over a short reach, so one piece's ladder point reads
+    /// on the hole's floor while the piece leaves it at an angle. The
+    /// two materials cross. Red if the pair reads a rest.
+    #[test]
+    fn a_piece_off_a_faces_plane_reads_no_pairing_with_it() {
+        let b = band();
+        let (z, r, theta) = (b.zero(), 1e-4, 0.5_f64);
+        let phi = 10.3 * z / r;
+        let (a, bb, d) = (
+            p(1.0, 0.0, 0.0),
+            p(theta.cos(), theta.sin(), 0.0),
+            p(0.0, 0.0, -1.0),
+        );
+        let s = of_fans(
+            O,
+            &[
+                (v(0.0, 0.0, 1.0), vec![a, bb]),
+                (v(0.0, -1.0, 0.0), vec![d, a]),
+                (v(-theta.sin(), theta.cos(), 0.0), vec![bb, d]),
+            ],
+        );
+        let (c, sn) = (phi.cos(), phi.sin());
+        let (e, f) = (p(r * c, r * sn, 0.0), p(-r * sn, r * c, 0.0));
+        let hole = of_fans(
+            O,
+            &[
+                (v(0.0, 0.0, -1.0), vec![f, e]),
+                (v(-sn, c, 0.0), vec![e, p(0.0, 0.0, -r)]),
+                (v(c, sn, 0.0), vec![p(0.0, 0.0, -r), f]),
+            ],
+        );
+        assert!(
+            !matches!(rest::judge(&s, &hole, b), TouchVerdict::Rest(_)),
+            "a crossing never rests"
+        );
     }
 
     /// **The link decides only through its doors** (S4 of `CONTACT-7`'s

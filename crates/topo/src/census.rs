@@ -339,7 +339,7 @@ use crate::null::CurveGeom;
 
 use crate::link::{FaceSector, Germ, Hold, Link, Planar, TouchUnread, TouchVerdict, rest};
 #[cfg(test)]
-use crate::link::{LinkFace, PieceAt, Sector, face_piece};
+use crate::link::{PieceAt, Sector, face_piece};
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, CrossingSideVerdict, Departure,
     StaleDeclaration, Undecidable, ValidationError, decide,
@@ -12237,7 +12237,7 @@ mod tests {
         let geo = snapshot(body);
         let held = |link: &Link<f64>| {
             let mut sectors: Vec<String> = link
-                .cone
+                .cone()
                 .sectors
                 .iter()
                 .map(|s| format!("{:?} {:?} {:?}", s.outward, s.apex, s.wedges))
@@ -15595,7 +15595,7 @@ mod tests {
         let geo = snapshot(body);
         let link = vertex_link(body, &geo, v, band).expect("a planar corner");
         let face = link
-            .cone
+            .cone()
             .sectors
             .iter()
             .find(|f| (f.outward - m).norm() < 1e-9)
@@ -16080,23 +16080,12 @@ mod tests {
                 }
             }
             let piece = face_piece(p, *m, &rings, place, &[], band)?;
-            sectors.push(FaceSector {
-                sector: Sector {
-                    outward: *m,
-                    apex: p,
-                    wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
-                    closed: matches!(place, PieceAt::Inside),
-                },
-                face: LinkFace {
-                    surface: Surface::Plane {
-                        origin: verts[loops[0][0]],
-                        normal: *m,
-                        u_ref: m.cross(Vec3::new(1.0, 1.0, 1.0)).normalize(),
-                    },
-                    sense: true,
-                    clear: None,
-                },
-            });
+            sectors.push(FaceSector::planar(Sector {
+                outward: *m,
+                apex: p,
+                wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
+                closed: matches!(place, PieceAt::Inside),
+            }));
         }
         Link::of(p, sectors)
     }
@@ -16260,7 +16249,7 @@ mod tests {
         )
         .expect("a face");
         let face = Link::of(Point3::new(0.0, 0.0, 0.0), face.into_faces()).expect("a link");
-        assert!(face.cone.tie > 0.0);
+        assert!(face.cone().tie > 0.0);
         assert_eq!(
             rest::judge(&face, &floor_link(band), band),
             TouchVerdict::Unread(TouchUnread::InBand)
