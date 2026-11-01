@@ -190,3 +190,18 @@ What this row still carries is U-H1, held by D10.
 ## Moved to SECT (2026-10-25)
 
 From GERM. Moved by `git mv` in the chat-approved refold (2026-10-25) that put the torus pairs with the section-first join they are built on. These are C5 table arms, and SECT's ratified design puts kind dispatch in C5 alone (`work/sect/plan.md`, 'The design'), so the section-first join reads them; the torus pair rows refuse at C5 until they exist.
+
+## A third consumer: lily wall 8 (SPLICE, 2026-10-31)
+
+Once a pierce of a spline face mints its ring
+(`work/splice/a-pierce-of-a-spline-face-cannot-mint-its-ring-vertex`),
+the tour's lily wall 8 (the long leaf unioned with the lower stem)
+refuses at `boolean::join` `frame_refusal`, the same at 1e-9 and 1e-6:
+
+`GermSectionSpiric { a_face: 3v1, a_kind: Torus, b_face: 2v1, b_kind: Plane, loops: AroundTube, section: RoutesToGeneralRung { pair: "plane×torus", .. } }`
+
+The germ pair is the stem's torus wall (operand A) against the leaf's
+planar lower cap (B), which the tube crosses in two chords. The cap's
+plane is tilted against the torus's axis, so it cuts the general
+spiric quartic this row's general rung holds. The wall pins this
+payload in `demos/tour/src/lily.rs`.
