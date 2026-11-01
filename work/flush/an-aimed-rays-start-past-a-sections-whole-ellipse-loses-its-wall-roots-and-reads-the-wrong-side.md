@@ -2,13 +2,14 @@
 id: an-aimed-rays-start-past-a-sections-whole-ellipse-loses-its-wall-roots-and-reads-the-wrong-side
 kind: issue
 title: An aimed ray starting far past a wall loses its roots and reads a split's side inside out, on main
-status: review
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: M
 refs: [aimed-rays-start-at-a-conic-carriers-reach-where-the-ray-quadrics-lose-their-roots]
 branch: flush/aimed-ray-reach
 pr: 6174
+closed: 2026-11-01
 ---
 
 **Live on main: a correct split is refused at its at-rest gate.**
@@ -268,3 +269,54 @@ ball's row is in `splitting/containment.rs` `arc_ball_rows`.
   the edge sweep's cone arm (bit for bit). `line_cone_quadratic` takes
   `About` like the wall and the sphere, and `Centred::new` is the one
   constructor.
+
+## Resolution
+
+Closed by PR 6174 (2026-11-01). The side reader's aimed rays start within
+a reach the faces' boundaries bound:
+- a conic arc's ball (`conic_arc_ball`, about the arc's middle) replaces
+  its carrier's;
+- each ray × quadric quadratic is read about the ray's closest approach
+  (`Centred`, `About::Nearest`; the edge sweep keeps `About::Start`,
+  bit-identical);
+- the discriminant is charged for the shift's rounding;
+- each root carries a metered slack (`over_root_slope`, one home with
+  the edge sweep's cone slack), so a gap rounding can close sets the ray
+  aside.
+
+Rays now start about 5 m out, not about 8e6 m. On this row's census
+against main, inside-out poses go from 58 to 0 at 1e-9 and from 13 to 0
+at 1e-12; 1e-6 is unchanged. Four poses that main built only through the
+defect now set the ray aside: main's wall root was 3.01e-4 m off. Their
+correct reading is the wall region's, which cannot place a root just
+outside the face. That is SIDETIES'
+`a-wall-root-bounded-by-an-oblique-section-still-walks-and-ties-at-the-nominal`.
+The batteries and `reader_ties_at_the_nominal` did not move, and every
+suite red is base-red.
+
+- **One FULL review and a check pass.**
+  - The review was APPROVE-WITH-FIXES. It found a latent panic: `pair`'s
+    slack-reduced margin went negative through `decide_magnitude`, now a
+    signed `decide` and pinned. It also found two of the three changes
+    unpinned.
+  - The check pass was APPROVE. Each change now has a pin that reds
+    without it:
+    - the arc ball, through the reach;
+    - the centring, through the wall, sphere and cone rows;
+    - the slack, through a far ray's wall roots.
+  - By execution: 20,000 fuzzed arcs held, 8,952 roots held within their
+    slack, and the charged discriminant had the sign right in 20,000
+    near-tangent lines, where plain f64 missed 901.
+- **Notes taken without a further pass.**
+  - The census witnesses only the three changes together.
+  - The family floor is 0 at 1e-12, where every pose refuses.
+  - One assertion in `a_far_rays_wall_crossings_hold_their_true_roots`
+    (`off_any`) is near-vacuous; the pin's other assertions are what m3
+    reds.
+- **Residue:**
+  - `work/inside/a-rays-root-rounding-reaches-its-order-but-not-its-trim-test-or-the-blocking-arms.md`
+    (now naming PR 6168's `reach_margin` too);
+  - `work/roots/the-edge-sweeps-line-wall-and-line-sphere-roots-carry-no-root-slack.md`
+    (with the far-start sphere disc finding);
+  - the `curved_edges.rs:182` `hi − lo` premise break, filed on INSIDE;
+  - `work/inside/decide-magnitude-reported-callers-unswept-for-a-negative-margin.md`.
