@@ -288,3 +288,8 @@ Signed: (CARVE orchestrator)
     - CLEARTAIL's `one-home-for-the-clearance-witness-verifier` (P3).
   - **The spec's curved twin and box rows** are pinned to their typed upstream refusals: OFFSET's arc-necked extrude row, and `shell_moved_walls_overlap`.
   - **Not a handback.** CARVE filed four CLEAR rows at P0 on 2026-10-31 (`6d2622ba97`), parking its embedding certificate on them. CLEAR still has dispatchable P0 work, so the sitting goes on.
+- 2026-11-01 — **CARVE's four P0 rows taken up; REFINES, SLIVER and SEAMDIAG dispatched.** CARVE filed four CLEAR rows on 2026-10-31 (`6d2622ba97`) and parked its `self-overlapping-spines-build-and-validate` on them, so CLEAR's sitting continues past SHELL-4.
+  - **REFINES** (`clear/refines`, E, single FULL). The orchestrator decided the shape: an axis refines when EITHER half narrows it. This is CARVE's experiment, and it is sound because the door is admission only.
+  - **SLIVER** (`clear/sliver`, M, single FULL, diagnosis first). The fix shape (drop or bound the sliver span in `rect_jet`, or snap the split to the knot) is the lane's to weigh.
+  - **SEAMDIAG** (`clear/seamdiag`, a diagnosis unit like CAVITYDIAG). It prints the cap-corner and twisted-seam loci and returns a fix shape for each.
+  - **The price row** (`injectivity-price-on-tour-lofts-exceeds-the-pair-budget`) is a design fork: a coarser arm or a per-body budget. It waits on SLIVER's and SEAMDIAG's data before the two designers weigh it.
