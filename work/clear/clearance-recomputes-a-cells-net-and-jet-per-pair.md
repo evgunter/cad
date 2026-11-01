@@ -2,7 +2,7 @@
 id: clearance-recomputes-a-cells-net-and-jet-per-pair
 kind: issue
 title: The clearance walk recomputes a cell's restricted net, its jets and its centre normal for every pair the cell is in; nothing is cached per cell
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P0
 cost: M
