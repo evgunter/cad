@@ -1205,7 +1205,7 @@ impl ViewerBehavior<'_> {
             self.drafts,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
-        *self.held_edges_refused = composed
+        self.viewport_reads.held_edges_refused = composed
             .edges()
             .held_refused
             .clone()
@@ -1362,7 +1362,7 @@ impl ViewerBehavior<'_> {
     fn committed_lane(&mut self) -> marks::LegLane {
         let mut profiles = marks::LegLane::default();
         if let Some((doc, evaluation)) = self.session.landed_pair() {
-            *self.profiles_undrawn = push_committed(
+            self.viewport_reads.profiles_undrawn = push_committed(
                 &mut profiles,
                 doc,
                 evaluation,
