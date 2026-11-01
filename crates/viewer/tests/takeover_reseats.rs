@@ -44,8 +44,11 @@ fn seated(face: impl FnOnce(&DocSession) -> FaceSelection) -> Seated {
     let mut session = common::inline_without_door(Doc::empty_derived("takeover", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
     let small = common::xy_box_in(&mut session, SMALL);
+    // A new body lands unplaced: each block's world copy is placed by
+    // hand, as a person would.
     let doc = session.committed_doc().clone();
-    let (copy, small_copy) = (common::copy_of(&doc, block), common::copy_of(&doc, small));
+    let (doc, copy) = common::world_copy(&doc, block, tol);
+    let (doc, small_copy) = common::world_copy(&doc, small, tol);
     let doc = drawn::pinned(doc, copy, &drawn::translated(AT));
     let doc = drawn::pinned(
         doc,
@@ -262,8 +265,11 @@ fn a_face_of_a_union_of_the_copy_is_re_seated() {
     let mut session = common::inline_without_door(Doc::empty_derived("takeover", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
     let small = common::xy_box_in(&mut session, SMALL);
+    // A new body lands unplaced: each block's world copy is placed by
+    // hand, as a person would.
     let doc = session.committed_doc().clone();
-    let (copy, small_copy) = (common::copy_of(&doc, block), common::copy_of(&doc, small));
+    let (doc, copy) = common::world_copy(&doc, block, tol);
+    let (doc, small_copy) = common::world_copy(&doc, small, tol);
     let doc = drawn::pinned(doc, copy, &drawn::translated(AT));
     let (doc, other) = viewer::test_support::placed(&doc, block, tol);
     let doc = drawn::pinned(
@@ -292,7 +298,13 @@ fn a_face_of_a_union_of_the_copy_is_re_seated() {
     session.pump();
     let doc = session.committed_doc().clone();
     let u = doc.output(both, 0).expect("the union defines its body");
-    let block_top = top(&session).name;
+    // The block's top, by name: from above, the ray meets the copy and
+    // the union alike, which carry it alike.
+    let block_top = StableName {
+        kind: pncad::prelude::EntityKind::Face,
+        node: block,
+        path: vec![RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+    };
     let face = {
         let eval = session.evaluation().expect("landed");
         eval.table(u)

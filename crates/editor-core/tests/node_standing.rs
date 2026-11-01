@@ -471,7 +471,7 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 15] = [
     (
         "crates/editor-core/src/eval/members.rs",
-        18,
+        20,
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \
          indices: it holds the result map as the evaluator writes it, overlays each member's \
          raw values on the family's (a member's result where it has one, carrying the \
