@@ -34,3 +34,15 @@ Newest entries at the bottom; the tail is the program's live status.
   Dispatched (`spaces/pattern-value-rows`). Tier: single review, style
   plus a correctness arm on the sweep (a refusal hidden rather than a
   meaning shown is the failure to falsify). (SPACES orchestrator)
+- 2026-11-01 — Designers reconciled in four rounds (fork row 228). Agreed:
+  the picture draws bodies, not placements (a body is drawn unless an
+  operation reads it as a body; member reads per member); nothing joins
+  the product, first body included; one Add-to-the-product door; no
+  gesture writes a world `Place`; per-gesture landing; free-move and
+  hide keyed by shown space, the world hideable but not free-moved.
+  Split: a second inserted copy's default pose (derived offset vs a
+  stored insert frame). Put to Ev as `[ev]` PR 6209, which carries the
+  README / G3 / spec text; units are cut once Ev answers. DOORS'
+  `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product`
+  is coupled: (b) is superseded by this, (a) is load-bearing here and
+  SPACES will claim it. (SPACES orchestrator)
