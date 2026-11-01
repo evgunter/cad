@@ -97,9 +97,10 @@ pub(crate) struct Drafts {
     /// its commit — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
     /// **Whether the add-profile form is open** — its `Add profile…`
-    /// door clicked. Closed, the form holds no face and reads no trace
-    /// ([`Self::held_face`], [`Self::traces`]): its latches are kept,
-    /// not held, as they are off the face.
+    /// door clicked. Whether it is on screen is a different read, the
+    /// frame's (`ProfileDoors::create`): a section folded over an open
+    /// form hides it too, and what the viewport shows of the form
+    /// follows that read ([`Self::marked_face`], [`Self::trace_wanted`]).
     pub(crate) profile_open: bool,
     /// **Whether the add-profile form draws on the selected face** —
     /// "sketch on this face" ([`SessionOp::SketchOnFace`]) — rather than
@@ -1225,27 +1226,36 @@ impl Drafts {
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
-    /// add-profile form is open and draws on a face, `None` otherwise.
+    /// add-profile form draws on a face, `None` otherwise.
     ///
     /// Off the face the latch is kept, not held — nothing the form
     /// commits reads it — so switching off releases the pick, and
-    /// switching back holds it again. What the viewport marks as held
-    /// (`crate::marks::Held`).
+    /// switching back holds it again.
     pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
-        self.sketch_face
-            .as_ref()
-            .filter(|_| self.profile_open && self.sketch_on_face)
+        self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
     }
 
-    /// **The latches a trace is to be read for** — when the form writes
-    /// a traced path, both are held, and the trace shown was not read
-    /// for them against `landed`. Drops the trace shown when the form
-    /// writes no traced path or a latch is empty.
+    /// **The face the viewport marks as held** (`crate::marks::Held`):
+    /// [`Self::held_face`] while the form was `drawn` on the last frame
+    /// (`ProfileDoors::create`), the one read of whether the form is
+    /// on screen — a form behind its door, in a folded section or in a
+    /// pane not drawn holds nothing a reader can see.
+    pub(crate) fn marked_face(&self, drawn: bool) -> Option<&FaceSelection> {
+        self.held_face().filter(|_| drawn)
+    }
+
+    /// **The latches a trace is to be read for** — when the form was
+    /// `drawn` on the last frame (the read [`Self::marked_face`] takes)
+    /// and writes a traced path, both are held, and the trace shown was
+    /// not read for them against `landed`. Drops the trace shown
+    /// otherwise.
     pub(crate) fn trace_wanted(
         &mut self,
+        drawn: bool,
         landed: Option<&Arc<Evaluation<f64>>>,
     ) -> Option<(FaceSelection, FaceSelection)> {
-        let (true, Some(plane), Some(face)) = (self.traces(), &self.trace_plane, &self.trace_face)
+        let (true, Some(plane), Some(face)) =
+            (drawn && self.traces(), &self.trace_plane, &self.trace_face)
         else {
             self.trace_shown = None;
             return None;
@@ -1275,14 +1285,11 @@ impl Drafts {
         });
     }
 
-    /// **Whether the add-profile form writes a traced path**: open, a
-    /// path, continuing tangent to a face's trace ([`Self::trace_on`]),
-    /// and not on a picked face.
+    /// **Whether the add-profile form writes a traced path**: a path,
+    /// continuing tangent to a face's trace ([`Self::trace_on`]), and
+    /// not on a picked face.
     pub(crate) fn traces(&self) -> bool {
-        self.profile_open
-            && self.trace_on
-            && !self.sketch_on_face
-            && self.profile_shape == Some(ShapeKind::Path)
+        self.trace_on && !self.sketch_on_face && self.profile_shape == Some(ShapeKind::Path)
     }
 
     /// **The add-profile form's op**: the profile on its own plane, or
@@ -1590,7 +1597,6 @@ mod tests {
             ..Notation::DEFAULT
         };
         let waiting = Drafts {
-            profile_open: true,
             profile_shape: Some(ShapeKind::Circle),
             sketch_on_face: true,
             ..Drafts::default()

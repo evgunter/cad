@@ -2060,7 +2060,10 @@ impl eframe::App for ViewerApp {
         // A traced path runs onto the trace at evaluation, which no
         // replay here can draw: the create door shows the trace instead.
         let landed = self.session.evaluation_arc().cloned();
-        if let Some(latches) = self.drafts.trace_wanted(landed.as_ref()) {
+        if let Some(latches) = self
+            .drafts
+            .trace_wanted(self.profile_drawn.create, landed.as_ref())
+        {
             let read = self.session.sketch_trace(&latches.0, &latches.1);
             self.drafts.show_trace(latches, landed.as_ref(), read);
         }
@@ -2132,6 +2135,7 @@ impl eframe::App for ViewerApp {
                     part_chooser: &mut self.part_chooser,
                     profile_previews: &profile_previews,
                     profile_drawn: &mut profile_drawn,
+                    profile_was_drawn: self.profile_drawn,
                     profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
@@ -2287,6 +2291,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) profile_previews: &'a ProfileDoors<Option<Result<ProfilePreview, PreviewError>>>,
     /// Set by each door's editor while it draws; read next frame.
     pub(crate) profile_drawn: &'a mut ProfileDoors<bool>,
+    /// What [`Self::profile_drawn`] said on the last frame: which doors
+    /// are on screen, the one read every preview and mark of a door
+    /// follows.
+    pub(crate) profile_was_drawn: ProfileDoors<bool>,
     /// The committed profile the edit door is previewing this frame,
     /// which the committed-profile pass leaves out
     /// (`sketch::committed`'s `except`).
@@ -5818,6 +5826,7 @@ mod properties_pane_tests {
                 &self.app.session,
                 &self.app.tools,
                 &self.app.drafts,
+                self.app.profile_drawn.create,
             )
         }
 
@@ -7107,6 +7116,24 @@ mod properties_pane_tests {
             crate::docio::save(&path, pane.app.session.committed_doc(), tol).expect("saves");
             let reopened = crate::docio::open(&path, tol).expect("reopens");
             assert!(*reopened.doc() == after, "a save reopens as written");
+        }
+
+        /// **A folded form reads no trace**: the trace is read for the
+        /// form only while it is on screen, so folding the section over
+        /// the open form drops the trace it showed, as its Cancel does.
+        #[test]
+        fn a_folded_add_profile_form_reads_no_trace() {
+            let (session, _, cylinder) = cylinder(0.0);
+            let [wall, bottom] = wall_and_cap(&session, cylinder, 0.0);
+            let mut pane = drive(session, bottom, wall);
+            assert!(pane.app.drafts.trace_shown.is_some(), "read while open");
+            pane.click(crate::pane::create::ADD_FEATURE);
+            pane.quiet();
+            assert!(pane.app.drafts.profile_open, "folded, not closed");
+            assert!(
+                pane.app.drafts.trace_shown.is_none(),
+                "a folded form reads no trace"
+            );
         }
 
         /// **The wall picked for the plane is no plane**: the pane says

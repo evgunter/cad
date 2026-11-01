@@ -588,6 +588,7 @@ mod composed {
         session: &DocSession,
         tools: &Tools,
         drafts: &Drafts,
+        create_drawn: bool,
     ) -> Composed {
         let Some(index) = on_screen else {
             return Composed {
@@ -603,7 +604,7 @@ mod composed {
             (None, None) => [None, None],
         };
         let held = marks::Held {
-            faces: [drafts.held_face(), a, b],
+            faces: [drafts.marked_face(create_drawn), a, b],
             edges: tools.blend().and_then(crate::blend::BlendTool::held_edges),
         };
         let (highlight, edges) =
@@ -1203,6 +1204,7 @@ impl ViewerBehavior<'_> {
             self.session,
             self.tools,
             self.drafts,
+            self.profile_was_drawn.create,
         );
         let landed = self.session.landed_pair().map(|(doc, _)| doc);
         *self.held_edges_refused = composed
