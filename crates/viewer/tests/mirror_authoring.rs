@@ -38,8 +38,8 @@ const HALF_X: f64 = BLOCK[0] / 2.0;
 /// A height every level ray aims at: inside the block's walls.
 const MID_Z: f64 = BLOCK[2] / 2.0;
 
-/// A session holding the block placed into the world by hand, landed
-/// — answering the extrude.
+/// A session holding the block added to the product, so placed into
+/// the world, landed — answering the extrude.
 fn block(tol: Tol) -> (DocSession, RecipeNodeId) {
     let (session, block) = unplaced_block(tol);
     let (session, _) = common::world_copy_in(&session, block, tol);

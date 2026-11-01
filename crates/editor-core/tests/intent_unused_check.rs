@@ -316,6 +316,13 @@ fn the_resident_reports_the_tips() {
         ),
         "the variable is spoken by its name: {spoken}"
     );
+    // The block builds a body, so its recourse offers the product door;
+    // the variable's does not.
+    let block_said = editor_core::Said(unused[0], report.speaker(&doc)).to_string();
+    assert!(
+        block_said.contains("Recourse: add it to the product, use it, or delete it"),
+        "a body's recourse names the product door: {block_said}"
+    );
     assert_eq!(CheckId::Unused.kind(), editor_core::CheckKind::Certified);
     let off = ChecksConfig {
         unused: editor_core::Advisory::Off,

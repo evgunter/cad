@@ -572,6 +572,9 @@ pub enum CheckEvidence {
         /// An operation's outputs the person named, which are reported
         /// with it rather than each on its own; empty for a variable.
         named: Vec<crate::VarId>,
+        /// Whether the subject is an operation that builds a body, which
+        /// its recourse offers to add to the product.
+        body: bool,
     },
 }
 
@@ -915,7 +918,7 @@ impl SaidFinding<'_> {
                     crate::spoken::Said(evidence, by)
                 )
             }
-            CheckEvidence::Unused { named } => {
+            CheckEvidence::Unused { named, .. } => {
                 f.write_str("used by nothing")?;
                 if !named.is_empty() {
                     let names: Vec<String> = named.iter().map(|&var| by.read(var)).collect();
@@ -934,7 +937,10 @@ impl SaidFinding<'_> {
                  in ChecksConfig::expected_components"
             }
             CheckEvidence::Interference { .. } => INTERFERENCE_RECOURSE,
-            CheckEvidence::Unused { .. } => "Recourse: use it, or delete it",
+            CheckEvidence::Unused { body: true, .. } => {
+                "Recourse: add it to the product, use it, or delete it"
+            }
+            CheckEvidence::Unused { body: false, .. } => "Recourse: use it, or delete it",
             CheckEvidence::ChartCoherence { .. } => {
                 "a MEASUREMENT, not a refusal: judge the metres against the band; an \
                  imported part usually wants re-exporting at more digits, and a minted one \
@@ -2165,17 +2171,27 @@ fn unused<P: crate::ProfilePayload>(doc: &Doc<P>, report: &mut ChecksReport) {
             .into_iter()
             .filter(|var| doc.var_name(*var).is_some())
             .collect();
-        (FindingSubject::Node(node), named)
+        let body = doc.node(node).is_some_and(|node| {
+            node.outputs().iter().any(|port| match port.kind {
+                crate::PortKind::Of(kind) => {
+                    matches!(kind, crate::VarKind::Body | crate::VarKind::Bodies)
+                }
+                crate::PortKind::Placed => true,
+            })
+        });
+        (FindingSubject::Node(node), named, body)
     });
-    let vars = (tips.vars.into_iter()).map(|var| (FindingSubject::Var(var), Vec::new()));
-    report
-        .findings
-        .extend(operations.chain(vars).map(|(subject, named)| CheckFinding {
-            check: CheckId::Unused,
-            subject,
-            evidence: CheckEvidence::Unused { named },
-            quiet: None,
-        }));
+    let vars = (tips.vars.into_iter()).map(|var| (FindingSubject::Var(var), Vec::new(), false));
+    report.findings.extend(
+        operations
+            .chain(vars)
+            .map(|(subject, named, body)| CheckFinding {
+                check: CheckId::Unused,
+                subject,
+                evidence: CheckEvidence::Unused { named, body },
+                quiet: None,
+            }),
+    );
 }
 
 /// **The at-rest resident's pass** (D10 `[assertions]`): each census at

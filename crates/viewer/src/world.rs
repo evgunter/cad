@@ -690,6 +690,37 @@ pub fn product_pieces(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
     Picture::of(doc).product
 }
 
+/// **The read of the body `node` draws**: its one output holding a
+/// body or a family — named alone where the document reads it so
+/// ([`Doc::read_of_node`]), else by its port — or, for a node holding
+/// several (a split's halves), the port `body` names. `None` for a node
+/// that holds no body, and for one holding several where `body` names
+/// none of them.
+pub fn body_read(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    body: Option<u32>,
+) -> Option<Operand> {
+    let ports: Vec<u8> = doc
+        .signature(node)?
+        .into_iter()
+        .enumerate()
+        .filter(|(_, (_, kind))| matches!(kind, VarKind::Body | VarKind::Bodies))
+        .filter_map(|(port, _)| u8::try_from(port).ok())
+        .collect();
+    let port = match (ports.as_slice(), body) {
+        ([one], _) => *one,
+        (several, Some(body)) => *several.iter().find(|&&port| u32::from(port) == body)?,
+        (_, None) => return None,
+    };
+    let var = doc.output(node, port)?;
+    Some(if doc.read_of_node(node) == Some(var) {
+        Operand::Node(node)
+    } else {
+        Operand::Output { node, port }
+    })
+}
+
 /// **The copy a world placement defines**, the body a product can read:
 /// its output where `node` is a `Place` or an instance standing in the
 /// world; `None` for any other node.

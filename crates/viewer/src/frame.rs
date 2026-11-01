@@ -819,7 +819,8 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. } => true,
+        | SessionOp::SetProduct { .. }
+        | SessionOp::AddToProduct { .. } => true,
         SessionOp::CreateLabelled { creation, .. } => acts(creation.op()),
     }
 }
@@ -2333,6 +2334,10 @@ pub struct CheckRow {
     /// selects it: a face or an edge as itself, any other cell as the
     /// node whose table names it. Empty for every other finding.
     pub cells: Vec<(String, Selection)>,
+    /// The body an `unused` finding's recourse offers to the product
+    /// door ([`SessionOp::AddToProduct`]): the finding's node where it
+    /// builds one body. `None` for every other finding.
+    pub add_to_product: Option<RecipeNodeId>,
 }
 
 /// An unproven coincidence's cells as the selections that show them,
@@ -2412,6 +2417,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                         button: by.read(var),
                         sentence: Said(finding, by).to_string(),
                         cells: Vec::new(),
+                        add_to_product: None,
                     };
                 }
                 FindingSubject::Output { placement, .. } => {
@@ -2436,12 +2442,53 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     .operation_of(a.var)
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
+            let add_to_product =
+                (matches!(finding.evidence, CheckEvidence::Unused { body: true, .. })
+                    && crate::world::body_read(landed, node, None).is_some())
+                .then_some(node);
             CheckRow {
                 select: Selection::Node(node),
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
                 cells: coincidence_cells(finding, by, landed),
+                add_to_product,
             }
+        })
+        .collect()
+}
+
+/// **The actions a product fault's recourse names** (D10
+/// `[operations]`): for a document whose product slot reads nothing
+/// ([`ProductError::EmptyProduct`]) or reads a body that is gone
+/// ([`ProductError::StrandedProduct`]), **Add to the product** on each
+/// body the picture draws outside the product, each with its button's
+/// label; empty for any other fault and for none. Read off `doc`, the
+/// committed document the op reads.
+pub fn product_recourse(
+    fault: Option<&ProductError>,
+    doc: &Doc<ProfileProgram>,
+) -> Vec<(String, SessionOp)> {
+    let names_the_door = fault.is_some_and(|fault| {
+        matches!(
+            fault.kind(),
+            ProductErrorKind::EmptyProduct | ProductErrorKind::StrandedProduct
+        )
+    });
+    if !names_the_door {
+        return Vec::new();
+    }
+    let by = Speaker::of(doc);
+    let picture = crate::world::Picture::of(doc);
+    picture
+        .nodes()
+        .into_iter()
+        .filter(|&node| !picture.product.iter().any(|piece| piece.node == node))
+        .filter(|&node| crate::world::body_read(doc, node, None).is_some())
+        .map(|node| {
+            (
+                format!("Add {} to the product", by.node(node)),
+                SessionOp::AddToProduct { node, body: None },
+            )
         })
         .collect()
 }
