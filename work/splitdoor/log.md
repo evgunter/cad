@@ -118,3 +118,9 @@
   - **The review.** The identity holds to 5.6e-16. A within-zero move decides as the unmoved pose over 2700 poses at each ε. No planar body that main built is now refused: reduce's `bool_vertex_face_side` refuses first.
   - **Class (filed P1):** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt`. The same amplification survives where the unit germ is read in the strut and walk orders. Germ-against-germ readings need a lever choice; the row proposes `min(lean₀, lean₁)`.
   - **Filed P2:** `a-curved-bounds-tangent-read-in-band-at-the-line-while-its-chord-reads-definite`. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `the-boolean-sectors-read-a-wrap-tip-as-a-one-edge-slit-tip` (PR 6221). Review tier: FULL, REQUEST CHANGES, then a delta review, APPROVE-WITH-FIXES, then the orchestrator's read of the final pass.
+  - `SlitTips` reads `validate::wrap_tips`, and the tip's corner reads the full turn. `strut_faces_first` faces a germ along a wrap tip's edge by the same rule.
+  - The FULL review's MAJOR (CLASS) was a two-tip sphere edge regressing from a build to `SectionLoopUndecided`. Root cause: `seam_germ_side` skipped curved chords, which is HONESPLIT's frontier.
+  - **Ruled:** fix it at the cause, in this PR. `seam_germ_side` now reads every chord at first order. The delta review found 59 ops main refuses now build correctly, and none builds wrong over 254 ops at three ε.
+  - Seam note left on `work/honesplit/log.md`.
+  - **Found while driving it:** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap`, a main red bisected to my PR 6212. Banded P1 here. (SPLITDOOR orchestrator)
