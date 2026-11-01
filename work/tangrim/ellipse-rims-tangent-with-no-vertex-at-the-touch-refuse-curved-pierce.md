@@ -56,3 +56,11 @@ answers `Touch`, `reduce.rs`'s `interior` reads the edge `Unseen`, the
 curved arm defers it, and every op refuses `CurvedPierceUnsupported`.
 That fixture also builds when cut flat. Here the chain is not yet
 instrumented step by step.
+
+## Evidence: it builds once the touch places (2026-11-01, `tangrim/coplanar-conic-touch`)
+
+This row's cause was the coplanar ellipse touch. With `two-coplanar-ellipses-have-no-meeting-method`'s touch placed, the outside pose with neither vertex at the touch builds every op in both orders. Each body is at its closed form, and passes tiers 2 and 3′ and the certificate, at tilts `0.3` and `0.7`. Measured by a scratch probe at the default ε.
+
+**The pin.** `a_closed_conic_in_the_partners_face.rs` `ellipse_rims_tangent_outside_build_every_op` now takes this pose (`"neither there"`) at rest and turned. That runs every op `SOUND`, tier 3′ included, with point-in-solid against analytic membership, at ε = 1e-6, 1e-9 and 1e-12.
+
+**The inside pose.** The hole about `(0.2, 0)` builds both differences. Its unions refuse `TangentCrescentUnsupported`, as at tilt `0` (`a-union-across-a-tangent-crescent-refuses-unbuilt`). Nothing of this row is left.

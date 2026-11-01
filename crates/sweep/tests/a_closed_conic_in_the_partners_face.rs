@@ -1075,8 +1075,9 @@ fn ellipse_pad_ceiling() -> f64 {
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
 /// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. One
-/// segment with both vertices at the touch, the boss's there alone or
-/// the hole's there alone, and two arcs with a vertex of each there. In
+/// segment with both vertices at the touch, the boss's there alone, the
+/// hole's there alone, or neither there (each opposite it), and two arcs
+/// with a vertex of each there. In
 /// the one-segment form a closed rim is copied whole on its own carrier
 /// (`chord_join`'s `closed_edge_spec`) and the loop closes at its site
 /// (`boolean::join`'s `closes_at_its_site`), as for a circle.
@@ -1143,6 +1144,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
         ("vertices there", true, PI, 0.0),
         ("the boss's there", true, 0.0, 0.0),
         ("the hole's there", true, PI, PI),
+        ("neither there", true, 0.0, PI),
         ("two arcs", false, PI, 0.0),
     ] {
         let tall = fin(
