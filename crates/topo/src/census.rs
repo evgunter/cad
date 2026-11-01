@@ -16201,7 +16201,7 @@ mod tests {
     /// sides it rests. With one side left out, the three left bound no
     /// region of directions: each bound of the missing side is the bound
     /// of one sector only, and crossing-parity reads nothing true of
-    /// them. That link refuses `Unanalysed` ([`Link::closes`]). Red
+    /// them. That link refuses `Unanalysed` ([`Cone::closes`](crate::link::Cone::closes)). Red
     /// where every link is taken to close: the open fan's parity then
     /// reads the floor's directions inside the pyramid, a crossing.
     #[test]

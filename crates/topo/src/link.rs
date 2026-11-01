@@ -1,10 +1,12 @@
 //! **The cone of material at a point** — a solid's LINK there: every
 //! face of the solid through the point, as its sector ([`Link`]).
 //!
-//! A link is read three ways:
-//! - [`Link::reads`]: where a direction from the point lies against the
-//!   material — inside, outside, or on a sector — by crossing parity, no
-//!   convexity assumed, so a saddle reads like any other corner;
+//! A cone of directions at a point is a [`Cone`]: its sectors, each a
+//! plane and a fan of rays. It is read by crossing parity: where a
+//! direction lies against the material — inside, outside, or on a
+//! sector — no convexity assumed, so a saddle reads like any other
+//! corner ([`Link::reads`]). A link is a cone whose wedges are its faces'
+//! real points, and it is read at their scale too:
 //! - [`Link::offset`]: a point's signed distance from the cone's
 //!   boundary, negative inside, as a closed form over the sectors, and
 //!   [`Link::lowest_on`] the lowest of it along a segment;
@@ -51,7 +53,7 @@
 //! is read as the disc about `p` its other edges clear, the face's own
 //! out to that radius, which bounds the link's ball, and carried past
 //! the face's reach so that its readings are taken where the face's
-//! would be ([`Sector::cleared`]). A curved face, or such a face held at
+//! would be ([`FaceSector::cleared`]). A curved face, or such a face held at
 //! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
 //! cylinder face is read by its carrier instead, as above.
 
@@ -265,7 +267,7 @@ pub enum TouchUnread {
     /// ε. The smallest piece of all, which refuses.
     PieceInBand,
     /// A curved face or edge takes part: a face off a plane, or a planar
-    /// face with an edge that is not a line where [`Sector::cleared`]
+    /// face with an edge that is not a line where [`FaceSector::cleared`]
     /// does not read it — held at a corner, or bounded by a curve no
     /// clearance reads. (A tied edge whose key does not
     /// resolve reads the same; tier 1, which the census runs behind,
@@ -1381,8 +1383,8 @@ fn position<T: Real>(body: &Body<T>, v: VertexKey) -> Result<Point3<T>, TouchUnr
 
 impl<T: Decide> FaceSector<T> {
     /// Face `f` of a live `body` as its sectors at `p`, held there as
-    /// `holds` say ([`Sector::of_face`]), or as the disc its edges clear
-    /// where one of them is not a line ([`Sector::cleared`]): a face off
+    /// `holds` say ([`FaceSector::of_face`]), or as the disc its edges clear
+    /// where one of them is not a line ([`FaceSector::cleared`]): a face off
     /// a plane is [`TouchUnread::Unreadable`].
     fn of_body_face(
         body: &Body<T>,
@@ -1444,7 +1446,7 @@ impl<T: Decide> FaceSector<T> {
     /// half on the face's side, is connected, meets no boundary, and
     /// holds points of the face as near `p` as any, so it lies inside the
     /// face, and the sector spans the face's whole sector at `p`. The
-    /// radius is the sector's [`Sector::clear`], which bounds the link's
+    /// radius is the sector's [`LinkFace::clear`], which bounds the link's
     /// ball.
     ///
     /// The fan itself runs further, past the face ([`fan`]): its every
@@ -2430,7 +2432,7 @@ pub(crate) mod rest {
     /// **Each verdict at its own scale.** The readings run at the
     /// pieces' real points, each link's as far out as its faces reach,
     /// or, on a cleared sector, past every point of its face
-    /// ([`super::Sector::cleared`]). A rest needs every one decided there: a
+    /// ([`super::FaceSector::cleared`]). A rest needs every one decided there: a
     /// Zero read at a far point is a Zero at every nearer one, so that is
     /// where the fewest coincidences are taken. A crossing is confirmed
     /// inside the BALL where both links are their solids — out to the
