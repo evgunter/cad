@@ -982,3 +982,32 @@ fn a_point_beside_one_torus_window_reads_in_the_face_at_the_certified_scalar() {
         }
     }
 }
+
+/// **Two windows at opposite azimuths on the donut's face validate at
+/// `f64` and at the certified scalar**: `((-1.2, -0.2), (-0.4, 0.4))` and
+/// the same window turned a half turn about the axis. A parallel leg from
+/// a corner of one window meets the other window's meridian edges exactly
+/// opposite its start, where a place read by `atan2` sat on its branch
+/// cut and enclosed `[0, π·ρ]` at `Interval`, refusing the face
+/// `CycleSideUndecided`; the swept angle read by the half-angle form has
+/// no cut.
+fn antipodal_windows<T: Scalar>(scalar: &str) {
+    let pi = core::f64::consts::PI;
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let mut body = donut::<T>();
+    let face = same_face(&at_f64, face64, &body);
+    plant(&mut body, face, frame, (-1.2, -0.2), (-0.4, 0.4));
+    plant(&mut body, face, frame, (pi - 1.2, pi - 0.2), (-0.4, 0.4));
+    assert_eq!(
+        region_findings(&body),
+        Vec::new(),
+        "two windows at opposite azimuths, at {scalar}"
+    );
+}
+
+#[test]
+fn two_windows_at_opposite_azimuths_validate() {
+    antipodal_windows::<f64>("f64");
+    antipodal_windows::<geom_core::Interval>("Interval");
+}
