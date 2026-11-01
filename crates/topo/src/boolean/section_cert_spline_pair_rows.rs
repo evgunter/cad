@@ -337,3 +337,100 @@ fn a_branch_across_a_closed_channels_seam_is_not_cleared_by_reaching_it() {
         );
     }
 }
+
+// ---- review r1: claim 1, a second solution beside a handed-in row ----
+
+/// A bicubic over `[0, 1]²` standing over the unit square, `x = u`,
+/// `y = v`, interpolating `z` at the 4×4 grid (exact for `z` of degree
+/// at most 3 in each variable).
+fn bicubic(z: &dyn Fn(f64, f64) -> f64) -> Surface<f64> {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let b = |j: usize, t: f64| {
+        let c = [1.0, 3.0, 3.0, 1.0][j];
+        c * t.powi(j as i32) * (1.0 - t).powi(3 - j as i32)
+    };
+    // M[i][j] = B_j(i/3); invert by Gauss-Jordan.
+    let mut m = [[0.0f64; 8]; 4];
+    for i in 0..4 {
+        for j in 0..4 {
+            m[i][j] = b(j, i as f64 / 3.0);
+        }
+        m[i][4 + i] = 1.0;
+    }
+    for c in 0..4 {
+        let piv = m[c][c];
+        for x in m[c].iter_mut() {
+            *x /= piv;
+        }
+        for r in 0..4 {
+            if r != c {
+                let f = m[r][c];
+                for x in 0..8 {
+                    m[r][x] -= f * m[c][x];
+                }
+            }
+        }
+    }
+    let inv = |i: usize, j: usize| m[i][4 + j];
+    let zs = |i: usize, j: usize| z(i as f64 / 3.0, j as f64 / 3.0);
+    let control = (0..16)
+        .map(|n| {
+            let (i, j) = (n / 4, n % 4);
+            let mut h = 0.0;
+            for a in 0..4 {
+                for c in 0..4 {
+                    h += inv(i, a) * zs(a, c) * inv(j, c);
+                }
+            }
+            p(i as f64 / 3.0, j as f64 / 3.0, h)
+        })
+        .collect();
+    Surface::Nurbs(std::sync::Arc::new(
+        geom::NurbsSurface::new(k.clone(), k, control, vec![1.0; 16]).unwrap(),
+    ))
+}
+
+/// Two walls sharing the `v = 0` row, which also meet in the circle of
+/// radius `rho` about `(½, y0)` beside it: a closed loop interior to both
+/// walls, `y0 − rho` off the shared row. Handed the row, the reading must
+/// never clear the pair.
+fn loop_beside_row(y0: f64, rho: f64) -> (Surface<f64>, Surface<f64>) {
+    let f = |x: f64, y: f64| 0.5 * y + 0.2 * x * (1.0 - x) * y;
+    let g = move |x: f64, y: f64| {
+        f(x, y) - 10.0 * y * ((x - 0.5).powi(2) + (y - y0).powi(2) - rho * rho)
+    };
+    (bicubic(&f), bicubic(&g))
+}
+
+#[test]
+fn r1_a_loop_beside_a_shared_row_is_never_cleared() {
+    for (y0, rho) in [(0.06, 0.05), (0.0501, 0.05), (0.05 + 1e-6, 0.05)] {
+        let (f, g) = loop_beside_row(y0, rho);
+        let s = read(&f, &g, shared_rim());
+        eprintln!("y0 {y0} rho {rho}: {s:?}");
+        for place in [at(IN, IN), at(None, None)] {
+            let v = certify(&s, false, band(), |_| Sheet::Not, place);
+            eprintln!("  -> {v:?}");
+            assert!(v.is_err(), "a loop beside the row cleared: y0 {y0}: {v:?} {s:?}");
+        }
+    }
+}
+
+/// Two walls sharing the `v = 0` row that also cross along `y = d`.
+#[test]
+fn r1_a_branch_beside_a_shared_row_is_listed() {
+    for d in [0.05, 1e-3, 1e-5] {
+        let f = |x: f64, y: f64| 0.5 * y + 0.2 * x * (1.0 - x) * y;
+        let g = move |x: f64, y: f64| f(x, y) - 10.0 * y * (y - d);
+        let s = read(&bicubic(&f), &bicubic(&g), shared_rim());
+        eprintln!("d {d}: {s:?}");
+    }
+}
+
+#[test]
+fn r1_why_the_loop_beside_a_row_is_unaccounted() {
+    let (f, g) = loop_beside_row(0.06, 0.05);
+    let k = shared_rim();
+    let r = geom_brep::spline_pair_section(&f, &g, (k.rows, k.corners), Some(geom_brep::SsiLane::marched()), band());
+    eprintln!("WHY: {:?}", r.map(|s| s.components().clone()));
+}
