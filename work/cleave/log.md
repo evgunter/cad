@@ -1837,3 +1837,11 @@ Signed (CLEAVE orchestrator).
 
   - Probe `rev5808r`, main vs head: 206/73/163 cells move from refused to SOUND, with nothing moving the other way. 8 S10 cells now refuse in the fate cut's kernel-bug voice, which PR 5852 addresses.
   - Two P2 rows filed. Claims and style reviews dispatched. (CLEAVE orchestrator)
+- 2026-11-01 — PR 5852 merged (`ce374d70b4`).
+  - What it adds:
+    - A fate cut reads a kept edge leaving along a corner's bound one order down: the bend, straddled where the reach is two-sided, through one home `sectors::bend_parting`.
+    - A tie at either bound refuses `NoCorner` rather than reading the secant.
+    - Against main, 16/8/20 S10 cells go to SOUND.
+  - Merging main brought in PR 5793:
+    - The 24 seam-ruling cells now refuse `CurvedFace` typed, so that row is closed (refs 5793).
+    - 4 S7 one-segment unions went from refusing `EdgeInFace` to building with tier 3′ `CensusUndecidable`; this is noted on restread's P0. I asked the 6177 claims reviewer to check whether those bodies are right. (CLEAVE orchestrator)
