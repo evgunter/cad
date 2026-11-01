@@ -184,8 +184,8 @@ pub use contain::{
 // classification this module's own walk dispatches on, and the census
 // places a record's point in its face through the boolean's own read.
 pub(crate) use contain::{
-    CurvedPlacement, PlacementError, curved_face_placement, driver_face_stale, face_placement,
-    loop_circle,
+    CurvedPlacement, PlacementError, curved_face_placement, cycle_side, driver_face_stale,
+    face_placement, loop_circle,
 };
 pub use discard::DiscardRow;
 pub use fate::{SubstitutedFace, UncutFace};
@@ -509,7 +509,7 @@ impl BooleanOp {
     /// A list cannot be derived from a match in safe Rust, so SOMEONE
     /// writes it by hand; the only question is where. Written here, it
     /// sits in the crate whose exhaustive matches over `BooleanOp`
-    /// (`finish::kept_side`, `tables::eq15_3_lump`) fail to compile on
+    /// (`finish::kept_side`, `tables::lump_keeps_one`) fail to compile on
     /// a fourth operation — so the author adding one is already in this
     /// module with the list in front of them, and the
     /// `all_is_every_operation` census below puts a second visit right
