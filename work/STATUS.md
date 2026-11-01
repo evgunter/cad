@@ -4779,7 +4779,6 @@ prefix `carve/`; tag `(CARVE orchestrator)`; ab_band `5600-5699`.
 | 18 | `flipped-face-sense-for-tests-is-not-feature-gated` | topotail | open | topo: Body::flipped_face_sense_for_tests is doc(hidden) but not feature-gated, an uncertified write on the public surface |
 | 18 | `focal-section-image-reads-its-slant-off-height-on-a-flat-cone` | pcert | open | the cone's FocalSection image reads its slant channel off the ellipse's heights over cos α, so a section off the cone by δ images δ/cos α off it |
 | 18 | `harmonic3-circle-and-ellipse-arms-re-spell-conic-of` | pcert | open | pcurve_cache's Harmonic3 Circle and Ellipse arms re-spell geom_brep::Conic::of |
-| 18 | `horn-and-spindle-tori-have-no-representation` | — | open | Surface::Torus represents only ring tori (R > r > 0); horn and spindle tori, which ACIS-family kernels represent, have none |
 | 18 | `inline-tau-reductions-do-not-enclose-tau-at-interval` | pcert | open | inline [0, τ) reductions built on T::from_f64(TAU) do not enclose τ at Interval |
 | 18 | `limb-two-has-three-break-grid-spellings` | pcert | open | limb 2's round breaks are spelled three ways: cert_grid, analytic_limbs' range grid, chart_grid's closed-form arm |
 | 18 | `no-door-rejects-geometry-past-eps-f64-resolution` | scalar | open | D4 ¶4's size range is unenforced: past 2^52·ε a certification residual reads rounding, and the f64 lane's Zero is luck |
