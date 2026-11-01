@@ -7,7 +7,7 @@ opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/product-door
-blocked_on: [the-picture-draws-bodies]
+blocked_on: [a-new-body-lands-unplaced]
 refs: [6209]
 ---
 
@@ -34,3 +34,10 @@ placement gestures): the later lane merges the earlier's branch and
 says so.
 
 Review tier: single, FULL.
+
+**Fixtures it retires** (review of PR 6269): until this door exists,
+rows place bodies into the world by hand — `story_assembly`'s
+`into_world` / `reopened_with` (the windmill story reopens its file
+mid-story to place the tower), `instance_authoring::into_world`,
+`tests/common`'s `world_copy` / `world_copy_in`, `asm::store_world_copy`.
+Rewrite the rows that stand for a person's path through the door.
