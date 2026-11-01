@@ -107,8 +107,8 @@ use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 use super::BooleanDecision;
 use super::circle_roots::{FirstHarmonic, FirstHarmonicRows, first_harmonic_root_directions};
 use super::region::{
-    self, Fault, Landing, Leg, Legs, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
-    between, circle_edge_hit, found, span_at_nearer_end, targets,
+    self, End, Fault, Landing, Leg, Legs, Path, Paths, Region, RegionEdge, RegionRefusal, Round,
+    Scaffolding, between, circle_edge_hit, found, span_at_nearer_end, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -228,20 +228,36 @@ impl<T: Decide> SphereFaceRegion<T> {
             let back: Vec<Vec3<T>> = dirs.iter().map(|&d| -d).collect();
             dirs.into_iter().chain(back)
         };
+        let rays = both_ways(aimed).chain(both_ways(scheduled)).map(Probe::Ray);
+        let paths = targets(&self.edges).flat_map(|target| {
+            [(true, true), (true, false), (false, true), (false, false)].map(
+                move |(first_forward, then_forward)| {
+                    Probe::Path(Path::Aimed {
+                        target,
+                        parallel_first: false,
+                        first_forward,
+                        then_forward,
+                    })
+                },
+            )
+        });
         ray_walk::walk(
-            both_ways(aimed).chain(both_ways(scheduled)),
-            |toward| {
-                let raw = toward - a * a.dot(toward);
-                let arm = Margin::levered(raw.norm() / toward.norm(), self.radius);
-                match decide("bool_sphere_region_arm", arm, band) {
-                    Ok(Sign::Positive) => {
-                        region::read_leg(self, &self.ray(a, tangent(a, raw)), band)
+            rays.chain(paths),
+            |probe| match probe {
+                Probe::Ray(toward) => {
+                    let raw = toward - a * a.dot(toward);
+                    let arm = Margin::levered(raw.norm() / toward.norm(), self.radius);
+                    match decide("bool_sphere_region_arm", arm, band) {
+                        Ok(Sign::Positive) => {
+                            region::read_leg(self, &self.ray(a, tangent(a, raw)), band)
+                        }
+                        // Along the normal, or aimed at `p` or its antipode:
+                        // no tangent direction to cast.
+                        Ok(Sign::Zero | Sign::Negative) => Err(RayFault::Unread),
+                        Err(diag) => Err(RayFault::InBand(RegionRefusal::Escalated(diag))),
                     }
-                    // Along the normal, or aimed at `p` or its antipode:
-                    // no tangent direction to cast.
-                    Ok(Sign::Zero | Sign::Negative) => Err(RayFault::Unread),
-                    Err(diag) => Err(RayFault::InBand(RegionRefusal::Escalated(diag))),
                 }
+                Probe::Path(path) => region::read_path(self, p, path, band),
             },
             || RegionRefusal::RayExhausted { outer: self.outer },
         )
@@ -334,6 +350,87 @@ impl<T: Decide> SphereFaceRegion<T> {
     }
 }
 
+/// One reading [`SphereFaceRegion::contains`] tries: a ray, or a two-leg
+/// path (module docs, "Two-leg paths").
+enum Probe<T: geom_core::Real> {
+    Ray(Vec3<T>),
+    Path(Path<T>),
+}
+
+/// **The two-leg paths** (module docs). The families are taken about the
+/// axis through `p` itself: its "meridians" are the great circles through
+/// `p`, and its "parallels" the circles about that axis, which cross
+/// every great circle through `p` at a right angle.
+impl<T: Decide> Paths<T> for SphereFaceRegion<T> {
+    /// The door's single legs are its rays ([`SphereFaceRegion::contains`]),
+    /// read there; none is read here.
+    fn single(&self, _: Point3<T>, _: bool, _: bool, _: Band) -> Result<Leg<T, Round<T>>, Fault> {
+        Err(RayFault::Unread)
+    }
+
+    /// The great circle from `p` square to the plane of `p` and `target`,
+    /// run `first_forward` or back, to the corner at `target`'s angle from
+    /// `p`; then the parallel about `p`'s axis through the corner, which
+    /// passes `target`, run `then_forward` (right-handed about `p`) or
+    /// back. `p`'s own parallel is `p` itself, so a path that would run
+    /// it first reads nothing.
+    ///
+    /// # Errors
+    ///
+    /// A parallel of no radius (a target at `p` or its antipode) reads
+    /// nothing; one in band sets the path aside.
+    fn aimed(
+        &self,
+        p: Point3<T>,
+        target: Point3<T>,
+        parallel_first: bool,
+        first_forward: bool,
+        then_forward: bool,
+        band: Band,
+    ) -> Result<(Round<T>, End<T>, impl FnOnce() -> Leg<T, Round<T>>), Fault> {
+        if parallel_first {
+            return Err(RayFault::Unread);
+        }
+        let unit = |y: Point3<T>| {
+            let w = y - self.center;
+            w / w.norm()
+        };
+        let (a, b) = (unit(p), unit(target));
+        let across = a.cross(b);
+        let sin = across.norm();
+        match decide(
+            "bool_sphere_region_parallel",
+            Margin::levered(sin, self.radius),
+            band,
+        ) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => return Err(RayFault::Unread),
+            Err(diag) => return Err(RayFault::InBand(RegionRefusal::Escalated(diag))),
+        }
+        let side = across / sin;
+        let side = if first_forward { side } else { -side };
+        let cos = a.dot(b);
+        let first = self.ray(a, side).course;
+        let corner = self.center + (a * cos + side * sin) * self.radius;
+        let end = End {
+            place: first.arc(corner),
+            row: "bool_sphere_region_corner",
+        };
+        let (center, radius) = (self.center, self.radius);
+        let then = move || {
+            let normal = if then_forward { a } else { -a };
+            Leg::whole(Round {
+                center: center + a * (radius * cos),
+                normal,
+                radius: radius * sin,
+                e1: side,
+                e2: normal.cross(side),
+            })
+        };
+        Ok((first, end, then))
+    }
+}
+
 impl<T: Decide> Region<T> for SphereFaceRegion<T> {
     fn edges(&self) -> &[Arc<T>] {
         &self.edges
@@ -391,7 +488,7 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
         let roots = first_harmonic_root_directions(
             &FirstHarmonic::circle_off_plane(
                 (center, axis, radius, u_ref),
-                (self.center, ray.course.normal),
+                (ray.course.center, ray.course.normal),
             ),
             radius,
             &ROOT_ROWS,
@@ -419,13 +516,12 @@ impl<T: Decide> Legs<T> for SphereFaceRegion<T> {
             let to_end = |end: Vec3<T>, local: T| {
                 (between(toward, end) - quarter).select_le_zero(local, half - off)
             };
-            let tau = T::tau();
             // Which half of the span: the side of `middle`'s diameter
             // `toward` lies.
             let ahead = middle.cross(toward).dot(axis);
             let to_end = (T::zero() - ahead).select_le_zero(
-                to_end(end, (arc.t1 - root.raw).reduce_periodic_centred(tau)),
-                to_end(start, (root.raw - arc.t0).reduce_periodic_centred(tau)),
+                to_end(end, T::zero() - root.from(arc.t1)),
+                to_end(start, root.from(arc.t0)),
             );
             let Some(sideless) =
                 span_at_nearer_end("bool_sphere_region_span", to_end, radius, band)?
