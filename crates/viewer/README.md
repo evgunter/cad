@@ -1209,7 +1209,8 @@ is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
 `frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
-stranded or rewritten in place) — are
+stranded or rewritten in place; a placement's dropped values, said once
+per placement by `Maintenance::values_dropped`) — are
 typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
@@ -2262,7 +2263,7 @@ rather than an exception:
   match to borrow, and its doc already argues it is the single list.
 - **A deliberately partial list** claims no completeness, so forcing it
   would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
-  two of five `Subject`s, each tool's seat list names its own seats,
+  three of six `Subject`s, each tool's seat list names its own seats,
   and `MATE_KINDS` offers the two pose kinds one face pick reads. Each
   says why in its own doc.
 

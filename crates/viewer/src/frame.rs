@@ -252,7 +252,7 @@ use crate::session::{
     AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
     SessionOp, VersionOffer,
 };
-use crate::tools::{PanelRefusal, ToolNotice};
+use crate::tools::{PanelRefusal, ToolKind, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -342,17 +342,23 @@ pub enum Subject {
     /// that can never be written at all is a read of held state that
     /// no write ever retires ([`prefs_badge`]).
     Preferences,
+    /// **The open tool and the clicks aimed at it** — retired by the
+    /// next change of which tool is open: a tool closed, committed or
+    /// swapped for another.
+    ///
+    /// Issued by [`tool_status`], once per batch.
+    Tool,
 }
 
-/// **Three of the five subjects are observationally identical on the
+/// **Three of the six subjects are observationally identical on the
 /// LINE today**, and saying so is part of the vocabulary rather than a
 /// caveat on it. It is a statement about messages: a badge is retired
 /// by the state it reads changing and asks no issuer for anything.
 ///
-/// [`Subject::Camera`] and [`Subject::Cursor`] have
-/// [`StatusUpdate::Expire`] issuers ([`fold_status`] and
-/// [`cursor_status`]), so a message wearing either is retired by an
-/// event and a row can see the difference. [`Subject::Document`],
+/// [`Subject::Camera`], [`Subject::Cursor`] and [`Subject::Tool`] have
+/// [`StatusUpdate::Expire`] issuers ([`fold_status`], [`cursor_status`]
+/// and [`tool_status`]), so a message wearing any of them is retired by
+/// an event and a row can see the difference. [`Subject::Document`],
 /// [`Subject::Display`] and [`Subject::Preferences`] have none, so
 /// nothing yet distinguishes them: each is swept by
 /// [`RankedVerdict::Clear`], which is subject-blind, and by nothing
@@ -371,18 +377,19 @@ pub enum Subject {
 /// `partial_mirror!` invocation below forces
 /// (`crates/viewer/src/vocab.rs` declares the macro) is that every
 /// subject is either offered at a seat of this list or named there as
-/// deliberately absent with its reason. A sixth subject WITH an issuer
+/// deliberately absent with its reason. A new subject WITH an issuer
 /// would otherwise miss the list with no row going red, and its
 /// messages would then be swept only by [`RankedVerdict::Clear`],
 /// silently. The
 /// suite's own row over this list holds a different direction — that
-/// the two named here are the two the policies it calls actually
+/// the ones named here are the ones the policies it calls actually
 /// issue — and cannot see a policy it does not call.
-pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
+pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 3] =
+    [Subject::Camera, Subject::Cursor, Subject::Tool];
 
 partial_mirror! {
     Subject, bare SUBJECTS_WITH_AN_EXPIRY_ISSUER,
-    offered [Camera, Cursor],
+    offered [Camera, Cursor, Tool],
     absent [
         Document => "its event is the next act the document ACCEPTS, \
                      which nothing marks yet; what sweeps it today is \
@@ -943,7 +950,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// reads it without asking what refused. **Which kinds ride is not
 /// listed here**, on purpose: each door that makes a notice answers
 /// for its own arms and gives its reasons there — [`Withdrawal::notice`],
-/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// [`maintenance_notices`], [`tool_notice`], [`refusal_message`], and
 /// every typed refusal door with its own one-line reason. A census here
 /// would be a second copy that nothing checks against the first.
 ///
@@ -1398,8 +1405,7 @@ impl<'a> Withdrawal<'a> {
 /// both true of the document it left: what the transition WITHDREW
 /// from the display state ([`Withdrawal::all`]), then what the
 /// committed edits did that the user did not ask for by name
-/// ([`maintenance_notice`], one notice per row in the outcome's own
-/// order). They are notices rather than a verdict for [`Withdrawal`]'s
+/// ([`maintenance_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
 /// reason: the edit that produced them was accepted, so the same
 /// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
@@ -1424,7 +1430,21 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
-        .chain(maintenance.iter().filter_map(maintenance_notice))
+        .chain(maintenance_notices(maintenance))
+}
+
+/// **One edit's maintenance rows as notices**: each row
+/// [`maintenance_notice`] words, in the rows' own order, then one
+/// notice per placement whose values the edit dropped
+/// ([`Maintenance::values_dropped`]) — an edit that drops four values
+/// is one thing to say, not four.
+pub fn maintenance_notices(rows: &[Maintenance]) -> impl Iterator<Item = Message> + '_ {
+    rows.iter().filter_map(maintenance_notice).chain(
+        // Nothing evaluates differently in a way that names it: the
+        // copy simply stops reading the values.
+        Maintenance::values_dropped(rows)
+            .map(|said| Message::new(Subject::Document, said.to_string(), Retold::Never)),
+    )
 }
 
 /// **What a landing's prune withdrew, as notices** — the same notices
@@ -1451,10 +1471,9 @@ pub fn withdrawal_notices(
 /// **Every arm DM7 makes the door report is worded**: a stranded
 /// payload name and a stranded appearance key.
 ///
-/// **The mate door's offset clear is not**: it is what inserting the
-/// mate means, and where the joined group now sits is what the picture
-/// draws. It still rides [`OpOutcome::maintenance`], where a reader of
-/// the API sees it.
+/// **A dropped value is not worded alone**: a mate drops one row per
+/// freedom it fixes, and [`maintenance_notices`] says them once per
+/// placement.
 ///
 /// **Each worded arm answers [`Retold`] for itself**, and each
 /// answers [`Retold::Never`]: none can show a retelling.
@@ -1467,7 +1486,7 @@ pub fn withdrawal_notices(
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
@@ -1481,9 +1500,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // landing, naming the read.
         Maintenance::ProductOutsideWorld { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // Nothing evaluates differently in a way that names it: the
-        // copy simply stops reading the value.
-        Maintenance::ValueDropped { .. } => Retold::Never,
+        // Said once per placement, with the edit's other dropped
+        // values ([`maintenance_notices`]).
+        Maintenance::ValueDropped { .. } => return None,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -2129,7 +2148,9 @@ pub fn pick_refusal(
 
 /// **What a tool did on its own** — a survival drop or a declined pick
 /// ([`ToolNotice`]) — as a notice, [`Subject::Document`] like
-/// [`tool_news`], in the words [`ToolNotice::said`] gives it.
+/// [`tool_news`], in the words [`ToolNotice::said`] gives it; a
+/// viewport click the open tool took nothing from
+/// ([`ToolNotice::Missed`]) is [`Subject::Tool`], retired with the tool.
 ///
 /// **The one door a tool event reaches the line through**, because the
 /// event's arm is what says whether anything will say it again, and a
@@ -2141,11 +2162,20 @@ pub fn pick_refusal(
 /// that a pick was held and what took it — so it is [`Retold::Never`]
 /// and rides beside a refusal ([`frame_status`]). A **declined pick**
 /// took nothing: the held picks are untouched and the same pick says
-/// the same sentence again, so it is [`Retold::Again`].
+/// the same sentence again, so it is [`Retold::Again`] — and so is a
+/// miss.
 pub fn tool_notice(
     notice: &ToolNotice,
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Message {
+    // A miss is about the open tool, so it retires with it.
+    let subject = match notice {
+        ToolNotice::Missed(_) => Subject::Tool,
+        ToolNotice::Mate(_)
+        | ToolNotice::Blend(_)
+        | ToolNotice::Mirror(_)
+        | ToolNotice::Seated { .. } => Subject::Document,
+    };
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
@@ -2156,6 +2186,9 @@ pub fn tool_notice(
         ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
+        // A declined click, like the blend tool's other-target pick:
+        // the same miss says it again.
+        ToolNotice::Missed(_) => Retold::Again,
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
@@ -2164,14 +2197,27 @@ pub fn tool_notice(
             | BlendEvent::RimUnanswered { .. },
         ) => Retold::Again,
     };
-    Message::new(Subject::Document, notice.said(landed), retold)
+    Message::new(subject, notice.said(landed), retold)
+}
+
+/// **What a change of the open tool retires**: the line's
+/// [`Subject::Tool`] messages, when the tool open now is not the one
+/// open when the line was last written.
+pub fn tool_status(before: Option<ToolKind>, now: Option<ToolKind>) -> StatusUpdate {
+    if before == now {
+        StatusUpdate::Keep
+    } else {
+        StatusUpdate::Expire(Subject::Tool)
+    }
 }
 
 /// **What a tool has to say** that is not one of its own events: a
 /// panel's refusal at its button ([`PanelRefusal`]), a modal tool's
 /// or a form's. [`Subject::Document`], retired the way that
 /// subject says. A tool's own events go through [`tool_notice`]
-/// instead, whose arms answer [`Retold`] from the event.
+/// instead, whose arms answer [`Retold`] from the event — a viewport
+/// click the open tool took nothing from among them
+/// ([`ToolNotice::Missed`]).
 ///
 /// **[`Retold::Again`], answered here**: the refusal is the answer to a
 /// click on that button, and the same click says it again.

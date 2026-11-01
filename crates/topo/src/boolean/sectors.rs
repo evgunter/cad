@@ -9,7 +9,8 @@
 //! `face(loop(mate(he_i)))`) sweeps CCW around that face's outward
 //! normal **from `dir(he_{i+1})` to `dir(he_i)`**. We store each sector
 //! with explicit `start`/`end` bound VECTORS (start = the CCW-first
-//! bound = the next orbit chord), so `sectors[k].start ==
+//! bound = the next orbit half-edge's departure: a line's chord, a
+//! curved edge's tangent at the vertex), so `sectors[k].start ==
 //! sectors[k+1].end` — the shared-bound chain the reclassification
 //! neighbor propagation walks. Wide (≥ 180°) sectors are convexly
 //! subdivided at an interior direction (PR 2's derivation: the cone
@@ -83,7 +84,8 @@ use crate::validate::decide;
 use geom_brep::recourse::Refused;
 
 /// What stands behind a sector bound, which decides how its side of a
-/// plane is read ([`side_code`]).
+/// plane is read ([`side_code`]). A bound is its edge's departure from
+/// the base vertex: a line's chord, a curved edge's tangent there.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Reach<T: geom_core::Real> {
     /// A line edge: its far vertex, read in metres off the base vertex.
@@ -153,9 +155,11 @@ fn rise<T: Decide>(dir: Vec3<T>, n: Vec3<T>, arm: T) -> T {
 pub(super) struct BoolSector<T: geom_core::Real> {
     /// The orbit half-edge the sector follows (CW-after `he`).
     pub he: HalfEdgeKey,
-    /// CCW-first bound direction (the next orbit chord, or a bisector).
+    /// CCW-first bound direction (the next orbit half-edge's departure,
+    /// or a bisector).
     pub start: Vec3<T>,
-    /// CCW-last bound direction (this entry's own chord, or a bisector).
+    /// CCW-last bound direction (this entry's own half-edge's departure,
+    /// or a bisector).
     pub end: Vec3<T>,
     /// What stands behind `start`: how its side of a plane is read.
     pub start_reach: Reach<T>,
@@ -168,7 +172,7 @@ pub(super) struct BoolSector<T: geom_core::Real> {
     /// bit (S10). Consumers pair it with the stored orbit order and
     /// must NOT re-apply the sense — the type says the sense is in.
     pub normal: OutwardNormal<T>,
-    /// The metering arm (shorter bounding chord, in meters).
+    /// The metering arm: the shorter of its bounds' reaches, in metres.
     pub arm: T,
 }
 
@@ -270,16 +274,17 @@ impl<T: Decide> BoolSector<T> {
 /// One corner of a vertex neighborhood as its orbit reads it, before
 /// any subdivision: the corner after orbit half-edge `he`, sweeping CCW
 /// around its face's outward normal from `start` (the next orbit
-/// half-edge's chord) to `end` (`he`'s own), each unnormalized and as
-/// [`Reach`] says it was read.
+/// half-edge's departure) to `end` (`he`'s own), each unnormalized and
+/// as [`Reach`] says it was read: a line's chord, a curved edge's
+/// tangent at the vertex.
 pub(super) struct OrbitCorner<T: geom_core::Real> {
     /// The orbit half-edge the corner follows.
     pub he: HalfEdgeKey,
-    /// The next orbit half-edge's chord: the CCW-first bound.
+    /// The next orbit half-edge's departure: the CCW-first bound.
     pub start: Vec3<T>,
     /// What stands behind `start`.
     pub start_reach: Reach<T>,
-    /// `he`'s own chord: the CCW-last bound.
+    /// `he`'s own departure: the CCW-last bound.
     pub end: Vec3<T>,
     /// What stands behind `end`.
     pub end_reach: Reach<T>,
@@ -303,7 +308,8 @@ pub(super) fn build_sectors<T: Decide>(
     band: Band,
 ) -> Result<Vec<BoolSector<T>>, BooleanError> {
     let corners = orbit_corners(body, operand, vertex, band);
-    // A lone orbit half-edge's corner runs from its chord round to it.
+    // A lone orbit half-edge's corner runs from its departure round to
+    // it.
     let alone = corners.len() == 1;
     let mut sectors = Vec::with_capacity(corners.len() + 2);
     for corner in corners {
@@ -406,7 +412,8 @@ pub(super) fn build_sectors<T: Decide>(
 /// four convex quarter sectors in the chained order [`build_sectors`]
 /// pushes a subdivided corner in: the end-sharing quarter first. The
 /// quarter bounds are levered at the turn's arm; `start_reach` and
-/// `end_reach` stand behind the next chord and the corner's own.
+/// `end_reach` stand behind the next half-edge's departure and the
+/// corner's own.
 fn push_full_turn<T: Decide>(
     sectors: &mut Vec<BoolSector<T>>,
     he: HalfEdgeKey,
@@ -453,7 +460,7 @@ pub(super) fn orbit_corners<T: Decide>(
     // carrier's outgoing tangent at the base vertex scaled by
     // `edge_extent_inf` for every curved one, a spline's included (its
     // chord is not where it leaves).
-    let chord = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
+    let departure = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
         let end = body.proven_half_edge_end(he);
         let p_base = body.resolve_vertex_point(vertex, Proven);
         let p_end = body.resolve_vertex_point(end, Proven);
@@ -499,8 +506,8 @@ pub(super) fn orbit_corners<T: Decide>(
     let n = orbit.len();
     (0..n).map(move |i| {
         let he = orbit[i];
-        let (end, end_reach) = chord(he); // this entry's own chord = CCW-last
-        let (start, start_reach) = chord(orbit[(i + 1) % n]); // next chord = CCW-first
+        let (end, end_reach) = departure(he); // CCW-last
+        let (start, start_reach) = departure(orbit[(i + 1) % n]); // CCW-first
         let (face, normal) = sector_face(body, operand, vertex, he, band)?;
         Ok(OrbitCorner {
             he,
@@ -1523,7 +1530,7 @@ pub(super) struct GermSide<'a, T: geom_core::Real> {
 
 /// Where an edge leaving a site lies against the partner past it, in
 /// rank order: what the reduction recorded at its far end, or for a
-/// closed edge where its midpoint lies ([`closed_reach`]).
+/// closed edge where its own carrier runs ([`closed_reach`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Touch {
     /// No contact: the edge leaves the partner.
@@ -1551,16 +1558,38 @@ struct Along {
 /// lying on the partner ends where it records a touch. An edge whose far
 /// end it records none at leaves the partner, the germ is only tangent
 /// to it, and it stays inside the sector's face, as it does under a
-/// bisector or with no bound On. Called by every site kind, before that
-/// site's surgery moves the orbit the bounds are read from.
+/// bisector or with no bound On. A closed edge's far end is the site
+/// itself, whose record is the site's own contact, so whether it runs
+/// along the partner's face `partner` (the one the germ runs in on the
+/// other operand) is read from its own carrier instead ([`closed_reach`]).
+/// There it cannot lie in the face's plane outside its trim: it leaves
+/// the site into the face along the germ, and the sweep would split it
+/// where it crossed out. Called by every site kind, before that site's
+/// surgery moves the orbit the bounds are read from.
 pub(super) fn germ_locus<T: Decide>(
     side: GermSide<'_, T>,
+    partner: (&Body<T>, FaceKey),
     contacts: &super::ReductionContacts,
+    band: Band,
 ) -> Result<super::Locus, BooleanError> {
-    let in_face = super::Locus::InFace(side.sector.face);
-    Ok(match along(side)? {
-        Some(e) if touch(side, e.far, contacts)? != Touch::Apart => super::Locus::OnEdge(e.edge),
-        _ => in_face,
+    let Some(e) = along(side)? else {
+        return Ok(super::Locus::InFace(side.sector.face));
+    };
+    let on = match closed_reach(side, e, (partner.0, &[partner.1]), band)? {
+        None => touch(side, e.far, contacts)? != Touch::Apart,
+        Some(ClosedReach::Off) => false,
+        Some(ClosedReach::On(..)) => true,
+        Some(ClosedReach::Beside) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a closed edge along a germ lies in the plane of the face the germ runs \
+                       in, outside its trim",
+            });
+        }
+    };
+    Ok(if on {
+        super::Locus::OnEdge(e.edge)
+    } else {
+        super::Locus::InFace(side.sector.face)
     })
 }
 
@@ -1575,13 +1604,12 @@ pub(super) fn germ_locus<T: Decide>(
 /// partner's face ([`runs_in`]). The other germ is only tangent to its
 /// edge, and lies in the face its curve enters ([`tangent_face`]). Two
 /// edges recorded alike that the face test does not separate stay
-/// `OnEdge` both. A closed edge's far end is the site itself, so its
-/// midpoint is read in its far end's place ([`closed_reach`]), from
-/// geometry where an open edge's far end is read from the records.
-/// Two closed edges take the reading only where both midpoints read,
-/// and not both on the partner's boundary; otherwise their far ends,
-/// both the site, are a vertex pair and they are one segment
-/// ([`one_segment`]), as before the reading.
+/// `OnEdge` both. A closed edge's far end is the site itself, so where
+/// it runs is read from its carrier in its far end's place
+/// ([`closed_reach`]), against every face around the partner's site,
+/// where an open edge's far end is read from the records. Two closed
+/// edges both on the partner's boundary are one segment
+/// ([`one_segment`]).
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
@@ -1591,9 +1619,18 @@ pub(super) fn germ_loci<T: Decide>(
 ) -> Result<(super::Locus, super::Locus), BooleanError> {
     use super::Locus::{InFace, OnEdge};
     let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
-        return Ok((germ_locus(a, contacts)?, germ_locus(b, contacts)?));
+        return Ok((
+            germ_locus(a, (b.body, b.sector.face), contacts, band)?,
+            germ_locus(b, (a.body, a.sector.face), contacts, band)?,
+        ));
     };
-    let (ca, cb) = (closed_reach(a, ea, b, band)?, closed_reach(b, eb, a, band)?);
+    let reach = |side: GermSide<'_, T>, e: Along, partner: GermSide<'_, T>| {
+        let faces = faces_at(partner.body, partner.site).map_err(stale_site)?;
+        Ok::<_, BooleanError>(
+            closed_reach(side, e, (partner.body, &faces), band)?.map(ClosedReach::touch),
+        )
+    };
+    let (ca, cb) = (reach(a, ea, b)?, reach(b, eb, a)?);
     let (ta, tb) = match (ca, cb) {
         (Some((Touch::Boundary, _)), Some((Touch::Boundary, _))) => {
             return one_segment(a, ea, b, eb, declared);
@@ -1629,7 +1666,10 @@ pub(super) fn germ_loci<T: Decide>(
             (InFace(a.sector.face), InFace(b.sector.face))
         }
         core::cmp::Ordering::Equal => {
-            match (runs_in(a, ea, b, eb, band)?, runs_in(b, eb, a, ea, band)?) {
+            match (
+                runs_in((a, ea, ca), (b, eb), band)?,
+                runs_in((b, eb, cb), (a, ea), band)?,
+            ) {
                 (Some(true), Some(false)) => (OnEdge(ea.edge), tangent(b, a, ea)?),
                 (Some(false), Some(true)) => (tangent(a, b, eb)?, OnEdge(eb.edge)),
                 _ => (OnEdge(ea.edge), OnEdge(eb.edge)),
@@ -1678,8 +1718,7 @@ fn germ_curve<T: Decide>(
 ///
 /// Two closed edges (each one vertex, both its ends) pair their far
 /// ends, the site, always: [`germ_loci`] asks [`closed_reach`] first,
-/// and comes here where both midpoints lie on the partner's boundary or
-/// either is not read.
+/// and comes here where both run along the partner's boundary.
 fn one_segment<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,
@@ -1700,6 +1739,7 @@ fn one_segment<T: Decide>(
                         .body
                         .split_root(e.edge, |_| false)
                         .map_err(BooleanError::SplitLineage)?,
+                    closed: false,
                 });
             }
         }
@@ -1761,47 +1801,95 @@ fn same_construction<T: Decide>(
             .any(|&[b0, b1]| one(a0, b0) && one(a1, b1)))
 }
 
-/// **Where a closed edge leaving the site lies against the partner**:
-/// its far end is the site itself, so what the reduction recorded there
-/// says nothing of the edge. Its midpoint is read instead, where its
-/// two-arc form's far vertex would be, but from geometry rather than
-/// from the reduction's records: against each planar face around the
-/// partner's site whose plane holds it ([`on_planar_face`]), inside one
-/// ([`Touch::Face`], with that face), on one's boundary within the band
-/// ([`Touch::Boundary`]: the edge runs along the partner's boundary
-/// there, as a far vertex paired with the partner's would), or outside
-/// every one ([`Touch::Apart`]). The sweep splits an edge at every
-/// crossing of the partner, so the midpoint speaks for the whole edge.
-/// `None` where `e` is not closed, is not a circle (no join arm copies
-/// another closed carrier, so its pair reads as [`one_segment`] reads
-/// it), or no planar face there holds the midpoint's plane: a curved
-/// partner is not read.
+/// Where a closed edge leaving the site runs against the partner
+/// ([`closed_reach`]).
+#[derive(Clone, Copy)]
+enum ClosedReach {
+    /// On the carrier of none of the faces read: it only touches the germ
+    /// at the site.
+    Off,
+    /// In a planar face's plane, outside its trim.
+    Beside,
+    /// Along the partner: inside a planar face ([`Touch::Face`], with that
+    /// face), or on one's boundary or on a curved face's carrier
+    /// ([`Touch::Boundary`]).
+    On(Touch, Option<FaceKey>),
+}
+
+/// A closed edge's reading as ranked ([`ClosedReach::touch`]): the
+/// touch, and the face holding it where one does.
+type ClosedTouch = (Touch, Option<FaceKey>);
+
+impl ClosedReach {
+    /// The reading ranked as an open edge's far end is ([`Touch`]).
+    fn touch(self) -> ClosedTouch {
+        match self {
+            Self::Off | Self::Beside => (Touch::Apart, None),
+            Self::On(touch, face) => (touch, face),
+        }
+    }
+}
+
+/// **Where a closed edge leaving the site runs against the partner's
+/// `faces`**: its far end is the site itself, so what the reduction
+/// recorded there says nothing of the edge, and its own carrier is read
+/// instead: whether it lies on each face's surface
+/// ([`super::slit::carrier_on_surface`], at points spread over the whole
+/// turn, enough that a carrier merely meeting the surface cannot pass),
+/// and on a plane, where its midpoint sits in the face's trim
+/// ([`in_trim`]), where its two-arc form's far vertex would be. Inside
+/// one face decides; else on a plane's trim boundary or a curved face's
+/// carrier, whose trim is not placed, reads as running along the
+/// partner's boundary there, as a far vertex paired with the partner's
+/// would; else in a plane outside its trim; else off. `None` where `e`
+/// is not closed at the site.
+///
+/// # Errors
+///
+/// [`BooleanError::GermEdgeCarrierUnsupported`] where no face reads it
+/// inside and some face's surface is one the reading does not take
+/// against the edge's carrier (a spline on either side); the reading's
+/// own escalations, and a trim the walk cannot read.
 fn closed_reach<T: Decide>(
     side: GermSide<'_, T>,
     e: Along,
-    partner: GermSide<'_, T>,
+    (body, faces): (&Body<T>, &[FaceKey]),
     band: Band,
-) -> Result<Option<(Touch, Option<FaceKey>)>, BooleanError> {
+) -> Result<Option<ClosedReach>, BooleanError> {
     if !site_of(side.body, e.far)?.contains(&side.site) {
         return Ok(None);
     }
     let curve = germ_curve(side.body, e.edge)?;
-    if !matches!(curve.carrier(), geom::Curve3::Circle { .. }) {
-        return Ok(None);
-    }
     let p = curve.mid_point();
-    let mut reach = None;
-    for face in faces_at(partner.body, partner.site).map_err(stale_site)? {
-        match on_planar_face(partner.body, face, p, band)? {
-            PlaneRead::Inside => return Ok(Some((Touch::Face, Some(face)))),
-            PlaneRead::Outside => {
-                reach.get_or_insert((Touch::Apart, None));
-            }
-            PlaneRead::OnBoundary => reach = Some((Touch::Boundary, None)),
-            PlaneRead::NotPlane | PlaneRead::OffPlane => {}
+    let (mut reach, mut unread) = (ClosedReach::Off, false);
+    for &face in faces {
+        match super::slit::carrier_on_surface(body, curve.carrier(), curve.params(), face, band)? {
+            None => unread = true,
+            Some(false) => {}
+            Some(true) => match in_trim(body, face, p, band)? {
+                Some(PlaneRead::Inside) => {
+                    return Ok(Some(ClosedReach::On(Touch::Face, Some(face))));
+                }
+                Some(PlaneRead::Outside) => {
+                    if matches!(reach, ClosedReach::Off) {
+                        reach = ClosedReach::Beside;
+                    }
+                }
+                _ => reach = ClosedReach::On(Touch::Boundary, None),
+            },
         }
     }
-    Ok(reach)
+    if unread {
+        return Err(BooleanError::GermEdgeCarrierUnsupported {
+            operand: side.operand,
+            edge: side
+                .body
+                .split_root(e.edge, |_| false)
+                .map_err(BooleanError::SplitLineage)?,
+            closed: true,
+        });
+    }
+    Ok(Some(reach))
 }
 
 /// Where a point lies against a face read as a plane
@@ -1830,7 +1918,7 @@ fn on_planar_face<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<PlaneRead, BooleanError> {
-    use super::solid_contain::{PointInSolidError, face_plane, point_in_face};
+    use super::solid_contain::{PointInSolidError, face_plane};
     let (origin, normal) = match face_plane(body, face) {
         Ok(plane) => plane,
         Err(PointInSolidError::KindUnsupported { .. }) => return Ok(PlaneRead::NotPlane),
@@ -1843,8 +1931,38 @@ fn on_planar_face<T: Decide>(
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(PlaneRead::OffPlane),
     }
+    trim_read(body, face, normal, p, band)
+}
+
+/// **Where `p`, on the plane of `face`, sits in its trim**
+/// ([`super::solid_contain::point_in_face`]); `None` where the face is
+/// not a plane. A trim the walk cannot read is refused.
+fn in_trim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<PlaneRead>, BooleanError> {
+    use super::solid_contain::{PointInSolidError, face_plane};
+    match face_plane(body, face) {
+        Ok((_, normal)) => trim_read(body, face, normal, p, band).map(Some),
+        Err(PointInSolidError::KindUnsupported { .. }) => Ok(None),
+        Err(e) => Err(BooleanError::Containment(e)),
+    }
+}
+
+/// [`in_trim`] on the face's plane normal `normal`.
+fn trim_read<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<PlaneRead, BooleanError> {
     Ok(
-        match point_in_face(body, face, normal, p, band).map_err(BooleanError::Containment)? {
+        match super::solid_contain::point_in_face(body, face, normal, p, band)
+            .map_err(BooleanError::Containment)?
+        {
             Some(true) => PlaneRead::Inside,
             Some(false) => PlaneRead::Outside,
             None => PlaneRead::OnBoundary,
@@ -1854,17 +1972,17 @@ fn on_planar_face<T: Decide>(
 
 /// Whether the edge `e` of `side`, past the site, runs inside the face
 /// of `partner` the germ runs along: the face across the partner's own
-/// edge `pe` from its sector's face. Its midpoint is decided on that
-/// face's plane and inside its trim ([`on_planar_face`]); the sweep
-/// splits an edge at every crossing of the partner, so the midpoint
-/// speaks for the whole edge. `None`: undecided — a midpoint on the
-/// face's boundary, a face that is not a plane, or no single face across
-/// `pe`. A trim the walk cannot read is refused.
+/// edge `pe` from its sector's face. An open edge's midpoint is decided
+/// on that face's plane and inside its trim ([`on_planar_face`]): the
+/// sweep splits an edge where it crosses the partner's trim, so the
+/// midpoint speaks for the whole edge. A closed edge, `closed` its
+/// reading ([`closed_reach`]), answers by the face that reading holds it
+/// in. `None`: undecided — a midpoint or a closed edge on the face's
+/// boundary, a face that is not a plane, or no single face across `pe`.
+/// A trim the walk cannot read is refused.
 fn runs_in<T: Decide>(
-    side: GermSide<'_, T>,
-    e: Along,
-    partner: GermSide<'_, T>,
-    pe: Along,
+    (side, e, closed): (GermSide<'_, T>, Along, Option<ClosedTouch>),
+    (partner, pe): (GermSide<'_, T>, Along),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
     let pb = partner.body;
@@ -1879,6 +1997,9 @@ fn runs_in<T: Decide>(
     let [face] = faces[..] else {
         return Ok(None);
     };
+    if let Some((_, held)) = closed {
+        return Ok(held.map(|held| held == face));
+    }
     let p = germ_curve(side.body, e.edge)?.mid_point();
     Ok(match on_planar_face(pb, face, p, band)? {
         PlaneRead::Inside => Some(true),
@@ -2411,6 +2532,26 @@ struct RunEdge<T: geom_core::Real> {
     far: Vec<VertexKey>,
 }
 
+/// **The edge bound of `s`'s corner** that its sectors chain from:
+/// with `arrival`, the bound the corner's first sector ends on (its own
+/// half-edge's departure, the CCW-last bound); else the one its last
+/// sector starts on (the next half-edge's departure). `None` where the
+/// sectors hold no such bound of the corner.
+pub(super) fn corner_edge_bound<T: geom_core::Real>(
+    sectors: &[BoolSector<T>],
+    s: &BoolSector<T>,
+    arrival: bool,
+) -> Option<(Vec3<T>, Reach<T>)> {
+    let mut corner = sectors.iter().filter(|o| o.he == s.he && o.face == s.face);
+    if arrival {
+        corner.find(|o| o.end_edge()).map(|o| (o.end, o.end_reach))
+    } else {
+        corner
+            .find(|o| o.start_edge())
+            .map(|o| (o.start, o.start_reach))
+    }
+}
+
 /// The edge across `corner` from its `start` bound (or its end), where
 /// it is an open line or an arc of at most a half-turn
 /// ([`within_half_turn`], [`coincident_run`]).
@@ -2420,16 +2561,11 @@ fn far_edge<T: Decide>(
     band: Band,
 ) -> Result<Option<RunEdge<T>>, BooleanError> {
     let (body, s) = (corner.body, corner.sector);
-    let same = |o: &&BoolSector<T>| o.he == s.he && o.face == s.face;
-    let (he, bound) = if start {
-        let bound = corner.sectors.iter().filter(same).find(|o| o.end_edge());
-        (s.he, bound.map(|o| (o.end, o.end_reach)))
+    let bound = corner_edge_bound(corner.sectors, s, start);
+    let he = if start {
+        s.he
     } else {
-        let bound = corner.sectors.iter().filter(same).find(|o| o.start_edge());
-        (
-            body.proven_orbit_step(s.he),
-            bound.map(|o| (o.start, o.start_reach)),
-        )
+        body.proven_orbit_step(s.he)
     };
     let Some((dir, reach)) = bound else {
         return Ok(None);

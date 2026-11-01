@@ -22,14 +22,14 @@ tangent at `(0.3, 0, 0)`.
 ## What it reads
 
 In the one-segment form the union refuses typed in both orders, at
-rest and turned, as `main` does:
-
-- vertices there (hole `π`, boss `0`): `GermEdgeCarrierUnsupported`
-  (`boolean/sectors.rs` `one_segment`: a closed edge that is not a line
-  or a circle);
-- the boss's there alone (both `0`): `Join(SingleSiteSectionLoop { count: 1 })`
-  (`boolean/join.rs` `closes_at_its_site`: a closed edge that is not a
-  circle has no copy).
+rest and turned, with both vertices there (hole `π`, boss `0`) and with
+the boss's there alone (both `0`): `Join(SingleSiteSectionLoop { count: 1 })`
+(`boolean/join.rs` `closes_at_its_site`: a closed edge that is not a
+circle has no copy). Each closed rim's germ is read from its own
+carrier against the other's faces (`boolean/sectors.rs` `closed_reach`,
+since PR 6177); before, with both vertices there, the two rims read as
+one segment and refused `GermEdgeCarrierUnsupported` (`one_segment`: a
+closed edge that is not a line or a circle).
 
 Pinned by `one_segment_ellipse_rims_tangent_outside_refuse_the_union_typed`.
 The two-arc form's union builds at the closed form but fails tier 3′

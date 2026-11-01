@@ -1011,6 +1011,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     }
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
+    // `ops::OnDeferred::answered` relies on what follows: a pierce whose
+    // lumped classes read two sides mints its null edges or refuses, so
+    // a fallback with no null pair saw each such vertex one-sided.
     // "Coplanar" is against the pierced face's TANGENT plane at `p`,
     // whose normal is `n_pierced` — the same vector `face_plane` hands
     // back on a planar face, so the planar lane's margin is unmoved.
@@ -1217,7 +1220,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 sector: s,
                 read: codes,
             },
+            (pierced_body, contact.face),
             contacts,
+            band,
         )?;
         let pierced = super::Locus::InFace(contact.face);
         let cells = match piercing {
@@ -1364,7 +1369,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 let germ =
                     |t: usize, (cells, dir, _): Germ<T>| (super::insert::Cut::apart(t, dir), cells);
                 let facing = super::insert::strut_faces_first(
-                    piercing_body,
                     (piercing, &sectors),
                     (arrival, corner_half.edge),
                     germ((run.0 + n - 1) % n, start_germ),
