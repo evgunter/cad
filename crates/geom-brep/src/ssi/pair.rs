@@ -1308,9 +1308,11 @@ mod r2_ellipse_rows {
     /// first rungs' width on both charts. The rungs whose cover holds the
     /// ellipse read pieces with no sign and are given up; the first that
     /// clears it covers the row alone, and the ellipse is traced. Limb 3
-    /// does not yet prove so thin a loop's tube, so the reading either
-    /// lists one loop beside one `Side` region, or refuses that loop's
-    /// tube: either way the trace reached it. Red against a piece with no
+    /// does not yet prove so thin a loop's tube (and at a coarse ε the
+    /// march reads its two long sides as one locus crossing itself), so
+    /// the reading either lists one loop beside one `Side` region, or
+    /// refuses that loop's tube or its march: either way the trace reached
+    /// it. Red against a piece with no
     /// sign read as signed, at depth on the last rung or on a given-up
     /// rung, either sign: the cover reads clear and swallows the loop (no
     /// loop, no tube refusal), or reads a turn and refuses as a tangency
@@ -1356,7 +1358,11 @@ mod r2_ellipse_rows {
                     r.regions
                 );
             }
-            Err(SsiError::TubeStraddles { .. } | SsiError::TubeNotOneArc { .. }) => {}
+            Err(
+                SsiError::TubeStraddles { .. }
+                | SsiError::TubeNotOneArc { .. }
+                | SsiError::SelfCrossingLocus { .. },
+            ) => {}
             Err(e) => panic!("the ellipse is traced, listed or its tube refused: {e:?}"),
         }
     }
