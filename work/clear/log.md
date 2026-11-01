@@ -322,3 +322,16 @@ Signed: (CARVE orchestrator)
     - `monotone-halves-retest-the-hull-that-just-failed` (P3).
   - The price row is parked on the first two.
   - **Class, recorded:** CLEAR has four filed rows whose enclosure width grows with translation. One home for a rational derivative over a cell is the fix; JETFRAME sweeps for it.
+- 2026-11-01 — **TRV merges (#6233)** with this commit last. The clearance engine refuses what does not certify.
+  - **R1, at the lift.** The lift is now a type, `lift::Lift`, minted only by `certified_lift`, and every reader takes it.
+  - **`poisoned(sep)`** gates the root, pair, witness and overflow reads. `overflow` now poisons as `pair` does, instead of flooring at 0.
+  - **`present_chart`** asks each clip line where it is placed. `present_plane`'s `[e]` arm asks `y`.
+  - **Census:** clearance 25/7, injective 70/27.
+  - **The review.** A single FULL review at `5caee7bf7e` returned APPROVE-WITH-FIXES. Six of its 19 mutants survived, all sub-asks or unpinned gates. It also found that the touch read came before the merge's ask. The fix pass (`838c6136de`) pinned every one; 18 of 18 are now killed. On the way it found that the census lane's reading of the `[e]` arm was right, and withdrew the "row is wrong" claim. The orchestrator read it and accepted it.
+  - **Class, recorded:** for the fourth unit running, the mutant table pinned one coordinate, one end or one site per class. This time it was the sub-asks inside a site.
+  - **Filed:** `injective-reads-past-the-trv-census-decide-on-clamped-enclosures` (P2). SPLICE's census drift was filed separately (#6236).
+- 2026-11-01 — **HEADING merges (#6235)** with this commit last. `bisector` gives the graph separator in `graph_of` and in `plane_through`'s `[d]` case. The twisted-loft seams hold at both scalars, and the tour's `twisted_loft` holds in 3.9 s where it used to refuse after 43 s.
+  - **Tier moved from a single review to the orchestrator's read.** `bisector` only chooses the separator, and `sign_on` still decides both signs, so a wrong separator can only refuse, never certify. The diff is two lines plus rows, and the mutants red as stated (a reverted `graph_of`, an added rather than subtracted perpendicular).
+  - **Filed:** `plane-through-line-edge-case-has-no-row-that-tells-the-bisector-from-the-weighted-normal` (P3). It was reached 1707 times across the suites, and the two separators disagree only at the wedge-0 kiss.
+  - **The nightly at ε 1e-6** reds SEAMDIAG's lens-cap row, because the pair now holds there. ZEROSIDE flips that row to holding.
+  - **The parent departure row** now waits on ZEROSIDE alone.
