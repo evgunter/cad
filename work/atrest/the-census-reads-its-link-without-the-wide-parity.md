@@ -25,3 +25,8 @@ The split was made because the census must stay bit-identical while `Gap` needed
 2. **The wide parity** changes a refusal into a reading. It can land with the census goldens at three ε re-blessed, the moved rows named, and `link_fuzz` and `cone_fuzz` green.
 
 Until then the two readings are one module's two modes, and `link::tests::the_link_decides_only_through_its_doors` holds both to one door.
+
+## Note (2026-11-01, ONEREAD)
+
+- Item 2 (the wide parity) is taken by ONEREAD's `the-link-splits-into-a-cone-and-a-link`, with the census goldens re-blessed; item 1 stays here.
+- Evidence on item 1, measured by a ONEREAD designer on `cone_fuzz` (seed `0xa92fdc75aec72e5a`, effort 1): reading with `Reading::own` decides 86 of 998 probes in band at ε 1e-9 (none contradicted by the exact oracle, each wrong under the fuzz's D4 rule). `Gap` publishes `offset`'s sign under that reading, so whether a measure's sign owes D4 may make `own`'s conflation of "at its own distance" with "wide parity" a live question for `Gap` too. (ONEREAD orchestrator)
