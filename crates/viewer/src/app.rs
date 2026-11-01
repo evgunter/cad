@@ -1087,9 +1087,9 @@ impl ViewerApp {
         // describes, and every pick against it is refused. The arms that
         // wait for a build (`Submitted`, `Indexing`) and the one with
         // nothing settled to build (`Nothing`) leave the viewport
-        // drawing the mesh it already has — the one window an older
-        // picture stays, which the indexing indicator names and
-        // `pickcache::unindexed` refuses picks against.
+        // drawing the mesh it already has — an older picture, which the
+        // indexing indicator names and `pickcache::unindexed` refuses
+        // picks against (a canceled run is the other, `CANCELED_LINE`).
         // **The index waits for the budget's answer.** A build
         // submitted at the δ in force while the fit is still pricing
         // the document IS the un-budgeted build the budget exists to
@@ -1933,9 +1933,9 @@ impl ViewerApp {
             // Each is a read of held state — the scene fault kept
             // until a rebuild lands, the pick cache's own held
             // refusal or the copies its index could not draw, the
-            // projection the viewport could not form — so each stands for as long as the picture is stale
-            // rather than until the next acting batch sweeps a
-            // line. What a pick aimed at the missing index gets is
+            // projection the viewport could not form — so each stands
+            // for as long as what it reads holds, rather than until the
+            // next acting batch sweeps a line. What a pick aimed at the missing index gets is
             // still the line's, because that is an outcome
             // (`frame::unindexed_refusal`).
             for badge in [
@@ -6185,24 +6185,6 @@ mod properties_pane_tests {
     /// seam here refuses every build it answers.
     #[test]
     fn a_whole_index_refusal_clears_the_picture() {
-        struct Refusing(crate::evalseam::InlineIndexer);
-        impl crate::evalseam::IndexService for Refusing {
-            fn submit(&mut self, request: crate::evalseam::IndexRequest) {
-                self.0.submit(request);
-            }
-            fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
-                self.0.poll().map(|mut done| {
-                    done.index = Err(crate::pickindex::PickIndexError::DrawnTwice {
-                        node: extrude(),
-                        body: 0,
-                    });
-                    done
-                })
-            }
-            fn busy(&self) -> bool {
-                self.0.busy()
-            }
-        }
         let mut driven = Driven::with(Vec::new());
         driven.settle();
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
@@ -6210,9 +6192,9 @@ mod properties_pane_tests {
             driven.app.scene.stats().triangles > 0 && driven.app.scene_key.is_some(),
             "the premise: the plate is drawn from an index"
         );
-        driven.app.picks = crate::pickcache::PickCache::new(Box::new(Refusing(
-            crate::evalseam::InlineIndexer::new(),
-        )));
+        let (refusing, _) =
+            crate::test_support::RefusingIndexer::new(crate::evalseam::InlineIndexer::new());
+        driven.app.picks = crate::pickcache::PickCache::new(Box::new(refusing));
         driven.settle();
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
         assert!(driven.app.picks.error().is_some(), "the refusal is held");

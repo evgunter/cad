@@ -1567,8 +1567,9 @@ only where the feature tree draws no `Failed` or `Poisoned` row for it
 The index refuses as a whole only for a fault of its own (`Ids`,
 `DrawnTwice`, `Names`), and `sync_scene` then puts
 `SceneMesh::nothing` on screen with no `PictureKey`, under the badge,
-as it does under a refused scene rebuild; the build-in-flight window
-is the one time an older picture stays.
+as it does under a refused scene rebuild. An older picture stays only
+while a build is in flight, or after a canceled evaluation, which the
+toolbar says (`app::CANCELED_LINE`).
 
 **So a pane sorts its reads of the index by what they are about**, and
 the sorting is a rule about currency rather than about which fields

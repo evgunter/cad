@@ -701,14 +701,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "patch_names(",
-            "a `PickIndexError::Names`, unreachable on this path: a part exists only for a \
-             node with a value",
+            "a `PickIndexError::Names` refuses the whole index, and `frame::index_badge` \
+             says it Actionable in its own words: louder than the tree, never quieter",
         ),
         (
             "pickindex.rs",
             "boundary_names(",
-            "a `PickIndexError::Names`, unreachable on this path: a part exists only for a \
-             node with a value",
+            "a `PickIndexError::Names` refuses the whole index, and `frame::index_badge` \
+             says it Actionable in its own words: louder than the tree, never quieter",
         ),
         (
             "pickindex.rs",

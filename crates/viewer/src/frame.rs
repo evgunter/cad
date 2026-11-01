@@ -2658,13 +2658,9 @@ pub fn index_badge(
     index: Option<&PickIndex>,
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Option<Badge> {
+    let by = landed_speaker(landed);
     if let Some(error) = error {
-        let said = match landed {
-            Some((landed, evaluation)) => {
-                Said(error, Speaker::of(landed).within(evaluation)).to_string()
-            }
-            None => error.to_string(),
-        };
+        let said = Said(error, by);
         return Some(Badge::read(
             PickIndexError::SUBJECT,
             format!("pick index: {said} — nothing is drawn or picked until the index builds"),
@@ -2679,12 +2675,7 @@ pub fn index_badge(
                 crate::tree::cause_row(copy.node(), evaluation).is_none()
             })
         })
-        .map(|copy| match landed {
-            Some((landed, evaluation)) => {
-                Said(copy, Speaker::of(landed).within(evaluation)).to_string()
-            }
-            None => copy.to_string(),
-        })
+        .map(|copy| Said(copy, by).to_string())
         .collect();
     let first = unreported.first()?;
     let label = match unreported.len() {
@@ -2692,6 +2683,17 @@ pub fn index_badge(
         n => format!("picture: {first} (and {} more copies not drawn)", n - 1),
     };
     Some(Badge::read(UndrawnCopy::SUBJECT, label, Tone::Actionable).detailed(unreported.join("\n")))
+}
+
+/// **The speaker for a value built from the landed run**: each node as
+/// the landed document holds it, each name within its evaluation's
+/// tables — and each node by its tag where nothing has landed.
+pub fn landed_speaker<'a>(
+    landed: Option<(&'a Doc<ProfileProgram>, &'a Evaluation<f64>)>,
+) -> Speaker<'a> {
+    landed.map_or(Speaker::TAG, |(doc, evaluation)| {
+        Speaker::of(doc).within(evaluation)
+    })
 }
 
 /// **What the chrome badges about a camera that cannot be

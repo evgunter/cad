@@ -2793,6 +2793,62 @@ mod tests {
         }
     }
 
+    /// **A copy that has a value and cannot be drawn is said loudly**:
+    /// no tree row reports it, so the badge names the copy, in the
+    /// build's own words, `Actionable`. No document reaches such a
+    /// refusal today, so the plate's one copy is built through the
+    /// index's own walk with its build answering a tessellation refusal.
+    #[test]
+    fn a_copy_with_a_value_that_cannot_be_drawn_is_said_loudly() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+        let eval = pncad::document::evaluate(
+            &doc,
+            None,
+            &pncad::document::CancelToken::default(),
+            &pncad::document::EvalOptions::default(),
+            tol,
+        );
+        let copy = *doc.placements().first().expect("the plate is placed");
+        let refusal =
+            NodePickError::Tessellate(pncad::mesh::TessellateError::InvalidChordalTolerance {
+                value: 0.0,
+            });
+        let index = PickIndex::assemble(
+            &doc,
+            &eval,
+            PictureKey::of(
+                crate::generation::Generation::FIRST,
+                crate::test_support::plate_delta(),
+            ),
+            |_| Err(refusal.clone()),
+        )
+        .expect("a copy that cannot be drawn does not refuse the index");
+        assert!(index.parts().is_empty(), "the copy is not drawn");
+        let badge = crate::frame::index_badge(None, Some(&index), Some((&doc, &eval)))
+            .expect("the copy has a value, so no tree row reports it: the badge does");
+        assert_eq!(badge.tone(), crate::frame::Tone::Actionable);
+        assert_eq!(
+            badge.label(),
+            format!(
+                "picture: {}",
+                Said(
+                    &UndrawnCopy {
+                        node: copy,
+                        error: refusal
+                    },
+                    Speaker::of(&doc).within(&eval)
+                )
+            ),
+            "the copy, by name, in the build's own words"
+        );
+        assert!(
+            badge.label().contains(&doc.spoken(copy).to_string()),
+            "the label names the copy: {}",
+            badge.label()
+        );
+    }
+
     /// **Each patch-name refusal says the id and what it is**: the
     /// clear value as nothing, an id the index never assigned as that,
     /// and an unnamed patch as a drawn one with the naming layer's own

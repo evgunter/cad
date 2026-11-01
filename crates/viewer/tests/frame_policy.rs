@@ -2470,14 +2470,11 @@ fn the_highlight_narrows_a_copys_name_to_exactly_one_id() {
 /// cache that submits once are indistinguishable from the outside —
 /// both end with one index — unless something counts the submits.
 ///
-/// It can also be told to answer every build from then on with a
-/// refusal of the index as a whole: such a refusal is a fault of the
-/// index itself, which no document produces, so the retry policy's row
-/// injects one at the seam.
+/// Over [`viewer::test_support::RefusingIndexer`], switched off until a
+/// row turns it on.
 struct CountingIndexer {
-    inner: InlineIndexer,
+    inner: viewer::test_support::RefusingIndexer<InlineIndexer>,
     submits: Arc<AtomicUsize>,
-    refusing: Arc<AtomicBool>,
 }
 
 impl CountingIndexer {
@@ -2488,12 +2485,12 @@ impl CountingIndexer {
 
     fn refusable() -> (Box<Self>, Arc<AtomicUsize>, Arc<AtomicBool>) {
         let submits = Arc::new(AtomicUsize::new(0));
-        let refusing = Arc::new(AtomicBool::new(false));
+        let (inner, refusing) = viewer::test_support::RefusingIndexer::new(InlineIndexer::new());
+        refusing.store(false, Ordering::Relaxed);
         (
             Box::new(Self {
-                inner: InlineIndexer::new(),
+                inner,
                 submits: Arc::clone(&submits),
-                refusing: Arc::clone(&refusing),
             }),
             submits,
             refusing,
@@ -2508,14 +2505,7 @@ impl IndexService for CountingIndexer {
     }
 
     fn poll(&mut self) -> Option<IndexDone> {
-        let mut done = self.inner.poll()?;
-        if self.refusing.load(Ordering::Relaxed) {
-            done.index = Err(pickindex::PickIndexError::DrawnTwice {
-                node: RecipeNodeId::new(0, tagged(3)),
-                body: 0,
-            });
-        }
-        Some(done)
+        self.inner.poll()
     }
 
     fn busy(&self) -> bool {
@@ -3030,11 +3020,11 @@ fn a_click_with_no_index_refuses_typed_and_a_hover_stays_quiet() {
 /// **An index in hand for a picture nobody has seen is refused as
 /// itself**, not as an absence — Ev's ruling, 2026-09-15.
 ///
-/// `ViewerApp::sync_scene` marks the scene's `(generation, δ)` pair
-/// current only on a successful rebuild, so a landing over a refused
-/// one leaves a newer index beside an older picture. Answering from it
-/// selects geometry the screen is not showing; the ruling is that the
-/// click says so instead.
+/// `ViewerApp::sync_scene` keys the scene to an index only on a
+/// successful rebuild, so a landing over a refused one leaves an index
+/// beside a picture it did not mint. Answering from it selects geometry
+/// the screen is not showing; the ruling is that the click says so
+/// instead.
 ///
 /// The sentence is asserted against the other two rather than quoted:
 /// what a reader needs from it is that it does not promise an arriving
