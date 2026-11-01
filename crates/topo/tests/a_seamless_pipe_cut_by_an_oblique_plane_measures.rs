@@ -447,7 +447,7 @@ fn injectivity<T: Decide + Bounds + CertifiedBounds>(
             }
         }
         let (w, d) = best.ok_or("no station")?;
-        match decide(bound.predicate(), Margin::of(d - at(bound.c())), band) {
+        match decide(bound.predicate(), Margin::of(d - at(0.0)), band) {
             Ok(Sign::Negative | Sign::Zero) => Ok(w),
             _ => Err(format!("the closest station pair is {} apart", w.d)),
         }
@@ -463,6 +463,8 @@ fn class<W>(verdict: &topo::clearance::BoundVerdict<W>) -> String {
     match verdict {
         BoundVerdict::Holds => "Holds".to_owned(),
         BoundVerdict::Violated(_) => "Violated".to_owned(),
+        BoundVerdict::Within(_) => "Within".to_owned(),
+        BoundVerdict::Exceeded => "Exceeded".to_owned(),
         BoundVerdict::Refused(EngineRefusal::Uncertified { shared, arm, .. }) => {
             let cell = match shared {
                 SharedCell::Vertex(_) => "vertex",

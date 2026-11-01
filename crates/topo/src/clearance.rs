@@ -189,13 +189,30 @@ pub const CUSP_DEPTH: u32 = 10;
 /// never truth.
 pub const DEFAULT_MAX_MIN_SEP_PAIRS: usize = 512;
 
-/// Which question the engine is answering — the two readings of a
-/// definite `Sign::Zero`, each at its own funnel site.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// **Which question the engine is answering**: a clearance bounded
+/// below, above or both, or E7's self-intersection question.
+///
+/// A clearance bound is an ENCLOSURE: the bound a document writes is a
+/// length formula, evaluated at the certifying scalar over the run's
+/// box, and every margin is taken against all of it. `= c` is
+/// [`Self::Within`] with `lo = hi = c`.
+#[derive(Debug, Clone, Copy)]
 pub enum ClearanceBound {
-    /// `separation ≥ c` (metres), non-strict: a separation equal to `c`
-    /// at the run's tolerance HOLDS. The assertion lane's convention.
-    AtLeast(f64),
+    /// `separation ≥ lo`, non-strict: a separation equal to the bound
+    /// at the run's tolerance HOLDS.
+    AtLeast(Interval),
+    /// `separation ≤ hi`, non-strict: it holds when one verified pair
+    /// of face points lies within `hi`, and is violated when every cell
+    /// pair is certified clear of it.
+    AtMost(Interval),
+    /// `lo ≤ separation ≤ hi`: both questions, classified in ONE
+    /// subdivision.
+    Within {
+        /// The lower bound.
+        lo: Interval,
+        /// The upper bound.
+        hi: Interval,
+    },
     /// Strictly positive separation — E7's self-intersection question.
     /// A coincidence at the run's tolerance is a VIOLATION, not a
     /// discharge.
@@ -203,25 +220,126 @@ pub enum ClearanceBound {
 }
 
 impl ClearanceBound {
-    /// The metre bound the margin is taken against.
-    pub fn c(self) -> f64 {
+    /// `separation ≥ c` at an exact `c`.
+    #[must_use]
+    pub fn at_least(c: f64) -> Self {
+        Self::AtLeast(Interval::from_f64(c))
+    }
+
+    /// The lower bound a cell pair's separation is decided against:
+    /// `0` for the strict question, `None` where only an upper bound is
+    /// asked.
+    #[must_use]
+    pub fn lower(self) -> Option<Interval> {
         match self {
-            Self::AtLeast(c) => c,
-            Self::StrictlyPositive => 0.0,
+            Self::AtLeast(lo) | Self::Within { lo, .. } => Some(lo),
+            Self::StrictlyPositive => Some(Interval::from_f64(0.0)),
+            Self::AtMost(_) => None,
         }
+    }
+
+    /// The upper bound, where one is asked.
+    #[must_use]
+    pub fn upper(self) -> Option<Interval> {
+        match self {
+            Self::AtMost(hi) | Self::Within { hi, .. } => Some(hi),
+            Self::AtLeast(_) | Self::StrictlyPositive => None,
+        }
+    }
+
+    /// The farthest a bound reaches: the upper end of the larger bound.
+    /// A pair separated by more than this, plus the band, decides every
+    /// question the bound asks without being examined.
+    fn reach(self) -> f64 {
+        [self.lower(), self.upper()]
+            .into_iter()
+            .flatten()
+            .map(Interval::hi)
+            .fold(0.0, f64::max)
     }
 
     /// The funnel site this bound decides at.
     pub fn predicate(self) -> &'static str {
         match self {
-            Self::AtLeast(_) => CLEARANCE_MARGIN,
+            Self::AtLeast(_) | Self::AtMost(_) | Self::Within { .. } => CLEARANCE_MARGIN,
             Self::StrictlyPositive => SELF_INTERSECTION_GAP,
         }
     }
 
-    /// Whether a definite `Zero` discharges (see the two site docs).
+    /// Whether a definite `Zero` against the lower bound discharges
+    /// (see the two site docs).
     pub fn zero_discharges(self) -> bool {
-        matches!(self, Self::AtLeast(_))
+        !matches!(self, Self::StrictlyPositive)
+    }
+}
+
+/// **What a [`Candidate`] is offered for**: the question its verifier
+/// confirms or declines.
+#[derive(Debug, Clone, Copy)]
+pub enum Ask {
+    /// A pair of face points closer than the lower bound — a violation.
+    /// `strict` is the self-intersection question, whose violation is a
+    /// coincidence: a definite `Zero` violates it.
+    Below {
+        /// The lower bound.
+        bound: Interval,
+        /// Whether a definite `Zero` violates.
+        strict: bool,
+    },
+    /// A pair of face points within the upper bound — its proof.
+    Within {
+        /// The upper bound.
+        bound: Interval,
+    },
+}
+
+impl Ask {
+    /// The bound this question is decided against.
+    #[must_use]
+    pub fn bound(self) -> Interval {
+        match self {
+            Self::Below { bound, .. } | Self::Within { bound } => bound,
+        }
+    }
+
+    /// **Whether a measured separation `d` answers this question**,
+    /// decided at the bound's own funnel site with the run's band: `d`
+    /// definitely below the lower bound (or definitely `0` under the
+    /// strict question), or definitely within the upper one. The one
+    /// rule every verifier applies to the pair it found.
+    ///
+    /// # Errors
+    ///
+    /// The funnel's indeterminacy, or the definite sign that does not
+    /// answer, in words.
+    pub fn confirms(self, d: Interval, band: Band) -> Result<(), String> {
+        let (predicate, margin) = match self {
+            Self::Below { bound, strict } => (
+                if strict {
+                    SELF_INTERSECTION_GAP
+                } else {
+                    CLEARANCE_MARGIN
+                },
+                d - bound,
+            ),
+            Self::Within { bound } => (CLEARANCE_MARGIN, d - bound),
+        };
+        let sign = decide(predicate, Margin::of(margin), band).map_err(|source| {
+            format!("the separation {d:?} against {:?}: {source}", self.bound())
+        })?;
+        let answers = match (self, sign) {
+            (Self::Below { .. }, Sign::Negative)
+            | (Self::Below { strict: true, .. }, Sign::Zero)
+            | (Self::Within { .. }, Sign::Negative | Sign::Zero) => true,
+            (Self::Below { .. } | Self::Within { .. }, _) => false,
+        };
+        if answers {
+            Ok(())
+        } else {
+            Err(format!(
+                "the separation {d:?} does not answer {self:?} at this run's tolerance"
+            ))
+        }
     }
 }
 
@@ -691,15 +809,16 @@ pub fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
 /// into two, or into three where the injective walk splits a cell
 /// against itself — and `splits` counts each split's children less
 /// one. A forest of `candidates` trees counted so has exactly
-/// `splits + candidates` leaves, and every leaf is in one of the four
+/// `splits + candidates` leaves, and every leaf is in one of the five
 /// buckets. It rides the shipped report, so a consumer re-checks it
 /// without trusting this module ([`CellReceipt::holds`]).
 ///
 /// **`abandoned` is what the walk did not examine, spelled rather than
 /// hidden.** Calling it `refused` would claim it was tried. The bound
 /// sweep abandons the frontier it held when it stops at a verified
-/// violation, so a bound query that runs to completion has
-/// `abandoned == 0`. [`min_separation`] abandons a level that does not
+/// violation, and a pair that only an upper bound still wanted once
+/// that bound is proved, so a bound query that runs to completion with
+/// no upper bound has `abandoned == 0`. [`min_separation`] abandons a level that does not
 /// fit its pair budget and prices it into the bracket, so a completed
 /// bracket can carry `abandoned > 0`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -714,6 +833,9 @@ pub struct CellReceipt {
     pub discharged: usize,
     /// Cell pairs whose separation definitely violates it.
     pub violated: usize,
+    /// Cell pairs whose separation lies definitely within an upper
+    /// bound: offered to the verifier as its proof.
+    pub within: usize,
     /// Cell pairs refused, typed.
     pub refused: usize,
     /// Cell pairs that were split.
@@ -750,7 +872,7 @@ pub struct CellReceipt {
 impl CellReceipt {
     /// The receipt identity (see the type docs).
     pub fn holds(&self) -> bool {
-        self.discharged + self.violated + self.refused + self.abandoned
+        self.discharged + self.violated + self.within + self.refused + self.abandoned
             == self.splits + self.candidates
     }
 
@@ -795,6 +917,7 @@ impl CellReceipt {
             candidates: self.candidates + other.candidates,
             discharged: self.discharged + other.discharged,
             violated: self.violated + other.violated,
+            within: self.within + other.within,
             refused: self.refused + other.refused,
             splits: self.splits + other.splits,
             outside: self.outside + other.outside,
@@ -884,7 +1007,7 @@ impl Budgets {
 
 /// **The bound question's walk**: the question, the band it is decided
 /// at, and the two budgets.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy)]
 pub struct Sweep {
     /// Which question ([`ClearanceBound`]).
     pub bound: ClearanceBound,
@@ -927,14 +1050,27 @@ pub struct BoundReport<W> {
     pub decided: usize,
 }
 
-/// The E7 trichotomy, with the verifier's witness in the violated arm.
+/// **The E7 trichotomy**, with the verifier's witness where a pair
+/// answers: the holding arms, the violated arms, and the typed refusal.
+///
+/// A lower bound's violation outranks everything: a pair closer than
+/// the lower bound is closer than any upper one too. A refusal outranks
+/// a holding answer, which is never presented over an unknown.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BoundVerdict<W> {
-    /// The bound holds over both carrier windows minus the cells decided
-    /// outside their faces.
+    /// A bound with no upper end holds over both carrier windows minus
+    /// the cells decided outside their faces.
     Holds,
-    /// A definite violation, confirmed by the verifier.
+    /// A bound with an upper end holds: any lower end holds as
+    /// [`Self::Holds`] says, and the verifier's pair lies within the
+    /// upper end, which proves it.
+    Within(W),
+    /// A definite violation of the lower bound, confirmed by the
+    /// verifier.
     Violated(W),
+    /// The upper bound is violated: every cell pair is certified clear
+    /// of it, so no pair of the two scopes lies within it.
+    Exceeded,
     /// Typed, never silence.
     Refused(EngineRefusal),
 }
@@ -962,8 +1098,8 @@ pub struct Candidate<'s, 'b, T: Real> {
     /// Two scopes that meet: the cell they meet on, and its station on
     /// each face.
     meeting: Option<(SharedCell, Stations, Stations)>,
-    /// The strict question, whose witness is a coincidence.
-    strict: bool,
+    /// What the verifier is asked to confirm.
+    ask: Ask,
 }
 
 impl<T: Real> Candidate<'_, '_, T> {
@@ -977,6 +1113,12 @@ impl<T: Real> Candidate<'_, '_, T> {
     /// [`Self::on_face_stations`] offers that cell's own stations.
     pub fn meeting(&self) -> Option<SharedCell> {
         self.meeting.as_ref().map(|(cell, _, _)| *cell)
+    }
+
+    /// What this candidate is offered for: a violation of the lower
+    /// bound, or the upper bound's proof.
+    pub fn ask(&self) -> Ask {
+        self.ask
     }
 }
 
@@ -1014,7 +1156,7 @@ impl<T: Decide + CertifiedBounds> Candidate<'_, '_, T> {
         }
         let mut a = admitted(&mut *self.region, false, self.ia, self.x, self.ca);
         let mut b = admitted(&mut *self.region, true, self.ib, self.y, self.cb);
-        if self.strict
+        if matches!(self.ask, Ask::Below { strict: true, .. })
             && let Some((p, q)) = coincidence(self.x, self.ca, &a, self.y, self.cb, &b)
             && Self::placed(&mut *self.region, false, self.ia, self.x, p)
             && Self::placed(&mut *self.region, true, self.ib, self.y, q)
@@ -1132,18 +1274,18 @@ impl Sweep {
         F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     {
         let (wa, wb) = (&wa.of[..], &wb.of[..]);
-        let c = self.bound.c();
-        let injective = same_body && self.bound == ClearanceBound::StrictlyPositive;
+        let injective = same_body && matches!(self.bound, ClearanceBound::StrictlyPositive);
         // **The prune threshold carries the BAND.** The tree excludes a
         // pair on a raw `separation_lo > pad`, and the engine decides
         // through the funnel, which calls anything within `escalate` of
-        // `c` indeterminate. Padding by the band is what makes the two
-        // agree in the only direction that matters: a pair this drops is
-        // separated by more than `c` PLUS the funnel's own escalation
-        // threshold, so it is one the funnel would have discharged
-        // definitely, and a pair inside the band survives to be
-        // classified or refused rather than silently held.
-        let reach = c + self.band.escalate();
+        // a bound indeterminate. Padding the farthest bound by the band
+        // is what makes the two agree in the only direction that
+        // matters: a pair this drops is separated by more than every
+        // bound PLUS the funnel's own escalation threshold, so it is one
+        // the funnel would have decided clear of each, and a pair inside
+        // the band survives to be classified or refused rather than
+        // silently held.
+        let reach = self.bound.reach() + self.band.escalate();
         let root_a: Vec<Cell> = wa.iter().map(Cell::of).collect();
         let root_b: Vec<Cell> = wb.iter().map(Cell::of).collect();
         let cloud = |c: &Cell| [c.enc];
@@ -1186,9 +1328,15 @@ impl Sweep {
             across: BTreeMap::new(),
             cornered: 0,
             widths: DischargeWidths::empty(),
-            first_refusal: None,
+            lower_refusal: None,
+            upper_refusal: None,
             violation: None,
+            within: None,
             verify,
+        };
+        let open = Open {
+            below: self.bound.lower().is_some(),
+            above: self.bound.upper().is_some(),
         };
 
         let mut frontier: Vec<Task> = Vec::with_capacity(candidates.len());
@@ -1209,54 +1357,59 @@ impl Sweep {
             if meets && !injective {
                 // **Two scopes that meet are at distance 0**, read off
                 // topology rather than approached by subdivision: the
-                // whole pair is one leaf, `0 − c` decided at the bound's
-                // own site.
+                // whole pair is one leaf, `0` decided against each bound
+                // at its own site.
                 let cell = if x.face == y.face {
                     SharedCell::Face(x.face)
                 } else {
                     sh.cell(&x.boundary).unwrap_or(SharedCell::Face(x.face))
                 };
-                match decide(
-                    self.bound.predicate(),
-                    Margin::of(Interval::from_bounds(-c, -c)),
-                    self.band,
-                ) {
-                    Ok(Sign::Positive) => receipt.discharged += 1,
-                    Ok(Sign::Zero) if self.bound.zero_discharges() => receipt.discharged += 1,
-                    // An exact margin in the band: no refinement moves a
-                    // distance topology fixed at 0.
-                    Err(source) => {
-                        receipt.refused += 1;
-                        q.first_refusal.get_or_insert(EngineRefusal::Sliver {
-                            predicate: source.predicate.unwrap_or(self.bound.predicate()),
-                        });
-                    }
-                    Ok(Sign::Negative | Sign::Zero) => {
+                let zero = Interval::from_f64(0.0);
+                let stations = meeting_stations(x, y, sh, cell, self.band);
+                let at = Offer {
+                    x,
+                    ca: a,
+                    ia: i,
+                    y,
+                    cb: b,
+                    ib: j,
+                    meeting: Some((cell, stations.0, stations.1)),
+                };
+                let readings = q.read(open, zero);
+                // An exact margin in the band: no refinement moves a
+                // distance topology fixed at 0.
+                let sliver = |r: &Reading| match r {
+                    Reading::Undecided(source) => Some(EngineRefusal::Sliver {
+                        predicate: source.predicate.unwrap_or(CLEARANCE_MARGIN),
+                    }),
+                    _ => None,
+                };
+                if let Some(r) = readings.below.as_ref().and_then(sliver) {
+                    q.lower_refusal.get_or_insert(r);
+                }
+                if let Some(r) = readings.above.as_ref().and_then(sliver) {
+                    q.upper_refusal.get_or_insert(r);
+                }
+                match q.settle(&readings, &at) {
+                    ControlFlow::Break(()) => {
                         receipt.violated += 1;
-                        let stations = meeting_stations(x, y, sh, cell, self.band);
-                        match (q.verify)(Candidate {
-                            x,
-                            ca: a,
-                            ia: i,
-                            y,
-                            cb: b,
-                            ib: j,
-                            region: &mut q.region,
-                            meeting: Some((cell, stations.0, stations.1)),
-                            strict: false,
-                        }) {
-                            Ok(w) => {
-                                q.violation = Some(w);
-                                receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
-                                frontier.clear();
-                                break;
-                            }
-                            Err(what) => {
-                                q.first_refusal
-                                    .get_or_insert(EngineRefusal::WitnessUnverified { what });
-                            }
-                        }
+                        receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
+                        frontier.clear();
+                        break;
                     }
+                    ControlFlow::Continue(Bucket::Discharged)
+                        if [&readings.below, &readings.above]
+                            .into_iter()
+                            .any(|r| matches!(r, Some(Reading::Undecided(_)))) =>
+                    {
+                        receipt.refused += 1;
+                    }
+                    ControlFlow::Continue(bucket) => bucket.count(&mut receipt),
+                }
+                if q.answered() {
+                    receipt.abandoned += (candidates.len() - k - 1) + frontier.len();
+                    frontier.clear();
+                    break;
                 }
                 continue;
             }
@@ -1270,7 +1423,7 @@ impl Sweep {
                     }
                     Err(r) => {
                         receipt.refused += 1;
-                        q.first_refusal.get_or_insert(r);
+                        q.lower_refusal.get_or_insert(r);
                     }
                 }
                 continue;
@@ -1285,6 +1438,7 @@ impl Sweep {
                     depth: 0,
                     fresh: true,
                 },
+                open,
             });
         }
 
@@ -1294,8 +1448,10 @@ impl Sweep {
             across,
             cornered,
             mut widths,
-            first_refusal,
+            lower_refusal,
+            upper_refusal,
             violation,
+            within,
             ..
         } = q;
         widths.deepest = deepest;
@@ -1304,10 +1460,14 @@ impl Sweep {
         // each face twice, which is what "per window" means here.
         let decided = region.decided();
 
-        let verdict = match (violation, first_refusal) {
-            (Some(w), _) => BoundVerdict::Violated(w),
-            (None, Some(refusal)) => BoundVerdict::Refused(refusal),
-            (None, None) => BoundVerdict::Holds,
+        let verdict = match (violation, lower_refusal, self.bound.upper(), within) {
+            (Some(w), ..) => BoundVerdict::Violated(w),
+            (None, Some(refusal), ..) => BoundVerdict::Refused(refusal),
+            (None, None, None, _) => BoundVerdict::Holds,
+            (None, None, Some(_), Some(w)) => BoundVerdict::Within(w),
+            (None, None, Some(_), None) => {
+                upper_refusal.map_or(BoundVerdict::Exceeded, BoundVerdict::Refused)
+            }
         };
         receipt.check_outside_is_a_sub_count();
         BoundReport {
@@ -1459,9 +1619,210 @@ struct Bound<'q, W, F> {
     across: BTreeMap<(FaceKey, FaceKey), usize>,
     cornered: usize,
     widths: DischargeWidths,
-    first_refusal: Option<EngineRefusal>,
+    /// The lower bound's first refusal (the strict question's too).
+    lower_refusal: Option<EngineRefusal>,
+    /// The upper bound's first refusal.
+    upper_refusal: Option<EngineRefusal>,
+    /// The lower bound's verified violation, which ends the sweep.
     violation: Option<W>,
+    /// The upper bound's verified proof, which closes its question.
+    within: Option<W>,
     verify: F,
+}
+
+/// **Which bounds a cell pair is still examined for.** A pair settled
+/// against one bound and undecided against the other splits, and its
+/// children carry only the open one: one subdivision, both questions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Open {
+    below: bool,
+    above: bool,
+}
+
+/// One cell pair's separation read against one bound.
+enum Reading {
+    /// Definitely clear of the bound: at or above a lower bound (above
+    /// zero for the strict question), above an upper one.
+    Clear,
+    /// Definitely on the bound's answering side: below a lower bound
+    /// (at zero too for the strict question), within an upper one. The
+    /// verifier is offered the pair.
+    Answers,
+    /// The band holds it.
+    Undecided(geom_core::Indeterminate),
+}
+
+/// One cell pair's readings, `None` for a bound it is not examined for.
+struct Readings {
+    below: Option<Reading>,
+    above: Option<Reading>,
+}
+
+/// What a [`Candidate`] is built from, before its question is chosen.
+struct Offer<'s, 'b, T: Real> {
+    x: &'s Window<'b, T>,
+    ca: Cell,
+    ia: usize,
+    y: &'s Window<'b, T>,
+    cb: Cell,
+    ib: usize,
+    meeting: Option<(SharedCell, Stations, Stations)>,
+}
+
+impl<W, F> Bound<'_, W, F> {
+    /// The pair's separation `d` read against each bound it is still
+    /// examined for, each at its own funnel site.
+    fn read(&self, open: Open, d: Interval) -> Readings {
+        let (bound, band) = (self.sweep.bound, self.sweep.band);
+        let below = bound
+            .lower()
+            .filter(|_| open.below && self.violation.is_none())
+            .map(
+                |lo| match decide(bound.predicate(), Margin::of(d - lo), band) {
+                    Ok(Sign::Positive) => Reading::Clear,
+                    Ok(Sign::Zero) if bound.zero_discharges() => Reading::Clear,
+                    Ok(Sign::Zero | Sign::Negative) => Reading::Answers,
+                    Err(source) => Reading::Undecided(source),
+                },
+            );
+        let above = bound
+            .upper()
+            .filter(|_| open.above && self.within.is_none())
+            .map(
+                |hi| match decide(CLEARANCE_MARGIN, Margin::of(d - hi), band) {
+                    Ok(Sign::Positive) => Reading::Clear,
+                    Ok(Sign::Zero | Sign::Negative) => Reading::Answers,
+                    Err(source) => Reading::Undecided(source),
+                },
+            );
+        Readings { below, above }
+    }
+
+    /// The lower bound's question, as a candidate is offered for it.
+    fn below(&self) -> Ask {
+        Ask::Below {
+            bound: self
+                .sweep
+                .bound
+                .lower()
+                .unwrap_or_else(|| unreachable!("read only where a lower bound is examined")),
+            strict: !self.sweep.bound.zero_discharges(),
+        }
+    }
+
+    /// The upper bound's question.
+    fn above(&self) -> Ask {
+        Ask::Within {
+            bound: self
+                .sweep
+                .bound
+                .upper()
+                .unwrap_or_else(|| unreachable!("read only where an upper bound is examined")),
+        }
+    }
+
+    /// Whether every question the bound asks has its answer: a lower
+    /// violation, or an upper bound's proof where there is no lower one.
+    fn answered(&self) -> bool {
+        self.violation.is_some() || (self.sweep.bound.lower().is_none() && self.within.is_some())
+    }
+
+    /// The refusal an undecided reading is, where refinement cannot
+    /// decide it: a poison enclosure, or a terminal sliver. `None` where
+    /// a split may.
+    fn terminal(
+        source: &geom_core::Indeterminate,
+        a: FaceKey,
+        b: FaceKey,
+    ) -> Option<EngineRefusal> {
+        if source.margin.is_invalid() {
+            // A poison enclosure is not an indeterminacy refinement
+            // could settle, and it is not a budget: it is geometry that
+            // did not evaluate. Its own class.
+            Some(EngineRefusal::PoisonEnclosure { a, b })
+        } else {
+            sliver(source).map(|predicate| EngineRefusal::Sliver { predicate })
+        }
+    }
+
+    /// **Offer a candidate to the verifier**, for `ask`.
+    fn offer<T>(&mut self, at: &Offer<'_, '_, T>, ask: Ask) -> Result<W, String>
+    where
+        T: Real,
+        F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    {
+        (self.verify)(Candidate {
+            x: at.x,
+            ca: at.ca,
+            ia: at.ia,
+            y: at.y,
+            cb: at.cb,
+            ib: at.ib,
+            region: &mut self.region,
+            meeting: at.meeting.clone(),
+            ask,
+        })
+    }
+
+    /// **The definite readings, settled**: a pair below the lower bound
+    /// is offered as a violation, one within the upper bound as its
+    /// proof. `Break` when the violation is verified, which ends the
+    /// sweep; otherwise which of the two the interval pass classified.
+    /// A candidate the verifier declines is
+    /// [`EngineRefusal::WitnessUnverified`] for its question.
+    fn settle<T>(&mut self, r: &Readings, at: &Offer<'_, '_, T>) -> ControlFlow<(), Bucket>
+    where
+        T: Real,
+        F: FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
+    {
+        let mut bucket = Bucket::Discharged;
+        if matches!(r.below, Some(Reading::Answers)) {
+            match self.offer(at, self.below()) {
+                Ok(w) => {
+                    self.violation = Some(w);
+                    return ControlFlow::Break(());
+                }
+                Err(what) => {
+                    self.lower_refusal
+                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                }
+            }
+            bucket = Bucket::Violated;
+        }
+        if matches!(r.above, Some(Reading::Answers)) {
+            match self.offer(at, self.above()) {
+                Ok(w) => self.within = Some(w),
+                Err(what) => {
+                    self.upper_refusal
+                        .get_or_insert(EngineRefusal::WitnessUnverified { what });
+                }
+            }
+            if bucket == Bucket::Discharged {
+                bucket = Bucket::Within;
+            }
+        }
+        ControlFlow::Continue(bucket)
+    }
+}
+
+/// Which receipt bucket a leaf the interval pass settled lands in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Bucket {
+    Discharged,
+    Violated,
+    Within,
+    Refused,
+}
+
+impl Bucket {
+    fn count(self, receipt: &mut CellReceipt) {
+        match self {
+            Self::Discharged => receipt.discharged += 1,
+            Self::Violated => receipt.violated += 1,
+            Self::Within => receipt.within += 1,
+            Self::Refused => receipt.refused += 1,
+        }
+    }
 }
 
 impl<T, W, F> Question<T> for Bound<'_, W, F>
@@ -1533,7 +1894,7 @@ where
                 if meet || sh.is_empty() {
                     false
                 } else {
-                    let s = separated_by_support(pair, x, y, bound.c(), band);
+                    let s = separated_by_support(pair, x, y, Interval::from_f64(0.0), band);
                     along = Some(s);
                     s
                 }
@@ -1599,7 +1960,7 @@ where
                     }
                     Outcome::Refuse(r) => {
                         walk.receipt.refused += 1;
-                        self.first_refusal.get_or_insert(r);
+                        self.lower_refusal.get_or_insert(r);
                     }
                     Outcome::Cusp { .. } => {
                         unreachable!("read as a split or a refusal above")
@@ -1624,7 +1985,7 @@ where
                             })
                         };
                         if let Err(stop) = split {
-                            self.first_refusal.get_or_insert(match stop {
+                            self.lower_refusal.get_or_insert(match stop {
                                 CellBudget::Depth { .. } => EngineRefusal::Uncertified {
                                     a: x.face,
                                     b: y.face,
@@ -1640,118 +2001,145 @@ where
             }
         }
 
-        let c = bound.c();
-        let margin = separation(&pair.a.enc, &pair.b.enc) - Interval::from_f64(c);
-        let strict = !bound.zero_discharges();
-        let verify = &mut self.verify;
-        let mut candidate = |region: &mut RegionMemo| {
-            verify(Candidate {
-                x,
-                ca: pair.a,
-                ia: task.i,
-                y,
-                cb: pair.b,
-                ib: task.j,
-                region,
-                meeting: None,
-                strict,
-            })
+        let pending = Open {
+            below: task.open.below && self.violation.is_none(),
+            above: task.open.above && self.within.is_none(),
         };
-        let outcome = decide(bound.predicate(), Margin::of(margin), band);
-        // **Apart along a direction.** Where the boxes leave the margin
-        // indeterminate, the cells' supports may still separate them.
-        let indeterminate = matches!(&outcome, Err(source) if !source.margin.is_invalid());
-        let separated =
-            indeterminate && along.unwrap_or_else(|| separated_by_support(pair, x, y, c, band));
-        if separated {
-            discharge(&mut walk.receipt, &mut self.widths);
+        if !pending.below && !pending.above {
+            // Kept only for a question that has since been answered.
+            walk.receipt.abandoned += 1;
             return ControlFlow::Continue(());
         }
-        match outcome {
-            Ok(Sign::Positive) => discharge(&mut walk.receipt, &mut self.widths),
-            Ok(Sign::Zero) if bound.zero_discharges() => {
-                discharge(&mut walk.receipt, &mut self.widths);
-            }
-            Ok(Sign::Zero | Sign::Negative) => {
+        let mut r = self.read(pending, separation(&pair.a.enc, &pair.b.enc));
+        // **Apart along a direction.** Where the boxes leave a reading
+        // indeterminate, the cells' supports may still put the pair
+        // clear of that bound.
+        let support = |c: Interval| separated_by_support(pair, x, y, c, band);
+        if let (Some(Reading::Undecided(source)), Some(lo)) = (&r.below, bound.lower())
+            && !source.margin.is_invalid()
+            && along.unwrap_or_else(|| support(lo))
+        {
+            r.below = Some(Reading::Clear);
+        }
+        if let (Some(Reading::Undecided(source)), Some(hi)) = (&r.above, bound.upper())
+            && !source.margin.is_invalid()
+            && support(hi)
+        {
+            r.above = Some(Reading::Clear);
+        }
+        let at = Offer {
+            x,
+            ca: pair.a,
+            ia: task.i,
+            y,
+            cb: pair.b,
+            ib: task.j,
+            meeting: None,
+        };
+        // Verified HERE, not after the sweep: a verified violation ends
+        // the query, and an unverified one must not.
+        let mut bucket = match self.settle(&r, &at) {
+            ControlFlow::Break(()) => {
                 walk.receipt.violated += 1;
-                // Verified HERE, not after the sweep: a verified
-                // witness ends the query, and an unverified one
-                // must not.
-                match candidate(&mut self.region) {
-                    Ok(w) => {
-                        self.violation = Some(w);
-                        return ControlFlow::Break(());
-                    }
-                    Err(what) => {
-                        self.first_refusal
-                            .get_or_insert(EngineRefusal::WitnessUnverified { what });
-                    }
-                }
+                return ControlFlow::Break(());
             }
-            Err(source) => {
-                // **The exhibit arm.** An indeterminate margin
-                // is not a `Holds`, and for the STRICT question
-                // it is very often not reachable by refinement
-                // either: `d - 0` is the norm of a difference,
-                // so it can never classify Negative, and the
-                // only definite violation is a `Zero` — which
-                // needs both cells narrower than ε, thirty
-                // halvings down from a metre window. A witness,
-                // though, does not need the enclosure to be
-                // narrow: it needs ONE pair of points. So an
-                // indeterminate cell pair is offered to the
-                // verifier before it is split, at the two
-                // places a probe is worth its cost — the root of
-                // the subtree the distance test decides (a
-                // candidate's root, or the first pair below a
-                // touching one), where a contact or an overlap
-                // shows up immediately, and the depth floor,
-                // where the alternative is a refusal.
-                //
-                // It only ever ADDS violations, each confirmed
-                // by the verifier: a probe that finds nothing
-                // changes no answer, so no `Holds` can rest on
-                // it. That is what keeps it an exhibit rather
-                // than a sample.
-                let probe_here = pair.fresh || pair.depth >= walk.budgets.max_cell_depth;
-                if probe_here && let Ok(w) = candidate(&mut self.region) {
-                    walk.receipt.violated += 1;
-                    self.violation = Some(w);
+            ControlFlow::Continue(bucket) => bucket,
+        };
+        if self.answered() {
+            bucket.count(&mut walk.receipt);
+            return ControlFlow::Break(());
+        }
+        // **The exhibit arm.** An indeterminate margin is not a
+        // verdict, and for the STRICT question it is very often not
+        // reachable by refinement either: `d - 0` is the norm of a
+        // difference, so it can never classify Negative, and the only
+        // definite violation is a `Zero` — which needs both cells
+        // narrower than ε, thirty halvings down from a metre window. A
+        // witness, though, does not need the enclosure to be narrow: it
+        // needs ONE pair of points, and so does an upper bound's proof.
+        // So an indeterminate cell pair is offered to the verifier
+        // before it is split, at the two places a probe is worth its
+        // cost — the root of the subtree the distance test decides (a
+        // candidate's root, or the first pair below a touching one),
+        // where a contact, an overlap or a near pair shows up
+        // immediately, and the depth floor, where the alternative is a
+        // refusal.
+        //
+        // It only ever ADDS answers, each confirmed by the verifier: a
+        // probe that finds nothing changes no answer, so no `Holds` and
+        // no `Exceeded` can rest on it. That is what keeps it an
+        // exhibit rather than a sample.
+        let probe_here = pair.fresh || pair.depth >= walk.budgets.max_cell_depth;
+        let mut split = Open {
+            below: false,
+            above: false,
+        };
+        if let Some(Reading::Undecided(source)) = &r.below {
+            if probe_here && let Ok(w) = self.offer(&at, self.below()) {
+                walk.receipt.violated += 1;
+                self.violation = Some(w);
+                return ControlFlow::Break(());
+            }
+            match Self::terminal(source, x.face, y.face) {
+                Some(refusal) => {
+                    self.lower_refusal.get_or_insert(refusal);
+                    bucket = Bucket::Refused;
+                }
+                None => split.below = true,
+            }
+        }
+        if let Some(Reading::Undecided(source)) = &r.above
+            && self.within.is_none()
+        {
+            if probe_here && let Ok(w) = self.offer(&at, self.above()) {
+                self.within = Some(w);
+                if self.answered() {
+                    walk.receipt.within += 1;
                     return ControlFlow::Break(());
                 }
-                if source.margin.is_invalid() {
-                    // A poison enclosure is not an indeterminacy
-                    // refinement could settle, and it is not a
-                    // budget: it is geometry that did not
-                    // evaluate. Its own class.
-                    walk.receipt.refused += 1;
-                    self.first_refusal
-                        .get_or_insert(EngineRefusal::PoisonEnclosure {
-                            a: x.face,
-                            b: y.face,
-                        });
-                    return ControlFlow::Continue(());
+                if bucket == Bucket::Discharged {
+                    bucket = Bucket::Within;
                 }
-                if let Some(predicate) = sliver(&source) {
-                    walk.receipt.refused += 1;
-                    self.first_refusal
-                        .get_or_insert(EngineRefusal::Sliver { predicate });
-                    return ControlFlow::Continue(());
+            } else {
+                match Self::terminal(source, x.face, y.face) {
+                    Some(refusal) => {
+                        self.upper_refusal.get_or_insert(refusal);
+                        if bucket == Bucket::Discharged {
+                            bucket = Bucket::Refused;
+                        }
+                    }
+                    None => split.above = true,
                 }
-                // The injectivity question halves a cell along its
-                // length in metres; every other question keeps the
-                // relative rule its receipts were taken under.
-                let axes = if self.injective {
-                    Axes::Metric
-                } else {
-                    Axes::Relative
-                };
-                if let Err(stop) =
-                    walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
-                {
-                    self.first_refusal
-                        .get_or_insert(EngineRefusal::Budget(stop));
-                }
+            }
+        }
+        if !split.below && !split.above {
+            if bucket == Bucket::Discharged {
+                discharge(&mut walk.receipt, &mut self.widths);
+            } else {
+                bucket.count(&mut walk.receipt);
+            }
+            return ControlFlow::Continue(());
+        }
+        // The injectivity question halves a cell along its length in
+        // metres; every other question keeps the relative rule its
+        // receipts were taken under.
+        let axes = if self.injective {
+            Axes::Metric
+        } else {
+            Axes::Relative
+        };
+        let task = Task {
+            open: split,
+            ..task
+        };
+        if let Err(stop) = walk.split(task, || split_by(pair, x, y, axes).map(|(lo, hi)| [lo, hi]))
+        {
+            let refusal = EngineRefusal::Budget(stop);
+            if split.below {
+                self.lower_refusal.get_or_insert(refusal.clone());
+            }
+            if split.above {
+                self.upper_refusal.get_or_insert(refusal);
             }
         }
         ControlFlow::Continue(())
@@ -1759,14 +2147,19 @@ where
 
     /// **The bound sweep REFUSES a level that does not fit**: its answer
     /// is a verdict over every cell pair, and these are pairs it could
-    /// not classify, so the verdict refuses for them
-    /// ([`CellBudget::Pairs`]).
+    /// not classify, so the verdict refuses for them, under each bound
+    /// they were still examined for ([`CellBudget::Pairs`]).
     fn overflow(&mut self, receipt: &mut CellReceipt, frontier: Vec<Task>) {
         receipt.refused += frontier.len();
-        self.first_refusal
-            .get_or_insert(EngineRefusal::Budget(CellBudget::Pairs {
-                max_cell_pairs: self.sweep.budgets.max_cell_pairs,
-            }));
+        let refusal = EngineRefusal::Budget(CellBudget::Pairs {
+            max_cell_pairs: self.sweep.budgets.max_cell_pairs,
+        });
+        if frontier.iter().any(|t| t.open.below) {
+            self.lower_refusal.get_or_insert(refusal.clone());
+        }
+        if frontier.iter().any(|t| t.open.above) && self.within.is_none() {
+            self.upper_refusal.get_or_insert(refusal);
+        }
     }
 }
 
@@ -2350,6 +2743,10 @@ pub fn min_separation<T: Decide + CertifiedBounds>(
                 b,
                 depth: 0,
                 fresh: false,
+            },
+            open: Open {
+                below: true,
+                above: false,
             },
         });
     }
@@ -3565,6 +3962,9 @@ struct Task {
     i: usize,
     j: usize,
     pair: CellPair,
+    /// Which bounds it is examined for (the bound question's; the
+    /// minimum question reads every pair alike).
+    open: Open,
 }
 
 /// One cell's interval enclosure on its carrier.
@@ -3612,11 +4012,11 @@ fn separated_by_support<T: Real>(
     pair: CellPair,
     x: &Window<'_, T>,
     y: &Window<'_, T>,
-    c: f64,
+    c: Interval,
     band: Band,
 ) -> bool {
     support_separation((x, pair.a), (y, pair.b)).is_some_and(|d| {
-        let margin = d - Interval::from_f64(c);
+        let margin = d - c;
         matches!(
             k_stats::check_unlogged(CLEARANCE_SUPPORT_GAP, margin, band, "F29"),
             Ok(Sign::Positive)
@@ -4008,16 +4408,30 @@ impl<T: Decide> ClearanceLane<T> {
         same_body: bool,
         mut verify: impl FnMut(Candidate<'_, '_, T>) -> Result<W, String>,
     ) -> BoundReport<W> {
-        let mut witness = None;
+        // The sweep keeps the first `Ok` per question, so the two
+        // questions' witnesses are kept apart here.
+        let (mut violation, mut within) = (None, None);
         let report = (self.bound_sweep)(sweep, wa, wb, same_body, &mut |candidate| {
-            verify(candidate).map(|w| witness = Some(w))
+            let ask = candidate.ask();
+            verify(candidate).map(|w| match ask {
+                Ask::Below { .. } => violation = Some(w),
+                Ask::Within { .. } => {
+                    within.get_or_insert(w);
+                }
+            })
         });
         let verdict = match report.verdict {
             BoundVerdict::Holds => BoundVerdict::Holds,
+            BoundVerdict::Exceeded => BoundVerdict::Exceeded,
             BoundVerdict::Refused(r) => BoundVerdict::Refused(r),
             BoundVerdict::Violated(()) => BoundVerdict::Violated(
-                witness.unwrap_or_else(|| unreachable!("the sweep stops at the verifier's `Ok`")),
+                violation.unwrap_or_else(|| unreachable!("the sweep stops at the verifier's `Ok`")),
             ),
+            BoundVerdict::Within(()) => {
+                BoundVerdict::Within(within.unwrap_or_else(|| {
+                    unreachable!("an upper bound's proof is the verifier's `Ok`")
+                }))
+            }
         };
         BoundReport {
             verdict,
@@ -4872,6 +5286,10 @@ mod trv_rows {
                 depth: 0,
                 fresh: false,
             },
+            open: super::Open {
+                below: true,
+                above: false,
+            },
         }
     }
 
@@ -5129,7 +5547,7 @@ mod support_rows {
         let in_band = 0.5 * (band.zero() + band.escalate());
         for (c, separated) in [(1.0 - in_band, false), (0.5, true)] {
             let bracket = Bracket::open();
-            let read = separated_by_support(pair, &wa, &wb, c, band);
+            let read = separated_by_support(pair, &wa, &wb, Interval::from_f64(c), band);
             let recorded = bracket.finish();
             assert_eq!(read, separated, "separated against {c}");
             let escalations = recorded
