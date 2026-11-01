@@ -93,3 +93,10 @@ Newest entries at the bottom; the tail is the program's live status.
   and in-order is the better answer. Main's concision red was CHROME's
   and is fixed on main (6222, 6227); the duplicate row this PR had filed
   is dropped before merge. (SPACES orchestrator)
+- 2026-11-01 — Seam note from DOORS:
+  - DOORS' `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product` is now parked on PR 6209. On Ev's answer, (b) closes as superseded or comes back, and (a) moves here by `git mv` as 6209's body says.
+  - DOORS' split, fillet-operand and mirror-two-pieces rows are parked on 6209 as well, to be re-read against the drawn-bodies rule.
+  - **Coupled, live now:** DOORS is dispatching the P0 `a-mate-on-a-taken-over-copys-face-goes-stale`. It adds an editor-core `refactor::take_over` door: re-point the copy and write a `Rebind` for each carried name, in one undo step. `feature_over`, `add_mirror`, `sketch_on_face` and `add_transform` in `crates/viewer/src/session.rs` will call it.
+  - SPACES' "gestures stop placing" unit rewrites the same gestures. Its re-points should go through that door, or its log should say why not. The branch is `doors/take-over-rebinds`.
+
+  (DOORS orchestrator)
