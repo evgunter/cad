@@ -1626,9 +1626,12 @@ fn inside_or_unread(body: &AtRestBody<f64>, q: Point3<f64>) -> Option<bool> {
 /// about [`MEET`] the op's over the operands', and each class its naming
 /// reads at `MEET` the other operand's containment a little along the
 /// edge, wherever those read; where all six build, their volumes add up
-/// as in [`builds_along`]. Returns how many built.
+/// as in [`builds_along`]. `pins` names the scene whose [`REFUSING`]
+/// cells this one shares, refusing where that scene is pinned to refuse
+/// and building where it builds: the scene on the top, for a partner
+/// within the zero of it. Returns how many built.
 fn builds_or_refuses(
-    label: &str,
+    (label, pins): (&str, Option<&str>),
     x: &AtRestBody<f64>,
     y: &AtRestBody<f64>,
     pose: &Pose,
@@ -1682,8 +1685,8 @@ fn builds_or_refuses(
     {
         let op = what;
         let what = format!("{label}, {}, {what}", pose.label);
-        if r.is_ok() {
-            not_pinned(label, op);
+        if let (Ok(_), Some(scene)) = (&r, pins) {
+            not_pinned(scene, op);
         }
         let r = match r {
             Ok(BooleanResult::Body(r)) => r,
@@ -1697,7 +1700,7 @@ fn builds_or_refuses(
             }
             Err(e) => {
                 assert!(
-                    typed(&e) || pinned(label, op, &e),
+                    typed(&e) || pins.is_some_and(|scene| pinned(scene, op, &e)),
                     "{what}: builds or refuses typed, got {e:?}"
                 );
                 continue;
@@ -1764,9 +1767,10 @@ fn builds_or_refuses(
 /// each a multiple of ε, so every tolerance row reads the same margins.
 /// In band the plate and the lying pyramid do not unite: their own
 /// touch escalates, so no partner in band reaches a pair. Within the
-/// zero every scene builds as on the top or escalates where a sector
-/// pair reads in band; off it the partner is strictly one side, or
-/// crosses the top. A refusal is an escalation, the
+/// zero every scene builds as on the top, refusing where that scene is
+/// pinned to refuse ([`REFUSING`]), or escalates where a sector pair
+/// reads in band; off it the partner is strictly one side, or crosses
+/// the top. A refusal is an escalation, the
 /// coincidence a face of the pyramid on the top or on the lying one's
 /// refuses (`PartnerAlongFace`, or `VertexReadTwice` where its pierce
 /// crosses the top), or, a pyramid inside the lifted one, the
@@ -1814,8 +1818,9 @@ fn a_partner_tipped_off_the_face_builds_sound_or_refuses_typed_at_every_pose() {
             .chain(s.along_ray.iter().map(|(label, x)| (*label, x, false)))
             {
                 let inside = label.starts_with("inside");
+                let pins = (f64::abs(k) < 1.0).then_some(label);
                 let label = format!("{label}, the pyramid lying {k}ε off the top");
-                built += builds_or_refuses(&label, x, &y, &pose, &|e| {
+                built += builds_or_refuses((&label, pins), x, &y, &pose, &|e| {
                     matches!(e, BooleanError::Escalated { .. })
                         || (faced
                             && matches!(

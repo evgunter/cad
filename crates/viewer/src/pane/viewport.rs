@@ -588,7 +588,7 @@ mod composed {
     /// against, and nothing is lit.
     ///
     /// The seated tools hold NODES, and no mark draws a held node
-    /// (`work/doors/a-seated-tools-held-node-is-drawn-nowhere`).
+    /// (`work/held/a-seated-tools-held-node-is-drawn-nowhere`).
     pub(crate) fn frame_marks(
         on_screen: Option<&PickIndex>,
         display: &DisplayView,

@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-31
 priority: P0
 cost: M
+refs: [6209]
+parent: a-new-body-lands-unplaced
 ---
 
 ## Finding

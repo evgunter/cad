@@ -1711,7 +1711,8 @@ impl DoorJob {
     /// # Errors
     ///
     /// [`crate::coincide::Canceled`] once `cancel` is canceled: the
-    /// replay checks it between nodes, and the door between the margins
+    /// replay checks it between nodes and a family's members, and the
+    /// door between the margins
     /// it discharges.
     ///
     /// # Panics
