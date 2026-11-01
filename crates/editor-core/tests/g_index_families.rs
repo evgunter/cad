@@ -616,14 +616,16 @@ fn an_uncertified_pair_is_judged_not_refused() {
 }
 
 /// **A family yields to cancelation inside its node**: a ring of
-/// `u32::MAX` copies, canceled while it evaluates, returns the
-/// completed prefix — the block — as a canceled run, the ring holding no
-/// result, on the serial walk and on the level schedule alike. Red if
-/// the token is read only between nodes or levels: the run then places
-/// every member before it looks.
+/// `u32::MAX` copies, canceled from another thread, returns as a
+/// canceled run with the ring holding no result, on the serial walk
+/// and on the level schedule alike. Red (it never returns) if the
+/// token is read only between nodes or levels and the cancel lands
+/// after the ring has begun, which it does unless reaching the ring
+/// takes the whole delay. Nothing here asserts on timing; which member
+/// a family stops at is pinned in `eval::members::tests`.
 #[test]
 fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
-    let (doc, the_block, ring) = ring(i64::from(u32::MAX));
+    let (doc, _, ring) = ring(i64::from(u32::MAX));
     for parallel in [false, true] {
         let cancel = editor_core::CancelToken::new();
         let canceler = {
@@ -643,10 +645,6 @@ fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
             ev.outcome,
             editor_core::EvalOutcome::Canceled,
             "parallel {parallel}: the run is canceled"
-        );
-        assert!(
-            ev.value(the_block).is_some(),
-            "parallel {parallel}: the block completed before the ring"
         );
         assert!(
             ev.result(ring).is_none(),

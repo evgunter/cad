@@ -3780,9 +3780,6 @@ where
                     Err(Canceled) => outcome = EvalOutcome::Canceled,
                 }
             }
-            if outcome == EvalOutcome::Canceled {
-                break;
-            }
         }
         for id in &sched.order {
             if let Some(recording) = recordings.remove(id) {
@@ -4094,7 +4091,8 @@ where
 
 /// **The cancel token was observed set inside a node** — before one
 /// of a family's members: the node holds no result, as one the walk
-/// never reached holds none.
+/// never reached holds none. Not `coincide::Canceled`, whose `Display`
+/// says the coincidence door was canceled.
 #[derive(Debug)]
 struct Canceled;
 

@@ -11,7 +11,7 @@ Found by `wire-members` (WIREHOLD, `a-pattern-count-has-no-upper-bound-at-the-lo
 
 ## Finding
 
-A `union` whose `Bodies::Family` argument reads a family whole (`crates/editor-core/src/eval/wire.rs`, `wire_combine` and its `whole` closure, then `combine_members` → `fold_members` → `topo`'s `run_members`) does all of its per-member work inside one node, so the evaluation's cancel token (checked between nodes, and since this PR before each member of a family) is never read while it runs.
+A `union` whose `Bodies::Family` argument reads a family whole (`crates/editor-core/src/eval/wire.rs`: `wire_combine` wire.rs:3359, its `whole` closure wire.rs:3380-3405 with the per-member `.project(index)` at wire.rs:3390, then `combine_members` wire.rs:3467 → `fold_members` wire.rs:3565, whose fold is `run.run_members(..)` at wire.rs:3646 → `crates/verbs/src/run.rs:327` `run_members` → `crates/topo/src/boolean/nary.rs:542` `run_members`) does all of its per-member work inside one node, so the evaluation's cancel token (checked between nodes, and since this PR before each member of a family) is never read while it runs.
 
 And its cost grows faster than its member count. Measured (debug build, this box, a row of `N` unit blocks a pitch of 2 apart, `fixture::row`, then `Node::Union { members: Bodies::Family(row) }`):
 
@@ -22,8 +22,8 @@ And its cost grows faster than its member count. Measured (debug build, this box
 | 100 | 132 ms | 119 s |
 
 So doubling N multiplies the union's time by 5-6, roughly N^2.5, for blocks that never touch. Where it goes was not profiled. Two candidates, both read but not measured:
-- `whole` calls `read_table(value).project(index)` once per member, and `NameTable::project` (`names/table.rs`, via `reindex`) walks the whole family table each time: O(N × total rows), which is O(N²) in members.
-- the fold's own steps (`fold_members`, `images_apart`'s per-member `(i..len)` scan, which is O(N²) `Arc::ptr_eq` and cheap per pair).
+- `whole` calls `read_table(value).project(index)` once per member, and `NameTable::project` (`crates/editor-core/src/names/table.rs:812`, via `reindex` table.rs:823) walks the whole family table each time: O(N × total rows), which is O(N²) in members.
+- the fold's own steps (`fold_members`, `images_apart`'s (wire.rs:3523) per-member `(i..len)` scan, which is O(N²) `Arc::ptr_eq` and cheap per pair).
 
 ## What it needs
 

@@ -522,12 +522,12 @@ mod tests {
     }
 
     /// **A family yields to cancelation member by member**: the token
-    /// set while member 2 of `u32::MAX` evaluates stops the family before
+    /// set while member 2 of ten evaluates stops the family before
     /// member 3, typed. Red if the family checks the token only between
-    /// nodes — it then evaluates every member — or reports a value.
+    /// nodes — it then evaluates all ten — or reports a value.
     #[test]
     fn a_family_canceled_by_a_member_stops_before_the_next() {
-        let (doc, k) = indexed(i64::from(u32::MAX));
+        let (doc, k) = indexed(10);
         let cancel = CancelToken::new();
         let (step, evaluated) = family(&doc, k, &cancel, |at| {
             if at == [(k, 2)] {
