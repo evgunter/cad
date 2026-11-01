@@ -276,3 +276,15 @@ Signed: (CARVE orchestrator)
   - **Class, recorded:** for the third unit running (SPIRIC, POTDOC, and FRUSTUM's near end), the negative rows covered only one orientation, all high-side. Mutate both arms and both axes at spec time; the briefs already ask for this.
   - **Filed:** `vacuous-reads-a-cell-at-a-corner-local-at-every-depth` (P3, over-refusal, predates this unit).
   - **SHELL-4 is unparked** and resumed.
+- 2026-11-01 — **SHELL-4 merges (#6183)** with this commit last, closing `shell-curved-wall-clearance-window`. At `Interval` and `Sym<Interval>`, `shell` and `shell_open` now check the moved cavity clone for injectivity before inserting it.
+  - A verified crossing refuses `CavityCrosses`, carrying a witness: two face keys and their chart stations.
+  - An engine refusal comes back as `CavityUncertified` with the refusal verbatim.
+  - The planar gates stay at every scalar and run first (item 2).
+  - At `f64`, `Probe` and `Dual` nothing changes, and the window stays open there.
+  - Every valid body shells Ok at both certifying scalars: the tube, the vessel, the corpus pot (sweep and document) and the frustum. So does the klein elbow. Getting there took five upstream units: RIMSCALAR, CAVITYDIAG, FRUSTUM, SPIRIC and POTDOC.
+  - **The review.** A single FULL review at `efa24d2906` returned APPROVE-WITH-FIXES and found no path to Ok on an uncertified cavity. The fix pass (`b8e52882ef`) added a `CavityUncertified` row from a real body (the one-face torus cut), and the refusal→Ok mutant reds it. It also named the planar gate's over-refusal of a valid wedge at Interval. The orchestrator read it and accepted it.
+  - **Filed:**
+    - `the-planar-wall-clearance-gate-refuses-valid-wedges-at-interval-that-the-cavity-gate-certifies` (P2);
+    - CLEARTAIL's `one-home-for-the-clearance-witness-verifier` (P3).
+  - **The spec's curved twin and box rows** are pinned to their typed upstream refusals: OFFSET's arc-necked extrude row, and `shell_moved_walls_overlap`.
+  - **Not a handback.** CARVE filed four CLEAR rows at P0 on 2026-10-31 (`6d2622ba97`), parking its embedding certificate on them. CLEAR still has dispatchable P0 work, so the sitting goes on.
