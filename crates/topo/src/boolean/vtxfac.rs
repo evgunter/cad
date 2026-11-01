@@ -265,6 +265,10 @@ pub(crate) struct Partner<T: geom_core::Real> {
     pub sectors: Vec<BoolSector<T>>,
 }
 
+/// The face a vertex touches, as [`cone_classes`] reads it: its outward
+/// normal at the point, and the side each edge was read on against it.
+pub(crate) type Touched<'a, T> = (OutwardNormal<T>, &'a [(HalfEdgeKey, SideCode)]);
+
 /// **The classes of a vertex's edges against the other solid, read
 /// through one cone of it at the vertex's point `p`**
 /// ([`crate::link::Cone::gathered`]): every partner's faces, each at its
@@ -285,7 +289,7 @@ pub(crate) fn cone_classes<T: Decide>(
     own: &[BoolSector<T>],
     edges: &[HalfEdgeKey],
     partners: &[Partner<T>],
-    touched: Option<(OutwardNormal<T>, &[(HalfEdgeKey, SideCode)])>,
+    touched: Option<Touched<'_, T>>,
     band: Band,
 ) -> Result<Option<Vec<(HalfEdgeKey, SideCode)>>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
