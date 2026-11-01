@@ -5852,6 +5852,7 @@ mod arc_turn_rows {
 mod reach_tests {
     //! [`reaches_root_in_band`]'s fold: a margin in band sets its root
     //! aside, whatever its sign.
+    #![allow(clippy::expect_used, clippy::panic)]
 
     use super::*;
 
