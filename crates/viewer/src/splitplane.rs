@@ -7,6 +7,9 @@
 //! session's door). The viewport draws it where the person aimed: under
 //! the copy their pick was made through ([`crate::seats::Seats::through`]),
 //! whose drawn map carries the target's body into the picture.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, Evaluation, Framed, Operand, ProfileProgram, in_space};
 use pncad::geom_core::{Affine3, Point3, Vec3};
