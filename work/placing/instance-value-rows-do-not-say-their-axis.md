@@ -5,6 +5,7 @@ title: an instance's Properties value rows say slide/spin value without the axis
 status: open
 opened: 2026-10-31
 priority: P2
+cost: E
 ---
 
 ## Finding

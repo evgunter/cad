@@ -5,6 +5,7 @@ title: a new body lands placed in the world rather than unplaced
 status: open
 opened: 2026-10-31
 priority: P0
+cost: H
 ---
 
 

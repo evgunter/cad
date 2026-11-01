@@ -5,6 +5,7 @@ title: a creation form's label lands on a node the form did not name
 status: open
 opened: 2026-10-31
 priority: P2
+cost: M
 ---
 
 ## Finding

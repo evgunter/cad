@@ -5,6 +5,7 @@ title: the panes show every form and control at once, each drawn its own way
 status: open
 opened: 2026-10-31
 priority: P1
+cost: H
 ---
 
 

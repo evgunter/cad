@@ -5,6 +5,7 @@ title: Cancel drag and Cancel free-move are on the toolbar when nothing is in fl
 status: open
 opened: 2026-10-31
 priority: P2
+cost: E
 ---
 
 

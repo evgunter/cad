@@ -5,6 +5,7 @@ title: the feature tree's indentation does not follow the document's structure
 status: open
 opened: 2026-10-31
 priority: P1
+cost: M
 ---
 
 
