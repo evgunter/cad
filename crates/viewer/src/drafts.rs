@@ -62,10 +62,15 @@ pub(crate) struct Drafts {
     pub(crate) expr_text: String,
     /// The naming field, while it is open ([`NameDraft`]).
     pub(crate) name_draft: Option<NameDraft>,
+    /// **Whether the add-variable form is open** — its `New variable…`
+    /// door clicked, or an unknown-variable refusal's offer landed
+    /// ([`crate::frame::creation_offer`]). Closed, the form's fields
+    /// below are not drawn.
+    pub(crate) new_variable_open: bool,
     /// The add-variable form's name field.
     pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
-    /// the Create button waits for the pick. The offer path lands
+    /// the commit button waits for the pick. The offer path lands
     /// here from an expression whose context does not determine the
     /// new variable's dimension, and a silently-defaulted one would
     /// be a guess none of this program's doors make.
@@ -89,8 +94,14 @@ pub(crate) struct Drafts {
     pub(crate) mate_values: [(bool, f64); crate::matetool::MateFreedom::ALL.len()],
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
-    /// Create — a name in flight is a draft, not a document.
+    /// its commit — a name in flight is a draft, not a document.
     pub(crate) new_doc_name: Option<String>,
+    /// **Whether the add-profile form is open** — its `Add profile…`
+    /// door clicked. Whether it is on screen is a different read, the
+    /// frame's (`ProfileDoors::create`): a section folded over an open
+    /// form hides it too, and what the viewport shows of the form
+    /// follows that read ([`Self::marked_face`], [`Self::trace_wanted`]).
+    pub(crate) profile_open: bool,
     /// **Whether the add-profile form draws on the selected face** —
     /// "sketch on this face" ([`SessionOp::SketchOnFace`]) — rather than
     /// on the profile's own plane alone.
@@ -880,6 +891,7 @@ impl Default for Drafts {
             expr_text: String::new(),
             name_draft: None,
             new_variable_name: String::new(),
+            new_variable_open: false,
             new_variable_dimension: None,
             new_variable_value: 0.0,
             new_variable_offer: None,
@@ -890,6 +902,7 @@ impl Default for Drafts {
             mate_into_target_space: false,
             mate_values: [(false, 0.0); crate::matetool::MateFreedom::ALL.len()],
             new_doc_name: None,
+            profile_open: false,
             sketch_on_face: false,
             sketch_face: None,
             sketch_face_said: HeldNodes::default(),
@@ -987,17 +1000,30 @@ impl Drafts {
         }
     }
 
+    /// **The add-variable form closes**, at its Cancel or once its
+    /// declaration is accepted ([`Self::accepted`]), and its fields go
+    /// with it: the next `New variable…` starts empty.
+    pub(crate) fn close_new_variable(&mut self) {
+        self.new_variable_open = false;
+        self.new_variable_name.clear();
+        self.new_variable_dimension = None;
+        self.new_variable_value = 0.0;
+        self.new_variable_offer = None;
+    }
+
     /// **A form whose op the document ACCEPTED comes to rest** — called
     /// once per op a batch performed without a refusal.
     ///
-    /// Only the add-profile form has anything to settle: its drafts ARE
+    /// The add-profile form settles its preview: its drafts ARE
     /// the viewport's preview (`sketch::preview` is replayed from them
     /// every frame), so a form left holding the shape it just committed
     /// would keep drawing that shape in the probe tint over the
     /// committed drawing of the node it became. Resting the shape
-    /// (`None`) is what the form means by "nothing being composed"; the
+    /// (`None`) is what the form means by "nothing being composed", and
+    /// the form closes with its one committed edit, as a tool does; the
     /// field values stay, so a second profile starts from where the
-    /// first one left off. A sketch on a face settles the same way.
+    /// first one left off. A sketch on a face settles the same way, and
+    /// the add-variable form closes on its own declaration.
     ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
@@ -1021,6 +1047,15 @@ impl Drafts {
                 | SessionOp::AddDrawnProfile { .. }
         ) {
             self.profile_shape = None;
+            self.profile_open = false;
+        }
+        // The add-variable form's own declaration landed: the one
+        // naming the variable its field still says.
+        if let SessionOp::DeclareVar { name, .. } = op
+            && self.new_variable_open
+            && name.as_str() == self.new_variable_name.trim()
+        {
+            self.close_new_variable();
         }
     }
 
@@ -1218,21 +1253,32 @@ impl Drafts {
     ///
     /// Off the face the latch is kept, not held — nothing the form
     /// commits reads it — so switching off releases the pick, and
-    /// switching back holds it again. What the viewport marks as held
-    /// (`crate::marks::Held`).
+    /// switching back holds it again.
     pub(crate) fn held_face(&self) -> Option<&FaceSelection> {
         self.sketch_face.as_ref().filter(|_| self.sketch_on_face)
     }
 
-    /// **The latches a trace is to be read for** — when the form writes
-    /// a traced path, both are held, and the trace shown was not read
-    /// for them against `landed`. Drops the trace shown when the form
-    /// writes no traced path or a latch is empty.
+    /// **The face the viewport marks as held** (`crate::marks::Held`):
+    /// [`Self::held_face`] while the form was `drawn` on the last frame
+    /// (`ProfileDoors::create`), the one read of whether the form is
+    /// on screen — a form behind its door, in a folded section or in a
+    /// pane not drawn holds nothing a reader can see.
+    pub(crate) fn marked_face(&self, drawn: bool) -> Option<&FaceSelection> {
+        self.held_face().filter(|_| drawn)
+    }
+
+    /// **The latches a trace is to be read for** — when the form was
+    /// `drawn` on the last frame (the read [`Self::marked_face`] takes)
+    /// and writes a traced path, both are held, and the trace shown was
+    /// not read for them against `landed`. Drops the trace shown
+    /// otherwise.
     pub(crate) fn trace_wanted(
         &mut self,
+        drawn: bool,
         landed: Option<&Arc<Evaluation<f64>>>,
     ) -> Option<(FaceSelection, FaceSelection)> {
-        let (true, Some(plane), Some(face)) = (self.traces(), &self.trace_plane, &self.trace_face)
+        let (true, Some(plane), Some(face)) =
+            (drawn && self.traces(), &self.trace_plane, &self.trace_face)
         else {
             self.trace_shown = None;
             return None;

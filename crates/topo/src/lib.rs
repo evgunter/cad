@@ -232,6 +232,7 @@ mod row_walk_proofs;
 // `///` here would merge into the module's own `//!` docs and make
 // rustdoc resolve their intra-doc links in THIS module's scope instead
 // of that one's.
+pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;

@@ -24,13 +24,22 @@ fn vol(body: &AtRestBody<f64>) -> (f64, f64) {
 
 /// What each op returned, as `Some(volume)` / `None` (empty) / the error.
 fn read(r: &Result<BooleanResult<f64>, BooleanError>) -> Result<Option<f64>, String> {
+    read_voided(r, 0)
+}
+
+/// [`read`] of a body holding `voids` cavities, each a shell beside its
+/// solid's outer one.
+fn read_voided(
+    r: &Result<BooleanResult<f64>, BooleanError>,
+    voids: usize,
+) -> Result<Option<f64>, String> {
     match r {
         Ok(BooleanResult::Body(bb)) => {
             let t3 = topo::validate_geometric(&bb.body, tol());
             let t3p = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol());
             let (shells, solids) = (bb.body.shells().count(), bb.body.solids().count());
             eprintln!("  tier 3 {t3:?}, tier 3' {t3p:?}, shells {shells}, solids {solids}");
-            if t3.is_err() || t3p.is_err() || shells != solids {
+            if t3.is_err() || t3p.is_err() || shells != solids + voids {
                 return Err(format!(
                     "unsound body: {t3:?} {t3p:?} shells {shells} solids {solids}"
                 ));
@@ -86,11 +95,24 @@ fn ops(
 /// Every op on `(a, b)` builds its closed form `want` (`None`: empty),
 /// each body sound at tier 3 and 3′. A refusal fails.
 fn builds(label: &str, a: &Body<f64>, b: &Body<f64>, want: [(&str, Option<f64>); 4]) {
+    builds_voided(label, a, b, want, [0; 4]);
+}
+
+/// [`builds`], each op's body holding the cavities `voids` counts (in
+/// `want`'s order).
+fn builds_voided(
+    label: &str,
+    a: &Body<f64>,
+    b: &Body<f64>,
+    want: [(&str, Option<f64>); 4],
+    voids: [usize; 4],
+) {
     let wrong: Vec<String> = ops(a, b)
         .iter()
         .filter_map(|(op, r)| {
-            let w = want.iter().find(|(o, _)| o == op).unwrap().1;
-            let g = read(r);
+            let k = want.iter().position(|(o, _)| o == op).unwrap();
+            let w = want[k].1;
+            let g = read_voided(r, voids[k]);
             eprintln!("{label} {op}: want {w:?}, got {g:?}");
             (!closed_form(&g, w)).then(|| format!("{op}: want {w:?}, got {g:?}"))
         })
@@ -152,8 +174,8 @@ fn union_and_lens() -> (Body<f64>, Body<f64>) {
 /// verdicts. The patches differ: the lens's seam meridians run off the
 /// union's boundary, and their midpoints side the shells (the union
 /// `Out` of the lens, the lens `In` the union), so neither reads `On`.
-/// No edge of the union runs inside a face of the lens, so the sides
-/// stand where the op keeps one operand: `B ∖ A` builds, nothing. `∪`
+/// The sides stand where the op keeps one operand: `B ∖ A` builds,
+/// nothing. `∪`
 /// and `∩` pass the deferral and escalate at the coplanar merge: its
 /// torus witness reads only the faces' vertices, which all lie on the
 /// circles both tori share, so it cannot tell the two rings apart
@@ -215,10 +237,9 @@ fn rod(r: f64, h: f64) -> Body<f64> {
 /// short rod's wall lies on the long one's carrier and its top cap
 /// stands inside the long rod, so neither shell reads `On`. `∩` and the
 /// short rod's difference reach the no-crossings fallback with the wall
-/// pairs deferred; no edge of the long rod runs inside the short rod's
-/// wall, so the short shell's `In` stands and every op builds at its
-/// closed form, in both orders, and with the short rod clear of both of
-/// the long rod's caps. Red on a wrong body or a refusal.
+/// pairs deferred, the short shell's `In` stands, and every op builds at
+/// its closed form, in both orders, and with the short rod clear of both
+/// of the long rod's caps. Red on a wrong body or a refusal.
 #[test]
 fn rods_sharing_a_wall_at_different_lengths_are_sided_by_their_extent() {
     let q = core::f64::consts::PI / 4.0;
@@ -257,9 +278,10 @@ fn rods_sharing_a_wall_at_different_lengths_are_sided_by_their_extent() {
 }
 
 /// **Rods overlapping over part of each one's length build.** A runs
-/// from `y = 0.5` to `2.5` and B from `0` to `2`: each wall has an edge
-/// of the other inside it, so the sides certify nothing, and the join
-/// cuts both walls at the other's rim. Red on a wrong body or a refusal.
+/// from `y = 0.5` to `2.5` and B from `0` to `2`: each wall has a rim of
+/// the other inside it, the two rims read sides apart, so whatever the op
+/// one of them is a crossing and the join cuts both walls at the other's
+/// rim. Red on a wrong body or a refusal.
 #[test]
 fn rods_overlapping_over_part_of_their_length_build() {
     let q = core::f64::consts::PI / 4.0;
@@ -332,6 +354,135 @@ fn walls_whose_sides_turn_across_the_shared_band_build() {
             ("B ∖ A", Some(0.5 * q)),
         ],
     );
+}
+
+/// A Boolean door.
+type Op = fn(&AtRestBody<f64>, &AtRestBody<f64>, Tol) -> Result<BooleanResult<f64>, BooleanError>;
+
+/// `(label, A, B, [A ∪ B, A ∩ B, A ∖ B, B ∖ A], each one's cavities)`;
+/// `None` is empty.
+type Pose = (
+    &'static str,
+    Body<f64>,
+    Body<f64>,
+    [Option<f64>; 4],
+    [usize; 4],
+);
+
+/// **A rod standing on a step of a wider body builds every op.** Each
+/// wall has an edge of the other inside it: the rod's top rim lies in
+/// the body's narrow wall, and the step's inner rim in the rod's wall.
+/// The rod's cap turns into the body and the step's annulus away from
+/// the rod, the sides Eq. 15.3 lumps each one's wall to for `∩` and the
+/// rod's difference (for `∪` and the body's difference in the swapped
+/// order), so neither rim is a crossing there: those ops reach the
+/// no-crossings fallback with the wall pairs deferred, and the rod's `In`
+/// and the body's `Out` answer them. The same holds with a cavity in the
+/// step (inside the rod, or below it), with the rod as three shells, and
+/// on a conical step. Where the rod surrounds the cavity, `∩` keeps a
+/// shell of each operand, the cavity's and the rod's, which share no
+/// patch. Red on a wrong body or a refusal, in either order: in
+/// particular if the sides are refused wherever both operands have an
+/// edge inside the other's face, or wherever the op keeps a shell of
+/// each.
+#[test]
+fn a_rod_standing_on_a_step_builds_every_op() {
+    use core::f64::consts::PI;
+    let q = PI / 4.0;
+    let step = prof(&[
+        (0.0, -1.0),
+        (1.0, -1.0),
+        (1.0, 0.5),
+        (0.5, 0.5),
+        (0.5, 2.0),
+        (0.0, 2.0),
+    ]);
+    let s = 1.5 * PI + 1.5 * q;
+    let op = |f: Op, a: &Body<f64>, b: &Body<f64>| {
+        let (fa, fb) = (
+            finished("A", a.clone(), tol()),
+            finished("B", b.clone(), tol()),
+        );
+        match f(&fa, &fb, tol()) {
+            Ok(BooleanResult::Body(r)) => r.body.into_body(),
+            other => panic!("the fixture builds: {other:?}"),
+        }
+    };
+    let (c, cavity) = (PI * 0.09 * 0.5, rod_span(0.3, -0.8, -0.3));
+    let cavitied = op(topo::subtract, &step, &cavity);
+    let three = op(
+        topo::union,
+        &op(topo::union, &rod(0.5, 1.0), &rod_span(0.5, 1.2, 1.8)),
+        &rod_span(0.5, 3.0, 3.5),
+    );
+    let cone_step = prof(&[
+        (0.0, -1.0),
+        (1.5, -1.0),
+        (1.5, 0.5),
+        (0.75, 0.5),
+        (0.0, 2.0),
+    ]);
+    let (cs, frustum) = (3.375 * PI + 0.28125 * PI, 1.75 * PI / 3.0);
+    let poses: [Pose; 6] = [
+        (
+            "rod on the step",
+            rod(0.5, 1.0),
+            step.clone(),
+            [Some(s), Some(q), None, Some(s - q)],
+            [0; 4],
+        ),
+        (
+            "rod from inside the step",
+            rod_span(0.5, 0.25, 1.0),
+            step.clone(),
+            [Some(s), Some(0.75 * q), None, Some(s - 0.75 * q)],
+            [0; 4],
+        ),
+        (
+            "rod on the cavitied step",
+            rod(0.5, 1.0),
+            cavitied.clone(),
+            [Some(s - c), Some(q), None, Some(s - c - q)],
+            [1, 0, 0, 1],
+        ),
+        (
+            "rod around the step's cavity",
+            rod_span(0.5, -0.9, 1.0),
+            cavitied,
+            [Some(s), Some(1.9 * q - c), Some(c), Some(s - 1.9 * q)],
+            [0, 1, 0, 0],
+        ),
+        (
+            "three-shell rod on the step",
+            three,
+            step,
+            [
+                Some(s + 0.5 * q),
+                Some(1.6 * q),
+                Some(0.5 * q),
+                Some(s - 1.6 * q),
+            ],
+            [0; 4],
+        ),
+        (
+            "frustum on the conical step",
+            prof(&[(0.0, 0.0), (1.0, 0.0), (0.5, 1.0), (0.0, 1.0)]),
+            cone_step,
+            [Some(cs), Some(frustum), None, Some(cs - frustum)],
+            [0; 4],
+        ),
+    ];
+    for (label, a, b, [u, i, ab, ba], [vu, vi, vab, vba]) in poses {
+        let want = [("A ∪ B", u), ("A ∩ B", i), ("A ∖ B", ab), ("B ∖ A", ba)];
+        builds_voided(label, &a, &b, want, [vu, vi, vab, vba]);
+        builds_voided(
+            &format!("{label}, swapped"),
+            &b,
+            &a,
+            [want[0], want[1], ("A ∖ B", ba), ("B ∖ A", ab)],
+            [vu, vi, vba, vab],
+        );
+    }
 }
 
 /// **Cones sharing a carrier at different extents build**: frusta of the

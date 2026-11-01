@@ -153,3 +153,12 @@ continued walls' settled pairs are answered by the plates' sides
 pins this, replacing
 `the_arc_joint_stacks_union_and_stop_at_the_fallback_extent` and
 `the_stacks_subtract_and_intersect_stop_at_the_fallback_extent`.
+
+## 2026-11-01 — `OnDeferred::sided` is gone (SPLITDOOR, `splitdoor/sided-followups`)
+
+The section above cites `OnDeferred::sided`. That method was the
+condition that one operand has no edge strictly inside the other's
+deferred faces, and it is now removed. The fallback runs with no null
+pair, and the side certificate rests on that alone
+(`OnDeferred::answered` gives the argument). `the_arc_joint_stacks_build_every_op`
+still passes, with the same answers.
