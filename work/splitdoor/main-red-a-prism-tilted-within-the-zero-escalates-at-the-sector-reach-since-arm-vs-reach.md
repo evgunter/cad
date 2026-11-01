@@ -2,12 +2,14 @@
 id: main-red-a-prism-tilted-within-the-zero-escalates-at-the-sector-reach-since-arm-vs-reach
 kind: issue
 title: main red: a prism tilted within the zero escalates at bool_sector_within instead of building as upright, since PR 6053 read sectors at the reach (topo three_solids_on_one_line, every ε)
-status: review
+status: closed
 branch: splitdoor/prism-tilt-reach
 opened: 2026-10-30
 priority: P1
 cost: M
 refs: [arm-readers-left-at-the-sector-arm-after-the-reach-reading]
+closed: 2026-11-01
+pr: 6212
 ---
 
 
