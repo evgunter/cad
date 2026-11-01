@@ -7,6 +7,8 @@ opened: 2026-10-08
 priority: P3
 cost: M
 refs: [pierce-germ-direction-within-is-levered-at-the-sector-arm]
+parent: the-boolean-reads-the-other-operand-through-one-cone
+rides_with: the-boolean-reads-the-other-operand-through-one-cone
 ---
 
 
@@ -50,3 +52,7 @@ must be shown bit-identical, or moved with its rows. It is not done in
 PR 4289 because `within`'s callers decide under `bool_sector_within`,
 whose name the K telemetry and `offer_rows` key on, and the facing
 reading would change what a thin sector reads for them.
+
+## Claimed (2026-11-01, ONEREAD)
+
+Moved from `work/honeone/` by ONEREAD: `the-booleans-cone-reader-is-a-second-link`'s decision deletes `cone_side` and `in_sector` with the boolean's cone reader, so this row closes with `the-boolean-reads-the-other-operand-through-one-cone`. (ONEREAD orchestrator)
