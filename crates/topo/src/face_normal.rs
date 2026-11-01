@@ -398,8 +398,8 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 
 /// **The outward normal of a face's carrier at the foot of `p`**: at
 /// the point of the carrier nearest `p`, for a point on the carrier or
-/// off it. On a cylinder, a cone and a sphere the level sets of the
-/// implicit form are the carrier's parallel offsets, so the gradient's
+/// off it. On a cylinder, a cone, a sphere and a torus the level sets of
+/// the implicit form are the carrier's parallel offsets, so the gradient's
 /// direction at `p` is the carrier's normal at `p`'s foot exactly
 /// ([`geom_brep::implicit_outward_normal`]), wherever that foot is one
 /// point. Nothing about `p` is certified, so it reads the side of a
@@ -412,14 +412,14 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
 /// point within the band of it refuses, decided on the band as the
 /// cone's axis is ([`cone_axis_clearance`]): a cylinder's axis, a
 /// sphere's centre, a cone's axis, and the plane through a cone's apex
-/// square to its axis, where the two nappes are equally near
-/// (`foot_off_locus`).
+/// square to its axis, where the two nappes are equally near; a torus's
+/// axis and its core circle (`foot_off_locus`).
 ///
 /// # Errors
 ///
 /// [`FootNormalError::NoFoot`] within the band of the locus;
 /// [`FootNormalError::Unread`] for a carrier this door reads no foot on
-/// (a torus, a spline, an approximating surface). A face key that no
+/// (a spline, an approximating surface). A face key that no
 /// longer resolves is `Ok(None)`.
 pub(crate) fn face_outward_normal_at_foot<T: Decide>(
     body: &Body<T>,
@@ -447,7 +447,19 @@ pub(crate) fn face_outward_normal_at_foot<T: Decide>(
                 .map_err(|_| FootNormalError::NoFoot { band })?;
             clear(Margin::of((p - apex).dot(axis)))?;
         }
-        geom::Surface::Torus { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            ..
+        } => {
+            let q = p - center;
+            let radial = q - axis * q.dot(axis);
+            clear(Margin::norm3(radial))?;
+            let core = center + radial * (major_radius / radial.norm());
+            clear(Margin::norm3(p - core))?;
+        }
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return Err(FootNormalError::Unread);
         }
     }

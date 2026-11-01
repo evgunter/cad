@@ -7,7 +7,7 @@ opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
-blocked_on: [injectivity-monotone-arm-reads-a-sliver-knot-span-it-cannot-bound, injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams, injectivity-price-on-tour-lofts-exceeds-the-pair-budget]
+blocked_on: [injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams, injectivity-price-on-tour-lofts-exceeds-the-pair-budget]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL

@@ -679,6 +679,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    a vertex's incidence on a singular point is one reading,
    `geom_brep::chart_singularity::vertex_at_singular_point`, which the
    at-vertex placement, the reset and the tip rule all read),
+   **one region per face** off the plane (each surface cycle on the
+   face's side of every other, read by the point-in-face doors cut to
+   one cycle, a torus's essential cycles as one pair:
+   `CycleOffFaceSide`, `CycleSideUndecided`, `EssentialCyclesUnpaired`;
+   `src/one_region.rs`),
    **prefer-intrinsic
    enforcement** ([edges]) and the
    **orientation invariant** (a solid's faces leave infinity outside
@@ -766,8 +771,10 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      one point share one point key, whether they stay in one solid or
      lie in two: an op that cuts one vertex into copies hands each copy
      the original's point, as it hands a cut face's fragments one
-     surface; vertices whose gap an op decided Zero share the key it
-     keeps, and the op records that decision (a `VertexFusion` row,
+     surface; vertices whose gap an op decided Zero share the key of
+     the point it keeps (between a boolean's two operands, the glue's
+     kept side's, [coincidence.booleans]), and the op records that
+     decision (a `VertexFusion` row,
      cited by the pair's vertex-vertex record) for the lint, not for
      the census. A Zero-gap vertex pair on two point keys in a finished
      body is its producer's defect.

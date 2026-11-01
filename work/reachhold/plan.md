@@ -25,7 +25,7 @@ Nothing has been dispatched.
 | P3 | `a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported` | M | A box corner on a fillet's tangent ruling refuses CurvedBooleanUnsupported |
 | P3 | `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses` | M | A point touch at the curved operand's vertex refuses in both orders |
 | P3 | `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only` | M | The covered endpoint arms read a torus line or an arc at its ends only |
-| P3 | `rounded-stack-subtract-and-intersect-refuse-fallback-extent` | M | Aligned continuations refuse FallbackExtentUnsupported: no certificate of abutment |
+| P3 | `a-puck-and-its-rounding-ring-refuse-intersect-and-difference-on-the-tangent-top` | M | A puck and its rounding ring refuse ∩ and ∖ on the torus tangent to the puck's top |
 | P3 | `edge-face-crossing-cut-and-pass-five-decide-one-crossing-twice` | M | A straight crossing is decided twice, and nothing ties the two |
 | P4 | `apply-cut-ins-walks-its-loops-twice-and-overloads-its-predicate-names` | M | apply_cut_ins walks the loops twice and overloads one predicate name |
 | P4 | `line-quadric-root-code-and-the-cone-form-have-several-homes` | M | Line × quadric root code has two homes, the cone form three spellings |

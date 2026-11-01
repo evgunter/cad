@@ -288,6 +288,11 @@ Signed: (CARVE orchestrator)
     - CLEARTAIL's `one-home-for-the-clearance-witness-verifier` (P3).
   - **The spec's curved twin and box rows** are pinned to their typed upstream refusals: OFFSET's arc-necked extrude row, and `shell_moved_walls_overlap`.
   - **Not a handback.** CARVE filed four CLEAR rows at P0 on 2026-10-31 (`6d2622ba97`), parking its embedding certificate on them. CLEAR still has dispatchable P0 work, so the sitting goes on.
+- 2026-11-01 — **SEAMDIAG merges (#6224)** with this commit last. It is a diagnosis unit; the orchestrator read it and accepted it. The parent row is parked on the two causes it found, each filed P0 with a fix shape:
+  - **Twisted seams.** `graph_of` subtracts heading perpendiculars normalised before the along-edge part is dropped. So for two cells offset along a seam, the farther face weighs less, and at a dihedral cosine above `|hy⊥|/|hx⊥|` both faces read one side. The fix is the bisector, two lines, measured by SEAMDIAG: all four seams hold in about 0.2 s. HEADING is dispatched.
+  - **Cap corners.** No reading presents a plane cap at a corner of two arcs. The carrier arm would certify it, but it reads the wall's zero side through the centred form over a rational spline net. That is second order in the cell, so it decides only at depth 51–73. ZEROSIDE is dispatched to read the side off its own control points.
+  - **`m8_14`'s half-turn helix** no longer reproduces on main; it is pinned as holding.
+  - **Rows pinned** at both scalars (the tour rows at f64). HEADING and ZEROSIDE flip them.
 - 2026-11-01 — **CARVE's four P0 rows taken up; REFINES, SLIVER and SEAMDIAG dispatched.** CARVE filed four CLEAR rows on 2026-10-31 (`6d2622ba97`) and parked its `self-overlapping-spines-build-and-validate` on them, so CLEAR's sitting continues past SHELL-4.
   - **REFINES** (`clear/refines`, E, single FULL). The orchestrator decided the shape: an axis refines when EITHER half narrows it. This is CARVE's experiment, and it is sound because the door is admission only.
   - **SLIVER** (`clear/sliver`, M, single FULL, diagnosis first). The fix shape (drop or bound the sliver span in `rect_jet`, or snap the split to the knot) is the lane's to weigh.
@@ -297,3 +302,12 @@ Signed: (CARVE orchestrator)
   - **Now decided rather than turned away at the door:** the arc spine past a full turn, CONTACTHOLD's closed spine and CARVETAIL's loft read `Violated`, all real crossings checked by hand. The long helix holds again. Receipts for faces already admitted are unchanged.
   - **The review.** A single FULL review at `ae2561ad94` returned APPROVE-WITH-FIXES. M5b (min-side only) and M6 (a poison half narrows) survived. The fix pass (`4dfb0439`) added max-side ribbons and the `narrows` finiteness rule with its row, built the real x = 1 bow-tie wall, and made `arc_spine_places` one shared fixture. The orchestrator read it and accepted it.
   - **Main red during the unit:** #6200's blend rewording, filed under CHROME as P0 (#6222) and fixed by #6227.
+- 2026-11-01 — **SLIVER merges (#6229)** with this commit last.
+  - **The cause.** `restricted_jet` divided by a cell's few-ulp overlap with the next knot span, so rounding became slope at every depth.
+  - **The fix.** `SpanRow::restrict_derivative` (geom-core) takes the derivative across the span's own knots, then restricts. `rect_jet` and `span_deriv` read through it. It decides nothing and adds no ε.
+  - **Rows.** The curl walls hold, and REFINES's short-of-a-turn row now holds at the default budget.
+  - **The review.** A single FULL review at `80e5fcc1eb` returned **APPROVE**. It ran 1.4M exact-oracle checks with 0 misses, and every mutant was killed. A cleanup pass (`905cfeb4`) widened the fuzzer to cells and knots a few ulps off, which now catches lax shape (a); un-skipped wall 4v1; and filed the follow-ups. The orchestrator read it and accepted it.
+  - **Filed:**
+    - `restrict-derivative-widens-on-a-few-ulp-knot-span` (P3);
+    - CLEARTAIL's `derivative-bernstein-row-over-a-sub-interval-has-three-homes` (P3);
+    - **`rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot` (P2).** It was found by the widened fuzzer and is pre-existing. At a knot of multiplicity ≥ the degree, a cell ending on the knot drops the one-point meet, so its jet misses the derivative `ders` reads from the next span. It awaits a ruling on `a <= b`, which would widen jets at every p-fold knot.

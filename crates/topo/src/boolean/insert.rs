@@ -70,7 +70,7 @@
 use geom_core::k_stats::NonzeroSign;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::sectors::{BoolSector, PairRecord, within};
+use super::sectors::{BoolSector, PairRecord};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite, SideCode,
     VvContact,
@@ -2381,16 +2381,8 @@ fn record_germ_dir<T: Decide>(
     if read != DeclarationRead::Spent(GlueClass::Tangent) {
         return germ_dir(sa, sb, read, band);
     }
-    let surface_of = |body: &Body<T>, face| {
-        body.get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .cloned()
-            .ok_or(BooleanError::ClassificationInvariant {
-                what: "declared-Tangent face lost its surface",
-            })
-    };
-    let s_a = surface_of(a_body, sa.face)?;
-    let s_b = surface_of(b_body, sb.face)?;
+    let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
+    let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
     let reach = declared.reach_of(super::Operand::A, sa.face, super::Operand::B, sb.face)?;
     let d = match geom_brep::tangent_locus(&s_a, &s_b, reach, band) {
         Ok(geom_brep::TangentLocus::Line { dir, .. }) => dir.normalize(),
@@ -2414,9 +2406,7 @@ fn record_germ_dir<T: Decide>(
             });
         }
     };
-    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
-    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
-    match (plus, minus) {
+    match super::sectors::rays_within(d, &[sa, sb], read, band)? {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),
         _ => Err(BooleanError::ClassificationInvariant {
@@ -2431,8 +2421,9 @@ fn record_germ_dir<T: Decide>(
 /// ambiguous or coplanar configuration refuses loudly.
 ///
 /// The sign is the membership `sectors::pair_search` made this crossing
-/// record on: the same `within` readings of the same line at the same
-/// reaches, so they single out the ray they found there. `±(n_a × n_b)` is
+/// record on: the same readings of the same line at the same reaches
+/// (`sectors::rays_within` of the un-normalized line), so they single
+/// out the ray they found there. `±(n_a × n_b)` is
 /// a LINE and membership picks the ray, so neither normal's sign
 /// survives into it; they arrive outward from `sectors::sector_face`
 /// and nothing is multiplied here. (A pierce germ is signed by its
@@ -2466,9 +2457,7 @@ fn germ_dir<T: Decide>(
         }
     }
     let d = int.normalize();
-    let plus = within(sa, d, false, read, band)? && within(sb, d, false, read, band)?;
-    let minus = within(sa, -d, false, read, band)? && within(sb, -d, false, read, band)?;
-    match (plus, minus) {
+    match super::sectors::rays_within(int, &[sa, sb], read, band)? {
         (true, false) => Ok(d),
         (false, true) => Ok(-d),
         _ => Err(BooleanError::ClassificationInvariant {
