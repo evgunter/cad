@@ -82,8 +82,8 @@ slotmap = { workspace = true }
 # test-only), for the rows that pin a value kept in `T` rather than
 # re-entered as a constant (`chart_region`'s wrap band).
 geom-core = { path = "../geom-core", features = ["sym-revalue-testing"] }
-# Exact rationals for the polygon-cone reader's oracle
-# (`boolean/sectors/cone_fuzz.rs`) and the fin crown's exact crossing
+# Exact rationals for the gathered cone's oracle
+# (`link/cone_fuzz.rs`) and the fin crown's exact crossing
 # test (`tests/the_fin_crown_winds_as_a_solid.rs`).
 num-bigint = { workspace = true }
 # The explicit-width pools the face walks' thread-count rows run under

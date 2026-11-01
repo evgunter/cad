@@ -2,11 +2,12 @@
 id: the-booleans-cone-reader-is-a-second-link
 kind: issue
 title: The boolean's cone reader (cone_side, wedge_classes) is a second parity reader of a point's material, kept in step with the census's link by a fuzz test
-status: spec
+status: closed
 opened: 2026-10-26
 priority: P1
 cost: H
 refs: [material-and-convexity-are-read-three-ways]
+closed: 2026-11-01
 ---
 
 
@@ -48,3 +49,7 @@ The final state:
 
 - **Lane 1** (`oneread/link-cone`): items 1 and 2, in `link.rs` and the census. Dual review (an architectural split of a public type four consumers read).
 - **Lane 2**: items 3 and 4, after lane 1 merges. Dual review (it moves every published vertex-vertex `EdgePieceClass` row).
+
+## Closed (2026-11-01)
+
+Carried by `the-link-splits-into-a-cone-and-a-link` (PR 6228) and `the-boolean-reads-the-other-operand-through-one-cone` (PR 6247). One reader of a point's material at a vertex, `topo::link`'s `Cone`, through one door; `cone_fuzz`'s second reader is retired.

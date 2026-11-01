@@ -129,6 +129,8 @@ That test holds the refusal, and goes red into its full checks (tiers
 1–3, 3′, and the operands' volume identities) when the arc's tie reads
 one order down.
 
+**2026-11-01 (ONEREAD, PR 6247):** `wedge_classes`, `cone_side` and `arc_side` (`bool_cone_arc`) are deleted. The vertex-vertex rows read each own edge through one gathered `link::Cone` (`boolean::vtxfac::cone_classes`), its signs a point's distance from a plane (`link_plane`, `link_wedge`, `link_ahead`, `link_arc`). Item 1's list keeps `pair_codes` and recl's flank readings; the direction-only arc reading is gone.
+
 ## Closed
 
 2026-11-01, PR 6253 (`tangrim/sector-passes-descend`). Every sector

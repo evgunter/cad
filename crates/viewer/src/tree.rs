@@ -28,10 +28,14 @@
 //!
 //! What it does write, and what the rule above does not reach, is what
 //! a node IS: the document's spoken node (`Extrude 000000000003`, its
-//! kind noun and tag, [`node_label`]), and which part an instance is
-//! ([`part_file`]). Those are readings of the node, not verdicts about a run,
-//! and they are sited here because the tree and the creation forms'
-//! pickers have to name a node the same way.
+//! kind noun and tag, [`node_label`]), which part an instance is
+//! ([`part_file`]), which body of a node's value a pick is on
+//! ([`DrawnBody`]), and which face or edge a pick is ([`PickedName`]).
+//! Those are readings of the node, not verdicts about a run. The node's
+//! spelling is sited here because the tree and the creation forms'
+//! pickers have to name a node the same way; a pick's, because the
+//! panels, the property header and the notices that say a pick say the
+//! node it is on in that same spelling.
 //!
 //! Because that is the other thing this module owns: the *shape* —
 //! which rows exist, in which order, which of them the selection is
@@ -108,18 +112,20 @@
 
 use pncad::document::{
     AssertionRelation, AssertionVerdict, BooleanValue, CarriedIn, Constraint, Doc, Evaluation,
-    Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind, NodeResult,
-    NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    node_kind_noun,
+    HeldNodes, Label, MateFault, MateRef, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
+    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, Say, Speaker, SplitSide, SpokenNode,
+    ValuePayload, held_by, node_kind_noun,
 };
+use pncad::prelude::StableName;
 use pncad::select::{
-    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, resolve,
+    InterrogateError, Resolution, ResolveIndeterminate, RunCtx, SplitHalf, leaf_role, resolve,
+    role_leaf,
 };
 
 use crate::frame::Tone;
 use crate::parts::PartFiles;
 use crate::props::{Computed, Notation};
-use crate::session::VersionOffer;
+use crate::session::{EdgeSelection, FaceSelection, Selection, VersionOffer};
 
 /// **One level of a failure's traceback**, as the tree draws it: the
 /// document the level's node is in, as a label of its own, and the
@@ -508,6 +514,220 @@ pub fn headline(spoken: &SpokenNode, which: Option<&str>) -> Headline {
             lead: named(spoken, which),
             muted: None,
         },
+    }
+}
+
+/// **A drawn body**: the node whose value holds it, and which of that
+/// value's bodies — the scope a pick is on, a blend's edges belong to
+/// and the pick index walks. One pair, said one way wherever the chrome
+/// says it: the node as every sentence calls a node (its spoken node),
+/// and, past the node's first body, which body: `Place 3218`,
+/// `body 1 of Split 77c1`. A node's first body is the one the feature
+/// tree's row draws, so it is said as the node.
+///
+/// **Which part an instance is stays on the node's own label**
+/// ([`node_label`]: a tree row, a picker entry), not in this sentence.
+/// The values that say a drawn body are said by a [`Speaker`] alone,
+/// with no part files at hand (a pick index's refusal, a blend's), and
+/// a spoken node already tells two instances apart by its tag, so the
+/// sentence that every site can say is the spoken node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DrawnBody {
+    node: RecipeNodeId,
+    body: u32,
+}
+
+impl DrawnBody {
+    /// Body `body` of `node`'s value.
+    pub const fn new(node: RecipeNodeId, body: u32) -> Self {
+        Self { node, body }
+    }
+
+    /// The node whose value holds the body.
+    pub const fn node(self) -> RecipeNodeId {
+        self.node
+    }
+
+    /// The body's index in that value, from zero.
+    pub const fn body(self) -> u32 {
+        self.body
+    }
+
+    /// **The drawn body a selection is a pick on**, when it is one.
+    ///
+    /// A face pick and an edge pick both carry `(node, body)` — they
+    /// name something DRAWN, which is the only kind of selection that
+    /// can say which body. `Selection::Node` is a feature picked in the
+    /// tree and names no body at all; answering `body: 0` for it would
+    /// be a guess, and precisely on the multi-body nodes where the
+    /// narrowing matters it would be the wrong one. So it answers
+    /// `None` and the affordance that needs a body says what it wants.
+    pub fn of_selection(selection: &Selection) -> Option<Self> {
+        match selection {
+            Selection::Edge(EdgeSelection { node, body, .. })
+            | Selection::Face(FaceSelection { node, body, .. }) => Some(Self::new(*node, *body)),
+            Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
+        }
+    }
+}
+
+/// **Destructured rather than field-read**, so a field added to
+/// [`DrawnBody`] is E0027 here: the pair is the scope a blend's
+/// accumulator opens on and the scope a refusal names, and a body that
+/// grew a third component while the sentence still named two would
+/// name the wrong scope.
+impl Say for DrawnBody {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self { node, body } = *self;
+        if body != 0 {
+            write!(f, "body {body} of ")?;
+        }
+        write!(f, "{}", by.node(node))
+    }
+}
+
+/// The sentence where no document is at hand: the node by its tag.
+impl core::fmt::Display for DrawnBody {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+/// **The feature an entity is**: the node its name's words say made it
+/// ([`role_leaf`]). The one rule for it — what the tree highlights for a
+/// pick ([`FaceSelection::feature`]), what the viewport focuses
+/// (`crate::marks::focus`) and what the property header's Delete deletes
+/// — so each is the node the pick's sentence names, a name the
+/// attribution walk cannot classify included (said as its own node's).
+pub fn feature_of(name: &StableName) -> RecipeNodeId {
+    role_leaf(name).node
+}
+
+/// **A picked entity in a sentence**: its name in the leaf role's words
+/// ([`Speaker::name`]), which say the feature that minted it and each
+/// node a join carried it in at, then the drawn body it was picked on
+/// ([`DrawnBody`]) where the words have not already said that node
+/// ([`pncad::select::LeafRole::nodes`]), or it is not the node's first
+/// body: `the end cap of Extrude e548`, `the end cap of Extrude e548,
+/// on Place 3218`, `…, on body 1 of Split 77c1`.
+///
+/// The one spelling of a face or edge pick wherever the chrome says
+/// one: a held pick's row, a tool's panel line and its drop notice, a
+/// blend's refused edge, the property header, the Checks window's cells
+/// and the id cross-check. Said by a speaker holding the landed
+/// evaluation ([`crate::frame::landed_speaker`]), so each name reads
+/// apart from the others in its table and a name the evaluation does
+/// not hold is said in full.
+#[derive(Clone, Copy, Debug)]
+pub struct PickedName<'a> {
+    name: &'a StableName,
+    on: DrawnBody,
+}
+
+impl<'a> PickedName<'a> {
+    /// `name`, picked on the drawn body `on`.
+    pub const fn new(name: &'a StableName, on: DrawnBody) -> Self {
+        Self { name, on }
+    }
+
+    /// A face pick, on the body its ray met.
+    pub fn face(face: &'a FaceSelection) -> Self {
+        let FaceSelection { name, node, body } = face;
+        Self::new(name, DrawnBody::new(*node, *body))
+    }
+
+    /// An edge pick, on the body its ray met.
+    pub fn edge(edge: &'a EdgeSelection) -> Self {
+        let EdgeSelection { name, node, body } = edge;
+        Self::new(name, DrawnBody::new(*node, *body))
+    }
+
+    /// The feature this pick is of ([`feature_of`]).
+    pub fn feature(&self) -> RecipeNodeId {
+        feature_of(self.name)
+    }
+}
+
+impl Say for PickedName<'_> {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        let Self { name, on } = *self;
+        write!(f, "{}", by.name(name))?;
+        if on.body != 0 || !leaf_role(name).nodes(by).contains(&on.node) {
+            write!(f, ", on {}", pncad::document::Said(&on, by))?;
+        }
+        Ok(())
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for PickedName<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
+}
+
+/// **A face pick a tool or a form holds**: the face it commits, the body
+/// it is said on — read once, at the pick — and every node and fact its
+/// words name as the document held them then ([`held_by`]), spoken
+/// again after each operation ([`HeldPick::respoken`]). The one shape
+/// for a held pick: the mate tool's two, the mirror's plane, the
+/// add-profile form's face and its two trace latches. Its row, its panel
+/// line and its drop notice all say it from here ([`Say`]), so a drop
+/// says what the line said, whatever the document lost in between.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HeldPick {
+    face: FaceSelection,
+    on: DrawnBody,
+    said: HeldNodes,
+}
+
+impl HeldPick {
+    /// `face`, its nodes as `doc` speaks them now, said on the drawn
+    /// body the click met — the copy the user clicked, never the body it
+    /// places — so two copies of one body read apart wherever a held
+    /// pick is said (a mate seats on a copy, and which copy is the
+    /// point), and a pick says what was clicked.
+    pub fn new(doc: &Doc<ProfileProgram>, face: FaceSelection) -> Self {
+        let on = DrawnBody::new(face.node, face.body);
+        let said = held_by(&PickedName::new(&face.name, on), doc);
+        Self { face, on, said }
+    }
+
+    /// This pick with its nodes spoken again from `doc`, a later version
+    /// of the document ([`HeldNodes::respoken`]); the face and its body
+    /// stay as picked.
+    #[must_use]
+    pub fn respoken(&self, doc: &Doc<ProfileProgram>) -> Self {
+        Self {
+            said: self.said.respoken(doc),
+            ..self.clone()
+        }
+    }
+
+    /// The face the pick commits.
+    pub fn face(&self) -> &FaceSelection {
+        &self.face
+    }
+
+    /// The nodes the pick's words name, as kept: what a refusal about
+    /// the pick says a node by once the document no longer holds it.
+    pub fn said(&self) -> &HeldNodes {
+        &self.said
+    }
+}
+
+/// The pick as the chrome says one ([`PickedName`]), on the body kept at
+/// the pick; a node `by` does not hold, as the pick kept it.
+impl Say for HeldPick {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        PickedName::new(&self.face.name, self.on).say(f, by.or_held(&self.said))
+    }
+}
+
+/// The sentence where no document is at hand: each node as kept.
+impl core::fmt::Display for HeldPick {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::held(&self.said))
     }
 }
 
@@ -1061,6 +1281,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         | NodeErrorKind::Revolve(_)
         | NodeErrorKind::Tube(_)
         | NodeErrorKind::Split(_)
+        | NodeErrorKind::ContactCarry { .. }
         | NodeErrorKind::Blend { .. }
         | NodeErrorKind::Boolean(_)
         | NodeErrorKind::Transform(_)
@@ -1236,4 +1457,175 @@ pub fn has_faults(rows: &[TreeRow]) -> bool {
         RowStatus::Unevaluated => false,
         RowStatus::Ok => false,
     })
+}
+
+#[cfg(test)]
+mod picked_name {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::{
+        AuthoredNode, Bodies, BodyRead, Doc, Node, Operand, ProfileProgram, RecipeNodeId, Said,
+        Speaker,
+    };
+    use pncad::prelude::{CapEnd, EntityKind, NameRef, RoleSeg, StableName};
+
+    use super::{DrawnBody, PickedName};
+
+    fn evaluated(doc: &Doc<ProfileProgram>) -> pncad::document::Evaluation<f64> {
+        pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &pncad::document::EvalOptions::default(),
+            pncad::tolerance::witness(),
+        )
+    }
+
+    fn insert(
+        doc: &Doc<ProfileProgram>,
+        node: AuthoredNode,
+    ) -> (Doc<ProfileProgram>, RecipeNodeId) {
+        crate::test_support::inserted(doc, node, pncad::tolerance::witness())
+    }
+
+    /// **The boss-on-block scene's boss caps, said as picks**: each in
+    /// its leaf role's words with the feature that minted it, so the two
+    /// caps of one body read apart; then the body the click met — said
+    /// for a click on the boss's placed copy, unsaid for one on the
+    /// boss's own body, said by its index for a body past the node's
+    /// first. A cap carried into a union is said joined at the union,
+    /// so a click on the union's body says it once; one carried through
+    /// a subtract's `from` is said in the extrude's words alone, so a
+    /// click on the subtract's body says the subtract.
+    #[test]
+    fn a_pick_says_its_face_by_role_and_the_body_it_was_picked_on() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, boss) = crate::test_support::boss_on_block("picked-name", tol);
+        // The two world copies, block's then boss's: one space, so they
+        // join.
+        let [.., block_copy, place] = crate::test_support::authored_ids(&doc)[..] else {
+            panic!("the scene ends with its two placements");
+        };
+        let read = |node| BodyRead::plain(Operand::from(node));
+        let (doc, union) = insert(
+            &doc,
+            Node::Union {
+                members: Bodies::Spelled(vec![read(block_copy), read(place)]),
+            },
+        );
+        let (doc, subtract) = insert(
+            &doc,
+            Node::Subtract {
+                from: read(place),
+                tool: read(block_copy),
+            },
+        );
+        let evaluation = evaluated(&doc);
+        let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
+        let cap = |end| StableName {
+            kind: EntityKind::Face,
+            node: boss,
+            path: vec![RoleSeg::Cap(end)],
+        };
+        // A copy carries its body's names, so the boss's cap is read
+        // through the copy's output.
+        let copy_out = doc.outputs(place)[0];
+        let carried = |at| StableName {
+            kind: EntityKind::Face,
+            node: at,
+            path: vec![RoleSeg::From {
+                read: copy_out,
+                of: NameRef::new(cap(CapEnd::End)),
+            }],
+        };
+        let said = |name: &StableName, node, body| {
+            Said(&PickedName::new(name, DrawnBody::new(node, body)), by).to_string()
+        };
+        let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
+        let (b, p, u, s) = (tag(boss), tag(place), tag(union), tag(subtract));
+        assert_eq!(
+            [
+                said(&cap(CapEnd::Start), place, 0),
+                said(&cap(CapEnd::End), place, 0),
+                said(&cap(CapEnd::End), boss, 0),
+                said(&cap(CapEnd::End), boss, 1),
+                said(&carried(union), union, 0),
+                said(&carried(subtract), subtract, 0),
+            ],
+            [
+                format!("the start cap of Extrude {b}, on Place {p}"),
+                format!("the end cap of Extrude {b}, on Place {p}"),
+                format!("the end cap of Extrude {b}"),
+                format!("the end cap of Extrude {b}, on body 1 of Extrude {b}"),
+                format!("the end cap of Extrude {b}, joined at Union {u} from Place {p}"),
+                format!("the end cap of Extrude {b}, on Subtract {s}"),
+            ],
+        );
+        let end = cap(CapEnd::End);
+        let on_copy = PickedName::new(&end, DrawnBody::new(place, 0));
+        assert_eq!(
+            on_copy.to_string(),
+            Said(&on_copy, Speaker::TAG).to_string(),
+            "with no document at hand, each node by its tag"
+        );
+        assert_eq!(
+            [
+                DrawnBody::new(place, 0).to_string(),
+                DrawnBody::new(place, 2).to_string(),
+            ],
+            [format!("node {p}"), format!("body 2 of node {p}")],
+            "a drawn body names its node, and its index past the first"
+        );
+    }
+
+    /// **The mirror and the mate say a face clicked on a copy alike,
+    /// naming that copy**: the boss's end cap clicked on the boss's
+    /// placed copy is said on that copy by both lines (`HeldPick`'s one
+    /// rule); and the same cap clicked on a second copy of the boss
+    /// reads apart from the first.
+    #[test]
+    fn a_face_on_a_copy_is_said_alike_by_the_mirror_and_the_mate() {
+        let tol = pncad::tolerance::witness();
+        let (doc, _, boss) = crate::test_support::boss_on_block("held-alike", tol);
+        let place = *crate::test_support::authored_ids(&doc)
+            .last()
+            .expect("the boss's placement is the last node");
+        let (doc, second) = crate::test_support::placed(&doc, boss, tol);
+        let cap_on = |node| crate::session::FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: boss,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node,
+            body: 0,
+        };
+        let evaluation = evaluated(&doc);
+        let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
+        let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
+        let cap = |copy| {
+            format!(
+                "the end cap of Extrude {}, on Place {}",
+                tag(boss),
+                tag(copy)
+            )
+        };
+        let mut mirror = crate::combine::MirrorTool::new();
+        mirror.pick_plane(&doc, cap_on(place));
+        let mut mate = crate::matetool::MateTool::new();
+        mate.pick(&doc, cap_on(place));
+        mate.pick(&doc, cap_on(second));
+        let plane = mirror.line(by);
+        assert!(
+            plane.ends_with(&format!("mirror plane: {}", cap(place))),
+            "the mirror says the cap on the copy clicked: {plane}"
+        );
+        assert_eq!(
+            mate.line(by),
+            format!("on: {}; to: {}", cap(place), cap(second)),
+            "the mate says it alike, and the two copies apart"
+        );
+    }
 }

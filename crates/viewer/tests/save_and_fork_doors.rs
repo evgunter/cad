@@ -209,9 +209,7 @@ fn just_after_a_fork_the_landed_run_is_the_old_identity_until_it_lands() {
         "the window: the landed run is the old id"
     );
     assert!(session.busy(), "and the session reads busy");
-    let early = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let early = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(
         matches!(
             early.refusal,
@@ -227,9 +225,7 @@ fn just_after_a_fork_the_landed_run_is_the_old_identity_until_it_lands() {
         session.landed_pair().expect("landed").0.id(),
         session.committed_doc().id()
     );
-    let later = session.perform(SessionOp::BeginFreeMove {
-        instance: bench.post_b,
-    });
+    let later = session.perform(SessionOp::BeginFreeMove { node: bench.post_b });
     assert!(later.refusal.is_none(), "{:?}", later.refusal);
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
@@ -245,9 +241,7 @@ fn a_fork_during_a_free_move_keeps_the_move_and_the_new_identity() {
     session.pump();
     assert!(
         session
-            .perform(SessionOp::BeginFreeMove {
-                instance: bench.post_b
-            })
+            .perform(SessionOp::BeginFreeMove { node: bench.post_b })
             .refusal
             .is_none()
     );
@@ -255,9 +249,7 @@ fn a_fork_during_a_free_move_keeps_the_move_and_the_new_identity() {
     let forked = session.perform(SessionOp::SaveAsNewDocument(fork));
     assert!(forked.refusal.is_none(), "{:?}", forked.refusal);
     let id = session.committed_doc().id();
-    let committed = session.perform(SessionOp::CommitFreeMove {
-        instance: bench.post_b,
-    });
+    let committed = session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
     assert!(committed.refusal.is_none(), "{:?}", committed.refusal);
     session.pump();
     assert_eq!(session.committed_doc().id(), id);

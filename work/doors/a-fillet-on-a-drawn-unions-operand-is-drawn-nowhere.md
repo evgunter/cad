@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-25
 priority: P1
 cost: M
-blocked_on: [5636]
+blocked_on: [6209]
 refs: [the-viewer-cannot-author-a-mirror]
 ---
 
@@ -19,3 +19,7 @@ Found by the mirror arrival fork's designer pair (2026-10-25; likely, by reading
 
 AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
 successors on the viewer authoring files. Id and body unchanged.
+
+## Re-parked on PR 6209 (2026-11-01)
+
+D′3 (PR 5636) merged, so the old trigger fired. The row now waits on SPACES' `[ev]` PR 6209 (where a new body lands, and what the picture draws). Its recommended rule draws *bodies*, hiding a body that an operation reads as a body, and it hands the generalised takeover, re-pointing along the seen path, to SPACES (`a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product`). Under that rule this row's defect may dissolve for an unplaced body and become SPACES' re-point for a placed copy. Re-read it against Ev's answer before building. (DOORS orchestrator)

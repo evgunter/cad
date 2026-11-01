@@ -2,10 +2,13 @@
 id: an-instances-pattern-draws-nothing
 kind: issue
 title: a pattern with output instances commits a family no product reads, so nothing is drawn
-status: open
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: M
+refs: [6209]
+parent: a-new-body-lands-unplaced
+closed: 2026-11-01
 ---
 
 ## Finding
@@ -42,3 +45,7 @@ dump
 ## Partly by design (third walk, 2026-11-01)
 
 The projection tool says "the pattern it is read out of is not drawn itself — to project another of its copies, pick it again in the feature tree", and projecting copy 1 of an instances pattern draws that copy. So leaving the family undrawn is the design. What remains of this row: the pattern tool says nothing of it, so an "instances" pattern reads as a commit that did nothing (the badge's `used by nothing` adds to that); and the pattern's Properties still show the `= ?` refusal above.
+
+## Closed
+
+By `a-new-body-lands-unplaced` (PR 6269).

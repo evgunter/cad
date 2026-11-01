@@ -59,7 +59,7 @@ use topo::{
 };
 
 use crate::common::differential::{
-    VOLUME_CLAIM, VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
+    VOLUME_PAD_BUDGET, every_op_both_orders, judged_within, outcome,
 };
 use crate::common::oracles::{ball_volume, cap_volume};
 use crate::common::poses::torax_pose;
@@ -127,15 +127,12 @@ fn census<T: Real>(body: &Body<T>) -> [usize; 5] {
 /// there is one.
 ///
 /// `pad` is the widest volume enclosure accepted
-/// (`differential::judged_within`). Where `escalates` names a predicate,
-/// the body passes every check but tier 3′, and every error tier 3′
-/// returns is a `CensusEscalated` on that predicate.
+/// (`differential::judged_within`).
 fn holds(
     row: &str,
     r: Result<BooleanResult<f64>, BooleanError>,
     want: f64,
     pad: f64,
-    escalates: Option<&str>,
 ) -> Option<[usize; 5]> {
     let counted = match &r {
         Ok(BooleanResult::Body(b)) => {
@@ -146,32 +143,15 @@ fn holds(
                 Err(mesh::TessellateError::RingOnCurvedFace { .. }) => {}
                 Err(e) => panic!("{row}: {e:?}"),
             }
-            if let Some(predicate) = escalates {
-                let t3p = topo::validate_pseudomanifold(&b.body, &b.contacts, tol());
-                let escalated = |e: &ValidationError| {
-                    matches!(e, ValidationError::CensusEscalated { cause }
-                        if cause.predicate == Some(predicate))
-                };
-                assert!(
-                    t3p.as_ref().is_err_and(|es| es.iter().all(escalated)),
-                    "{row}: tier 3′ {t3p:?}"
-                );
-            }
             Some(census(&b.body))
         }
         _ => None,
     };
     let j = judged_within(r, Some(want), tol(), pad);
-    let ok = match (want == 0.0, escalates) {
-        (true, _) => j.line.starts_with("EMPTY ok"),
-        (false, None) => j.line.starts_with("OK SOUND"),
-        (false, Some(_)) => {
-            j.line
-                .starts_with("OK BAD t2=true t3p=false cert=true operand=true")
-                && j.volume
-                    .zip(j.pad)
-                    .is_some_and(|(v, p)| p <= pad && (v - want).abs() <= p + VOLUME_CLAIM)
-        }
+    let ok = if want == 0.0 {
+        j.line.starts_with("EMPTY ok")
+    } else {
+        j.line.starts_with("OK SOUND")
     };
     assert!(ok, "{row}: {}", j.line);
     counted
@@ -190,7 +170,7 @@ fn every_op(
         .into_iter()
         .map(|(op, r, want)| {
             let row = format!("{what}: {op}");
-            (op, holds(&row, r, want, VOLUME_PAD_BUDGET, None))
+            (op, holds(&row, r, want, VOLUME_PAD_BUDGET))
         })
         .collect()
 }
@@ -215,7 +195,7 @@ fn both_unions(what: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, want: f64) 
         ("A ∪ B", topo::union(a, b, tol())),
         ("B ∪ A", topo::union(b, a, tol())),
     ] {
-        holds(&format!("{what}: {op}"), r, want, VOLUME_PAD_BUDGET, None);
+        holds(&format!("{what}: {op}"), r, want, VOLUME_PAD_BUDGET);
     }
 }
 
@@ -517,10 +497,10 @@ fn reads_as(row: &str, r: Result<BooleanResult<f64>, BooleanError>, want: f64, r
     match reads {
         Reads::Empty => {
             assert_eq!(want, 0.0, "{row}: the closed form");
-            holds(row, r, want, VOLUME_PAD_BUDGET, None);
+            holds(row, r, want, VOLUME_PAD_BUDGET);
         }
         Reads::Sound(shells) => {
-            let counted = holds(row, r, want, VOLUME_PAD_BUDGET, None);
+            let counted = holds(row, r, want, VOLUME_PAD_BUDGET);
             assert_eq!(counted.map(|c| c[0]), Some(shells), "{row}: shells");
         }
         Reads::Unrecorded | Reads::Undecided => {
@@ -825,24 +805,26 @@ fn by_pose((pose, hx, hr, hole_az, boss_az, cells): Pose, turn: Option<&Affine3<
 ///
 /// The same crescent between faces aligned (a holed plate standing on
 /// `z = 0` beside the boss, its hole tangent inside the boss's rim)
-/// overlaps the operands, and every op refuses at the join. In the
-/// one-segment form the plate's top cuts the boss's wall at the hole's
-/// vertex, and the piece of wall between the two floors has every edge
-/// on the plate's boundary: its rims in the plate's top and floor, its
-/// wrap edge along the hole's wall. No witness reads that curved face's
-/// interior, and the boss's floor is flush with the plate's, so neither
-/// loop of the floor rim's section reads a side.
+/// overlaps the operands. In the one-segment form the plate's top cuts
+/// the boss's wall at the hole's vertex, and the piece of wall between
+/// the two floors has every edge on the plate's boundary: its rims in
+/// the plate's top and floor, its wrap edge along the hole's wall. No
+/// witness reads that curved face's interior, and the boss's floor is
+/// flush with the plate's, so the join reads the floor rim's section
+/// loops at their seam (`boolean::join`'s `seam_germ_side`), its closed
+/// rim chords levered by their length. The unions build at their closed
+/// form, `SOUND`. The intersections refuse `MixedSeam` and the
+/// differences `EdgeUndescribed`, typed, past the join. The two-arc
+/// form refuses at the join, `UnpairedLooseEnds`.
 #[test]
 fn a_boss_over_a_hole_by_pose() {
-    use Reads::{LoopsUndecided, Loose};
+    use Reads::{Loose, Sound};
     for pose in poses() {
         by_pose(pose, None);
     }
-    // Pinned red: the one-segment form's refusal is the witness
-    // ladder's,
-    // `work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`.
-    for (form, refusal) in [(true, LoopsUndecided), (false, Loose(4))] {
-        let what = if form { "one segment" } else { "two arcs" };
+    // The one segment form reads its section loops at the seam; the two
+    // arc form refuses at the join.
+    let aligned = |form: bool| {
         let boss = fin(
             "the boss",
             extruded(vec![rim(form, 0.0, 0.3, 0.0)], 0.0, 1.0),
@@ -851,9 +833,25 @@ fn a_boss_over_a_hole_by_pose() {
             "the plate beside",
             extruded(vec![square(), rim(form, 0.2, 0.1, 0.0)], 0.0, 0.5),
         );
-        for (op, r, _) in every_op_both_orders(&boss, &beside, (0.0, 0.0, 0.0), tol()) {
-            reads_as(&format!("aligned, {what}: {op}"), r, 0.0, refusal);
+        let v = (PI * 0.09, (4.0 - PI * 0.01) * 0.5, PI * 0.04);
+        every_op_both_orders(&boss, &beside, v, tol())
+    };
+    for (op, r, want) in aligned(true) {
+        let row = format!("aligned, one segment: {op}");
+        match op {
+            "A ∪ B" | "B ∪ A" => reads_as(&row, r, want, Sound(1)),
+            "A ∩ B" | "B ∩ A" => assert!(
+                matches!(r, Err(BooleanError::MixedSeam { .. })),
+                "{row}: {r:?}"
+            ),
+            _ => assert!(
+                matches!(r, Err(BooleanError::EdgeUndescribed { .. })),
+                "{row}: {r:?}"
+            ),
         }
+    }
+    for (op, r, _) in aligned(false) {
+        reads_as(&format!("aligned, two arcs: {op}"), r, 0.0, Loose(4));
     }
 }
 
@@ -1095,19 +1093,18 @@ fn ellipse_pad_ceiling() -> f64 {
 /// [`a_boss_over_a_hole_by_pose`]'s tangent-outside pose tilted `0.3`
 /// rad about `x` and cut by `z = 0` (the boss by a slab, the plate's hole
 /// through it), so both rims are ellipses tangent at `(0.3, 0, 0)`. One
-/// segment with both vertices at the touch, the boss's there alone or
-/// the hole's there alone, and two arcs with a vertex of each there. In
+/// segment with both vertices at the touch, the boss's there alone, the
+/// hole's there alone, or neither there (each opposite it), and two arcs
+/// with a vertex of each there. In
 /// the one-segment form a closed rim is copied whole on its own carrier
 /// (`chord_join`'s `closed_edge_spec`) and the loop closes at its site
 /// (`boolean::join`'s `closes_at_its_site`), as for a circle.
 ///
 /// Every op in both orders, at rest and turned, is held by [`holds`]
 /// within [`ellipse_pad_ceiling`]: its closed form, tiers 1–3, the
-/// certificate, the operand gate and the mesh. Tier 3′ passes but on the
-/// unions, whose census reads the two rims, coplanar and tangent,
-/// through the curve-pair touch, and escalates on
-/// `curve_pair_coplanar_sub_side` and on nothing else (pinned red:
-/// `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`).
+/// certificate, tier 3′, the operand gate and the mesh. Tier 3′ on a
+/// union reads the two rims, coplanar and tangent, through the
+/// curve-pair touch.
 ///
 /// Each body is also read against the operands' analytic membership by
 /// `point_in_solid` on a grid and beside the touch, off the plane: no
@@ -1165,6 +1162,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
         ("vertices there", true, PI, 0.0),
         ("the boss's there", true, 0.0, 0.0),
         ("the hole's there", true, PI, PI),
+        ("neither there", true, 0.0, PI),
         ("two arcs", false, PI, 0.0),
     ] {
         let tall = fin(
@@ -1241,13 +1239,7 @@ fn ellipse_rims_tangent_outside_build_every_op() {
                         );
                     }
                 }
-                holds(
-                    &row,
-                    r,
-                    want,
-                    ellipse_pad_ceiling(),
-                    union.then_some("curve_pair_coplanar_sub_side"),
-                );
+                holds(&row, r, want, ellipse_pad_ceiling());
             }
         }
     }

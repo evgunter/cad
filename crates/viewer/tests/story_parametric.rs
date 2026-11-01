@@ -422,21 +422,17 @@ fn the_parametric_living_walk() {
     );
     drive_lift(&mut session, lamp_up, 0.08, "height * 3.0 - embed * 2.0");
     assert_eq!(
-        common::world(session.committed_doc()),
+        viewer::world::drawn_nodes(session.committed_doc()),
         [lighthouse],
-        "the world is one copy: the finished part"
+        "the picture is one body: the finished part, unplaced"
     );
     let got = body_volume(&mut session, lighthouse, tol);
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    // Eleven: the ten features and the one world placement of the
-    // finished part.
-    assert_eq!(
-        rows.len(),
-        11,
-        "ten features and the lighthouse's placement"
-    );
+    // Ten: the features, and no placement — the finished part lands
+    // unplaced.
+    assert_eq!(rows.len(), 10, "ten features and no placement");
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),
         "every row green: {rows:?}"

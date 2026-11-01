@@ -49,3 +49,12 @@ module (or beside the editor-core ones), a row per arm labelled
 `{family}/{arm}`, and move its `forward` arm to a welded level. For
 `PartFault`, weld over every list that renders it, or name in-file the
 arms that render only in the viewer.
+
+## Re-checked after D10 (2026-11-01, WIRE orchestrator)
+
+From the read-only `wirehold-triage` against origin/main 8509df2510. INTENT closed on 2026-10-30, and every trigger this row waited on has fired.
+
+**Changed.**
+- `FaceFrameReadback` and `FrameDirection` are gone from `NodeErrorKind`.
+- Still unwelded at `refusal_concision_chains.rs:1252-1256`: `Part`, `MemberRefused`, `Transform`, `Mirror` (new, `eval/mod.rs:1513`) and `Motion`. `Transform`/`Mirror` forward `topo::TransformError` (`topo/src/transform.rs:123`).
+- Same path hazard as its sibling. One unit with `mate-and-pose-forwarders-the-census-does-not-weld`.

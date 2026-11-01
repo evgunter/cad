@@ -58,3 +58,5 @@ escalate: 1e-5 }, ... }))
 A second seed, same shape: the margin sits inside the escalation gap.
 Because it fails about one run in twenty, any PR touching `topo` can
 pick up this red.
+
+**2026-11-01 (ONEREAD, PR 6247):** `census_touch_plane` is renamed `link_plane` (with the other `census_touch_*` rows, now `link_*`). The reading is unchanged and still lives in `crates/topo/src/link.rs`.

@@ -1446,6 +1446,7 @@ impl<T: Decide> HeldFace<T> {
                 super::SectorRead::Pierce(self.face),
                 super::SectorRead::Pair(self.partner),
             ],
+            in_band: None,
         }
     }
 

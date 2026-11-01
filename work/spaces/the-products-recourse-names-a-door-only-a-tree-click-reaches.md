@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-31
 priority: P1
 cost: M
+refs: [6209]
+parent: the-add-to-the-product-door
 ---
 
 

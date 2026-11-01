@@ -118,3 +118,21 @@
   - **The review.** The identity holds to 5.6e-16. A within-zero move decides as the unmoved pose over 2700 poses at each ε. No planar body that main built is now refused: reduce's `bool_vertex_face_side` refuses first.
   - **Class (filed P1):** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt`. The same amplification survives where the unit germ is read in the strut and walk orders. Germ-against-germ readings need a lever choice; the row proposes `min(lean₀, lean₁)`.
   - **Filed P2:** `a-curved-bounds-tangent-read-in-band-at-the-line-while-its-chord-reads-definite`. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap` (PR 6256, test-only; review tier was the orchestrator's read).
+  - **An honest refusal, not a kernel defect.** Since my PR 6212, the 0.5ε pose decides as upright, as the row's contract asks. So it refuses `LineWedges` exactly as the on-top scene does: that scene is already pinned in the file's `REFUSING` table, where it waits on the unbuilt re-pairing in `topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.
+  - **Why the row went red.** `builds_or_refuses` looked its pins up by the tipped label, which never matched, so its pin calls were dead.
+  - **The fix.** A cell within the zero now inherits the on-top scene's pins, enforced in both directions. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `the-boolean-sectors-read-a-wrap-tip-as-a-one-edge-slit-tip` (PR 6221). Review tier: FULL, REQUEST CHANGES, then a delta review, APPROVE-WITH-FIXES, then the orchestrator's read of the final pass.
+  - `SlitTips` reads `validate::wrap_tips`, and the tip's corner reads the full turn. `strut_faces_first` faces a germ along a wrap tip's edge by the same rule.
+  - The FULL review's MAJOR (CLASS) was a two-tip sphere edge regressing from a build to `SectionLoopUndecided`. Root cause: `seam_germ_side` skipped curved chords, which is HONESPLIT's frontier.
+  - **Ruled:** fix it at the cause, in this PR. `seam_germ_side` now reads every chord at first order. The delta review found 59 ops main refuses now build correctly, and none builds wrong over 254 ops at three ε.
+  - Seam note left on `work/honesplit/log.md`.
+  - **Found while driving it:** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap`, a main red bisected to my PR 6212. Banded P1 here. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt` (PR 6238). Review: FULL, APPROVE-WITH-FIXES, no MAJOR; then the orchestrator's read of the final pass.
+  - **The change.** A germ now carries its lean (|n_a×n_b|) in a `Leaned`. The strut, walk, beside and vtxfac germ orders lever their readings through one `sectors::leaned_lever` = lever·min(lean₀, lean₁). `rays_within` reads the same `Leaned`, so the PR 6212 line and the order lever are spelled once.
+  - **Ruled.** Against an edge, the lever is reach·lean (plane offset). Germ against germ takes min-lean, whose noise ≤ lever·(δ₀+δ₁), as derived at the helper.
+  - **What the review found.**
+    - 9030 readings per ε decide as upright.
+    - Double tilts adding past the zero escalate typed, the same at φ=90°, so this is no regression.
+    - A d=6e-9 sliver now refuses honestly in band (D10's pairs). The row is re-stated; the witness pose went to TINT.
+  - **Class measured, no fix.** `HalfGerm.dir`'s join.rs readers (`bool_join_facing`, `rotational_sense`) decide at full magnitude, so a turn moves them only by α²/2. They do not amplify. (SPLITDOOR orchestrator)

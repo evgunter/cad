@@ -125,6 +125,24 @@ deletes `sectors.rs`'s `wedge_read`…`cone_side` block and moves
 of it, and item 1's descent no longer has to reach `cone_side` once it
 lands.
 
+Where it lands (ONEREAD, PR 6247): the vertex-vertex rows read each own
+edge through one gathered `link::Cone` (`boolean::vtxfac::cone_classes`),
+whose own readings are a point's distance from each partner sector's
+tangent plane. The bound-side reading enters there as a side given per
+sector (`link::Cone::reads_given`): today only the touched face's, the
+pierce's own side code. Item 1's descent wires in by giving, for each
+partner sector on a curved face, `bound_side::read` of the own edge
+against that face (`Off`/`Tangent` → its side, `Rides` → zero, a
+refusal → the edge unread), once the cone's crossing reads a given
+side consistently (below). It is not wired at stage 1: a bound tied
+with a curved face reads `BoundSide::Unread` there, which would turn
+every such first-order `On` row (the bore rims' shaft rulings, for one)
+into an unread vertex. `sector_face` / `sector_shape` did not move: they
+were already crate-level, and the boolean's subdivided sectors reach the
+cone through a neutral `link::Fan`.
+
+**What stage 2 must do at the cone (2026-11-01, PR 6247's review):** `Cone::reads_given` takes a given side only for a whole-plane sector (`link::WholePlane`), so the bound-side reading cannot be given for a partner's fan sector as the seam stands. `Cone::crossing` places the arc's crossing of a sector's plane from `q`'s plane distance and `w`'s, so where a given sign differs from `q`'s plane distance (a curved tie read one order down) that point can leave the q–w arc. That is harmless only on a whole plane, which holds every point of it. To give a fan sector's side, stage 2 must first make the crossing consistent with it: for example, read the crossing against the face's own reading of the arc, or refuse where the given sign and the plane distance's sign disagree, and only then widen `WholePlane` to admit fan sectors.
+
 ## Lane finding (2026-11-01, stage 2, PR 6253)
 
 Item 3 (the vertex-pair charge) was built and backed out: charging the

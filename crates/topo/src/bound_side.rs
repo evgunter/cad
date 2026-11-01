@@ -46,7 +46,8 @@ pub(crate) enum Reach<T: geom_core::Real> {
         far: Point3<T>,
     },
     /// A probe direction with no edge behind it, levered at a stated
-    /// arm (`vtxfac`'s interior probes): a straight ray.
+    /// arm: a hand-stated row's probe, a straight ray.
+    #[cfg_attr(not(test), expect(dead_code))]
     Extent(T),
     /// A curved edge — a conic, a spiric or a spline: its departure
     /// tangent at the base vertex, levered at the edge's own extent,
@@ -75,6 +76,21 @@ impl<T: geom_core::Real> Reach<T> {
         match self {
             Self::Chord { base, far } => (far - base).norm(),
             Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector(l, _) => l,
+        }
+    }
+
+    /// The point that fixes a bound leaving `base` along `dir`: a line
+    /// edge's far vertex, and any other bound's direction out to its
+    /// reach ([`Self::length`]) — a curved edge's departure tangent at
+    /// its extent, a probe's or a bisector's direction at its arm. A
+    /// gathered cone's rays and own edges are read at it
+    /// ([`crate::link::Cone::gathered`]).
+    pub(crate) fn point(self, base: Point3<T>, dir: Vec3<T>) -> Point3<T> {
+        match self {
+            Self::Chord { far, .. } => far,
+            Self::Extent(_) | Self::Conic { .. } | Self::Bisector(..) => {
+                base + dir.normalize() * self.length()
+            }
         }
     }
 }

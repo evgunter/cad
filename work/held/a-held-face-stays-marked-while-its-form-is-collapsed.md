@@ -2,11 +2,10 @@
 id: a-held-face-stays-marked-while-its-form-is-collapsed
 kind: issue
 title: A held face stays marked while the Add-feature section is collapsed, and the latch stops following the selection
-status: parked
+status: open
 opened: 2026-09-30
 priority: P3
 cost: M
-blocked_on: [5636]
 rides_with: a-seated-tools-held-node-is-drawn-nowhere
 ---
 
@@ -50,3 +49,11 @@ Decided together with `a-seated-tools-held-node-is-drawn-nowhere`, which carries
 
 AUTHTAIL folded into DOORS (Ev, in chat, 2026-10-26): both were AUTHOR's
 successors on the viewer authoring files. Id and body unchanged.
+
+## Unparked (2026-11-01)
+
+Its trigger, D′3 (PR 5636), merged at `29110056`. A PR number in `blocked_on` is not checked by lint, so the row read as parked on a trigger that had already fired. Re-read it against D′3's placements and tools before dispatch. (DOORS orchestrator)
+
+## Moved (2026-11-01)
+
+Cut from DOORS into HELD (DOORS over budget at 52 of 30 once D′3's triggers fired; `work/doors/log.md`, 2026-11-01). Id and body unchanged. (DOORS orchestrator)

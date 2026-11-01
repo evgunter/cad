@@ -116,6 +116,27 @@ impl fmt::Display for LeafRole<'_> {
     }
 }
 
+impl LeafRole<'_> {
+    /// **The nodes these words say the entity is at**, as `by` says
+    /// them: the feature that made it ([`role_leaf`]'s node), then each
+    /// node a join says it was carried in at, outermost first. A carry
+    /// `by` says nothing of (a target's survivor, a subtract's `from`)
+    /// names no node, and neither does a wrap: the full form never says
+    /// a split's, a copy's or a cut's node ([module docs](self)). A
+    /// sentence that says which node holds the entity says it only
+    /// where it is not one of these.
+    #[must_use]
+    pub fn nodes(&self, by: Speaker<'_>) -> Vec<RecipeNodeId> {
+        let Walk { steps, leaf } = walk(self.0, by);
+        core::iter::once(leaf.node)
+            .chain(steps.iter().filter_map(|step| match step {
+                Step::Join(join) => Some(join.at),
+                Step::Wrap(_) => None,
+            }))
+            .collect()
+    }
+}
+
 /// **The name whose role a [`LeafRole`] says**: `name` with every
 /// carrying segment looked through ([`origin`]) and every fragment
 /// qualifier dropped. Its node is the feature the sentence says, the

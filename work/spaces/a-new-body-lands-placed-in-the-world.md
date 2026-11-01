@@ -2,10 +2,13 @@
 id: a-new-body-lands-placed-in-the-world
 kind: issue
 title: a new body lands placed in the world rather than unplaced
-status: open
+status: closed
 opened: 2026-10-31
 priority: P0
 cost: H
+refs: [6209]
+parent: a-new-body-lands-unplaced
+closed: 2026-11-01
 ---
 
 
@@ -69,3 +72,7 @@ Third walk (2026-11-01; Ev: add here unless covered). The duplicate tool's copy 
 From CHROME's `work/chrome/the-split-tools-plane-is-typed-blind.md` (Ev's third walk, 2026-11-01). A real split commits as `Split "Split 1" … Ok`, and the picture does not change. `DocSession::add_split` (`crates/viewer/src/session.rs`) inserts the `Node::Split` alone: there is no world placement and no takeover of the input's world copy (compare `add_mirror`'s `repoint`). So the plate's world copy still draws whole, and the halves draw nowhere. PR 6209's drawn-bodies rule covers this case as it stands: a split is a one-input operation that reads the plate as a body, so the plate stops being drawn and the split's halves are drawn. CHROME is therefore building no split-only placement; the split's picture is this row's.
 
 CHROME's split plane preview (`chrome/split-plane`) draws the plane under the copy the target was picked through: `Seats::through` keeps the placement a viewport pick hit, `PickIndex::drawn_map` gives that copy's drawn map, and `splitplane::space_to_picture` composes it with the target's own frame. Under PR 6209's drawn-bodies rule a body can be drawn with no placement, and then no copy was picked through. When that lands, `ViewerBehavior::split_plane_preview` (`crates/viewer/src/pane/viewport.rs`) needs re-pointing: a pick on a drawn body should give the map that body is drawn under, so the plane is drawn there too. Today the panel says "the plane is not drawn" for that case.
+
+## Closed
+
+By `a-new-body-lands-unplaced` (PR 6269).
