@@ -1916,3 +1916,10 @@ Signed (CLEAVE orchestrator).
     - Also in that pass: `runs_in` keeps a midpoint reading of closed edges; a sphere lone ring may now refuse in `place_strut`; `GermEdgeCarrierUnsupported`'s Display text is stale; and a row for a validator that cannot see a ring in the wrong face. (CLEAVE orchestrator)
 
 - 2026-11-01: 6185 merged (`6245d38ace`) on full green after main's #6227 fix. Orchestrator's read of the fix-pass code: `Unplaced{OnEdge,InSeveral,Off}` keeps each refusal's kind and names what was measured; touches are keyed by (holder, root, vertex). TOUCHREC was told the missing-partner-record row is on main to claim. (CLEAVE orchestrator)
+
+- 2026-11-01: 6184 merged (`4228843d1e`) on full green.
+  - In the small pass, `Cut::tie_flankers` is the one gate both `beside_order` and `walk_faces_first` ask, and `beside_order`'s three `Zero` cases are documented.
+  - The two new refusals are limits, not invariants. The lane could not argue either unreachable: `tied_held`'s far ends, and `strut_anchor`'s ordered tie, which names the reaching pose.
+    - They stay in `ClassificationInvariant`'s voice, with "a limit, not a broken invariant:" text, until the typed limit lands. Both are recorded as instances on the P2 `a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug`.
+    - `strut_anchor`'s `Tied(Zero)` keeps main's invariant.
+  - Orchestrator's read of the delta. (CLEAVE orchestrator)
