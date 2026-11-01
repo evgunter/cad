@@ -283,8 +283,8 @@ anything is taken from it.
 **The index seam's promise is weaker than the evaluation seam's, and
 the asymmetry is deliberate.** It has no cancel — not a cancel that
 does nothing, but no door at all. The shipped `CancelToken` is checked
-BETWEEN NODES and the step behind this seam has no nodes to be checked
-between: neither `mesh::tessellate` nor the BVH build takes a token,
+between nodes and a family's members, and the step behind this seam has
+neither to be checked between: neither `mesh::tessellate` nor the BVH build takes a token,
 and giving them one is other crates' territory. So the policy is
 **restart without cancel**: a δ change mid-build lets that build run to
 completion and discards its answer, which costs a second full build —
