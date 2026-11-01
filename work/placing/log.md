@@ -14,5 +14,14 @@ Newest entries at the bottom; the tail is the program's live status.
   (banded P2 M at the cut), `instance-value-rows-do-not-say-their-axis`
   (P2 E) and the deferred `band-refusal-still-badges-every-row`. P0 and
   P1 load 25. (CHROME orchestrator)
+- 2026-11-01 — **Seam (SPACES):** Ev ruled on PR 6209 that no gesture
+  writes a world `Place` on the person's behalf, and the picture draws
+  bodies (a body is drawn unless an operation reads it as a body). Once
+  `spaces/a-new-body-lands-unplaced` lands, this program's re-point,
+  delete and transform rows act only on placements a person asked for;
+  `deleting-a-placed-feature-unplaces-its-target` largely dissolves for
+  unplaced bodies, and the duplicate stand-in leans on
+  `a-feature-gesture-re-points-every-copy-of-its-target`. A live lane in
+  either program says so on the other's log. (SPACES orchestrator)
 - 2026-11-01 — (CHROME orchestrator) From the review of CHROME's PR 6203, unverified: `MateFreedom::offered_beside(kind)` is called without the freedom in `pane/create.rs`, around the mate form's freedom rows, so every freedom may be offered or none. Read it before the mate-tool rework builds on that panel.
 - 2026-11-01 — (CHROME orchestrator) Correction to the note above: CHROME's mate-banner lane read `MateFreedom::offered_beside(kind)`, and it is by design, per its doc. Each freedom is offered beside a plane or an axis mate; which slides apply is the copy's geometry's to say, and the evaluation refuses the rest. Nothing to file.

@@ -2,11 +2,12 @@
 id: face-pick-cannot-name-which-face
 kind: issue
 title: The add-datum form's face pick names a body scope, and no label in the tree can name WHICH face
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P1
-cost: D
+cost: M
 refs: [2955]
+branch: doors/face-words
 ---
 
 ## What
@@ -154,3 +155,7 @@ Two designers weighed this independently and reached the same final state in the
 ## The composer speaks within the landed evaluation (PR 3886, 2026-10-03)
 
 Ev's ruling on #3906 gives a speaker that holds the body's name table — the viewer's pick readout among them — a detail that tells each name apart in that table. The composer this row builds holds that table: every site it serves reads the landed pair. So it says each face through `Speaker::of(landed).within(evaluation)`, as `frame::pick_refusal`, `idpass::Disagreement::notice` and `frame::tool_notice` already do. A face the evaluation does not hold is then said in full.
+
+## Re-priced (2026-11-01)
+
+Its blocker is in: the names layer renders a leaf role in words (`editor_core::names::words::leaf_role`). The legacy `cost: D` is re-priced `M`. The design was ruled on #3571, so no question is open, and what remains is the viewer composer and its five sites. (DOORS orchestrator)
