@@ -1,10 +1,12 @@
-//! The four seams a landing is built across — where a document
+//! The seams a landing is built across — where a document
 //! becomes a result DAG, where the display budget prices that result
 //! to choose the δ it is drawn at, where the DAG becomes the pick
 //! index the viewport draws and picks against, and where the landing's
 //! checks report gets the coincidence door's answer at rest
-//! ([`DoorService`]). **The one place in this crate that OWNS a
-//! thread**: `app` spawns all four workers because
+//! ([`DoorService`]) — and, beside the landing, where an operation
+//! staged and not committed is evaluated for its verdict
+//! ([`StagedService`]). **The one place in this crate that OWNS a
+//! thread**: `app` spawns every worker because
 //! it decides which implementation this build runs, and every join
 //! handle, channel and hand-off between them is here. The options a
 //! session's evaluation runs under are spelled here too ([`options`]),
@@ -18,8 +20,8 @@
 //! GUI plan carries that as a standing constraint for the web lane:
 //! natively a background thread, on wasm a Worker or an inline slice,
 //! with no source change above this boundary. So the vocabulary here
-//! is submit / poll over a [`Generation`] — plus cancel, for the two
-//! of the four whose work can be stopped — and
+//! is submit / poll over a [`Generation`] — plus cancel, for the seams
+//! whose work can be stopped — and
 //! [`InlineEvaluator`] — which runs the whole evaluation inside
 //! `poll` — satisfies it exactly as well as [`ThreadEvaluator`] does.
 //! Rows in this crate's suite drive both, and the application drives
@@ -915,7 +917,7 @@ mod threaded {
         StagedDone, StagedRequest, StagedService, build_index, run_fit, run_once, run_staged,
     };
 
-    /// Which of this module's four workers a refusal is about (D4 ¶3:
+    /// Which of this module's workers a refusal is about (D4 ¶3:
     /// a closed enum, because the set is this file's own and a reader
     /// asking which values occur should be able to see them).
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -977,7 +979,7 @@ mod threaded {
     impl core::error::Error for SpawnError {}
 
     /// What a worker carries, what it answers with, and **the one rule
-    /// that differs between the four seams**.
+    /// that differs between the seams**.
     ///
     /// Everything else about carrying a job is [`Coalescing`]'s and is
     /// written once there; this trait is where a seam says the part
@@ -1001,7 +1003,7 @@ mod threaded {
     /// this module is one of these plus whatever else that seam owns.
     ///
     /// The invariant, in one place rather than once per seam, because
-    /// four hand-maintained copies of it are four things that can
+    /// a hand-maintained copy of it per seam is one more thing that can
     /// silently disagree:
     ///
     /// - **at most one outstanding**: the worker holds at most one job,
@@ -1075,7 +1077,7 @@ mod threaded {
             let handle = std::thread::Builder::new()
                 .name(thread_name.to_owned())
                 .spawn(move || {
-                    // The worker loop, once for all four seams:
+                    // The worker loop, once for every seam:
                     // answer one job at a time — which is the other
                     // half of at-most-one-outstanding, the half that
                     // lives on this side of the channel — and stop
@@ -1728,20 +1730,20 @@ mod threaded {
     ///
     /// # Why these rows are here and not against a public door
     ///
-    /// The four shipped handles cannot be crashed from outside, by
+    /// The shipped handles cannot be crashed from outside, by
     /// construction: a worker only dies by panicking inside its own
-    /// job, the job is `build_index`, `run_fit`, `run_once` or a door
-    /// job's `run`, and the
+    /// job, the job is `build_index`, `run_fit`, `run_once`, a door
+    /// job's `run` or `run_staged`, and the
     /// closure that calls it is private to this module with no door to
     /// inject a failure through. So a row driven through
     /// [`ThreadIndexer`] would have to make the KERNEL panic on an
     /// input, which is the thing D9 says cannot happen.
     ///
     /// What these drive instead is [`Coalescing`] itself — not a
-    /// hand-written mirror of it, but the very type all four handles
+    /// hand-written mirror of it, but the very type every handle
     /// delegate every `submit`, `poll` and `busy` to, carrying both of
     /// the arms under test. **What that does not prove** is the last
-    /// inch: that a panic inside one of those four private closures is
+    /// inch: that a panic inside one of those private closures is
     /// the only way to arrive, which is argued from the worker loop's
     /// three exits rather than executed.
     ///
