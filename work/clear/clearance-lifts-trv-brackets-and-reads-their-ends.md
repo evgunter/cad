@@ -2,7 +2,7 @@
 id: clearance-lifts-trv-brackets-and-reads-their-ends
 kind: issue
 title: The clearance engine lifts brackets through from_certified and never refuses a Trv one; 35 of injective.rs's and 11 of clearance.rs's endpoint reads decide on brackets that may not certify
-status: open
+status: dispatched
 opened: 2026-10-29
 priority: P1
 cost: M
