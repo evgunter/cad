@@ -2633,6 +2633,31 @@ fn mint_run<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    /// REVIEW PROBE (PR 6212 sibling): the unit germ of two faces 10°
+    /// apart, one tipped 0.2·zero, read against an arrival edge along
+    /// their shared bound at its reach 1.23 (`bool_strut_side`).
+    #[test]
+    #[ignore = "review probe"]
+    fn rv_strut_side_reads_the_unit_germ_amplified() {
+        let band = Band::linear(geom_core::Tol::witness()).unwrap();
+        let at = |deg: f64| {
+            let (s, c) = deg.to_radians().sin_cos();
+            Vec3::new(c, s, 0.0)
+        };
+        let down = Vec3::new(0.0, 0.0, -1.0);
+        let n_b = at(30.0);
+        for tilt in [0.0, 0.2 * band.zero()] {
+            let n_a = (at(20.0) + Vec3::new(0.0, 0.0, -tilt)).normalize();
+            let mut g = n_a.cross(n_b).normalize();
+            if g.z > 0.0 {
+                g = -g;
+            }
+            let side = (g.cross(down).dot(n_b)) * 1.23;
+            let got = strut_order((down, 1.23), n_b, (g, at(120.0)), 0.11, || Ok(None), band);
+            eprintln!("tilt {tilt:e}: side reading {side:e}, strut_order {got:?}");
+        }
+    }
     use geom_core::Tol;
 
     /// **`strut_facing`'s vote table.** `he_plus` lies beside the
