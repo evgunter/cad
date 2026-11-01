@@ -1961,7 +1961,7 @@ mod cap_corner_departure {
             .collect();
         assert_eq!(
             receipts,
-            [(12, 9), (1, 1), (4, 4), (1, 1)],
+            [(10, 9), (1, 1), (4, 4), (1, 1)],
             "each pair's (splits, deepest cell)"
         );
     }

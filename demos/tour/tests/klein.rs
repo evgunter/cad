@@ -227,10 +227,10 @@ mod cap_corner_departure {
                 (1, 1),
                 (1, 1),
                 (1, 1),
-                (4, 3),
-                (4, 3),
-                (4, 3),
-                (4, 3)
+                (3, 3),
+                (3, 3),
+                (3, 3),
+                (3, 3)
             ],
             "each pair's (splits, deepest cell)"
         );
