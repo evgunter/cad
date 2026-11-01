@@ -212,6 +212,12 @@ fn overlay<T: Decide>(
 /// it reaches, its value the family of them; `eval_member` evaluates
 /// it at one member's environment, results, prior value, lane and
 /// index values.
+///
+/// # Errors
+///
+/// [`super::Canceled`] where `cancel` is set before a member: a family
+/// is as large as its counts admit, so it yields to cancelation member
+/// by member as the walk does node by node.
 #[allow(clippy::too_many_arguments)] // eval_node's inputs, and the chain
 pub(super) fn eval_family<T: Decide>(
     doc: &Doc<ProfileProgram>,
@@ -220,6 +226,7 @@ pub(super) fn eval_family<T: Decide>(
     chain: &[VarId],
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     prior: Option<&NodeValue<T>>,
+    cancel: &super::CancelToken,
     op_env: &super::wire::OpEnv<'_, T>,
     eval_member: impl Fn(
         &crate::expr::VarEnv<T>,
@@ -228,7 +235,7 @@ pub(super) fn eval_family<T: Decide>(
         &super::wire::OpEnv<'_, T>,
         &[(VarId, i64)],
     ) -> NodeStep<T>,
-) -> NodeStep<T> {
+) -> Result<NodeStep<T>, super::Canceled> {
     let fail = |kind| NodeStep {
         result: NodeResult::Failed(NodeError {
             node: id,
@@ -251,9 +258,12 @@ pub(super) fn eval_family<T: Decide>(
     let mut members = Vec::new();
     let mut reused = true;
     for member in listed {
+        if cancel.is_canceled() {
+            return Err(super::Canceled);
+        }
         let (value, (member_env, nominal)) = match member {
             Ok(member) => member,
-            Err(fault) => return fail(fault.node_error()),
+            Err(fault) => return Ok(fail(fault.node_error())),
         };
         let at: Vec<(VarId, i64)> = chain.iter().copied().zip(value.iter().copied()).collect();
         let narrow: Vec<u32> = value
@@ -287,16 +297,16 @@ pub(super) fn eval_family<T: Decide>(
         match step.result {
             NodeResult::Ok(value) => members.push((narrow, value)),
             NodeResult::Failed(NodeError { kind, .. }) => {
-                return fail(NodeErrorKind::MemberRefused {
+                return Ok(fail(NodeErrorKind::MemberRefused {
                     at,
                     source: Box::new(kind),
-                });
+                }));
             }
             poisoned @ NodeResult::Poisoned { .. } => {
-                return NodeStep {
+                return Ok(NodeStep {
                     result: poisoned,
                     reused: false,
-                };
+                });
             }
         }
     }
@@ -304,13 +314,13 @@ pub(super) fn eval_family<T: Decide>(
         over: chain.into(),
         members,
     };
-    match family_value(id, members) {
+    Ok(match family_value(id, members) {
         Ok(value) => NodeStep {
             result: NodeResult::Ok(value),
             reused,
         },
         Err(kind) => fail(kind),
-    }
+    })
 }
 
 /// **A member's content key**: its operation's at the member's values,
@@ -424,4 +434,132 @@ fn family_value<T: Decide>(
         content_key: content.finish(),
         naming_key: NamingKey(naming.finish().0),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::cell::Cell;
+
+    use geom_core::Tol;
+
+    use super::*;
+    use crate::eval::{CancelToken, NodeStep, parts, wire};
+
+    /// A document declaring the index `k = index(count)`, and `k`.
+    fn indexed(count: i64) -> (Doc<ProfileProgram>, VarId) {
+        let tol = Tol::witness();
+        let doc = Doc::<ProfileProgram>::empty_derived("members-cancel", tol);
+        let name = crate::VarName::new("k").unwrap();
+        let doc = doc
+            .apply(
+                &crate::DocEdit::DeclareVar {
+                    name: name.clone(),
+                    def: crate::VarDecl::Index {
+                        count: crate::Formula::count(count),
+                        within: None,
+                    },
+                },
+                tol,
+            )
+            .unwrap()
+            .doc;
+        let k = doc.var_named(name.as_str()).unwrap();
+        (doc, k)
+    }
+
+    /// `doc`'s family over `k`, each member a hand-built value, with
+    /// `on_member` run at each member's values before it evaluates; and
+    /// how many members evaluated.
+    fn family(
+        doc: &Doc<ProfileProgram>,
+        k: VarId,
+        cancel: &CancelToken,
+        on_member: impl Fn(&[(VarId, i64)]),
+    ) -> (Result<NodeStep<f64>, crate::eval::Canceled>, usize) {
+        let tol = Tol::witness();
+        let env = doc.var_env::<f64>();
+        let nominal = doc.var_env::<f64>();
+        let entry = parts::PartStore::<f64>::new(None, topo::SweepStrategy::Realized, tol)
+            .enter_census(doc, None, cancel, tol);
+        let op_env = wire::OpEnv {
+            twist: None,
+            boolean_sweep: topo::SweepStrategy::Realized,
+            parts: &entry.reached,
+            lane: wire::LaneEnv {
+                params: &env,
+                nominal: &nominal,
+                nominal_results: None,
+                pass_two: crate::eval::PassTwo::SkippedAtF64,
+            },
+        };
+        let evaluated = Cell::new(0usize);
+        let id = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
+        let step = eval_family(
+            doc,
+            &env,
+            id,
+            &[k],
+            &BTreeMap::new(),
+            None,
+            cancel,
+            &op_env,
+            |_, _, _, _, at| {
+                on_member(at);
+                evaluated.set(evaluated.get() + 1);
+                NodeStep {
+                    result: NodeResult::Ok(NodeValue::hand_built(
+                        crate::names::NameTable::new(),
+                        crate::names::FragmentGroups::default(),
+                        Vec::new(),
+                    )),
+                    reused: false,
+                }
+            },
+        );
+        (step, evaluated.get())
+    }
+
+    /// **A family yields to cancelation member by member**: the token
+    /// set while member 2 of `u32::MAX` evaluates stops the family before
+    /// member 3, typed. Red if the family checks the token only between
+    /// nodes — it then evaluates every member — or reports a value.
+    #[test]
+    fn a_family_canceled_by_a_member_stops_before_the_next() {
+        let (doc, k) = indexed(i64::from(u32::MAX));
+        let cancel = CancelToken::new();
+        let (step, evaluated) = family(&doc, k, &cancel, |at| {
+            if at == [(k, 2)] {
+                cancel.cancel();
+            }
+        });
+        assert!(step.is_err(), "a canceled family holds no result");
+        assert_eq!(evaluated, 3, "members 0, 1 and 2 evaluated, and no other");
+    }
+
+    /// An uncanceled family evaluates every member, in index order.
+    #[test]
+    fn an_uncanceled_family_evaluates_every_member() {
+        let (doc, k) = indexed(5);
+        let cancel = CancelToken::new();
+        let seen = Cell::new(0i64);
+        let (step, evaluated) = family(&doc, k, &cancel, |at| {
+            assert_eq!(at, [(k, seen.get())], "members in index order");
+            seen.set(seen.get() + 1);
+        });
+        let Ok(NodeStep {
+            result: NodeResult::Ok(value),
+            ..
+        }) = step
+        else {
+            panic!("a family of five evaluates");
+        };
+        assert_eq!(evaluated, 5, "one evaluation per member");
+        let members = value
+            .members
+            .as_ref()
+            .expect("a family's value holds its members");
+        assert_eq!(members.members.len(), 5, "five members held");
+    }
 }
