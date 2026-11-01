@@ -16,3 +16,13 @@ Newest entries at the bottom; the tail is the program's live status.
   own space are one mechanism (a body nothing places has to be drawn
   in its own space), so a successor should read them together before
   cutting units. (CHROME orchestrator)
+- 2026-11-01 — Picked up (status active). The whole slate hinges on one
+  mechanism: where a new body lands (Ev: unplaced, in its own shown
+  space), what the picture draws, and how a body reaches the product.
+  Ev's ruling settles the core; what is still open is whether a first
+  body joins the product (the recourse row names it Ev's), where
+  instances, duplicates, projections and pattern families land, and how
+  a second copy keeps off the first. Those go to designers first, on
+  the whole slate rather than row by row: a fork row, three-designer
+  arm drawn (51, 196; record on `analysis/design-fork/spaces-landing`).
+  Units are cut from the designers' answer. (SPACES orchestrator)
