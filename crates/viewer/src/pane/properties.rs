@@ -46,6 +46,10 @@ impl ViewerBehavior<'_> {
             self.instance_ui(ui, node);
             self.product_ui(ui, node);
         }
+        // The forms whose op takes the selection, under its header and
+        // above its rows, where a reader who picked it looks first:
+        // nothing at all unless the selection is a profile.
+        self.extrude_ui(ui);
         match self.session.selection().clone() {
             Selection::None => {
                 ui.weak("select a feature");
@@ -162,9 +166,6 @@ impl ViewerBehavior<'_> {
                 // (`DocSession::standing`), so the two are one answer.
             }
         }
-        // The selection's own forms, under its rows: nothing at all
-        // unless the selection is a profile.
-        self.extrude_ui(ui);
         ui.separator();
         ui.label("variables");
         for row in crate::props::variable_rows(self.session.doc()) {

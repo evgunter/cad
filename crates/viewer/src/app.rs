@@ -3978,7 +3978,7 @@ mod properties_pane_tests {
 
     /// The window every whole-app row here is drawn in unless it needs
     /// a taller one.
-    pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1000.0);
+    pub(super) const WINDOW: egui::Vec2 = egui::vec2(1600.0, 1200.0);
 
     pub(super) use super::drive::{app_frame, index_answered, quiescent, settle};
 
