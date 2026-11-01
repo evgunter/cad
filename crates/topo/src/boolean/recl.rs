@@ -2040,13 +2040,24 @@ fn resolve_edge_sector<T: Decide>(
                 what: "edge-sector site lost its point",
             })
     };
-    // A flanker tangent to the reference keys by the side it leaves it
-    // to, one order down ([`flank_key`]): it holds the transition beside
-    // a coplanar flanker that lumps the other way.
-    let (k1, k2) = (
-        flank_key(own_secs, f_s, false, ref_sector, band)?.code,
-        flank_key(own_secs, f_e, true, ref_sector, band)?.code,
+    // One flanker tied with the reference stays `On`: Table III lumps it
+    // whole and the germ stays on the other (`the_stadium_answers_every_op`).
+    // Both tied, each keys by the side it leaves the reference to, one
+    // order down ([`flank_key`]): a flanker tangent to the reference
+    // holds the transition beside a coplanar one that lumps the other
+    // way.
+    let (r1, r2) = (
+        flank_key(own_secs, f_s, false, ref_sector, band)?,
+        flank_key(own_secs, f_e, true, ref_sector, band)?,
     );
+    let first = |r: super::sectors::BoundRead| match r.tie {
+        Some(_) => SideCode::On,
+        None => r.code,
+    };
+    let (k1, k2) = match (r1.tie, r2.tie) {
+        (Some(_), Some(_)) => (r1.code, r2.code),
+        _ => (first(r1), first(r2)),
+    };
     let (v1, v2) = table_ii(k1, k2);
     let comparison = if a_side { Operand::A } else { Operand::B };
     // Table III's rule: whether the on-flanker lumps Out. A glued

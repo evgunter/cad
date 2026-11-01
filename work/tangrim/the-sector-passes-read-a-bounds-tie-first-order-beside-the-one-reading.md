@@ -134,13 +134,13 @@ needs are on `vertex-vertex-side-codes-take-no-curvature-charge-on-curved-sector
 which stays open. PR 6253's body lists what of items 1–13 landed and
 where the rest is filed.
 
-## Lane finding (2026-11-01, stage 2, PR 6253): the descent moves seven built rows to refusals
+## Lane finding (2026-11-01, stage 2, PR 6253): the descent moves six built rows to refusals
 
 Stage 2 built items 1, 2, 6, 7, 9 (bar `split_bisector_side`), 10, 11
 (the sector callers), 12 and 13 (PR 6253 lists them), and the
 outcome diff at the default ε (`cargo nextest run -p sweep -p topo`,
 slow set included, main `e669a2f8` against the branch at `1ceb3cf6`)
-stopped the lane at two points where the design, as specified, moves
+stopped the lane at a point where the design, as specified, moves
 bodies main builds valid to refusals.
 
 **1. An in-band second-order tie escalates (the design's item 2, fourth
@@ -170,17 +170,12 @@ band of the face to the orders read, which is `Rides`' own definition),
 or these six move to refusals by design. That is a decision on the
 design, not the lane's.
 
-**2. A tangent flanker in the edge-on-sector rule.**
-`pi_seam_and_kiss_through_the_boolean::the_stadium_answers_every_op`
-moves from building to `Join(SectionInvariant { "tangent plane×wall germ
-pair in the boolean join" })` on slab ∪ rod. The rule's Table II keys
-(`recl::flank_key`) now descend, so a flanker tangent to the reference
-keys by the side it leaves to, where main keyed it `On` and Table III
-lumped it whole (`"One On flanker stays On"`). Measured: keying the
-flankers at first order again builds the stadium. The design says the
-edge-on-sector rule keys germ attribution on the tangent side; what
-Table II/III do with a flanker that is tangent, rather than on, is not
-specified, and the germ the join then receives is not one it pairs.
+**2. A tangent flanker in the edge-on-sector rule (resolved on the
+branch).** `pi_seam_and_kiss_through_the_boolean::the_stadium_answers_every_op`
+went from building to `Join(SectionInvariant)` when both of the rule's
+Table II keys (`recl::flank_key`) descended. PR 6219's narrowing is
+restored: the keys descend only where both flankers tie, and one tied
+flanker stays `On` for Table III's lump. The stadium builds again.
 
 Also moved, refused to refused:
 `a_sheath_grafted_on_its_blade::a_sheath_on_its_blade_stops_where_its_walls_touch_on_the_rim`
