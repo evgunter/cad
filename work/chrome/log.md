@@ -2572,3 +2572,4 @@ Signed (CHROME orchestrator).
     - Unit state rides the unit branch only.
 
   (CHROME orchestrator)
+- 2026-11-01 — #6240 merges and closes `the-split-tools-plane-is-typed-blind` (P1). It got a style review with a correctness arm and one fix pass. The review falsified claim 2: a staged verdict survived Open, because every new history restarts at `HistoryId(0)`. The fix moved the stage into `Derived`. The pass also woke the frame loop when a verdict lands and on edits; rewrote the tests to go through the real panel and preview paths; gave the threaded handle one generic home (`Cancelling`), since the stager had copied the prover's; made `split_reading` refuse a value that is not a split; took `through` from the pick's kind; and reset the seed for a target with no corner. **Wave 11 complete** (6239, 6242, 6240). (CHROME orchestrator)

@@ -116,6 +116,9 @@ pub(crate) struct CameraFrame<'a> {
     /// The open revolve tool's axis over its held profile, if any
     /// ([`push_revolve_axis`]).
     pub(crate) axis: Option<&'a RevolveAxisPreview>,
+    /// The open split tool's plane under the copy it was picked
+    /// through, if any ([`crate::splitplane::push_split_plane`]).
+    pub(crate) split_plane: Option<&'a crate::splitplane::PlanePreview>,
     /// Whether a fit is owed this frame.
     pub(crate) fit: bool,
     /// The bindings the events fold through.
@@ -154,6 +157,7 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
         profiles,
         previews,
         axis,
+        split_plane,
         fit,
         input: map,
         viewport,
@@ -179,6 +183,9 @@ pub(crate) fn frame_camera(frame: CameraFrame<'_>) -> FramedCamera {
     push_previews_marks(&mut steps, previews, view);
     if let Some(axis) = axis {
         push_revolve_axis(&mut steps, axis, view);
+    }
+    if let Some(plane) = split_plane {
+        crate::splitplane::push_split_plane(&mut steps, plane);
     }
     FramedCamera {
         fit,
@@ -1081,12 +1088,14 @@ impl ViewerBehavior<'_> {
         // with a real aspect to fit against.
         let profiles = self.committed_lane();
         let axis = self.revolve_axis_preview();
+        let split_plane = self.split_plane_preview();
         let framed = frame_camera(CameraFrame {
             camera: self.camera,
             scene: self.scene.positions(),
             profiles,
             previews: self.profile_previews,
             axis: axis.as_ref(),
+            split_plane: split_plane.as_ref(),
             fit: std::mem::take(self.pending_fit),
             input: &self.input,
             viewport,
@@ -1398,6 +1407,27 @@ impl ViewerBehavior<'_> {
     /// no profile held, or a held profile the landed evaluation draws
     /// nothing of — the axis is in that profile's plane, so without its
     /// value there is nowhere to draw one.
+    /// **The open split tool's plane** ([`crate::splitplane::preview`]),
+    /// drawn under the copy its target was picked through, from the
+    /// landed evaluation and the panel's fields as they stand. `None`
+    /// with no split tool open, no target held, a target picked in the
+    /// tree or through a copy the picture does not draw, or a normal
+    /// with no direction: the panel says which
+    /// ([`crate::pane::create`]'s split panel).
+    pub(crate) fn split_plane_preview(&self) -> Option<crate::splitplane::PlanePreview> {
+        let tool = self.tools.split()?;
+        crate::splitplane::drawn(
+            &crate::splitplane::Drawing {
+                seats: tool.seats(),
+                landed: self.session.landed_pair()?,
+                display: &self.session.display_view(),
+                index: self.index?,
+            },
+            self.drafts.split_origin,
+            self.drafts.split_normal,
+        )
+    }
+
     fn revolve_axis_preview(&self) -> Option<RevolveAxisPreview> {
         let profile = self.tools.revolve()?.profile()?;
         let (doc, evaluation) = self.session.landed_pair()?;
@@ -3065,6 +3095,7 @@ mod tests {
             profiles: marks::LegLane::default(),
             previews: &previews,
             axis: None,
+            split_plane: None,
             fit: true,
             input: &map,
             viewport,
@@ -3276,6 +3307,7 @@ mod tests {
                 profiles: marks::LegLane::default(),
                 previews: &previews,
                 axis,
+                split_plane: None,
                 fit: true,
                 input: &map,
                 viewport: ViewportSize {
