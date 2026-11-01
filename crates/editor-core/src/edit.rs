@@ -5640,6 +5640,11 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         self.produced.as_ref().unwrap_or(self.start)
     }
 
+    /// The tolerance each edit applies at.
+    pub(crate) fn tol(&self) -> Tol {
+        self.tol
+    }
+
     /// What each edit so far minted, in the order the edits applied: an
     /// `InsertNode`'s new id, `None` for every other edit.
     pub fn minted(&self) -> &[Option<RecipeNodeId>] {

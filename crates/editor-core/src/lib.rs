@@ -224,7 +224,8 @@ pub use range::{
 };
 pub use refactor::{
     FlattenError, FlattenOutcome, InlineError, InlineOutcome, NodeMap, RemapError, SplitError,
-    SplitOutcome, StepMap, Uncarried, Unmapped, flatten, inline, remap_name, split,
+    SplitOutcome, StepMap, TakeOverOutcome, TakenOver, Uncarried, Unmapped, flatten, inline,
+    remap_name, split, take_over,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

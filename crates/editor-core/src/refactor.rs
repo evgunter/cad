@@ -156,7 +156,13 @@
 //! iteration below runs over ordered structures, and part-node ids
 //! remap in document order — so two split runs, in any two processes,
 //! produce byte-identical documents.
+//!
+//! [`take_over`] is the third: copies re-pointed to a result that
+//! replaces their body, with what read them re-seated.
 use std::collections::{BTreeMap, BTreeSet, btree_map};
+
+mod take_over;
+pub use take_over::{TakeOverOutcome, TakenOver, take_over};
 
 use crate::doc::{Doc, FreeVar, NameCarrier, VarName};
 use crate::edit::Maintenance;

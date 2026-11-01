@@ -22,6 +22,7 @@
 pub(crate) mod attribute;
 mod borders;
 mod canonical;
+mod carrier;
 mod chase;
 mod defer;
 mod discriminate;
@@ -50,6 +51,8 @@ mod table;
 pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
+pub use carrier::carriers;
+pub(crate) use carrier::reseated;
 pub(crate) use defer::CarriedRows;
 pub(crate) use discriminate::{CHORD_ON_RIM, DECISION_WORDS, FAMILY, ON_MEMBER_EDGE};
 pub use emit::{
