@@ -2,7 +2,7 @@
 id: the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar
 kind: issue
 title: The sphere door cannot settle a pole at the certified (interval) scalar, so tier 3's pole side still reads locate
-status: dispatched
+status: review
 opened: 2026-10-31
 priority: P1
 cost: M
