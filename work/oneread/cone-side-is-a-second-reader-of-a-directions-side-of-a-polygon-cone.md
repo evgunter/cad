@@ -2,12 +2,14 @@
 id: cone-side-is-a-second-reader-of-a-directions-side-of-a-polygon-cone
 kind: issue
 title: boolean::sectors::cone_side reads a direction's side of a polygon cone beside the census's link reader, levered where the census decides in metres
-status: open
+status: closed
 opened: 2026-10-19
 priority: P3
 cost: M
 parent: the-boolean-reads-the-other-operand-through-one-cone
 rides_with: the-boolean-reads-the-other-operand-through-one-cone
+closed: 2026-11-01
+pr: 6247
 ---
 
 Filed by RESTREAD's link-reading lane (branch `restread/link-touch-reading`),
@@ -57,3 +59,12 @@ census's reader moves to a home both call. Related:
 ## Claimed (2026-11-01, ONEREAD)
 
 Moved from `work/honeone/` by ONEREAD: `the-booleans-cone-reader-is-a-second-link`'s decision deletes `cone_side` and `in_sector` with the boolean's cone reader, so this row closes with `the-boolean-reads-the-other-operand-through-one-cone`. (ONEREAD orchestrator)
+
+## Closed (2026-11-01, PR 6247)
+
+`cone_side` is deleted with the rest of the boolean's cone reader: the
+vertex-vertex rows read each own edge through one gathered `link::Cone`
+(`boolean::vtxfac::cone_classes`), whose every sign is a point's distance
+from a plane through `link::metric`. `cone_fuzz` moved under `link`
+(`crates/topo/src/link/cone_fuzz.rs`) as the cone's test, reading through
+that consumer.
