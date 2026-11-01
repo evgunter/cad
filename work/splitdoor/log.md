@@ -118,3 +118,7 @@
   - **The review.** The identity holds to 5.6e-16. A within-zero move decides as the unmoved pose over 2700 poses at each ε. No planar body that main built is now refused: reduce's `bool_vertex_face_side` refuses first.
   - **Class (filed P1):** `face-line-germs-read-unit-in-the-strut-and-walk-orders-amplify-a-within-zero-tilt`. The same amplification survives where the unit germ is read in the strut and walk orders. Germ-against-germ readings need a lever choice; the row proposes `min(lean₀, lean₁)`.
   - **Filed P2:** `a-curved-bounds-tangent-read-in-band-at-the-line-while-its-chord-reads-definite`. (SPLITDOOR orchestrator)
+- 2026-11-01 — **Closed** `a-lying-pyramid-half-an-epsilon-off-the-top-refuses-line-wedges-overlap` (PR 6256, test-only; review tier was the orchestrator's read).
+  - **An honest refusal, not a kernel defect.** Since my PR 6212, the 0.5ε pose decides as upright, as the row's contract asks. So it refuses `LineWedges` exactly as the on-top scene does: that scene is already pinned in the file's `REFUSING` table, where it waits on the unbuilt re-pairing in `topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`.
+  - **Why the row went red.** `builds_or_refuses` looked its pins up by the tipped label, which never matched, so its pin calls were dead.
+  - **The fix.** A cell within the zero now inherits the on-top scene's pins, enforced in both directions. (SPLITDOOR orchestrator)
