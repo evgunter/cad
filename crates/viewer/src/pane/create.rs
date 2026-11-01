@@ -24,7 +24,7 @@ use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
 use crate::seats::{Seat, Seats, seat_line};
-use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, admits};
+use crate::session::{Creation, NodeKindWanted, Selection, SessionOp, Staged, admits};
 use crate::theme::Theme;
 use crate::tools::{FormKind, ToolKind, ToolNotice};
 use crate::tree;
@@ -317,6 +317,33 @@ const MAX_TRACE_CROSSING: u32 = 4;
 /// What a traced path's latch button says: it takes the viewport's face
 /// pick.
 pub(crate) const USE_THE_PICKED_FACE: &str = "use the picked face";
+
+/// What the split panel says of the plane's numbers: which coordinates
+/// they are in.
+const SPLIT_COORDINATES: &str = "pick the body; the plane's point and normal are in the coordinates \
+     of the space the body is built in, and the viewport draws the plane on the copy you picked";
+
+/// The split panel's line for a target picked in the tree: no copy was
+/// aimed at, so the viewport has nowhere to draw the plane.
+const SPLIT_PICKED_IN_TREE: &str = "the plane is not drawn: the body was picked in the tree; pick it in the viewport to see the plane on it";
+
+/// The split panel's line for a copy the picture does not draw (hidden,
+/// or gone from the picture).
+const SPLIT_NOT_DRAWN: &str =
+    "the plane is not drawn: the copy it was picked on is not in the picture";
+
+/// The split panel's line while the staged split runs.
+const SPLIT_CHECKING: &str = "checking the plane against the body…";
+
+/// The split panel's line for a plane with material on both sides.
+const SPLIT_CUTS: &str = "the plane cuts the body in two";
+
+/// The split panel's verdict on a plane that leaves a side empty, before
+/// the row's own word for which.
+const SPLIT_LEAVES: &str = "committed as it stands, the split would read";
+
+/// Why a side is empty, said beside [`SPLIT_LEAVES`].
+const SPLIT_MISSES: &str = "the plane misses the body or lies on one of its faces";
 
 /// The kind nouns of the nodes the forms with no [`ToolKind`] create —
 /// `node_kind_noun`'s words, which a form's proposed label counts by.
@@ -1240,13 +1267,11 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.tools.split() else {
             return self.tool_door(ui, ToolKind::Split);
         };
-        crate::widgets::message(
-            ui,
-            ToolKind::Split.says(&"pick the body; the plane is in its own coordinates"),
-        );
+        crate::widgets::message(ui, ToolKind::Split.says(&SPLIT_COORDINATES));
         if let Some((seat, half)) = seats_row(ui, tool.seats(), self.session.doc(), &self.theme) {
             self.tools.choose_half(seat, half);
         }
+        self.seed_split_plane(&tool);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1258,12 +1283,94 @@ impl ViewerBehavior<'_> {
             length_picker(ui, "split_origin", &mut self.notation.length);
         });
         vec3_row(ui, "normal", UNIT_DRAG_SPEED, &mut self.drafts.split_normal);
+        self.split_plane_rows(ui, &tool);
         self.tool_commit_row(ui, ToolKind::Split, |drafts, notation| {
             Ok(tool.op(
                 notation.length_literals(drafts.split_origin)?,
                 scalars(drafts.split_normal)?,
             )?)
         });
+    }
+
+    /// **The split plane's point, seeded for a new target**: at the
+    /// centre of the body's extent in its own coordinates
+    /// ([`crate::splitplane::centre`]), so the plane the panel opens
+    /// with passes through the body rather than along one of its faces.
+    /// Seeded once per target, so what the person types stands.
+    fn seed_split_plane(&mut self, tool: &crate::combine::SplitTool) {
+        let target = tool.seats().read(0);
+        if target == self.drafts.split_seeded {
+            return;
+        }
+        let centre = target.as_ref().and_then(|target| {
+            let (doc, evaluation) = self.session.landed_pair()?;
+            crate::splitplane::centre(crate::splitplane::source(doc, evaluation, target)?)
+        });
+        if let Some(centre) = centre {
+            self.drafts.split_origin = centre;
+            self.drafts.split_seeded = target;
+        } else if target.is_none() {
+            self.drafts.split_seeded = None;
+        }
+    }
+
+    /// **What the split plane does to its target, before commit**, and
+    /// whether the viewport draws it.
+    ///
+    /// The verdict is the split door's own: the split the panel would
+    /// commit, staged on the committed document and evaluated beside
+    /// the picture ([`SessionOp::Stage`]), read as its tree row would
+    /// read it ([`tree::split_reading`]). It is asked again whenever the
+    /// draft or the document moves, and says it is checking until the
+    /// staged run lands.
+    fn split_plane_rows(&mut self, ui: &mut egui::Ui, tool: &crate::combine::SplitTool) {
+        if tool.seats().read(0).is_none() {
+            return;
+        }
+        if tool.seats().through(0).is_none() {
+            crate::widgets::message_toned(ui, SPLIT_PICKED_IN_TREE, &self.theme, Tone::Advisory);
+        } else if self.split_plane_preview().is_none() {
+            crate::widgets::message_toned(ui, SPLIT_NOT_DRAWN, &self.theme, Tone::Advisory);
+        }
+        let op = (|| {
+            tool.op(
+                self.notation
+                    .length_literals(self.drafts.split_origin)
+                    .ok()?,
+                scalars(self.drafts.split_normal).ok()?,
+            )
+            .ok()
+        })();
+        let Some(Ok(creation)) = op.map(Creation::of) else {
+            return;
+        };
+        let staged = self.session.staged_for(&creation);
+        let said = match staged {
+            None | Some(Staged::Checking) => None,
+            Some(Staged::Refused(refusal)) => Some(refusal.to_string()),
+            Some(Staged::Evaluated {
+                node, evaluation, ..
+            }) => match tree::split_reading(evaluation, node) {
+                Ok(None) => None,
+                Ok(Some(empty)) => Some(format!("{SPLIT_LEAVES} `{empty}`: {SPLIT_MISSES}")),
+                Err(standing) => Some(standing.to_string()),
+            },
+        };
+        match (staged.is_some(), said) {
+            (false, _) => {
+                self.ops.push(SessionOp::Stage { creation });
+                crate::widgets::message(ui, SPLIT_CHECKING);
+            }
+            (true, Some(said)) => {
+                crate::widgets::message_toned(ui, said, &self.theme, Tone::Advisory);
+            }
+            (true, None) if matches!(staged, Some(Staged::Checking)) => {
+                crate::widgets::message(ui, SPLIT_CHECKING);
+            }
+            (true, None) => {
+                crate::widgets::message(ui, SPLIT_CUTS);
+            }
+        }
     }
 
     /// The mirror tool's panel: the body and the face it is reflected

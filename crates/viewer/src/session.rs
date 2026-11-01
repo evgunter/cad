@@ -861,50 +861,69 @@ impl DocSession {
         self
     }
 
-    /// **Stage a creating operation without committing it**: the run
-    /// its door would record, staged on the committed document and
-    /// handed to the staged seam to evaluate beside the picture. The
-    /// answer is read back by its key ([`Self::staged`]); a later
-    /// stage supersedes it.
-    ///
-    /// # Errors
-    ///
-    /// The door's refusal, as committing the operation would answer it.
-    pub fn stage(&mut self, creation: Creation) -> Result<StagedKey, Refusal> {
-        let door = self.creation_door(creation.into_op())?;
-        let (recorded, ()) = self.stage_run(door)?;
-        let minted: Vec<RecipeNodeId> = recorded.minted.iter().flatten().copied().collect();
-        let Some(node) = crate::world::made(&recorded.doc, &minted) else {
-            unreachable!("a creation's accepted run mints the node it creates")
-        };
+    /// **Stage a creating operation without committing it**
+    /// ([`SessionOp::Stage`]): the run its door would record, staged on
+    /// the committed document and handed to the staged seam to evaluate
+    /// beside the picture. A refusal is the stage's answer, not the
+    /// status line's: a draft asks, and nothing was tried. A later stage
+    /// supersedes this one, and its run's answer is dropped.
+    fn stage(&mut self, creation: Creation) {
         self.stages += 1;
         let key = StagedKey(self.stages);
-        let resolver = self.run_resolver();
-        self.stager.submit(StagedRequest {
-            key,
-            doc: recorded.doc.clone(),
-            prime: self.memo_under(&resolver),
-            resolver,
-            tol: self.tol,
-        });
+        let base = self.history.current();
+        let staged = self
+            .creation_door(creation.clone().into_op())
+            .and_then(|door| self.stage_run(door));
+        let answer = match staged {
+            Err(refusal) => StageAnswer::Refused(refusal),
+            Ok((recorded, ())) => {
+                let minted: Vec<RecipeNodeId> = recorded.minted.iter().flatten().copied().collect();
+                let Some(node) = crate::world::made(&recorded.doc, &minted) else {
+                    unreachable!("a creation's accepted run mints the node it creates")
+                };
+                let resolver = self.run_resolver();
+                self.stager.submit(StagedRequest {
+                    key,
+                    doc: recorded.doc.clone(),
+                    prime: self.memo_under(&resolver),
+                    resolver,
+                    tol: self.tol,
+                });
+                StageAnswer::Made {
+                    node,
+                    doc: recorded.doc,
+                    evaluation: None,
+                }
+            }
+        };
         self.stage = Some(Stage {
             key,
-            node,
-            doc: recorded.doc,
-            evaluation: None,
+            creation,
+            base,
+            answer,
         });
-        Ok(key)
     }
 
-    /// **What the stage under `key` came to**: `None` once a later stage
-    /// superseded it, [`Staged::Checking`] until its run lands.
-    pub fn staged(&self, key: StagedKey) -> Option<Staged<'_>> {
-        let stage = self.stage.as_ref().filter(|stage| stage.key == key)?;
-        Some(match &stage.evaluation {
-            None => Staged::Checking,
-            Some(evaluation) => Staged::Evaluated {
-                doc: &stage.doc,
-                node: stage.node,
+    /// **What staging `creation` on the committed document came to**:
+    /// `None` until it is staged there ([`SessionOp::Stage`]), so a
+    /// draft that moved, or a document that did, asks again.
+    pub fn staged_for(&self, creation: &Creation) -> Option<Staged<'_>> {
+        let stage = self
+            .stage
+            .as_ref()
+            .filter(|stage| stage.creation == *creation && stage.base == self.history.current())?;
+        Some(match &stage.answer {
+            StageAnswer::Refused(refusal) => Staged::Refused(refusal),
+            StageAnswer::Made {
+                evaluation: None, ..
+            } => Staged::Checking,
+            StageAnswer::Made {
+                node,
+                doc,
+                evaluation: Some(evaluation),
+            } => Staged::Evaluated {
+                doc,
+                node: *node,
                 evaluation,
             },
         })
@@ -1427,8 +1446,12 @@ impl DocSession {
             self.settle(done);
         }
         while let Some(done) = self.stager.poll() {
-            if let Some(stage) = self.stage.as_mut().filter(|stage| stage.key == done.key) {
-                stage.evaluation = Some(done.evaluation);
+            if let Some(Stage {
+                answer: StageAnswer::Made { evaluation, .. },
+                ..
+            }) = self.stage.as_mut().filter(|stage| stage.key == done.key)
+            {
+                *evaluation = Some(done.evaluation);
             }
         }
         landings
@@ -1684,6 +1707,10 @@ impl DocSession {
             SessionOp::DeleteNode { node } => self.delete_node(node),
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
             SessionOp::ProbeBounds { target } => self.probe_bounds(target),
+            SessionOp::Stage { creation } => {
+                self.stage(creation);
+                OpOutcome::default()
+            }
             SessionOp::SetSlotUnit { node, slot, unit } => self.set_slot_unit(node, slot, unit),
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
@@ -1895,9 +1922,7 @@ impl DocSession {
     /// commit would write.
     fn creation_door(&self, op: SessionOp) -> Result<Creating, Refusal> {
         match op {
-            SessionOp::AddProfile { loops } => {
-                self.add_profile(loops)
-            }
+            SessionOp::AddProfile { loops } => self.add_profile(loops),
             SessionOp::SketchOnFace {
                 face,
                 loops,
@@ -1909,9 +1934,7 @@ impl DocSession {
                 traced,
                 chains,
             } => self.add_drawn_profile(&plane, &traced, chains),
-            SessionOp::AddExtrude { profile, distance } => {
-                self.add_extrude(profile, distance)
-            }
+            SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
             SessionOp::AddRevolve {
                 profile,
                 axis_through,
@@ -1924,17 +1947,19 @@ impl DocSession {
                 origin,
                 normal,
             } => self.add_split(target, &origin, &normal),
-            SessionOp::AddMirror { body, plane } => {
-                self.add_mirror(body, &plane)
-            }
+            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddTransform {
                 input,
                 translation,
                 rotation_axis,
                 rotation_angle,
             } => self.add_transform(input, &translation, &rotation_axis, &rotation_angle),
-            SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule, PatternOutputChoice::Instances),
-            SessionOp::AddFusedPattern { input, count, rule } => self.add_pattern(input, count, rule, PatternOutputChoice::Fused),
+            SessionOp::AddPattern { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
+            }
+            SessionOp::AddFusedPattern { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
+            }
             SessionOp::AddFillet {
                 target,
                 radius,
@@ -1945,12 +1970,8 @@ impl DocSession {
                 distance,
                 selection,
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
-            SessionOp::AddPart { of, select } => {
-                self.add_part(of, select)
-            }
-            SessionOp::Duplicate { input, beside } => {
-                self.add_duplicate(input, beside)
-            }
+            SessionOp::AddPart { of, select } => self.add_part(of, select),
+            SessionOp::Duplicate { input, beside } => self.add_duplicate(input, beside),
             SessionOp::AddInstance { id } => self.add_instance(id),
             other => unreachable!("only a creating operation reaches its door: {other:?}"),
         }
@@ -3959,19 +3980,31 @@ impl DocSession {
     }
 }
 
-/// **One staged operation** ([`DocSession::stage`]): the document it
-/// was staged on, the node it made there, and that document's
-/// evaluation once the staged seam answers.
+/// **One staged operation** ([`DocSession::stage`]): what was staged,
+/// on which committed document, and what it came to.
 struct Stage {
     key: StagedKey,
-    node: RecipeNodeId,
-    doc: Doc<ProfileProgram>,
-    evaluation: Option<Arc<Evaluation<f64>>>,
+    creation: Creation,
+    base: crate::history::HistoryId,
+    answer: StageAnswer,
 }
 
-/// **What a staged operation came to**, so far ([`DocSession::staged`]).
+/// What a stage came to: its door's refusal, or the node it made in the
+/// staged document and that document's evaluation once it lands.
+enum StageAnswer {
+    Refused(Refusal),
+    Made {
+        node: RecipeNodeId,
+        doc: Doc<ProfileProgram>,
+        evaluation: Option<Arc<Evaluation<f64>>>,
+    },
+}
+
+/// **What a staged operation came to**, so far ([`DocSession::staged_for`]).
 #[derive(Debug)]
 pub enum Staged<'a> {
+    /// Its door refused it, as committing it would.
+    Refused(&'a Refusal),
     /// Its run has not landed.
     Checking,
     /// Its run landed: the staged document, the node the operation made

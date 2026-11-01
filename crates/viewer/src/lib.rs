@@ -79,6 +79,7 @@ pub mod screen;
 pub mod seats;
 pub mod session;
 pub mod sketch;
+pub mod splitplane;
 pub mod theme;
 pub mod tools;
 pub mod tree;

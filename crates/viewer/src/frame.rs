@@ -753,7 +753,8 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
     match op {
-        SessionOp::Hover(_) => false,
+        // A draft's question, asked on every frame its draft moves.
+        SessionOp::Hover(_) | SessionOp::Stage { .. } => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }

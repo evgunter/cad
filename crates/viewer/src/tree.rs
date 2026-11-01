@@ -613,22 +613,43 @@ fn readout_of(
         ValuePayload::MeasureUnavailable { reason, .. } => Some(Readout::Unavailable(*reason)),
         ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
-        ValuePayload::Split { above, below } => match (above, below) {
-            (SplitSide::Empty, SplitSide::Empty) => Some(Readout::Empty(Emptiness::Whole)),
-            (SplitSide::Empty, SplitSide::Body(_)) => {
-                Some(Readout::Empty(Emptiness::Half(SplitHalf::Above)))
-            }
-            (SplitSide::Body(_), SplitSide::Empty) => {
-                Some(Readout::Empty(Emptiness::Half(SplitHalf::Below)))
-            }
-            (SplitSide::Body(_), SplitSide::Body(_)) => None,
-        },
+        ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
         | ValuePayload::Instances(_)
         | ValuePayload::Family => None,
     }
+}
+
+/// **Which part of a split's value holds no material**, if any: the
+/// row's readout ([`Emptiness`]).
+fn split_emptiness(above: &SplitSide<f64>, below: &SplitSide<f64>) -> Option<Emptiness> {
+    match (above, below) {
+        (SplitSide::Empty, SplitSide::Empty) => Some(Emptiness::Whole),
+        (SplitSide::Empty, SplitSide::Body(_)) => Some(Emptiness::Half(SplitHalf::Above)),
+        (SplitSide::Body(_), SplitSide::Empty) => Some(Emptiness::Half(SplitHalf::Below)),
+        (SplitSide::Body(_), SplitSide::Body(_)) => None,
+    }
+}
+
+/// **What a split's value comes to**, as its tree row reads it: the
+/// part holding no material ([`Emptiness`]), `Ok(None)` for a split
+/// with material on both sides, or the standing of a node with no value.
+/// For a reader asking before the split is committed, of a staged
+/// evaluation ([`crate::session::DocSession::staged_for`]).
+///
+/// # Errors
+///
+/// The node's standing when it has no value.
+pub fn split_reading(
+    evaluation: &Evaluation<f64>,
+    id: RecipeNodeId,
+) -> Result<Option<Emptiness>, pncad::document::NodeStanding> {
+    Ok(match &evaluation.usable(id)?.payload {
+        ValuePayload::Split { above, below } => split_emptiness(above, below),
+        _ => None,
+    })
 }
 
 /// **An assertion's verdict, its numbers carried in its value's

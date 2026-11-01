@@ -3680,3 +3680,143 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
 }
+
+/// **The split plane's verdict is the door's, asked before commit**: the
+/// split the panel would commit, staged and evaluated beside the
+/// picture, read as its tree row would read it, with nothing recorded.
+/// The plane the panel used to open with (through the origin, normal z)
+/// lies on the block's bottom face and leaves the below half empty. A
+/// plane above the block misses it. The plane seeded through the
+/// block's centre cuts it in two.
+///
+/// *Breaks if* the seeded default is put back on a face, if staging
+/// records an edit, or if the verdict stops being the split's own.
+#[test]
+fn a_staged_split_says_whether_its_plane_cuts_the_body() {
+    use viewer::session::{Creation, Staged};
+    use viewer::tree::{Emptiness, split_reading};
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let states = session.history().len();
+    let verdict = |session: &mut DocSession, origin: [f64; 3]| {
+        let creation = Creation::of(SessionOp::AddSplit {
+            target: body.into(),
+            origin: len3(origin),
+            normal: scl3([0.0, 0.0, 1.0]),
+        })
+        .expect("a split creates a node");
+        assert!(
+            session.staged_for(&creation).is_none(),
+            "{origin:?}: nothing is staged for a plane not yet asked about"
+        );
+        let staged = session.perform(SessionOp::Stage {
+            creation: creation.clone(),
+        });
+        assert!(
+            staged.refusal.is_none() && staged.committed.is_empty(),
+            "{origin:?}: a stage refuses nothing and commits nothing: {staged:?}"
+        );
+        session.pump();
+        match session.staged_for(&creation) {
+            Some(Staged::Evaluated {
+                node, evaluation, ..
+            }) => split_reading(evaluation, node).expect("the staged split evaluates"),
+            other => panic!("{origin:?}: the staged run landed inline: {other:?}"),
+        }
+    };
+    assert_eq!(
+        verdict(&mut session, [0.0; 3]),
+        Some(Emptiness::Half(SplitHalf::Below)),
+        "the old default lies on the bottom face"
+    );
+    assert_eq!(
+        verdict(&mut session, [0.0, 0.0, 1.0]),
+        Some(Emptiness::Half(SplitHalf::Above)),
+        "a plane above the block misses it"
+    );
+    let centre = {
+        let (doc, evaluation) = session.landed_pair().expect("landed");
+        let source = viewer::splitplane::source(doc, evaluation, &body.into()).expect("a body");
+        viewer::splitplane::centre(source).expect("the block has corners")
+    };
+    assert!(
+        near(centre[2], 0.5 * A[2]),
+        "the seed is the block's centre: {centre:?}"
+    );
+    assert_eq!(
+        verdict(&mut session, centre),
+        None,
+        "the seeded plane cuts the block in two"
+    );
+    assert_eq!(session.history().len(), states, "staging recorded nothing");
+}
+
+/// **The split plane is drawn under the copy it was picked through**:
+/// a pick on the block's world copy keeps that copy beside the body
+/// it seats, and the plane's outline is mapped by that copy's drawn
+/// map, so a copy drawn elsewhere carries the plane with it.
+///
+/// *Breaks if* the seat forgets the copy, or the preview is drawn in
+/// the body's own coordinates rather than where its copy is drawn.
+#[test]
+fn the_split_plane_is_drawn_under_the_picked_copy() {
+    use pncad::geom_core::{Affine3, Vec3};
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let [copy] = viewer::world::placements_of(&doc, body)[..] else {
+        panic!("the block lands with one world copy")
+    };
+    let mut tool = SplitTool::new();
+    tool.pick_at(&doc, copy, Some(0));
+    assert_eq!(
+        tool.target(),
+        Some(body),
+        "a pick on the copy seats the body"
+    );
+    assert_eq!(
+        tool.seats().through(0),
+        Some(copy),
+        "the seat keeps the copy it was picked through"
+    );
+    let mut tree_pick = SplitTool::new();
+    tree_pick.pick(&doc, body);
+    assert_eq!(
+        tree_pick.seats().through(0),
+        None,
+        "a tree pick aims at no copy"
+    );
+
+    let (doc, evaluation) = session.landed_pair().expect("landed");
+    let source = viewer::splitplane::source(doc, evaluation, &body.into()).expect("a body");
+    let centre = viewer::splitplane::centre(source).expect("corners");
+    let shift = Vec3::new(0.1, -0.05, 0.02);
+    let plane = |drawn: Affine3<f64>| {
+        let to_picture = viewer::splitplane::space_to_picture(source, drawn).expect("a rigid map");
+        viewer::splitplane::preview(source, to_picture, centre, [0.0, 0.0, 1.0])
+            .expect("a plane with a normal")
+    };
+    let at_rest = plane(Affine3::identity());
+    let moved = plane(Affine3::translation(shift));
+    let gone = moved.centre - at_rest.centre;
+    assert!(
+        (gone - shift).norm() < 1e-12,
+        "the plane moves with the copy: {gone:?}"
+    );
+    assert!(
+        (at_rest.centre.z - centre[2]).abs() < 1e-12,
+        "at rest the plane stands at its own height: {:?}",
+        at_rest.centre
+    );
+    let missing = viewer::splitplane::preview(source, Affine3::identity(), centre, [0.0; 3]);
+    assert!(
+        missing.is_none(),
+        "a normal with no direction draws nothing"
+    );
+}
