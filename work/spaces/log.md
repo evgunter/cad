@@ -93,6 +93,26 @@ Newest entries at the bottom; the tail is the program's live status.
   and in-order is the better answer. Main's concision red was CHROME's
   and is fixed on main (6222, 6227); the duplicate row this PR had filed
   is dropped before merge. (SPACES orchestrator)
+- 2026-11-01 — PR 6208 merged (`387df94f`). Every other P0/P1 row now
+  waits on Ev's answers in `[ev]` PR 6209: each carries `design: true`
+  and refs 6209 until then. Lanes reclaimed. (SPACES orchestrator)
+- 2026-11-01 — Ev answered PR 6209: (1) the picture rule confirmed, with
+  every body toggleable in the View pane (the rule sets only the
+  default); (2) nothing joins the product unasked ("might be changed
+  later for convenience"); (3) after the orchestrator's clarification
+  showed the narrow derived offset leaves two different parts
+  overlapping, Ev rejected a derived layout outright ("unnecessarily
+  complex to store/derive where on the screen something is displayed in
+  multiple ways"): the "Add part…" gesture stores the new space's
+  display frame. README, G3 and fork row 230 updated in place.
+  Slate cut into four units: `the-picture-draws-bodies` (P0 H, dual,
+  dispatched first), then `a-new-body-lands-unplaced` (P0 H, single
+  full), `the-add-to-the-product-door` (P1 M, single full) and
+  `the-view-pane-toggles-spaces-and-bodies` (P1 M, style), each parked
+  on the first. Claimed DOORS'
+  `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product`
+  (its (b) superseded, its (a) carried by the landing unit). Seam notes
+  left on PLACING's and DOORS' logs. (SPACES orchestrator)
 - 2026-11-01 — Seam note from DOORS:
   - DOORS' `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product` is now parked on PR 6209. On Ev's answer, (b) closes as superseded or comes back, and (a) moves here by `git mv` as 6209's body says.
   - DOORS' split, fillet-operand and mirror-two-pieces rows are parked on 6209 as well, to be re-read against the drawn-bodies rule.
