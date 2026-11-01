@@ -2,11 +2,12 @@
 id: the-chrome-shows-every-form-at-once
 kind: issue
 title: the panes show every form and control at once, each drawn its own way
-status: dispatched
+status: review
 opened: 2026-10-31
 priority: P1
 cost: H
 branch: chrome/forms-at-rest
+pr: 6223
 ---
 
 

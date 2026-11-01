@@ -2516,3 +2516,20 @@ Signed (CHROME orchestrator).
 
   (CHROME orchestrator)
 - 2026-11-01 — (TOUCHREC orchestrator) Main red since PR 6200 (`c43600e23`): four refusal-text rows fail on every PR's gate (die_body's "not built", three editor-core concision budgets). Filed `main-red-the-blend-run-out-reword-fails-four-refusal-text-tests` here; CHROME owes the fix. TOUCHREC's PR 6210 merges past it as an inherited red, annotated.
+- 2026-11-01 — Check-in 2.
+  - **Main is red from CHROME's prefix.** Nightly run 41276693129 fails editor-core `refusal_concision_chains` (three rows) and sweep `m5_pr12_die_body::a_subset_of_the_edges_refuses_at_the_assembly_front_door`. Both come from PR 6200 (`chrome/blend-recourse-words`, commit 6f138f2049, an interactive session's drive-by under "fix error messages yourself"). It lengthened `FILLET3_CORNER_RECOURSE` past the 75-word budget and dropped "not built" from `END_FACE_CURVED`, which a test pinned. The mate-banner lane, which had reproduced it, owns the fix: `chrome/corner-recourse-budget`, its own PR. #6203's red is annotated as inherited. The same nightly's `ray_wall_margin_twins` (sweep) and rustdoc on `step-import` are not CHROME's.
+  - **#6205 review.** Nothing blocks. Every claim held, and five mutations each turn at least one row red. Fix pass sent:
+    - two stale "newer index beside an older picture" sentences, plus the "picture is stale" badge comment;
+    - a row for a copy that has a value but cannot be drawn (the Actionable badge had no fixture);
+    - the reviewer's memo row, merged from `chrome/review-6205`;
+    - the `match landed` duplication the fix minted in `frame.rs`, and the always-`DrawnTwice` test seam written twice, each given one home;
+    - the `Names` arm's unenforced "unreachable": make it structural or drop it.
+  - **Two of my 6197 sentences overreached** (my drafting; the designers' design did not):
+    - GQ2's covers only copies without a value, where the approved design also holds an undrawable copy undrawn, loudly.
+    - GQ6's "the only time an older picture stays" is false for a canceled evaluation, which keeps its older picture and says so (`CANCELED_LINE`).
+    
+    The lane restates both in #6205 as corrections of description, not of decision. Lesson: a sentence claiming "the only time" needs a sweep for every arm that keeps an older picture before it goes to Ev.
+  - **#6199 review.** Mergeable. Fix pass sent: the test comment and PR body overclaim, since `profiles_undrawn` is never non-zero in the fixture (the vdoc row names the missing witness); a garbled field doc; a stale citation in that vdoc row; and the reset's ordering after the toolbar read, which no comment stated. S5 (one writer by convention) and S8 (a second per-frame idiom for `profile_drawn`) are recorded, not fixed.
+  - **#6218 (tree, flat rows)** and **#6223 (forms at rest)** are open; reviewers go once CI is green. #6214 merged.
+
+  (CHROME orchestrator)

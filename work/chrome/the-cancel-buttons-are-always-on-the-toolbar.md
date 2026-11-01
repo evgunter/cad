@@ -2,12 +2,13 @@
 id: the-cancel-buttons-are-always-on-the-toolbar
 kind: issue
 title: Cancel drag and Cancel free-move are on the toolbar when nothing is in flight
-status: dispatched
+status: review
 opened: 2026-10-31
 priority: P2
 cost: E
 branch: chrome/forms-at-rest
 rides_with: the-chrome-shows-every-form-at-once
+pr: 6223
 ---
 
 
