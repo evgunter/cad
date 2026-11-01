@@ -2004,23 +2004,19 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
     // by `Rebind` (whose source door refuses a never-minted id) if it
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
-    let holds_instance = doc
-        .ids()
-        .into_iter()
-        .any(|id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })));
+    let holds_instance = doc.holds_instance();
     for carrier in doc.name_carriers() {
         // A name read where an instance is may be its part's, or carry
         // its part's at any depth, spelled in ids this mint log never
         // held: the copy carries its part's names verbatim, and an
         // operation over the copy carries them inside its own. Such a
-        // name is let through, and only there; one spelled wholly in
-        // this document's ids is held to every rule below. "Where an
-        // instance is" is the edit doors' rule: for a selection or a
-        // store key, a body that reaches one; for a payload name (an
-        // instance record's outer among them), a document that holds
-        // one. The edit doors check such a name level by level
-        // (`edit::check_name_steps`); this door lets the whole of it
-        // through, so what they admit, it reads back.
+        // level is let through, and only it ([`Doc::part_spelled`], the
+        // edit doors' one predicate); every level around it is this
+        // document's and is held to every rule below, level by level as
+        // the edit doors hold it (`edit::check_name_steps`). "Where an
+        // instance is" is theirs too: for a selection or a store key, a
+        // body that reaches one; for a payload name (an instance
+        // record's outer among them), a document that holds one.
         let parted = match carrier {
             NameCarrier::Store { body, .. } => doc.reaches_instance(body),
             NameCarrier::Select { var, .. } => doc
@@ -2028,13 +2024,23 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 .is_some_and(|select| doc.reaches_instance(select.body)),
             NameCarrier::Payload { .. } => holds_instance,
         };
-        let foreign = derivation_nodes(carrier.name())
-            .into_iter()
-            .any(|n| !doc.has_minted(n));
-        if foreign && parted {
+        let part = |n: &crate::names::StableName| doc.part_spelled(parted, n);
+        if part(carrier.name()) {
             continue;
         }
-        for n in derivation_nodes(carrier.name()) {
+        // The ids the name spells in this document: all of them, or
+        // where an instance is, those outside its part's levels.
+        let (nodes, reads, steps) = if parted {
+            let spelled = carrier.name().spelled_outside(&part);
+            (spelled.nodes, spelled.reads, spelled.steps)
+        } else {
+            (
+                derivation_nodes(carrier.name()),
+                derivation_reads(carrier.name()),
+                carrier.name().piece_steps(),
+            )
+        };
+        for n in nodes {
             check_id(n)?;
         }
         // And every read it carries, against the mint log: the entity
@@ -2045,7 +2051,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             NameCarrier::Store { body, .. } => Some(body),
             NameCarrier::Payload { .. } | NameCarrier::Select { .. } => None,
         };
-        if let Some(read) = derivation_reads(carrier.name())
+        if let Some(read) = reads
             .into_iter()
             .chain(body)
             .find(|r| !doc.mint.has_var(*r))
@@ -2065,12 +2071,7 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         }
         // And every profile step it spells, against the mint log: a
         // step a `SetProgram` dropped stays in it.
-        if let Some(&step) = carrier
-            .name()
-            .piece_steps()
-            .iter()
-            .find(|s| !doc.mint.has_step(**s))
-        {
+        if let Some(&step) = steps.iter().find(|s| !doc.mint.has_step(**s)) {
             return Err(SnapshotError::NameStepNotMinted {
                 name: doc.spoken_name(carrier.name()),
                 step,

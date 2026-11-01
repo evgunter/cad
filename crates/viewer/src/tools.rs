@@ -803,14 +803,42 @@ impl Tools {
         }
     }
 
-    /// **The open tool's held picks after a takeover**: the mate tool's
-    /// faces, the mirror's plane and the blend's edges; the seated tools
-    /// hold bodies, whose reads a takeover keeps.
-    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
+    /// **The open tool's held picks following a takeover**: the mate
+    /// tool's faces, the mirror's plane and the blend's edges; the seated
+    /// tools hold bodies, whose reads a takeover keeps.
+    pub fn follow(&mut self, moved: &pncad::document::Moved) {
         match &mut self.open {
-            Some(OpenTool::Mate(tool)) => tool.reseat(moved),
-            Some(OpenTool::Blend(tool)) => tool.reseat(moved),
-            Some(OpenTool::Mirror(tool)) => tool.reseat(moved),
+            Some(OpenTool::Mate(tool)) => tool.follow(moved),
+            Some(OpenTool::Blend(tool)) => tool.follow(moved),
+            Some(OpenTool::Mirror(tool)) => tool.follow(moved),
+            None
+            | Some(
+                OpenTool::Revolve(_)
+                | OpenTool::Boolean(_)
+                | OpenTool::Split(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_)
+                | OpenTool::Duplicate(_),
+            ) => {}
+        }
+    }
+
+    /// **The drawn copies the open tool holds names on**: the mate
+    /// tool's faces', the mirror's plane's and the blend's target.
+    pub fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
+        match &self.open {
+            Some(OpenTool::Mate(tool)) => {
+                nodes.extend(
+                    tool.state()
+                        .picks()
+                        .into_iter()
+                        .flatten()
+                        .map(|face| face.node),
+                );
+            }
+            Some(OpenTool::Blend(tool)) => nodes.extend(tool.target().map(|target| target.node)),
+            Some(OpenTool::Mirror(tool)) => nodes.extend(tool.plane().map(|face| face.node)),
             None
             | Some(
                 OpenTool::Revolve(_)

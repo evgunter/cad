@@ -256,40 +256,127 @@ fn an_instances_copy_taken_over_with_a_lateral_face_held() {
     assert!(loaded.doc.bit_eq(&doc), "the whole document round-trips");
 }
 
-/// **The door evaluates only for a reader in the document**: a copy no
-/// selection reads is re-pointed with no evaluation, and the names it
-/// moved are read off a later one ([`editor_core::TakenOver::reseated`]);
-/// a copy a selection reads is evaluated, and that evaluation rides out
-/// for the run of the finished document to start from. Goes red if the
-/// door evaluates for an unread copy, or stops handing its run out.
+/// **The door evaluates only for a reader**: a copy nothing reads is
+/// re-pointed with no evaluation and answers no moved names; a copy a
+/// selection reads, or one a reader outside the document holds a name
+/// on (`held`), is evaluated, its names answered moved, and its
+/// evaluation handed out for the run of the finished document to start
+/// from. Goes red if the door evaluates for an unread copy, misses a
+/// holder outside the document, or stops handing its run out.
 #[test]
-fn the_door_evaluates_only_where_the_document_reads_a_copy() {
+fn the_door_evaluates_only_where_something_reads_a_copy() {
     let doc = ProfileDoc::empty_derived("takeover-unread", Tol::witness());
     let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
     let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, u) = union(doc, vec![b, f]);
-    let (unread, copy) = insert(doc.clone(), stood(b));
-    let take = |doc: &ProfileDoc, copy| {
-        take_over(
-            doc,
+    let take = |doc: &ProfileDoc, copy, held: &dyn Fn(RecipeNodeId) -> bool| {
+        let mut run = editor_core::Recording::start(doc, Tol::witness());
+        run.take_over(
             &[copy],
             &Operand::Node(u),
             &EvalOptions::default(),
-            Tol::witness(),
+            None,
+            held,
         )
         .expect("the takeover applies")
     };
-    let done = take(&unread, copy);
-    assert!(done.taken.evaluation.is_none(), "nothing reads the copy");
-    let ev = crate::fixture::run(&done.doc, &EvalOptions::default());
-    let moved = done.taken.reseated(&ev);
+    let (unread, copy) = insert(doc.clone(), stood(b));
+    let none = take(&unread, copy, &|_| false);
+    assert!(none.evaluation.is_none(), "nothing reads the copy");
+    assert!(none.moved.is_empty(), "and nothing is answered moved");
+    let outside = take(&unread, copy, &|node| node == copy);
     assert!(
-        moved.reseat(copy, &cap(b, CapEnd::End)).is_some(),
-        "the top's new name is read off the later run"
+        outside.evaluation.is_some(),
+        "a pick outside holds the copy's top"
+    );
+    assert!(
+        outside.moved.of(copy, &cap(b, CapEnd::End)).is_some(),
+        "its top moved, answered for the holder"
     );
     let (read, copy) = copy_with_held_top(doc, b);
     assert!(
-        take(&read, copy).taken.evaluation.is_some(),
+        take(&read, copy, &|_| false).evaluation.is_some(),
         "a shell reads the copy's top"
     );
+}
+
+/// **A copy of the copy carries its names as they are**, so a reader of
+/// the second copy reads the first's names: the door follows the
+/// placement chain, rebinds the reader, and answers the moved names for
+/// the second copy too, for a pick held on it. Goes red if the door
+/// reads only the copies it re-points.
+#[test]
+fn a_reader_of_a_copy_of_the_copy_is_rebound() {
+    let doc = ProfileDoc::empty_derived("takeover-copy-of-copy", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let (doc, copy2) = insert(doc, stood(copy));
+    let copy2_out = out(&doc, copy2);
+    let (doc, _) = insert(
+        doc,
+        Node::Shell {
+            thickness: len(0.01),
+            open: Operand::select(Operand::Var(copy2_out), vec![cap(b, CapEnd::End)]),
+        },
+    );
+    let o = EvalOptions::default();
+    let done = take_over(&doc, &[copy], &Operand::Node(u), &o, Tol::witness()).expect("applies");
+    assert_eq!(
+        rebinds_in(&done.edits),
+        1,
+        "the second copy's reader is rebound"
+    );
+    let ev = crate::fixture::run(&done.doc, &o);
+    let held = done
+        .doc
+        .vars()
+        .values()
+        .filter_map(|v| v.def().select())
+        .find(|s| s.body == copy2_out)
+        .expect("the shell's selection");
+    let table = ev.table(copy2_out).expect("the second copy evaluates");
+    assert!(
+        held.names.iter().all(|n| table.lookup(n).is_some()),
+        "the reader of the copy's copy resolves: {:?}",
+        held.names
+    );
+    assert_eq!(
+        done.taken.moved.of(copy2, &cap(b, CapEnd::End)),
+        done.taken.moved.of(copy, &cap(b, CapEnd::End)),
+        "the second copy's top moved as the first's did"
+    );
+    assert!(done.taken.moved.of(copy2, &cap(b, CapEnd::End)).is_some());
+}
+
+/// **A copy given twice is refused**: re-pointed once, it no longer
+/// copies the body the second would read its names from. Goes red if
+/// the door takes the repeat.
+#[test]
+fn a_copy_given_twice_is_refused() {
+    let doc = ProfileDoc::empty_derived("takeover-twice", Tol::witness());
+    let (doc, b) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, f) = block_on(doc, b, (3.0, 6.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, u) = union(doc, vec![b, f]);
+    let (doc, copy) = insert(doc, stood(b));
+    let refused = take_over(
+        &doc,
+        &[copy, copy],
+        &Operand::Node(u),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
+    .expect_err("a repeat refuses");
+    assert!(
+        matches!(refused, editor_core::EditError::TakeOverRepeatsCopy { .. }),
+        "{refused:?}"
+    );
+}
+
+fn rebinds_in(edits: &[DocEdit<ProfileProgram>]) -> usize {
+    edits
+        .iter()
+        .filter(|e| matches!(e, DocEdit::Rebind { .. }))
+        .count()
 }

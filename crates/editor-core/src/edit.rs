@@ -1593,9 +1593,10 @@ fn mint_selection<P: crate::ProfilePayload>(
             fault => shape(fault),
         });
     }
+    // Read in a body: "where an instance is" is a body reaching one.
     let parted = doc.reaches_instance(body);
     for name in names {
-        if parted && !doc.nodes.contains_key(&name.node) {
+        if doc.part_spelled(parted, name) {
             continue;
         }
         if !doc.nodes.contains_key(&name.node) {
@@ -2999,6 +3000,14 @@ pub enum EditError {
     },
     /// A `ReWitnessBulk` with no entries — a recorded no-op, refused.
     EmptyWitnessBulk,
+    /// A takeover ([`crate::take_over`]) given the same copy twice:
+    /// re-pointed once, it no longer copies the body the second would
+    /// read its names from, so the second's answer would be empty —
+    /// refused.
+    TakeOverRepeatsCopy {
+        /// The copy given twice.
+        node: SpokenNode,
+    },
     /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
     /// obligation, via [`crate::resolve::apply_with_names`]): the
     /// name's minting node HAS an Ok value in the supplied
@@ -3495,6 +3504,7 @@ impl EditError {
             }
             | Self::WitnessOnNonSketch { node }
             | Self::DuplicateWitnessEntry { node }
+            | Self::TakeOverRepeatsCopy { node }
             | Self::WorldIsUndeletable { node }
             | Self::SpaceMismatch { node, a: _, b: _ }
             | Self::ConstraintOnNonPlacement { node }
@@ -4498,6 +4508,10 @@ impl EditError {
             Self::DuplicateWitnessEntry { node } => {
                 write!(f, "{node} appears twice in the re-witness bulk")?;
                 tail.recourse(f, format_args!("list each node once"))
+            }
+            Self::TakeOverRepeatsCopy { node } => {
+                write!(f, "{node} is given twice to the takeover")?;
+                tail.recourse(f, format_args!("give each copy once"))
             }
             Self::EmptyWitnessBulk => {
                 f.write_str("a re-witness bulk with no entries would change nothing")?;
@@ -5859,12 +5873,13 @@ fn check_name_steps<P: crate::ProfilePayload>(
     name: &StableName,
     parted: bool,
 ) -> Result<(), EditError> {
-    let part = |n: &StableName| parted && !doc.has_minted(n.node);
+    let part = |n: &StableName| doc.part_spelled(parted, n);
     if part(name) {
         return Ok(());
     }
     match name
-        .piece_steps_outside(&part)
+        .spelled_outside(&part)
+        .steps
         .into_iter()
         .find(|s| !doc.mint.has_step(*s))
     {
@@ -6231,8 +6246,9 @@ fn check_appearance_name<P: crate::ProfilePayload>(
     body: VarId,
     name: &StableName,
 ) -> Result<(), EditError> {
+    // Read in a body: "where an instance is" is a body reaching one.
     let parted = new.reaches_instance(body);
-    if parted && !new.nodes.contains_key(&name.node) {
+    if new.part_spelled(parted, name) {
         return Ok(());
     }
     if !new.nodes.contains_key(&name.node) {
@@ -6265,12 +6281,10 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     // minted: such a name is the part's, held where an instance is,
     // and its life is the part's (`work/intent/a-part-name-in-the-host-
     // is-spelled-in-the-parts-ids.md`).
-    let parted = new
-        .nodes
-        .values()
-        .any(|n| matches!(n, Node::InstantiatePart { .. }));
+    // Read in no body: "where an instance is" is a document holding one.
+    let parted = new.holds_instance();
     for name in node.payload_names() {
-        if parted && !new.has_minted(name.node) {
+        if new.part_spelled(parted, name) {
             continue;
         }
         if !new.nodes.contains_key(&name.node) {
@@ -8440,8 +8454,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // spelled in ids this document never minted: the part's to
             // check, at evaluation (`work/intent/a-part-name-in-the-host-
             // is-spelled-in-the-parts-ids.md`).
+            // Read in a body: "where an instance is" is a body reaching
+            // one. An unsited rebind reaches every payload site, so it
+            // lets no part's name through.
             let parted = body.is_some_and(|body| new.reaches_instance(body));
-            let foreign = |name: &StableName| parted && !new.has_minted(name.node);
+            let foreign = |name: &StableName| new.part_spelled(parted, name);
             // The target must denote a LIVE node (node existence now;
             // name-level resolution at evaluation — the Declare
             // carve-out's split, spec D3).

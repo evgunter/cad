@@ -490,9 +490,10 @@ impl MirrorTool {
         crate::seats::respeak_each(core::slice::from_mut(&mut self.plane_said), doc);
     }
 
-    /// **The held plane after a takeover** ([`FaceSelection::reseated`]).
-    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
-        self.plane = self.plane.as_ref().map(|face| face.reseated(moved));
+    /// **The held plane following a takeover**
+    /// ([`FaceSelection::following`]).
+    pub fn follow(&mut self, moved: &pncad::document::Moved) {
+        self.plane = self.plane.as_ref().map(|face| face.following(moved));
     }
 
     /// **The panel's held-picks line**: the body seat as [`seat_line`]

@@ -686,14 +686,14 @@ impl BlendTool {
         }
     }
 
-    /// **The held edges after a takeover**: each held on a copy the
-    /// takeover re-pointed takes the name it moved to
-    /// ([`pncad::document::Reseated::reseat`]), rims included.
-    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
+    /// **The held edges following a takeover**: each held on a copy the
+    /// takeover moved takes the name it moved to
+    /// ([`crate::session::select::followed_name`]), rims included.
+    pub fn follow(&mut self, moved: &pncad::document::Moved) {
         let Some(node) = self.target().map(|target| target.node) else {
             return;
         };
-        let now = |name: &StableName| moved.reseat(node, name).unwrap_or(name).clone();
+        let now = |name: &StableName| crate::session::select::followed_name(node, name, moved);
         self.edges = self.edges.iter().map(now).collect();
         self.rims = self
             .rims

@@ -1234,7 +1234,7 @@ impl Drafts {
     }
 
     /// **The faces the forms latch**, the one list of them: what a
-    /// replaced document drops and a takeover re-seats.
+    /// replaced document drops and a takeover moves.
     fn latches(&mut self) -> [&mut Option<FaceSelection>; 3] {
         [
             &mut self.sketch_face,
@@ -1256,11 +1256,22 @@ impl Drafts {
         &self.sketch_face_said
     }
 
-    /// **The latched faces after a takeover** ([`FaceSelection::reseated`]).
-    pub(crate) fn reseat(&mut self, moved: &pncad::document::Reseated) {
+    /// **The latched faces following a takeover**
+    /// ([`FaceSelection::following`]).
+    pub(crate) fn follow(&mut self, moved: &pncad::document::Moved) {
         for latch in self.latches() {
-            *latch = latch.as_ref().map(|face| face.reseated(moved));
+            *latch = latch.as_ref().map(|face| face.following(moved));
         }
+    }
+
+    /// The drawn copies the latched faces name entities of.
+    pub(crate) fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
+        nodes.extend(
+            [&self.sketch_face, &self.trace_plane, &self.trace_face]
+                .into_iter()
+                .flatten()
+                .map(|face| face.node),
+        );
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the session's

@@ -548,14 +548,15 @@ impl MateTool {
         crate::seats::respeak_each(&mut self.said, doc);
     }
 
-    /// **The held picks after a takeover** ([`FaceSelection::reseated`]).
-    pub fn reseat(&mut self, moved: &pncad::document::Reseated) {
+    /// **The held picks following a takeover**
+    /// ([`FaceSelection::following`]).
+    pub fn follow(&mut self, moved: &pncad::document::Moved) {
         self.state = match &self.state {
             MateToolState::Idle => MateToolState::Idle,
-            MateToolState::One(on) => MateToolState::One(on.reseated(moved)),
+            MateToolState::One(on) => MateToolState::One(on.following(moved)),
             MateToolState::Two { on, to } => MateToolState::Two {
-                on: on.reseated(moved),
-                to: to.reseated(moved),
+                on: on.following(moved),
+                to: to.following(moved),
             },
         };
     }

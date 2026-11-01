@@ -15,12 +15,24 @@
 //! **Why this is not `merged.rs`'s walk.** That walk reads a set
 //! through its descent wrappers (`From` of any read, and `Inner`) to
 //! list the set's constituents; a successor is read through neither.
-//! An `Inner` is a shell's twin of a face, another face; a carry
-//! through some other read is that operation's face, named by it, and
-//! a takeover's result reads the body it takes over directly (a
-//! feature of it, a union or a combine over it), so its own carries
-//! are the ones that say where the body's entities went. What the two
-//! share is only the one-level shape of a carry and of a set.
+//! An `Inner` is a shell's twin of a face, another face. A `From` of
+//! another read is a carry through some other operation: the entity
+//! there is that operation's, and it is the body's only where that
+//! operation carried it whole and once, which is a successor question
+//! about that operation's own table, not this one's. This query answers
+//! for the carries of the one read it is asked about, and nothing
+//! deeper. What the two share is only the one-level shape of a carry
+//! and of a set.
+//!
+//! So a result answers here only for what it carries of the taken read
+//! directly. Most takeovers' results read the taken body directly (a
+//! feature of it, a union or a combine over it). A fused pattern's
+//! union reads it through its family, carrying each face once per
+//! member, so its takeover has no successor for any face (issue
+//! `work/doors/a-fused-patterns-takeover-rebinds-nothing.md`). A copy
+//! of a copy carries its source's names as they are, with no carry at
+//! all; the door follows those placement chains itself
+//! (`crate::take_over`).
 
 use std::collections::BTreeMap;
 
@@ -69,25 +81,25 @@ pub fn successors(table: &NameTable, read: VarId) -> BTreeMap<StableName, Stable
 /// whose `read` is a key of `moved` and whose `of` that read's map
 /// holds, carries the mapped name instead. `None` where nothing it
 /// carries moved.
-pub(crate) fn reseated<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>>(
+pub(crate) fn recarried<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>>(
     name: &StableName,
     moved: &BTreeMap<VarId, M>,
 ) -> Option<StableName> {
-    let Ok(now) = name.clone().rewrite_path(&mut Reseat(moved));
+    let Ok(now) = name.clone().rewrite_path(&mut Recarry(moved));
     (now != *name).then_some(now)
 }
 
-/// [`reseated`]'s walk: a carry is answered from the pair it is, its
-/// read and its name ([`super::SegRewrite::from`]); every other carried
+/// [`recarried`]'s walk: a carry is answered from the pair it is, its
+/// read and its name ([`super::SegRewrite::carried`]); every other carried
 /// name is descended, for the carries inside it.
-struct Reseat<'m, M>(&'m BTreeMap<VarId, M>);
+struct Recarry<'m, M>(&'m BTreeMap<VarId, M>);
 
 impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrite
-    for Reseat<'_, M>
+    for Recarry<'_, M>
 {
     type Error = core::convert::Infallible;
 
-    fn from(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
+    fn carried(&mut self, read: VarId, of: &StableName) -> Result<super::Carry, Self::Error> {
         Ok(
             match self.0.get(&read).and_then(|map| map.borrow().get(of)) {
                 Some(to) => super::Carry::Replace(to.clone()),
@@ -116,7 +128,7 @@ impl<M: core::borrow::Borrow<BTreeMap<StableName, StableName>>> super::SegRewrit
 #[cfg(test)]
 mod a_successor_is_one_whole_unique_row {
     #![allow(clippy::expect_used)]
-    use super::{reseated, successors};
+    use super::{recarried, successors};
     use crate::VarId;
     use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
     use crate::names::table::{EntityKey, EntityRef, NameTable};
@@ -224,12 +236,12 @@ mod a_successor_is_one_whole_unique_row {
         let moved = BTreeMap::from([(READ, BTreeMap::from([(own(0), to.clone())]))]);
         let deep = from(OTHER, from(READ, own(0)));
         assert_eq!(
-            reseated(&deep, &moved),
+            recarried(&deep, &moved),
             Some(from(OTHER, from(READ, to))),
             "two levels down"
         );
         assert_eq!(
-            reseated(&from(OTHER, own(0)), &moved),
+            recarried(&from(OTHER, own(0)), &moved),
             None,
             "another read's"
         );
@@ -261,7 +273,7 @@ mod a_successor_is_one_whole_unique_row {
             )
         };
         assert_eq!(
-            reseated(&piece(own(0)), &moved),
+            recarried(&piece(own(0)), &moved),
             Some(piece(to)),
             "the carry moves; the wall it borders, read in no `From`, does not"
         );

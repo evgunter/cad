@@ -797,6 +797,27 @@ impl DocumentDerived {
     }
 }
 
+/// **The chrome's held picks, as one holder** (`Holds`): the forms'
+/// latched faces and the open tool's picks, handed to an operation so a
+/// takeover reads where their names go and they follow it at the
+/// commit (`DocSession::perform_with`).
+struct ChromeHolds<'a> {
+    drafts: &'a mut Drafts,
+    tools: &'a mut crate::tools::Tools,
+}
+
+impl crate::session::Holds for ChromeHolds<'_> {
+    fn held_on(&self, nodes: &mut std::collections::BTreeSet<pncad::document::RecipeNodeId>) {
+        self.drafts.held_on(nodes);
+        self.tools.held_on(nodes);
+    }
+
+    fn follow(&mut self, moved: &pncad::document::Moved) {
+        self.drafts.follow(moved);
+        self.tools.follow(moved);
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -1031,11 +1052,6 @@ impl ViewerApp {
         let withdrawn = self.session.take_landed_withdrawals();
         self.notices
             .extend(withdrawn.iter().flat_map(frame::withdrawal_notices));
-        // A takeover that landed moved names a pick holds; the session's
-        // selection followed at the landing, and the chrome's follow here.
-        for moved in self.session.take_landed_reseats() {
-            self.reseat_held(&moved);
-        }
         // **The survival step, once per frame, for whichever tool is
         // open** — the obligation every tool's module docs put on its
         // consumer, discharged in the one place that holds them all.
@@ -1279,14 +1295,6 @@ impl ViewerApp {
         self.tools.respeak(doc);
     }
 
-    /// **Every held pick after a takeover** (`DocSession::take_landed_reseats`):
-    /// the forms' latched faces and the open tool's picks, each on the
-    /// name the takeover moved it to, as the session's selection is.
-    fn reseat_held(&mut self, moved: &pncad::document::Reseated) {
-        self.drafts.reseat(moved);
-        self.tools.reseat(moved);
-    }
-
     /// **A document replaced this one**: everything held about it is
     /// dropped, here and nowhere else — [`DocumentDerived`] whole, and
     /// the held ids inside the drafts and the open tool, whose values
@@ -1341,7 +1349,16 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
-            let mut outcome = self.session.perform(op);
+            // The forms' and the open tool's picks are held outside the
+            // document: a takeover reads where they go, and they follow
+            // it at the commit, with the session's selection.
+            let mut outcome = self.session.perform_with(
+                op,
+                &mut ChromeHolds {
+                    drafts: &mut self.drafts,
+                    tools: &mut self.tools,
+                },
+            );
             answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display

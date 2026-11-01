@@ -152,12 +152,25 @@ pub struct EvalRequest {
     /// copy of the store.
     pub resolver: Option<Arc<dyn PartResolver>>,
     /// **A run to start from in place of the seam's own**: a completed
-    /// evaluation of a document this one was staged from, under this
-    /// request's resolver, made beside the seam (a takeover reads the
-    /// result's table off one before it writes its rebinds). Only what
-    /// the later edits touched is evaluated again. `None` starts from
-    /// the seam's last completed run, as every other request does.
-    pub seed: Option<Arc<Evaluation<f64>>>,
+    /// evaluation of a document this one was staged from, made beside
+    /// the seam (a takeover reads the result's table off one before it
+    /// writes its rebinds). Only what the later edits touched is
+    /// evaluated again. `None` starts from the seam's last completed
+    /// run, as every other request does.
+    pub seed: Option<Seed>,
+}
+
+/// **A completed evaluation a request starts from**
+/// ([`EvalRequest::seed`]), with the resolver it was made under: the
+/// seam's priming rule holds a seed to the request's resolver as it
+/// holds its own run ([`same_resolver`]), and a seed under another one
+/// is a caller's error, refused loudly.
+#[derive(Clone, Debug)]
+pub struct Seed {
+    /// The evaluation.
+    pub evaluation: Arc<Evaluation<f64>>,
+    /// The resolver it resolved `InstantiatePart` nodes through.
+    pub resolver: Option<Arc<dyn PartResolver>>,
 }
 
 /// A finished run.
@@ -297,11 +310,19 @@ fn run_once(
     prior: &mut Option<PriorRun>,
     cancel: &CancelToken,
 ) -> Arc<Evaluation<f64>> {
-    // A seed is under the request's own resolver by its contract, and
-    // is held to the completed-run rule here like the seam's own.
+    // A seed is held to the seam's two priming rules like its own run:
+    // the same resolver (a caller's error otherwise, so asserted) and a
+    // completed run.
+    if let Some(seed) = &request.seed {
+        assert!(
+            same_resolver(&seed.resolver, &request.resolver),
+            "a seed evaluated under another resolver than its request's"
+        );
+    }
     let seeded = request
         .seed
-        .as_deref()
+        .as_ref()
+        .map(|seed| seed.evaluation.as_ref())
         .filter(|seed| seed.outcome == EvalOutcome::Completed);
     let prime = seeded.or_else(|| {
         prior

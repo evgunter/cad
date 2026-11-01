@@ -1759,7 +1759,9 @@ impl Doc {
     /// Reading where a name went evaluates the document, under
     /// `resolver=` as `evaluate` takes it: a document with instances
     /// needs the workspace their parts resolve in, or their copies
-    /// evaluate to nothing and no name of them moves.
+    /// evaluate to nothing and no name of them moves. A copy of a copy
+    /// (down a placement chain) carries the same names, and answers
+    /// them too.
     #[pyo3(signature = (copies, result, *, resolver=None))]
     fn take_over(
         &mut self,
@@ -1777,24 +1779,8 @@ impl Doc {
         let tol = Tol::witness();
         let done = d::take_over(&self.inner, &copies, &result, &opts, tol)
             .map_err(|err| edit_err(py, &err))?;
-        // The door's own run where it made one (it holds the result),
-        // else one of the document the action produced.
-        let ev = match &done.taken.evaluation {
-            Some(ev) => std::sync::Arc::clone(ev),
-            None if done.taken.is_empty() => {
-                self.take_up(done.doc, done.maintenance);
-                return Ok(Vec::new());
-            }
-            None => std::sync::Arc::new(d::evaluate(
-                &done.doc,
-                None,
-                &d::CancelToken::new(),
-                &opts,
-                tol,
-            )),
-        };
         let mut moved = Vec::new();
-        for (copy, names) in &done.taken.reseated(&ev).0 {
+        for (copy, names) in &done.taken.moved.0 {
             for (from, to) in names {
                 moved.push((NodeId(*copy), name_text(py, from)?, name_text(py, to)?));
             }

@@ -246,7 +246,7 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use take_over::{Reseated, TakeOverOutcome, Taken, TakenOver, take_over};
+pub use take_over::{Moved, TakeOverOutcome, Taken, TakenOver, take_over};
 pub use trace::{
     TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
     trace_marks, traced_frame,

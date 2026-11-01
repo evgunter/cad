@@ -28,13 +28,14 @@
 //!
 //! **What it evaluates.** Reading where a name went needs the result's
 //! table, an evaluation of the staged document. The door runs one only
-//! when the document reads a copy (a selection of it, or one that
-//! embeds its read at any depth); otherwise it writes the re-point
-//! alone. A reader that holds names outside the document reads where
-//! they went off any later evaluation that holds the result
-//! ([`TakenOver::reseated`]), the run its caller makes anyway; the
-//! door's own evaluation, when it made one, rides out with the answer
-//! ([`TakenOver::evaluation`]) for that run to start from.
+//! when something reads a copy: a selection of the document (of the
+//! copy, of a copy of it — a copy carries its source's names as they
+//! are, so a placement chain from the copy reads them too — or one that
+//! embeds any of their reads), or a reader outside the document that
+//! holds a name on one of them (the caller's `held`, a viewer's picks).
+//! Otherwise it writes the re-point alone. Its evaluation rides out
+//! with the answer ([`TakenOver::evaluation`]) for the run of the
+//! finished document to start from.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -57,21 +58,24 @@ pub struct Taken {
     pub now: VarId,
 }
 
-/// **What a takeover did**: each copy it re-pointed, and the
-/// evaluation the door read the result's table off, where it made one.
+/// **What a takeover did**: each copy it re-pointed, where the names
+/// of each copy that reads them went, and the evaluation the door read
+/// that off, where it made one.
 ///
 /// Every reference the document holds is already re-seated by the
 /// action's own edits. A reader that holds a name outside the document
-/// (a viewer's pick of a face of the copy) reads where it went with
-/// [`Self::reseated`].
+/// (a viewer's pick of a face of a copy) follows [`Self::moved`].
 #[derive(Clone, Debug, Default)]
 pub struct TakenOver {
     /// Each copy re-pointed, and what it copied and copies now.
     pub copies: BTreeMap<RecipeNodeId, Taken>,
+    /// Where each name moved, per copy that reads it: a re-pointed
+    /// copy, and each copy of a copy down its placement chain. Empty
+    /// where the door did not evaluate (nothing read a copy).
+    pub moved: Moved,
     /// The staged document's evaluation, before the rebinds, where the
-    /// door evaluated (the document read a copy): a run of the
-    /// finished document can start from it, since only what reads the
-    /// rebound selections differs.
+    /// door evaluated: a run of the finished document can start from
+    /// it, since only what reads the rebound selections differs.
     pub evaluation: Option<Arc<Evaluation<f64>>>,
 }
 
@@ -80,47 +84,36 @@ impl TakenOver {
     pub fn is_empty(&self) -> bool {
         self.copies.is_empty()
     }
-
-    /// **Where each name of each copy went**, read off `ev`, an
-    /// evaluation of a document that holds the result: a copy carries
-    /// its source's names as they are, so the names the copy holds now
-    /// are the result's, and each of the old body's names that has a
-    /// successor there moved to it.
-    pub fn reseated(&self, ev: &Evaluation<f64>) -> Reseated {
-        Reseated(
-            self.copies
-                .iter()
-                .filter_map(|(&copy, taken)| {
-                    let table = ev.table(taken.now)?;
-                    Some((copy, crate::names::successors(table, taken.was)))
-                })
-                .collect(),
-        )
-    }
 }
 
-/// **Where the names of the copies a takeover re-pointed went**: per
-/// copy, each name the copy's old source held that the result carries
-/// as one entity, and the result's name for it ([`TakenOver::reseated`]).
+/// **Where a takeover moved the names a copy holds**: per copy, each
+/// name of the old source the result carries as one entity, and the
+/// result's name for it.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Reseated(pub BTreeMap<RecipeNodeId, BTreeMap<StableName, StableName>>);
+pub struct Moved(pub BTreeMap<RecipeNodeId, BTreeMap<StableName, StableName>>);
 
-impl Reseated {
-    /// The name `name`, read in `copy` before the takeover, has in it
-    /// now; `None` where the takeover did not move it.
-    pub fn reseat(&self, copy: RecipeNodeId, name: &StableName) -> Option<&StableName> {
+impl Moved {
+    /// The name `name`, read in `copy` before the takeover, has now;
+    /// `None` where the takeover did not move it.
+    pub fn of(&self, copy: RecipeNodeId, name: &StableName) -> Option<&StableName> {
         self.0.get(&copy)?.get(name)
+    }
+
+    /// Whether no name moved.
+    pub fn is_empty(&self) -> bool {
+        self.0.values().all(BTreeMap::is_empty)
     }
 }
 
 impl Recording<'_, ProfileProgram> {
     /// **Re-point each of `copies` to `result`, and re-seat what read
     /// them** ([module docs](self)): each copy's source slot set to
-    /// `result`, then, where the document reads a copy, one
+    /// `result`, then, where something reads a copy, one
     /// [`DocEdit::Rebind`] per (selection body, name) whose name has a
     /// successor in the result, at whatever depth the selection embeds
-    /// the copy's read. The staged document is evaluated under `opts`
-    /// to read the result's table, `prior` its memo.
+    /// a copy's read. `held` says which drawn copies a reader outside
+    /// the document holds names on. The staged document is evaluated
+    /// under `opts` to read the result's table, `prior` its memo.
     ///
     /// Which copies a takeover reaches is the caller's: each is
     /// re-pointed as given, and one that is no placement refuses at the
@@ -136,16 +129,23 @@ impl Recording<'_, ProfileProgram> {
     ///
     /// # Errors
     ///
-    /// As [`Self::apply`]'s: the first door that refuses ends the action.
+    /// [`EditError::TakeOverRepeatsCopy`] for a copy given twice, and
+    /// as [`Self::apply`]'s: the first door that refuses ends the action.
     pub fn take_over(
         &mut self,
         copies: &[RecipeNodeId],
         result: &Operand,
         opts: &EvalOptions,
         prior: Option<&Evaluation<f64>>,
+        held: &dyn Fn(RecipeNodeId) -> bool,
     ) -> Result<TakenOver, EditError> {
         let mut taken = TakenOver::default();
         for &copy in copies {
+            if taken.copies.contains_key(&copy) {
+                return Err(EditError::TakeOverRepeatsCopy {
+                    node: self.doc().spoken(copy),
+                });
+            }
             let was = self.doc().copied_read(copy);
             self.apply(DocEdit::SetParam {
                 node: copy,
@@ -153,20 +153,24 @@ impl Recording<'_, ProfileProgram> {
                 value: crate::SlotValue::Read(result.clone()),
                 fresh: Vec::new(),
             })?;
-            // The slot door admitted the source, so `copy` is a `Place`
-            // and both reads are there.
-            if let (Some(was), Some(now)) = (was, self.doc().copied_read(copy)) {
-                taken.copies.insert(copy, Taken { was, now });
-            }
+            #[allow(clippy::expect_used)] // the slot door's own guarantee
+            let (was, now) = (
+                was.expect("the slot door admitted a source, so `copy` is a placement"),
+                self.doc()
+                    .copied_read(copy)
+                    .expect("the slot door admitted a source, so `copy` is a placement"),
+            );
+            taken.copies.insert(copy, Taken { was, now });
         }
         let doc = self.doc();
-        // The copies' bodies, by the read a selection of one names.
-        let bodies: BTreeMap<VarId, RecipeNodeId> = taken
-            .copies
-            .keys()
-            .flat_map(|&copy| doc.outputs(copy).into_iter().map(move |var| (var, copy)))
+        let chains = chains(doc, &taken);
+        // Each body that carries a copy's names as they are, by the
+        // re-pointed copy whose names they are.
+        let bodies: BTreeMap<VarId, RecipeNodeId> = chains
+            .iter()
+            .flat_map(|(&node, &root)| doc.outputs(node).into_iter().map(move |var| (var, root)))
             .collect();
-        let read = doc.name_carriers().any(|carrier| match carrier {
+        let read_inside = doc.name_carriers().any(|carrier| match carrier {
             crate::doc::NameCarrier::Select { var, name } => {
                 doc.selection(var)
                     .is_some_and(|select| bodies.contains_key(&select.body))
@@ -179,18 +183,28 @@ impl Recording<'_, ProfileProgram> {
                 false
             }
         });
-        if !read {
+        if !read_inside && !chains.keys().any(|&node| held(node)) {
             return Ok(taken);
         }
         let ev: Evaluation<f64> =
             crate::evaluate(doc, prior, &crate::CancelToken::new(), opts, self.tol());
-        let reseated = taken.reseated(&ev);
+        let by_copy: BTreeMap<RecipeNodeId, BTreeMap<StableName, StableName>> = taken
+            .copies
+            .iter()
+            .map(|(&copy, taken)| {
+                let moved = ev
+                    .table(taken.now)
+                    .map(|table| crate::names::successors(table, taken.was))
+                    .unwrap_or_default();
+                (copy, moved)
+            })
+            .collect();
         // A name read in a copy's body is that copy's; one read
         // downstream carries such names inside its own, keyed by the
-        // copy's read.
+        // body's read.
         let moved: BTreeMap<VarId, &BTreeMap<StableName, StableName>> = bodies
             .iter()
-            .filter_map(|(&var, copy)| Some((var, reseated.0.get(copy)?)))
+            .filter_map(|(&var, root)| Some((var, by_copy.get(root)?)))
             .collect();
         let edits = crate::refactor::rebinds_at_sites(doc, |site, name| {
             let body = site?;
@@ -199,7 +213,7 @@ impl Recording<'_, ProfileProgram> {
                 Some(map) => map.get(name).cloned(),
                 // A downstream body re-keys its own rows: its new name
                 // holds only where its table has it as one entity.
-                None => crate::names::reseated(name, &moved).filter(|to| {
+                None => crate::names::recarried(name, &moved).filter(|to| {
                     ev.table(body)
                         .and_then(|table| table.lookup(to))
                         .is_some_and(|entry| matches!(entry, Entry::Unique(_)))
@@ -209,9 +223,42 @@ impl Recording<'_, ProfileProgram> {
         for edit in edits {
             self.apply(edit)?;
         }
+        taken.moved = Moved(
+            chains
+                .iter()
+                .filter_map(|(&node, root)| Some((node, by_copy.get(root)?.clone())))
+                .collect(),
+        );
         taken.evaluation = Some(Arc::new(ev));
         Ok(taken)
     }
+}
+
+/// **Every copy that carries a re-pointed copy's names as they are**,
+/// by the re-pointed copy: each re-pointed copy itself, and each
+/// placement down a chain of placements from it (a copy of the copy, a
+/// copy of that).
+fn chains(doc: &Doc<ProfileProgram>, taken: &TakenOver) -> BTreeMap<RecipeNodeId, RecipeNodeId> {
+    let mut chains: BTreeMap<RecipeNodeId, RecipeNodeId> =
+        taken.copies.keys().map(|&copy| (copy, copy)).collect();
+    let mut frontier: Vec<RecipeNodeId> = taken.copies.keys().copied().collect();
+    while let Some(at) = frontier.pop() {
+        let Some(&root) = chains.get(&at) else {
+            continue;
+        };
+        let outs = doc.outputs(at);
+        for node in doc.ids() {
+            if !chains.contains_key(&node)
+                && doc
+                    .copied_read(node)
+                    .is_some_and(|read| outs.contains(&read))
+            {
+                chains.insert(node, root);
+                frontier.push(node);
+            }
+        }
+    }
+    chains
 }
 
 /// [`fn@take_over`]'s outcome: the action applied, and what it
@@ -228,7 +275,8 @@ pub struct TakeOverOutcome {
     pub taken: TakenOver,
 }
 
-/// **A takeover, as one action** ([`Recording::take_over`]).
+/// **A takeover, as one action** ([`Recording::take_over`]), its caller
+/// holding a name on every copy: it always answers where they moved.
 ///
 /// # Errors
 ///
@@ -241,7 +289,8 @@ pub fn take_over(
     tol: Tol,
 ) -> Result<TakeOverOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
-    let taken = action.take_over(copies, result, opts, None)?;
+    // A caller of the action holds every name it may be handed back.
+    let taken = action.take_over(copies, result, opts, None, &|_| true)?;
     let Recorded {
         doc,
         edits,

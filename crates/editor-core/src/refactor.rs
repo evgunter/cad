@@ -1739,6 +1739,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::RebindNoReferences { .. }
             | EditError::WitnessOnNonSketch { .. }
             | EditError::DuplicateWitnessEntry { .. }
+            | EditError::TakeOverRepeatsCopy { .. }
             | EditError::EmptyWitnessBulk
             | EditError::NameUnresolvedInEvaluation { .. }
             | EditError::EvaluationOfAnotherDocument { .. }

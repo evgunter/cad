@@ -173,6 +173,8 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
             small_copy,
         } = seated(top);
         let (name, op) = takeovers(&session, block).swap_remove(at);
+        let held = top(&session);
+        session.perform(SessionOp::Select(Selection::Face(held.clone())));
         let before = session.committed_doc().clone();
         let seated_at = drawn::extent(&mut session, small_copy);
         let outcome = session.perform(op);
@@ -184,12 +186,13 @@ fn a_mate_on_the_taken_copys_face_stays_seated() {
             "{name}: one rebind, the mate's face: {:?}",
             outcome.committed
         );
-        let moved = session.take_landed_reseats();
-        assert!(
-            moved
-                .iter()
-                .any(|m| m.0.get(&copy).is_some_and(|names| !names.is_empty())),
-            "{name}: the copy's names moved, read off the landed run"
+        let Selection::Face(now) = session.selection().clone() else {
+            panic!("{name}: a face is held")
+        };
+        assert_eq!(now.node, copy, "{name}: on the same drawn copy");
+        assert_ne!(
+            now.name, held.name,
+            "{name}: the held top followed, at the commit"
         );
         assert_eq!(
             drawn::extent(&mut session, small_copy),
@@ -372,15 +375,14 @@ fn the_mirrors_merged_top_keeps_the_old_tops_frame() {
         pncad::select::face_frame(eval, var, &held.name).expect("frame before")
     };
     let op = mirror_across(&session, &minus_x_wall(&session));
+    session.perform(SessionOp::Select(Selection::Face(held.clone())));
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
-    let moved = session.take_landed_reseats();
-    let now = moved
-        .iter()
-        .find_map(|m| m.reseat(copy, &held.name))
-        .expect("the top moved to the merged top")
-        .clone();
+    let Selection::Face(now) = session.selection().clone() else {
+        panic!("a face is held")
+    };
+    let now = now.name;
     assert!(
         matches!(now.path.as_slice(), [RoleSeg::Merged(set)] if set.len() == 2),
         "the top merged across the glue plane: {now:?}"
@@ -396,5 +398,118 @@ fn the_mirrors_merged_top_keeps_the_old_tops_frame() {
         format!("{after:?}"),
         format!("{before:?}"),
         "the merged top is framed as the body's top was"
+    );
+}
+
+/// **A gesture on a held pick, committed before the takeover's run
+/// lands, reads the pick where the takeover moved it**: the top held, a
+/// fillet committed, and with no landing between, a sketch committed on
+/// the held top. The held top followed the fillet at its commit, so the
+/// sketch reads the fillet's name for the top and every row is well.
+/// Goes red if held picks follow a takeover any later than its commit:
+/// the sketch then writes the old name, which the copy no longer holds.
+#[test]
+fn a_gesture_on_a_held_pick_before_the_landing_reads_it_moved() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    session.perform(SessionOp::Select(Selection::Face(top(&session))));
+    let lateral = a_lateral_edge(&session, block);
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![lateral],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    // No pump: the fillet's run has not landed.
+    let Selection::Face(held) = session.selection().clone() else {
+        panic!("a face is held")
+    };
+    let sketched = session.perform(boss_on(held));
+    assert!(sketched.refusal.is_none(), "{:?}", sketched.refusal);
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+}
+
+/// **A held pick that followed a takeover stays followed when a later
+/// edit is undone**: the top held, a fillet committed, a label set and
+/// undone before any run lands. The fillet is still committed, so the
+/// held top keeps the fillet's name, and resolves. Goes red if an undo
+/// takes back a follow it did not undo.
+#[test]
+fn undoing_a_later_edit_keeps_the_held_pick_followed() {
+    let Seated {
+        mut session, block, ..
+    } = seated(top);
+    let held = top(&session);
+    session.perform(SessionOp::Select(Selection::Face(held.clone())));
+    let lateral = a_lateral_edge(&session, block);
+    let outcome = session.perform(SessionOp::AddFillet {
+        target: block,
+        radius: len(0.002),
+        selection: vec![lateral],
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let later = session.perform(SessionOp::SetLabel {
+        node: block,
+        label: Some(pncad::document::Label::new("b").expect("a label")),
+    });
+    assert!(later.refusal.is_none(), "{:?}", later.refusal);
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    session.pump();
+    let Selection::Face(now) = session.selection().clone() else {
+        panic!("a face is held")
+    };
+    assert_ne!(
+        now.name, held.name,
+        "the still-committed fillet's move holds"
+    );
+    let eval = session.evaluation().expect("landed");
+    let verdict =
+        viewer::tree::pick_resolution(session.committed_doc(), eval, now.node, now.body, &now.name);
+    assert!(
+        matches!(verdict, pncad::select::Resolution::Resolved(_)),
+        "{verdict:?}"
+    );
+}
+
+/// **A fused pattern's takeover rebinds the mate on the copy's top**:
+/// open, `work/doors/a-fused-patterns-takeover-rebinds-nothing.md`. The
+/// union carries the top once per member, so it has no successor and
+/// no rebind is written; this row goes green when that is decided.
+#[test]
+#[ignore = "work/doors/a-fused-patterns-takeover-rebinds-nothing.md"]
+fn a_fused_patterns_takeover_rebinds_the_mate_on_the_copys_top() {
+    use viewer::session::PatternRuleSpec;
+    let Seated {
+        mut session,
+        block,
+        small_copy,
+        ..
+    } = seated(top);
+    let seated_at = drawn::extent(&mut session, small_copy);
+    let outcome = session.perform(SessionOp::AddFusedPattern {
+        input: block.into(),
+        count: 2,
+        rule: PatternRuleSpec::Linear {
+            direction: common::scl3([0.0, 1.0, 0.0]),
+            spacing: len(0.1),
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert_eq!(
+        rebinds(&outcome.committed).len(),
+        1,
+        "the mate's face is rebound: {:?}",
+        outcome.committed
+    );
+    assert_eq!(
+        drawn::extent(&mut session, small_copy),
+        seated_at,
+        "the small block stands where it stood"
     );
 }

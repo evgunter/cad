@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{RecipeNodeId, Reseated, SpokenVar, VarId};
+use pncad::document::{Moved, RecipeNodeId, SpokenVar, VarId};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
@@ -44,12 +44,12 @@ pub struct FaceSelection {
 }
 
 impl FaceSelection {
-    /// **This pick after a takeover** ([`reseated_name`]), on the same
-    /// drawn copy.
+    /// **This pick following a takeover** ([`followed_name`]), on the
+    /// same drawn copy.
     #[must_use]
-    pub fn reseated(&self, moved: &Reseated) -> Self {
+    pub fn following(&self, moved: &Moved) -> Self {
         Self {
-            name: reseated_name(self.node, &self.name, moved),
+            name: followed_name(self.node, &self.name, moved),
             ..self.clone()
         }
     }
@@ -82,14 +82,38 @@ fn feature_of(node: RecipeNodeId, name: &StableName) -> RecipeNodeId {
     attribute(name).minted_by().unwrap_or(node)
 }
 
-/// **The name a pick of `name` on the copy `node` holds after a
+/// **The name a pick of `name` on the copy `node` holds following a
 /// takeover**: the one the takeover moved the copy's entity to
-/// ([`Reseated::reseat`]), or `name` where it did not move it. For
-/// either kind of pick.
-fn reseated_name(node: RecipeNodeId, name: &StableName, moved: &Reseated) -> StableName {
+/// ([`Moved::of`]), or `name` where it did not move it. The one
+/// spelling of a held name following, for every holder (a face or edge
+/// pick, a tool's held edges).
+pub(crate) fn followed_name(node: RecipeNodeId, name: &StableName, moved: &Moved) -> StableName {
     moved
-        .reseat(node, name)
+        .of(node, name)
         .map_or_else(|| name.clone(), Clone::clone)
+}
+
+/// **What holds picks outside the document**: the session's selection,
+/// the chrome's forms and its open tool. A takeover asks each which
+/// drawn copies it holds a name on, so it reads where those names go
+/// even where the document does not, and each follows where they went,
+/// at the commit that moved them (`DocSession::perform_with`).
+pub trait Holds {
+    /// Each drawn copy a held pick names an entity of.
+    fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>);
+
+    /// Every held name a takeover moved, onto where it moved.
+    fn follow(&mut self, moved: &Moved);
+}
+
+/// A holder holding nothing: what [`crate::session::DocSession::perform`]
+/// hands a takeover when its caller keeps no picks of its own.
+pub struct HoldsNothing;
+
+impl Holds for HoldsNothing {
+    fn held_on(&self, _: &mut std::collections::BTreeSet<RecipeNodeId>) {}
+
+    fn follow(&mut self, _: &Moved) {}
 }
 
 /// A picked edge: the stable name it is, and the node whose body
@@ -112,11 +136,11 @@ pub struct EdgeSelection {
 }
 
 impl EdgeSelection {
-    /// [`FaceSelection::reseated`], for an edge.
+    /// [`FaceSelection::following`], for an edge.
     #[must_use]
-    pub fn reseated(&self, moved: &Reseated) -> Self {
+    pub fn following(&self, moved: &Moved) -> Self {
         Self {
-            name: reseated_name(self.node, &self.name, moved),
+            name: followed_name(self.node, &self.name, moved),
             ..self.clone()
         }
     }
@@ -228,13 +252,28 @@ pub enum Selection {
 }
 
 impl Selection {
-    /// **This selection after a takeover**: a picked face or edge
-    /// re-seated ([`FaceSelection::reseated`]); anything else as it is.
-    #[must_use]
-    pub fn reseated(&self, moved: &Reseated) -> Self {
+    /// The drawn copy a picked face or edge names an entity of
+    /// ([`Holds::held_on`]'s answer for the selection).
+    pub fn held_on(&self, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
         match self {
-            Self::Face(face) => Self::Face(face.reseated(moved)),
-            Self::Edge(edge) => Self::Edge(edge.reseated(moved)),
+            Self::Face(face) => {
+                nodes.insert(face.node);
+            }
+            Self::Edge(edge) => {
+                nodes.insert(edge.node);
+            }
+            Self::None | Self::Node(_) | Self::Variable(_) => {}
+        }
+    }
+
+    /// **This selection following a takeover**: a picked face or edge
+    /// on the name it moved to ([`FaceSelection::following`]); anything
+    /// else as it is.
+    #[must_use]
+    pub fn following(&self, moved: &Moved) -> Self {
+        match self {
+            Self::Face(face) => Self::Face(face.following(moved)),
+            Self::Edge(edge) => Self::Edge(edge.following(moved)),
             Self::None | Self::Node(_) | Self::Variable(_) => self.clone(),
         }
     }
