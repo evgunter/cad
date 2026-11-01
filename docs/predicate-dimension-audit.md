@@ -1471,6 +1471,33 @@ Flagged, NOT fixed here (dispositions):
   move. `geom-core/tests/flagged_census.rs` checks that every
   `unlogged` and `check_unlogged` site cites a row this ledger has.
 
+- **F29** (added by CLEAR's DIRSUPPORT unit) `topo/src/clearance.rs`
+  `clearance_support_gap`, at `apart_along`: the distance test's second
+  compare, asked of a cell pair whose box margin at F17's site is
+  indeterminate, and by the injectivity question's choice between a
+  touching pair's certificate and the distance test. The comparand is
+  `L − c`, where `L` is the gap between the two cells' supports along
+  one direction `n`, over `|n|`, and `c` the requested clearance (`0`
+  under the strict question). Each support is the hull of `⟨P, n⟩` over
+  the cell's restricted, dehomogenized control points
+  (`NurbsSurface::rect_net`), a plane's own affine form, or the cell's
+  box. `L` is a lower bound on the cells' separation, so the comparand
+  is honest METRES against the linear band, and **the site is not
+  flagged**; this row is the disposition, and `LEDGER_FLAGGED_SITES`
+  does not move.
+  - Only `Sign::Positive` is read, and it discharges the pair under
+    either bound. `L` bounds the separation from below and from
+    nowhere above, so a `Zero` or a `Negative` here is no coincidence
+    and no violation: the pair goes on to F17's indeterminate arm as
+    before. One name serves both bounds for that reason; F17 needs two
+    because its `Zero` is read two ways.
+  - `n` only chooses which bound is decided. The bound holds along any
+    nonzero `n`, so `n` is a raw `f64` read of the cells' centre
+    normals and centres, not a certified quantity, and the choice
+    among three directions is a raw compare that decides nothing.
+  - Logged, like F17: it is a decision of the bound sweep, and its
+    population is the pairs F17 leaves indeterminate.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

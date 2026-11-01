@@ -73,18 +73,21 @@
 //! # No ε here, and the funnelled compares
 //!
 //! Every decision goes through the one `k_stats` funnel at a named
-//! predicate with a [`Margin`] door. The distance test decides at two:
-//! [`CLEARANCE_MARGIN`] (`d − c`, metres minus metres) and
+//! predicate with a [`Margin`] door. The distance test decides at
+//! three: [`CLEARANCE_MARGIN`] (`d − c`, metres minus metres) and
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a cell pair that does
-//! not touch in M must classify strictly positive). Under the
-//! injectivity question a TOUCHING pair is decided instead by a local
-//! certificate ([`crate::injective`]), at that module's own sites. The
+//! not touch in M must classify strictly positive) on the cells' boxes,
+//! and, where the box margin is indeterminate, [`CLEARANCE_SUPPORT_GAP`]
+//! on the gap between the cells' supports along one direction, which
+//! only discharges. Under the injectivity question a TOUCHING pair is
+//! decided instead by a local certificate ([`crate::injective`]), at
+//! that module's own sites. The
 //! cell and station verdicts the sweep asks for decide on
 //! [`crate::cell_region`]'s rows, inside those doors. All carry a row
 //! in `docs/predicate-dimension-audit.md`. No DECISION here compares a
 //! float raw, mints a tolerance, or reads a width as evidence.
 //!
-//! Two raw compares survive, and neither is a decision. The first is
+//! Three raw compares survive, and none is a decision. The first is
 //! the proximity tree's admission test, which decides which pairs are EXAMINED
 //! rather than what any of them means. It is padded by the funnel's
 //! own escalate threshold (`c + band.escalate()`), so a pair it drops
@@ -93,8 +96,10 @@
 //! reaches the funnel. The second is the window door's [`refines`],
 //! whose bound compares decide which charts are ADMITTED to the sweep,
 //! never what a pair means: a chart admitted wrongly costs depth or
-//! budget, which the sweep refuses typed. Stated because a reviewer
-//! should meet them here rather than find them.
+//! budget, which the sweep refuses typed. The third is
+//! [`support_separation`]'s choice of direction, which picks which true
+//! lower bound is decided. Stated because a reviewer should meet them
+//! here rather than find them.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::ControlFlow;
@@ -137,6 +142,15 @@ pub const CLEARANCE_MARGIN: &str = "clearance_margin";
 /// it is a discharge. Same margin shape, same band, two readings of
 /// zero, one per site.
 pub const SELF_INTERSECTION_GAP: &str = "self_intersection_gap";
+
+/// The funnel site name of the support comparison — a lower bound on
+/// the separation between two domain cells, read off their supports
+/// along one direction, minus the requested clearance (`0` for the
+/// strict question), in metres against the linear band. Only a
+/// [`Sign::Positive`] is read here, and it discharges the pair under
+/// either bound: the comparand bounds the separation from below only,
+/// so a `Zero` here is no coincidence and no violation.
+pub const CLEARANCE_SUPPORT_GAP: &str = "clearance_support_gap";
 
 /// How deep ONE cell pair may be subdivided before the engine refuses
 /// the rest of its subtree rather than refining it further.
@@ -1490,6 +1504,9 @@ where
             widths.discharged_at(da.max(db));
         };
 
+        // Whether the support test separates the pair, once it is read.
+        let mut along: Option<bool> = None;
+
         // **Touching, in M.** The injectivity question decides a
         // touching pair by a local certificate, never by
         // distance.
@@ -1512,6 +1529,15 @@ where
                 ),
                 Ok(Sign::Positive)
             );
+            let apart = apart || {
+                if meet || sh.is_empty() {
+                    false
+                } else {
+                    let s = apart_along(pair, x, y, bound.c(), band);
+                    along = Some(s);
+                    s
+                }
+            };
             let near = if meet || sh.is_empty() || apart {
                 None
             } else {
@@ -1651,6 +1677,12 @@ where
                             .get_or_insert(EngineRefusal::WitnessUnverified { what });
                     }
                 }
+            }
+            Err(source)
+                if !source.margin.is_invalid()
+                    && along.unwrap_or_else(|| apart_along(pair, x, y, c, band)) =>
+            {
+                discharge(&mut walk.receipt, &mut self.widths);
             }
             Err(source) => {
                 // **The exhibit arm.** An indeterminate margin
@@ -3562,6 +3594,144 @@ fn separation(a: &Point3<Interval>, b: &Point3<Interval>) -> Interval {
     (d.x.powi(2) + d.y.powi(2) + d.z.powi(2)).sqrt()
 }
 
+/// **Whether two cells are apart by more than `c` along a direction**:
+/// [`support_separation`] minus `c`, decided [`Sign::Positive`] at
+/// [`CLEARANCE_SUPPORT_GAP`] (audit row F29). Only that sign is read:
+/// the support gap bounds the separation from below and from nowhere
+/// above, so no other sign says anything about the pair.
+fn apart_along<T: Real>(
+    pair: CellPair,
+    x: &Window<'_, T>,
+    y: &Window<'_, T>,
+    c: f64,
+    band: Band,
+) -> bool {
+    support_separation((x, pair.a), (y, pair.b)).is_some_and(|d| {
+        matches!(
+            decide(
+                CLEARANCE_SUPPORT_GAP,
+                Margin::of(d - Interval::from_f64(c)),
+                band
+            ),
+            Ok(Sign::Positive)
+        )
+    })
+}
+
+/// **What a cell's support along a direction is read off**: the
+/// control points of its carrier restricted to it, a plane's own affine
+/// form, or, for any other carrier and any net [`NurbsSurface::rect_net`]
+/// refuses, the cell's box.
+enum Hull {
+    Net(Vec<Point3<Interval>>),
+    Plane {
+        origin: Point3<Interval>,
+        u_ref: Vec3<Interval>,
+        v_ref: Vec3<Interval>,
+        u: Interval,
+        v: Interval,
+    },
+    Box(Point3<Interval>),
+}
+
+impl Hull {
+    fn of(surface: &Surface<Interval>, c: Cell) -> Self {
+        if let &Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = surface
+        {
+            return Self::Plane {
+                origin,
+                u_ref,
+                v_ref: normal.cross(u_ref),
+                u: Interval::from_bounds(c.u.0, c.u.1),
+                v: Interval::from_bounds(c.v.0, c.v.1),
+            };
+        }
+        match surface
+            .spline_chart()
+            .and_then(|net| net.rect_net(c.u, c.v))
+        {
+            Some(points) => Self::Net(points),
+            None => Self::Box(c.enc),
+        }
+    }
+
+    /// An enclosure of `⟨P, n⟩` over every point `P` of the cell.
+    ///
+    /// With every restricted weight certified positive (which
+    /// [`NurbsSurface::rect_net`] requires), each point of the cell is a
+    /// convex combination of one knot cell's restricted points, so the
+    /// linear `⟨P, n⟩` lies in the hull of its values at them. A plane
+    /// point is `o + u·u_ref + v·v_ref`, so the form is affine in the
+    /// two parameter intervals and exact up to rounding. A box holds the
+    /// cell, so its own support does.
+    fn support(&self, n: Vec3<Interval>) -> Interval {
+        let dot = |p: Vec3<Interval>| p.x * n.x + p.y * n.y + p.z * n.z;
+        let at = |p: Point3<Interval>| dot(Vec3::new(p.x, p.y, p.z));
+        match *self {
+            Self::Net(ref points) => points
+                .iter()
+                .map(|&p| at(p))
+                .reduce(geom_core::SpanLocate::enclosure_hull)
+                .unwrap_or_else(|| unreachable!("`rect_net` answers no empty net")),
+            Self::Plane {
+                origin,
+                u_ref,
+                v_ref,
+                u,
+                v,
+            } => at(origin) + u * dot(u_ref) + v * dot(v_ref),
+            Self::Box(enc) => at(enc),
+        }
+    }
+}
+
+/// **A lower bound on the distance between two cells, read along a
+/// direction**: with `n ≠ 0`, every point `p` of one cell and `q` of the
+/// other satisfy `|p − q| ≥ ⟨p − q, n⟩ / |n|`, so the gap between the
+/// two cells' supports along `n` over `|n|` bounds their separation
+/// from below, whichever way `n` points. `n` is the best of three
+/// directions by that bound — each cell's normal at its centre, and the
+/// line between the two boxes' centres — and only chooses: the bound is
+/// true along any `n`, so `n` itself is not certified, and the choice
+/// is the one raw compare here. `None` where no direction is finite.
+fn support_separation(
+    (x, a): (&Window<'_, impl Real>, Cell),
+    (y, b): (&Window<'_, impl Real>, Cell),
+) -> Option<Interval> {
+    let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+    let normal = |s: &Surface<Interval>, c: Cell| {
+        let (u, v) = centre(c.u, c.v);
+        let n = s.normal(Interval::from_f64(u), Interval::from_f64(v));
+        Vec3::new(mid(n.x), mid(n.y), mid(n.z))
+    };
+    let centres = Vec3::new(
+        mid(b.enc.x) - mid(a.enc.x),
+        mid(b.enc.y) - mid(a.enc.y),
+        mid(b.enc.z) - mid(a.enc.z),
+    );
+    let (ha, hb) = (Hull::of(&x.surface, a), Hull::of(&y.surface, b));
+    [normal(&x.surface, a), normal(&y.surface, b), centres]
+        .into_iter()
+        .filter(|n| [n.x, n.y, n.z].iter().all(|c| c.is_finite()) && n.norm() > 0.0)
+        .filter_map(|n| {
+            let n = n.map(Interval::from_f64);
+            let (sa, sb) = (ha.support(n), hb.support(n));
+            if poisoned(sa) || poisoned(sb) {
+                return None;
+            }
+            let gap = |lo: Interval, hi: Interval| {
+                (Interval::from_f64(lo.lo()) - Interval::from_f64(hi.hi())) / n.norm()
+            };
+            let (ab, ba) = (gap(sb, sa), gap(sa, sb));
+            Some(if ab.lo() >= ba.lo() { ab } else { ba })
+        })
+        .reduce(|p, q| if q.lo() > p.lo() { q } else { p })
+}
+
 /// **The split rule** (D9: fixed, total): split the cell whose
 /// enclosure box is larger in diameter — ties to the first — on its
 /// axis of greatest RELATIVE width against its own root window, ties to
@@ -4767,6 +4937,126 @@ mod trv_rows {
                 refuse,
                 "the witness, refused: {refuse}: {:?}",
                 q.hi
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod support_rows {
+    use std::sync::Arc;
+
+    use geom::{NurbsSurface, Surface};
+    use geom_core::spline::{KnotVector, Knots};
+    use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+
+    use super::{Cell, Hull, poisoned};
+    use crate::test_support_fixtures::trv;
+
+    /// The quarter of the unit cylinder from `x` to `y`, `z ∈ [0, 1]`:
+    /// a rational quadratic arc in `u`, its middle weight `middle`,
+    /// linear in `v`.
+    fn quarter(middle: Interval) -> Surface<Interval> {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+            .iter()
+            .flat_map(|&(x, y)| [Point3::new(x, y, 0.0), Point3::new(x, y, 1.0)])
+            .map(|p| p.map(Interval::from_f64))
+            .collect();
+        let one = Interval::one();
+        let knots = |k: KnotVector| Knots::from(k).lift(Interval::from_f64);
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                knots(ku),
+                knots(kv),
+                control,
+                vec![one, one, middle, middle, one, one],
+            )
+            .unwrap(),
+        ))
+    }
+
+    fn middle_weight() -> Interval {
+        Interval::from_f64(core::f64::consts::FRAC_1_SQRT_2)
+    }
+
+    /// **A cell's support along a direction holds the patch's points
+    /// over the cell, and is narrower than its box's.** Three cells of
+    /// the quarter cylinder, each read along its centre normal and two
+    /// other directions, meet the enclosure of `⟨S(u, v), n⟩` at each
+    /// point of an 11 × 3 grid of the cell, which both hold; along its centre normal each is narrower than the box's
+    /// support. Red if the hull reads a subset of the restricted points
+    /// (the bulge of the arc between its ends is lost), or if the
+    /// support is the box's.
+    #[test]
+    fn a_cells_support_holds_its_points_and_is_narrower_than_its_box() {
+        let s = quarter(middle_weight());
+        for u in [(0.0, 1.0), (0.25, 0.5), (0.6, 0.65)] {
+            let cell = Cell::on(&s, u, (0.0, 1.0));
+            let hull = Hull::of(&s, cell);
+            assert!(matches!(hull, Hull::Net(_)), "a certified net is read");
+            let (um, vm) = (0.5 * (u.0 + u.1), 0.5);
+            let normal = s.normal(Interval::from_f64(um), Interval::from_f64(vm));
+            let mid = |i: Interval| 0.5 * (i.lo() + i.hi());
+            let centre_normal = Vec3::new(mid(normal.x), mid(normal.y), mid(normal.z));
+            for n in [
+                centre_normal,
+                Vec3::new(1.0, 0.3, -0.2),
+                Vec3::new(-0.4, 1.0, 0.7),
+            ] {
+                let n = n.map(Interval::from_f64);
+                let support = hull.support(n);
+                assert!(!poisoned(support), "{u:?} {n:?}: {support:?}");
+                for i in 0..=10 {
+                    for j in 0..=2 {
+                        let pu = u.0 + (u.1 - u.0) * f64::from(i) / 10.0;
+                        let pv = f64::from(j) / 2.0;
+                        let p = s.eval(Interval::from_f64(pu), Interval::from_f64(pv));
+                        let at = p.x * n.x + p.y * n.y + p.z * n.z;
+                        assert!(
+                            support.lo() <= at.hi() && at.lo() <= support.hi(),
+                            "{u:?} along {n:?}: the support {support:?} meets the point's \
+                             enclosure at ({pu}, {pv}), {at:?}"
+                        );
+                    }
+                }
+            }
+            let n = centre_normal.map(Interval::from_f64);
+            let (support, boxed) = (hull.support(n), Hull::Box(cell.enc).support(n));
+            assert!(
+                support.hi() - support.lo() < 0.75 * (boxed.hi() - boxed.lo()),
+                "{u:?}: along the centre normal the net's support {support:?} is narrower than \
+                 the box's {boxed:?}"
+            );
+        }
+    }
+
+    /// **A net whose weights do not certify is not read**: the quarter
+    /// cylinder with its middle weights carrying a refused decoration
+    /// reads the cell's box, whose support does not certify, against
+    /// the certified control. Red if the support reads a restricted net
+    /// without every weight certified positive.
+    #[test]
+    fn a_net_whose_weights_do_not_certify_reads_the_box() {
+        let n = Vec3::new(1.0, 1.0, 0.0).map(Interval::from_f64);
+        for (refused, middle) in [
+            (false, middle_weight()),
+            (true, trv(core::f64::consts::FRAC_1_SQRT_2)),
+        ] {
+            let s = quarter(middle);
+            let cell = Cell::on(&s, (0.25, 0.5), (0.0, 1.0));
+            let hull = Hull::of(&s, cell);
+            assert_eq!(
+                matches!(hull, Hull::Box(_)),
+                refused,
+                "the box is read where a weight is refused: {refused}"
+            );
+            assert_eq!(
+                poisoned(hull.support(n)),
+                refused,
+                "the support certifies where every weight does: {refused}"
             );
         }
     }

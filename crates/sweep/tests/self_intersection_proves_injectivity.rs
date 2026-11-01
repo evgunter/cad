@@ -2296,3 +2296,163 @@ fn the_half_turn_helixs_caps_hold_against_its_walls_at_both_scalars() {
         "two caps against four walls"
     );
 }
+
+// ----------------------------------- two walls apart along a direction
+
+/// **A thin curved slab**: the section `(-0.4, 0.4) × (-g/2, g/2)`
+/// lofted at five stations along a unit-radius arc turning `curl` in
+/// the `xz` plane, the whole turned `phi` about the world `y` axis.
+/// Its two wide walls are near-parallel sheets `g` apart with a radius
+/// of about 1, sharing no vertex; they are returned with the body.
+fn slab_wall_pair<T: Scalar>(g: f64, curl: f64, phi: f64) -> (sweep::Lofted<T>, [FaceKey; 2]) {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let section = quad([
+        (-0.4, -g / 2.0),
+        (0.4, -g / 2.0),
+        (0.4, g / 2.0),
+        (-0.4, g / 2.0),
+    ]);
+    let turn = Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), phi);
+    let places: Vec<SketchPlane<T>> = (0..5)
+        .map(|i| {
+            let theta = curl * f64::from(i) / 4.0;
+            let (s, c) = theta.sin_cos();
+            let linear = Mat3::from_cols(
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                Vec3::new(c, 0.0, s),
+            );
+            let at = Affine3::from_parts(turn * linear, turn * Vec3::new(s, 0.0, 1.0 - c));
+            plane_at(&crate::common::plane_of(&at))
+        })
+        .collect();
+    let sections: Vec<_> = (0..5).map(|_| lifted(&section)).collect();
+    let lofted = loft_body::<T>(&sections, &places, 3, tol()).expect("the slab lofts");
+    let walls = [lofted.side_faces[0][0][0], lofted.side_faces[0][2][0]];
+    (lofted, walls)
+}
+
+/// The bound question between `walls[0]` and `walls[1]` of `body`, at
+/// the default depth and pair budget.
+fn wall_against_wall<T: Scalar>(
+    body: &Body<T>,
+    walls: [FaceKey; 2],
+    bound: ClearanceBound,
+) -> BoundReport<Witness> {
+    let window = |f, which| {
+        Side {
+            body,
+            faces: vec![f],
+        }
+        .windows(which)
+        .expect("a wall has a window")
+    };
+    let sweep = Sweep {
+        bound,
+        band: band(),
+        budgets: Budgets {
+            max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+            max_cell_pairs: BUDGET,
+        },
+    };
+    let report = sweep.run(
+        &window(walls[0], Which::First),
+        &window(walls[1], Which::Second),
+        true,
+        verify(body, bound),
+    );
+    assert!(
+        report.receipt.holds(),
+        "the receipt adds up: {:?}",
+        report.receipt
+    );
+    report
+}
+
+/// **Two near-parallel walls cost about the same pairs however they are
+/// turned against the axes.** The slab's walls `0.005` apart, turning
+/// 0.5 rad, hold under the strict question at both scalars, upright
+/// (`phi = 0`, the walls facing within 0.5 rad of `x`) and turned 45°
+/// about `y`. Each examines at most 512 cell pairs, and the turned pair
+/// at most 1.5 times the upright one's. Red where the distance arm
+/// separates axis-aligned boxes only: the boxes of walls tilted against
+/// the axes stay apart only for cells about as small as the gap.
+#[test]
+fn near_parallel_walls_cost_the_same_pairs_turned_45_degrees() {
+    let examined =
+        |r: &BoundReport<Witness>| r.receipt.discharged + r.receipt.refused + r.receipt.violated;
+    let mut counts = Vec::new();
+    for phi in [0.0, core::f64::consts::FRAC_PI_4] {
+        let (float, walls) = slab_wall_pair::<f64>(0.005, 0.5, phi);
+        let (twin, twin_walls) = slab_wall_pair::<Interval>(0.005, 0.5, phi);
+        let report = wall_against_wall(&float.body, walls, ClearanceBound::StrictlyPositive);
+        let interval = wall_against_wall(&twin.body, twin_walls, ClearanceBound::StrictlyPositive);
+        println!(
+            "[dirsupport] slab turned {phi}: f64 {:?} deepest {} | Interval {:?} deepest {}",
+            report.receipt, report.widths.deepest, interval.receipt, interval.widths.deepest
+        );
+        for (what, r) in [("f64", &report), ("Interval", &interval)] {
+            assert!(
+                matches!(r.verdict, BoundVerdict::Holds),
+                "the slab's walls turned {phi} hold at {what}: {:?} {:?}",
+                r.verdict,
+                r.receipt
+            );
+        }
+        for (what, r) in [("f64", &report), ("Interval", &interval)] {
+            assert!(
+                examined(r) <= 512,
+                "the slab's walls turned {phi} examine at most 512 pairs at {what}: {:?}",
+                r.receipt
+            );
+        }
+        counts.push(examined(&report));
+    }
+    let [upright, turned] = counts[..] else {
+        unreachable!("two turns")
+    };
+    assert!(
+        2 * turned <= 3 * upright,
+        "the turned walls examine at most 1.5× the upright walls' pairs: {turned} against {upright}"
+    );
+}
+
+/// **A wall pair closer than the bound is never separated.** The slab's
+/// walls turned 45° are `0.05` apart: `AtLeast(0.08)` reads `Violated`
+/// with a verified witness closer than `0.08`, at both scalars, and
+/// `AtLeast(0.03)` holds. Red if the support gap is compared without
+/// the bound.
+#[test]
+fn a_wall_pair_closer_than_the_bound_is_violated_not_separated() {
+    let phi = core::f64::consts::FRAC_PI_4;
+    let (float, walls) = slab_wall_pair::<f64>(0.05, 0.3, phi);
+    let (twin, twin_walls) = slab_wall_pair::<Interval>(0.05, 0.3, phi);
+    for (what, report) in [
+        (
+            "f64",
+            wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(0.08)),
+        ),
+        (
+            "Interval",
+            wall_against_wall(&twin.body, twin_walls, ClearanceBound::AtLeast(0.08)),
+        ),
+    ] {
+        let BoundVerdict::Violated(w) = report.verdict else {
+            panic!(
+                "{what}: walls 0.05 apart violate AtLeast(0.08): {:?} {:?}",
+                report.verdict, report.receipt
+            )
+        };
+        assert!(
+            w.d < 0.08,
+            "{what}: the witness is closer than the bound: {w:?}"
+        );
+    }
+    let report = wall_against_wall(&float.body, walls, ClearanceBound::AtLeast(0.03));
+    assert!(
+        matches!(report.verdict, BoundVerdict::Holds),
+        "walls 0.05 apart hold AtLeast(0.03): {:?} {:?}",
+        report.verdict,
+        report.receipt
+    );
+}

@@ -236,3 +236,74 @@ mod cap_corner_departure {
         );
     }
 }
+
+/// **The loop's near-parallel walls hold against each other within the
+/// default budget.** The outer and inner walls are about 0.05 apart over
+/// a 2.8 body. Two of their pairs, 3v3 against 6v1 and 4v1 against 5v1,
+/// face each other tilted against the axes, where the distance test's
+/// boxes stay apart only for cells about as small as the gap; the
+/// support along a cell's normal separates them at cells of about
+/// √(gap · radius). Each pair holds under the strict question at the
+/// default depth and pair budget, in at most 4096 cell pairs, each
+/// pair's count printed.
+mod wall_gap_support {
+    use demo_tour::klein::bottle;
+    use pncad::geom_core::{Band, Tol};
+    use pncad::topo::FaceKey;
+    use pncad::topo::clearance::{
+        BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
+    };
+
+    #[test]
+    fn the_loops_facing_walls_hold_against_each_other_within_the_default_budget() {
+        let tol = Tol::witness();
+        let body = bottle::<f64>(tol).top;
+        let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+        let named = |n: &str| {
+            *faces
+                .iter()
+                .find(|f| format!("{f:?}") == format!("FaceKey({n})"))
+                .unwrap_or_else(|| panic!("the loop has face {n}: {faces:?}"))
+        };
+        let window = |f, which| {
+            Side {
+                body: &body,
+                faces: vec![f],
+            }
+            .windows(which)
+            .expect("a wall has a window")
+        };
+        let sweep = Sweep {
+            bound: ClearanceBound::StrictlyPositive,
+            band: Band::linear(tol).expect("the run's tolerance forms a band"),
+            budgets: Budgets {
+                max_cell_depth: DEFAULT_MAX_CELL_DEPTH,
+                // `editor_core::clearance::DEFAULT_MAX_CELL_PAIRS`.
+                max_cell_pairs: 65_536,
+            },
+        };
+        for (a, b) in [("3v3", "6v1"), ("4v1", "5v1")] {
+            let report = sweep.run(
+                &window(named(a), Which::First),
+                &window(named(b), Which::Second),
+                true,
+                |_| Err::<(), _>("no witness asked".to_owned()),
+            );
+            let r = &report.receipt;
+            let examined = r.discharged + r.violated + r.refused;
+            println!(
+                "[dirsupport] klein loop {a} against {b}: {:?} {examined} pairs {:?} deepest {}",
+                report.verdict, r, report.widths.deepest
+            );
+            assert!(
+                matches!(report.verdict, BoundVerdict::Holds),
+                "{a} against {b} holds: {:?} {r:?}",
+                report.verdict
+            );
+            assert!(
+                examined <= 4096,
+                "{a} against {b} holds in at most 4096 cell pairs: {examined} {r:?}"
+            );
+        }
+    }
+}
