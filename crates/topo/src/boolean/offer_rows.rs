@@ -2247,7 +2247,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
         | BooleanErrorKind::PointInFaceRefused
-        | BooleanErrorKind::RestPieceUnread
         | BooleanErrorKind::RechartedRowUnstated
         | BooleanErrorKind::CarryRefused
         | BooleanErrorKind::ScaffoldingOperand
@@ -2637,7 +2636,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "corner_refused", "Coincide::Sectors", 1),
-    ("fate.rs", "places", "BooleanDecision::of_normal", 1),
+    ("fate.rs", "normal_at", "BooleanDecision::of_normal", 1),
     (
         "fate.rs",
         "ring_winding",
@@ -2811,8 +2810,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "piece_reading", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "piece_reading", "BooleanDecision::Containment", 1),
     ("ops.rs", "piece_reading", "SelfCheck::CarriedLineage", 1),
-    ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
-    ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "recl_edges", "Coincide::EdgeOnEdge", 2),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),

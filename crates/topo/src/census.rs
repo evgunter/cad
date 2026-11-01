@@ -10461,22 +10461,6 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
     }
 }
 
-/// [`parallel_reading`] over two segments: whether their lines are parallel,
-/// decided as an edge-edge record's confirm pass decides it.
-///
-/// # Errors
-///
-/// The escalated decision.
-pub(crate) fn segments_parallel<T: Decide>(
-    a: (Point3<T>, Point3<T>),
-    b: (Point3<T>, Point3<T>),
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    let mut errors = Vec::new();
-    let parallel = parallel_reading(&segment(a), &segment(b), band, &mut errors);
-    escalation(parallel, errors)
-}
-
 /// The point of `a`'s line nearest `b`'s, for two segments whose lines
 /// are not parallel: where they cross, once they are decided to meet
 /// ([`ee_cross_point`]).
@@ -10485,25 +10469,6 @@ pub(crate) fn segment_cross_point<T: Real>(
     b: (Point3<T>, Point3<T>),
 ) -> Point3<T> {
     ee_cross_point(&segment(a), &segment(b))
-}
-
-/// A census answer, or the escalation it pushed.
-///
-/// # Panics
-///
-/// Where the question answered `None` and pushed no escalation: its
-/// contract is `None` exactly where a decision escalated, so a `None`
-/// with nothing pushed is a broken invariant, never a "no".
-fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
-    for e in errors {
-        if let ValidationError::CensusEscalated { cause } = e {
-            return Err(cause);
-        }
-    }
-    match answer {
-        Some(answer) => Ok(answer),
-        None => unreachable!("a census question answers `None` only where it pushed an escalation"),
-    }
 }
 
 /// **Door 1 of a face pair at rest**: carrier identity and opposed
