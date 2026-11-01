@@ -1107,7 +1107,7 @@ fn ellipse_pad_ceiling() -> f64 {
 /// unions, whose census reads the two rims, coplanar and tangent,
 /// through the curve-pair touch, and escalates on
 /// `curve_pair_coplanar_sub_side` and on nothing else (pinned red:
-/// `work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`).
+/// `work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`).
 ///
 /// Each body is also read against the operands' analytic membership by
 /// `point_in_solid` on a grid and beside the touch, off the plane: no

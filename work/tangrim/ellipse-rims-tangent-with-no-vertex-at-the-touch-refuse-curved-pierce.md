@@ -45,11 +45,11 @@ The edge is the boss's rim, an ellipse, and the face is the bore's
 cylinder wall, which it touches at one point. Which reader leaves the
 touch unread (the curve × face route's tangency for an ellipse against a
 cylinder, or the crossing layer's coplanar ellipse touch,
-`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`) is not yet
+`work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`) is not yet
 measured. The circle against the same wall places its touch.
 
 The likely cause is the one
-`work/cpair/two-coplanar-ellipses-have-no-meeting-method.md`'s
+`work/tangrim/two-coplanar-ellipses-have-no-meeting-method.md`'s
 2026-10-30 evidence (`splitdoor/sheets-part-conic`) traces on two
 coplanar ellipse rims tangent inside: `carrier_cross::boundary_crossing`
 answers `Touch`, `reduce.rs`'s `interior` reads the edge `Unseen`, the
