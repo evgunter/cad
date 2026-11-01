@@ -53,7 +53,13 @@ turn. Then tier 3's chart-singularity arm reads the side through the
 door (the switch the region-arm branch built and reverted: the face's
 door at the point, every surface cycle kept; a door's in-band reading
 refuses as `ChartSingularityUndecided` with `SideUnread::Banded`), and
-tier 3's use of `walk_loop` retires. This is the ratified design, one
+tier 3's use of `walk_loop` retires. The row that pins the pole reading
+today, and must keep passing through the switch, is
+`crates/topo/tests/props_sphere_cap_door.rs`
+`a_tilted_cap_holds_a_pole_by_its_region` (a cap tilted against its
+sphere's axis, holding the north pole or neither). The split-out
+`geom_brep::chart_singularity::place_on_boundary` is `pub(crate)` until
+this row needs it from topo. This is the ratified design, one
 reader and the doors, with its order changed. Import follows
 (`work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`).
 Filed by RESTCURVE's region-arm lane.

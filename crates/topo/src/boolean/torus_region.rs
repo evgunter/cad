@@ -299,13 +299,6 @@ pub(crate) fn torus_face_region<T: Decide>(
 }
 
 impl<T: Decide> TorusFaceRegion<T> {
-    /// The region its surface cycles `keep` bound alone
-    /// ([`region::keep_cycles`]).
-    pub(crate) fn keep_cycles(mut self, keep: &[usize]) -> Self {
-        region::keep_cycles(&mut self.edges, keep);
-        self
-    }
-
     /// Is `p`, a point on the torus, in the face: `Some(true)` inside,
     /// `Some(false)` outside, `None` on its boundary (module docs).
     ///
@@ -468,6 +461,10 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
         &self.edges
     }
 
+    fn edges_mut(&mut self) -> &mut Vec<Edge<T>> {
+        &mut self.edges
+    }
+
     fn outer(&self) -> LoopKey {
         self.outer
     }
@@ -608,18 +605,30 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
                 for s in found(self.plane_roots(leg, axis, center, band))? {
                     let y = leg.course.round.at(s);
+                    let w = y - center;
+                    let theta = || {
+                        near_span(
+                            w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                            (edge.t0, edge.t1),
+                        )
+                    };
                     let (rho, _, _) = self.polar(y);
-                    let side = row("bool_torus_region_component", rho - self.major)?;
+                    let side = match row("bool_torus_region_component", rho - self.major) {
+                        Ok(side) => side,
+                        // A root past the edge's span is no crossing of it,
+                        // whichever parallel it lies on, so only one within
+                        // the span sets the path aside.
+                        Err(fault) => match span(theta(), radius)? {
+                            None => continue,
+                            Some(_) => return Err(fault),
+                        },
+                    };
                     match (side, outer) {
                         (Sign::Zero, _) => return Err(RayFault::Graze),
                         (Sign::Positive, true) | (Sign::Negative, false) => {}
                         _ => continue,
                     }
-                    let w = y - center;
-                    let theta = near_span(
-                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
-                        (edge.t0, edge.t1),
-                    );
+                    let theta = theta();
                     if let Some(sideless) = span(theta, radius)? {
                         out.push((y, theta, sideless));
                     }

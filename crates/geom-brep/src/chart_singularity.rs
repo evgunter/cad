@@ -423,7 +423,7 @@ fn locate_one<T: Decide>(
 /// A distance in band ([`Unread::Boundary`]), answered before a sampled
 /// edge that does not settle ([`Unread::Carrier`]), and each only where
 /// no other vertex or edge places `x` on the boundary.
-pub fn place_on_boundary<T: Decide>(
+pub(crate) fn place_on_boundary<T: Decide>(
     loops: &[FaceLoop<'_, T>],
     x: Point3<T>,
     band: Band,

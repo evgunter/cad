@@ -5837,7 +5837,10 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     with no certified curve; a torus's other than a circle or a
 ///     spiric); a torus face one of whose cycles has no stored joint
 ///     element to read its winding from; and a cycle no vertex of which
-///     any path of its door settles
+///     its door places (no path settled, an arc the door reads as wound
+///     past a turn, or an edge whose carrier's reading cannot cross it;
+///     a face check 6 refused for its sense is reported there and not
+///     read again)
 ///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
 ///   - a ring inside another ring on a plane
 ///     (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`);
@@ -8724,11 +8727,18 @@ pub(crate) fn tier3_local_checks_marked<
     // Tier 3, check 9's arm off the plane: one region per face. Each
     // surface cycle of a curved face lies on the face's side of every
     // other, read by the face's point-in-face door cut to that cycle
-    // (`crate::one_region`, which states the units, the readings and the
-    // exemptions). On a plane the nesting arm above is that statement's
-    // reading.
+    // (`crate::one_region`, which states the cuts, the readings and the
+    // exemptions), past the faces check 6 refused for their sense. On a
+    // plane the nesting arm above is that statement's reading.
     // ------------------------------------------------------------------
-    errors.extend(crate::one_region::region_errors(body, band));
+    let sense_refused: Vec<FaceKey> = errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::CurvedSenseInverted { face } => Some(*face),
+            _ => None,
+        })
+        .collect();
+    errors.extend(crate::one_region::region_errors(body, band, &sense_refused));
 
     // ------------------------------------------------------------------
     // Tier 3, check 10: a solid's shells bound winding 0 or 1

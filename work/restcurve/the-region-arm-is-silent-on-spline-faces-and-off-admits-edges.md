@@ -38,8 +38,14 @@ face is exempt, silently, as validate's not-yet-checked list says
   (`crates/topo/src/surface_boundary.rs`) answers `None`, and
   `one_region::torus_units` exempts the face, since a contractible cycle
   cannot be told from an essential one.
-- **A cycle no vertex of which a path settles** (`RayExhausted` at every
-  vertex, none in band).
+- **A cycle no vertex of which its door places**, none in band: no path
+  settled (`RayExhausted`); an arc the door reads as wound past a turn
+  (`RegionRefusal::WoundPastPeriod`, carried as `CorruptFace`), a definite
+  reading that bounds no region and so is no side; or an edge whose
+  carrier's reading cannot cross it (`RegionRefusal::Unreadable`, carried
+  as `EdgeCarrierUnsupported`). `one_region::read_cycle` sets each aside
+  vertex by vertex. Refusing `WoundPastPeriod` typed is the stronger
+  form, and owed here.
 
 ## Owed
 

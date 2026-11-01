@@ -39,7 +39,7 @@
 //! # Which rays
 //!
 //! First the rays aimed at points of the boundary — three points of every
-//! arc, in loop order — each of which meets the boundary somewhere; then
+//! arc, in walk order — each of which meets the boundary somewhere; then
 //! the fixed schedule's directions projected onto the tangent plane at
 //! `p` (`splitting::containment::SCHEDULE`), for the points where every
 //! aimed ray runs along an arc: a point a hair off a vertex sees every
@@ -196,13 +196,6 @@ pub(crate) fn sphere_face_region<T: Decide>(
 }
 
 impl<T: Decide> SphereFaceRegion<T> {
-    /// The region its surface cycles `keep` bound alone
-    /// ([`region::keep_cycles`]).
-    pub(crate) fn keep_cycles(mut self, keep: &[usize]) -> Self {
-        region::keep_cycles(&mut self.edges, keep);
-        self
-    }
-
     /// Is `p`, a point on the sphere, in the face: `Some(true)` inside,
     /// `Some(false)` outside, `None` on its boundary (module docs).
     ///
@@ -334,6 +327,10 @@ impl<T: Decide> SphereFaceRegion<T> {
 impl<T: Decide> Region<T> for SphereFaceRegion<T> {
     fn edges(&self) -> &[Arc<T>] {
         &self.edges
+    }
+
+    fn edges_mut(&mut self) -> &mut Vec<Arc<T>> {
+        &mut self.edges
     }
 
     fn outer(&self) -> LoopKey {

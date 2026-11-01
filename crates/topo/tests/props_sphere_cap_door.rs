@@ -355,9 +355,12 @@ fn a_pole_in_band_of_a_great_circle_cut_is_undecided_on_both_faces() {
 }
 
 /// **A cap whose rim is tilted against its sphere's axis holds a pole
-/// by its region** (DESIGN `[topology.tiers]`, a chart singularity in a
-/// face's closure is a vertex of it, read off the face's region rather
-/// than off a meridian). The cut stays at `z = 0.5` and the
+/// by its region, as `locate` reads it** (DESIGN `[topology.tiers]`, a
+/// chart singularity in a face's closure is a vertex of it, read off the
+/// face's region rather than off a meridian). It pins tier 3's pole
+/// reading, `geom_brep::chart_singularity::locate`'s closed form, which
+/// `work/restcurve/the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar.md`
+/// moves onto the doors; the row then pins the doors. The cut stays at `z = 0.5` and the
 /// sphere's axis tilts by `tilt` about `y`, so the rim is no parallel of
 /// the chart: at `0.3` the north pole stands at `z = cos 0.3 > 0.5`, in the
 /// cap, and is refused; at `1.2` it stands at `z = cos 1.2 < 0.5`, the

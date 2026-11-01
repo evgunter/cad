@@ -13,9 +13,10 @@
 //!   far side, the face's boundary on its surface. Region and point
 //!   placement read it: `boolean::region::boundary` reads its cycles, and
 //!   tier 3's region arm (`crate::one_region`) reads each cycle against
-//!   the others, a torus's by their windings ([`cycle_winding`]). A face every
-//!   edge of which it lies on both sides of (the one-face ball) has an
-//!   empty surface boundary, and covers its surface.
+//!   the others, a torus's by their windings
+//!   ([`surface_cycle_windings`]). A face every edge of which it lies on
+//!   both sides of (the one-face ball) has an empty surface boundary, and
+//!   covers its surface.
 //! - **The chart image** ([`chart_image`]) drops only the spurs: a
 //!   half-edge followed in its loop by its own mate walks its edge out
 //!   and straight back, which bounds no area. The reduction and the rule
@@ -126,6 +127,32 @@ pub fn surface_cycles<T: Real>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Vec<Vec<HalfEdgeKey>>, &'static str> {
+    Ok(surface_cycle_windings(body, face)?
+        .into_iter()
+        .map(|(cycle, _)| cycle)
+        .collect())
+}
+
+/// **[`surface_cycles`] with each cycle's winding in the face's chart**
+/// ([`crate::joint::Winding`]), read off the same walk: the joint
+/// elements of every half-edge the walk enters, the cycle's members and
+/// the edges the face lies on both sides of that it turns through. A
+/// half-edge's element carries its image onto the end of its loop
+/// predecessor's, and an edge's two halves share one image, so the
+/// elements entered between two members compose to the element that
+/// would join them were they consecutive: a kill's sum (`crate::joint`'s
+/// module docs). Every stored element is read and none is decided. A
+/// cycle's winding is `None` where a half-edge it enters stores no
+/// element.
+///
+/// # Errors
+///
+/// As [`surface_cycles`].
+#[allow(clippy::type_complexity)] // each cycle and its winding
+pub fn surface_cycle_windings<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<(Vec<HalfEdgeKey>, Option<crate::joint::Winding>)>, &'static str> {
     let unresolved = "a surface boundary walked a key that does not resolve";
     let f = body.get_face(face).ok_or(unresolved)?;
     let mut members = Vec::new();
@@ -144,14 +171,31 @@ pub fn surface_cycles<T: Real>(
             open.push(h);
         }
     }
-    boundary_cycles(body, open, members.len(), both_sides)
+    let mut elements: Vec<Option<Vec<crate::joint::JointElement>>> = Vec::new();
+    let cycles = boundary_cycles(body, open, members.len(), both_sides, |k, h| {
+        if elements.len() <= k {
+            elements.push(Some(Vec::new()));
+        }
+        let entered = &mut elements[k];
+        match (entered.as_mut(), body.joint(h)) {
+            (Some(list), Some(element)) => list.push(element),
+            _ => *entered = None,
+        }
+    })?;
+    Ok(cycles
+        .into_iter()
+        .zip(elements)
+        .map(|(cycle, elements)| (cycle, elements.map(crate::joint::Winding::of)))
+        .collect())
 }
 
 /// **The boundary cycles of a set of half-edges**: from each of `open`,
 /// the boundary half-edges in their stored order, the next boundary
 /// half-edge out of its end vertex ([`successor`]), at most `bound`
-/// turns. The one walk of the surface boundary ([`surface_cycles`]) and
-/// of a seam region's boundary (`props::seam_region`).
+/// turns. `entered` sees, with its cycle's index, every half-edge each
+/// turn enters, in walk order. The one walk of the surface boundary
+/// ([`surface_cycle_windings`]) and of a seam region's boundary
+/// (`props::seam_region`).
 ///
 /// # Errors
 ///
@@ -163,15 +207,17 @@ pub(crate) fn boundary_cycles<T: Real>(
     mut open: Vec<HalfEdgeKey>,
     bound: usize,
     inside: impl Fn(HalfEdgeKey) -> Result<bool, &'static str>,
+    mut entered: impl FnMut(usize, HalfEdgeKey),
 ) -> Result<Vec<Vec<HalfEdgeKey>>, &'static str> {
     let mut cycles = Vec::new();
     while let Some(&first) = open.first() {
+        let k = cycles.len();
         let mut cycle = Vec::new();
         let mut h = first;
         loop {
             cycle.push(h);
             open.retain(|&x| x != h);
-            let n = successor(body, h, bound, &inside, |_| {})?;
+            let n = successor(body, h, bound, &inside, |e| entered(k, e))?;
             if n == first {
                 break;
             }
@@ -215,42 +261,6 @@ fn successor<T: Real>(
     }
     entered(n);
     Ok(n)
-}
-
-/// **A surface cycle's winding in its face's chart**
-/// ([`crate::joint::Winding`]): the joint elements of every half-edge the
-/// cycle's walk enters ([`successor`]), its members and the edges the
-/// face lies on both sides of that it turns through. A half-edge's
-/// element carries its image onto the end of its loop predecessor's, and
-/// an edge's two halves share one image, so the elements entered between
-/// two members compose to the element that would join them were they
-/// consecutive: a kill's sum (`crate::joint`'s module docs). Every stored
-/// element is read and none is decided. `None` where a member is not of
-/// one of `face`'s cycles, or a half-edge entered stores no element.
-#[must_use]
-pub fn cycle_winding<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-    cycle: &[HalfEdgeKey],
-) -> Option<crate::joint::Winding> {
-    let inside = |h: HalfEdgeKey| {
-        let edge = body.get_half_edge(h).ok_or("unresolved")?.edge;
-        Ok(body.both_sides_face(edge).ok_or("unresolved")? == Some(face))
-    };
-    let bound = body.half_edges.len();
-    let mut elements = Vec::new();
-    let mut missing = false;
-    for (k, &h) in cycle.iter().enumerate() {
-        let n = successor(body, h, bound, &inside, |e| match body.joint(e) {
-            Some(element) => elements.push(element),
-            None => missing = true,
-        })
-        .ok()?;
-        if n != cycle[(k + 1) % cycle.len()] {
-            return None;
-        }
-    }
-    (!missing).then(|| crate::joint::Winding::of(elements))
 }
 
 #[cfg(test)]

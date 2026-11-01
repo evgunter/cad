@@ -328,13 +328,6 @@ pub(crate) fn boundary<T: Decide>(
     Ok(Some(edges))
 }
 
-/// `edges` less every edge of a cycle not in `keep`: the boundary a
-/// region reading restricted to those cycles reads
-/// ([`super::contain::cycle_side`]).
-pub(crate) fn keep_cycles<T: geom_core::Real>(edges: &mut Vec<RegionEdge<T>>, keep: &[usize]) {
-    edges.retain(|e| keep.contains(&e.cycle));
-}
-
 /// Three points of every edge, in walk order, at [`TARGET_SHARES`] of
 /// its span: the aimed paths' targets.
 pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item = Point3<T>> + '_ {
@@ -351,6 +344,22 @@ pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item 
 pub(crate) trait Region<T: Decide> {
     /// The face's boundary ([`boundary`]).
     fn edges(&self) -> &[RegionEdge<T>];
+
+    /// The face's boundary, to cut ([`Region::keep_cycles`]).
+    fn edges_mut(&mut self) -> &mut Vec<RegionEdge<T>>;
+
+    /// **The region the surface cycles `keep` bound alone**: the boundary
+    /// less every edge of another cycle ([`RegionEdge::cycle`]), the one
+    /// cut a reading of a face against some of its cycles takes
+    /// ([`super::contain::cycle_side`]).
+    #[must_use]
+    fn keep_cycles(mut self, keep: &[usize]) -> Self
+    where
+        Self: Sized,
+    {
+        self.edges_mut().retain(|e| keep.contains(&e.cycle));
+        self
+    }
 
     /// The face's outer loop, named by an exhaustion.
     fn outer(&self) -> LoopKey;
@@ -369,7 +378,7 @@ pub(crate) trait Region<T: Decide> {
     ) -> Result<bool, RegionRefusal>;
 
     /// **The boundary pre-pass**: whether `p` is on an edge, read edge by
-    /// edge in loop order before any path. A crossing's place along a
+    /// edge in walk order before any path. A crossing's place along a
     /// path is no measure of `p`'s distance from the edge it crosses, so
     /// the paths never answer it.
     ///

@@ -7,14 +7,18 @@
 //! is subtracted from a face it is not in.
 //!
 //! Every row is a pair: the window placed in the face validates, and the
-//! same window placed off it refuses `CycleOffFaceSide` on that face.
+//! same window placed off it refuses `CycleOffFaceSide` on that face. The
+//! sphere and torus rows run at `f64` and again at the certified
+//! `Interval`, from the same `f64` frame, since a reading the doors settle
+//! at one scalar can stay in band at the other.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
-use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Bounds, Decide, Point2, Point3, Real, SpanLocate, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
+use topo::AtRestPolicy;
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{Body, FaceKey, LoopBoundary, ValidationError};
 
@@ -22,18 +26,34 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-/// The polygon `pts` of the `xy` sketch plane revolved a full turn
-/// about `y`.
-fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
-    let meridian = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
+/// The scalars a row builds at: `f64`, and the certified `Interval`.
+trait Scalar: Decide + AtRestPolicy + SpanLocate + Bounds + core::fmt::Debug {}
+impl<T: Decide + AtRestPolicy + SpanLocate + Bounds + core::fmt::Debug> Scalar for T {}
+
+fn pt<T: Real>(p: Point3<f64>) -> Point3<T> {
+    p.map(T::from_f64)
+}
+
+fn vc<T: Real>(v: Vec3<f64>) -> Vec3<T> {
+    v.map(T::from_f64)
+}
+
+/// The loop `(x, y, bulge)` of the `xy` sketch plane revolved a full turn
+/// about `y`, at `T`.
+fn revolved<T: Scalar>(pts: &[(f64, f64, f64)]) -> Body<T> {
+    let meridian = bulge_loop(
+        pts.iter()
+            .map(|&(x, y, b)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b)))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![meridian])
         .validate(tol())
         .expect("the meridian profile");
     revolve(
         &profile,
         RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
+            origin: Point2::new(T::zero(), T::zero()),
+            dir: Vec2::new(T::zero(), T::one()),
         },
         Revolution::Full,
         tol(),
@@ -42,16 +62,34 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     .body
 }
 
+/// A polygon of the `xy` sketch plane revolved a full turn about `y`.
+fn revolved_polygon(pts: &[(f64, f64)]) -> Body<f64> {
+    revolved(&pts.iter().map(|&(x, y)| (x, y, 0.0)).collect::<Vec<_>>())
+}
+
+/// The unit ball: the half-disc right of `y` revolved about it.
+fn revolved_disc<T: Scalar>() -> Body<T> {
+    revolved(&[(0.0, -1.0, 1.0), (0.0, 1.0, 0.0)])
+}
+
+/// The donut: the unit disc about `(2, 0)` revolved about `y`.
+fn donut<T: Scalar>() -> Body<T> {
+    revolved(&[(1.0, 0.0, 1.0), (3.0, 0.0, 1.0)])
+}
+
 /// A surface of revolution's frame, and its point at azimuth `u` and
 /// meridian parameter `s`: a cylinder's height, a cone's slant, a
-/// sphere's angle from its south pole, so that on every kind `s` runs
-/// along the axis and the window's corners turn one way.
+/// sphere's angle from its south pole, a torus's tube angle from the
+/// middle of the face ([`wall`]), so that on every kind `s` runs along
+/// the meridian one way and the window's corners turn one way.
 #[derive(Clone, Copy)]
 struct Frame {
     origin: Point3<f64>,
     axis: Vec3<f64>,
     e1: Vec3<f64>,
     kind: Kind,
+    /// Added to every `s`: the tube angle of the torus face's middle.
+    shift: f64,
 }
 
 #[derive(Clone, Copy)]
@@ -59,6 +97,7 @@ enum Kind {
     Cylinder { radius: f64 },
     Cone { half_angle: f64 },
     Sphere { radius: f64 },
+    Torus { major: f64, minor: f64 },
 }
 
 impl Frame {
@@ -82,6 +121,21 @@ impl Frame {
                 axis,
                 u_ref,
             } => (center, axis, u_ref, Kind::Sphere { radius }),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => (
+                center,
+                axis,
+                u_ref,
+                Kind::Torus {
+                    major: major_radius,
+                    minor: minor_radius,
+                },
+            ),
             _ => panic!("a surface of revolution"),
         };
         Self {
@@ -89,6 +143,7 @@ impl Frame {
             axis,
             e1,
             kind,
+            shift: 0.0,
         }
     }
 
@@ -99,10 +154,12 @@ impl Frame {
 
     /// The parallel at `s`: its height along the axis and its radius.
     fn parallel(&self, s: f64) -> (f64, f64) {
+        let s = s + self.shift;
         match self.kind {
             Kind::Cylinder { radius } => (s, radius),
             Kind::Cone { half_angle } => (s * half_angle.cos(), s * half_angle.sin()),
             Kind::Sphere { radius } => (-radius * s.cos(), radius * s.sin()),
+            Kind::Torus { major, minor } => (minor * s.sin(), major + minor * s.cos()),
         }
     }
 
@@ -112,48 +169,70 @@ impl Frame {
     }
 
     /// The arc of the parallel at `s` from azimuth `u0` to `u1`, run
-    /// toward increasing azimuth, or back from `u1` to `u0`.
-    fn arc(&self, s: f64, (u0, u1): (f64, f64), forward: bool) -> EdgeCurveSpec<f64> {
+    /// toward increasing azimuth, or back from `u1` to `u0`, at `T`.
+    fn arc<T: Scalar>(&self, s: f64, (u0, u1): (f64, f64), forward: bool) -> EdgeCurveSpec<T> {
         let (h, rho) = self.parallel(s);
         let (axis, u_ref) = if forward {
             (self.axis, self.e1)
         } else {
             (-self.axis, self.radial(u1))
         };
-        let carrier = Curve3::Circle {
-            center: self.origin + self.axis * h,
-            axis,
-            radius: rho,
-            u_ref,
-        };
         let (t0, t1) = if forward { (u0, u1) } else { (0.0, u1 - u0) };
-        EdgeCurveSpec::arc_of_circle(carrier, t0, t1).expect("an arc")
+        circle_arc(self.origin + self.axis * h, axis, rho, u_ref, (t0, t1))
     }
 
-    /// The meridian at azimuth `u` from `s0` to `s1`: a ruling, or a
-    /// sphere's great-circle arc.
-    fn meridian(&self, u: f64, (s0, s1): (f64, f64)) -> EdgeCurveSpec<f64> {
+    /// The meridian at azimuth `u` from `s0` to `s1`, at `T`: a ruling, or
+    /// a sphere's great-circle arc, or a torus's tube circle.
+    fn meridian<T: Scalar>(&self, u: f64, (s0, s1): (f64, f64)) -> EdgeCurveSpec<T> {
+        let (t0, t1) = (s0 + self.shift, s1 + self.shift);
+        let r = self.radial(u);
         match self.kind {
             Kind::Cylinder { .. } | Kind::Cone { .. } => {
-                EdgeCurveSpec::line_between(self.at(u, s0), self.at(u, s1))
+                EdgeCurveSpec::line_between(pt(self.at(u, s0)), pt(self.at(u, s1)))
             }
-            Kind::Sphere { radius } => {
-                let carrier = Curve3::Circle {
-                    center: self.origin,
-                    axis: (-self.axis).cross(self.radial(u)),
-                    radius,
-                    u_ref: -self.axis,
-                };
-                EdgeCurveSpec::arc_of_circle(carrier, s0, s1).expect("a meridian arc")
-            }
+            Kind::Sphere { radius } => circle_arc(
+                self.origin,
+                (-self.axis).cross(r),
+                radius,
+                -self.axis,
+                (t0, t1),
+            ),
+            Kind::Torus { major, minor } => circle_arc(
+                self.origin + r * major,
+                r.cross(self.axis),
+                minor,
+                r,
+                (t0, t1),
+            ),
         }
     }
 }
 
-/// The face of `body` on the surface `kind` picks, and its frame with
-/// its azimuth turned so that `u = 0` is the middle of the face's rim:
-/// `revolve` may make a wall of more than one face, and a row's windows
-/// are placed within `±π/2` of that middle.
+/// The arc over `(t0, t1)` of the circle `(center, axis, radius, u_ref)`,
+/// at `T`.
+fn circle_arc<T: Scalar>(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    radius: f64,
+    u_ref: Vec3<f64>,
+    (t0, t1): (f64, f64),
+) -> EdgeCurveSpec<T> {
+    let carrier = Curve3::Circle {
+        center: pt(center),
+        axis: vc(axis),
+        radius: T::from_f64(radius),
+        u_ref: vc(u_ref),
+    };
+    EdgeCurveSpec::arc_of_circle(carrier, T::from_f64(t0), T::from_f64(t1)).expect("an arc")
+}
+
+/// The face of `body` on the surface `kind` picks, and its frame turned
+/// to the face: azimuth `u = 0` is the middle of the face's rim, since
+/// `revolve` may make a wall of more than one face and a row's windows
+/// are placed within `±π/2` of that middle; a cylinder's heights run from
+/// the face's lowest vertex; a sphere lune's `u = 0` is a quarter turn to
+/// the face's side of its meridian; a torus face's `s = 0` is the middle
+/// of its tube span, a quarter turn to the face's side of its rim.
 fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
     let (face, frame) = body
         .faces()
@@ -171,6 +250,11 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
     };
     // The middle of a circle edge of the outer loop, and the face's side
     // of it there (`N × τ`, `N` the outward normal).
+    let sense = if body.get_face(face).unwrap().sense {
+        1.0
+    } else {
+        -1.0
+    };
     let (rim, side) = body
         .loop_cycle(first)
         .unwrap()
@@ -183,24 +267,36 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
             let t = 0.5 * (t0 + t1);
             let tangent = curve.carrier().deriv(t) * if h == edge.he_plus { 1.0 } else { -1.0 };
             let at = curve.carrier().eval(t);
-            let sense = if body.get_face(face)?.sense {
-                1.0
-            } else {
-                -1.0
+            let normal = match frame.kind {
+                Kind::Torus { major, .. } => {
+                    let w = at - frame.origin;
+                    let radial = w - frame.axis * w.dot(frame.axis);
+                    at - (frame.origin + radial / radial.norm() * major)
+                }
+                _ => at - frame.origin,
             };
             matches!(curve.carrier(), Curve3::Circle { .. })
-                .then(|| (at, (at - frame.origin).cross(tangent) * sense))
+                .then(|| (at, normal.cross(tangent) * sense))
         })
         .expect("a circle edge");
     let w = rim - frame.origin;
     let mut u = w.dot(frame.axis.cross(frame.e1)).atan2(w.dot(frame.e1));
-    // A sphere's circle edge may be a meridian bounding a lune: the
-    // lune's middle is a quarter turn to the face's side of it.
-    if let (Kind::Sphere { .. }, Some(meridian)) = (frame.kind, {
-        let along = frame.axis.cross(frame.radial(u));
-        (side.dot(along).abs() > 0.5 * side.norm()).then_some(along)
-    }) {
-        u += core::f64::consts::FRAC_PI_2 * side.dot(meridian).signum();
+    let mut shift = 0.0;
+    match frame.kind {
+        // A sphere's circle edge may be a meridian bounding a lune.
+        Kind::Sphere { .. } => {
+            let along = frame.axis.cross(frame.radial(u));
+            if side.dot(along).abs() > 0.5 * side.norm() {
+                u += core::f64::consts::FRAC_PI_2 * side.dot(along).signum();
+            }
+        }
+        Kind::Torus { major, .. } => {
+            let radial = frame.radial(u);
+            let v = w.dot(frame.axis).atan2(w.dot(radial) - major);
+            let along = frame.axis * v.cos() - radial * v.sin();
+            shift = v + core::f64::consts::FRAC_PI_2 * side.dot(along).signum();
+        }
+        Kind::Cylinder { .. } | Kind::Cone { .. } => {}
     }
     // A cylinder's heights from its face's lowest vertex along its axis;
     // a cone's slants from its apex.
@@ -217,13 +313,14 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
         .fold(f64::INFINITY, f64::min);
     let origin = match frame.kind {
         Kind::Cylinder { .. } => frame.origin + frame.axis * low,
-        Kind::Cone { .. } | Kind::Sphere { .. } => frame.origin,
+        Kind::Cone { .. } | Kind::Sphere { .. } | Kind::Torus { .. } => frame.origin,
     };
     (
         face,
         Frame {
             origin,
             e1: frame.radial(u),
+            shift,
             ..frame
         },
     )
@@ -241,13 +338,17 @@ fn is_sphere(s: &Surface<f64>) -> bool {
     matches!(s, Surface::Sphere { .. })
 }
 
-/// **A window planted on `face`**: the chart rectangle azimuth `us` ×
-/// meridian `ss`, its two parallels' arcs and its two rulings, a plug
-/// face filling it and its loop a ring of `face`. Grown off `face`'s
-/// outer loop wherever the rectangle lies: the Euler doors read no
-/// geometry. Returns the plug.
-fn plant(
-    body: &mut Body<f64>,
+fn is_torus(s: &Surface<f64>) -> bool {
+    matches!(s, Surface::Torus { .. })
+}
+
+/// **A window planted on `face`**, at `T`: the chart rectangle azimuth
+/// `us` × meridian `ss` of the `f64` frame `frame`, its two parallels'
+/// arcs and its two meridians, a plug face filling it and its loop a ring
+/// of `face`. Grown off `face`'s outer loop wherever the rectangle lies:
+/// the Euler doors read no geometry. Returns the plug.
+fn plant<T: Scalar>(
+    body: &mut Body<T>,
     face: FaceKey,
     frame: Frame,
     us: (f64, f64),
@@ -262,7 +363,8 @@ fn plant(
         frame.at(us.1, ss.0),
         frame.at(us.1, ss.1),
         frame.at(us.0, ss.1),
-    ];
+    ]
+    .map(pt::<T>);
     let strut = body
         .mev_line(
             MevSite::Fan {
@@ -299,16 +401,22 @@ fn plant(
         body.describe_at_rest(edge, tol()).unwrap();
     }
     topo::mint_pcurves(body, tol()).unwrap();
-    let plug = close.face;
     assert!(
         !body.get_face(face).unwrap().rings.is_empty(),
         "the window is a ring of the wall"
     );
-    plug
+    close.face
+}
+
+/// `face` of the `f64` body `at_f64`, in `body`: the face in the same arena
+/// place, since both were built by the same doors in the same order.
+fn same_face<T: Scalar>(at_f64: &Body<f64>, face: FaceKey, body: &Body<T>) -> FaceKey {
+    let k = at_f64.faces().position(|(f, _)| f == face).unwrap();
+    body.faces().nth(k).unwrap().0
 }
 
 /// The region arm's findings in `body`'s tier-3 report.
-fn region_findings(body: &Body<f64>) -> Vec<ValidationError> {
+fn region_findings<T: Scalar>(body: &Body<T>) -> Vec<ValidationError> {
     match topo::validate_geometric_structural(body, tol()) {
         Ok(()) => Vec::new(),
         Err(errors) => errors
@@ -327,7 +435,12 @@ fn region_findings(body: &Body<f64>) -> Vec<ValidationError> {
 
 /// The honest body passes every tier-3 check; the misplaced one is
 /// refused by the region arm on `face`, and by nothing else.
-fn honest_then_misplaced(name: &str, honest: &Body<f64>, misplaced: &Body<f64>, face: FaceKey) {
+fn honest_then_misplaced<T: Scalar>(
+    name: &str,
+    honest: &Body<T>,
+    misplaced: &Body<T>,
+    face: FaceKey,
+) {
     assert_eq!(
         topo::validate_geometric_structural(honest, tol()),
         Ok(()),
@@ -355,7 +468,7 @@ fn honest_then_misplaced(name: &str, honest: &Body<f64>, misplaced: &Body<f64>, 
 #[test]
 fn a_cone_band_refuses_a_window_beyond_its_rim() {
     let (c, s) = (0.5_f64.cos(), 0.5_f64.sin());
-    let band = revolved(&[(s, c), (2.0 * s, 2.0 * c), (0.0, 2.0 * c), (0.0, c)]);
+    let band = revolved_polygon(&[(s, c), (2.0 * s, 2.0 * c), (0.0, 2.0 * c), (0.0, c)]);
     let (face, frame) = wall(&band, is_cone);
     let mut honest = band.clone();
     plant(&mut honest, face, frame, (-0.5, 0.5), (1.3, 1.7));
@@ -370,7 +483,7 @@ fn a_cone_band_refuses_a_window_beyond_its_rim() {
 #[test]
 fn a_cone_cap_refuses_a_window_beyond_its_rim() {
     let (c, s) = (0.5_f64.cos(), 0.5_f64.sin());
-    let cap = revolved(&[(0.0, 0.0), (2.0 * s, 2.0 * c), (0.0, 2.0 * c)]);
+    let cap = revolved_polygon(&[(0.0, 0.0), (2.0 * s, 2.0 * c), (0.0, 2.0 * c)]);
     let (face, frame) = wall(&cap, is_cone);
     let mut honest = cap.clone();
     plant(&mut honest, face, frame, (-0.5, 0.5), (1.0, 1.5));
@@ -387,7 +500,7 @@ fn a_cone_cap_refuses_a_window_beyond_its_rim() {
 #[test]
 fn a_cone_window_refuses_a_hole_beside_it() {
     let (c, s) = (0.5_f64.cos(), 0.5_f64.sin());
-    let mut band = revolved(&[
+    let mut band = revolved_polygon(&[
         (0.5 * s, 0.5 * c),
         (2.5 * s, 2.5 * c),
         (0.0, 2.5 * c),
@@ -406,7 +519,7 @@ fn a_cone_window_refuses_a_hole_beside_it() {
 /// cylinder's wall, the second inside the first. Each alone validates.
 #[test]
 fn a_cylinder_wall_refuses_a_ring_inside_another() {
-    let tube = revolved(&[(1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (0.0, 0.0)]);
+    let tube = revolved_polygon(&[(1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (0.0, 0.0)]);
     let (face, frame) = wall(&tube, is_cylinder);
     let mut honest = tube.clone();
     plant(&mut honest, face, frame, (-0.9, -0.1), (0.5, 1.5));
@@ -426,7 +539,7 @@ fn a_cylinder_wall_refuses_a_ring_inside_another() {
 /// face, the second inside the first. Two windows apart validate.
 #[test]
 fn a_sphere_face_refuses_a_ring_inside_another() {
-    let ball = revolved_disc();
+    let ball = revolved_disc::<f64>();
     let (face, frame) = wall(&ball, is_sphere);
     let mut honest = ball.clone();
     plant(&mut honest, face, frame, (-0.9, -0.1), (1.0, 2.0));
@@ -437,60 +550,16 @@ fn a_sphere_face_refuses_a_ring_inside_another() {
     honest_then_misplaced("sphere rings", &honest, &misplaced, face);
 }
 
-/// The unit ball: the half-disc right of `y` revolved about it.
-fn revolved_disc() -> Body<f64> {
-    let meridian = bulge_loop(vec![
-        (Point2::new(0.0, -1.0), 1.0),
-        (Point2::new(0.0, 1.0), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
-        .validate(tol())
-        .expect("the half-disc profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        tol(),
-    )
-    .expect("the half-disc revolves")
-    .body
-}
-
-/// The donut: the unit disc about `(2, 0)` revolved about `y`.
-fn donut() -> Body<f64> {
-    let meridian = bulge_loop(vec![
-        (Point2::new(1.0, 0.0), 1.0),
-        (Point2::new(3.0, 0.0), 1.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
-        .validate(tol())
-        .expect("the disc profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        tol(),
-    )
-    .expect("the disc revolves")
-    .body
-}
-
 /// **A torus face's essential pair**: each of the donut's two faces is
 /// the band between two parallels, which wind the azimuth once each,
-/// opposite ways (the lift's integers, `cycle_winding`), and the donut
+/// opposite ways (the lift's integers, `surface_cycle_windings`), and the donut
 /// validates. The same face with one parallel's stored joint element
 /// moved two periods reads two cycles wound the same way, which bound no
 /// band, and the region arm names it; nothing in the face's geometry
 /// changed, so the row pins that the arm reads the lift's integers.
 #[test]
 fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
-    let honest = donut();
+    let honest = donut::<f64>();
     assert_eq!(
         topo::validate_geometric_structural(&honest, tol()),
         Ok(()),
@@ -500,26 +569,23 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
         .faces()
         .find_map(|(face, f)| {
             matches!(honest.get_surface(f.surface), Some(Surface::Torus { .. })).then(|| {
-                let cycles = topo::surface_boundary::surface_cycles(&honest, face).unwrap();
+                let cycles = topo::surface_boundary::surface_cycle_windings(&honest, face).unwrap();
                 (face, cycles)
             })
         })
         .expect("a torus face");
-    let windings: Vec<i64> = cycles
+    let windings: Vec<i32> = cycles
         .iter()
-        .map(|c| {
-            let w = topo::surface_boundary::cycle_winding(&honest, face, c).unwrap();
-            i64::from(w.deck.u)
-        })
+        .map(|(_, w)| w.expect("every joint is minted").deck.u)
         .collect();
     assert_eq!(windings.len(), 2, "two parallels bound the face");
     assert_eq!(windings[0], -windings[1], "wound opposite: {windings:?}");
     assert_ne!(windings[0], 0, "each winds the azimuth: {windings:?}");
     let mut misread = honest.clone();
-    let h = cycles[0][0];
+    let h = cycles[0].0[0];
     let element = misread.joint(h).expect("a minted joint");
     let turned = topo::Deck {
-        u: element.deck().u - 2 * windings[0] as i32,
+        u: element.deck().u - 2 * windings[0],
         ..element.deck()
     };
     misread.attach_joint(h, topo::JointElement::Shift(turned));
@@ -541,7 +607,7 @@ fn a_torus_face_reads_its_essential_cycles_as_one_pair() {
 /// refuses `CycleSideUndecided` carrying the margin, never a pass.
 #[test]
 fn a_cycle_read_in_band_escalates_with_its_margin() {
-    let tube = revolved(&[(1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (0.0, 0.0)]);
+    let tube = revolved_polygon(&[(1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (0.0, 0.0)]);
     let (face, frame) = wall(&tube, is_cylinder);
     let d = 3.0 * tol().eps();
     let mut body = tube;
@@ -585,12 +651,142 @@ fn a_sliver_beside_a_pole_passes() {
         );
         return;
     }
-    let mut ball = revolved_disc();
+    let mut ball = revolved_disc::<f64>();
     let (face, frame) = wall(&ball, is_sphere);
     plant(&mut ball, face, frame, (-0.5, 0.5), (0.01, 0.01 + height));
     assert_eq!(
         topo::validate_geometric_structural(&ball, tol()),
         Ok(()),
         "the sliver beside the pole validates"
+    );
+}
+
+/// A window's chart rectangle: its azimuth span and its meridian span.
+type Window = ((f64, f64), (f64, f64));
+
+/// **Contractible rings on a torus face, at `T`**: on the donut's face
+/// (its band between two parallels), a window in the face validates; the
+/// same window moved half a tube turn, off the face, is refused, as is a
+/// window nested inside another; two windows side by side validate. Each
+/// contractible cycle is read against the other with the essential pair
+/// kept in the cut (`topo::one_region`), and the essential pair against
+/// each window alone.
+fn torus_rings<T: Scalar>(scalar: &str) {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let donut = donut::<T>();
+    let face = same_face(&at_f64, face64, &donut);
+    let honest = |windows: &[Window]| {
+        let mut body = donut.clone();
+        for &(us, ss) in windows {
+            plant(&mut body, face, frame, us, ss);
+        }
+        body
+    };
+    let one = honest(&[((-0.3, 0.3), (-0.4, 0.4))]);
+    let off = honest(&[(
+        (-0.3, 0.3),
+        (core::f64::consts::PI - 0.4, core::f64::consts::PI + 0.4),
+    )]);
+    honest_then_misplaced(
+        &format!("{scalar}: torus ring off the face"),
+        &one,
+        &off,
+        face,
+    );
+    // The review's probe (PR 6163, `review_probe::windows_at_interval`):
+    // azimuth `[-0.5, -0.1]` and `[0.1, 0.5]` over tube angle `[1, 2]`,
+    // which this face spans.
+    let probe = (1.0 - frame.shift, 2.0 - frame.shift);
+    assert!(
+        probe.0 > -core::f64::consts::FRAC_PI_2 && probe.1 < core::f64::consts::FRAC_PI_2,
+        "[{scalar}] the probe's windows lie on the face: {probe:?}"
+    );
+    let windows = honest(&[((-0.5, -0.1), probe), ((0.1, 0.5), probe)]);
+    assert_eq!(
+        topo::validate_geometric_structural(&windows, tol()),
+        Ok(()),
+        "[{scalar}] the review's two windows apart validate"
+    );
+    let apart = honest(&[((-0.5, -0.1), (-0.5, 0.5)), ((0.1, 0.5), (-0.5, 0.5))]);
+    let nested = honest(&[((-0.5, 0.5), (-0.5, 0.5)), ((-0.2, 0.2), (-0.2, 0.2))]);
+    honest_then_misplaced(
+        &format!("{scalar}: torus ring in a ring"),
+        &apart,
+        &nested,
+        face,
+    );
+    assert_eq!(
+        region_findings(&nested).len(),
+        1,
+        "[{scalar}] one ring lies in the other, and the other outside the first"
+    );
+}
+
+#[test]
+fn a_torus_face_refuses_a_ring_off_it_or_inside_another() {
+    torus_rings::<f64>("f64");
+}
+
+/// **The same at the certified scalar.** Two windows apart on the torus
+/// face were refused here once (`CycleSideUndecided`,
+/// `bool_torus_region_component` over `[-1.38, 2.37]`) while the uncut
+/// door placed the same points: a contractible cycle read against the
+/// other alone. Two things settle it, and the row goes red without
+/// either: the essential pair kept in the cut (so a meridian leg from the
+/// window meets a parallel of the band), and the torus door reading a
+/// meridian leg's root on a parallel against the parallel's span before
+/// an in-band component read of it sets the path aside.
+#[test]
+fn a_torus_face_refuses_a_ring_off_it_or_inside_another_at_the_certified_scalar() {
+    torus_rings::<geom_core::Interval>("interval");
+}
+
+/// **A ring inside another ring on a sphere, at the certified scalar**:
+/// the f64 row's pair, read at `Interval`.
+#[test]
+fn a_sphere_face_refuses_a_ring_inside_another_at_the_certified_scalar() {
+    let at_f64 = revolved_disc::<f64>();
+    let (face64, frame) = wall(&at_f64, is_sphere);
+    let ball = revolved_disc::<geom_core::Interval>();
+    let face = same_face(&at_f64, face64, &ball);
+    let mut honest = ball.clone();
+    plant(&mut honest, face, frame, (-0.9, -0.1), (1.0, 2.0));
+    plant(&mut honest, face, frame, (0.1, 0.9), (1.0, 2.0));
+    let mut misplaced = ball;
+    plant(&mut misplaced, face, frame, (-0.9, -0.1), (1.0, 2.0));
+    plant(&mut misplaced, face, frame, (-0.7, -0.3), (1.3, 1.7));
+    honest_then_misplaced("interval: sphere rings", &honest, &misplaced, face);
+}
+
+/// **A sense-flipped face is check 6's, reported once**: the cylinder
+/// wall holding two windows apart, its sense bit flipped, puts each of its
+/// cycles off its own side of the others. Check 6 refuses the flip
+/// (`CurvedSenseInverted`), and the region arm skips the face it refused
+/// rather than naming every cycle again.
+#[test]
+fn a_sense_flipped_wall_is_refused_by_check_6_alone() {
+    let tube = revolved_polygon(&[(1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (0.0, 0.0)]);
+    let (face, frame) = wall(&tube, is_cylinder);
+    let mut body = tube;
+    plant(&mut body, face, frame, (-0.9, -0.1), (0.5, 1.5));
+    plant(&mut body, face, frame, (0.1, 0.9), (0.5, 1.5));
+    assert_eq!(
+        topo::validate_geometric_structural(&body, tol()),
+        Ok(()),
+        "the honest wall validates"
+    );
+    let flipped = body.flipped_face_sense_for_tests(face).unwrap();
+    let errors = topo::validate_geometric_structural(&flipped, tol()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::CurvedSenseInverted { face: f } if *f == face)),
+        "check 6 refuses the flip: {errors:?}"
+    );
+    assert_eq!(
+        region_findings(&flipped),
+        Vec::new(),
+        "the region arm does not read the face check 6 refused"
     );
 }

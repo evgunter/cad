@@ -890,16 +890,20 @@ pub(crate) fn curved_face_placement_decided<T: Decide>(
     if let Some((v, margin)) = curved_boundary_containment(body, face, q, band)? {
         return Ok((CurvedPlacement::Trim(Some(v)), Some(margin), None));
     }
-    curved_interior_placement(body, face, q, band).map(|(at, uv)| (at, None, uv))
+    curved_interior_placement(body, face, q, band, None).map(|(at, uv)| (at, None, uv))
 }
 
 /// [`curved_face_placement`] past the boundary pre-pass, with a spline
-/// face's in-trim foot ([`curved_face_placement_decided`]).
+/// face's in-trim foot ([`curved_face_placement_decided`]). With `cut`,
+/// the face's region is the one its surface cycles `cut` bound alone
+/// ([`super::region::Region::keep_cycles`]); a spline face has no such
+/// region and answers `Trim(None)`.
 fn curved_interior_placement<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     q: Point3<T>,
     band: Band,
+    cut: Option<&[usize]>,
 ) -> Result<(CurvedPlacement, Option<(f64, f64)>), ContainError> {
     let face_data = proven(&body.faces, face, EntityId::Face);
     let analytic = match *body.face_surface_linked(face, face_data) {
@@ -911,7 +915,7 @@ fn curved_interior_placement<T: Decide>(
         } => {
             let w = q - origin;
             let radial = w - axis * w.dot(axis);
-            ruled_face_containment(body, face, radial.norm() - radius, q, band)
+            ruled_face_containment(body, face, radial.norm() - radius, q, band, cut)
         }
         // The whole DOUBLE cone ([`geom_brep::cone_elevation`] with no
         // nappe), because that is the surface the face's carrier states:
@@ -924,10 +928,10 @@ fn curved_interior_placement<T: Decide>(
             ..
         } => {
             let elevation = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
-            ruled_face_containment(body, face, elevation, q, band)
+            ruled_face_containment(body, face, elevation, q, band, cut)
         }
         geom::Surface::Sphere { center, radius, .. } => {
-            sphere_face_containment(body, face, center, radius, q, band)
+            sphere_face_containment(body, face, center, radius, q, band, cut)
         }
         geom::Surface::Torus {
             center,
@@ -946,7 +950,11 @@ fn curved_interior_placement<T: Decide>(
             },
             q,
             band,
+            cut,
         ),
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) if cut.is_some() => {
+            Ok(CurvedPlacement::Trim(None))
+        }
         geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
             return super::spline_region::spline_face_placement(body, face, q, band);
         }
@@ -976,6 +984,7 @@ fn sphere_face_containment<T: Decide>(
     radius: T,
     q: Point3<T>,
     band: Band,
+    cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
     match decide(
         "bool_curved_contain_carrier",
@@ -991,7 +1000,7 @@ fn sphere_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    region_placement(face, region.contains(q, band))
+    region_placement(face, cut_to(region, cut).contains(q, band))
 }
 
 /// A region reading's verdict ([`super::sphere_region`],
@@ -1047,6 +1056,7 @@ fn torus_face_containment<T: Decide>(
     carrier: TorusCarrier<T>,
     q: Point3<T>,
     band: Band,
+    cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
     let TorusCarrier {
         center,
@@ -1066,7 +1076,7 @@ fn torus_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    region_placement(face, region.contains(q, band))
+    region_placement(face, cut_to(region, cut).contains(q, band))
 }
 
 /// The CYLINDER and CONE arm of [`curved_face_containment`], reached
@@ -1089,6 +1099,7 @@ fn ruled_face_containment<T: Decide>(
     elevation: T,
     q: Point3<T>,
     band: Band,
+    cut: Option<&[usize]>,
 ) -> Result<CurvedPlacement, ContainError> {
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
         Ok(Sign::Zero) => {}
@@ -1100,51 +1111,39 @@ fn ruled_face_containment<T: Decide>(
         Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
-    region_placement(face, region.contains(q, band))
+    region_placement(face, cut_to(region, cut).contains(q, band))
 }
 
-/// **Whether `q` lies on `face`'s side of its surface cycles `keep`**:
-/// the face's region reading ([`curved_face_containment`]'s door for its
-/// kind) with its boundary cut to those cycles' edges
-/// ([`super::region::keep_cycles`]), so a cycle is read alone, or a
-/// torus's essential pair together. `q` is a point of the face's surface,
-/// which the caller certifies (no carrier decision is read here).
-/// `Some(Some(side))`, `Some(None)` where `q` is on one of the cycles,
-/// and `None` where no door reads the face: a plane, a spline chart, or
-/// an edge of a kind its door does not admit (`admits`, each door's).
+/// **Where `q` lies against `face`'s surface cycles `keep` alone**: the
+/// face's region reading for its kind ([`curved_interior_placement`],
+/// the one dispatch), its boundary cut to those cycles
+/// ([`super::region::Region::keep_cycles`]), so a cycle is read alone,
+/// or a torus's cycle with the face's essential pair. `Trim(Some(In))`
+/// on the face's side of them, `Trim(Some(Out))` off it, `Trim(None)`
+/// on one of them or where no door reads the face (a plane, a spline
+/// chart, an edge of a kind its door does not admit), and `OffCarrier`
+/// for a `q` definitely off the face's surface.
 ///
 /// # Errors
 ///
-/// The door's refusal ([`RegionRefusal`]): `q` in the band of an edge
-/// kept, no path decided, or an arc wound past a turn.
+/// As [`curved_face_containment`]: a door's builder refusing, `q` in the
+/// band of an edge kept or of the carrier, no path decided, or an arc
+/// wound past a turn.
 pub(crate) fn cycle_side<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     keep: &[usize],
     q: Point3<T>,
     band: Band,
-) -> Result<Option<Option<bool>>, RegionRefusal> {
-    let face_data = proven(&body.faces, face, EntityId::Face);
-    match *body.face_surface_linked(face, face_data) {
-        geom::Surface::Cylinder { .. } | geom::Surface::Cone { .. } => {
-            match super::ruled_region::ruled_face_region(body, face) {
-                Ok(Some(region)) => region.keep_cycles(keep).contains(q, band).map(Some),
-                Ok(None) | Err(_) => Ok(None),
-            }
-        }
-        geom::Surface::Sphere { center, radius, .. } => {
-            match super::sphere_region::sphere_face_region(body, face, center, radius) {
-                Ok(Some(region)) => region.keep_cycles(keep).contains(q, band).map(Some),
-                Ok(None) | Err(_) => Ok(None),
-            }
-        }
-        geom::Surface::Torus { .. } => match super::torus_region::torus_face_region(body, face) {
-            Ok(Some(region)) => region.keep_cycles(keep).contains(q, band).map(Some),
-            Ok(None) | Err(_) => Ok(None),
-        },
-        geom::Surface::Plane { .. } | geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => {
-            Ok(None)
-        }
+) -> Result<CurvedPlacement, ContainError> {
+    curved_interior_placement(body, face, q, band, Some(keep)).map(|(at, _)| at)
+}
+
+/// `region` cut to the surface cycles `cut`, or whole.
+fn cut_to<T: Decide, R: super::region::Region<T>>(region: R, cut: Option<&[usize]>) -> R {
+    match cut {
+        Some(keep) => region.keep_cycles(keep),
+        None => region,
     }
 }
 
