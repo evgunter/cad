@@ -835,7 +835,9 @@ struct LiesIn {
 /// named by those alone); an edge-on-face record names the pair; or a
 /// record names a crossing of the edge with the face's loops, an
 /// edge-edge record with an edge of them or a vertex-on-edge record of a
-/// vertex of them on the edge.
+/// vertex of them on the edge. A closed edge is asked as an open one is:
+/// its ends are one vertex, so the faces both its ends lie on are the
+/// faces that vertex lies on.
 fn riders<T: Decide>(
     body: &Body<T>,
     contacts: &ContactRecords,
@@ -881,9 +883,6 @@ fn riders<T: Decide>(
     let mut out = Vec::new();
     for (e, _) in body.edges() {
         let (a, b) = crate::query::edge_ends(body, e);
-        if a == b {
-            continue;
-        }
         let named = crossing.get(&e).map_or(&[][..], Vec::as_slice);
         let Ok(sides) = crate::readback::edge_sides(body, e) else {
             continue;
@@ -1001,7 +1000,8 @@ fn holding<T: Decide>(
         BooleanError::Escalated { .. } if crossed_only => Ok(None),
         read => Err(read),
     };
-    match carrier_on_surface(body, &carrier, (t0, t1), f, band) {
+    let (a, b) = crate::query::edge_ends(body, e);
+    match carrier_on_surface(body, &carrier, ((t0, t1), a == b), f, band) {
         Ok(true) => {}
         Ok(false) => return Ok(None),
         // Whether the edge lies on the surface matters only where both
@@ -1104,20 +1104,23 @@ pub(super) const RIDER_ON_CURVED: &str = "bool_rider_on_curved";
 enum Samples {
     /// Its ends.
     Ends,
-    /// Its ends, its midpoint and its quarter points.
-    Five,
+    /// This many points evenly spaced along it, its ends among them; along
+    /// a closed edge, whose ends are one point, this many distinct points.
+    Spread(u32),
 }
 
-/// **Whether edge carrier `carrier`, over `(t0, t1)`, lies on face `f`'s
-/// surface**: a line on a plane at both its ends, and on a cylinder or
-/// cone by [`crate::census::line_on_quadric_carrier`]
-/// (`bool_line_face_carrier_offset`); a conic in a plane by its own plane's offset
-/// from it (`bool_conic_face_plane_offset`), and on a sphere, cylinder
-/// or cone at five points along it (two conics of one plane meet at
-/// four unless they are one). Each point's offset from the surface is
-/// decided on the band ([`RIDER_ON_PLANE`], [`RIDER_ON_CURVED`]), every
-/// point before the answer: one point definitely off decides that the
-/// carrier is not on the surface, whatever the others read.
+/// **Whether edge carrier `carrier`, over `(t0, t1)` (`closed` where the
+/// edge's ends are one vertex), lies on face `f`'s surface**: a line on
+/// a plane at both its ends, and on a cylinder or cone by
+/// [`crate::census::line_on_quadric_carrier`]
+/// (`bool_line_face_carrier_offset`); a conic in a plane by its own
+/// plane's offset from it (`bool_conic_face_plane_offset`), and on a
+/// sphere, cylinder or cone at five distinct points along it (two conics
+/// of one plane meet at four unless they are one). Each point's offset
+/// from the surface is decided on the band ([`RIDER_ON_PLANE`],
+/// [`RIDER_ON_CURVED`]), every point before the answer: one point
+/// definitely off decides that the carrier is not on the surface,
+/// whatever the others read.
 /// Any other pair lies on nothing here.
 ///
 /// # Errors
@@ -1127,7 +1130,7 @@ enum Samples {
 fn carrier_on_surface<T: Decide>(
     body: &Body<T>,
     carrier: &geom::Curve3<T>,
-    (t0, t1): (T, T),
+    ((t0, t1), closed): ((T, T), bool),
     f: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
@@ -1190,21 +1193,23 @@ fn carrier_on_surface<T: Decide>(
             geom::Surface::Sphere { .. }
             | geom::Surface::Cylinder { .. }
             | geom::Surface::Cone { .. },
-        ) => (Samples::Five, RIDER_ON_CURVED, Coincide::EdgeOnCurvedFace),
+        ) => (
+            Samples::Spread(5),
+            RIDER_ON_CURVED,
+            Coincide::EdgeOnCurvedFace,
+        ),
         _ => return Ok(false),
     };
-    let mid = geom::mid_param(t0, t1);
-    let at: &[T] = match samples {
-        Samples::Ends => &[t0, t1],
-        Samples::Five => &[
-            t0,
-            geom::mid_param(t0, mid),
-            mid,
-            geom::mid_param(mid, t1),
-            t1,
-        ],
+    let at: Vec<T> = match samples {
+        Samples::Ends => vec![t0, t1],
+        Samples::Spread(n) => {
+            let steps = if closed { n } else { n - 1 };
+            (0..n)
+                .map(|k| t0 + (t1 - t0) * T::from_f64(f64::from(k) / f64::from(steps)))
+                .collect()
+        }
     };
-    let points: Vec<Point3<T>> = at.iter().map(|&t| carrier.eval(t)).collect();
+    let points: Vec<Point3<T>> = at.into_iter().map(|t| carrier.eval(t)).collect();
     crate::census::points_on_surface(surface, &points, site, band)
         .map_err(|diag| BooleanError::coincidence(coincide, DeclarationRead::Moot, diag))
 }
