@@ -1026,15 +1026,13 @@ fn holding<T: Decide>(
     let closed = body.edge_vertices(e).is_some_and(|(u, v)| u == v);
     let on = match carrier_on_surface(body, &carrier, (t0, t1), closed, f, band) {
         Ok(Some(on)) => Ok(on),
-        // A spline face, on whose chart the carrier is not read: the edge
-        // is taken to lie in it where both its ends lie on it and its
-        // midpoint reads inside it, and the reading then refuses as an
-        // in-band one does. Any other pair read here lies on nothing.
+        // A spline face, read by its ends and midpoint; any other pair
+        // read here lies on nothing.
         Ok(None) => {
-            let spline = matches!(
-                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-                Some(geom::Surface::Nurbs(_) | geom::Surface::Approx(_))
-            );
+            let spline = body
+                .get_face(f)
+                .and_then(|d| body.get_surface(d.surface))
+                .is_some_and(|s| s.spline_chart().is_some());
             if !spline || !names.ends {
                 return Ok(None);
             }
@@ -1609,7 +1607,7 @@ fn spline_floor<T: Decide>(
     use super::contain::ContainError;
     use crate::face_normal::{NormalAtError, SplineNormalError};
     let chart = body.get_face(f).and_then(|d| body.get_surface(d.surface));
-    if !chart.is_some_and(|s| s.spline_chart().is_some() && !s.is_placeholder_chart()) {
+    if !chart.is_some_and(|s| s.spline_chart().is_some()) {
         return Ok(None);
     }
     let uv = match super::spline_region::spline_face_placement(body, f, p, band) {
