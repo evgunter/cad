@@ -25,7 +25,9 @@
 //!   both poles lie in the cube's top face: both section loops' regions
 //!   are the ball's hemispheres, every witness of which lies on the top
 //!   face, and the join reads their sides at the seam (`boolean::join`'s
-//!   `seam_germ_side`), so every op answers its closed form.
+//!   `seam_germ_side`), so every op answers its closed form. That shows
+//!   the role read no longer blocks, not the seam read's sign: the pip
+//!   builds right with the read's tangent flipped too.
 //!
 //! Each op must refuse typed or answer its closed-form volume with
 //! `point_in_solid` agreeing on its set membership at witness points,

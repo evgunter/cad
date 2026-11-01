@@ -71,6 +71,12 @@ PR 6221 (`splitdoor/wrap-tip-boolean`) has that read take the section
 loops' sides at the seam (`boolean/join.rs` `seam_germ_side`, the note
 on `honesplit/the-uncut-shell-witness-reads-no-curved-face-interior`).
 
+What the pip shows is only that the role read no longer blocks it. It
+does not guard the curved read: with the read's tangent flipped (a
+mutant of `seam_germ_side`), the pip still builds right, while the
+ring-in-island wells, the die slab above the ball and the wrap-tip
+rows build wrong. Those are the rows that hold the read.
+
 The pins that cite it:
 - `germ_coplanar_conic`'s row now reads `builds`;
 - `tilted_sphere_pair::a_pip_with_its_seam_in_the_cubes_top_builds_at_its_closed_form`;

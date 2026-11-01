@@ -1877,7 +1877,7 @@ fn mint_directed<T: Decide>(
         };
         let departure = proven(&body.half_edges, departure_he, EntityId::HalfEdge).edge;
         let facing = strut_faces_first(
-            body,
+            (body, vertex),
             (operand, sectors),
             (arrival, departure),
             (gf.cut, gf.cells),
@@ -2182,7 +2182,7 @@ enum StrutFacing {
 /// runs from ([`StrutFacing::ClosedEdge`]); each caller of
 /// [`strut_faces_first`] states what it does then.
 ///
-/// At a wrap edge's tip (`tip`, [`crate::surface_boundary::tips`]) the
+/// At a wrap edge's tip (`tip`, [`strut_faces_first`] reads it) the
 /// corner's two edges are the one edge too, walked out and back, and the
 /// corner is the face's full turn from the arriving half round to the
 /// departing one. A germ along the edge lies on both ends of that turn:
@@ -2232,28 +2232,37 @@ fn strut_facing(
 /// exactly on its bound. Otherwise the walk orders the germs' cuts
 /// ([`walk_faces_first`]).
 ///
-/// `body` is read only to tell a wrap edge's tip from a closed edge's
-/// lone vertex, where arrival and departure are one edge
-/// ([`strut_facing`]'s `tip`).
+/// `body` and `vertex`, the corner's, are read only to tell a wrap
+/// edge's tip from a closed edge's lone vertex, where arrival and
+/// departure are one edge ([`strut_facing`]'s `tip`). The tip is
+/// `validate::wrap_tips`' (a valence-1 end of a wrap edge), read at this
+/// corner: its one edge is a wrap edge whose two ends differ, and
+/// `vertex` is one of them. At rest that is the same set: a corner
+/// bounded both ways by one edge of two ends is that edge's halves
+/// following each other round `vertex`, so its orbit holds no other
+/// edge. Mid-run it is the reading that stands, where `wrap_tips`'
+/// valence would count the struts already minted at the vertex.
 ///
 /// `None` at a closed edge's lone vertex with a germ along it
 /// ([`StrutFacing::ClosedEdge`]): the edge key names no half there, and
 /// each caller states what it does then.
 pub(super) fn strut_faces_first<T: Decide>(
-    body: &Body<T>,
+    (body, vertex): (&Body<T>, VertexKey),
     (operand, sectors): (Operand, &[BoolSector<T>]),
     (arrival, departure): (EdgeKey, EdgeKey),
     first: (Cut<T>, Cells),
     second: (Cut<T>, Cells),
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    // The corner is a wrap tip where its one edge's half is followed in
-    // its loop by its own mate.
     let tip = arrival == departure && {
         let e = proven(&body.edges, arrival, EntityId::Edge);
-        let halves = [Some(e.he_plus), body.mate(e.he_plus)];
-        crate::surface_boundary::tips(body, &halves.into_iter().flatten().collect::<Vec<_>>())
-            .is_some_and(|tips| !tips.is_empty())
+        let ends = [Some(e.he_plus), body.mate(e.he_plus)]
+            .map(|h| h.and_then(|h| body.get_half_edge(h)).map(|d| d.start));
+        let wraps = body
+            .get_curve_geom(e.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .is_some_and(|c| c.description().is_wrap());
+        wraps && ends[0] != ends[1] && ends.contains(&Some(vertex))
     };
     match strut_facing(
         (arrival, departure),

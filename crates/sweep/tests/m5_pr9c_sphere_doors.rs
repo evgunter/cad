@@ -273,14 +273,18 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// of both hemispheres lies on the slab's bottom face
 /// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
 /// and the join reads which section loop bounds the result at the seam
-/// instead (`boolean::join`'s `seam_germ_side`). The ball is also
-/// exactly TANGENT to the top face's carrier (`z = 1`) at its point
-/// `(0, 0, 1)`, and that is where the op stops: the crossings path's
-/// interior-loop guard cannot certify the sphere and the top face free
-/// of a loop interior to both, and refuses the pair typed
-/// (`CurvedPairUnsupported` at `InteriorLoopGuard`), an honest frontier
-/// for a point tangency. (Nudge the ball off both coincidences and the
-/// S13 lanes cut it — the pips suite.)
+/// instead (`boolean::join`'s `seam_germ_side`). The op stops at the
+/// top face, which meets the ball EXACTLY at its point `(0, 0, 1)`: the
+/// crossings path's interior-loop guard cannot certify the sphere and
+/// the top face free of a section loop interior to both, and refuses
+/// the pair typed (`CurvedPairUnsupported` at `InteriorLoopGuard`). The
+/// cause is that class, not the tangency: the slab of height 0.7 cuts
+/// the sphere in a circle inside its top face and refuses the same way,
+/// and above the ball (height 1.3) every op builds
+/// ([`the_die_slab_above_the_ball_builds_at_its_closed_form`]). The
+/// interior loop waits on
+/// `work/germtail/interior-loop-cut-in.md`. (Nudge the ball off both
+/// coincidences and the S13 lanes cut it — the pips suite.)
 #[test]
 fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
@@ -320,6 +324,98 @@ fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
     let msg = err.to_string();
     assert!(!msg.contains("no representation"), "{msg}");
     assert!(!msg.contains("no seam lane"), "{msg}");
+}
+
+/// The slab `[−2, 2]² × [0, h]` and the ball of [`ball`], at rest.
+fn die_slab_and_ball(h: f64) -> (topo::AtRestBody<f64>, topo::AtRestBody<f64>) {
+    let slab = topo::test_support::brick((-2.0, 2.0), (-2.0, 2.0), (0.0, h), Tol::witness());
+    (
+        finished("the slab", slab, Tol::witness()),
+        finished("the ball", ball(), Tol::witness()),
+    )
+}
+
+/// **The die pip's slab cut in a circle by its top refuses as the
+/// tangent one does**, at the interior-loop guard
+/// ([`the_die_pips_shape_stops_typed_at_its_tangent_top`]).
+#[test]
+fn the_die_slab_cutting_the_ball_in_its_top_refuses_at_the_interior_loop() {
+    let (a, b) = die_slab_and_ball(0.7);
+    for (op, r) in [
+        (
+            "slab ∖ ball",
+            topo::boolean::subtract(&a, &b, Tol::witness()),
+        ),
+        (
+            "ball ∖ slab",
+            topo::boolean::subtract(&b, &a, Tol::witness()),
+        ),
+        (
+            "slab ∩ ball",
+            topo::boolean::intersect(&a, &b, Tol::witness()),
+        ),
+        ("slab ∪ ball", topo::boolean::union(&a, &b, Tol::witness())),
+    ] {
+        assert!(
+            matches!(
+                r,
+                Err(topo::BooleanError::CurvedPairUnsupported {
+                    site: topo::PairRefusalSite::InteriorLoopGuard,
+                    kind: geom::SurfaceKind::Sphere,
+                    other_kind: geom::SurfaceKind::Plane,
+                    ..
+                })
+            ),
+            "{op}: {r:?}"
+        );
+    }
+}
+
+/// **The die pip's slab standing above the ball builds every op at its
+/// closed form**: its seam great circle in the bottom face, read at the
+/// seam (`boolean::join`'s `seam_germ_side`), and the top `z = 1.3`
+/// clear of it. The slab holds the upper half ball, `2π/3`.
+#[test]
+fn the_die_slab_above_the_ball_builds_at_its_closed_form() {
+    use crate::common::membership::{Region, ball as round, cuboid, holds};
+    let (a, b) = die_slab_and_ball(1.3);
+    let (vs, vb) = (16.0 * 1.3, 4.0 * core::f64::consts::PI / 3.0);
+    let half = vb / 2.0;
+    let sphere = || round(Point3::origin(), 1.0);
+    let slab = || cuboid((-2.0, 2.0), (-2.0, 2.0), (0.0, 1.3));
+    let lattice = (Point3::new(-1.3, -1.3, -1.3), Point3::new(1.3, 1.3, 1.3));
+    for (op, r, want, region) in [
+        (
+            "slab ∖ ball",
+            topo::boolean::subtract(&a, &b, Tol::witness()),
+            vs - half,
+            Box::new(move |p| slab()(p).min(-sphere()(p))) as Region,
+        ),
+        (
+            "ball ∖ slab",
+            topo::boolean::subtract(&b, &a, Tol::witness()),
+            vb - half,
+            Box::new(move |p| sphere()(p).min(-slab()(p))),
+        ),
+        (
+            "slab ∩ ball",
+            topo::boolean::intersect(&a, &b, Tol::witness()),
+            half,
+            Box::new(move |p| slab()(p).min(sphere()(p))),
+        ),
+        (
+            "slab ∪ ball",
+            topo::boolean::union(&a, &b, Tol::witness()),
+            vs + vb - half,
+            Box::new(move |p| slab()(p).max(sphere()(p))),
+        ),
+    ] {
+        let body = match r {
+            Ok(topo::BooleanResult::Body(b)) => b.body,
+            other => panic!("{op}: {other:?}"),
+        };
+        holds(op, &body, want, &region, lattice, 9);
+    }
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction

@@ -313,7 +313,11 @@ fn a_plane_tilted_against_the_balls_chart_builds_under_every_boolean() {
 /// (`boolean::join`'s `seam_germ_side`), so every op builds: `∪` the cube
 /// and the upper half-ball, `∩` the lower half-ball, `∖` the cube less
 /// it, each at its closed form and placing a lattice about the pip as
-/// the analytic region does.
+/// the analytic region does. The row shows that the role read no
+/// longer blocks; it does not hold the seam read's sign, for it builds
+/// right with the read's tangent flipped too (the wells of
+/// `a_ring_on_a_sphere_face` and the die slab of `m5_pr9c_sphere_doors`
+/// do).
 #[test]
 fn a_pip_with_its_seam_in_the_cubes_top_builds_at_its_closed_form() {
     use crate::common::membership::{ball as round, cuboid, holds};

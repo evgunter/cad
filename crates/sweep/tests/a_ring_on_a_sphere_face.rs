@@ -272,19 +272,77 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
 /// as the analytic region does.
 #[test]
 fn a_ring_inside_a_sphere_island_moves_and_builds() {
+    let c = Vec3::new(0.3, 2.0, 1.2);
+    the_well_builds("the well", ((0.1, 0.4), (1.8, 2.2)), c, ball_y(0.5, c));
+}
+
+/// **The well at other poses**, each reaching the seam read
+/// ([`a_ring_inside_a_sphere_island_moves_and_builds`]): wider in `y`,
+/// narrow, under a lower ball, and with the ball poled on `x`. Each op,
+/// either way round, holds its slice integral and lattice.
+#[test]
+fn the_well_at_other_poses_builds_at_the_seam() {
+    let c = Vec3::new(0.3, 2.0, 1.2);
+    let lower = Vec3::new(0.3, 2.0, 1.05);
+    let x_poled = || {
+        let at = ball_poled(
+            0.5,
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        );
+        placed(at, Affine3::identity(), c)
+    };
+    for (what, well, at, ball) in [
+        (
+            "the well wide in y",
+            ((0.1, 0.4), (1.6, 2.4)),
+            c,
+            ball_y(0.5, c),
+        ),
+        (
+            "the narrow well",
+            ((0.25, 0.35), (1.95, 2.05)),
+            c,
+            ball_y(0.5, c),
+        ),
+        (
+            "the well under a lower ball",
+            ((0.1, 0.4), (1.8, 2.2)),
+            lower,
+            ball_y(0.5, lower),
+        ),
+        (
+            "the well under an x-poled ball",
+            ((0.1, 0.4), (1.8, 2.2)),
+            c,
+            x_poled(),
+        ),
+    ] {
+        the_well_builds(what, well, at, ball);
+    }
+}
+
+/// The slab with the well `x × y` down to `z = 0.5` against `ball`, of
+/// radius ½ about `c`: every op, either way round, at the slice
+/// integral's volume and placing a lattice about the ball as the
+/// analytic region does.
+fn the_well_builds(
+    what: &str,
+    (x, y): ((f64, f64), (f64, f64)),
+    c: Vec3<f64>,
+    ball: AtRestBody<f64>,
+) {
     use crate::common::membership::{Region, ball as round, cuboid, holds};
     let tol = Tol::witness();
-    let well_bounds = [(0.1, 0.4), (1.8, 2.2), (0.5, 2.0)];
-    let well = boxed(well_bounds);
-    let slab = topo::subtract(&boxed(SLAB), &well, tol)
+    let well_bounds = [x, y, (0.5, 2.0)];
+    let slab = topo::subtract(&boxed(SLAB), &boxed(well_bounds), tol)
         .unwrap()
         .body()
         .unwrap()
         .body
         .clone();
-    let c = Vec3::new(0.3, 2.0, 1.2);
-    let ball = ball_y(0.5, c);
-    let in_slab = [(0.1, 0.4), (1.8, 2.2), (0.5, 1.0)];
+    let in_slab = [x, y, (0.5, 1.0)];
     let va = box_volume(SLAB) - box_volume(in_slab);
     let vb = ball_volume(0.5);
     let shared = ball_in_box(0.5, c, SLAB) - ball_in_box(0.5, c, in_slab);
@@ -296,7 +354,10 @@ fn a_ring_inside_a_sphere_island_moves_and_builds() {
         Box::new(move |p| s(p).min(-w(p)))
     };
     let sphere = move || round(Point3::new(c.x, c.y, c.z), 0.5);
-    let about = (Point3::new(-0.3, 1.4, 0.6), Point3::new(0.9, 2.6, 1.8));
+    let about = (
+        Point3::new(c.x - 0.6, c.y - 0.6, c.z - 0.6),
+        Point3::new(c.x + 0.6, c.y + 0.6, c.z + 0.6),
+    );
     for (op, out, want, region) in [
         (
             "a ∪ b",
@@ -335,7 +396,7 @@ fn a_ring_inside_a_sphere_island_moves_and_builds() {
             Box::new(move |p| solid()(p).min(sphere()(p))),
         ),
     ] {
-        let what = format!("the well, {op}");
+        let what = format!("{what}, {op}");
         let body = match out {
             Ok(BooleanResult::Body(b)) => b.body,
             other => panic!("{what}: {:?}", other.map(|_| "empty")),

@@ -5617,22 +5617,32 @@ fn sliver_along_a_slit<T: Decide>(
 
 /// **The side a section loop's regions leave its seam on**, where no
 /// witness of theirs decides. A chord lies on the other boundary; where
-/// its midpoint lies strictly inside one face `F` of `other`, the
-/// material beside it is the half-space behind `F`, and the region face
-/// `R` the chord's mate bounds leaves the chord along its inward
-/// direction ([`crate::stands::inward`]): `R`'s normal crossed with the
-/// chord's direction along the mate, in `R`'s plane for a line chord on
-/// a planar `R`, and otherwise in `R`'s tangent plane at the point of
-/// the chord's carrier at its mid-parameter, its direction the
-/// carrier's tangent there. `R` crosses no surface of `other` (probing
-/// waits for quiescence), so near the chord it lies on the side of `F`
-/// that direction points to: Out where its dot with `F`'s outward
-/// normal is positive, In where negative, read at the chord's length.
-/// Zero is a region flush with `F` or tangent to it along the chord (a
-/// graze, whose side is the second order's), and reads nothing; so does
-/// a midpoint that no one face holds strictly inside, a closed chord
-/// (its ends one point), or any margin in band. Every chord that reads
-/// is read, so where the chord walk starts cannot matter.
+/// the point of its carrier at its mid-parameter lies strictly inside
+/// one face `F` of `other`, the material beside it is the half-space
+/// behind `F`, and the region face `R` the chord's mate bounds leaves
+/// the chord along its inward direction ([`crate::stands::inward`]):
+/// `R`'s outward normal there crossed with the carrier's tangent there,
+/// oriented along the mate. A line chord on a planar `R` reads so too,
+/// its tangent its direction and `R`'s normal its plane's. `R` crosses
+/// no surface of `other` (probing waits for quiescence), so near the
+/// chord it lies on the side of `F` that direction points to: Out where
+/// its dot with `F`'s outward normal is positive, In where negative,
+/// levered by the chord's extent along its carrier (exact for a line
+/// and a circle), so a long arc reads at its length and a closed chord,
+/// its two ends one point, reads as any other.
+///
+/// What reads nothing:
+/// - Zero, a region flush with `F` or tangent to it along the chord (a
+///   graze, whose side is the second order's);
+/// - a point that no one face holds strictly inside, or any margin in
+///   band;
+/// - a null edge, a strut's scaffolding, which has no carrier and lies
+///   on neither boundary;
+/// - a region normal the point's reading refuses (in band of its
+///   surface, at a cone's apex).
+///
+/// Every chord that reads is read, so where the chord walk starts
+/// cannot matter.
 ///
 /// A planar region face whose rim lies on the other boundary holds no
 /// witness off the band where it is narrower than `2Kε`, and its one
@@ -5646,7 +5656,10 @@ fn sliver_along_a_slit<T: Decide>(
 ///
 /// [`BooleanError::ClassificationInvariant`] where two chords read the
 /// loop's regions on opposite sides: they flank one crossing, so that is
-/// a kernel defect; and the walk's and [`holding_face_normal`]'s own.
+/// a kernel defect; and where a chord's point reads definitely off the
+/// surface of the region it bounds. [`BooleanError::JoinDesync`] where
+/// the chord's edge, curve or region no longer resolves. And the walk's
+/// and [`holding_face_normal`]'s own.
 fn seam_germ_side<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -5655,55 +5668,47 @@ fn seam_germ_side<T: Decide>(
     band: Band,
 ) -> Result<Option<SideCode>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let point = |v: VertexKey| {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point).copied())
-            .ok_or(desync("section vertex has no point"))
-    };
     let mut side = None;
     for (mate, region) in region_halves(body, face, l)? {
         let m = body
             .get_half_edge(mate)
             .ok_or(desync("section mate no longer resolves"))?;
-        let end = body
-            .half_edge_end(mate)
-            .ok_or(desync("section mate has no end"))?;
-        let (p0, p1) = (point(m.start)?, point(end)?);
-        let len = p0.distance(p1);
-        let planar = match super::solid_contain::face_plane(body, region) {
-            Ok((_, n_r)) if crate::census::edge_is_line(body, m.edge) => Some(n_r),
-            _ => None,
+        let edge = body
+            .get_edge(m.edge)
+            .ok_or(desync("section mate's edge no longer resolves"))?;
+        // A null edge is a strut's scaffolding: it has no carrier and
+        // lies on neither boundary, so it is no chord of the seam.
+        let Some(curve) = body
+            .get_curve_geom(edge.curve)
+            .ok_or(desync("section mate's edge carries no curve"))?
+            .certified()
+        else {
+            continue;
         };
-        let (mid, into_region) = if let Some(n_r) = planar {
-            (
-                p0.lerp(p1, T::from_f64(0.5)),
-                crate::stands::inward(n_r, (p1 - p0) * (T::from_f64(1.0) / len)),
-            )
-        } else {
-            let edge = body
-                .get_edge(m.edge)
-                .ok_or(desync("section mate's edge no longer resolves"))?;
-            let Some(curve) = body
-                .get_curve_geom(edge.curve)
-                .and_then(crate::null::CurveGeom::certified)
-            else {
-                continue;
-            };
-            let (t0, t1) = curve.params();
-            let tm = (t0 + t1) * T::from_f64(0.5);
-            let mid = curve.carrier().eval(tm);
-            let d = curve.carrier().deriv(tm);
-            let d = if mate == edge.he_plus { d } else { -d };
-            let Ok(Some(n_r)) = crate::face_normal::face_outward_normal_at(body, region, mid, band)
-            else {
-                continue;
-            };
-            (mid, crate::stands::inward(n_r.vec(), d.normalize()))
+        let (t0, t1) = curve.params();
+        let tm = (t0 + t1) * T::from_f64(0.5);
+        let mid = curve.carrier().eval(tm);
+        let d = curve.carrier().deriv(tm);
+        let d = if mate == edge.he_plus { d } else { -d };
+        // The chord's extent along its carrier, exact for a line and a
+        // circle: the lever its germ is read at. A closed chord, its two
+        // ends one point, reads by it as any other.
+        let extent = d.norm() * (t1 - t0).abs();
+        let n_r = match crate::face_normal::face_outward_normal_at(body, region, mid, band) {
+            Ok(Some(n_r)) => n_r.vec(),
+            Ok(None) => return Err(desync("a section chord's region no longer resolves")),
+            Err(crate::face_normal::NormalAtError::OffSurface) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a section chord's point reads off the surface of the region it bounds",
+                });
+            }
+            Err(_) => continue,
         };
+        let into_region = crate::stands::inward(n_r, d.normalize());
         let Some(n_f) = holding_face_normal(other, mid, band)? else {
             continue;
         };
-        let Some(read) = germ_side(into_region, n_f, len, band) else {
+        let Some(read) = germ_side(into_region, n_f, extent, band) else {
             continue;
         };
         if side.is_some_and(|s| s != read) {
@@ -5717,8 +5722,8 @@ fn seam_germ_side<T: Decide>(
 }
 
 /// The side of a face of outward normal `n_f` a region leaves a chord
-/// of length `len` to, along `into_region` ([`seam_germ_side`]): Out
-/// where their dot reads positive at the chord's length, In where
+/// of extent `len` to, along `into_region` ([`seam_germ_side`]): Out
+/// where their dot reads positive levered by that extent, In where
 /// negative, and nothing where it reads Zero (a region flush with the
 /// face or tangent to it along the chord) or in band.
 fn germ_side<T: Decide>(
@@ -5941,11 +5946,41 @@ mod germ_side_rows {
         // the plane.
         let (n_r, t) = (Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0));
         let graze = crate::stands::inward(n_r, t);
-        assert_eq!(graze.dot(up), 0.0, "the graze's germ lies in the face");
         assert_eq!(
             germ_side(graze, up, 2.0, band),
             None,
             "a graze reads nothing"
+        );
+        // Tilted off the graze, the germ reads its side where the tilt,
+        // levered by the chord's extent, clears the band, and nothing
+        // where it does not: the same tilt reads on a long chord and
+        // not on a short one.
+        let tilted = |tilt: f64| (graze + up * tilt).normalize();
+        assert_eq!(
+            germ_side(tilted(1e-3), up, 2.0, band),
+            Some(SideCode::Out),
+            "a germ tilted up clears the band"
+        );
+        assert_eq!(
+            germ_side(tilted(-1e-3), up, 2.0, band),
+            Some(SideCode::In),
+            "a germ tilted down clears the band"
+        );
+        let (zero, escalate) = (band.zero(), band.escalate());
+        assert_eq!(
+            germ_side(tilted(zero * 1e-2), up, 2.0, band),
+            None,
+            "a tilt below the band at the chord's extent reads nothing"
+        );
+        assert_eq!(
+            germ_side(tilted(escalate), up, 1e3, band),
+            Some(SideCode::Out),
+            "a tilt of the band levered by a long extent reads"
+        );
+        assert_eq!(
+            germ_side(tilted(escalate), up, 1e-3, band),
+            None,
+            "and levered by a short one does not"
         );
         assert_eq!(
             germ_side(Vec3::new(0.0, 0.0, 0.0), up, 2.0, band),

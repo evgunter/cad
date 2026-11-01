@@ -563,12 +563,19 @@ pub(crate) fn corner_shape<T: Decide>(
 /// it wraps round the tip, so its corner there between the two edges is
 /// a full turn (the Boolean's `sectors::build_sectors`, the split's
 /// [`crate::splitting::wide_entries`]). A wrap edge's tip
-/// ([`crate::surface_boundary::tips`], DESIGN `[topology]`'s seam clause)
-/// is the one-edge form: its face's loop walks the edge out and straight
-/// back, so the face wraps the same full turn round the one edge, at a
-/// pole or a cone's apex. The Boolean's reduction may split the two
-/// edges apart from the tip, each at its own vertex, so each lane takes
-/// the reading before its reduction.
+/// (`validate::wrap_tips`, DESIGN `[topology]`'s seam clause) is the
+/// one-edge form: its face's loop walks the edge out and straight back,
+/// so the face wraps the same full turn round the one edge, at a pole or
+/// a cone's apex. The Boolean's reduction may split the two edges apart
+/// from the tip, each at its own vertex, so each lane takes the reading
+/// before its reduction.
+///
+/// **The name covers both, and the two are kept apart inside it.**
+/// Every corner reading ([`Self::holds`], [`Self::bounds`]) reads a tip
+/// of either kind alike, as the full turn they share. A reader of a
+/// slit's line, its two edges ([`Self::face_at`], for `recl::slit_line`
+/// and `join::slit_tip_on`), reads the two-edge tips alone: a wrap tip
+/// has one edge, and no line of two.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SlitTips {
     /// The two-edge tips, of slits and rings.
