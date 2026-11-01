@@ -22,6 +22,16 @@
 //! long. Every bound is a line edge, its far point an `f64` vector, and
 //! every direction a line edge too.
 //!
+//! **The consumer's own paths** are a second test's
+//! (`the_consumers_paths_never_contradict_the_exact_oracle`): corners
+//! subdivided at bisectors as the boolean pushes them (a reflex face
+//! among them, read only through its bisectors), bounds and edges that
+//! are curved departures, a face the vertex touches with each edge's
+//! side given, and partners standing off the vertex's point by a
+//! fraction of the band, at the run's `K` and at a narrow `K = 1.5`.
+//! Its oracle fixes each ray where the boolean does (a direction out to
+//! its reach), spelled apart from the reader's own.
+//!
 //! The oracle reads the same `f64` numbers exactly, as rationals: a
 //! direction is on the cone where it lies on a face's plane within its
 //! sector, and otherwise inside it where the segment from its far point
@@ -72,11 +82,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the reader it checks, the builder and consumer it reads
-// through, and the band it decides in.
+// through (the boolean's `fans` and `cone_classes`, and the reach each
+// ray is fixed at), and the band it decides in.
 test_utils::gated_to![
     "crates/topo/src/link.rs",
     "crates/topo/src/boolean/vtxfac.rs",
     "crates/topo/src/boolean/sectors.rs",
+    "crates/topo/src/bound_side.rs",
     "crates/geom-core/src/predicate.rs",
     "crates/geom-core/src/tolerance.rs",
 ];
