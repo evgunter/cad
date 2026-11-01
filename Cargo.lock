@@ -4220,6 +4220,7 @@ dependencies = [
  "perceive-color",
  "perceive-cvd",
  "pncad",
+ "png",
  "pollster 1.0.1",
  "profile",
  "quantity",

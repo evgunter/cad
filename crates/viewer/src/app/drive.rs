@@ -12,8 +12,9 @@
 //! screen cannot be clicked, and a click lands where the pointer would
 //! have to be. Everything but pixel painting is the real app: the
 //! viewport pane allocates its rect and folds the pointer into camera
-//! operations and ray picks, and only the paint callback it queues is
-//! never run.
+//! operations and ray picks, and the paint callback it queues is run
+//! only when [`Driver::picture`] is asked for a picture of the frame,
+//! on a device the caller hands it.
 //!
 //! **Two doors are not the window's.** A file dialog blocks the frame
 //! loop on a desktop chooser, so a driven app has none — its Open… and
@@ -32,7 +33,7 @@
 
 use std::path::{Path, PathBuf};
 
-use eframe::egui;
+use eframe::{egui, egui_wgpu, wgpu};
 use pncad::geom_core::Tol;
 
 use super::{StartupError, ViewerApp};
@@ -140,11 +141,94 @@ pub fn landed_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<Landed> {
     out
 }
 
-/// What one frame of the real app showed: its text, and the rect of
-/// the viewport's paint callback when the viewport was drawn.
+/// What one frame of the real app showed: its text, the rect of the
+/// viewport's paint callback when the viewport was drawn, and the
+/// shapes and texture changes a picture of it is rendered from.
 struct Painted {
     landed: Vec<Landed>,
     viewport: Option<egui::Rect>,
+    shapes: Vec<egui::epaint::ClippedShape>,
+    textures: egui::TexturesDelta,
+}
+
+impl Painted {
+    fn nothing() -> Self {
+        Self {
+            landed: Vec::new(),
+            viewport: None,
+            shapes: Vec::new(),
+            textures: egui::TexturesDelta::default(),
+        }
+    }
+}
+
+/// **The textures every frame so far has set and not freed**, as the
+/// image deltas that set them, oldest first. A picture uploads them to
+/// a renderer of its own: egui sends the font atlas once, on the first
+/// frame, and only its changes after that.
+#[derive(Default)]
+struct Textures(std::collections::HashMap<egui::TextureId, Vec<egui::epaint::ImageDelta>>);
+
+impl Textures {
+    /// Take one frame's changes in.
+    fn fold(&mut self, mut delta: egui::TexturesDelta) {
+        for (id, images) in std::mem::take(&mut delta.set) {
+            for image in images {
+                let held = self.0.entry(id).or_default();
+                if image.is_whole() {
+                    held.clear();
+                }
+                held.push(image);
+            }
+        }
+        for id in std::mem::take(&mut delta.free) {
+            self.0.remove(&id);
+        }
+    }
+}
+
+/// **A picture of the window**: `size` pixels, row-major from the top
+/// left, four bytes per pixel in RGBA order, gamma-encoded as the
+/// window shows them.
+#[derive(Clone, Debug)]
+pub struct Picture {
+    /// Width and height in pixels.
+    pub size: [u32; 2],
+    /// The pixels.
+    pub rgba: Vec<u8>,
+}
+
+/// **The device the running app gets**, on whatever adapter this
+/// machine has: the device descriptor is `egui_wgpu`'s own, the one
+/// `NativeOptions`' default setup requests. A future, so the caller
+/// brings the executor.
+///
+/// # Errors
+///
+/// [`DriveError::Picture`] when there is no adapter or it yields no
+/// device. A box with no GPU can install a software one:
+/// `mesa-vulkan-drivers` supplies lavapipe, which needs no display.
+pub async fn picture_device() -> Result<(wgpu::Device, wgpu::Queue), DriveError> {
+    let instance =
+        wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+    let adapter = instance
+        .request_adapter(&wgpu::RequestAdapterOptions::default())
+        .await
+        .map_err(|error| {
+            DriveError::Picture(format!(
+                "no wgpu adapter ({error}); `mesa-vulkan-drivers` supplies a software one"
+            ))
+        })?;
+    let egui_wgpu::WgpuSetup::CreateNew(setup) = egui_wgpu::WgpuConfiguration::default().wgpu_setup
+    else {
+        return Err(DriveError::Picture(
+            "egui_wgpu's default setup is no longer `CreateNew`".to_owned(),
+        ));
+    };
+    adapter
+        .request_device(&(setup.device_descriptor)(&adapter))
+        .await
+        .map_err(|error| DriveError::Picture(format!("the adapter yields no device: {error}")))
 }
 
 /// One frame of the real app, in a `window`-sized window, with `time`
@@ -163,13 +247,9 @@ fn painted(
         events,
         ..Default::default()
     };
-    let mut output = ctx.run_ui(input, |ui| {
+    let output = ctx.run_ui(input, |ui| {
         eframe::App::ui(app, ui, frame);
     });
-    // Nothing here paints, so the frame's texture delta is dropped
-    // rather than uploaded; `TexturesDelta` panics on drop until one
-    // is taken.
-    output.textures_delta.clear();
     let viewport = output
         .shapes
         .iter()
@@ -180,6 +260,8 @@ fn painted(
     Painted {
         landed: landed_in(&output.shapes),
         viewport,
+        shapes: output.shapes,
+        textures: output.textures_delta,
     }
 }
 
@@ -195,7 +277,12 @@ pub(crate) fn app_frame(
     time: Option<f64>,
     events: Vec<egui::Event>,
 ) -> Vec<Landed> {
-    painted(ctx, app, frame, window, time, events).landed
+    let mut painted = painted(ctx, app, frame, window, time, events);
+    // Nothing here paints, so the frame's texture delta is dropped
+    // rather than uploaded; `TexturesDelta` asserts on drop until it
+    // is emptied.
+    painted.textures.clear();
+    painted.landed
 }
 
 /// Whether the index attempt for the picture on screen is answered: an
@@ -210,6 +297,21 @@ pub(crate) fn index_answered(app: &ViewerApp) -> bool {
 /// evaluation is current), and the index attempt is answered.
 pub(crate) fn quiescent(app: &ViewerApp) -> bool {
     app.progress().is_none() && index_answered(app)
+}
+
+/// **[`quiescent`], and no check is still running at rest** — the
+/// toolbar's checks badge says neither "pending" nor "more pending"
+/// ([`crate::frame::checks_badge`]). The coincidence door runs on a
+/// worker after the evaluation lands, so a driven step read only to
+/// [`quiescent`] can see the findings before the door has answered.
+/// The in-crate rows wait on [`quiescent`] alone: a row about the
+/// checks waits for them itself.
+fn at_rest(app: &ViewerApp) -> bool {
+    quiescent(app)
+        && app
+            .session
+            .checks()
+            .is_none_or(|report| report.pending.is_empty())
 }
 
 /// **Paint until `until` holds of the app**, and answer the first
@@ -241,10 +343,11 @@ fn settled<T>(
 fn unsettled(app: &ViewerApp) -> String {
     format!(
         "the app did not settle in {SETTLE_FRAMES} frames: progress {:?}, index held {}, \
-         refusal held {}",
+         refusal held {}, checks pending {:?}",
         app.progress(),
         app.picks.index().is_some(),
         app.picks.error().is_some(),
+        app.session.checks().map(|report| &report.pending),
     )
 }
 
@@ -286,6 +389,8 @@ pub enum DriveError {
     NoViewport,
     /// The app did not settle.
     Unsettled(String),
+    /// No picture could be rendered: no device, or its readback failed.
+    Picture(String),
 }
 
 impl core::fmt::Display for DriveError {
@@ -305,7 +410,7 @@ impl core::fmt::Display for DriveError {
                 Ok(())
             }
             Self::NoViewport => write!(f, "the viewport was not drawn in the last frame"),
-            Self::Unsettled(why) => f.write_str(why),
+            Self::Unsettled(why) | Self::Picture(why) => f.write_str(why),
         }
     }
 }
@@ -322,6 +427,7 @@ pub struct Driver {
     time: f64,
     pointer: egui::Pos2,
     last: Painted,
+    textures: Textures,
 }
 
 impl Driver {
@@ -346,10 +452,8 @@ impl Driver {
             window: WINDOW,
             time: 0.0,
             pointer: egui::Pos2::ZERO,
-            last: Painted {
-                landed: Vec::new(),
-                viewport: None,
-            },
+            last: Painted::nothing(),
+            textures: Textures::default(),
         };
         driver.settle()?;
         Ok(driver)
@@ -389,7 +493,7 @@ impl Driver {
     /// one frame first.
     pub fn step(&mut self, events: Vec<egui::Event>) {
         self.time += FRAME_SECONDS;
-        self.last = painted(
+        let mut last = painted(
             &self.ctx,
             &mut self.app,
             &mut self.frame,
@@ -397,11 +501,190 @@ impl Driver {
             Some(self.time),
             events,
         );
+        self.textures.fold(std::mem::take(&mut last.textures));
+        self.last = last;
     }
 
-    /// **Frames until the app is quiescent**, then two quiet ones: one
-    /// for what landed in the last to be laid out, one for a layout
-    /// that sized itself on its first appearance.
+    /// **A picture of the window as the last frame painted it** —
+    /// the chrome and the viewport both, rendered offscreen on `device`
+    /// the way the window's painter renders a frame: egui's renderer
+    /// over the frame's own shapes, with the viewport's paint callback
+    /// run through the app's [`crate::gpu::ViewportRenderer`] at the
+    /// app's depth format. [`picture_device`] opens a device to hand
+    /// it.
+    ///
+    /// The frame's paint callback is run as the window runs it, its
+    /// GPU id query included, so the frame after a picture reads that
+    /// query's answer as the window's next frame would.
+    ///
+    /// # Errors
+    ///
+    /// [`DriveError::Picture`] when the window has no pixels or the
+    /// readback fails.
+    pub fn picture(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Result<Picture, DriveError> {
+        use crate::gpu::{COPY_ROW_ALIGNMENT, DEPTH_FORMAT, ViewportRenderer};
+        const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+        let pixels_per_point = self.ctx.pixels_per_point();
+        let pixels = |points: f32| {
+            let pixels = (points * pixels_per_point).round();
+            (1.0..=16384.0)
+                .contains(&pixels)
+                .then(|| u32::try_from(pixels as i64).ok())
+                .flatten()
+                .ok_or_else(|| {
+                    DriveError::Picture(format!("a window side of {points} points has no pixels"))
+                })
+        };
+        let size = [pixels(self.window.x)?, pixels(self.window.y)?];
+        let mut renderer = egui_wgpu::Renderer::new(
+            device,
+            FORMAT,
+            egui_wgpu::RendererOptions {
+                depth_stencil_format: Some(DEPTH_FORMAT),
+                ..egui_wgpu::RendererOptions::PREDICTABLE
+            },
+        );
+        renderer
+            .callback_resources
+            .insert(ViewportRenderer::new(device, FORMAT));
+        for (id, images) in &self.textures.0 {
+            for image in images {
+                renderer.update_texture(device, queue, *id, image);
+            }
+        }
+        let primitives = self
+            .ctx
+            .tessellate(self.last.shapes.clone(), pixels_per_point);
+        let screen = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: size,
+            pixels_per_point,
+        };
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("drive picture"),
+        });
+        let prepared = renderer.update_buffers(device, queue, &mut encoder, &primitives, &screen);
+        let extent = wgpu::Extent3d {
+            width: size[0],
+            height: size[1],
+            depth_or_array_layers: 1,
+        };
+        let target = |format, usage| {
+            device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("drive picture"),
+                size: extent,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format,
+                usage,
+                view_formats: &[],
+            })
+        };
+        let colour = target(
+            FORMAT,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        );
+        let depth = target(DEPTH_FORMAT, wgpu::TextureUsages::RENDER_ATTACHMENT);
+        {
+            let colour_view = colour.create_view(&wgpu::TextureViewDescriptor::default());
+            let depth_view = depth.create_view(&wgpu::TextureViewDescriptor::default());
+            // Cleared as the window's painter clears: depth to 1.0,
+            // colour to black under the panels that cover it.
+            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("drive picture"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &colour_view,
+                    depth_slice: None,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &depth_view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: wgpu::StoreOp::Store,
+                    }),
+                    stencil_ops: None,
+                }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            renderer.render(&mut pass.forget_lifetime(), &primitives, &screen);
+        }
+        let row = u64::from(size[0]) * 4;
+        let padded = row.div_ceil(COPY_ROW_ALIGNMENT) * COPY_ROW_ALIGNMENT;
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("drive picture"),
+            size: padded * u64::from(size[1]),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let fault = |what: &str, error: &dyn std::fmt::Display| {
+            DriveError::Picture(format!("the picture's {what} failed: {error}"))
+        };
+        let padded_u32 = u32::try_from(padded).map_err(|error| fault("row size", &error))?;
+        encoder.copy_texture_to_buffer(
+            wgpu::TexelCopyTextureInfo {
+                texture: &colour,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::TexelCopyBufferInfo {
+                buffer: &readback,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_u32),
+                    rows_per_image: Some(size[1]),
+                },
+            },
+            extent,
+        );
+        queue.submit(
+            prepared
+                .into_iter()
+                .chain(std::iter::once(encoder.finish())),
+        );
+        let (sent, mapped) = std::sync::mpsc::channel();
+        readback
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |result| {
+                // The receiver is held below until this has answered.
+                let _ = sent.send(result);
+            });
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|error| fault("poll", &error))?;
+        mapped
+            .recv()
+            .map_err(|error| fault("map", &error))?
+            .map_err(|error| fault("map", &error))?;
+        let view = readback
+            .slice(..)
+            .get_mapped_range()
+            .map_err(|error| fault("mapped range", &error))?;
+        let row = usize::try_from(row).map_err(|error| fault("row size", &error))?;
+        let padded = usize::try_from(padded).map_err(|error| fault("row size", &error))?;
+        let rgba = view
+            .chunks_exact(padded)
+            .flat_map(|line| &line[..row])
+            .copied()
+            .collect();
+        Ok(Picture { size, rgba })
+    }
+
+    /// **Frames until the app is at rest** (quiescent, and no check
+    /// still running), then two quiet ones: one for what landed in the
+    /// last to be laid out, one for a layout that sized itself on its
+    /// first appearance.
     ///
     /// # Errors
     ///
@@ -413,11 +696,14 @@ impl Driver {
             frame,
             window,
             time,
+            textures,
             ..
         } = self;
-        let last = settled(app, quiescent, |app| {
+        let last = settled(app, at_rest, |app| {
             *time += FRAME_SECONDS;
-            painted(ctx, app, frame, *window, Some(*time), Vec::new())
+            let mut painted = painted(ctx, app, frame, *window, Some(*time), Vec::new());
+            textures.fold(std::mem::take(&mut painted.textures));
+            painted
         })
         .ok_or_else(|| DriveError::Unsettled(unsettled(&self.app)))?;
         self.last = last;
