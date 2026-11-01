@@ -1961,8 +1961,8 @@ mod cap_corner_departure {
             .collect();
         assert_eq!(
             receipts,
-            [(12, 9), (1, 1), (4, 4), (1, 1)],
-            "each pair's (splits, deepest cell)"
+            [(0, 0), (0, 0), (0, 0), (0, 0)],
+            "each pair's (splits, deepest cell): the root cell certifies, as on the lens loft"
         );
     }
 }

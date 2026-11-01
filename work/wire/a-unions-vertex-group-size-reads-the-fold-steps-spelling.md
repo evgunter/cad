@@ -57,3 +57,45 @@ edges are answered (`name_by_parents`'s record): each published vertex is a grou
 the entities its name holds. The record then reads the same in every
 member order. This moves the `grouped` record of every union vertex from
 no group to its count. Nothing published in a name table moves.
+
+## Findings (wire-unionvertex, 2026-10-28)
+
+**Decision.** A union vertex group is one member corner's copies. The
+end pass (`emit_union`'s `cite_member_edges`) forms one group per
+member-corner set, under the corner's name, as the pair boolean groups
+an operand corner's copies. Only a corner's copies are qualified, so no
+other union vertex forms a group. The one exception is a row the end
+pass keeps verbatim with the fold's fragment qualifier: the fold's
+`Tied` rows at a member corner, see
+`a-unions-tied-fold-rows-at-a-member-corner-bypass-the-corner-rule`.
+Such a row is a member of the group the fold step formed, so
+`cite_member_edges` puts its base in `Rederived::by_fold`, and that base
+alone keeps the fold reading. The fold reading for those bases was
+order-free over the suite: 0 disagreeing pairs. Without that exception,
+51 such bases read `Some([2])` → `Some([])`.
+
+**Probe** (env-gated hook after `FragmentGroups::folded`, not
+committed; editor-core suite minus the interval, range and solve
+drives). (test, published vertex) pairs reading both `Some([1])` and
+`Some([])` across member orders: **1806 on main, 0 on the branch**.
+Pairs reading any two values: 1827 → 0.
+
+**Dump.** Every union evaluation's published table has the same digest
+on both sides: 7284 (test, table) digests, all equal. Of 739,479
+(test, table, name, query) `sizes` lines, 51,688 moved, all of them
+`SIZE` of a bare vertex name:
+
+| Before | After | Lines |
+|---|---|---|
+| `Some([1])` | `Some([])` | 50,637 |
+| `Some([])` | `Some([1])` | 844 |
+| `None` | `Some([])` | 132 |
+| `Some([0])` | `Some([1])` | 60 |
+| `Some([1, 1])` | `Some([])` | 15 |
+
+No face, edge or qualified-vertex base moved.
+
+**Witness.** `resolve_group_membership::a_unions_corner_held_twice_then_once_reads_two_to_one_in_every_member_order`.
+On main it reads `GroupResized { was: 2, now: 0 }` in the orders whose
+fold joins the corner away, and `now: 1` in the others. On the branch it
+reads `now: 1` in all 24 orders.
