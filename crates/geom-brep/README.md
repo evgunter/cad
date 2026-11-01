@@ -33,7 +33,7 @@ escalated typed refusal, never a raw comparison.
 | C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
-| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
+| C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad/`; `crates/geom-core/src/linalg/{svd,lsq}.rs`; where a chart singularity lies against a face, `crates/geom-brep/src/chart_singularity.rs` |
 | O1 analytic offset mint | `crates/geom-brep/src/offset.rs` |
 | O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
 | O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
@@ -303,13 +303,23 @@ per-step predicate can prove "no other branch within reach" from local
 data, so none is asked to. `ssi/march.rs` is a candidate generator
 (Hoffmann §6.2: third-order local approximant from the underdetermined
 jet system solved by SVD, Frenet choice of free coefficients, Newton
-refinement; all f64, libm-only, fixed iteration order). Two trace shapes
-are compile-time decisions per table arm: an implicit pair in ℝ³ (2×3
-SVD; `cylinder_sphere_ssi`) and a parametric pair in ℝ⁴ on
-`G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD; `ssi::PlaneSection` on a plane
-and a NURBS chart, `ssi::Section` on two NURBS charts), from which the
-3-D curve and both pcurves fall out as projections of one traced object
-on one shared parameter. A branch jump is a certificate refusal. The
+refinement; all f64, libm-only, fixed iteration order). Each side
+enters the section through the one exact description it has: its
+implicit residual where it has one in metres (plane, cylinder, sphere,
+torus), else its chart (NURBS). The pair is one system on
+`ℝ³ × ∏ Dᵢ`, the point eliminated wherever a chart side exists, so the
+trace shape is decided by the sides: two residuals, an implicit pair in
+ℝ³ (2×3 SVD; `cylinder_sphere_ssi`); a residual and a chart, one
+equation `f∘S = 0` on the chart's knot rectangle (1×2); two charts, a
+parametric pair in ℝ⁴ on `G₁(u₁,v₁) − G₂(u₂,v₂) = 0` (3×4 SVD;
+`ssi::Section`), from which the 3-D curve and both pcurves fall out as
+projections of one traced object on one shared parameter. The trace's
+**domain** is the compact part of its state space: a chart side
+contributes its knot rectangle; two residual sides have no compact set
+of their own, so the pose's ball where one is proved, cut by the
+operation's region, bounds them, and the region alone where none is. No face's trim sizes a domain. A
+component is closed, or ends on the domain's boundary (a rim end on a
+rectangle's side, or a cut end on the region's), or ends at a node. A branch jump is a certificate refusal. The
 stepper guards the step where it mints it: no step is longer than the
 march domain's diagonal, and a march speed that is not positive and
 finite, a step that is not finite or does not move the state
@@ -472,7 +482,16 @@ zero by enclosure, the boundary pass's mean-value enclosure of a strip
 or corner cell the plane misses included), *accounted* (contained in a found branch's tube,
 or in a boundary contact's certified region), or refined to the named
 floor, where the op refuses
-`SsiError::ExhaustivenessInconclusive`. Each floor is minted once over
+`SsiError::ExhaustivenessInconclusive`. Where the pose counts the
+section's components (C5), exhaustiveness closes by that count: the
+march, seeded from the counted cut ends and witnesses, returns
+certified branches matched one to one to them, else a desync; the cell
+sweep runs where no pose counts. For a pair with a ruled side (a
+cylinder or cone against a plane, cylinder, cone or sphere) the count
+is the ruling sweep's, and a `debug_assert` re-derives it: each cell of
+the ruling angle has its rulings' meetings with the partner (the roots
+of a quadratic, in closed form) outside the domain the march ends at or
+inside a found branch's tube (DESIGN's error taxonomy, row 5). Each floor is minted once over
 the domain it bisects (`SweepFloor`), and a floor that domain cannot
 resolve refuses `SsiError::FloorUnresolvable` before any sweep runs:
 one that is not a positive finite width, or one narrower than the
@@ -523,16 +542,19 @@ side's image on the other chart:
   that the caller hands in with its two certified images. The region
   is the row's cover, a chain of boxes along the row, each wide enough
   across it to hold the accounting floor's cells beside it, over which
-  the pair's crossing reading (`graph_margin`, `ssi::row_crossing` at
-  that width) is zero-free. Each slice across the row then holds at
-  most one solution, and the row is that solution. Its cells are
+  the pair's crossing reading (`graph_margin`, `ssi::four::row_cover`,
+  `row_crossing` at that width) is zero-free. Each slice across the row then holds at
+  most one solution, so no closed loop lies in the cover; where the
+  row is an exact solution, it is that solution. Its cells are
   contact cells in the accounting.
 - **A `Corner` region** comes from a shared vertex at a corner of both
   rectangles. The reading certifies the crossing reading zero-free
   over the corner cell, and reads the signs of the direction the
-  section leaves along there, as the plane lane reads a corner's
-  inward partials: either the section leaves the domain (an isolated
-  point), or a branch starts there.
+  section runs along there, as the plane lane reads a corner's
+  inward partials. Mixed signs make every arc in the cell monotone
+  in all four coordinates, so no arc closes in the cell, which is a
+  contact cell; uniform signs make the corner a crossing where a
+  branch starts.
 
 A face the walk does not resolve within its pieces and that no handed-in
 row or vertex covers (the section touching or running along a side, or
@@ -784,9 +806,25 @@ and every reader (the pair's SSI door, the section value, the section
 certificate) reads that one decision: a closed-form margin where the
 pose has one, and otherwise the pair's **critical gap**, a certified
 sweep of a one-parameter distance between the two surfaces' spines,
-never a root formula; in band, it escalates. A pair with a NURBS or
-`Approx` side has no such pose and is outside this rule: its tangency
-is its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
+never a root formula; in band, it escalates. A pair of a NURBS face and a
+surface with an implicit residual `f` (plane, cylinder, sphere, torus;
+the cone once its residual is enclosed) decides its tangency and
+coincidence once, in its classification, on the composite `φ = f∘S`
+over the NURBS face's knot rectangle, before any march, and every
+reader reads that verdict: the hull of `φ` decides apart and
+coincident; the boundary pass decides each side (a side the boolean's
+records declare is read from them); one regularity sweep of the
+rectangle decides the interior, where an isolated critical point of `φ`
+with a nondegenerate Hessian and its value decided in the zero band is
+a tangency decided Zero (a point touch where the Hessian is definite, a
+node where it is indefinite, its arcs ending at it), and a tangency
+along an interior curve, or anything in band, escalates. A side of the
+rectangle collapsed to one point not decided clear of the partner
+refuses at the door, before the sweep, naming the side. The
+interior-loop guard's loop-free stage is that sweep's verdict. A pair
+of two spline sides (NURBS, or `Approx` read as its fit) is classified
+the same way over both rectangles; until that is built, its tangency is
+its certificate's (C2). Tangential outcomes (`TangentLine`, `TangentPoint`) are
 classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, and as an intersection operand it is its fit: `(Plane,
 Approx)` and `(Approx, Plane)` route to the plane×NURBS arm over
@@ -831,14 +869,17 @@ topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
 plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
 each arc minted per window, `ConicBranch::arc`),
-declared-equal cylinder×cylinder, axis-aligned plane×torus (its
-axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
+axis-aligned plane×torus (its axis-parallel pose off the axis the
+`Spiric`) (rung 2); cylinder×cylinder in every pose (its parallel
+rulings and its bisector ellipses closed form, every other crossing pose
+marched over its ball cut by the region), cylinder×sphere,
 sphere×torus, cylinder×torus, torus×torus, plane×NURBS and plane×`Approx`,
 NURBS×NURBS and every pairing of `Approx` with NURBS or `Approx` (rung 3). The offset door reads
 plane×NURBS through `PlaneSection::branch_at` and NURBS×NURBS through
 `Section::branch_at`, each at the old edge's middle. The boolean reads
 plane × NURBS and NURBS × NURBS (and `Approx` as its fit) through the
-section value, built from the whole-section reading `all()`:
+section value (`pair_section`, through its march door), built
+from the whole-section reading `all()`:
 - each closed branch is a loop component, with its witness and carrier;
 - each open branch, `Side` region and `Corner` region is a component
   that reaches its chart's boundary;
@@ -850,27 +891,52 @@ face. A point of the rectangle's side that lies in the face lies on one
 of the face's pcurves (C4), which is an edge of the face. So the
 interior-loop guard clears such a component as it clears an unbounded
 one.
+A plane × spline pair is classified before `all()` is read, in the
+order above: the hull decides it apart or coincident, or escalates, at
+every scalar; a collapsed side not decided clear refuses at the door;
+the boundary pass, run once and handed on to `all()`, refuses a graze
+by name and finds where the section ends; and the regularity sweep's
+loop-free verdict, every component open with its ends on those sides
+(`Components::Reaching`), is the value's, with no `all()`. The guard
+clears it where each of those sides bounds the face, and otherwise
+reads it whole. Where the sweep declines, the value is `all()`'s.
 The boolean reads the rung-3 arms cylinder×sphere and the three torus
 pairs through the section value (`pair_section`), classified, then
 carried: the classification decides the pair's pose once and, where a
 closed form counts them, its components (`Components::Counted`); it
 costs no march and needs no lane. Carrying marches and fits the loops
-at `f64`, and lists the components: a counted section's, the march a
-cross-check of the count (as many distinct branches, each listed
-witness on one branch, each claimed winding held, else a desync), and
+at `f64`, and lists the components: a counted section's, the count the
+proof and the march matched to it one to one (each boundary crossing
+the end of exactly one branch, each listed witness on exactly one
+branch, each claimed winding held, else a desync), and
 otherwise the march's own closed branches (`Components::Marched`), each
 winding about an operand as the fitted loop's turns about the
-operand's axis and core circle, read off the loop in ℝ³, say
-(`pair_section::winds`); a point is read on a carried loop within the
+operand's axis and core circle, read over the loop's uniqueness tube
+in ℝ³, say (`pair_section::winds`); a point is read on a carried loop within the
 band padded by the loop's pad (`CarriedComponent::pad`, where its
 closeness and uniqueness are argued). A reader that needs a list no closed form
 counts carries; a site's component is its foot on the carried section,
-its one reading. Each torus pair's pose
+its one reading. A pair traced in ℝ³ is read over its own ball where
+its pose proves one, cut by one region per operation, as at one band:
+the ball about the overlap of the two operands' boxes, padded, which
+holds every section point the operation can use. No face's or site's
+extent enters it, so two faces on one carrier read one value. A
+component is closed, or open with both ends on the domain's boundary,
+or ends at a node (Edge descriptions): a node is
+decided on the pose as a Zero tangency whose section still has
+carriers, placed in closed form, and a site at it reads as the node.
+Two cylinders decide their pose on closed-form margins: parallelism as
+`sin θ · L` at the region's radius `L`; then the gap `e` along the
+common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
+distance where parallel. A pair with a ruled side reads its pose on the
+sweep of the discriminant along that side's rulings: its double root
+the tangency, decided on the pose, the arcs where it is positive the
+components, a cone's apex a closed-form margin, and for two cylinders
+the margins above its extremes. Each torus pair's pose
 (`SphereTorusPose`, `CylinderTorusPose`, `TorusTorusPose`) guards its
 operands, reads the partner's symmetry on the section certificate's
 lever and pivot margins over the torus's own ball `|x − c| ≤ R + r`
-(which holds the whole section, so no face's extent enters a value
-keyed by surface pair; the smaller ball for two tori), and decides the
+(which holds the whole section; the smaller ball for two tori), and decides the
 **critical gap**, the one place a torus pair's tangency is decided. Two
 tori are decided one surface or not before any of it
 (`pair_section::torus_coincidence`): one where the bound on their
@@ -947,17 +1013,22 @@ of the face by the face's trim.
 Implemented: the table (`curve_face::route`), the boundary pass
 (`curve_face::boundary`), which the boolean's sweep reads ahead of the
 carrier for a spline face and through which its on-carrier crossing
-reading reads every face's boundary, and the spline span × plane arm
-(`curve_face::composite`, the boolean's planar lane reading it). That
-arm composes the face's canonical residual along the span (the ring
+reading reads every face's boundary, and the spline span × analytic
+face arm (`curve_face::composite`, which the boolean's planar lane reads
+against a plane and its curved lane against a cylinder, cone, sphere or
+torus). That arm composes the face's canonical residual along the span (the ring
 composite) and reads it piece by piece, a piece never straddling a
 knot: clear where the residual, metered, is definitely past the band
 over the piece; one crossing where it is monotone and its ends lie
 definitely on opposite sides, bisected and read on the surface; and
 otherwise cut where it is definitely past the band. A piece within the
 band that no cut parts, a meeting within the band of a crease and two
-crossings within the band of each other refuse. The composite reads the curved analytic faces too, but the
-curved lane does not dispatch a spline span to it. The span ×
+crossings within the band of each other refuse. The composite is formed
+in a chart frame built in certification arithmetic, so the frame's
+rounding enters its enclosures. Where it refuses a count, the boolean
+localizes the span's meetings with the carrier and reads them against
+the face's trim: certified off the face, the span meets it nowhere
+inside. The span ×
 spline face arm is built for an analytic or a NURBS span
 (`curve_face::spline_face`, the boolean's spline-face door reading it
 past the boundary pass): it settles boxes of the state `(t, u, v)` on
@@ -975,7 +1046,14 @@ end of the span is the end vertex's meeting: the walk reads past it as
 far as the carrier runs, and a box holding the end's state on which
 every solution lies within the band of the end, by the mean value
 theorem, is accounted for by it, so an end at the carrier's domain end
-or on the chart's edge is read without reading past either. A spiric
+or on the chart's edge is read without reading past either. An end on
+the chart's domain edge, the face's rim, is first read by its sector:
+where the span's departure, enclosed over a window leaving the end,
+leaves on the far side of the rim from the face's inward departure,
+enclosed by the chart's partials over a window inside the edge, every
+solution in that box of the state lies within the band of the end, a
+tangent touch and an end on a crease included, and the walk does not
+read past that end. A spiric
 span against a spline face is unbuilt. The analytic
 arms are the sweep's existing root doors. A meeting inside a spline
 face's chart is placed by the trim at the chart point it was found at,
@@ -1051,12 +1129,21 @@ transverse normal curvature
 `κ_rel = κ₁ − κ₂` bounded away from zero (the IFT denominator of the jet
 system), with C2's hull bounds and tube between samples. Where
 first-order sector ranking ties exactly, classification descends one
-order: a surface pair through `enters_material_order2` (consumed by
-`topo::boolean::sectors`), a conic edge against a plane through
-`conic_bend_side`, its lift certified from the carrier's curvature
-bounds less the first-order residue (consumed by
-`topo::splitting::neighborhood` and `topo::boolean::sectors` alike); an
-in-band second-order tie escalates. Readings of different equations are never
+order. Two curves or sheets leaving along one tangent part by the one
+parting reading (`parting`, `(κ₁ − κ₂)·û·l²/2`, decided by each site
+under its own name; `parting_side` against a reference side, of which
+`enters_material_order2`, a curve against a plane, and `tied_germ_turn`
+are cases): a surface pair along a declared tangency and the boolean's
+bound-against-bound readings alike (`topo::boolean::sectors`, `fate`,
+`slit`). An edge bound of a vertex's sector against a face is read
+through the one bound-side reading (`topo::bound_side`), taken by
+`topo::boolean::sectors` and `topo::splitting::neighborhood` alike, and
+so is a bisector bound in the boolean's sector passes; the split's
+subdivision bisectors (`wide_entries`, `split_bisector_side`) read
+their side of the plane outside it. A conic edge against a plane
+descends through `conic_bend_side`, its lift certified from the
+carrier's curvature bounds less the first-order residue. An in-band
+second-order tie escalates. Readings of different equations are never
 summed: the witness's offset along the shared normal and across the
 locus are perpendicular, and a residual is a defect of its equation, not
 a distance to the locus (as for `Intersection`). Two terms are summed
@@ -1243,10 +1330,11 @@ curved-cut faces are certified quadrature (C9, `props/quad/`):
 harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
-pcurve channels refuse `QuadratureUnsupported`. A face refines until
-its caller's predicate over the enclosure resolves (a sign, a relation,
-or a resolution, each stated by the caller), refinement stops paying, or the
-per-face work bound is reached. It returns the narrowest certified
+pcurve channels refuse `QuadratureUnsupported`. A measurement refines
+where its enclosure is widest until its caller's predicate over the
+enclosure resolves (a sign, a relation, or a resolution over the measured
+surface, each stated by the caller), refinement stops paying, or the
+budget its caller stated is spent. It returns the narrowest certified
 enclosure it reached, with the reason it stopped (`[tolerance.measure]`):
 never a silent Gaussian, and never a refusal for width alone. A plane cap or torus wall
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
@@ -1262,11 +1350,21 @@ by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
 (`props/curved.rs`, `sphere_face`). A chart
-singularity inside a face is a vertex of it, so a sphere face lies on
+singularity in a face's closure is a vertex of it, read off the face's
+region by one reading that STEP import and tier 3 both take
+(`chart_singularity.rs`, `locate`); on a sphere loop of circle arcs that
+reading takes a pole's side from this lane's own stereographic turning
+(`sphere_pole_left`, beside `pole_side`), so a sphere face lies on
 the side of its loop that holds no chart pole. The closed-form lane and
 tier 3 read that side to cross-check the face's sense bit, and refuse a
 contradiction, wherever at least one pole lies off the loop
-(`sphere_loop_side`). A face whose loop holds both poles is read through
+(`sphere_loop_side`). A wrap tip's spur bounds nothing and leaves the
+loop's chart image, taking the pole at its tip off the loop, but the
+face holds that pole: tier 3 hands each tip the image drops to the
+reader as a point the face holds (`boundary_material_sign_holding`), so
+the face lies on the side that holds its own singular vertices and no
+other pole. The closed-form lane's cross-check of the bit takes the
+same datum (`curved_face_holding`). A face whose loop holds both poles is read through
 its seam region, the faces of its surface it reaches across shared
 edges: a pole on an edge interior to the region lies inside it, so the
 region is the side of its boundary that holds such a pole
@@ -1275,8 +1373,8 @@ loops is read by the sign of its area. A region with no boundary covers
 the sphere and encodes no side: covered once, it is a shell whose
 orientation checks 7 and 10 read. A region whose boundary carries both
 poles, or whose poles lie on no member's loop, encodes no side: the
-pole-free reading would assume the rule above, which validity does not
-yet enforce. For a region of one face the flipped bit describes the
+pole-free reading would assume the rule above, which tier 3 enforces
+and this reader does not lean on. For a region of one face the flipped bit describes the
 complement, another valid body. Where a region's faces overlap, tier 3
 refuses it by its cover census (`sphere_region_cover`), read for every
 seam region of two faces or more, whatever its members' own boundaries

@@ -68,6 +68,7 @@ mod ratio;
 pub mod refactor;
 pub mod refusal;
 pub mod repetition;
+pub use repetition::{MemberCountFault, MemberEnv, Reached};
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
 /// leaf-mass histogram, and the one content-key cache. Every report
@@ -123,7 +124,8 @@ pub use coincide::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
-    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, VarName,
+    DisplayUnitRefusal, DistributionRefusal, Doc, DocParamField, FreeValue, FreeVar, Unused,
+    VarName,
 };
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
@@ -142,7 +144,7 @@ pub use eval::{
     ComputingTwist, ContentBits, ContentKey, DirectionRefusal, Epoch, EvalCounters, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, Framed, NamingKey, NodeError, NodeErrorClass,
     NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PartFault, Piece, Pieces,
-    PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate,
+    PoseValue, ProfileLane, ProfilePieces, SplitSide, ValuePayload, evaluate, traced_faces,
 };
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
@@ -178,9 +180,9 @@ pub use measure::{
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape, CurveKind,
-    CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
-    EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactPair, ContactRefusal, CrossingSensesShape, CurveKind,
+    CurveKindSet, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind, EntityNamed,
+    EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
     KindMismatch, LeafRole, MemberAt, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable,
     NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef,
     ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine,
@@ -243,7 +245,10 @@ pub use resolve::{
 pub use step_handle::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
 };
-pub use trace::{TraceRefusal, TraceStepFault, TracedFace, Traces};
+pub use trace::{
+    TraceMark, TraceMarks, TraceRefusal, TraceStepFault, TracedFace, TracedFrameFault, Traces,
+    trace_marks, traced_frame,
+};
 pub use var::{
     FreshEntry, Index, Pick, Select, SelectionCount, SelectionFault, Var, VarDecl, VarDef, VarId,
     VarKind, VarRef, WrittenDef,

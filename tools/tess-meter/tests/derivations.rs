@@ -455,7 +455,7 @@ fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> (f64, f64) {
     // magnitude, and narrow enough that `10^x` and `mvv·t²` stay finite.
     const BRACKET_DECADES: f64 = 80.0;
     const ITERATIONS: usize = 300;
-    let phi = 0.5 * (5.0f64.sqrt() - 1.0);
+    let phi = geom_core::GOLDEN_SECTION;
     let at = |x: f64| {
         let t = 10.0f64.powf(x);
         let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));

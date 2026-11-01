@@ -47,10 +47,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, Formula, LoopProgram, Node,
+    Dimension, DimensionError, Doc, EvalError, Evaluation, Formula, LoopProgram, Node,
     ProfileProgram, ProgramResolveFault, RecipeNodeId, RecordedNotation, RecordedProgramError,
-    SlotId, SpokenNode, StepId, ValuePayload, WrittenLoopFault, resolve_loops,
-    resolve_written_loops,
+    SlotId, SpokenNode, StepArg, StepId, TraceCrossing, TracePassage, TraceSense, ValuePayload,
+    WrittenLoopFault, resolve_loops, resolve_written_loops,
 };
 use pncad::geom_core::{Arc2, Point2, Tol};
 use pncad::profile::{
@@ -58,6 +58,7 @@ use pncad::profile::{
     PieceRole, ProfileError, ReplayError, ReplayErrorKind, ReplayStructure, SketchPlane, SpecForms,
     Step, Target, TargetKind, TipState, Verb, arc_specs_at, replay, replay_recording,
 };
+use pncad::quantity::UnitDef;
 
 use crate::frame::Tone;
 use crate::props::Notation;
@@ -226,7 +227,8 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// **`notation` over every argument `program` holds** — each `Length`
 /// argument written in its length unit, each `Angle` one in its angle
 /// unit, and every other argument (a bulge, a director component) left
-/// with the one spelling a dimensionless number has.
+/// with the one spelling a dimensionless number has — except where
+/// `noted` names the unit the argument at `(step, arg)` is written in.
 ///
 /// Asked of the PROGRAM, through its own argument enumeration, rather
 /// than of the steps: which roles a step holds is the document layer's
@@ -234,10 +236,15 @@ pub fn fresh_target(kind: TargetKind) -> Target<f64> {
 /// come to be minted without its unit.
 fn recorded_notation(
     notation: Notation,
+    noted: &dyn Fn(u32, StepArg) -> Option<UnitDef>,
     program: &LoopProgram<Formula>,
 ) -> Result<RecordedNotation, DimensionError> {
     let mut recorded = RecordedNotation::new();
     for (step, arg) in program.step_args() {
+        if let Some(unit) = noted(step, arg) {
+            recorded.set(step, arg, unit)?;
+            continue;
+        }
         match arg.dimension() {
             Dimension::Length => recorded.set(step, arg, notation.length.def())?,
             Dimension::Angle => recorded.set(step, arg, notation.angle.def())?,
@@ -303,14 +310,29 @@ pub fn loop_program(
                 .collect::<Result<Vec<_>, DimensionError>>()?;
             Ok(LoopProgram::polygon_expr(corners))
         }
-        ProfileShape::Path { steps } => {
-            // Lifted once to learn which arguments the program holds,
-            // then again with the notation written over them: the lift
-            // is the only thing that knows the roles.
-            let written = recorded_notation(notation, &LoopProgram::from_recorded(steps)?)?;
-            LoopProgram::from_recorded_with_notation(steps, &written)
-        }
+        ProfileShape::Path { steps } => path_program(steps, notation, &|_, _| None),
     }
+}
+
+/// **A path lowered with some arguments written in units of their
+/// own** — [`loop_program`] of `steps`, where `noted` names the unit
+/// the argument at `(step, arg)` is written in and every argument it
+/// names none for is written in `notation`. The edit door writes a
+/// kept argument in the unit its slot is written in.
+///
+/// # Errors
+///
+/// [`loop_program`]'s.
+pub fn path_program(
+    steps: &[Step<f64>],
+    notation: Notation,
+    noted: &dyn Fn(u32, StepArg) -> Option<UnitDef>,
+) -> Result<LoopProgram<Formula>, RecordedProgramError> {
+    // Lifted once to learn which arguments the program holds, then
+    // again with the notation written over them: the lift is the only
+    // thing that knows the roles.
+    let written = recorded_notation(notation, noted, &LoopProgram::from_recorded(steps)?)?;
+    LoopProgram::from_recorded_with_notation(steps, &written)
 }
 
 /// **Whether two shape lists author the same loops** — what a frame
@@ -361,10 +383,25 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
 // The edit door: a committed program into the editor, and back
 // ------------------------------------------------------------------
 
-/// **The loops of a committed profile as the editor holds them** —
-/// the kernel's own [`Step`] at plain numbers, per loop, which is the
-/// currency the create form authors in. What makes the two doors one
-/// editor is that both hold this and nothing else.
+/// **A committed profile as the editor holds it**: the kernel's own
+/// [`Step`] at plain numbers, per loop — the currency the create form
+/// authors in — and beside them every argument an expression drives.
+///
+/// A driven argument's number is its expression's value under the
+/// document, which is what the step replays and the preview draws; its
+/// expression is what a commit writes back while the step is kept
+/// ([`crate::drafts::ProfileEdit`]), so the number is a reading and
+/// never a literal written over a computation.
+#[derive(Clone, Debug)]
+pub struct HeldLoops {
+    /// The loops, in description order.
+    pub loops: Vec<Vec<Step<f64>>>,
+    /// Every argument an expression drives, in slot order.
+    pub driven: Vec<SlotId>,
+}
+
+/// **The loops of a committed profile as the editor holds them**
+/// ([`HeldLoops`]).
 ///
 /// The inverse of [`loop_program`], read through the document layer's
 /// own resolver ([`resolve_loops`]) rather than a second verb-by-verb
@@ -375,16 +412,10 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
 ///
 /// # Errors
 ///
-/// [`HeldRefusal`]: the node is not a profile; an argument is driven
-/// by an expression, which a `Step<f64>` has no way to hold — the
-/// whole node is refused rather than shown as numbers that would be
-/// written back over a computation, and every driven argument is
-/// named so the reader knows which rows to edit instead; or the
-/// resolver refused a stored expression.
-pub fn held_loops(
-    doc: &Doc<ProfileProgram>,
-    node: RecipeNodeId,
-) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+/// [`HeldRefusal`]: the node is not a profile; the node lists an
+/// argument it carries no expression for; or the resolver refused a
+/// stored expression.
+pub fn held_loops(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<HeldLoops, HeldRefusal> {
     let Some(Node::Profile(program)) = doc.node(node) else {
         return Err(HeldRefusal::NotAProfile {
             node: doc.spoken(node),
@@ -401,40 +432,67 @@ pub fn held_loops(
 ///
 /// # Errors
 ///
-/// [`HeldRefusal::Driven`] or [`HeldRefusal::Resolve`], as
-/// [`held_loops`].
+/// As [`held_loops`].
 pub fn held_program(
     node: SpokenNode,
     program: &ProfileProgram,
     doc: &Doc<ProfileProgram>,
-) -> Result<Vec<Vec<Step<f64>>>, HeldRefusal> {
+) -> Result<HeldLoops, HeldRefusal> {
     let held = Node::Profile(program.clone());
-    // Every argument, asked of the node's own slot walk. An address
-    // the walk lists and `expr` denies is the node layer's broken
-    // postcondition, which `props::slot_row` reports as a row; here
-    // it reads as driven, the refusing direction.
-    let driven: Vec<(SlotId, String)> = held
-        .slots()
-        .into_iter()
-        .filter_map(|slot| match held.expr(slot) {
-            Some(&var) if doc.is_typed_value(var) => None,
-            Some(&var) => Some((
-                slot,
-                doc.unparse(&doc.written(&Expr::var(var, slot.expr_dimension()))),
-            )),
-            None => Some((slot, String::new())),
-        })
-        .collect();
-    if !driven.is_empty() {
-        return Err(HeldRefusal::Driven {
+    // Every argument, asked of the node's own slot walk: an anonymous
+    // free variable is a number the editor holds, anything else an
+    // expression held beside the number it reads. An address the walk
+    // lists and `expr` denies is the node layer's broken postcondition,
+    // which `props::slot_row` reports as a row; here it refuses.
+    let mut driven = Vec::new();
+    let mut unwritten = Vec::new();
+    for slot in held.slots() {
+        match held.expr(slot) {
+            Some(&var) if doc.is_typed_value(var) => {}
+            Some(_) => driven.push(slot),
+            None => unwritten.push(slot),
+        }
+    }
+    if !unwritten.is_empty() {
+        return Err(HeldRefusal::Unwritten {
             node,
-            slots: driven,
+            slots: unwritten,
         });
     }
-    resolve_loops(&program.loops, &doc.var_env::<f64>()).map_err(|fault| match fault {
-        ProgramResolveFault::Expr { slot, source } => HeldRefusal::Resolve { slot, source },
-        ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
-    })
+    let loops =
+        resolve_loops(&program.loops, &doc.var_env::<f64>()).map_err(|fault| match fault {
+            ProgramResolveFault::Expr { slot, source } => HeldRefusal::Resolve { slot, source },
+            ProgramResolveFault::Trace(refusal) => HeldRefusal::Traced(refusal),
+        })?;
+    Ok(HeldLoops { loops, driven })
+}
+
+/// **`step` with each of `readings` written at its role** — one
+/// held step's arguments set by role, through the document layer's own
+/// role table: the step lifted alone, each role's argument replaced by
+/// a literal of its reading, and resolved back. Every other argument
+/// is the literal it was, so it comes back bit for bit. `None` where
+/// the step does not lift alone or a role is not the step's.
+#[must_use]
+pub fn with_readings(step: Step<f64>, readings: &[(StepArg, f64)], tol: Tol) -> Option<Step<f64>> {
+    let mut lifted = Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::from_recorded(&[step]).ok()?],
+        ids: Vec::new(),
+        on: None,
+    });
+    for &(arg, reading) in readings {
+        let slot = SlotId::Profile {
+            loop_: 0,
+            step: 0,
+            arg,
+        };
+        *lifted.expr_mut(slot)? = Formula::literal(reading, arg.dimension()).ok()?;
+    }
+    let Node::Profile(ProfileProgram { loops, .. }) = lifted else {
+        unreachable!("lifted as a profile node")
+    };
+    let resolved = resolve_written_loops(&loops, tol).ok()?;
+    resolved.into_iter().next()?.into_iter().next()
 }
 
 /// **`program` as it was written** ([`Node::written`]): each argument
@@ -472,8 +530,111 @@ pub fn is_committed(
             == ProfileProgram {
                 loops: loops.to_vec(),
                 ids: base.ids.clone(),
-                on: None,
+                on: base.on.clone(),
             }
+}
+
+/// **The gesture that continues a chain tangent to a face's trace**
+/// (D10, "Constructing a coincidence"): after row `after` of the chain,
+/// the piece runs on along its heading to the `crossing` of the traced
+/// face, and the chain heads on along the trace there, `sense` it. It
+/// writes the document's own two steps ([`TraceGesture::steps`]), so
+/// the heading is the evaluation's reading of the trace at every
+/// evaluation, never a number this crate read off a drawing.
+///
+/// The branches are the document's: which crossing (its passage and
+/// count along the piece) and which sense. A branch the piece does not
+/// make refuses typed at evaluation, naming it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TraceGesture {
+    /// The row the gesture's steps follow.
+    pub after: usize,
+    /// Which crossing of the traced face the piece runs to.
+    pub crossing: TraceCrossing,
+    /// The heading along the trace there.
+    pub sense: TraceSense,
+}
+
+impl Default for TraceGesture {
+    /// After the first row, out of the face's material at the first
+    /// crossing, and on with the trace.
+    fn default() -> Self {
+        Self {
+            after: 0,
+            crossing: TraceCrossing::first(TracePassage::Leave),
+            sense: TraceSense::With,
+        }
+    }
+}
+
+/// Why a chain with a [`TraceGesture`] does not lower
+/// ([`traced_loop`]).
+#[derive(Debug)]
+pub enum TracedLoopError {
+    /// A row's literal, or the chain's shape, refused at the lift.
+    Program(RecordedProgramError),
+    /// The rows are a complete-loop verb, not a chain a piece runs on
+    /// from.
+    NotAChain,
+    /// The gesture follows a row the chain does not have.
+    NoSuchRow {
+        /// The row named.
+        after: usize,
+        /// How many rows the chain has.
+        rows: usize,
+    },
+}
+
+impl core::fmt::Display for TracedLoopError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Program(e) => write!(f, "{e}"),
+            Self::NotAChain => f.write_str("only a chain continues along a trace"),
+            Self::NoSuchRow { after, rows } => write!(
+                f,
+                "the trace follows row {}, and the chain has {rows}",
+                after + 1
+            ),
+        }
+    }
+}
+
+impl core::error::Error for TracedLoopError {}
+
+/// **A chain of `steps` with `gesture` written after its row**, reading
+/// the traced face `face`: the chain lowered as [`loop_program`] lowers
+/// a path, row for step, and the gesture's two steps
+/// ([`pncad::trace::Chain::onto_trace`]) after row `gesture.after`.
+///
+/// # Errors
+///
+/// [`TracedLoopError`].
+pub fn traced_loop(
+    steps: &[Step<f64>],
+    gesture: &TraceGesture,
+    face: u32,
+    notation: Notation,
+) -> Result<pncad::trace::Chain, TracedLoopError> {
+    let lowered = loop_program(
+        &ProfileShape::Path {
+            steps: steps.to_vec(),
+        },
+        notation,
+    )
+    .map_err(TracedLoopError::Program)?;
+    let LoopProgram::Chain(mut head) = lowered else {
+        return Err(TracedLoopError::NotAChain);
+    };
+    if gesture.after >= head.len() {
+        return Err(TracedLoopError::NoSuchRow {
+            after: gesture.after,
+            rows: head.len(),
+        });
+    }
+    let tail = head.split_off(gesture.after + 1);
+    Ok(pncad::trace::Chain::of_steps(head)
+        .onto_trace(face, gesture.crossing, gesture.sense)
+        .then_steps(tail))
 }
 
 /// Why a committed node cannot be held by the path editor.
@@ -484,15 +645,13 @@ pub enum HeldRefusal {
         /// The node named, as the document held it.
         node: SpokenNode,
     },
-    /// One or more arguments are expressions, which the editor's
-    /// plain-number steps cannot hold. Each is named with its source
-    /// text; an empty source is an address the node lists and carries
-    /// no expression for.
-    Driven {
+    /// The node lists arguments it carries no expression for, so
+    /// there is no number to hold for them.
+    Unwritten {
         /// The profile node, as the document held it.
         node: SpokenNode,
-        /// Every driven argument, in slot order.
-        slots: Vec<(SlotId, String)>,
+        /// Every such argument, in slot order.
+        slots: Vec<SlotId>,
     },
     /// A stored expression did not resolve under the document's
     /// parameters.
@@ -511,23 +670,13 @@ impl core::fmt::Display for HeldRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotAProfile { node } => write!(f, "{node} is not a profile"),
-            Self::Driven { node, slots } => {
+            Self::Unwritten { node, slots } => {
+                let labels: Vec<String> = slots.iter().map(|slot| slot.label()).collect();
                 write!(
                     f,
-                    "{node}'s program is driven by expressions, which the editor's number \
-                     fields cannot hold — edit those in the slot rows: "
-                )?;
-                for (index, (slot, source)) in slots.iter().enumerate() {
-                    if index > 0 {
-                        f.write_str(", ")?;
-                    }
-                    if source.is_empty() {
-                        write!(f, "{} (no expression)", slot.label())?;
-                    } else {
-                        write!(f, "{} = {source}", slot.label())?;
-                    }
-                }
-                Ok(())
+                    "{node} lists {} and carries no expression for it",
+                    labels.join(", ")
+                )
             }
             Self::Resolve { slot, source } => {
                 write!(f, "{} did not resolve: {source}", slot.label())
@@ -548,6 +697,50 @@ impl core::error::Error for HeldRefusal {}
 /// at the world's `xy`, the kernel's own mint ([`SketchPlane::xy`]).
 pub fn profile_plane() -> SketchPlane<f64> {
     SketchPlane::xy()
+}
+
+/// A trace tick's half-length, as a share of the span the points cover:
+/// long enough to read the tangent's direction, short enough that ticks
+/// of neighbouring points do not overlap at the default ray count.
+const TRACE_TICK: f64 = 0.02;
+
+/// A trace tick's half-length where the points cover no span (one point
+/// on the origin), metres: a millimetre.
+const TRACE_TICK_FLOOR: f64 = 1.0e-3;
+
+/// **A face's trace, drawn on the profile's plane**: each point of it
+/// [`pncad::trace::sketch_trace`] read, as a short leg along the
+/// trace's tangent there, headed with the trace. Display only: no
+/// verdict, and nothing reads the points back.
+#[must_use]
+pub fn trace_preview(marks: &pncad::trace::TraceMarks) -> ProfilePreview {
+    let span = marks
+        .marks
+        .iter()
+        .map(|m| m.at.x.abs().max(m.at.y.abs()))
+        .fold(0.0, f64::max);
+    let tick = if span > 0.0 {
+        span * TRACE_TICK
+    } else {
+        TRACE_TICK_FLOOR
+    };
+    let loops = marks
+        .marks
+        .iter()
+        .map(|m| PreviewLoop {
+            points: vec![
+                [m.at.x - m.tangent.x * tick, m.at.y - m.tangent.y * tick],
+                [m.at.x + m.tangent.x * tick, m.at.y + m.tangent.y * tick],
+            ],
+            vertices: vec![0],
+            end: LoopEnd::Unfinished(None),
+        })
+        .collect();
+    ProfilePreview {
+        plane: profile_plane(),
+        loops,
+        invalid: None,
+    }
 }
 
 /// **One drawn loop of a preview**: its polyline, and how the chain
@@ -1441,41 +1634,71 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for node in doc.ids() {
-        if Some(node) == except || !admits(doc, node, NodeKindWanted::Profile) {
+        if Some(node) == except {
             continue;
         }
-        let Some(value) = evaluation.value(node) else {
-            continue;
-        };
-        let ValuePayload::Profile(profile) = &value.payload else {
-            continue;
-        };
-        let loops = profile
-            .validated
-            .loops()
-            .iter()
-            .map(|lp| {
-                let arcs = lp.segments().iter().map(|s| match s.kind {
-                    pncad::profile::SegmentKind::Line => None,
-                    pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
-                });
-                flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
-                    points,
-                    vertices,
-                    end: LoopEnd::Closed,
-                })
-            })
-            .collect::<Result<Vec<_>, usize>>();
-        match loops {
-            Ok(loops) => out.drawn.push(CommittedProfile {
-                node,
-                plane: *profile.validated.plane(),
-                loops,
-            }),
-            Err(_) => out.undrawn.push(node),
+        match drawing(doc, evaluation, chord, node) {
+            Some(Ok(drawn)) => out.drawn.push(drawn),
+            Some(Err(())) => out.undrawn.push(node),
+            None => {}
         }
     }
     out
+}
+
+/// **One committed profile's drawing** — [`committed`]'s answer for
+/// `node` alone, `None` where that pass would leave it out of both
+/// lists or could not flatten it. What a tool drawing over one held
+/// profile reads (the revolve tool's axis, `pane::viewport`), so it
+/// sees the loops and the plane the picture already draws.
+pub fn committed_profile(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    node: RecipeNodeId,
+) -> Option<CommittedProfile> {
+    drawing(doc, evaluation, chord, node)?.ok()
+}
+
+/// `node`'s drawing: `None` for a node that is no profile or has no
+/// validated value, `Err` for one whose loops cannot be flattened.
+fn drawing(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &Evaluation<f64>,
+    chord: f64,
+    node: RecipeNodeId,
+) -> Option<Result<CommittedProfile, ()>> {
+    if !admits(doc, node, NodeKindWanted::Profile) {
+        return None;
+    }
+    let ValuePayload::Profile(profile) = &evaluation.value(node)?.payload else {
+        return None;
+    };
+    let loops = profile
+        .validated
+        .loops()
+        .iter()
+        .map(|lp| {
+            let arcs = lp.segments().iter().map(|s| match s.kind {
+                pncad::profile::SegmentKind::Line => None,
+                pncad::profile::SegmentKind::Arc { arc, .. } => Some(arc),
+            });
+            flatten(lp.vertices(), arcs, chord).map(|(points, vertices)| PreviewLoop {
+                points,
+                vertices,
+                end: LoopEnd::Closed,
+            })
+        })
+        .collect::<Result<Vec<_>, usize>>();
+    Some(
+        loops
+            .map(|loops| CommittedProfile {
+                node,
+                plane: *profile.validated.plane(),
+                loops,
+            })
+            .map_err(|_| ()),
+    )
 }
 
 /// **A lattice tip state in words.**
@@ -1879,6 +2102,42 @@ mod tests {
     };
     use crate::frame::Tone;
     use crate::test_support::{self, line_to, two_legs};
+
+    /// **A profile drawn on a frame, held unmoved, is the committed
+    /// one**: the comparison carries the base's frame and traced faces,
+    /// which the editor never writes. A loop moved is still not.
+    #[test]
+    fn a_profile_drawn_on_a_frame_held_unmoved_is_committed() {
+        use pncad::document::{DrawnOn, Operand, ProfileProgram, RecipeNodeId};
+        let square = |side| {
+            super::loop_program(
+                &ProfileShape::Rectangle {
+                    width: side,
+                    height: side,
+                },
+                crate::props::Notation::CANONICAL,
+            )
+            .expect("a finite square")
+        };
+        let node = RecipeNodeId::new(0, 1);
+        let base = ProfileProgram {
+            loops: vec![square(0.01)],
+            ids: Vec::new(),
+            on: Some(DrawnOn {
+                frame: Operand::output(node, 0),
+                faces: vec![Operand::output(node, 0)],
+            }),
+        };
+        let ids = base.kept_in_place();
+        assert!(
+            super::is_committed(&base, &base.loops, &ids),
+            "the drawn profile, unmoved, is committed"
+        );
+        assert!(
+            !super::is_committed(&base, &[square(0.02)], &ids),
+            "a moved loop is not"
+        );
+    }
 
     /// **A count the arithmetic could not compute is not a count.**
     ///

@@ -7,7 +7,7 @@ opened: 2026-10-15
 closed: 2026-10-20
 priority: P2
 cost: M
-refs: [a-pose-is-moved-by-lengths-and-angles]
+refs: [5898]
 ---
 
 

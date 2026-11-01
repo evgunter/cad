@@ -218,6 +218,18 @@ pub(crate) fn fold_shell_error<T: Real>(
             overlap: end(overlap, Supremum),
             thickness: end(thickness, Supremum),
         },
+        E::CavityCrosses {
+            face,
+            other,
+            stations,
+            distance,
+        } => E::CavityCrosses {
+            face,
+            other,
+            stations,
+            distance,
+        },
+        E::CavityUncertified { refusal } => E::CavityUncertified { refusal },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,

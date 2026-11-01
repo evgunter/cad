@@ -130,7 +130,14 @@ impl<T: geom_core::Decide> SectionReader<T> {
     /// Reads surface `ka` of A against `kb` of B at the reader's band,
     /// the band the pair is classified and carried at: the section on the
     /// pair's first read, the held one after, at the same band. `None`
-    /// where the value does not build the kind pair.
+    /// where the value does not build the kind pair. The glue door's
+    /// filter (`pair_section::serves`) keeps a spline out, against a plane
+    /// or another spline: read here, with no march door, a plane and a
+    /// spline would be the hull's where it decides the pose (apart,
+    /// coincident, or in band) and otherwise `SectionError::NoMarch`, and
+    /// two splines `NoMarch`, which the guard would read as R-lane
+    /// (`Section::NoLane`), with no shared row handed in. The guard
+    /// refuses a held spline pair rather than read it.
     pub(crate) fn read(
         &mut self,
         (ka, sa): (SurfaceKey, &geom::Surface<T>),
@@ -141,7 +148,7 @@ impl<T: geom_core::Decide> SectionReader<T> {
         match self.table.pairs.entry(PairKey { a: ka, b: kb }) {
             Entry::Occupied(held) => Some(&held.into_mut().read),
             Entry::Vacant(slot) => {
-                let read = match geom_brep::pair_section(sa, sb, band) {
+                let read = match geom_brep::pair_section(sa, sb, None, None, band) {
                     Ok(geom_brep::SectionRead::Elsewhere(_)) => return None,
                     Ok(geom_brep::SectionRead::Built(section)) => Ok(section),
                     Err(e) => Err(e),

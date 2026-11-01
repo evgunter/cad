@@ -113,10 +113,10 @@
 //! clears `scene_fault` where a rebuild lands and [`crate::pane::viewport`]
 //! clears `projection_fault` where a matrix forms, which is the same
 //! work spelled as an assignment about the SEAM instead of a verdict
-//! about the chrome. [`index_badge`] needs none for its refusal,
-//! because the pick cache was already holding it; what it reads beside
-//! that — the landed evaluation, through the tree's blame — is held by
-//! the session and ends with the same landing. What the split buys is that
+//! about the chrome. [`index_badge`] needs none, because the
+//! pick cache was already holding its refusal and its index; what it
+//! reads beside them — the landed evaluation, through the tree's blame —
+//! is held by the session and ends with the same landing. What the split buys is that
 //! no writer has to decide the fate of anyone else's sentence.
 //!
 //! So [`projection_badge`] is a badge — a read of the camera and the
@@ -229,8 +229,8 @@ use std::path::Path;
 
 use pncad::document::{
     CheckEvidence, CheckFinding, ChecksReport, Doc, DocumentId, Evaluation, FindingSubject,
-    Maintenance, NamedCell, NodeErrorKind, NodeStanding, ParseError, PartFault, ProductError,
-    ProductErrorKind, ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
+    Maintenance, NamedCell, NodeErrorKind, ParseError, PartFault, ProductError, ProductErrorKind,
+    ProfileProgram, RecipeNodeId, ResolveFault, Said, SlotId, Speaker, VarName,
 };
 use pncad::prelude::EntityKind;
 use pncad::quantity::LengthUnit;
@@ -243,7 +243,7 @@ use crate::idpass::IdStep;
 use crate::matetool::MateToolEvent;
 use crate::parts::PartFiles;
 use crate::pickcache::{IndexSeam, NotIndexed};
-use crate::pickindex::{EdgeNamesRefused, PickError, PickIndexError};
+use crate::pickindex::{EdgeNamesRefused, PickError, PickIndex, PickIndexError, UndrawnCopy};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -252,7 +252,7 @@ use crate::session::{
     AtRestBadge, EdgeSelection, FaceSelection, OpOutcome, Outstanding, Refusal, Selection,
     SessionOp, VersionOffer,
 };
-use crate::tools::{PanelRefusal, ToolNotice};
+use crate::tools::{PanelRefusal, ToolKind, ToolNotice};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -342,17 +342,23 @@ pub enum Subject {
     /// that can never be written at all is a read of held state that
     /// no write ever retires ([`prefs_badge`]).
     Preferences,
+    /// **The open tool and the clicks aimed at it** — retired by the
+    /// next change of which tool is open: a tool closed, committed or
+    /// swapped for another.
+    ///
+    /// Issued by [`tool_status`], once per batch.
+    Tool,
 }
 
-/// **Three of the five subjects are observationally identical on the
+/// **Three of the six subjects are observationally identical on the
 /// LINE today**, and saying so is part of the vocabulary rather than a
 /// caveat on it. It is a statement about messages: a badge is retired
 /// by the state it reads changing and asks no issuer for anything.
 ///
-/// [`Subject::Camera`] and [`Subject::Cursor`] have
-/// [`StatusUpdate::Expire`] issuers ([`fold_status`] and
-/// [`cursor_status`]), so a message wearing either is retired by an
-/// event and a row can see the difference. [`Subject::Document`],
+/// [`Subject::Camera`], [`Subject::Cursor`] and [`Subject::Tool`] have
+/// [`StatusUpdate::Expire`] issuers ([`fold_status`], [`cursor_status`]
+/// and [`tool_status`]), so a message wearing any of them is retired by
+/// an event and a row can see the difference. [`Subject::Document`],
 /// [`Subject::Display`] and [`Subject::Preferences`] have none, so
 /// nothing yet distinguishes them: each is swept by
 /// [`RankedVerdict::Clear`], which is subject-blind, and by nothing
@@ -371,18 +377,19 @@ pub enum Subject {
 /// `partial_mirror!` invocation below forces
 /// (`crates/viewer/src/vocab.rs` declares the macro) is that every
 /// subject is either offered at a seat of this list or named there as
-/// deliberately absent with its reason. A sixth subject WITH an issuer
+/// deliberately absent with its reason. A new subject WITH an issuer
 /// would otherwise miss the list with no row going red, and its
 /// messages would then be swept only by [`RankedVerdict::Clear`],
 /// silently. The
 /// suite's own row over this list holds a different direction — that
-/// the two named here are the two the policies it calls actually
+/// the ones named here are the ones the policies it calls actually
 /// issue — and cannot see a policy it does not call.
-pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 2] = [Subject::Camera, Subject::Cursor];
+pub const SUBJECTS_WITH_AN_EXPIRY_ISSUER: [Subject; 3] =
+    [Subject::Camera, Subject::Cursor, Subject::Tool];
 
 partial_mirror! {
     Subject, bare SUBJECTS_WITH_AN_EXPIRY_ISSUER,
-    offered [Camera, Cursor],
+    offered [Camera, Cursor, Tool],
     absent [
         Document => "its event is the next act the document ACCEPTS, \
                      which nothing marks yet; what sweeps it today is \
@@ -753,7 +760,8 @@ pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
     match op {
-        SessionOp::Hover(_) => false,
+        // A draft's question, asked on every frame its draft moves.
+        SessionOp::Hover(_) | SessionOp::Stage { .. } => false,
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
@@ -783,6 +791,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -792,6 +801,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
@@ -852,77 +862,11 @@ pub fn batch_refusal(
     doc: &Doc<ProfileProgram>,
 ) -> Option<Refusal> {
     let refusal = refusal?;
-    Some(if ops.iter().any(replaces_the_document) {
+    Some(if ops.iter().any(SessionOp::replaces_the_document) {
         refusal
     } else {
         refusal.respoken(doc)
     })
-}
-
-/// **Whether `op` puts another document in the session**, whose ids say
-/// nothing about a refusal raised before it ([`batch_refusal`]). Every
-/// op is listed, so a new one is sorted here by whoever adds it: one
-/// left out of the `true` arm has its batch's refusal spoken from a
-/// document that is not the one it was raised in.
-fn replaces_the_document(op: &SessionOp) -> bool {
-    match op {
-        SessionOp::Open(_) | SessionOp::NewDocument { .. } => true,
-        SessionOp::Hover(_)
-        | SessionOp::Select(_)
-        | SessionOp::DeleteNode { .. }
-        | SessionOp::RemoveConstraint { .. }
-        | SessionOp::IntoOwnSpace { .. }
-        | SessionOp::SetSlot { .. }
-        | SessionOp::SetSlotVariable { .. }
-        | SessionOp::DeclineOffer { .. }
-        | SessionOp::ProbeBounds { .. }
-        | SessionOp::SetSlotUnit { .. }
-        | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetVariable { .. }
-        | SessionOp::SetVariableUnit { .. }
-        | SessionOp::SetVariableText { .. }
-        | SessionOp::DeclareVar { .. }
-        | SessionOp::RenameVar { .. }
-        | SessionOp::DeleteVar { .. }
-        | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginVariableGesture { .. }
-        | SessionOp::PreviewGesture { .. }
-        | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewVariableGesture { .. }
-        | SessionOp::CommitVariableGesture { .. }
-        | SessionOp::CancelGesture
-        | SessionOp::Undo
-        | SessionOp::Redo
-        | SessionOp::CancelEvaluation
-        | SessionOp::Reevaluate
-        | SessionOp::Save(_)
-        | SessionOp::SetInstanceHidden { .. }
-        | SessionOp::BeginFreeMove { .. }
-        | SessionOp::PreviewFreeMove { .. }
-        | SessionOp::CommitFreeMove { .. }
-        | SessionOp::CancelFreeMove
-        | SessionOp::AddMate { .. }
-        | SessionOp::AddProfile { .. }
-        | SessionOp::SketchOnFace { .. }
-        | SessionOp::EditProfile { .. }
-        | SessionOp::AddExtrude { .. }
-        | SessionOp::AddRevolve { .. }
-        | SessionOp::AddBoolean { .. }
-        | SessionOp::AddSplit { .. }
-        | SessionOp::AddMirror { .. }
-        | SessionOp::AddTransform { .. }
-        | SessionOp::AddPattern { .. }
-        | SessionOp::AddFusedPattern { .. }
-        | SessionOp::AddFillet { .. }
-        | SessionOp::AddChamfer { .. }
-        | SessionOp::AddPart { .. }
-        | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. }
-        | SessionOp::AcceptPartVersion { .. }
-        | SessionOp::SetLabel { .. }
-        | SessionOp::SetProduct { .. } => false,
-        SessionOp::CreateLabelled { creation, .. } => replaces_the_document(creation.op()),
-    }
 }
 
 /// **A [`Refusal`] as the line carries it** — the one place a refusal
@@ -1007,7 +951,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// reads it without asking what refused. **Which kinds ride is not
 /// listed here**, on purpose: each door that makes a notice answers
 /// for its own arms and gives its reasons there — [`Withdrawal::notice`],
-/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// [`maintenance_notices`], [`tool_notice`], [`refusal_message`], and
 /// every typed refusal door with its own one-line reason. A census here
 /// would be a second copy that nothing checks against the first.
 ///
@@ -1462,8 +1406,7 @@ impl<'a> Withdrawal<'a> {
 /// both true of the document it left: what the transition WITHDREW
 /// from the display state ([`Withdrawal::all`]), then what the
 /// committed edits did that the user did not ask for by name
-/// ([`maintenance_notice`], one notice per row in the outcome's own
-/// order). They are notices rather than a verdict for [`Withdrawal`]'s
+/// ([`maintenance_notices`]). They are notices rather than a verdict for [`Withdrawal`]'s
 /// reason: the edit that produced them was accepted, so the same
 /// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
@@ -1488,7 +1431,21 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
-        .chain(maintenance.iter().filter_map(maintenance_notice))
+        .chain(maintenance_notices(maintenance))
+}
+
+/// **One edit's maintenance rows as notices**: each row
+/// [`maintenance_notice`] words, in the rows' own order, then one
+/// notice per placement whose values the edit dropped
+/// ([`Maintenance::values_dropped`]) — an edit that drops four values
+/// is one thing to say, not four.
+pub fn maintenance_notices(rows: &[Maintenance]) -> impl Iterator<Item = Message> + '_ {
+    rows.iter().filter_map(maintenance_notice).chain(
+        // Nothing evaluates differently in a way that names it: the
+        // copy simply stops reading the values.
+        Maintenance::values_dropped(rows)
+            .map(|said| Message::new(Subject::Document, said.to_string(), Retold::Never)),
+    )
 }
 
 /// **What a landing's prune withdrew, as notices** — the same notices
@@ -1515,10 +1472,9 @@ pub fn withdrawal_notices(
 /// **Every arm DM7 makes the door report is worded**: a stranded
 /// payload name and a stranded appearance key.
 ///
-/// **The mate door's offset clear is not**: it is what inserting the
-/// mate means, and where the joined group now sits is what the picture
-/// draws. It still rides [`OpOutcome::maintenance`], where a reader of
-/// the API sees it.
+/// **A dropped value is not worded alone**: a mate drops one row per
+/// freedom it fixes, and [`maintenance_notices`] says them once per
+/// placement.
 ///
 /// **Each worded arm answers [`Retold`] for itself**, and each
 /// answers [`Retold::Never`]: none can show a retelling.
@@ -1531,7 +1487,7 @@ pub fn withdrawal_notices(
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the
@@ -1545,9 +1501,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // landing, naming the read.
         Maintenance::ProductOutsideWorld { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
-        // Nothing evaluates differently in a way that names it: the
-        // copy simply stops reading the value.
-        Maintenance::ValueDropped { .. } => Retold::Never,
+        // Said once per placement, with the edit's other dropped
+        // values ([`maintenance_notices`]).
+        Maintenance::ValueDropped { .. } => return None,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -1918,8 +1874,8 @@ trait SeamSubject {
     const SUBJECT: Subject;
 }
 
-/// **The pick-index seam's subject**, named by both of the types its
-/// build refusals arrive as. One edit here moves both channels; that is
+/// **The pick-index seam's subject**, named by every type its build
+/// answers arrive as. One edit here moves both channels; that is
 /// the "by construction" the trait's argument rests on, and it is written
 /// as a constant because a seam whose two impls each spelled a literal
 /// would be back to the convention. A built index's refusal to NAME an
@@ -1946,6 +1902,12 @@ impl SeamSubject for SceneError {
 
 /// The pick index seam, on the badge channel.
 impl SeamSubject for PickIndexError {
+    const SUBJECT: Subject = PICK_INDEX_SEAM;
+}
+
+/// The pick index seam, on the badge channel: a copy a built index
+/// holds undrawn.
+impl SeamSubject for UndrawnCopy {
     const SUBJECT: Subject = PICK_INDEX_SEAM;
 }
 
@@ -2187,7 +2149,9 @@ pub fn pick_refusal(
 
 /// **What a tool did on its own** — a survival drop or a declined pick
 /// ([`ToolNotice`]) — as a notice, [`Subject::Document`] like
-/// [`tool_news`], in the words [`ToolNotice::said`] gives it.
+/// [`tool_news`], in the words [`ToolNotice::said`] gives it; a
+/// viewport click the open tool took nothing from
+/// ([`ToolNotice::Missed`]) is [`Subject::Tool`], retired with the tool.
 ///
 /// **The one door a tool event reaches the line through**, because the
 /// event's arm is what says whether anything will say it again, and a
@@ -2199,11 +2163,20 @@ pub fn pick_refusal(
 /// that a pick was held and what took it — so it is [`Retold::Never`]
 /// and rides beside a refusal ([`frame_status`]). A **declined pick**
 /// took nothing: the held picks are untouched and the same pick says
-/// the same sentence again, so it is [`Retold::Again`].
+/// the same sentence again, so it is [`Retold::Again`] — and so is a
+/// miss.
 pub fn tool_notice(
     notice: &ToolNotice,
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Message {
+    // A miss is about the open tool, so it retires with it.
+    let subject = match notice {
+        ToolNotice::Missed(_) => Subject::Tool,
+        ToolNotice::Mate(_)
+        | ToolNotice::Blend(_)
+        | ToolNotice::Mirror(_)
+        | ToolNotice::Seated { .. } => Subject::Document,
+    };
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
@@ -2214,20 +2187,38 @@ pub fn tool_notice(
         ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
         ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
+        // A declined click, like the blend tool's other-target pick:
+        // the same miss says it again.
+        ToolNotice::Missed(_) => Retold::Again,
         ToolNotice::Blend(
             BlendEvent::NoEdgesOnTarget { .. }
             | BlendEvent::EdgesUnnamed { .. }
-            | BlendEvent::TargetHasNoValue { .. },
+            | BlendEvent::TargetHasNoValue { .. }
+            | BlendEvent::Unindexed { .. }
+            | BlendEvent::RimUnanswered { .. },
         ) => Retold::Again,
     };
-    Message::new(Subject::Document, notice.said(landed), retold)
+    Message::new(subject, notice.said(landed), retold)
+}
+
+/// **What a change of the open tool retires**: the line's
+/// [`Subject::Tool`] messages, when the tool open now is not the one
+/// open when the line was last written.
+pub fn tool_status(before: Option<ToolKind>, now: Option<ToolKind>) -> StatusUpdate {
+    if before == now {
+        StatusUpdate::Keep
+    } else {
+        StatusUpdate::Expire(Subject::Tool)
+    }
 }
 
 /// **What a tool has to say** that is not one of its own events: a
 /// panel's refusal at its button ([`PanelRefusal`]), a modal tool's
 /// or a form's. [`Subject::Document`], retired the way that
 /// subject says. A tool's own events go through [`tool_notice`]
-/// instead, whose arms answer [`Retold`] from the event.
+/// instead, whose arms answer [`Retold`] from the event — a viewport
+/// click the open tool took nothing from among them
+/// ([`ToolNotice::Missed`]).
 ///
 /// **[`Retold::Again`], answered here**: the refusal is the answer to a
 /// click on that button, and the same click says it again.
@@ -2361,12 +2352,12 @@ pub fn pending_line(report: &ChecksReport) -> Option<String> {
 /// the cells it names that can be selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The node the finding is about, which the button selects: for a
+    /// What the button selects: the node the finding is about (for a
     /// copy's finding the operation defining the body its placement
-    /// places ([`crate::world::seat_of`]), the deciding node of an
-    /// unproven coincidence.
-    pub node: RecipeNodeId,
-    /// That node, spoken.
+    /// places, [`crate::world::seat_of`]; the deciding node of an
+    /// unproven coincidence), or the variable an unused finding names.
+    pub select: Selection,
+    /// That node or variable, spoken.
     pub button: String,
     /// The finding, its copies spoken.
     pub sentence: String,
@@ -2447,6 +2438,14 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
         .iter()
         .map(|finding| {
             let node = match finding.subject {
+                FindingSubject::Var(var) => {
+                    return CheckRow {
+                        select: Selection::Variable(var),
+                        button: by.read(var),
+                        sentence: Said(finding, by).to_string(),
+                        cells: Vec::new(),
+                    };
+                }
                 FindingSubject::Output { placement, .. } => {
                     crate::world::seat_of(landed, placement)
                 }
@@ -2470,7 +2469,7 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
                     .unwrap_or_else(|| unreachable!("a gathered copy is a placement's output")),
             };
             CheckRow {
-                node,
+                select: Selection::Node(node),
                 button: by.node(node).to_string(),
                 sentence: Said(finding, by).to_string(),
                 cells: coincidence_cells(finding, by, landed),
@@ -2652,8 +2651,9 @@ pub fn product_badge(fault: Option<&ProductError>, doc: &Doc<ProfileProgram>) ->
 /// from**, and `None` while the last rebuild stands.
 ///
 /// A read of held state: `ViewerApp` keeps the refusal until a rebuild
-/// succeeds, and it keeps drawing the mesh it already has — so the
-/// picture on screen is stale for exactly as long as this is `Some`.
+/// succeeds, and draws nothing meanwhile — never the picture from before
+/// the refusal — so the viewport is empty for exactly as long as this is
+/// `Some`.
 /// It was a line message, where an accepted act's
 /// [`RankedVerdict::Clear`] swept it off a picture that had not been
 /// rebuilt and the line then said nothing about a scene it still could
@@ -2672,116 +2672,75 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
     })
 }
 
-/// **What the chrome badges about the pick-index seam**, and `None`
-/// when the cache holds no refusal.
+/// **What the chrome badges about the pick-index seam**: a refusal of
+/// the whole index the cache holds, or the drawn copies the index it
+/// holds could not draw that nothing else reports; `None` when there is
+/// neither.
 ///
-/// The refusal is held by [`crate::pickcache::PickCache`] under its
-/// one-attempt-per (generation, δ) policy, so the badge stands for
-/// exactly as long as the policy holds the refusal. The only other
-/// thing it reads is the landed evaluation, and only to ask the tree
-/// which row a refusal that follows from a failed node defers to (the
-/// section below); the cache clears its refusal on the landing that
-/// replaces that evaluation, so the two describe one run.
+/// Both are [`Tone::Actionable`], in their own words. The cache holds
+/// its refusal under its one-attempt-per (generation, δ) policy and its
+/// index until the next attempt, so the badge stands for exactly as
+/// long as what it reads. Nodes are said from the landed document, the
+/// one the index was built against.
 ///
-/// It says the SEAM refused. What a pick against the missing index
-/// gets is [`unindexed_refusal`], on the line, because that is an
-/// outcome — the two carry one subject and neither states it
-/// ([`SeamSubject`]).
+/// It says the SEAM refused. What a pick against a missing index gets
+/// is [`unindexed_refusal`], on the line, because that is an outcome —
+/// the two carry one subject and neither states it ([`SeamSubject`]).
 ///
-/// # A refusal that is a consequence, drawn under its cause
+/// **A whole refusal is a fault of the index itself** (its id map, a
+/// body drawn twice, names of another document): nothing is drawn or
+/// picked until an index builds, and the label says so.
 ///
-/// The index is built over every world placement, and a placement
-/// whose row the feature tree badges `Failed` or `Poisoned` has no
-/// value to index, so the build refuses on it ([`downstream_node`]). That refusal is
-/// DERIVED: the failure it follows from is already on screen, as the
-/// one [`Tone::Actionable`] row the tree draws for it. So it takes the
-/// tree's own reading of a downstream row — [`Tone::Advisory`], naming
-/// the row that carries the cause ([`crate::tree::cause_row`], as the
-/// document speaks it) — and the index's own words move to
-/// the tooltip, unaltered.
-///
-/// **It is placed under the cause, not dropped**, because it carries
-/// two facts the cause does not. The refusal stops EVERY pick, on the
-/// healthy copies too, and it stops the picture: the scene is
-/// drawn from the index, so the viewport keeps its last picture until
-/// the index builds. Both are in the label, and nowhere else: a pick
-/// aimed at the missing index is refused on the line
-/// ([`unindexed_refusal`]), whose sentence says only that the last
-/// build refused or nothing has been evaluated yet — it gives no reason
-/// and names no node, so without this badge the reader would not learn
-/// why.
-///
-/// **The label names where the index stopped, not everything in its
-/// way.** The build returns at the FIRST placement that refuses, in
-/// `doc.placements()` order, so a later placement with a refusal of its
-/// own is not reached; the label says the index waits on this row and does
-/// not promise it builds once the row is fixed.
-///
-/// **The tooltip is the index's own words with the tree's row in
-/// them.** It names the placement the build refused on, and the
-/// standing it carries is read as the tree reads it
-/// ([`index_refusal_as_drawn`]), so for a placement a mate refusal
-/// reached it names the mate the label names rather than the placement
-/// or its DAG ancestor. Its nodes
-/// are said from the landed document, the one the index was built
-/// against; the label's row, from `doc`, as the tree draws it.
-///
-/// Every other refusal is the index's own and stays
-/// [`Tone::Actionable`] in its own words — and so does a standing
-/// refusal the tree names no failed row for (a placement that never ran,
-/// or no evaluation to read), because quieting news is only right
-/// where the louder news it defers to is actually drawn.
+/// **An undrawn copy is badged only when no tree row reports it.** A
+/// copy whose node the feature tree draws `Failed` or `Poisoned`
+/// ([`crate::tree::cause_row`]) has no value, so nothing of it can be
+/// drawn, and that row is the notice; this badge adds nothing to it. A
+/// copy with a value that could not be drawn — not a body, no such
+/// body, a tessellation or indexing refusal — and a copy with no value
+/// whose standing the tree names no failed row for (a run that never
+/// reached it) are on screen nowhere else, so each is said here, naming
+/// the copy. The label carries the first; the tooltip carries every one.
 pub fn index_badge(
     error: Option<&PickIndexError>,
-    doc: &Doc<ProfileProgram>,
+    index: Option<&PickIndex>,
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Option<Badge> {
-    let error = error?;
-    let cause = downstream_node(error)
-        .zip(landed)
-        .and_then(|(node, (_, evaluation))| crate::tree::cause_row(node, evaluation));
-    let said = match landed {
-        Some((landed, evaluation)) => format!(
-            "pick index: {}",
-            Said(
-                &index_refusal_as_drawn(error, evaluation),
-                Speaker::of(landed).within(evaluation)
-            )
-        ),
-        None => format!("pick index: {error}"),
-    };
-    Some(match cause {
-        Some(cause) => Badge::read(
+    let by = landed_speaker(landed);
+    if let Some(error) = error {
+        let said = Said(error, by);
+        return Some(Badge::read(
             PickIndexError::SUBJECT,
-            format!(
-                "pick index: waits on {}, which failed — until the index builds, no pick is \
-                 answered and the picture is not redrawn",
-                doc.spoken(cause)
-            ),
-            Tone::Advisory,
-        )
-        .detailed(said),
-        None => Badge::read(PickIndexError::SUBJECT, said, Tone::Actionable),
+            format!("pick index: {said} — nothing is drawn or picked until the index builds"),
+            Tone::Actionable,
+        ));
+    }
+    let unreported: Vec<String> = index?
+        .undrawn()
+        .iter()
+        .filter(|copy| {
+            landed.is_none_or(|(_, evaluation)| {
+                crate::tree::cause_row(copy.node(), evaluation).is_none()
+            })
+        })
+        .map(|copy| Said(copy, by).to_string())
+        .collect();
+    let first = unreported.first()?;
+    let label = match unreported.len() {
+        1 => format!("picture: {first}"),
+        n => format!("picture: {first} (and {} more copies not drawn)", n - 1),
+    };
+    Some(Badge::read(UndrawnCopy::SUBJECT, label, Tone::Actionable).detailed(unreported.join("\n")))
+}
+
+/// **The speaker for a value built from the landed run**: each node as
+/// the landed document holds it, each name within its evaluation's
+/// tables — and each node by its tag where nothing has landed.
+pub fn landed_speaker<'a>(
+    landed: Option<(&'a Doc<ProfileProgram>, &'a Evaluation<f64>)>,
+) -> Speaker<'a> {
+    landed.map_or(Speaker::TAG, |(doc, evaluation)| {
+        Speaker::of(doc).within(evaluation)
     })
-}
-
-/// A pick-index refusal, its standing ([`PickIndexError::standing`])
-/// re-read by [`crate::tree::standing_as_drawn`]; every other refusal
-/// is the index's, unchanged.
-fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) -> PickIndexError {
-    error
-        .restated(|standing| crate::tree::standing_as_drawn(standing, evaluation))
-        .map_or_else(|| error.clone(), |(_, drawn)| drawn)
-}
-
-/// **The node a pick-index refusal is a consequence of**, when the
-/// refusal is one a node with no value produces
-/// ([`PickIndexError::standing`]) — `None` for a refusal that is the
-/// index's own. Whether the node failed, was poisoned, or never ran
-/// is the tree's to read, and [`index_badge`] asks it rather than
-/// reading the standing here.
-fn downstream_node(error: &PickIndexError) -> Option<RecipeNodeId> {
-    error.standing().map(NodeStanding::node)
 }
 
 /// **What the chrome badges about a camera that cannot be

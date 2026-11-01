@@ -2899,8 +2899,8 @@ fn workspace_error_tags_are_stable() {
         .expect_err("a directory that is not there refuses");
     assert_eq!(workspace_error_tag(&missing), "io");
 
-    // The save door's own two arms, constructed: neither is reachable
-    // from a store that holds nothing, and both are Python-visible.
+    // The save door's own three arms, constructed: none is reachable
+    // from a store that holds nothing, and all are Python-visible.
     assert_eq!(
         workspace_error_tag(&WorkspaceError::SaveWouldDuplicateId {
             id: pncad::document::DocumentId::derive("tagged"),
@@ -2908,6 +2908,13 @@ fn workspace_error_tags_are_stable() {
             requested: std::path::PathBuf::from("/store/b.pncad"),
         }),
         "save_would_duplicate_id"
+    );
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::SaveWouldReplaceDocument {
+            id: pncad::document::DocumentId::derive("tagged"),
+            path: std::path::PathBuf::from("/store/a.pncad"),
+        }),
+        "save_would_replace_document"
     );
     assert_eq!(
         workspace_error_tag(&WorkspaceError::SaveTargetNotInStore {
@@ -2990,6 +2997,14 @@ fn import_report_row_tags_are_stable() {
             "seamless_periodic_band",
         ),
         (NormalizationKind::JoinedEdges, "joined_edges"),
+        (
+            NormalizationKind::EdgeSplitAtC0Knot,
+            "edge_split_at_c0_knot",
+        ),
+        (
+            NormalizationKind::FaceSplitAtC0Knot,
+            "face_split_at_c0_knot",
+        ),
     ] {
         assert_eq!(normalization_kind_tag(&kind), word);
     }
@@ -3681,7 +3696,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        message.ends_with("Recourse: move the geometry so the faces clearly touch or clearly part"),
         "the unrecorded-contact recourse is the actionable half: {message}"
     );
 }
@@ -3723,7 +3738,7 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
             // LIB's row. `what` is production's own string, from
             // `topo::boolean::contact_verify`'s Rest-ladder arm.
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
-                what: "a declared face's surface kind is outside the Rest ladder's \
+                what: "a glued face's surface kind is outside the Rest ladder's \
                        inventory (plane, sphere, cylinder, torus, cone)",
             }),
         }),
@@ -4424,7 +4439,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "coincident_shell",
             "contact_contradicted",
             "containment",
-            "continuation_contradicted",
             "coplanar_neighbours",
             "crossing_at_cone_apex",
             "crossing_insertion",
@@ -4435,7 +4449,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "curved_pierce_escalated",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
-            "declaration_contradicted",
             "degenerate_torus",
             "edge_carrier_unsupported",
             "edge_in_face",
@@ -4472,14 +4485,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "partner_along_face",
             "pcurves",
             "pieces",
+            "pierce_lever_unread",
             "pinch_rays_in_a_face",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
             "poisoned_carrier_datum",
             "recharted_row_unstated",
-            "rest_piece_unread",
             "result_invalid",
-            "result_volume_implausible",
             "revert",
             "rim_cusp_arm_unbuilt",
             "scaffolding_operand",
@@ -4492,16 +4504,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "spheres_meet",
             "spline_crossing_unsettled",
             "split_lineage_cycle",
+            "tangency_unsupported",
             "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
             "unrepresentable_result",
-            "unsupported_declaration_class",
             "vertex_read_twice",
-            "volume_corrupt",
-            "volume_undecided",
-            "volume_unmeasured",
             "zip_correspondence",
         ],
         delegates: &[],
@@ -4552,6 +4561,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stale_expectation",
             "unproven_coincidence",
             "unsupported",
+            "unused",
         ],
         delegates: &[],
     },
@@ -5293,6 +5303,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "chart_singularity_vertex",
             "edge_free_sphere",
+            "edge_split_at_c0_knot",
+            "face_split_at_c0_knot",
             "joined_edges",
             "seamless_periodic_band",
             "surface_promotion",
@@ -5719,6 +5731,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "shell_error_tag",
         values: &[
             "band",
+            "cavity_crosses",
+            "cavity_uncertified",
             "chart_sense_mixed",
             "escalated",
             "face",
@@ -5759,9 +5773,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fit",
             "knot_algebra",
             "no_parameter_step",
-            "path_tangent_reversal",
-            "path_tangent_undecided",
+            "path_folds_back",
+            "path_stations_coincide",
             "path_tangent_vanishes",
+            "path_undecided",
             "row_motion_undecided",
             "section_profile",
             "section_shape_mismatch",
@@ -5916,6 +5931,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "adoption",
             "assembly",
+            "c0_knot_unsplit",
             "dangling_reference",
             "instance",
             "invalid_eps_override",
@@ -5929,6 +5945,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_map",
             "recognition_ambiguous",
             "rim_off_wall_boundary",
+            "singularity_side_undecided",
             "singularity_undecided",
             "structure",
             "syntax",
@@ -6095,12 +6112,16 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "chart_singularity_not_a_vertex",
+            "chart_singularity_undecided",
             "coincident_wedges_overlap",
             "coincident_wedges_overlap_undecided",
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",
             "cusp_edges_missing",
+            "cycle_off_face_side",
+            "cycle_side_undecided",
             "dangling_description",
             "dangling_geometry",
             "dangling_topology",
@@ -6114,6 +6135,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_slot_backpointer_mismatch",
             "emanating_start_mismatch",
             "empty_loop_vertex_with_emanating",
+            "essential_cycles_unpaired",
             "face_through_edge_wedge",
             "face_through_edge_wedge_undecided",
             "half_edge_multiply_claimed",
@@ -6187,6 +6209,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "vertex_orbit_overrun",
             "volume_sign_unresolved",
             "volume_uncomputable",
+            "wrap_tip_off_chart_singularity",
+            "wrap_tip_undecided",
+            "wrap_tip_without_chart_singularity",
         ],
         delegates: &[],
     },
@@ -6219,6 +6244,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "save",
             "save_target_not_in_store",
             "save_would_duplicate_id",
+            "save_would_replace_document",
             "unknown_id",
             "update",
         ],
@@ -10456,7 +10482,14 @@ mod product_memo_rows {
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
-        assert!(report.findings.is_empty());
+        assert!(
+            report
+                .findings
+                .iter()
+                .map(|f| f.check)
+                .eq([d::CheckId::Unused]),
+            "the sketch nothing reads, and nothing at rest: {report}"
+        );
     }
 
     /// A product is the answer for the tolerance it was gathered at,

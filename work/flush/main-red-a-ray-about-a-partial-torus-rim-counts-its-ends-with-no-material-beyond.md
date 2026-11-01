@@ -2,11 +2,14 @@
 id: main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond
 kind: issue
 title: Main red (fuzz): a ray in band of a 1.5-turn revolved torus's plane|torus rim counts its ends but reads no material beyond, at ε 1e-6
-status: open
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
 refs: [a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim]
+branch: flush/partial-torus-rim-ray
+pr: 6168
+closed: 2026-11-01
 ---
 
 
@@ -57,3 +60,133 @@ an everyday solid. No verb is yet shown to answer wrong because of it.
 Reproduce: `CAD_TOLERANCE_EPS=1e-6 CAD_FUZZ_SEED=0x003481ce0ba06522
 CAD_FUZZ_EFFORT=1 cargo test -p sweep --test all --
 a_ray_meets_a_curved_edge_once_for_both_faces::every_crossing_of_a_ray_about_the_corpuss_edges_counts_right`.
+
+## Measured
+
+The seed reproduces on main (`45f6be756b`) and on PR 5781's head
+(`ba313795a9`) alike, at ε 1e-6 only. Through `ray_crossings`
+(`crates/topo/src/boolean/solid_contain.rs`) the ray meets two planes,
+the cap `FaceKey(1v1)` at t 7.99890 and the far cap at 6.005, and the
+torus carrier at two roots only, 3.7518 and 4.2466, where it crosses
+the tube across the axis. Near the rim it grazes the tube's bottom
+just outside, and crosses the carrier nowhere near there. The met
+rim `EdgeKey(6v1)` stood for the cap's plane crossing and for the
+torus face `FaceKey(4v1)`'s root at 4.2466, the root
+`curved_edges::nearest` reads nearest, 3.75 along the ray from the
+passage. That root is not near, but `FaceKey(4v1)` definitely holds
+it, so it stood. The cluster from 4.2466 to 7.9989 counted
+(−1 + 1)/2 = 0 where the ray leaves the tube at 4.2466: one exit lost.
+The row's guess was right: a graze on the rim's plane side.
+
+**The family.** A ray along a torus rim's tangent near the tube's top
+or bottom, just outside the tube, tilted off the cap's plane, and
+crossing the tube again across the axis. On main it reads 73 of 9025
+rays wrong at ε 1e-6, on every rim of three partial turns (1.25π, 1.5π,
+1.75π; 6 rays per rim, plus the seed). On PR 5781's head it reads 73,
+72 and 72 wrong at ε 1e-6, 1e-9 and 1e-12, so 5781 does not change the
+reading.
+
+## Fix
+
+A met edge's half stands for a curved face's root far from the passage
+only where the face holds the root and `reaches_root_in_band`
+(`crates/topo/src/boolean/solid_contain.rs`) says the ray reaches it
+in band of the carrier. That predicate decides `reach_margin`: the rise off the carrier over
+the distance `off` at the root's incidence, `levered(|d·n̂|, off)`, less
+the passage's own clearance from the carrier. The margin is charged for
+the root point's residual tilt and for rounding over the advances, the
+points' coordinates and the carrier's scale. The root stands where the
+margin decides Negative or Zero. Decided Positive, or in band of either
+sign, the root is set aside, graze-marked. The fold is guarded by
+`reach_tests::a_root_whose_reach_margin_lies_in_band_is_set_aside`, which
+goes red if an in-band margin stands. A straddling or poisoned
+comparison (a root at a cone's apex or a torus's axis) is the ray's
+`Escalated` fault, as the file's other decided sites do.
+
+A plane's held crossing still stands, because a ray's distance from a
+plane is linear. On a convex carrier (a cylinder, a cone's nappe, a
+sphere) a root reached from outside satisfies `|f'|·off ≤ f(passage)`,
+and a graze there is followed by no far root at all. A root reached
+from inside, on a short inside chord, can rise to twice the chord's
+depth, so it is set aside. On the torus the bound is necessary and not
+shown sufficient (`work/flushtail/a-met-edges-reach-bound-is-necessary-not-shown-sufficient-on-a-torus.md`).
+The root across the axis fails it by about six orders of magnitude.
+
+The carrier normal has one home, `chart_normal` over the face's surface
+and `geom_brep::implicit_gradient`. `root_outward`'s cone and torus
+incidences read it too. A face with no carrier is `CorruptFace` in both.
+
+**Measured.**
+
+- **The first head's comparand.** That head compared the rise against
+  the band. Of about 800 far, held roots one fuzz run at ε 1e-6 met,
+  98.5% had a rise of at most Kε. Over three seeds per ε, 93% of the
+  far roots had a rise in (ε, Kε]: they stood only because an in-band
+  `Err` folded into "stands".
+- **The passage-clearance comparand.** 1,713–2,645 of those far roots
+  per run decide Zero and stand. 0–108 per run lie in band and are set
+  aside. None decide Positive, and 0 rays read wrong over the 9 runs.
+- **The reviewer's corpus probe.** 46,080 rays and 31,347 points per ε,
+  head against `origin/main`. 0 are wrong on either tree. The lines that
+  move are rays now set aside where they read before: 2 at ε 1e-9
+  (chords), 1 at 1e-12 (along), and 38 at 1e-6 (14 along, 14 chord,
+  10 shallow). At 1e-6, 30 of the 38 read `(0, false)` on base. The other
+  8 were ±1 reads, now graze marks: the slit annulus 1.5π's rot0 and rot2
+  rays, the half torus's and the kinked bore's, two each (e.g.
+  `[(1, false), (-1, false)]` → `[(0, true) ×3, (-1, false)]`).
+- **In band below zero.** At 1e-6 the margins in band below zero, where
+  the root would stand by the convexity argument, number 204: 192 with
+  the passage inside the carrier (inside chords) and 12 outside. They are
+  set aside all the same. Splitting the band by the margin's f64 sign
+  would be a tie-break (`[verdicts]`); the orchestrator ruled to keep it.
+
+Pinned in `crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
+
+- the seed's ray by `the_nightlys_ray_grazing_a_torus_rim_reads_right`
+  (fast). It reads wrong without the rule at ε 1e-6 only.
+- the family by
+  `rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`
+  (3 s in a debug build, so in the slow set). It reads wrong without the
+  rule at every ε, 72 of 9024 rays. With the rule it reads 0 wrong and
+  8160 rays whole, against a floor of 85%.
+
+The fuzz rows ran with 18 fresh seeds plus the nightly's at effort 2,
+at ε 1e-9, 1e-6 and 1e-12: 57 runs, 0 wrong.
+
+## Resolution
+
+Closed by PR 6168 (2026-11-01). A curved face's root found far from where
+the ray passes a met edge now stands only when `reaches_root_in_band`
+decides its reach margin Negative or Zero. The margin is the ray's rise
+off the carrier over the root's distance at its incidence
+(`Margin::levered`), less the passage's own clearance, charged for the
+normal's tilt and for rounding. It decides on its own rows,
+`*_met_edge_reaches`. A margin decided Positive, or one in band of either
+sign, sets the ray aside with graze marks. A straddle at `Interval`, or a
+poisoned normal, is the ray's `Escalated` fault. The carrier's normal has
+one home, `chart_normal`, which `root_outward` also reads (bit-identical
+at f64).
+
+- **One FULL review, then a check pass**, both APPROVE-WITH-FIXES with no
+  MAJOR.
+- **First review.** On the merge base the family read 72/9024 wrong at
+  every ε, and 0 on head. Its two MINORs:
+  - an undecided or poisoned rise folded into "stands";
+  - the comparison went through the wrong door, unmetered, under
+    another decision's row.
+  The fix pass made both safe and gave the bound its own predicate.
+- **Check pass.** It found in-band margins set aside on both sides, and no
+  guard on the fold's direction. Setting an undecided margin aside is kept
+  as D10's answer: splitting the band by the margin's f64 sign would be a
+  represented tie-break. The doc states it, and a unit row now goes red
+  under the old fold.
+- **Cost.** Against main on the reviewer's corpus probe (46,080 rays and
+  31,347 points per ε), 2, 38 and 1 lines move at 1e-9, 1e-6 and 1e-12,
+  all from read to set aside, with 0 wrong on either tree. At 1e-6, 204
+  roots fall in band below zero: 192 on inside chords and 12 reached from
+  outside. The batteries and `reader_ties_at_the_nominal` did not move.
+- **Residue:**
+  - `work/flushtail/a-met-edges-reach-bound-is-necessary-not-shown-sufficient-on-a-torus.md`
+    (P3): on a torus the bound is necessary, not shown sufficient. Two
+    reviewer families were set aside by the Touch band first. The shape
+    off the top and bottom circles on a near-full turn is unexercised.

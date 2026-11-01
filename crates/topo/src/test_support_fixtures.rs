@@ -1982,6 +1982,20 @@ pub(crate) fn whole_period_gap_over_a_box<R>(
     })
 }
 
+/// `x` crossed with its endpoints intact under `Trv`: the value a scalar
+/// that does not certify lifts to through
+/// `geom_core::Interval::from_certified`.
+pub fn trv(x: f64) -> geom_core::Interval {
+    use geom_core::{Bounds, Real};
+    let refused =
+        geom_core::Interval::from_bounds(x, x) + geom_core::Interval::from_bounds(-1.0, 0.0).sqrt();
+    assert!(
+        !refused.is_certified() && refused.lo() == x && refused.hi() == x,
+        "a refused crossing keeps its endpoints: {refused:?}"
+    );
+    refused
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

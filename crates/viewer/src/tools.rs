@@ -44,7 +44,8 @@ use crate::combine::{
     TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
-use crate::pickindex::PickKinds;
+use crate::pickcache::NotIndexed;
+use crate::pickindex::{PickIndex, PickKinds};
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
 use crate::session::{Selection, SessionOp};
@@ -226,6 +227,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
+        | SessionOp::Stage { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetVariable { .. }
@@ -247,6 +249,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Reevaluate
         | SessionOp::Open(_)
         | SessionOp::Save(_)
+        | SessionOp::SaveAsNewDocument(_)
         | SessionOp::SetInstanceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -255,6 +258,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddProfile { .. }
         | SessionOp::SketchOnFace { .. }
+        | SessionOp::AddDrawnProfile { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddInstance { .. }
@@ -291,6 +295,9 @@ pub enum ToolNotice {
         /// What it lost.
         event: SeatEvent,
     },
+    /// A viewport click aimed at the open tool met nothing of the kind
+    /// it picks ([`ToolKind::pick_kinds`]), so the tool took no pick.
+    Missed(ToolKind),
 }
 
 /// The mate and seated arms say the node their event carries
@@ -303,6 +310,10 @@ impl Say for ToolNotice {
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Mirror(event) => ToolKind::Mirror.says(event),
             Self::Seated { tool, event } => tool.says(event),
+            Self::Missed(tool) => tool.says(&format_args!(
+                "{} under the cursor — no pick taken",
+                tool.pick_kinds().nothing()
+            )),
         };
         f.write_str(&said)
     }
@@ -424,10 +435,7 @@ impl ToolNotice {
     /// name within its table in that document's evaluation
     /// ([`Speaker::within`]); by its tag, in full, with nothing landed.
     pub fn said(&self, landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>) -> String {
-        let by = landed.map_or(Speaker::TAG, |(doc, evaluation)| {
-            Speaker::of(doc).within(evaluation)
-        });
-        Said(self, by).to_string()
+        Said(self, crate::frame::landed_speaker(landed)).to_string()
     }
 }
 
@@ -704,6 +712,13 @@ impl Tools {
     /// [`Tools::reconcile`] answers with and are shown the same way; a
     /// frame in which every pick landed answers with none.
     ///
+    /// **`index` is what an edge pick means** — the whole drawn edge it
+    /// is part of ([`PickIndex::whole_edge`]), so a click on a circle
+    /// the body holds as two arcs reaches the blend tool as the circle.
+    /// It is the index the pick was made through, or why there is none
+    /// ([`NotIndexed`]); the blend tool refuses a new edge pick without
+    /// one rather than hold what may be half a circle.
+    ///
     /// **`doc` is what routes a seated tool's pick**, not what
     /// judges it: a seat asks the document what KIND of node was
     /// picked so a pick that only one of two seats can hold lands in
@@ -714,7 +729,12 @@ impl Tools {
     /// how a declined pick becomes a click that silently did nothing,
     /// which is the bug this return value exists to prevent.
     #[must_use = "a declined pick is only reported if its notice is shown"]
-    pub fn feed(&mut self, doc: &Doc<ProfileProgram>, ops: &[SessionOp]) -> Vec<ToolNotice> {
+    pub fn feed(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        index: Result<&PickIndex, NotIndexed>,
+        ops: &[SessionOp],
+    ) -> Vec<ToolNotice> {
         let mut notices = Vec::new();
         for op in ops {
             let SessionOp::Select(selection) = op else {
@@ -729,7 +749,7 @@ impl Tools {
                 }
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
-                        notices.extend(tool.pick(doc, edge).map(ToolNotice::Blend));
+                        notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {

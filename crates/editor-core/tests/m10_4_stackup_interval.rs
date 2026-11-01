@@ -1615,11 +1615,17 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
+    // A plate with a hole: the bore's wall faces into it, so the fit
+    // reads `R − r − d`.
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Circle {
-            centre: [len(0.0), len(0.0)],
-            radius: len(0.5),
-        }],
+        loops: vec![
+            LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)])
+                .expect("finite corners"),
+            LoopProgram::Circle {
+                centre: [len(0.0), len(0.0)],
+                radius: len(0.5),
+            },
+        ],
         ids: Vec::new(),
         on: None,
     }));

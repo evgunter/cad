@@ -2,10 +2,11 @@
 id: nightly-76-reds-greened
 kind: unit
 title: nightly 76's reds (rustdoc, the full suite's hung sweep row, the viewer app and gui-montage jobs, k-lint dev-probe) are greened, each with its fix row on its owner
-status: open
+status: closed
 opened: 2026-10-29
 priority: P1
 cost: M
+closed: 2026-10-30
 ---
 
 
@@ -62,3 +63,12 @@ sites.
 **Remains for nightly 77:** `k-lint (dev-probe)` at `large-K lint`
 (INSTR's row), and whatever the never-run full-suite steps show.
 
+
+## Closed (2026-10-30)
+
+Every red this row names is greened on main: re-blessed with its cause,
+fixed at its site, or pinned (`test_utils::pinned_red`, exact-value or
+census pins, or a nightly-filter exclusion) with a dated line on the
+owning program's open row. The last of them landed in #6093. The causes
+live on those rows, not here. A pin that goes red later is a new
+nightly red, handled from that night's triage.

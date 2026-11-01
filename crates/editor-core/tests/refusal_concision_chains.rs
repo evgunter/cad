@@ -866,7 +866,7 @@ mod kernel {
         pub(super) const SKIN_ERROR: SkinError = [
             TooFewSections, SectionShapeMismatch, SectionProfile, DomainNotUnit,
             DegenerateSection, NoParameterStep, BadDegree, PathTangentVanishes,
-            PathTangentReversal, PathTangentUndecided, StationNotFinite, Band,
+            PathStationsCoincide, PathFoldsBack, PathUndecided, StationNotFinite, Band,
             RowMotionUndecided, ArcSweepUndecided, Fit, KnotAlgebra, Structure,
         ];
     }
@@ -1001,6 +1001,7 @@ mod kernel {
         /// `ShellError`'s arms, for the `Shell/` rows.
         pub(super) const SHELL_ERROR: ShellError = [
             Band, Thickness, NoSolid, Roles, Partition, WallClearance, OffsetsCross,
+            CavityCrosses, CavityUncertified,
             ChartSenseMixed, Face, OpenFaceStale, OpenFaceRepeated,
             OpenFacesExhaustShell, OpenFacesDisconnect, OpenFaceChartPartial, Lift,
             Insert, OpenFaceRimNotExpressible, Rim, Escalated, Pcurve, RimSeamMixed,
@@ -1221,6 +1222,8 @@ fn forward(kind: &NodeErrorKind) -> Forward {
                 | S::Partition { .. }
                 | S::WallClearance { .. }
                 | S::OffsetsCross { .. }
+                | S::CavityCrosses { .. }
+                | S::CavityUncertified { .. }
                 | S::ChartSenseMixed { .. }
                 | S::OpenFaceStale { .. }
                 | S::OpenFaceRepeated { .. }
@@ -1905,7 +1908,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::IndexCountOutOfRange {
                 index: editor_core::VarId::new(0, tagged(2)),
                 count: -3,
-                admits: 0..=i64::from(u32::MAX),
             },
         ),
         row(
@@ -3400,7 +3402,11 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
                 sections: 2,
             },
         ),
-        ("PathTangentReversal", E::PathTangentReversal { station: 4 }),
+        ("PathFoldsBack", E::PathFoldsBack { station: 4 }),
+        (
+            "PathStationsCoincide",
+            E::PathStationsCoincide { station: 4 },
+        ),
         ("PathTangentVanishes", E::PathTangentVanishes { station: 4 }),
         ("RowMotionUndecided", E::RowMotionUndecided { row: 1 }),
         (
@@ -3421,9 +3427,10 @@ fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
             E::KnotAlgebra(geom_core::spline::KnotAlgebraError::KnotNotPresent { u: 0.5 }),
         ),
         (
-            "PathTangentUndecided",
-            E::PathTangentUndecided {
+            "PathUndecided",
+            E::PathUndecided {
                 station: 2,
+                which: sweep::PathDecision::FoldBack,
                 source: payloads::diag(),
             },
         ),
@@ -5487,6 +5494,26 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                     other,
                     overlap: 0.001,
                     thickness: 0.002,
+                },
+            ),
+            (
+                "CavityCrosses",
+                S::CavityCrosses {
+                    face,
+                    other,
+                    stations: [(0.5, 0.25), (0.75, 0.5)],
+                    distance: 1e-16,
+                },
+            ),
+            (
+                "CavityUncertified",
+                S::CavityUncertified {
+                    refusal: topo::clearance::EngineRefusal::Uncertified {
+                        a: face,
+                        b: other,
+                        shared: topo::clearance::SharedCell::Edge(topo::EdgeKey::default()),
+                        arm: topo::clearance::CertificateArm::Departure,
+                    },
                 },
             ),
             ("ChartSenseMixed", S::ChartSenseMixed { face, other }),

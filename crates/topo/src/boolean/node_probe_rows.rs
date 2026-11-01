@@ -52,7 +52,7 @@ fn pair() -> (Surface<f64>, Surface<f64>, Curve3<f64>, Curve3<f64>) {
         lever: 1.0,
     };
     let Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) =
-        geom_brep::cylinder_cylinder_section(&sa, &sb, &reach, band())
+        geom_brep::cylinder_cylinder_section(&sa, &sb, &reach.ball(), band())
     else {
         panic!("the table constructs the two ellipses");
     };

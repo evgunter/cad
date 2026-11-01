@@ -44,17 +44,22 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 
 ## Where it stands
 
-- **Step 1 is built.** PR 5872 built the section object (`geom_brep::pair_section`,
-  `topo::boolean::section_table`, matching by foot parameter). PR 5894
-  added the cylinder × sphere chords and island closure. All 54 pinned
-  poses pass the join and stop typed downstream: props' `Projected` arm on
-  SPIRICARM, and `edge_join`'s spline carrier on SPLICE.
-- **The lily's wall 1 builds** (PR 5869, its tie fixed in PR 5925).
-- **The torus certificate** (PR 5886) serves sphere × torus at rung 3.
-- **The torus poses** decide tangency on one critical gap
-  (`each-torus-pair-decides-tangency-on-one-pose`, PR 5924, in fix pass).
-- **The section object's other arms are on SECTARMS**, and the C5 and
-  rung-3 P2/P3 residue on SECTRUNG (split 2026-10-28, Ev in chat).
+Handed back 2026-10-31 (the sitting's P0 and P1 rows are done):
+
+- **Every torus pair has a section and passes the germ mint**: sphere ×
+  torus by its closed-form readings and the torus ring path (PRs 5924,
+  5974), cylinder × torus and torus × torus by their doors (PR 5972), and
+  every pose by its foot on the carried section (PR 6011, fork row 212),
+  read at 1e-6 again (PR 6153). Teapot wall 2 stops at SPIRICARM's volume
+  door. C5 now holds the ratified rule that an analytic pair decides
+  tangency once, on its pose (PR 5975).
+- **Reds closed**: the cs near-node march (PR 5961), the seam-region row's
+  15× cost (PR 6062), PR 6011's 1e-6 rows (PR 6153). Decided-twice rows
+  (PR 5994), the circle crossing (PR 6001), cylinder-face re-homing
+  (PR 6047), the march counter (PR 6056).
+- **Left**: the P2/P3/P4 rows in the slate. Elsewhere: the nightly
+  `full-suite` job outgrowing 180 minutes (GREEN P1), and the per-op
+  certificate cost of fitted chord edges (SECTRUNG's cost row).
 
 ## The slate
 
@@ -62,14 +67,17 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 |---|---|---|---|---|
 | P0 | `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` | M | closed (PR 5961) | The cs section exhausts its cell budget near the node at ε 1e-6 since PR 5872 |
 | P0 | `each-torus-pair-decides-tangency-on-one-pose` | H | closed (PR 5924) | One pose per torus pair, the critical gap |
-| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | dispatched (sphere half) | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
+| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | closed (PRs 5972, 5974, 6011) | Torus walls against a sphere, cylinder or torus reach the join with no section (teapot wall 2) |
 | P0 | `cylinder-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The cylinder × torus door over a Positive gap |
 | P0 | `torus-torus-rung-three-arm-is-unretired` | M | closed (PR 5972) | The torus × torus door over a Positive gap |
-| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | open | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
-| P0 | `a-general-torus-pose-lists-no-components` | H (decided) | dispatched | A section's components are the march's; a site's component is its foot (fork row 212) |
-| P1 | `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose` | M | dispatched | Two tori decided one surface twice (C5: decided once) |
-| P1 | `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane` | M | dispatched | A tube-circle tangency read twice (C5: decided once) |
-| P1 | `circle-pair-crossing-is-spelled-three-times` | E | dispatched | "Two circles cross transversally" is decided three times |
+| P1 | `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot` | M | dispatched | Five torus rows refuse at ε 1e-6 since PR 6011 (pinned red by GREEN) |
+| P1 | `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord` | M | dispatched | The seam-region door row runs 15× slower since PR 5894; held out of the nightly's 1e-12 row |
+| P3 | `a-surface-pairs-march-is-repeated-per-operation-and-per-germ` | M | open (PR 6056 measured) | Cross-operation sharing of a carried section (≤ ~11 %; waits on canonical order) |
+| P1 | `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord` | M | closed (PR 6047) | A cylinder face holding a bystander ring re-homes it on a chart that reads no spline chord |
+| P0 | `a-general-torus-pose-lists-no-components` | H (decided) | closed (PR 6011) | A section's components are the march's; a site's component is its foot (fork row 212) |
+| P1 | `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose` | M | closed (PR 5994) | Two tori decided one surface twice (C5: decided once) |
+| P1 | `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane` | M | closed (PR 5994) | A tube-circle tangency read twice (C5: decided once) |
+| P1 | `circle-pair-crossing-is-spelled-three-times` | E | closed (PR 6001) | "Two circles cross transversally" is decided three times |
 
 ## Order
 

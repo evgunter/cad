@@ -213,8 +213,11 @@ the board. The bands (Ev, in chat, 2026-09-20):
   should be handled uniformly, and the rest of that class. Also verb
   breadth beyond the everyday shapes, and GUI defects Ev reported as
   annoying rather than blocking.
-- **P2 — medium-high.** Interval and error propagation — the reach
-  goal `docs/DESIGN.md` says shapes the architecture.
+- **P2 — medium-high.** Between P1 and P3: work that matters soon
+  but neither blocks authoring nor entrenches as things are built on
+  it. Interval and error propagation — the reach goal `docs/DESIGN.md`
+  says shapes the architecture — is the band's standing example, not
+  its whole content.
 - **P3 — medium.** Library usability and the north-star audit;
   interop with other tools; tooling that prevents SILENT bugs; latent
   unsoundness, such as a certificate a downstream crate can forge.

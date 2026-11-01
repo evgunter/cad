@@ -550,24 +550,34 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     (
         "crates/topo/src/clearance.rs",
-        23,
-        6,
-        "pinned at main's count: `split_axis`'s 3 and the `coincidence` and \
-         `meeting_stations` seeds (3) are selections, and the other 11 read brackets \
-         lifted through `from_certified` with no refusal of a `Trv` one, so they are \
-         not sound yet (`work/clear/clearance-lifts-trv-brackets-and-reads-their-ends`)",
+        25,
+        7,
+        "the 7 that ask are `poisoned`, `iso_bounded_domain`'s knots and joins (5) and \
+         `extent_of`. Of the other 18, `split_axis`'s 3 and the `coincidence` and \
+         `meeting_stations` seeds (3) are selections; `min_separation`'s admission (2), \
+         `pair`'s (2), `witness`'s (2) and `overflow`'s (1) read a separation `poisoned` \
+         has passed; and `window_of`'s windows (3), `boundary_of`'s span (1) and \
+         `row_of`'s parameters (1) read values `certified_lift` crossed, which refuses \
+         the face unless every crossing certifies",
     ),
     (
         "crates/topo/src/injective.rs",
-        52,
-        1,
-        "pinned at main's count: the 1 that asks is `exactly`. Of the other 51, the \
-         seeds and selections (`mid`, `graph`'s `inside` and `lever`), the reads \
-         behind a funnel (`present_plane`'s, `Pieces::of`'s `wind`) and the reads \
-         of `from_bounds` parameters (`monotone_run`, `narrowed`, `Curved::psi`'s \
-         shift) are sound; the rest read brackets lifted with no refusal of a `Trv` \
-         one, or mint certified intervals from a refused one's ends \
-         (`work/clear/clearance-lifts-trv-brackets-and-reads-their-ends`)",
+        70,
+        27,
+        "the 27 that ask are `exactly`, `forward`, `along` (2), `present_chart` (12), \
+         `present_plane` (6) and the two `psi`s (5). `present_chart` asks each clip line \
+         where it is placed, so its touch, reach, merge, rectangle-side and apex reads \
+         see only certified lines; `present_plane` asks its one-edge `y`, and its other \
+         reads are behind the SPAN and CORNER funnels; `Curved::psi`'s shift reads \
+         finite parameters. Of the other 43, the seeds and selections (`mid`, \
+         `graph_read`'s `inside` and lever), the read behind `exactly` (`Pieces::of`'s \
+         `wind`), the parameter reads (`monotone_run`, `narrowed`, `leaves_graph`, \
+         `leaves_line`) and `run_on`'s, behind `along`'s and the placement asks, are \
+         sound. The rest read the window's carrier and the face's boundary, which \
+         `clearance`'s `window_of` admits only where every lifted value certifies; \
+         `present_wall`'s wall-image reads and `speeds`' jet bound also read an \
+         enclosure computed from them that may clamp, which is \
+         `work/clear/injective-reads-past-the-trv-census-decide-on-clamped-enclosures`",
     ),
     (
         "crates/topo/src/props.rs",

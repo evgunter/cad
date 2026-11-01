@@ -158,7 +158,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
-        BooleanError, BooleanOp, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
+        BooleanError, BooleanOp, ContactPair, EdgeKey, FaceKey, LoopKey, Operand,
         PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
@@ -183,7 +183,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     };
     let face = FaceKey::default();
     let edge = EdgeKey::default();
-    let declaration = DeclaredContact {
+    let declaration = ContactPair {
         a: face,
         b: face,
         class: topo::GlueClass::Rest,
@@ -312,6 +312,15 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             BooleanError::GermEdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                closed: false,
+            },
+        ),
+        (
+            "GermEdgeCarrierUnsupported (closed)",
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+                closed: true,
             },
         ),
         (

@@ -2,12 +2,12 @@
 
 mod loop_volume_grid {
     //! **The loop's volume over its knots, its degree and its place.**
-    //! The same tube, lofted with two semicircles or with eighth arcs a
+    //! The same tube, swept with two semicircles or with eighth arcs a
     //! wall, at 9 or 17 stations, at v-degree 2 or 3, here or moved
     //! across the world origin: tier 3 decides each one's sign, the
     //! continuation meets the printed precision, and the bracket holds
     //! the body's own volume from an independent quadrature of its
-    //! patches ([`demo_tour::patch_quadrature`]). The lofts differ between
+    //! patches ([`demo_tour::patch_quadrature`]). The sweeps differ between
     //! cells (a coarse skin differs from A·L by up to 1 %), so each
     //! cell is held to its own body's oracle, not to A·L.
 
@@ -23,7 +23,7 @@ mod loop_volume_grid {
     fn the_loops_volume_holds_its_own_quadrature_whatever_its_knots_degree_or_place() {
         let tol = Tol::witness();
         let m = meridian();
-        let spine = loop_spine(&m);
+        let spine = exact_spine(&m);
         let ring = PI * (m.ro.powi(2) - m.ri.powi(2));
         // Across the origin: the loop's arcs straddle it.
         let across = Vec3::new(-1.2, 0.0, -1.8);
@@ -54,8 +54,8 @@ mod loop_volume_grid {
                     }
                 })
                 .collect();
-            let body = lofted_loop::<f64>(&spine, &section, stations, v_degree, tol)
-                .unwrap_or_else(|e| panic!("{cell}: the loop lofts: {e:?}"));
+            let body = swept_loop::<f64>(&spine, &section, stations, v_degree, tol)
+                .unwrap_or_else(|e| panic!("{cell}: the loop sweeps: {e:?}"));
             let body = if moved {
                 let motion = RigidMotion::translation(across).expect("a translation");
                 pncad::topo::transform_rigid(&body, &motion, tol)
@@ -194,5 +194,45 @@ mod r1_mesh2_review_probes {
                 Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
             }
         }
+    }
+}
+
+/// **The Klein loop's caps hold against its walls where a wall seam
+/// meets them.** The loop's section circle is split into four arcs,
+/// one per wall, so each cap is a plane bounded by four arcs of one
+/// circle. A cap cell holding a vertex where two arcs meet is read by
+/// no presentation; the wall's departure from the cap's plane certifies
+/// it, the wall's side on the shared edge read off its own restricted
+/// iso net. The tour builds at `f64` only; the `Interval` twin of this
+/// locus is `self_intersection_proves_injectivity`'s lens-loft row.
+mod cap_corner_departure {
+    use crate::common::cap_corner::{assert_holds, cap_wall_pairs};
+    use demo_tour::klein::bottle;
+    use pncad::geom_core::Tol;
+
+    #[test]
+    fn each_cap_of_the_loop_holds_against_its_walls_at_its_arc_vertices() {
+        let tol = Tol::witness();
+        let float = bottle::<f64>(tol).top;
+        let pairs = cap_wall_pairs(&float);
+        assert_eq!(pairs.len(), 8, "two caps against four walls: {pairs:?}");
+        let receipts: Vec<(usize, u32)> = pairs
+            .iter()
+            .map(|&pair| assert_holds("klein loop", &float, pair))
+            .collect();
+        assert_eq!(
+            receipts,
+            [
+                (1, 1),
+                (1, 1),
+                (1, 1),
+                (1, 1),
+                (4, 3),
+                (4, 3),
+                (4, 3),
+                (4, 3)
+            ],
+            "each pair's (splits, deepest cell)"
+        );
     }
 }

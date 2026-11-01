@@ -29,8 +29,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
-    Band, Decide, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign,
-    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
+    Band, Decide, Indeterminate, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion,
+    Sign, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
 use super::closure::{self, ChartLoop, EdgeTurn, Joint};
@@ -102,12 +102,16 @@ pub enum MaterialSign {
     ///   neither pole is read, though the face may hold neither
     ///   (`props_sphere_pole_side.rs`,
     ///   `a_pole_in_the_band_of_a_great_carriers_plane_leaves_the_loop_unread`);
-    /// * one whose loop has a pole off it on EACH side (a rim-only cap
-    ///   or a tilted cap holding a pole). Under either sense such a
-    ///   face holds a pole, which breaks the rule that a chart
-    ///   singularity inside a face is a vertex of it; the reading
-    ///   carries nothing about the bit, and validity, not the side
-    ///   reader, is what refuses the face.
+    /// * one whose loop has a pole off it on EACH side, neither at a tip
+    ///   the face holds (a rim-only cap or a tilted cap holding a pole).
+    ///   Under either sense such a face holds a pole that is not its
+    ///   vertex, which breaks the rule that a chart singularity inside a
+    ///   face is a vertex of it; the reading carries nothing about the
+    ///   bit, and tier 3's chart-singularity check, not the side reader,
+    ///   is what refuses the face ([`crate::chart_singularity`]). A
+    ///   wrap-tip cap, whose loop's chart image drops the tip at its
+    ///   pole, is read: it holds that pole and not the other
+    ///   ([`boundary_material_sign_holding`]).
     Unencoded,
 }
 
@@ -148,7 +152,9 @@ pub fn boundary_material_sign<T: Decide>(
 ///   one-loop face.
 ///
 /// None rests on an iso-rectangle premise: a notched or ringed face
-/// encodes its side as a rectangle does.
+/// encodes its side as a rectangle does. A face whose loops' chart
+/// images dropped tips reads its side with them
+/// ([`boundary_material_sign_holding`]).
 ///
 /// # Errors
 ///
@@ -158,6 +164,39 @@ pub fn boundary_material_sign_loops<T: Decide>(
     loops: &[&[LoopEdge<T>]],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
+    boundary_material_sign_holding(surface, loops, &[], band)
+}
+
+/// [`boundary_material_sign_loops`] of a face that holds the points
+/// `held`: the stored points of the tips its loops' chart images drop
+/// (`topo::surface_boundary::tips`), each a wrap edge's tip and so, on a
+/// valid body, a chart singularity of the face. A tip bounds nothing, so
+/// its spur leaves the image, but the face holds it, and it is the datum
+/// of the face's side (DESIGN `[topology.tiers]`, one region per face).
+/// A one-loop sphere face lies on the side of its loop that holds its
+/// own singular vertices and not the others ([`pole_free_side`]). A cone
+/// face's reading already holds its apex wherever its loops wind it, and
+/// a cylinder or torus has no singular point, so `held` enters no other
+/// kind's reading.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign`].
+pub fn boundary_material_sign_holding<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
+        // An empty chart image encodes no side: on a closed surface the
+        // face is the whole of it, signed by its bit alone
+        // ([`whole_surface`]); elsewhere it bounds nothing.
+        return match closed_surface(surface)? {
+            Some(_) => Ok(MaterialSign::Unencoded),
+            None => Err(PropsError::DegenerateFace),
+        };
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "boundary_material_sign called on a plane (planar orientation is the \
@@ -180,7 +219,7 @@ pub fn boundary_material_sign_loops<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere_loop_side(center, radius, axis, loops, band),
+        } => sphere_loop_side(center, radius, axis, loops, held, band),
         Surface::Torus {
             center,
             axis,
@@ -1597,6 +1636,28 @@ pub fn curved_face_loops<T: Decide>(
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
+    curved_face_holding(surface, loops, &[], sense, band)
+}
+
+/// [`curved_face_loops`] of a face that holds the points `held`, the
+/// tips its loops' chart images drop: the sphere arm's cross-check of
+/// the bit reads its side with them, as
+/// [`boundary_material_sign_holding`] does.
+///
+/// # Errors
+///
+/// As [`curved_face`].
+pub fn curved_face_holding<T: Decide>(
+    surface: &Surface<T>,
+    loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
+    sense: bool,
+    band: Band,
+) -> Result<FaceContribution<T>, PropsError> {
+    // The empty rule's one dispatch: no loop bounds area.
+    if !loops.iter().any(|l| crate::chart_image::bounds_area(l)) {
+        return whole_surface(surface, sense);
+    }
     match *surface {
         Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
             what: "curved_face called on a plane (planar faces take the loop route)",
@@ -1618,7 +1679,7 @@ pub fn curved_face_loops<T: Decide>(
             radius,
             axis,
             ..
-        } => sphere_face(center, radius, axis, loops, sense, band),
+        } => sphere_face(center, radius, axis, loops, held, sense, band),
         Surface::Torus {
             center,
             axis,
@@ -1632,6 +1693,90 @@ pub fn curved_face_loops<T: Decide>(
         // fitted kind would.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
+}
+
+/// **The empty rule**: a face whose chart image is empty (every loop of
+/// it all spurs, `topo::surface_boundary`) is the whole of its surface
+/// where that surface is closed, its flux signed by the face's sense:
+/// the outward normal is the chart normal's exactly when the bit is set,
+/// and a closed surface's flux is three times the volume it encloses,
+/// wherever the origin lies. The one rule for an empty chart image, read
+/// at one dispatch ([`curved_face_loops`], where no loop bounds area,
+/// [`crate::chart_image::bounds_area`]), so no integrator sums an empty
+/// boundary to a flux of zero.
+///
+/// - a sphere of radius `R`: area `4πR²`, flux `±4πR³`;
+/// - a torus of radii `R`, `r`: area `4π²Rr`, flux `±6π²Rr²`.
+///
+/// # Errors
+///
+/// [`PropsError::DegenerateFace`] on a surface that is not closed (a
+/// plane, a cylinder, a cone), where an empty chart image bounds nothing;
+/// [`PropsError::Unimplemented`] on a spline or offset surface, which
+/// has no closed form here.
+pub fn whole_surface<T: Decide>(
+    surface: &Surface<T>,
+    sense: bool,
+) -> Result<FaceContribution<T>, PropsError> {
+    let pi = T::pi();
+    let (enclosed, area) = match closed_surface(surface)? {
+        Some(ClosedSurface::Sphere { radius }) => {
+            let area = T::from_f64(4.0) * pi * radius.powi(2);
+            (area * radius, area)
+        }
+        Some(ClosedSurface::Torus { major, minor }) => {
+            let ring = pi.powi(2) * major * minor;
+            (T::from_f64(6.0) * ring * minor, T::from_f64(4.0) * ring)
+        }
+        None => return Err(PropsError::DegenerateFace),
+    };
+    Ok(FaceContribution {
+        flux: if sense { enclosed } else { -enclosed },
+        area,
+    })
+}
+
+/// A closed surface the empty rule reads whole ([`closed_surface`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ClosedSurface<T> {
+    /// A sphere of this radius.
+    Sphere {
+        /// Its radius.
+        radius: T,
+    },
+    /// A torus of these radii.
+    Torus {
+        /// Its major radius.
+        major: T,
+        /// Its minor radius.
+        minor: T,
+    },
+}
+
+/// **Whether `surface` is closed**, with what [`whole_surface`] reads of
+/// it: a sphere or a torus is, a plane, a cylinder or a cone is not
+/// (`None`).
+///
+/// # Errors
+///
+/// [`PropsError::Unimplemented`] on a spline or offset surface, whose
+/// closure no closed form here reads.
+pub fn closed_surface<T: Real>(
+    surface: &Surface<T>,
+) -> Result<Option<ClosedSurface<T>>, PropsError> {
+    Ok(match *surface {
+        Surface::Sphere { radius, .. } => Some(ClosedSurface::Sphere { radius }),
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => Some(ClosedSurface::Torus {
+            major: major_radius,
+            minor: minor_radius,
+        }),
+        Surface::Plane { .. } | Surface::Cylinder { .. } | Surface::Cone { .. } => None,
+        Surface::Nurbs(_) | Surface::Approx(_) => return Err(PropsError::Unimplemented),
+    })
 }
 
 /// Classify a cylinder face's boundary into (rims, iso-levels) — the
@@ -3081,6 +3226,7 @@ fn sphere_face<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     sense: bool,
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
@@ -3090,7 +3236,8 @@ fn sphere_face<T: Decide>(
             what: "sphere face with an empty boundary",
         });
     };
-    if let MaterialSign::Encoded(side) = side_of_sphere_loops(center, radius, axis, &gauss, band)?
+    if let MaterialSign::Encoded(side) =
+        side_of_sphere_loops(center, radius, axis, &gauss, held, band)?
         && (side == Sign::Positive) != sense
     {
         // A holed face's side is its area's sign, which no pole enters.
@@ -3360,7 +3507,7 @@ fn sphere_loops<T: Decide>(
 ) -> Result<Vec<SphereLoop<T>>, PropsError> {
     loops
         .iter()
-        .map(|edges| sphere_loop(center, radius, edges, band))
+        .map(|edges| sphere_loop(center, radius, edges, band, Cusp::Band))
         .collect()
 }
 
@@ -3400,6 +3547,7 @@ fn sphere_loop<T: Decide>(
     radius: T,
     edges: &[LoopEdge<T>],
     band: Band,
+    cusp: Cusp,
 ) -> Result<SphereLoop<T>, PropsError> {
     if edges.is_empty() {
         return Err(PropsError::SphereLoop {
@@ -3480,7 +3628,10 @@ fn sphere_loop<T: Decide>(
             Margin::of((next.from - arc.at).norm()),
             band,
         )?;
-        require_cusp_free(arc.arrive, next.depart, radius, band)?;
+        match cusp {
+            Cusp::Band => require_cusp_free(arc.arrive, next.depart, radius, band)?,
+            Cusp::Rounding => require_turn_read(arc.arrive, next.depart)?,
+        }
         corners = corners
             + normal(arc.at)
                 .dot(arc.arrive.cross(next.depart))
@@ -3504,6 +3655,36 @@ fn require_on_loop<T: Decide>(
     match classify(name, margin, band, PropsCheck::Inventory)? {
         Sign::Zero => Ok(()),
         Sign::Positive | Sign::Negative => Err(PropsError::SphereLoop { what: name }),
+    }
+}
+
+/// How [`sphere_loop`] reads a junction near a cusp.
+#[derive(Clone, Copy)]
+enum Cusp {
+    /// At the band ([`require_cusp_free`]): props' premise.
+    Band,
+    /// Against the tangents' rounding alone ([`require_turn_read`]):
+    /// the chart-singularity reading's, whose question is the sign of
+    /// the junction's turn, which a sharp corner keeps.
+    Rounding,
+}
+
+/// A junction whose turn's sign survives the tangents' rounding:
+/// `chart_singularity_cusp`, the chord between the departing tangent and
+/// the reversed arriving one held against the shared rounding charge of
+/// the two tangents (`geom_core::rounding_charge`).
+fn require_turn_read<T: Decide>(arrive: Vec3<T>, depart: Vec3<T>) -> Result<(), PropsError> {
+    match decide(
+        "chart_singularity_cusp",
+        Margin::sign_of(
+            (depart + arrive).norm() - geom_core::rounding_charge(depart.norm() + arrive.norm()),
+        ),
+        Band::enclosure_sign(),
+    ) {
+        Ok(Sign::Positive) => Ok(()),
+        _ => Err(PropsError::SphereLoop {
+            what: "chart_singularity_cusp",
+        }),
     }
 }
 
@@ -3560,25 +3741,28 @@ fn sphere_loop_side<T: Decide>(
     radius: T,
     axis: Vec3<T>,
     loops: &[&[LoopEdge<T>]],
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     let gauss = sphere_loops(center, radius, loops, band)?;
-    side_of_sphere_loops(center, radius, axis, &gauss, band)
+    side_of_sphere_loops(center, radius, axis, &gauss, held, band)
 }
 
-/// [`sphere_loop_side`] over loops already read.
+/// [`sphere_loop_side`] over loops already read, the face holding the
+/// points `held` ([`boundary_material_sign_holding`]).
 fn side_of_sphere_loops<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     gauss: &[SphereLoop<T>],
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
     match gauss {
         [] => Err(PropsError::SphereLoop {
             what: "sphere face with an empty boundary",
         }),
-        [one] => pole_free_side(center, radius, axis, one, band),
+        [one] => pole_free_side(center, radius, axis, one, held, band),
         [_, _, ..] => {
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify(
@@ -3617,26 +3801,45 @@ fn claimed_area<T: Decide>(center: Point3<T>, loops: &[SphereLoop<T>], left: boo
         })
 }
 
-/// **The side of a one-loop sphere face's loop that holds no chart
-/// pole.** A chart singularity inside a face is a vertex of it, so a
-/// face lies on the side of its loop that holds neither pole; each
-/// pole off the loop says which side that is ([`pole_side`]).
+/// **The side of a one-loop sphere face's loop that holds its own
+/// singular vertices and no other chart pole.** A chart singularity
+/// inside a face is a vertex of it, so a face lies on the side of its
+/// loop that holds no pole but those it holds as vertices. Its loop is
+/// its chart image, so a vertex it keeps is on the loop and reads no
+/// side; a vertex the image dropped, a wrap edge's tip, is one of
+/// `held`, the face's own and off the loop. Each pole off the loop says
+/// which side the face is on ([`pole_side`]): the side that holds it
+/// where it is at one of `held`, by the one reading of that incidence
+/// ([`crate::chart_singularity::vertex_at_singular_point`], a distance
+/// in band leaving the pole unread), and the other side where not.
 ///
-/// The answer is `Encoded` when the poles off the loop that read agree
-/// on a side, and `Unencoded` when both poles lie on the loop (a lune,
-/// a hemisphere split at its poles: the loop alone does not say), when
-/// neither reading is decided, or when the poles off the loop read on
-/// OPPOSITE sides. That last loop has a pole on each side, so whichever
-/// side is material holds a pole and the reading says nothing about
-/// the bit; it is not this reader's to refuse ([`MaterialSign`]).
+/// The answer is `Encoded` when the poles that read agree on a side,
+/// and `Unencoded` when both poles lie on the loop (a lune, a hemisphere
+/// split at its poles: the loop alone does not say), when neither
+/// reading is decided, or when the poles read on OPPOSITE sides. That
+/// last face holds a pole that is not its vertex under either sense,
+/// so the reading says nothing about the bit; it is not this reader's
+/// to refuse ([`MaterialSign`]).
 fn pole_free_side<T: Decide>(
     center: Point3<T>,
     radius: T,
     axis: Vec3<T>,
     lp: &SphereLoop<T>,
+    held: &[Point3<T>],
     band: Band,
 ) -> Result<MaterialSign, PropsError> {
-    agreed_side(axis, |pole| pole_side(center, radius, pole, lp, band))
+    agreed_side(axis, |pole| {
+        let p = center + pole * radius;
+        let mut own = false;
+        for &tip in held {
+            match crate::chart_singularity::vertex_at_singular_point(tip, p, band) {
+                Ok(at) => own |= at,
+                Err(_) => return Ok(None),
+            }
+        }
+        let side = pole_side(center, radius, pole, lp, band)?;
+        Ok(if own { side.map(Sign::flip) } else { side })
+    })
 }
 
 /// **The side the poles' readings agree on.** `read` reads the side at
@@ -3650,7 +3853,10 @@ fn agreed_side<T: Decide>(
 ) -> Result<MaterialSign, PropsError> {
     let up = axis / axis.norm();
     let mut reading: Option<Sign> = None;
-    for pole in [up, -up] {
+    // The sphere's singular points, from their one home, as directions.
+    let origin = Point3::new(T::zero(), T::zero(), T::zero());
+    for (_, pole) in crate::chart_singularity::sphere_poles(origin, up, T::one()) {
+        let pole = pole - origin;
         let side = match read(pole) {
             Ok(side) => side,
             Err(PropsError::Escalated { .. }) => None,
@@ -3726,9 +3932,10 @@ pub fn seam_loops<T: Decide>(
 /// * **One boundary loop**: read at each pole on an edge interior to
 ///   the region, on some member's loop and off the boundary. The region
 ///   holds that pole, so it is the side of the boundary that holds it.
-///   A pole on no member's loop is not read: the region would be the
-///   side without it only if no face held a chart singularity off its
-///   loop, which validity does not yet refuse. `Unencoded` when no pole
+///   A pole on no member's loop is not read: the region is the side
+///   without it only where no face holds a chart singularity off its
+///   loop, which tier 3 refuses ([`crate::chart_singularity`]) and this
+///   reader does not assume. `Unencoded` when no pole
 ///   is read, among them a boundary carrying both poles: that region
 ///   and its complement are both legal, and for a region of one face,
 ///   flipping its bit describes the other one, a valid body and not a
@@ -3752,7 +3959,7 @@ pub fn sphere_region_material_sign<T: Decide>(
         return if region.boundary.is_empty() {
             Ok(MaterialSign::Unencoded)
         } else {
-            side_of_sphere_loops(center, radius, axis, &region.boundary, band)
+            side_of_sphere_loops(center, radius, axis, &region.boundary, &[], band)
         };
     };
     agreed_side(axis, |pole| {
@@ -3984,38 +4191,11 @@ fn pole_side<T: Decide>(
         if on {
             return Ok(None);
         }
-        // The cap left of a forward arc is the one its axis points into.
-        let left_holds_pole = if arc.forward { plane } else { plane.flip() };
-        circulations.push(if left_holds_pole == Sign::Positive {
-            -T::one()
-        } else {
-            T::one()
-        });
+        circulations.push(Some(circulation(arc, plane)));
     }
-    let image = |x: Point3<T>| {
-        let w = (x - center) / radius;
-        let lift = w.dot(pole);
-        (w - pole * lift) / (T::one() - lift)
+    let Some(turning) = pole_turning(center, pole, lp, &circulations, band)? else {
+        unreachable!("every circulation is read, so the turning is")
     };
-    // The image of a tangent `t` at `x`, up to a positive factor.
-    let push = |x: Point3<T>, t: Vec3<T>| {
-        let w = (x - center) / radius;
-        let lift = w.dot(pole);
-        (t - pole * t.dot(pole)) * (T::one() - lift) + (w - pole * lift) * t.dot(pole)
-    };
-    let mut turning = lp.corners;
-    for (arc, c) in lp.arcs.iter().zip(circulations) {
-        let sweep = if pole_arc_full(arc.extent, arc.radius, band)? {
-            c * T::tau()
-        } else {
-            let d = push(arc.from, arc.depart);
-            let chord = image(arc.at) - image(arc.from);
-            let cross = -pole.dot(d.cross(chord));
-            let half = T::pi() * T::from_f64(0.5) + (-d.dot(chord)).atan2(c * cross);
-            c * (half + half)
-        };
-        turning = turning + sweep;
-    }
     Ok(
         match classify(
             "props_sphere_pole_winding",
@@ -4028,6 +4208,196 @@ fn pole_side<T: Decide>(
             Sign::Zero => None,
         },
     )
+}
+
+/// An arc's image's circulation about the pole, `+1` or `−1`, from the
+/// side of its carrier plane the pole lies on, `plane` ([`pole_side`]):
+/// `−1` exactly where the cap left of the arc holds the pole.
+fn circulation<T: Real>(arc: &SphereArc<T>, plane: Sign) -> T {
+    // The cap left of a forward arc is the one its axis points into.
+    let left_holds_pole = if arc.forward { plane } else { plane.flip() };
+    if left_holds_pole == Sign::Positive {
+        -T::one()
+    } else {
+        T::one()
+    }
+}
+
+/// **The turning of a sphere loop's stereographic image from the pole
+/// in direction `pole`** ([`pole_side`]'s sum), each arc's circulation
+/// given: `None` for an arc whose circulation is not read, which the
+/// sum does not need where the arc's image sweeps less than half a
+/// turn (its tangent at the start leads its chord), since the sweep
+/// `c·2·(π/2 + atan2(−d·chord, c·cross))` is then `2·atan(cross /
+/// d·chord)` for either `c`. `Ok(None)` where such an arc's image
+/// sweeps half a turn or more, or closes on itself.
+///
+/// A point's image divides by `1 − w·pole`, which for `w` near the pole
+/// is the difference of two numbers near one; it is read as
+/// `|w − pole|² / 2`, its value for unit vectors, `w` normalized, so a
+/// loop passing near the pole keeps its image's digits.
+///
+/// # Errors
+///
+/// [`pole_arc_full`]'s escalation.
+fn pole_turning<T: Decide>(
+    center: Point3<T>,
+    pole: Vec3<T>,
+    lp: &SphereLoop<T>,
+    circulations: &[Option<T>],
+    band: Band,
+) -> Result<Option<T>, PropsError> {
+    let unit = |x: Point3<T>| {
+        let w = x - center;
+        w / w.norm()
+    };
+    let half = T::from_f64(0.5);
+    let image = |x: Point3<T>| {
+        let w = unit(x);
+        (w - pole * w.dot(pole)) / ((w - pole).norm_squared() * half)
+    };
+    // The image of a tangent `t` at `x`, up to a positive factor.
+    let push = |x: Point3<T>, t: Vec3<T>| {
+        let w = unit(x);
+        (t - pole * t.dot(pole)) * ((w - pole).norm_squared() * half)
+            + (w - pole * w.dot(pole)) * t.dot(pole)
+    };
+    let mut turning = lp.corners;
+    for (arc, c) in lp.arcs.iter().zip(circulations) {
+        let full = pole_arc_full(arc.extent, arc.radius, band)?;
+        let sweep = match (full, *c) {
+            (true, Some(c)) => c * T::tau(),
+            (true, None) => return Ok(None),
+            (false, c) => {
+                let d = push(arc.from, arc.depart);
+                let chord = image(arc.at) - image(arc.from);
+                let cross = -pole.dot(d.cross(chord));
+                let lead = d.dot(chord);
+                match c {
+                    Some(c) => {
+                        let half = T::pi() * T::from_f64(0.5) + (-lead).atan2(c * cross);
+                        c * (half + half)
+                    }
+                    None => {
+                        if !matches!(
+                            decide(
+                                "props_sphere_pole_arc_leads",
+                                Margin::sign_of(lead),
+                                Band::enclosure_sign()
+                            ),
+                            Ok(Sign::Positive)
+                        ) {
+                            return Ok(None);
+                        }
+                        let a = cross.atan2(lead);
+                        a + a
+                    }
+                }
+            }
+        };
+        turning = turning + sweep;
+    }
+    Ok(Some(turning))
+}
+
+/// What [`sphere_pole_left`] reads of one loop.
+pub(crate) enum PoleLeft {
+    /// Whether the loop's left side, under the chart normal, holds the
+    /// pole.
+    Read(bool),
+    /// The loop is not one this closed form reads: an edge that is not
+    /// a circle on the sphere, an open loop ([`sphere_loop`]'s premises,
+    /// refused or in band), or a junction whose turn's sign is lost in
+    /// the tangents' rounding ([`Cusp::Rounding`]).
+    NoClosedForm,
+    /// The reading does not clear its own rounding: a full arc whose
+    /// carrier plane holds the pole within it, or a turning that is no
+    /// whole turn.
+    Straddle,
+    /// A band decision of the reading is in band (a span within the band
+    /// of a whole turn, [`pole_arc_full`]).
+    Banded(Indeterminate),
+}
+
+/// **Whether the left side of one sphere loop holds the pole `p`**, for
+/// a pole its caller has decided OFF the loop
+/// past its band (`crate::chart_singularity`, on the pole's distance to
+/// each vertex and edge): [`pole_side`]'s turning, with no on-loop test
+/// and each arc's circulation read off the pole's height over the arc's
+/// carrier plane as an exact order against that height's rounding
+/// (`chart_singularity_pole_plane`), not against a band. A pole clear of
+/// the arc that the band would place in its plane is a pole off a small
+/// circle on its tangent side: which cap holds it is still the plane's
+/// side, and a height lost in the rounding leaves the circulation unread,
+/// which [`pole_turning`] needs only for an arc whose image sweeps half a
+/// turn or more. A sharp junction is read as the corner it is, against
+/// the tangents' rounding rather than the band ([`Cusp::Rounding`]): a
+/// lens a band wide turns by nearly half a turn at each tip, and the
+/// side its loop leaves a pole on is still its turning's. The turning, a
+/// whole turn up to rounding, is read against half a turn: positive
+/// leaves the pole right of the loop.
+pub(crate) fn sphere_pole_left<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    p: Point3<T>,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> PoleLeft {
+    let Ok(lp) = sphere_loop(center, radius, edges, band, Cusp::Rounding) else {
+        return PoleLeft::NoClosedForm;
+    };
+    let pole = (p - center) / radius;
+    let circulations: Vec<Option<T>> = lp
+        .arcs
+        .iter()
+        .map(|arc| {
+            // The height and its rounding, charged along its own chain
+            // (geom-core's running bound): a difference of the stored
+            // points, then a dot product with the stored axis.
+            let exact = |x: Point3<T>| [x.x, x.y, x.z].map(geom_core::running::Rounded::exact);
+            let (pp, cc) = (exact(p), exact(arc.centre));
+            let w = [pp[0] - cc[0], pp[1] - cc[1], pp[2] - cc[2]];
+            let reading = geom_core::running::dot(geom_core::running::exact_vec(arc.axis), w);
+            let (height, rounding) = (reading.value, reading.error);
+            let clear = decide(
+                "chart_singularity_pole_plane",
+                Margin::sign_of(height.abs() - rounding),
+                Band::enclosure_sign(),
+            );
+            let side = decide(
+                "chart_singularity_pole_plane",
+                Margin::sign_of(height),
+                Band::enclosure_sign(),
+            );
+            match (clear, side) {
+                (Ok(Sign::Positive), Ok(plane @ (Sign::Positive | Sign::Negative))) => {
+                    Some(circulation(arc, plane))
+                }
+                _ => None,
+            }
+        })
+        .collect();
+    let turning = match pole_turning(center, pole, &lp, &circulations, band) {
+        Ok(Some(turning)) => turning,
+        Ok(None) => return PoleLeft::Straddle,
+        Err(PropsError::Escalated { cause, .. }) => return PoleLeft::Banded(cause),
+        Err(_) => return PoleLeft::NoClosedForm,
+    };
+    let whole = decide(
+        "chart_singularity_pole_turning",
+        Margin::sign_of(turning.abs() - T::pi()),
+        Band::enclosure_sign(),
+    );
+    let sign = decide(
+        "chart_singularity_pole_turning",
+        Margin::sign_of(turning),
+        Band::enclosure_sign(),
+    );
+    match (whole, sign) {
+        (Ok(Sign::Positive), Ok(Sign::Positive)) => PoleLeft::Read(false),
+        (Ok(Sign::Positive), Ok(Sign::Negative)) => PoleLeft::Read(true),
+        _ => PoleLeft::Straddle,
+    }
 }
 
 /// Whether a sphere arc of `extent` on a circle of `radius` is a whole

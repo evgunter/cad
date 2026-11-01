@@ -113,13 +113,15 @@ pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // instance's copy of a part's product, say) is a pick of it. A
 // placement's constraints are addressed by their `ConstraintId`.
 // Repetition is an index (D10 `[repetition]`): `k = index(N)` is a
-// `VarDecl::Index`, a family's member is named under `Member { at }`.
+// `VarDecl::Index`, a family's member is named under `Member { at }`;
+// the indices an expression reaches (`Doc::expr_reach`) and each member's
+// environment (`Doc::member_envs`) are what a reader of one evaluates in.
 pub use editor_core::{
     Axis3, Bodies, BodyRead, ConstraintId, InputFault, ListFault, LoftSection, MintId, Node,
     Operand, OperandSlot, OutputPort, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove,
     TubeWindow, VectorSlot,
 };
-pub use editor_core::{Index, IndexFault, MemberAt};
+pub use editor_core::{Index, IndexFault, MemberAt, MemberCountFault, MemberEnv, Reached};
 
 // How a sentence names a node: the kind noun and tag a person reads, the
 // speaker a refusal holding bare ids is said by, the nodes a door kept
@@ -526,10 +528,13 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // over the decision lane has to spell it. The trait says which lanes
 // carry a chart-coherence examination — `f64` does, and a lane that
 // does not reports that as a finding rather than as a clean body.
+// `Unused` is what `Doc::unused` answers: the tips the `unused` check
+// reports, read off the recipe with nothing evaluated.
 pub use editor_core::{
     Advisory, ChartCoherenceLane, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal,
     ChecksConfig, ChecksError, ChecksReport, DoorFindings, DoorJob, FindingSubject, Severity,
-    Subject, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on, subject_body,
+    Subject, Unused, enforce_checks, run_checks, run_checks_at_rest_on, run_checks_on,
+    subject_body,
 };
 // The coincidence door (D10): the rows an evaluation's nodes decided
 // from values, and what the door decides about each — the payload of

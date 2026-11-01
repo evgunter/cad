@@ -195,6 +195,16 @@ pub mod germ_pair;
 /// reader three suites check a cone face with, so it routes here.
 pub mod cone_nappe;
 
+/// A pole or a cone's apex reached by one wrap edge, built from a full
+/// revolve by Euler operators: the fixture the wrap-tip suites read.
+/// Body authoring, so it routes here.
+pub mod wrap_tip;
+
+/// A built body against its analytic region: closed-form volume, tiers 3
+/// and 3′, and point membership at a lattice. A check several suites
+/// make of a body they built, so it routes beside [`orient`].
+pub mod membership;
+
 /// The same-surface latitude-seam fixtures the SHELL-9 suites and
 /// `revert_plane_charts` share — the collinear-cap drum, the two-arc
 /// sphere, the axial door's cavity of either — and the three readers
@@ -302,7 +312,7 @@ pub mod oblique;
 
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
 use sweep::ExtrudeSide;
@@ -318,14 +328,41 @@ pub fn plane_of(map: &Affine3<f64>) -> SketchPlane<f64> {
     SketchPlane::from_frame(geom_core::test_support::rigid(map, Tol::witness()))
 }
 
+/// `stations` sections placed along a planar circular arc of UNIT
+/// RADIUS turning through `curl` toward `+z`, each section's plane
+/// normal the spine's own tangent there: lily's leaf-A spine with a
+/// constant section (`demos/tour/src/lily.rs::lofted_blade`). Station
+/// `i` sits at `θ = curl·i/(stations − 1)`, at `(sin θ, 0, 1 − cos θ)`
+/// with tangent `(cos θ, 0, sin θ)`. A slab's displacement makes an
+/// angle of half the slab's turn with its base tangent, so the slab
+/// margin goes negative exactly when the SLAB turns past π; and the
+/// spine closes on itself at `curl = 2π`, past which the body passes
+/// through itself.
+pub fn arc_spine_places(curl: f64, stations: usize) -> Vec<SketchPlane<f64>> {
+    (0..stations)
+        .map(|i| {
+            #[allow(clippy::cast_precision_loss)]
+            let theta = curl * (i as f64) / ((stations - 1) as f64);
+            let (s, c) = theta.sin_cos();
+            let linear = Mat3::from_cols(
+                Vec3::new(0.0, 1.0, 0.0),
+                Vec3::new(-s, 0.0, c),
+                Vec3::new(c, 0.0, s),
+            );
+            plane_of(&Affine3::from_parts(linear, Vec3::new(s, 0.0, 1.0 - c)))
+        })
+        .collect()
+}
+
 /// The placement a path sweep starts from, read off the path's start:
 /// `geom_core::linalg::frame::path_start_frame`, the kernel's own
 /// door for it. The frame's local +Z is the start TANGENT, so the
 /// local XY plane is the plane the profile is drawn in, and the roll
 /// comes from the door's reference ladder (world +Z, then world +X)
 /// under the tolerance band. `sweep::sweep_places` carries this frame
-/// along the path by minimal rotation, so a section placed here stays
-/// normal to the path.
+/// along the path by the rotation-minimizing frame
+/// (`crates/sweep/README.md` `[sweep.frame]`), so a section placed here
+/// stays normal to the path.
 ///
 /// The door returns a typed refusal for a path whose start tangent
 /// fixes no frame; a fixture whose path is that degenerate is a fixture

@@ -95,6 +95,20 @@ pub(super) fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
     )
 }
 
+/// [`classify`] with no march door.
+fn unmarched(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
+    super::classify(
+        f,
+        g,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: LEVER / 2.0,
+        },
+        None,
+        band(),
+    )
+}
+
 /// `(count, single, essential on F, essential on G, unbounded)`, per
 /// component.
 pub(super) type Shape = (usize, bool, Vec<bool>, Vec<bool>, Vec<bool>);
@@ -375,7 +389,7 @@ fn a_general_torus_pose_is_read_from_its_march() {
         };
         assert_eq!((parts.len(), *single), (count, count == 1), "{what}");
         let Ok(geom_brep::SectionRead::Built(section)) =
-            geom_brep::pair_section(&donut(), &partner, band())
+            geom_brep::pair_section(&donut(), &partner, None, None, band())
         else {
             panic!("{what}: the value builds the pair");
         };
@@ -388,7 +402,10 @@ fn a_general_torus_pose_is_read_from_its_march() {
                 (w - k.witness).norm() == 0.0,
                 "{what}: the witness is the carrier's middle"
             );
-            assert_eq!(c.pad, k.pad, "{what}: the witness's pad is its loop's");
+            assert_eq!(
+                c.pad, k.reach,
+                "{what}: the witness's pad is its loop's reach"
+            );
             // Closeness: the witness lies on the carrier, within its
             // certified limb-2 bound of each surface.
             let sup = k.certificate.as_ref().expect("a fitted loop").hull_sup;
@@ -472,6 +489,7 @@ fn a_marched_witness_is_placed_padded() {
                 essential_f: false,
                 essential_g: false,
                 witness: Some(p(0.0, 0.0, 0.0)),
+                reaches: None,
                 pad,
             }],
             single: true,
@@ -540,14 +558,19 @@ fn bump() -> Surface<f64> {
     ))
 }
 
-/// **NURBS × plane: W0 on the control net, else R-reach**, in both
-/// orders. A plane clear of every control point, on either side and
-/// either orientation, is apart; a plane that cuts the net, one that
-/// touches its top row, and a placeholder's poison net have no arm. Red
-/// against W0 reading any one point clear rather than all (the cut and
-/// touching planes), and against W0 dropped (the clear ones).
+/// **NURBS × plane with no march door: W0 on the control net, else
+/// R-lane**, in both orders. A plane clear of every control point, on
+/// either side and either orientation, is apart before any reading; a
+/// plane that cuts the net and one that touches its top row are read
+/// whole (`section_cert_spline_rows`), which a scalar with no march door
+/// does not; a placeholder's poison net is refused at the hull, with or
+/// without a door (R-reach). Two spline patches are read whole too
+/// (`section_cert_spline_pair_rows`), so with no door they are R-lane.
+/// Red against W0 reading any one point clear rather than all (the cut
+/// and touching planes), against W0 dropped (the clear ones), and against
+/// the poison read past the hull (R-lane).
 #[test]
-fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
+fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_with_no_lane() {
     let placeholder = Surface::Nurbs(std::sync::Arc::new(geom::NurbsSurface::placeholder()));
     let apart =
         |s: &Section<f64>| matches!(s, Section::Components { parts, .. } if parts.is_empty());
@@ -563,17 +586,20 @@ fn a_nurbs_patch_and_a_plane_are_apart_by_the_net_or_refuse_on_reach() {
         ("cutting", plane(p(0.0, 0.0, 0.8), v(0.0, 0.0, 1.0)), false),
         ("touching", plane(p(0.0, 0.0, 2.0), v(0.0, 0.0, 1.0)), false),
     ] {
-        for s in [classify(&bump(), &pl), classify(&pl, &bump())] {
+        for s in [unmarched(&bump(), &pl), unmarched(&pl, &bump())] {
             if want_apart {
                 assert!(apart(&s), "{what}: {s:?}");
             } else {
-                assert!(matches!(s, Section::Intractable), "{what}: {s:?}");
+                assert!(matches!(s, Section::NoLane("f64")), "{what}: {s:?}");
             }
         }
     }
     let pl = plane(p(0.0, 0.0, 2.5), v(0.0, 0.0, 1.0));
-    assert!(matches!(classify(&placeholder, &pl), Section::Intractable));
-    assert!(matches!(classify(&bump(), &bump()), Section::Intractable));
+    assert!(matches!(unmarched(&placeholder, &pl), Section::Intractable));
+    assert!(matches!(
+        unmarched(&bump(), &bump()),
+        Section::NoLane("f64")
+    ));
 }
 
 // -------------------------------------------------------------------
@@ -1215,13 +1241,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
 
 fn lone_at(w: Point3<f64>) -> Section<f64> {
     Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: false,
-            essential_g: false,
-            witness: Some(w),
-            pad: 0.0,
-        }],
+        parts: vec![Component::closed_form(false, [false, false], Some(w))],
         single: true,
     }
 }
@@ -1269,13 +1289,7 @@ fn w4_clears_only_a_certified_single_component() {
         certify(&s, true, band(), |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
-    let c = Component {
-        unbounded: false,
-        essential_f: false,
-        essential_g: false,
-        witness: Some(p(0.0, 0.0, 0.0)),
-        pad: 0.0,
-    };
+    let c = Component::closed_form(false, [false, false], Some(p(0.0, 0.0, 0.0)));
     let two = Section::Components {
         parts: vec![c, c],
         single: false,
@@ -1323,13 +1337,11 @@ fn w2_clears_only_where_the_face_describes() {
         Err(Refusal::Unread)
     );
     let witnessed = Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: false,
-            witness: Some(p(1.0, 0.0, 0.5)),
-            pad: 0.0,
-        }],
+        parts: vec![Component::closed_form(
+            false,
+            [true, false],
+            Some(p(1.0, 0.0, 0.5)),
+        )],
         single: false,
     };
     assert_eq!(

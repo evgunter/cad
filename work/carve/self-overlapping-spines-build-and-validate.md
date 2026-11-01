@@ -2,11 +2,12 @@
 id: self-overlapping-spines-build-and-validate
 kind: issue
 title: A loft or sweep whose spine revisits itself (a planar arc past a full turn) builds a self-overlapping body and every validation tier says Ok
-status: open
+status: parked
 opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
+blocked_on: [injectivity-price-on-tour-lofts-exceeds-the-pair-budget]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL
@@ -149,3 +150,57 @@ Zero is read about the closure, and the refusal names two edges rather
 than the path. The certificate this row parks on would refuse it at
 the door. A closed spine whose ends should join into a ring (a full
 revolve's analogue) is a separate request.
+
+## Measured (2026-10-31): the certificate cannot gate a door yet
+
+Phase 1 of `carve/embedding-certificate` asked CLEAR's body-level
+injectivity sweep (`StrictlyPositive`, every face against every face)
+about today's loft and sweep bodies. The scratch and logs are on that
+branch, and that branch is not for merging.
+
+- **Too weak.** It certifies 5 of the tour's 16 loft and sweep bodies.
+  `twisted_loft`, `twisted_tube`, two lily leaves and the projectbox
+  spring refuse on Departure. `s_duct`, `lily_leaf_a`, the sepals and
+  the Klein loop run out of their pair budget.
+- **Too dear.** Where it holds, it costs 0.1–9 s against builds of
+  1–20 ms. A refusal costs 25–190 s.
+- **The f64 and Interval lanes agree on every body.** The windows
+  already lift every carrier to Interval, so the f64 lane needs no lift
+  of its own.
+- **Where it answers, it answers right.** With the `refines` fix
+  (below) it finds the 9 rad and 13 rad self-overlaps as Violated,
+  naming the wall and the section ranges. It also finds the closed
+  spine, CARVETAIL's opposite-turning joints and the interior
+  back-facing section as Violated, and it holds the two embedded rows
+  the far-normal interim over-refuses (the hood and the oblique arc
+  sweep). It does not catch a near-coincident slab, even at a step of
+  1e-15, so the fold's Zero arm stays before the skin as its own
+  decide.
+- **The y-prism is not embedded.** Its wall 0 is bilinear over a
+  concave quad in y = 0, and it folds. So the 2026-10-06 argument
+  against deriving inside from slab 0's sign does not stand: that
+  mechanism is the recommended one. It works at every scalar, and the
+  Interval signed volume refuses NURBS faces today.
+
+The causes are in CLEAR's engine, filed there by the lane at P1/P2 and
+raised to P0 here, because this row waits on them (`work/README.md`, *a
+blocker inherits the band*):
+
+- `clearance-refines-reads-only-the-lower-halves` (E);
+- `injectivity-monotone-arm-reads-a-sliver-knot-span-it-cannot-bound` (M);
+- `injectivity-departure-refuses-at-depth-on-loft-cap-corners-and-twisted-seams` (H);
+- `injectivity-price-on-tour-lofts-exceeds-the-pair-budget` (H).
+
+The proposed door shape stands for when they land:
+
+- **The call.** One helper called after `assemble` on both halves of
+  `LoftBuild`.
+- **The refusals.** A verified Violated becomes
+  `LoftError::SelfIntersecting`, naming the faces by role and the
+  section range each meets in. An engine refusal becomes
+  `EmbeddingUncertified`, which never reads Ok.
+- **The fold's arms.** The Zero arm stays before the skin. Fold-back
+  goes to the certificate. The reversed list builds, inside derived
+  from slab 0's sign.
+
+The f64 door's price is told to Ev when it is specced. Parked.

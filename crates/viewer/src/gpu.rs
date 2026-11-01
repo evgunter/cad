@@ -103,9 +103,33 @@ use crate::theme::{Mark, Theme};
 /// which needs no stencil aspect and is supported everywhere wgpu is.
 pub(crate) const DEPTH_BITS: u8 = 32;
 
+/// **Whether this build asks the id pass anything**: the blocking
+/// readback [`ViewportRenderer`]'s `read_id_at` is built on answers in
+/// the frame that asks it only where the device can be waited on.
+///
+/// **Not on the browser build.** wgpu's WebGPU backend polls the device
+/// itself, and its `Device::poll` returns at once whatever it is asked
+/// to wait for, so the map callback has not run when the wait returns
+/// and every query answered [`ReadbackFault::Map`] ("the mapping had
+/// not completed when the wait returned"). That fault is cursor news,
+/// so each pointer move over the viewport put it on the toolbar's
+/// status line and the next move retired it: the toolbar gained and
+/// lost a row as the pointer moved, and the page under it jumped. With
+/// the pointer just below the toolbar the two fed each other — the
+/// grown toolbar covers the pointer, which retires the line, which
+/// shrinks the toolbar back under the pointer — and the page flickered
+/// for as long as the pointer stayed there.
+///
+/// The id pass is the cross-check on the ray path, never the pick
+/// (`idpass::compare`), so a build that asks it nothing picks exactly
+/// as one that does and loses only the cross-check. What would bring
+/// it to the browser is a readback that spans frames, which
+/// `read_id_at` says is not the shape this pass takes.
+pub(crate) const ID_PASS_ASKED: bool = cfg!(not(target_family = "wasm"));
+
 /// The depth format that pairs with [`DEPTH_BITS`]. Stated here so
 /// the pipeline and the startup request cannot drift apart.
-const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+pub(crate) const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
 /// The id buffer's texel format: one unsigned 32-bit id per pixel,
 /// which is what `crate::pickindex::IdMap` assigns. Not a colour format —
@@ -114,7 +138,7 @@ const ID_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Uint;
 
 /// `copy_texture_to_buffer`'s row alignment. One `u32` is read back,
 /// but the copy still pads its single row to this.
-const COPY_ROW_ALIGNMENT: u64 = 256;
+pub(crate) const COPY_ROW_ALIGNMENT: u64 = 256;
 
 /// The uniform block both pipelines read.
 ///
@@ -832,7 +856,8 @@ impl ViewportRenderer {
     /// user just asked and the answer is four bytes; an asynchronous
     /// path would buy a frame of latency back at the cost of a second
     /// state machine spanning frames, for a query that only runs when
-    /// the cursor moves inside the viewport.
+    /// the cursor moves inside the viewport. A device that cannot be
+    /// waited on is asked nothing ([`ID_PASS_ASKED`]).
     ///
     /// **Nothing to draw is an answer**: [`IdMap::NOTHING`], the word
     /// the pass would have read over an empty picture, so the reader

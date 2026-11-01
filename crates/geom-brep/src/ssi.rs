@@ -125,7 +125,7 @@ mod handle;
 pub mod jet;
 pub mod march;
 mod one_arc;
-mod pair;
+pub(crate) mod pair;
 mod plane;
 mod refine;
 pub mod section;
@@ -154,13 +154,13 @@ pub use exhaust::{
     ExhaustLane, Exhaustiveness, ExhaustivenessRefusal, FloorFault, FloorKind, FloorRefusal,
     SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR,
 };
-pub(crate) use four::{Box4 as RowBox, RowCrossing, RowUnreadable, row_crossing};
+pub(crate) use four::{RowCrossing, RowUnreadable, row_crossing, row_piece};
 pub use march::{
     BranchEnd, ReachBound, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL,
     SSI_QUADRIC_NOISE_ULPS, SSI_SETTLE_MAX, SSI_SPLINE_NOISE_ULPS, SSI_STEP_DEVIATION,
     STEP_BOUND_MINORITY, SettlingRefusal, StepBound, StepCap, StepFault, StepperMode,
 };
-pub use pair::Section;
+pub use pair::{PairCorner, PairReading, PairRegion, PairRow, PairRowRefusal, Section};
 pub use plane::{PlaneSection, SectionReading};
 pub use refine::{RefineStop, RefusedRound, ResidualTrend, RoundMargin};
 pub use section::{BandVerdict, BoundarySection, SectionRoot, boundary_section};
@@ -317,6 +317,26 @@ impl BranchBound {
     pub(crate) const fn of_lane<const N: usize>() -> Self {
         if N == 4 { Self::Wall } else { Self::Slab }
     }
+}
+
+/// **Why the NURBS × NURBS boundary pass refused**
+/// ([`SsiError::PairBoundaryUnresolved`]). Only [`Self::Unresolved`] is a
+/// reading of the section (a tangency to a side, by its name
+/// `ssi_pair_boundary`); the others are the pass's incapacity.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PairBoundaryCause {
+    /// A face piece no cut resolved: the section touches or runs along a
+    /// side, or passes through a corner, of either rectangle, and nothing
+    /// handed in covers it.
+    Unresolved,
+    /// The walk passed its piece budget.
+    Budget,
+    /// A handed-in row's cover read no sign over some piece at every
+    /// width.
+    CoverUnread,
+    /// A handed-in corner's direction was not one-signed over its cell at
+    /// any width.
+    CornerUnsigned,
 }
 
 /// A typed rung-3 refusal — D4 ¶3: actionable, closed, never silence.
@@ -731,13 +751,18 @@ pub enum SsiError {
         source: geom_core::spline::SplineError,
     },
     /// The NURBS × NURBS boundary pass isolated no answer on a face of
-    /// the two knot rectangles' product within its pieces: the locus
-    /// touches or runs along a side, or passes through a corner, of
-    /// either chart, which the pass reads as no crossing it can count.
+    /// the two knot rectangles' product, or could not read a row or
+    /// corner handed in as known ([`PairBoundaryCause`] says which).
     PairBoundaryUnresolved {
-        /// The face pieces the walk examined.
+        /// The face pieces the walk may examine.
         pieces: u32,
+        /// Why.
+        cause: PairBoundaryCause,
     },
+    /// A row of both charts handed to the NURBS × NURBS lane as known
+    /// reads the two walls' tangent planes coinciding at a state of it:
+    /// the section is tangent there, and the row's cover proves nothing.
+    PairRowTangent,
     /// The branch [`Section::branch_at`] traced and certified from a
     /// seed does not hold the settled seed in its uniqueness tube, so
     /// the tube proves nothing about which branch the seed is on.
@@ -1249,11 +1274,32 @@ impl core::fmt::Display for SsiError {
                 f,
                 "ssi: a NURBS wall's boundary row is not valid spline structure"
             ),
-            Self::PairBoundaryUnresolved { pieces } => write!(
+            Self::PairBoundaryUnresolved { pieces, cause } => match cause {
+                PairBoundaryCause::Unresolved => write!(
+                    f,
+                    "ssi: the two charts' boundary pass isolated no answer on a side of either \
+                     knot rectangle: the section touches or runs along a side, or passes through \
+                     a corner"
+                ),
+                PairBoundaryCause::Budget => write!(
+                    f,
+                    "ssi: the two charts' boundary pass ran past its {pieces} face pieces"
+                ),
+                PairBoundaryCause::CoverUnread => write!(
+                    f,
+                    "ssi: the cover of a row the two charts share read no sign over some piece at \
+                     every width"
+                ),
+                PairBoundaryCause::CornerUnsigned => write!(
+                    f,
+                    "ssi: at a corner the two charts share, the section's direction was not \
+                     one-signed over the corner's cell at any width"
+                ),
+            },
+            Self::PairRowTangent => write!(
                 f,
-                "ssi: the two charts' boundary pass isolated no answer on a side of either knot \
-                 rectangle within {pieces} pieces: the section touches or runs along a side, or \
-                 passes through a corner"
+                "ssi: the two walls are tangent at a point of the row they share: their crossing \
+                 reading changes sign along it"
             ),
             Self::SeedOutsideTube { state } => write!(
                 f,
@@ -1305,6 +1351,30 @@ impl core::fmt::Display for SsiError {
 impl std::error::Error for SsiError {}
 
 impl SsiError {
+    /// **The tangency this refusal reports**, by the decision that
+    /// refused it: the march's transversality, a graze of a side, or a
+    /// side held tangent, each toward the C7 regime. The predicate is the
+    /// escalation's own where it carries one, else the decision's row.
+    /// `None` for every other refusal.
+    #[must_use]
+    pub fn tangency(&self) -> Option<&'static str> {
+        let named = |verdict: &BandVerdict, row: &'static str| match verdict {
+            BandVerdict::Undecided(cause) => cause.predicate.unwrap_or(row),
+            BandVerdict::Refused(_) => row,
+        };
+        match self {
+            Self::TransversalityBand { .. } => Some("ssi_transversality"),
+            Self::BoundaryGraze { verdict, .. } => Some(named(verdict, "ssi_boundary_crossing")),
+            Self::BoundaryTangent { verdict, .. } => Some(named(verdict, "ssi_boundary_strip")),
+            Self::PairRowTangent => Some("ssi_pair_row"),
+            Self::PairBoundaryUnresolved {
+                cause: PairBoundaryCause::Unresolved,
+                ..
+            } => Some("ssi_pair_boundary"),
+            _ => None,
+        }
+    }
+
     /// The march's refusal of a torus `pair`'s pose that was not
     /// decided: the partner's radius decided not positive, a torus
     /// outside its ring convention, two tori decided one, or a pose
@@ -1583,7 +1653,9 @@ impl SsiError {
             }
             // A wall that validated re-wraps every boundary row.
             Self::ChartRow { .. } => defect_ending(reading).to_owned(),
-            Self::PairBoundaryUnresolved { .. } => PAIR_BOUNDARY_RECOURSE.to_owned(),
+            Self::PairBoundaryUnresolved { .. } | Self::PairRowTangent => {
+                PAIR_BOUNDARY_RECOURSE.to_owned()
+            }
             Self::SeedOutsideTube { .. } => SEED_RECOURSE.to_owned(),
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => crate::certify::recourse(
@@ -3103,6 +3175,31 @@ pub fn march_torus_torus(
     )
 }
 
+/// **The ℝ³ march of a decided cylinder × cylinder pose** over `domain`,
+/// in the order the pose was asked of: the cube of the one ball the
+/// pose names ([`crate::CylinderCylinderPose::ball`]), so where that is
+/// the region a branch may end on the cube ([`BranchEnd::Cut`]). The section value marches only a transverse
+/// pose; a tangent one's components are its closed forms or refuse
+/// before any march, so a tangent pose here is the caller's defect.
+///
+/// # Errors
+///
+/// [`implicit_pair_r3`]'s; [`SsiError::WrongLane`] for a tangent pose.
+pub(crate) fn march_cylinder_cylinder(
+    pose: &crate::CylinderCylinderPose<f64>,
+    domain: SsiDomain,
+    band: Band,
+) -> Result<SsiOutcome, SsiError> {
+    let (a, b) = pose.operands();
+    checked([("cylinder", a), ("cylinder", b)], domain)?;
+    if pose.tangency().is_some() {
+        return Err(SsiError::WrongLane {
+            expected: "a transverse cylinder pair, whose tangent poses are never marched",
+        });
+    }
+    implicit_pair_r3(a, b, domain, band)
+}
+
 /// **The door's own checks**: the operands, by name, shown finite and
 /// the domain usable, before any pose or rung reads them.
 fn checked(named: [(&'static str, &Surface<f64>); 2], domain: SsiDomain) -> Result<(), SsiError> {
@@ -4480,7 +4577,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 48;
+    const ARMS: usize = 49;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -4535,6 +4632,7 @@ mod ending_tests {
             SsiError::RadiusNotPositive { .. } => 45,
             SsiError::DegenerateTorus(_) => 46,
             SsiError::CoincidentTori => 47,
+            SsiError::PairRowTangent => 48,
         }
     }
 
@@ -5010,8 +5108,33 @@ mod ending_tests {
             ),
             (
                 "pair boundary",
-                SsiError::PairBoundaryUnresolved { pieces: 262_144 },
+                SsiError::PairBoundaryUnresolved {
+                    pieces: 262_144,
+                    cause: super::PairBoundaryCause::Unresolved,
+                },
             ),
+            (
+                "pair boundary budget",
+                SsiError::PairBoundaryUnresolved {
+                    pieces: 262_144,
+                    cause: super::PairBoundaryCause::Budget,
+                },
+            ),
+            (
+                "pair boundary cover",
+                SsiError::PairBoundaryUnresolved {
+                    pieces: 262_144,
+                    cause: super::PairBoundaryCause::CoverUnread,
+                },
+            ),
+            (
+                "pair boundary corner",
+                SsiError::PairBoundaryUnresolved {
+                    pieces: 262_144,
+                    cause: super::PairBoundaryCause::CornerUnsigned,
+                },
+            ),
+            ("pair row tangent", SsiError::PairRowTangent),
             (
                 "seed outside tube",
                 SsiError::SeedOutsideTube {

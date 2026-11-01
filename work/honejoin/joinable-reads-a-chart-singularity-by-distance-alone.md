@@ -30,3 +30,23 @@ check that no edge's chart image passes through the chart's singular
 set, or a pole marked as such by the construction that mints it (the
 revolve's `MeridianVertex` at the axis), read by `joinable` before the
 metric reading.
+
+## A second reading of the incidence (RESTCURVE wrap-tip unit, 2026-10-30)
+
+The metric reading is also a second predicate for a fact the kernel
+reads once elsewhere. Whether a vertex lies on its chart's singular
+point is `geom_brep::chart_singularity::vertex_at_singular_point`
+(`chart_singularity_at_vertex`, the 3-D distance to the point). The
+loop walk's reset joint (`topo::pcurves::singular_at`), tier 3's
+at-vertex placement (`locate`) and the wrap-tip rule read it.
+`edge_join::singular_at` (`join_regular_point`) instead decides a
+sphere vertex by its distance from the AXIS. That is the right quantity
+for a torus, which has no singular point, only an axis its chart's lever
+collapses towards (and a ring torus's axis misses its surface). For a
+sphere it is a different number from the distance to the pole. The two
+part only inside the band, but there they can disagree: the join can
+keep a vertex the reset reads off the pole, or join one the reset reads
+on it. The repair this row asks for should read the one incidence on
+the sphere and cone arms, and keep the axis distance for the torus.
+
+Signed: (RESTCURVE implementer)

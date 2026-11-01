@@ -502,11 +502,13 @@ const DOC_LABEL: &str = "die";
 /// that replays the log into a document of its own gets the same
 /// recipe at every ε row.
 ///
-/// The exported document is [`gallery_document`]'s — the scene as a
-/// DOCUMENT, the composed die placed and the blank left unplaced — for
-/// that function's own reason, which does not stop being true when the
-/// consumer is a test corpus instead of a viewer: a corpus evaluates,
-/// gathers and round-trips its documents, and its product is the die.
+/// The exported document is `in_world`'s — the scene as a DOCUMENT,
+/// the composed die placed and the blank left unplaced, for
+/// [`gallery_document`]'s reason, which does not stop being true when
+/// the consumer is a test corpus instead of a viewer: a corpus
+/// evaluates, gathers and round-trips its documents, and its product
+/// is the die. Unlike the gallery's, it keeps the blank: a corpus
+/// exercises the node kinds a scene authors, and is not viewed.
 ///
 /// The log is the one [`build`] RECORDED as it applied each edit
 /// (every insert, and each pip placement's mate and values), so
@@ -533,8 +535,8 @@ pub fn corpus_text(tol: Tol) -> String {
     replay = product.doc;
     assert_eq!(
         replay,
-        gallery_document(tol),
-        "the recorded log must reproduce the document this scene publishes"
+        in_world(build(tol), tol),
+        "the recorded log must reproduce the scene's placed document"
     );
     save(&empty, &edits, tol).expect("the die document saves")
 }
@@ -559,19 +561,28 @@ pub fn corpus_text(tol: Tol) -> String {
 /// SUBJECT — "the composed die, which remains the sheet's die" (Ev's
 /// montage curation, #218 follow-up, which ruled the two partial dice
 /// out of the sheet for reading as near-duplicates) — and nothing
-/// places the blank, so the blank stays a value in the file, outside
-/// the product. It is the composed die's own outer shape with no pips
-/// cut; placed beside the die it would plug every pip cavity and
+/// places the blank. It is the composed die's own outer shape with no
+/// pips cut; placed beside the die it would plug every pip cavity and
 /// count the same material twice (the #1162 defect, which the
-/// at-rest check reports).
+/// at-rest check reports). Nothing reads it either, so the gallery
+/// deletes it, and the file holds nothing unused.
 ///
 /// The product is one copy of the die: 89 faces, V = 0.952915, no
 /// at-rest finding. The 21 pips are the members of ONE
-/// `Node::Union`, so the node count is the pips, the blank, the two
-/// blends and the placement — not a chain length — and the product
-/// slot reads the placement's copy.
+/// `Node::Union`, so the node count is the pips, the two blends and
+/// the placement — not a chain length — and the product slot reads
+/// the placement's copy.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
+    let blank = die.blank;
+    apply(&in_world(die, tol), &DocEdit::DeleteNode { id: blank }, tol)
+        .expect("nothing reads the blank, so it deletes")
+        .doc
+}
+
+/// The composed die placed in the world as the product, the blank
+/// kept as an unread value.
+fn in_world(die: Die, tol: Tol) -> Doc<ProfileProgram> {
     let placed = crate::world::place_in_world(&die.doc, die.composed, tol);
     crate::world::set_product(&placed.doc, &[placed.placement.into()], tol).doc
 }

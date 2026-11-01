@@ -546,14 +546,15 @@ fn r2_angle_line_line_is_the_box_direction_set() {
 /// **`gap` sphere x sphere in all three C5 regimes**, against real
 /// revolved geometry.
 ///
-/// **Oracle.** g = R - r - ||dc||. Outer sphere R = 1.0 centred at the
-/// origin; inner sphere r = 0.5 centred at (0, 0, cz). So
-/// g = 0.5 - |cz|, and the three regimes are cz = 0.25 (g = +0.25,
-/// clearance), cz = 0.5 (g = 0, contact) and cz = 0.75 (g = -0.25,
-/// interference). Every number is authored.
+/// **Oracle.** Two solid balls, the smaller inside the larger, are a
+/// nested pair: g = ||dc|| + r - R, how far the inner ball stands out
+/// of the outer's material. Outer sphere R = 1.0 centred at the origin;
+/// inner sphere r = 0.5 centred at (0, 0, cz). So g = |cz| - 0.5, and
+/// the three regimes are cz = 0.25 (g = -0.25), cz = 0.5 (g = 0) and
+/// cz = 0.75 (g = +0.25). Every number is authored.
 #[test]
 fn r2_gap_sphere_sphere_walks_all_three_regimes() {
-    for (cz, want) in [(0.25_f64, 0.25_f64), (0.5, 0.0), (0.75, -0.25)] {
+    for (cz, want) in [(0.25_f64, -0.25_f64), (0.5, 0.0), (0.75, 0.25)] {
         let d0 = empty("r2-ss");
         let (d1, outer) = sphere(&d0, None, 1.0, 0.0);
         let (d2, inner) = sphere(&d1, Some(outer), 0.5, cz);
@@ -572,7 +573,7 @@ fn r2_gap_sphere_sphere_walks_all_three_regimes() {
         let g = measured(&eval(&d3), id);
         assert!(
             (g - want).abs() < 1e-12,
-            "R - r - |dc| = 1.0 - 0.5 - {cz} = {want}, got {g}"
+            "|dc| + r - R = {cz} + 0.5 - 1.0 = {want}, got {g}"
         );
         // C5's convention, read as a consumer would.
         let sign = if g > 0.0 {
@@ -1011,7 +1012,7 @@ fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
         vec![fo[0].clone(), fi[0].clone()],
     );
     let at_f64 = measured(&eval(&d3), id);
-    assert!(at_f64 < 0.0, "the authored pair interferes: g = -0.25");
+    assert!(at_f64 > 0.0, "the inner ball stands out: g = +0.25");
     let evi = evaluate::<Interval>(
         &d3,
         None,
@@ -1131,20 +1132,21 @@ fn unused(_: Axis3, _: FreeValue, _: NodeErrorKind) {}
 // ===============================================================
 
 /// **The reviewer's own measured document**, different geometry from
-/// the unit's two-hole plate: a BALL IN A SOCKET, which is C5's
-/// concentric-sphere fit and the arm the shipped suites never
-/// evaluate.
+/// the unit's two-hole plate: a small ball nested in a large one,
+/// the sphere arm on real revolved faces.
 ///
-/// Socket R = 1.0 at the origin, ball r = 0.9 offset 0.05 along +z, so
-/// the authored gap is 1.0 - 0.9 - 0.05 = 0.05 — a clearance. An
-/// assertion demands at least 0.02, which holds; a second document
-/// moves the ball to 0.15, giving g = -0.05 and a Violated verdict.
+/// Both are solid balls, so their faces are both convex, a nested pair
+/// whose gap is how far the ball stands out of the larger one: R = 1.0
+/// at the origin, r = 0.9 offset 0.05 along +z, so g = 0.05 + 0.9 - 1.0
+/// = -0.05, inside. An assertion demands it stay inside by 0.02,
+/// `g <= -0.02`, which holds; a second document moves the ball to 0.15,
+/// giving g = +0.05 and a Violated verdict.
 ///
 /// The document is written to `target/r2_fit.pncad` so the Python half
 /// of the e2e can read the verdict as a consumer.
 #[test]
-fn r2_e2e_ball_in_socket_authored_and_saved() {
-    for (offset, want_gap, want_holds) in [(0.05_f64, 0.05_f64, true), (0.15, -0.05, false)] {
+fn r2_e2e_nested_balls_authored_and_saved() {
+    for (offset, want_gap, want_holds) in [(0.05_f64, -0.05_f64, true), (0.15, 0.05, false)] {
         let d0 = empty("r2-fit");
         let (d1, socket) = sphere(&d0, None, 1.0, 0.0);
         let (d2, ball) = sphere(&d1, Some(socket), 0.9, offset);
@@ -1161,8 +1163,8 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             &DocEdit::InsertNode {
                 node: Box::new(Node::Assertion {
                     value: crate::fixture::value_of(&d3, measure),
-                    bound: len(0.02),
-                    relation: AssertionRelation::AtLeast,
+                    bound: len(-0.02),
+                    relation: AssertionRelation::AtMost,
                 }),
                 fresh: Vec::new(),
             },
@@ -1172,7 +1174,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let g = measured(&ev, measure);
         assert!(
             (g - want_gap).abs() < 1e-12,
-            "R - r - |dc| = 1.0 - 0.9 - {offset} = {want_gap}, got {g}"
+            "|dc| + r - R = {offset} + 0.9 - 1.0 = {want_gap}, got {g}"
         );
         let v = match ev.nodes.get(&assertion) {
             Some(NodeResult::Ok(v)) => match &v.payload {
@@ -1184,13 +1186,13 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         assert_eq!(
             v.holds(),
             Some(want_holds),
-            "g = {want_gap} against a 0.02 AtLeast bound"
+            "g = {want_gap} against a -0.02 AtMost bound"
         );
         if !want_holds {
             match &v {
                 AssertionVerdict::Violated { measured, bound } => {
                     assert!((measured - want_gap).abs() < 1e-12);
-                    assert!((bound - 0.02).abs() < 1e-15);
+                    assert!((bound + 0.02).abs() < 1e-15);
                 }
                 other => panic!("expected Violated with both numbers, got {other:?}"),
             }

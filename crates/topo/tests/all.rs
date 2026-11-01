@@ -63,6 +63,8 @@ use topo::test_support as common;
 mod fixture;
 mod probe_support;
 
+#[path = "a_block_resting_in_the_zero_band_unions.rs"]
+mod a_block_resting_in_the_zero_band_unions;
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
 #[path = "a_decided_overlap_decides_its_pair.rs"]
@@ -79,6 +81,8 @@ mod a_keel_wrapped_at_both_ends_splits_as_a_ring;
 mod a_slit_tip_at_a_cone_apex_reads_its_full_turn;
 #[path = "a_trace_reads_a_piece_against_its_carrier.rs"]
 mod a_trace_reads_a_piece_against_its_carrier;
+#[path = "a_zero_vertex_pair_keeps_the_kept_sides_point.rs"]
+mod a_zero_vertex_pair_keeps_the_kept_sides_point;
 #[path = "an_off_iso_straight_edge_takes_its_general_row.rs"]
 mod an_off_iso_straight_edge_takes_its_general_row;
 #[path = "analytic_rung3_at_rest.rs"]
@@ -397,8 +401,6 @@ test_utils::every_suite_file_is_aggregated!();
 mod f7d_delta_probes;
 #[path = "probe_census.rs"]
 mod probe_census;
-#[path = "probe_f34_review.rs"]
-mod probe_f34_review;
 #[path = "probe_s5_sectors.rs"]
 mod probe_s5_sectors;
 #[path = "review_f7_pole_r1_probes.rs"]

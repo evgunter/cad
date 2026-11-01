@@ -591,22 +591,23 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
         }
         other => panic!("the blend loader refuses post_a, got {other:?}"),
     }
-    // The pick index refuses on a placement with no value; its tooltip
-    // carries that placement's standing as the tree draws it.
-    let Err(refusal) = common::index_at(&session, common::asm::delta()) else {
-        panic!("the index does not build over a placement with no value");
-    };
-    let badge = viewer::frame::index_badge(Some(&refusal), session.doc(), session.landed_pair())
-        .expect("a refusal badges");
-    let detail = badge
-        .detail()
-        .expect("the badge defers its words to the tooltip");
+    // The pick index holds post_a undrawn, with its kernel standing, and
+    // badges nothing for it: the tree's row, downstream of the refused
+    // shelf, is the notice.
+    let index = common::index_at(&session, common::asm::delta())
+        .expect("a placement with no value does not refuse the index");
     assert!(
-        detail.contains(&format!(
-            "failure at {}",
-            session.landed_pair().expect("landed").0.spoken(offender)
-        )) && !detail.contains("ancestor"),
-        "the pick index's tooltip names the refused shelf: {detail}"
+        index
+            .undrawn()
+            .iter()
+            .any(|copy| copy.node() == bench.post_a),
+        "post_a is held undrawn: {:?}",
+        index.undrawn()
+    );
+    assert_eq!(
+        viewer::frame::index_badge(None, Some(&index), session.landed_pair()),
+        None,
+        "no badge beside the tree's row"
     );
 
     // The product gather: its value is the kernel's, the tree draws the
@@ -666,7 +667,6 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         "standing_as_drawn(",
         "resolution_as_drawn(",
         "interrogation_as_drawn(",
-        "index_refusal_as_drawn(",
     ];
     /// `(file, door, reason)`: each admits exactly one unread call.
     const ADMITTED: &[(&str, &str, &str)] = &[
@@ -682,6 +682,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
              to show, never whether the row stands",
         ),
         (
+            "tree.rs",
+            ".usable(",
+            "`split_reading` reads a staged split, which has no row: the split panel's verdict \
+             before commit, said in the panel and nowhere the tree draws",
+        ),
+        (
             "features.rs",
             ".usable(",
             "a unit test's premise: reads the measure's payload to name the reason it expects, \
@@ -690,7 +696,8 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "NodePick::build_all",
-            "reaches the chrome only through `frame::index_badge`, which re-reads it",
+            "held as an `UndrawnCopy`; `frame::index_badge` says only a copy `tree::cause_row` \
+             names no row for, whose standing the tree draws unchanged",
         ),
         (
             "pickindex.rs",
@@ -700,12 +707,14 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         (
             "pickindex.rs",
             "patch_names(",
-            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+            "a `PickIndexError::Names` refuses the whole index, and `frame::index_badge` \
+             says it Actionable in its own words: louder than the tree, never quieter",
         ),
         (
             "pickindex.rs",
             "boundary_names(",
-            "a `PickIndexError::Names`, re-read by `frame::index_badge`",
+            "a `PickIndexError::Names` refuses the whole index, and `frame::index_badge` \
+             says it Actionable in its own words: louder than the tree, never quieter",
         ),
         (
             "pickindex.rs",
@@ -745,6 +754,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "session.rs",
             "run_checks_at_rest_on(",
             "the no-body subject's registry run; dropped the same way",
+        ),
+        (
+            "session.rs",
+            ".usable(",
+            "`body_reach` sizes a trace's window off the body's value; a refusal is dropped \
+             (`.ok()`) and the window falls back to a unit reach, never drawn",
         ),
     ];
 
@@ -857,7 +872,6 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         id: RecipeNodeId::new(0, id),
         spoken: spoken(RecipeNodeId::new(0, id), Some("Place")),
         which: None,
-        depth: 0,
         placed: false,
         status,
         repair_at: None,

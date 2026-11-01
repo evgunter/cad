@@ -2,8 +2,7 @@
 //! of the inner equator.** No event lies on the lens's rim, so the
 //! crossings the rod makes through the cap are the only ones the join
 //! sees, and the body it builds drops the lens. That body is valid at
-//! tier 3 and passes the volume backstop, so the section certificate is
-//! what refuses it. The rod's axis turns in the torus's equatorial
+//! tier 3, so the section certificate is what refuses it. The rod's axis turns in the torus's equatorial
 //! plane, square to its axis at every tilt, so the certificate's
 //! square-wall arm classifies each torus × rod-wall pair: it certifies
 //! the lens's rim a loop interior to both faces (R-loop) where the rod
@@ -119,8 +118,7 @@ fn torus_wall(h: &AtRestBody<f64>, c: &AtRestBody<f64>) -> Vec<String> {
 /// clear, and it reads `Err(Loop)`, a loop certified inside both faces;
 /// every other pair clears. Red against a lens pair cleared (its witness
 /// read `Out`, or its loop flagged essential): every op then answers a
-/// `Seamed` body valid at tier 3 that the volume backstop passes, and
-/// wrong (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
+/// `Seamed` body valid at tier 3, and wrong (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
 #[test]
 fn the_rod_that_pokes_the_lens_refuses_every_op_on_its_certified_loop() {
     let (h, c) = (half_donut(), rod(0.5, FRAC_PI_2));

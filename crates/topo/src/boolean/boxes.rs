@@ -1700,7 +1700,9 @@ const SPHERE_REACH_ULPS: f64 = 16.0;
 /// face's `sense`, which places the face on the rectangle's side of its
 /// boundary. The trim's class then
 /// holds no pole inside the face, so the face lies in the rectangle its
-/// boundary spans. A face whose side is unencoded, refused, or in
+/// boundary spans. The side is read without the tips the chart image
+/// drops: a wrap-tip cap holds the pole at its tip, outside that class,
+/// and its rim alone encodes no side. A face whose side is unencoded, refused, or in
 /// disagreement, one whose outer loop is a lone vertex or carries null
 /// scaffolding, one outside the trim's class, one whose trim escalates,
 /// and one whose axis is not decided unit all keep the
@@ -1746,7 +1748,8 @@ fn sphere_window<T: Decide>(
     ) {
         return SphereWindow::Ball;
     }
-    let outer = match crate::props::loop_edges(body, f.outer) {
+    let outer = match crate::props::chart_image_edges(body, f.outer) {
+        Ok((outer, _)) if outer.is_empty() => return SphereWindow::Ball,
         Ok((outer, _)) => outer,
         Err(LoopEdgesError::NullScaffoldEdge { .. }) => return SphereWindow::Ball,
         Err(refusal @ LoopEdgesError::Corrupt { .. }) => torn_outer_loop(body, face, f, refusal),

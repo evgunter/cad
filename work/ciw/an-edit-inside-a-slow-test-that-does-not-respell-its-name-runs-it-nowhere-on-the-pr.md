@@ -40,3 +40,14 @@ Either make the gate select the slow tests of every test file the diff
 edits (the file-level rule `EPS_EXTRA` already uses), or reword §2 to
 say a slow test runs on the PR only when an added line names it. A §2
 edit goes to Ev, because `docs/prompts/` binds every lane.
+
+## Evidence, 2026-10-31 (PR 6128)
+
+A second witness. PR 6128 (`vseam/a-labelled-creation-is-one-recording`),
+at head `3f7b8d48ed`, rewrote `labelled_as_one_undo` in
+`crates/viewer/tests/node_labels.rs`. That helper is the body of the
+slow test `every_creation_labelled_is_one_undo_whatever_door_commits_it`,
+which the same PR had just moved into the slow set. No added line spelled
+the test's name, so the PR's slow-set step selected nothing, and the
+PR's central row went green on no gate at all. The review caught it. The
+fix pass re-spells the name in the helper's doc comment.

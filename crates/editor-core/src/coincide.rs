@@ -553,19 +553,21 @@ impl Residual {
 /// **What would make an unproven row structural.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Recourse {
-    /// Build the cells as one construction of the same variables,
-    /// or assert the coincidence at its site: the residual the replay
-    /// read whole is a function of the variables alone that the door did
-    /// not show zero.
+    /// Build the cells as one construction of the same variables, or
+    /// assert the coincidence where an assertion says it: the residual
+    /// the replay read whole is a function of the variables alone that
+    /// the door did not show zero.
     OneConstruction,
-    /// Assert the coincidence at its site: the door has no form of the
+    /// Assert the coincidence where an assertion says it, else build it
+    /// as a construction the door reads: the door has no form of the
     /// row's residual to read ([`Unreplayed`] other than
     /// [`Unreplayed::Numeric`]), or the one it read keeps a value
     /// computed apart from the variables
     /// ([`geom_core::sym::deferred::Undischarged::KeepsAnOpaqueAtom`]).
     Assert,
-    /// Assert the coincidence at its site: the form the replay read
-    /// outgrew the door's budget
+    /// Assert the coincidence where an assertion says it, else build it
+    /// as one construction: the form the replay read outgrew the door's
+    /// budget
     /// ([`geom_core::sym::deferred::Undischarged::OverTheBudget`]), so
     /// whether it is zero is not decided there.
     Budget,
@@ -579,22 +581,46 @@ pub enum Recourse {
 }
 
 impl Recourse {
-    /// The recourse as a sentence's ending.
+    /// **The recourse as a sentence's ending**, `sayable` whether an
+    /// assertion could quiet the row (`checks::at_rest::row_quietable`):
+    /// the assertion is offered only where one can say the row, and a
+    /// row no assertion says (a blend turn's two feet, two radii written
+    /// apart, a cell no measure reads) names the construction alone
+    /// (`[intent.checked]`).
     #[must_use]
-    pub const fn words(self) -> &'static str {
+    pub const fn words(self, sayable: bool) -> &'static str {
+        // Each reason once, behind the assertion where one can say the
+        // row and behind the construction where none can.
+        macro_rules! either {
+            ($why:literal) => {
+                if sayable {
+                    concat!("Recourse: assert the coincidence at its site; ", $why)
+                } else {
+                    concat!(
+                        "Recourse: build the cells as one construction the door reads; ",
+                        $why
+                    )
+                }
+            };
+        }
+        macro_rules! one_construction {
+            ($($or:literal)?) => {
+                concat!(
+                    "Recourse: build the cells as one construction of the same variables, so \
+                     the coincidence holds whatever their values"
+                    $(, $or)?
+                )
+            };
+        }
         match self {
-            Self::OneConstruction => {
-                "Recourse: build the cells as one construction of the same variables, so \
-                 the coincidence holds whatever their values, or assert it at its site"
-            }
+            Self::OneConstruction if sayable => one_construction!(", or assert it at its site"),
+            Self::OneConstruction => one_construction!(),
             Self::Assert => {
-                "Recourse: assert the coincidence at its site; the door cannot read what decided it \
-                 as a function of the variables"
+                either!("the door cannot read what decided it as a function of the variables")
             }
-            Self::Budget => {
-                "Recourse: assert the coincidence at its site; what decided it, read as a function \
-                 of the variables, outgrew the door's budget"
-            }
+            Self::Budget => either!(
+                "what decided it, read as a function of the variables, outgrew the door's budget"
+            ),
             Self::ReadTheAxis => {
                 "Recourse: read the sweep's axis off the face the profile traces, so the sweep \
                  keeps the tangency the profile draws whatever the values"

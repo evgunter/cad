@@ -82,7 +82,9 @@ fn route_inventory() {
         // M5 PR 7b retired this arm: the ℝ⁴ parametric-pair march of
         // PR 7 plus the tensor-composite sup bound for limb 2.
         (Plane, Nurbs, Rung::General, true),
-        (Cylinder, Cylinder, Rung::Conic, true),
+        // Every pose on the section value; its closed forms are the
+        // parallel rulings and the bisector ellipses.
+        (Cylinder, Cylinder, Rung::General, true),
         // VERBS-C5ARMS retired this arm's coaxial half: two
         // closed-form Circles, one per nappe (cone_cylinder_section);
         // tilted and parallel-but-offset cylinders still route to the
@@ -360,7 +362,7 @@ fn crossing_pair(r: f64, gamma: f64) -> (Surface<f64>, Surface<f64>) {
 #[test]
 fn equal_cylinders_split_into_two_ellipses() {
     let (c1, c2) = crossing_pair(1.5, 0.6);
-    let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap();
+    let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap();
     let EqualCylinderSection::TwoEllipses { e1, e2, .. } = s else {
         panic!("expected two ellipses, got {s:?}");
     };
@@ -399,7 +401,7 @@ fn equal_cylinders_split_into_two_ellipses() {
 #[test]
 fn bitwise_equal_radii_are_the_equal_radius_pose() {
     let (c1, c2) = crossing_pair(1.5, 0.6);
-    let got = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band());
+    let got = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band());
     assert!(
         matches!(got, Ok(EqualCylinderSection::TwoEllipses { .. })),
         "{got:?}"
@@ -411,7 +413,8 @@ fn bitwise_equal_radii_are_the_equal_radius_pose() {
 
 #[test]
 fn radius_equality_is_decided_by_its_margin() {
-    // Definitely unequal radii: not the equal-radius pose, typed.
+    // Definitely unequal radii on meeting axes: two loops, no conic
+    // section, the general rung's.
     let (c1, _) = crossing_pair(1.5, 0.6);
     let c2 = Surface::Cylinder {
         origin: Point3::origin(),
@@ -419,8 +422,11 @@ fn radius_equality_is_decided_by_its_margin() {
         radius: 1.75,
         u_ref: Vec3::unit_y(),
     };
-    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap_err();
-    assert!(matches!(err, SectionError::UnequalRadii), "{err:?}");
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
+    assert!(
+        matches!(err, SectionError::RoutesToGeneralRung { .. }),
+        "{err:?}"
+    );
     // In-band radius difference: escalated (the pair is
     // ill-conditioned at this ε, F6).
     let c2 = Surface::Cylinder {
@@ -429,7 +435,7 @@ fn radius_equality_is_decided_by_its_margin() {
         radius: 1.5 + 3.0 * eps(),
         u_ref: Vec3::unit_y(),
     };
-    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
@@ -439,18 +445,18 @@ fn skew_axes_route_to_rung_3() {
     if let Surface::Cylinder { origin, .. } = &mut c2 {
         *origin = Point3::new(0.0, 0.5, 0.0); // definitely off-plane
     }
-    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     let SectionError::RoutesToGeneralRung { why, .. } = err else {
         panic!("expected the rung-3 routing refusal, got {err:?}");
     };
     refusal_is_grounded(why, "cylinder x cylinder, skew axes");
-    assert!(why.contains("skew axes have no conic section"), "{why}");
+    assert!(why.contains("have no conic section"), "{why}");
 
     // In-band axis offset: escalated.
     if let Surface::Cylinder { origin, .. } = &mut c2 {
         *origin = Point3::new(0.0, 3.0 * eps(), 0.0);
     }
-    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
@@ -464,7 +470,7 @@ fn parallel_equal_cylinders_trio() {
     };
     let c1 = mk(0.0);
     // Overlapping (gap 1 < 2r = 2): two rulings, on both surfaces.
-    let s = cylinder_cylinder_section(&c1, &mk(1.0), &metre_on(&c1), band()).unwrap();
+    let s = cylinder_cylinder_section(&c1, &mk(1.0), &metre_on(&c1).ball(), band()).unwrap();
     let EqualCylinderSection::ParallelLines { l1, l2 } = s else {
         panic!("expected two rulings, got {s:?}");
     };
@@ -476,18 +482,18 @@ fn parallel_equal_cylinders_trio() {
         assert!(implicit_residual(&mk(1.0), *origin).abs() < 1e-12);
     }
     // Exactly tangent (gap = 2r): the tangency ruling.
-    let s = cylinder_cylinder_section(&c1, &mk(2.0), &metre_on(&c1), band()).unwrap();
+    let s = cylinder_cylinder_section(&c1, &mk(2.0), &metre_on(&c1).ball(), band()).unwrap();
     assert!(matches!(s, EqualCylinderSection::TangentLine(_)), "{s:?}");
     // Definitely apart: empty.
-    let s = cylinder_cylinder_section(&c1, &mk(3.0), &metre_on(&c1), band()).unwrap();
+    let s = cylinder_cylinder_section(&c1, &mk(3.0), &metre_on(&c1).ball(), band()).unwrap();
     assert!(matches!(s, EqualCylinderSection::Empty), "{s:?}");
     // In-band gap: escalated (F6).
-    let err =
-        cylinder_cylinder_section(&c1, &mk(2.0 + 3.0 * eps()), &metre_on(&c1), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &mk(2.0 + 3.0 * eps()), &metre_on(&c1).ball(), band())
+        .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
     // the shared recourse exactly once.
-    let err = cylinder_cylinder_section(&c1, &mk(0.0), &metre_on(&c1), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &mk(0.0), &metre_on(&c1).ball(), band()).unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
     let msg = err.to_string();
     assert_eq!(
@@ -883,7 +889,7 @@ pub(crate) fn cs_section<T: geom_core::Decide>(
     cyl: &Surface<T>,
     sph: &Surface<T>,
 ) -> Result<PairSection<T>, SectionError> {
-    match geom_brep::pair_section(cyl, sph, band()) {
+    match geom_brep::pair_section(cyl, sph, None, None, band()) {
         Ok(SectionRead::Built(s)) => Ok(s),
         Ok(SectionRead::Elsewhere(route)) => panic!("cylinder × sphere is built: {route:?}"),
         Err(e) => Err(e),
@@ -1195,8 +1201,8 @@ fn the_cylinder_sphere_value_reads_either_order() {
         [false, true]
     );
     assert!(matches!(
-        geom_brep::pair_section(&cyl, &cyl, band()),
-        Ok(SectionRead::Elsewhere(_))
+        geom_brep::pair_section(&cyl, &cyl, None, None, band()),
+        Err(geom_brep::SectionError::NoRegion { .. })
     ));
 }
 
@@ -1298,7 +1304,7 @@ mod interval {
             }
         };
         let (c1, c2) = (mk(1.0), mk(-1.0));
-        let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap();
+        let s = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap();
         let EqualCylinderSection::TwoEllipses { e1, e2, .. } = s else {
             panic!("expected two ellipses, got {s:?}");
         };
@@ -1660,7 +1666,7 @@ fn cc_axes_parallel_in_band_escalates() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1), band()).unwrap_err();
+    let err = cylinder_cylinder_section(&c1, &c2, &metre_on(&c1).ball(), band()).unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };
@@ -1677,8 +1683,13 @@ fn cc_coaxial_in_band_escalates() {
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
-    let err = cylinder_cylinder_section(&mk(0.0), &mk(3.0 * eps()), &metre_on(&mk(0.0)), band())
-        .unwrap_err();
+    let err = cylinder_cylinder_section(
+        &mk(0.0),
+        &mk(3.0 * eps()),
+        &metre_on(&mk(0.0)).ball(),
+        band(),
+    )
+    .unwrap_err();
     let SectionError::Escalated(diag) = err else {
         panic!("expected escalation, got {err:?}");
     };

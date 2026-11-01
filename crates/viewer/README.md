@@ -66,12 +66,22 @@ slot whose variable has no name has a **name…** button that opens an
 empty field; nothing is stored until you type a name and press
 **Name** or Enter.
 
-In the Properties panel, the document-variables list ends with an
-add-variable row (name + dimension + value, written in the working
-notation's unit, one undoable edit); an
+In the Properties panel, the document-variables list ends with
+**New variable…**, which opens the add-variable row (name + dimension
++ value, written in the working notation's unit, one undoable edit),
+saying under it what **Create variable** still waits for; an
 expression that names an undeclared variable refuses typed, and the
-refusal offers to create it — prefilled into that row, with the
+refusal offers to create it — the row opened and prefilled, with the
 dimension left as your pick.
+
+The Properties panel at rest is its doors: the creation sections
+(**Add feature**, **Combine bodies**, **Blend edges**, **Assemble
+parts**) fold, and inside each every tool and form is a button that
+opens it. A form whose operation takes the selection is drawn beside
+the selection instead, while its operation would accept it — the
+extrude form while a profile is selected. The toolbar's **Cancel
+drag** and **Cancel free-move** are there only while their gesture is
+in flight.
 
 In the Features pane, an instance whose part file has changed since it
 was placed fails on its pin, and its row offers **Accept updated
@@ -88,7 +98,8 @@ failure nor the offer appears until the assembly is opened again.
 (`xdg-desktop-portal` plus a frontend for your desktop) or a `zenity`
 binary. WSL distros ship neither. The app probes at startup: with
 confidently none (no `zenity` on PATH, no D-Bus session bus) the
-Open/Save As buttons are disabled with the reason as their tooltip.
+Open/Save As buttons, and Save for a document with no file yet, are
+disabled with the reason as their tooltip.
 `apt install zenity` (or a portal) fixes it, and the command-line
 document argument needs no dialog at all. The probe's portal arm is only
 a hint: a session bus *without* a working portal frontend still makes an
@@ -96,7 +107,8 @@ attempted dialog return the same silent nothing a cancel does (`rfd`
 cannot tell the two apart), so a plausibly-present backend that never
 shows a dialog reads as quiet cancels — install `zenity`.
 
-**Where the dialogs open.** Open… and Save As… start at the first of
+**Where the dialogs open.** Open…, Save As…, and Save for a document
+with no file yet, start at the first of
 three directories that still exists: the current document's, the one
 the last dialog returned a path in (kept in the preferences file as
 `[files] last_dir`), and the directory the viewer was launched from
@@ -135,6 +147,40 @@ that preference the manual equivalent is:
 WAYLAND_DISPLAY= cargo run -p viewer --features app
 ```
 
+## Driving it by label (scripted)
+
+`viewer::app::drive::Driver` is the whole app in an egui context with
+no window and no graphics device: it clicks, types, drags and presses
+keys the way a person at the window does, finds a control by the
+label painted on it, and reads the screen back as the text each frame
+painted and where. Everything but pixel painting is the real app —
+the viewport pane still folds the pointer into camera operations and
+ray picks — and `Driver::picture` paints too when asked: it renders
+the last frame offscreen, chrome and viewport, on a device the caller
+hands it (`drive::picture_device` opens the one the app would get).
+The `drive` example runs it from a script:
+
+```sh
+cargo run --release -p viewer --features app --example drive -- script.txt
+```
+
+```text
+click "Add feature"
+click "Add profile…"
+click "rectangle"
+click "Add profile"
+dump
+picture shot.png
+```
+
+The command set is in the example's header. Two doors are not the
+window's: a driven app has no file dialog (Open… and Save As… are
+disabled as on a box with no chooser), so the script's `open` and
+`save` perform what those buttons end in; and it reads and writes a
+preferences file of its own, never the preferences of the person
+running it. It sits behind the crate's `test-support` feature, which
+`tests/` and the examples have and the shipped binary does not.
+
 ## Driving it with no display (headless)
 
 The whole application runs on a virtual X server with a software Vulkan
@@ -160,8 +206,8 @@ loaded`). `mesa-vulkan-drivers` supplies lavapipe, the software ICD wgpu
 lands on — **`WGPU_BACKEND=gl` is a dead end**, refusing with
 `CreateSurfaceError(Hal(FailedToCreateSurfaceForAnyBackend({})))`, while
 Vulkan needs no environment variable once the ICD is installed. Without
-`zenity` the chooser probe reports `Absent` and disables Open…/Save As…,
-so everything but the dialog still works. The `libEGL warning: DRI3
+`zenity` the chooser probe reports `Absent` and disables Open…/Save As…
+(and Save for a document with no file), so everything but the dialog still works. The `libEGL warning: DRI3
 error` lines on stderr are noise.
 
 **Build `--release`.** In a debug build tessellation and BVH index build
@@ -208,14 +254,23 @@ toolchain, `-Zbuild-std`, `wasm-bindgen-rayon`, or cross-origin
 isolation; the pinned stable toolchain builds it as it stands.
 
 **It has been built and linked, and nothing beyond that is verified** —
-no first light on real hardware. It is also not CI-guarded: the wasm32
-step excludes `viewer` (Toolkit and CI posture, below), so a dependency bump
-can break this build with every check green.
+no first light on real hardware. The per-PR gate does not link it:
+ci.yml's viewer row runs wasm32 clippy, which type-checks the entry
+point and stops there, so a dependency bump can break the link with
+every PR check green.
 
-Three things are known-absent by design:
+**A hosted copy** is published to GitHub Pages once a day by
+`.github/workflows/pages.yml`, built from main with the same command as
+`local-scripts/serve-wasm.sh`, at <https://evgunter.github.io/cad/>. That workflow is
+the one place the browser build is linked in CI, so a link break turns
+it red rather than the nightly. Pages serves over https, which is a
+secure context, so a browser with WebGPU gets the WebGPU path there,
+where the script's plain-http LAN server only ever reaches WebGL2.
 
-- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…
-  are disabled with their reason showing — the same posture a Linux box
+Four things are known-absent by design:
+
+- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…,
+  and Save for the startup document, are disabled with their reason showing — the same posture a Linux box
   with no portal and no zenity gets. It opens on the built-in startup
   document and stays there. Document I/O in a browser needs the
   download/upload or OPFS story GUI-5 owns.
@@ -231,6 +286,12 @@ Three things are known-absent by design:
   horizontally at a 1280×800 design size. On a ~390 px viewport the
   four-pane dock is unusable; the panes scroll, which is not the same as
   fitting.
+- **No id-pass cross-check.** The GPU id pass reads its answer back
+  by waiting on the device, and a browser's WebGPU cannot be waited
+  on, so every query came back unanswered and its fault flickered the
+  toolbar's status line on every pointer move. The browser build asks
+  it nothing (`gpu::ID_PASS_ASKED`). Picking is the ray path's either
+  way; only the check that the GPU agrees with it is gone.
 
 **Evaluation runs on the main thread.** The seam takes
 `evalseam::InlineEvaluator` here instead of `ThreadEvaluator`, so a
@@ -286,7 +347,7 @@ that decision's members of it, not the file's whole inventory (so
 | G1 layer 3 values and operations | `src/camera.rs` (`Camera`, `CameraOp`, `camera::apply`), `src/g1.rs` (`Slot`, the preview/commit rules both gestures obey), `src/session.rs` (`DocSession`, `DocSession::perform`, the operation doors) and its vocabularies `session::{select, refuse, op, author, delete, probe}` (Module boundaries, below), `src/history.rs` (tree-shaped undo), `src/input.rs` (`ViewportEvent`), `src/tools.rs` and the per-tool modules |
 | G3 free-move and hiding as display state | `src/display.rs` |
 | G3 mate definition | `src/matetool.rs` |
-| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (all three seams and all three workers) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
+| Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs` (every seam and every worker) with `src/generation.rs` (`Generation`, the counter every seam keys its answers by), `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pickindex.rs` (the index and every query over it, up to what a pick MEANS — `PickIndex`, `IdMap`, `EDGE_PICK_RADIUS_PX`, `PickKinds`, `op_for`, `hovered_for`), `src/marks.rs` (what a frame marks over a built index — `highlight`, `edge_overlay`, `compose` with the `Held` picks and `drawn_patch`, `focus`), `src/pickcache.rs` (the index's lifecycle — `IndexInputs`, `PickCache`, `NotIndexed`), `crates/bvh` (`Bvh::ray`) and `camera::cursor_projection` (the id pass's 1×1 target transform, which is projection algebra rather than a mark) |
 | GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs`, `src/platform.rs` and `src/idpass.rs` are vocabularies and are built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
@@ -356,12 +417,12 @@ gate's own header states the rest of its blind spots.
 
 ### The drivers
 
-**Two drivers, eleven modules — and the table counts MODULES.** The
+**Two drivers, twelve modules — and the table counts MODULES.** The
 rule above ratifies two drivers, `session` and `app`; the app driver is
-split for size across ten of the rows below (*The app driver, split for
-size*), so the roster is eleven rows long and always was. A reader who
+split for size across eleven of the rows below (*The app driver, split for
+size*), so the roster is twelve rows long. A reader who
 takes the two as a count over this table meets a contradiction, and the
-count that answers to it is **eleven**.
+count that answers to it is **twelve**.
 
 **This table is the roster**, not a summary of one:
 `viewer-module-kinds.sh` reads it, requires every module in it to
@@ -371,7 +432,7 @@ side of that pairing — the modules that declare the kind:
 
     rg --files-with-matches '^//! Module kind: \*\*driver\*\*' crates/viewer/src | wc -l
 
-which prints **11**, one per row below; drop the `| wc -l` and it names
+which prints **12**, one per row below; drop the `| wc -l` and it names
 them. That pairing is exactly what the gate holds the two sides to. So a new module OF the app driver is a row
 here plus its own header; a third DRIVER is an amendment to the rule
 above as well, and neither is a header edit alone.
@@ -380,6 +441,7 @@ above as well, and neither is a header edit alone.
 |---|---|
 | `session` | the session driver: owns `DocSession`, dispatches `SessionOp` |
 | `app` | the app driver: owns `ViewerApp`, drives the frame |
+| `app::drive` | the scripted driver: the whole app in a context with no window, driven by label (behind `test-support`) |
 | `pane` | the pane bodies' parent |
 | `pane::create` | the create pane |
 | `pane::features` | the feature-tree pane |
@@ -944,13 +1006,13 @@ that say a node is not live, and `AdmissionFault::NoSuchNode`.
 **The pick path's refusals hold bare ids and are spoken where they are
 drawn.** The pick index, its edge names, the id pass and the blend
 tool's loads are built from the landed run alone, so `PickIndexError`,
-`IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
+`UndrawnCopy`, `IdMapError`, `EdgeNameFault`, `EdgeNamesRefused`, `PickError`,
 `BlendTarget`, `BlendEvent`, `PatchNameFault`, `idpass::IdAnswer` and
 `idpass::Disagreement` carry no document and implement `Say`; their
 `Display` says each node by its tag. The frame that draws one speaks
 it from the landed document (`DocSession::landed_pair`), the one whose
-ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`'s
-tooltip, `frame::held_edges_badge`, `frame::tool_notice` (through
+ids it is spelled in: `frame::pick_refusal`, `frame::index_badge`,
+`frame::held_edges_badge`, `frame::tool_notice` (through
 `ToolNotice::said`), `Disagreement::notice`, the blend panel's target
 line and the add-profile form's face readout. A value carried past the frame
 that made it keeps the document it is spelled in (`frame::Spelled`),
@@ -1031,7 +1093,7 @@ handing a policy's verdict to the wrong door does not build.
 provenance rule above is why rather than a reachability accident. It is
 probed once at startup and true for the whole run, so it is held state
 a reader consults — and the read is the disabled Open…/Save As…
-control with `platform::ChooserBackend::unusable`'s words as its
+(and path-less Save) control with `platform::ChooserBackend::unusable`'s words as its
 `on_disabled_hover_text`. A status route beside it once carried the
 same sentence as a `frame::Message` with `Subject::Document`, i.e. on
 the OUTCOME channel; no click could reach it, because one copy of
@@ -1049,9 +1111,10 @@ its own `Message` from `chooser.unusable()`, and a rule ranging over
 readers of the sentence would stay green under it. So the population is
 *every read of `ViewerApp::chooser`, this crate's only value of type
 `platform::ChooserBackend`*: one, in `ViewerApp::toolbar_ui`, consumed
-by the Open… and Save As… controls, each a `match` on `no_chooser` that
-draws the control disabled with the `Some`'s words as its reason or
-live on `None`, and nowhere else. No
+by the Open…, Save and Save As… controls, each a `match` on `no_chooser`
+(Save's beside the session's path, since a Save with a path puts up no
+dialog) that draws the control disabled with the `Some`'s words as its
+reason or live on `None`, and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
 the field — `platform::chooser_backend()` has one caller (the
@@ -1146,7 +1209,8 @@ is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
 `frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
-stranded or rewritten in place) — are
+stranded or rewritten in place; a placement's dropped values, said once
+per placement by `Maintenance::values_dropped`) — are
 typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
@@ -1259,7 +1323,9 @@ pane, one module per pane; `widgets` holds the free helpers over
 `egui::Ui` that those panes share, and the one `app.rs` shares with them
 (`widgets::message`, below); and `gpu` holds the wgpu viewport
 renderer, which names `eframe::wgpu` and could not be a vocabulary
-under any reading. The table above is where that roster is kept.
+under any reading; and `app::drive` holds the whole app in a context
+with no window, fed pointer and key events and read back as the text
+it painted, for `tests/` and the `drive` example. The table above is where that roster is kept.
 
 **Splitting a driver across modules does not make the pieces
 vocabularies.** The test is a module's ROLE, not its size or its file:
@@ -1457,7 +1523,7 @@ is where the question of whether it should be broken at all is kept.
 ### Zoom to fit frames what is drawn
 
 Every fit — the toolbar's **Zoom to fit**, and the fits that startup
-and an open book through `pending_fit` — frames the **drawn extent**:
+and a replaced document book through `pending_fit` — frames the **drawn extent**:
 the world box around what the viewport hands the GPU as geometry on
 that frame. That is the scene's drawn corners (`SceneMesh::bounds`),
 every committed profile's loops and every drawn preview's loops
@@ -1494,14 +1560,29 @@ index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
 
 **The index in hand is not always the index on screen.**
-`ViewerApp::sync_scene` marks the scene's `PictureKey` current
-only on a successful rebuild — a refused one must not consume the pair,
-or the stale picture stays marked as the current one and is never
-retried — so a landed index over a refused rebuild leaves a newer index
-beside an older picture, and nothing retries it while the display
-revision and the focus set hold still. The startup mesh is the same
+`ViewerApp::sync_scene` keys the scene to an index's `PictureKey`
+only on a successful rebuild; a refused one draws nothing and leaves the
+scene with no key, so a landed index over a refused rebuild is a newer
+index beside a picture no index minted, and nothing retries it while
+the display revision and the focus set hold still. The startup mesh is the same
 shape from the other end: `scene::scene_of` builds it before any index
 exists and every corner carries `IdMap::NOTHING`.
+
+**An index covers the copies it drew, and a refused one draws
+nothing.** `PickIndex::build` walks every drawn copy; a copy whose
+build refuses (no value, no body, a tessellation or indexing refusal)
+is held in `PickIndex::undrawn` with its reason and gets no part, no
+ids and no window, so the id map stays one-to-one over the drawn
+copies and a failure takes away its own copies' picture and no other.
+`frame::index_badge` says an undrawn copy, `Actionable` and by name,
+only where the feature tree draws no `Failed` or `Poisoned` row for it
+(`tree::cause_row`): that row is the notice for a copy with no value.
+The index refuses as a whole only for a fault of its own (`Ids`,
+`DrawnTwice`, `Names`), and `sync_scene` then puts
+`SceneMesh::nothing` on screen with no `PictureKey`, under the badge,
+as it does under a refused scene rebuild. An older picture stays only
+while a build is in flight, or after a canceled evaluation, which the
+toolbar says (`app::CANCELED_LINE`).
 
 **So a pane sorts its reads of the index by what they are about**, and
 the sorting is a rule about currency rather than about which fields
@@ -1717,10 +1798,10 @@ a commit that lands under a probe is pruned and reported (at the edit,
 and at its landing), and only a
 replacement drops the display state whole with no document left to
 report against (`DisplayState::clear` carries that argument). So the
-free-move table is checked against the property rather than against a
-second copy of 46 rows (`replaces_the_document`, in
-`tests/gesture_table.rs`), and `perform` consults both tables in turn,
-value gesture first.
+free-move table is checked against the property
+(`SessionOp::replaces_the_document`, in `session/op.rs`) rather than
+against a second copy of its rows (`tests/gesture_table.rs`), and `perform` consults both
+tables in turn, value gesture first.
 
 `BeginFreeMove` is permitted by both tables and refused anyway, one
 layer down: `DisplayState::begin_free_move` answers a second begin off
@@ -1853,35 +1934,29 @@ draws the button.
 **The doors are in the toolbar and not on the field**, which is the one
 siting that answers the defect: the field is what can stop being drawn,
 so a cancel beside it would vanish with the exit it replaces. And **a
-door that cannot act says so rather than vanishing** — the posture the
-two file-dialog controls take: each door is drawn whatever the
-selection, the standing and the evaluation are, and enabled exactly
-while its own gesture is in flight. **And reachable at every window
-width**, which is a second claim and has its own holds: the toolbar is
-laid out `horizontal_wrapped`, so a window narrower than the row gets a
-second line rather than a clipped one — a clipped control is not
-small, it is gone, and for these two that would mean no exit from the
-gesture at all. `ViewerApp::toolbar_ui`'s two rows hold both halves: that the
-row does not fit a narrow window, so the wrapping is answering
-something, and that it stays inside one.
-
-**How it says so is a different precedent from where it is drawn**, and
-citing one for both is wrong: a dialog control's refusal is the
-environment's and comes before the operation — with no chooser backend
-no path is chosen, so the `SessionOp::Open` or `Save` a click would push
-is never built — and the dialog controls hand
-`platform::ChooserBackend::unusable`, the sentence this crate composes on
-the probe's value and answers with the gate, to `on_disabled_hover_text`.
-A cancel door's refusal is its operation's own, and it follows
-`pane::create`'s catalogue entry
-instead — *carrying the op's own refusal, read off the entry, not
-minted here* — so `CancelDoor::blocked` is a `Refusal` and the disabled
-control's words are the refused operation's own. **That the two cannot
-come to say different things is held by a test, not by the type**:
-`gesture_table.rs`'s `a_closed_door_says_what_its_own_operation_refuses`
+door is drawn exactly while its own gesture is in flight**, whatever the
+selection, the standing and the evaluation are: a cancel belongs where
+its gesture is in flight, and one standing on the toolbar at rest is a
+control with nothing to do that a reader has to read past. Whether it
+is in flight is `CancelDoor::blocked` — the refusal the door's own
+operation gives with no gesture open, a `Refusal` read off the
+operation rather than a second test beside it, following
+`pane::create`'s catalogue entry (*carrying the op's own refusal, read
+off the entry, not minted here*). That the two cannot come to disagree
+is held by `gesture_table.rs`'s
+`a_door_is_closed_exactly_when_its_own_operation_refuses`, which
 performs each door's operation with no gesture open and compares both
-the rendering and the variant. Nothing structural stops a future door
-composing its own sentence; that row is what would red.
+the rendering and the variant. **The controls that stand at rest keep
+the other posture** — disabled rather than absent, saying their
+refusal: Undo and Redo (`Refusal::nothing_to_step`), Open…, Save and
+Save As… with no chooser backend, and a part-chooser entry that cannot
+be picked (the open document's own file). **And reachable at every window width**:
+the toolbar is laid out `horizontal_wrapped`, so a window narrower than
+the row gets a second line rather than a clipped one — a clipped
+control is not small, it is gone, and for these two that would mean no
+exit from the gesture at all. `ViewerApp::toolbar_ui`'s two rows hold
+both halves: that the row does not fit a narrow window, so the wrapping
+is answering something, and that it stays inside one.
 
 **The door cannot be reached during a live pointer drag**, which is the
 half of the defect it does not answer: it is a toolbar control, and
@@ -2188,7 +2263,7 @@ rather than an exception:
   match to borrow, and its doc already argues it is the single list.
 - **A deliberately partial list** claims no completeness, so forcing it
   would force the wrong thing: `SUBJECTS_WITH_AN_EXPIRY_ISSUER` names
-  two of five `Subject`s, each tool's seat list names its own seats,
+  three of six `Subject`s, each tool's seat list names its own seats,
   and `MATE_KINDS` offers the two pose kinds one face pick reads. Each
   says why in its own doc.
 
@@ -2524,7 +2599,7 @@ is the same grammar over a different population.
 
 **A PRIVATE target links, but only if it is nameable, and the two are
 not the same test.** A private FIELD and a private METHOD resolve
-(`ViewerApp::fit_delta_on_scene` and `ViewerApp::remember_prefs` are
+(`DocumentDerived::fit_delta` and `ViewerApp::remember_prefs` are
 both linked and both private), because rustdoc resolves an associated
 item through its type and both host passes run
 `--document-private-items` with `rustdoc::private_intra_doc_links`

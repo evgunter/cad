@@ -50,7 +50,7 @@ fn min_speed_ceiling(c: &NurbsCurve3<f64>, n: usize) -> f64 {
             continue;
         }
         let (mut a, mut b) = (ts[i.saturating_sub(1)], ts[(i + 1).min(n)]);
-        let g = 0.5 * (5.0_f64.sqrt() - 1.0);
+        let g = geom_core::GOLDEN_SECTION;
         for _ in 0..60 {
             let (x, y) = (b - g * (b - a), a + g * (b - a));
             if speed(x) < speed(y) {

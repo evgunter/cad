@@ -128,6 +128,7 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub(crate) mod bound_side;
 pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
@@ -232,6 +233,7 @@ mod row_walk_proofs;
 // `///` here would merge into the module's own `//!` docs and make
 // rustdoc resolve their intra-doc links in THIS module's scope instead
 // of that one's.
+pub(crate) mod one_region;
 pub(crate) mod sector_face;
 pub(crate) mod sector_shape;
 pub mod separation;
@@ -243,6 +245,7 @@ pub mod split;
 pub mod splitting;
 pub(crate) mod stands;
 pub(crate) mod strut;
+pub mod surface_boundary;
 pub mod surgery;
 // Existence and visibility are two questions, gated separately; the
 // module's own docs are the statement of both. EXISTENCE: the items
@@ -277,6 +280,11 @@ mod test_support_meeting;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_samples;
+// The boolean's volume relations, a test oracle the suites run on their
+// own results.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_volume;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -482,6 +490,12 @@ pub mod test_support {
             .collect()
     }
 
+    /// How far each solid's aimed rays start from `aim`, over two
+    /// (`side_reader`'s `beyond`): the reach's pins read its scale.
+    pub fn aim_reach(body: &Body<f64>, aim: geom_core::Point3<f64>) -> Vec<Result<f64, String>> {
+        crate::side_reader::beyond_report(body, aim)
+    }
+
     /// What each solid's aimed rays read before the volume, as text
     /// (`side_reader`): the edge-meeting ray's probes read it.
     pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
@@ -617,9 +631,9 @@ pub mod test_support {
             corners, corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
             fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
             nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
-            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
-            pyramid_volumes, shape, single_arch, sunk_on_an_edge, three_wedges, two_wedges, wedge,
-            wedges_on_one_side, zigzag,
+            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid,
+            posed_pyramid_at, poses, pyramid_volumes, shape, single_arch, sunk_on_an_edge,
+            three_wedges, two_wedges, wedge, wedges_on_one_side, zigzag,
         };
     }
 
@@ -636,7 +650,7 @@ pub mod test_support {
         body: &mut Body<T>,
         tol: geom_core::Tol,
     ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
-        body.merge_coplanar_faces_unjoined(&[], tol)
+        body.merge_coplanar_faces_unjoined(&crate::boolean::GluedSurfaces::none(), tol)
     }
 
     /// `body` finished for a door that takes finished bodies (the
@@ -763,24 +777,7 @@ pub mod test_support {
             .map_err(|refusal| format!("{refusal:?}"))
     }
 
-    /// The boolean's volume backstop over `a`, `b` and a `result`, as the
-    /// pipeline gates a finished body
-    /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a
-    /// suite plants a wrong result through.
-    ///
-    /// # Errors
-    ///
-    /// The backstop's refusal, or a tolerance that forms no band.
-    pub fn volume_backstop<T: crate::AtRestPolicy>(
-        op: crate::BooleanOp,
-        a: &Body<T>,
-        b: &Body<T>,
-        result: &Body<T>,
-        tol: geom_core::Tol,
-    ) -> Result<crate::AtRestOutcome, crate::BooleanError> {
-        let band = geom_core::Band::linear(tol)?;
-        T::gate_volume_backstop(op, a, b, result, band, tol)
-    }
+    pub use crate::test_support_volume::{VolumeOracle, assert_volume_relations, volume_relations};
 
     /// The two operand clones as the boolean's join leaves them, and
     /// the interior-loop guard's verdict on them.
@@ -1154,6 +1151,34 @@ pub mod test_support {
             .collect())
     }
 
+    /// **The interior-loop guard's reading of two carriers, with no
+    /// faces**: the section certificate's classification through the
+    /// march door, over the reach `(centre, radius)`, then its per-pair
+    /// rule with no event, no face describing one sheet and no witness
+    /// placed, spelled by `Debug` as [`section_report`]'s outcomes are.
+    /// A component the rule clears without a face clears here; any other
+    /// refuses undecided.
+    #[must_use]
+    pub fn section_verdict(
+        f: &geom::Surface<f64>,
+        g: &geom::Surface<f64>,
+        (centre, radius): (geom_core::Point3<f64>, f64),
+        band: geom_core::Band,
+    ) -> String {
+        use crate::boolean::section_cert::{Reach, Sheet, certify, classify};
+        let section = classify(
+            f,
+            g,
+            Reach { centre, radius },
+            Some(geom_brep::SsiLane::marched()),
+            band,
+        );
+        format!(
+            "{:?}",
+            certify(&section, false, band, |_| Sheet::Not, |_, _| [None, None])
+        )
+    }
+
     /// Does `face` lift to one sheet for the section certificate's W2
     /// (`boolean::ops::ChartCache::describes` answers `Sheet::One`)?
     /// The verdict the certificate reads per face; a torn face, or one
@@ -1248,7 +1273,7 @@ pub use boolean::{
     JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
     NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
-    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneRelation, PlaneRung,
     PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt, SectorRead, SectorRung,
     SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode, SlitFaceGap,
     SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
@@ -1286,8 +1311,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
-    ContactVerdict, DeclaredContact, GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactPair,
+    ContactRefusal, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1301,8 +1326,8 @@ pub use link::{Link, LinkRefusal, Material, Round, TouchUnread};
 pub use chart::{Chart, ChartKind};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
-    chart_region_overlap, declared_pair_overlap,
+    CarrierPremise, ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP,
+    WITNESS_SEGMENT_CAP, chart_region_overlap, glued_pair_overlap,
 };
 pub use clearance::ClearanceLane;
 pub use coherence::{
@@ -1382,10 +1407,10 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
     AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark,
-    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, StaleDeclaration,
-    Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks, contact_marks_structural,
-    validate, validate_closed, validate_geometric, validate_geometric_certificate,
-    validate_geometric_certificate_structural, validate_geometric_structural,
-    validate_pseudomanifold, validate_pseudomanifold_certificate,
+    CrossingSideVerdict, OrientationUnread, RingContact, RingPairContact, SingularityLies,
+    StaleDeclaration, Undecidable, Unfinished, ValidationError, WedgeCheck, contact_marks,
+    contact_marks_structural, validate, validate_closed, validate_geometric,
+    validate_geometric_certificate, validate_geometric_certificate_structural,
+    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
     validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

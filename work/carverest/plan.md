@@ -21,6 +21,7 @@ Opened 2026-10-10 by CARVE's third priority-seam cut
 | P3 | `corner-config-indeterminate-has-no-real-body-witness` | E | `CornerConfig::Indeterminate` has no real-body witness once a plane–plane end reads its end face first |
 | P3 | `open-rim-end-corner-of-a-partial-revolve-does-not-classify` | M | a partial revolve's open neck-flare rim ends in a corner `corner_at` reads as Indeterminate |
 | P3 | `blend-an-edge-in-another-shell-moves-predicate-4-at-a-cavity-corner` | M | one island edge added to a sealed cavity's request makes predicate 4 refuse `ChainNotG1` at a cavity corner |
+| P3 | `skinned-wall-weights-drift-an-ulp-along-the-stacking` | E | a skinned wall's weights differ by an ulp along the stacking |
 | P4 | `certify-residual-predicates-still-name-a-slot` | E | certify's residual predicate names still name a slot of the surface pair |
 
 ## Order
