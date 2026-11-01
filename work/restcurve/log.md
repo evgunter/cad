@@ -48,3 +48,4 @@
   - Dual review, concurrent (H), on `9c07853b`. R2's MAJOR (two torus windows refused at the certified scalar) was TALLIED. Row `PR-6163`.
   - Three fix passes. Reviews outside the pair: a delta of `19efe519` found a second MAJOR (windows sharing an azimuth span), and a re-check of `8f9aea64` found a regression of pass 2 (the span fallback). Both are fixed and pinned by rows. I ran the last row against a mutant myself.
   - Filed: the hair-gap residual (P1), `the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar` (P1, item (e)), and the exemptions on the spline/off-admits row. CI was green but for the python binding census, a main red filed on SPACES.
+- 2026-11-01 — Dispatched `torus-windows-a-hair-apart-in-tube-angle-are-undecided-at-the-certified-scalar` (P1 M; dual tier, sequential arm, byte 92; branch `restcurve/hair-gap`). It goes to the region arm's implementer session, which knows the door. The sphere-pole P1 is next.

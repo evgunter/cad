@@ -2,11 +2,12 @@
 id: torus-windows-a-hair-apart-in-tube-angle-are-undecided-at-the-certified-scalar
 kind: issue
 title: Two torus windows a hair apart in tube angle are refused undecided at the certified scalar (1e-6, 1e-12)
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: M
 refs: [validate-tier3-curved-boundary-containment]
+branch: restcurve/hair-gap
 ---
 
 ## What
@@ -57,3 +58,14 @@ Today's refusal holds at 1e-6 and 1e-12 and not at the default ε, so a row
 pinning it would assert a different outcome per ε for the same body. The
 fix's row is the probe's case asserting `Ok(())` at every ε. Until then the
 probe on the review branch reproduces it.
+
+## Spec (RESTCURVE orchestrator, 2026-11-01)
+
+Branch `restcurve/hair-gap`. Review tier: **dual**, because the fix is in the torus door, which the boolean shares. Arm: **sequential** (byte 92, mod 3 = 2).
+
+1. **Root-cause first.** Trace which leg, which root and which reading gives `bool_torus_region_span` its whole-turn enclosure at Interval for `g` ∈ {0.001, 0.003}, and why 1e-9 settles where 1e-6 and 1e-12 do not. Write it in the PR body before changing code.
+2. **Fix it in the door** (`torus_region.rs` / `circle_roots.rs`). The fix must read a root's azimuth with a certified enclosure no wider than the geometry needs, or aim the paths so that no certified path depends on it. It must not exempt or set aside a reading that the door could decide.
+3. **Rows:**
+   - the probe's case (`recheck_e1_close_detail`) validating at f64 and Interval, at every ε where `g` clears the band;
+   - the f64 in-band case (`g` = 0.003 at 1e-6) staying a typed escalation.
+4. **No answer moves elsewhere.** Run a base-vs-head differential of the torus door (`curved_face_containment` on torus bodies: grid points plus window-edge points, f64 and Interval), and the torus-touching topo and sweep suites at three ε. Any definite answer that flips must be explained.
