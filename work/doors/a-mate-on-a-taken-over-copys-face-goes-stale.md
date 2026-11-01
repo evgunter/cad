@@ -2,11 +2,10 @@
 id: a-mate-on-a-taken-over-copys-face-goes-stale
 kind: issue
 title: A mate another placement seats on a face of a body's copy goes stale when a fillet or mirror takes that copy over: the mated part is no longer placed
-status: parked
+status: open
 opened: 2026-10-25
 priority: P0
 cost: M
-blocked_on: [5636]
 ---
 
 
