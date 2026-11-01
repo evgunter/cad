@@ -93,3 +93,10 @@ AUTHOR's narrative is recoverable from
     - One `feature()`.
     - The Checks test now runs through production.
     - The part file is left out of pick sentences. The lane argued that a `Speaker` cannot reach `PartFiles`, and that tags already tell instances apart. Accepted, pending the re-verify.
+- 2026-11-01 — (DOORS orchestrator) PR 6264 re-verify (head `bab0326e0a`): not mergeable.
+  - **MAJOR:** the pass moved held-pick re-seating from commit to landing. A gesture committed from a held pick inside that window writes a stale reference. Undo also cleared every pending takeover.
+  - **Minors:** a copy of a copy and the fused pattern are not seen as readers, and `successor.rs` asserts a false premise about them. The load door is now looser than the edit door for payload names. "Is this a part's name" has three predicates.
+
+  **Unilateral ruling:** re-seat at commit. Held picks count as readers, so the door still skips evaluation when nothing reads the copy. The pending queues are deleted. Fix pass 2 is sent to the same lane.
+
+  **Class, again:** a fix pass bought its cost win with a deferral that opened a correctness window. Re-verify caught it.
