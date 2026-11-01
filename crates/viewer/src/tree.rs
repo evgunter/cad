@@ -682,13 +682,13 @@ pub struct HeldPick {
 }
 
 impl HeldPick {
-    /// `face`, its nodes as `doc` speaks them now, said on the body it
-    /// is on: a click on a placement's copy is on the body the copy
-    /// places ([`crate::world::body_of`]), as a body seat reads the same
-    /// click, so one click names one node wherever a held pick is said.
+    /// `face`, its nodes as `doc` speaks them now, said on the drawn
+    /// body the click met — the copy the user clicked, never the body it
+    /// places — so two copies of one body read apart wherever a held
+    /// pick is said (a mate seats on a copy, and which copy is the
+    /// point), and a pick says what was clicked.
     pub fn new(doc: &Doc<ProfileProgram>, face: FaceSelection) -> Self {
-        let (node, body) = crate::world::body_of(doc, face.node, face.body);
-        let on = DrawnBody::new(node, body);
+        let on = DrawnBody::new(face.node, face.body);
         let said = held_by(&PickedName::new(&face.name, on), doc);
         Self { face, on, said }
     }
@@ -1579,11 +1579,11 @@ mod picked_name {
         );
     }
 
-    /// **One click on a copy is said alike wherever it is held**: the
-    /// boss's end cap clicked on the boss's placed copy, held by the
-    /// mirror tool as its plane and by the mate tool as its first pick,
-    /// is said on the body the copy places in both lines (`HeldPick`'s
-    /// one rule), not on the copy in one and the body in the other.
+    /// **The mirror and the mate say a face clicked on a copy alike,
+    /// naming that copy**: the boss's end cap clicked on the boss's
+    /// placed copy is said on that copy by both lines (`HeldPick`'s one
+    /// rule); and the same cap clicked on a second copy of the boss
+    /// reads apart from the first.
     #[test]
     fn a_face_on_a_copy_is_said_alike_by_the_mirror_and_the_mate() {
         let tol = pncad::tolerance::witness();
@@ -1591,34 +1591,40 @@ mod picked_name {
         let place = *crate::test_support::authored_ids(&doc)
             .last()
             .expect("the boss's placement is the last node");
-        let face = crate::session::FaceSelection {
+        let (doc, second) = crate::test_support::placed(&doc, boss, tol);
+        let cap_on = |node| crate::session::FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
                 node: boss,
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            node: place,
+            node,
             body: 0,
         };
         let evaluation = evaluated(&doc);
         let by = crate::frame::landed_speaker(Some((&doc, &evaluation)));
+        let tag = |id: RecipeNodeId| test_utils::refusal::tag(id.0.digest());
+        let cap = |copy| {
+            format!(
+                "the end cap of Extrude {}, on Place {}",
+                tag(boss),
+                tag(copy)
+            )
+        };
         let mut mirror = crate::combine::MirrorTool::new();
-        mirror.pick_plane(&doc, face.clone());
+        mirror.pick_plane(&doc, cap_on(place));
         let mut mate = crate::matetool::MateTool::new();
-        mate.pick(&doc, face);
-        let cap = format!(
-            "the end cap of Extrude {}",
-            test_utils::refusal::tag(boss.0.digest())
-        );
+        mate.pick(&doc, cap_on(place));
+        mate.pick(&doc, cap_on(second));
         let plane = mirror.line(by);
-        let on = mate.line(by);
         assert!(
-            plane.ends_with(&format!("mirror plane: {cap}")),
-            "the mirror says the cap on the boss: {plane}"
+            plane.ends_with(&format!("mirror plane: {}", cap(place))),
+            "the mirror says the cap on the copy clicked: {plane}"
         );
-        assert!(
-            on.starts_with(&format!("on: {cap};")),
-            "the mate says it alike: {on}"
+        assert_eq!(
+            mate.line(by),
+            format!("on: {}; to: {}", cap(place), cap(second)),
+            "the mate says it alike, and the two copies apart"
         );
     }
 }

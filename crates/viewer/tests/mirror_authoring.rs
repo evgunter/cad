@@ -712,10 +712,14 @@ fn a_deleted_copy_drops_the_plane_in_the_words_the_line_said() {
         .split_once("mirror plane: ")
         .map(|(_, plane)| plane.to_owned())
         .unwrap_or_else(|| panic!("the line holds the plane: {line:?}"));
-    let block_said = session.doc().spoken(block).to_string();
+    let (block_said, copy_said) = (
+        session.doc().spoken(block).to_string(),
+        session.doc().spoken(copy).to_string(),
+    );
     assert!(
-        plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {block_said}")),
-        "the line says the plane on the block: {line:?}"
+        plane.starts_with("the side wall ")
+            && plane.ends_with(&format!(" of {block_said}, on {copy_said}")),
+        "the line says the block's wall on the copy clicked: {line:?}"
     );
     let outcome = session.perform(SessionOp::DeleteNode { node: copy });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -833,16 +837,19 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     );
 }
 
-/// **One click is named by one node**: a face clicked on the block's
-/// copy is said as the block in both of the tool's items, the body and
-/// the plane.
+/// **A click on a copy seats the block and says the copy**: a face
+/// clicked on the block's copy seats the block as the body, and the
+/// plane is said as the block's wall on the copy it was clicked on —
+/// the plane was taken there.
 #[test]
-fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
+fn a_click_on_a_copy_seats_the_block_and_says_the_plane_on_the_copy() {
     let tol = Tol::witness();
     let (session, block) = block(tol);
     let wall = face_toward(&session, 1.0);
+    let wall_copy = wall.node;
     let tools = mirror_tool_picking(&session, &[wall]);
     let said = session.doc().spoken(block).to_string();
+    let copy = session.doc().spoken(wall_copy).to_string();
     let line = tools
         .mirror()
         .expect("open")
@@ -851,9 +858,8 @@ fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
         .strip_prefix(&format!("mirrored body: {said}; mirror plane: "))
         .unwrap_or_else(|| panic!("the body seat says the block: {line:?}"));
     assert!(
-        plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {said}")),
-        "the plane is the block's wall in its words, said on the block and not on the copy: \
-         {line:?}"
+        plane.starts_with("the side wall ") && plane.ends_with(&format!(" of {said}, on {copy}")),
+        "the plane is the block's wall in its words, said on the copy clicked: {line:?}"
     );
 }
 

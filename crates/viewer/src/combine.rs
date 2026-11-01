@@ -392,8 +392,8 @@ impl SplitTool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MirrorTool {
     seats: Seats,
-    /// The plane: the face, said on the body it is on, read once at the
-    /// pick ([`crate::world::body_of`]), with the nodes its words name
+    /// The plane: the face, said on the copy it was clicked on
+    /// ([`HeldPick::new`]), with the nodes its words name
     /// as the document last spoke them ([`Self::respeak`]). The line and
     /// the drop both say the plane from it, so a drop after the copy it
     /// was clicked on is deleted says what the line said.
@@ -491,11 +491,11 @@ impl MirrorTool {
     }
 
     /// **The panel's held-picks line**: the body seat and the plane,
-    /// each said by `by` — the body seat's node, and the plane as the
-    /// chrome says a pick ([`PickedName`]) on the body the face is on as
-    /// a body seat says a pick on a copy ([`crate::world::body_of`]), so
-    /// one click is named by one node in both items. A node `by` does
-    /// not hold is said as the tool kept it.
+    /// each said by `by` — the body seat's node (the body a click on a
+    /// copy seats), and the plane as the chrome says a held pick
+    /// ([`HeldPick`]), on the copy it was clicked on, since the plane
+    /// was taken there. A node `by` does not hold is said as the tool
+    /// kept it.
     pub fn line(&self, by: Speaker<'_>) -> String {
         let body = self.seats.said(by, 0);
         let plane = self.plane.as_ref().map(|plane| Said(plane, by).to_string());

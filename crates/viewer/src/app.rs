@@ -4206,12 +4206,11 @@ mod properties_pane_tests {
         let (_, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |_| {
             vec![Selection::Face(cap_of(pncad::prelude::CapEnd::End))]
         });
-        // A pick is the face in its words, said on the body the clicked
-        // copy places (`HeldPick::new`): the extrude its words name, so
-        // no `, on` follows.
+        // A pick is the face in its words, on the copy clicked.
         let line = format!(
-            "on: the end cap of Extrude {}; to: none picked",
+            "on: the end cap of Extrude {}, on Place {}; to: none picked",
             test_utils::refusal::tag(extrude().0.digest()),
+            test_utils::refusal::tag(placement().0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
