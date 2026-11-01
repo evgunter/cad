@@ -2,10 +2,11 @@
 id: a-rider-piece-the-containment-door-cannot-read-is-read-as-out
 kind: issue
 title: The parting reads a piece of an edge the containment door cannot place as not lying in the face
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P2
 cost: E
+branch: parting/rider-piece-unread-refuses
 ---
 
 

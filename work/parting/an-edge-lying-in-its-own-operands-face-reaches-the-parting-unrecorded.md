@@ -2,10 +2,11 @@
 id: an-edge-lying-in-its-own-operands-face-reaches-the-parting-unrecorded
 kind: issue
 title: An edge lying in a face of its own operand reaches the parting with no record, so only the geometric reading parts it
-status: open
+status: parked
 opened: 2026-11-01
 priority: P1
 cost: M
+blocked_on: [a-finished-body-holds-its-contact-records-at-every-door]
 ---
 
 
@@ -62,3 +63,14 @@ takes the operand, or carry a result's records on the body the next op takes, so
 that every line lying in a plane face reaches the parting with its
 record. Then the parting's rewiring can drop the geometric reading for
 lines in planes.
+
+## Parked (2026-11-01)
+
+The second fix this row names is HELDRECORDS' ratified unit
+`a-finished-body-holds-its-contact-records-at-every-door` (Ev, PR 5967): an `AtRestBody` holds its contact records and
+every door carries them, so `tipped_b`'s own tip-in-notch record,
+written by the union that built it, reaches the next op. Parked on it.
+When it lands, re-take this row's measurement: a body no door built
+(a primitive, an import) whose edge lies in its own face still arrives
+unrecorded unless its build door records it, and the walls-outside
+reads above may be that class. (PARTING orchestrator)
