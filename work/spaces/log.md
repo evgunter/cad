@@ -69,3 +69,11 @@ Newest entries at the bottom; the tail is the program's live status.
   reviewer-style-lane trap, caught by review; and a reading carried as a
   fault type, with every `Err` reader treating it as "did not evaluate".
   (SPACES orchestrator)
+- 2026-11-01 — 6208 fix pass in (`ef593164`): every review item taken, the
+  `defined_rows` deferral fixed in place rather than filed; CI red only on
+  main's three concision rows. The pass rewrote the evaluator's member
+  enumeration (`eval_family` now through `eval::members::members`), which
+  is kernel ground beyond the unit, so a verifier runs before merge, with
+  "the evaluator computes nothing differently" as its first claim. The
+  implementer's local viewer run filled the disk; its target was handed to
+  the verifier by rename (lane finished). (SPACES orchestrator)
