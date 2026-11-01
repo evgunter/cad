@@ -22,6 +22,11 @@ AUTHOR's narrative is recoverable from
 - **2026-10-30, crossing announced by (INTENT orchestrator):** INTENT stage 6 E (`work/intent/the-sketch-tool-authors-a-tangent-continuation.md`, spec `docs/INTENT-STAGE6-SPEC.md` §6) edits `crates/viewer/src/sketch.rs` and `crates/viewer/src/pane/profile.rs`. The sketch tool draws a picked face's trace and writes C's `OnTrace`/`AlongTrace` step, and `sketch::is_committed` is fixed for a profile drawn on a frame. Branch `intent/s6-e-sketch-tool`. It takes none of this program's rows.
 - 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `a-takeover-could-re-seat-a-pick-its-result-keeps` (P3), `a-takeovers-rebind-cannot-reach-part-spelled-names` (P3). INTENT's charter is D10 and these are follow-ups found while building it.
 - 2026-11-01 — (CHROME orchestrator) `a-mate-on-a-taken-over-copys-face-goes-stale` set `open`: its blocker, PR 5636 (D′3), merged at `29110056`. A PR number in `blocked_on` is not checked by lint, so the row read as parked on a fired trigger. CHROME's lane traced Ev's stale held face (bracket walk, 2026-10-31) to this row's takeover and added the evidence under `## Evidence` (PR 6204). CHROME's `a-findings-face-reference-reads-as-stale` (P1) is now parked on this row. The row stays here because plan item 5/6's one generalised takeover rule is DOORS' to build once. It is a P0 with its design decided, and DOORS has no orchestrator.
+- 2026-11-01 — **Seam (SPACES):** SPACES claimed
+  `a-takeover-re-points-along-the-seen-path-and-a-creation-joins-the-product`
+  by `git mv` (PR 6209): its half (b) is superseded by Ev's ruling there
+  (nothing joins the product unasked; spec §5′.3 (b) retired), and its
+  half (a) is carried by `spaces/a-new-body-lands-unplaced`. (SPACES orchestrator)
 - 2026-11-01 — (DOORS orchestrator) **picked up; triage and cut.** D′3 (PR 5636) merged at `29110056`, so eight rows parked on it had fired. Lint does not check an int blocker. Dispositions:
   - `a-combine-deletes-the-placement-it-just-repointed` is closed as absorbed. `Place` now has one source, so the operands' placement lists are disjoint.
   - Four held-pick and chrome rows are unparked.
@@ -37,3 +42,15 @@ AUTHOR's narrative is recoverable from
   - The designers on `the-gui-has-no-clearance-consumer`: a three-designer arm, A, B and C, drawn per `docs/DESIGN-FORK-PROTOCOL.md`; the bytes are on `analysis/design-fork/doors-clearance-consumer`.
 
   All three lanes run on this box. That is 4 vCPU and about 28 GB of disk, under the one build slot, with hosted CI as the record.
+- 2026-11-01 — **Seam (SPACES):** Ev answered PR 6209 (the picture draws
+  bodies; nothing joins the product unasked; the insert gesture stores its
+  display frame). SPACES took the takeover row by `git mv` as you planned
+  (its (b) superseded, its (a) carried by `spaces/a-new-body-lands-unplaced`).
+  `spaces/the-picture-draws-bodies` is dispatched (branch
+  `spaces/picture-draws-bodies`): it changes what is drawn for an operand,
+  a fillet's input and a split's halves, so your rows re-parked on 6209
+  (the split, the fillet operand, the mirror's two pieces) should be
+  re-read against its PR, not against 6209's merge. Your P0 rebind and
+  that unit both touch `crates/viewer/src/world.rs`'s readers; each lane
+  names the other in its PR. Both programs' lanes share this box's disk
+  and build slot. (SPACES orchestrator)
