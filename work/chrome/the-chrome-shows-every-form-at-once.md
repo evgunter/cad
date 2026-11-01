@@ -2,11 +2,13 @@
 id: the-chrome-shows-every-form-at-once
 kind: issue
 title: the panes show every form and control at once, each drawn its own way
-status: dispatched
+status: closed
 opened: 2026-10-31
 priority: P1
 cost: H
 branch: chrome/forms-at-rest
+closed: 2026-11-01
+pr: 6223
 ---
 
 
@@ -25,3 +27,7 @@ dumpall
 ```
 
 The extrude form is drawn only while a profile is selected, by its door's own kind test (`extrude_ui`, `crates/viewer/src/pane/create.rs`); that is the shape the other forms here can take: drawn where their op would accept the selection.
+
+## Closed (2026-11-01, PR 6223)
+
+At rest the Properties panel shows only doors. The creation sections (Add feature, Combine bodies, Blend edges, Assemble parts) fold, and inside each, every tool and form sits behind one button that opens it. A form whose op takes the selection is drawn beside the selection, while its op's own admission test accepts it: the extrude form appears beside a selected profile. Opening and closing forms has one home in `widgets.rs` (`door`, `form_door`, `commit_row`, `CANCEL`). A form closes on Cancel, or once the document accepts its commit, so a refused commit keeps what was typed. **New…** draws one Create, and the variable form says why its commit waits, in the open, from the same gate the commit uses. Folding a section closes its form, so a held face is released and its trace stops. The drive replays in open rows follow the doors.
