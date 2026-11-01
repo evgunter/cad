@@ -12,6 +12,9 @@
 //!   `Sym<Interval>`, with the self-intersection site decided during
 //!   the build and nothing refused, so a gate that stopped running goes
 //!   red here too;
+//! - the tube at `Sym<Interval>`, and the corpus pot, the cone frustum
+//!   and the klein elbow at both certifying scalars, shell Ok with the
+//!   gate run;
 //! - the planar dumbbell still refuses at the planar gate, at both
 //!   scalars;
 //! - two rows refuse before the gate is reached, each typed: the
@@ -401,17 +404,30 @@ fn klein_elbow<T: Decide + topo::AtRestPolicy>() -> Body<T> {
         .body
 }
 
-/// `what` shells Ok at `T`, the time printed.
+/// `what` shells Ok at `T` with the self-intersection site decided
+/// during the build, the time printed.
 fn shells<T: Decide + geom_core::CertifiedBounds + topo::AtRestPolicy>(
     what: &str,
     body: Body<T>,
     t: f64,
 ) {
+    let bracket = Bracket::open();
     let start = Instant::now();
     let r = shell(body, t);
+    let elapsed = start.elapsed();
+    let gap = bracket
+        .finish()
+        .verdicts
+        .iter()
+        .filter(|v| v.predicate == SELF_INTERSECTION_GAP)
+        .count();
     let scalar = core::any::type_name::<T>();
     assert!(r.is_ok(), "{what} shells at {scalar}: {:?}", r.err());
-    println!("[shell4] {what} at {scalar}: {:?}", start.elapsed());
+    assert!(
+        gap > 0,
+        "{what} at {scalar}: the cavity gate decided no separation"
+    );
+    println!("[shell4] {what} at {scalar}: {elapsed:?}, {gap} gap decides");
 }
 
 /// **Valid bodies shell at both certifying scalars**: the tube, and the

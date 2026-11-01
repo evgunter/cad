@@ -1729,7 +1729,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     moved_walls_cross(&cavity, &partition, thickness, band)?;
 
     // ---- Decide: the cavity is embedded, where the scalar certifies. ----
-    cavity_embedded(&cavity, band)?;
+    cavity_embedded(&cavity, band, Interval::from_certified)?;
 
     // ---- The evidence: the construction's own decides, carried. ----
     //
@@ -4267,11 +4267,13 @@ const CAVITY_MAX_CELL_PAIRS: usize = 65_536;
 /// **The witness is the verifier's own**: of the stations the engine
 /// places on the two faces, the pair whose separation is least at its
 /// upper end, evaluated afresh on the stored charts lifted to
-/// [`Interval`] and decided at the engine's own strict site, where a
+/// [`Interval`] by `lift` (the caller's [`Interval::from_certified`],
+/// whose certification right its own bound carries) and decided at the engine's own strict site, where a
 /// separation in the band is a coincidence.
-fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
+fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
     cavity: &Body<T>,
     band: Band,
+    lift: fn(T) -> Interval,
 ) -> Result<(), ShellError<T>> {
     use crate::clearance::{
         BoundVerdict, Budgets, ClearanceBound, DEFAULT_MAX_CELL_DEPTH, Side, Sweep, Which,
@@ -4300,7 +4302,7 @@ fn cavity_embedded<T: Decide + geom_core::CertifiedBounds + crate::props::AtRest
         let chart = |f: FaceKey| {
             cavity
                 .face_surface_linked(f, proven(&cavity.faces, f, EntityId::Face))
-                .map_scalar(Interval::from_certified)
+                .map_scalar(lift)
         };
         let (sa, sb) = (chart(face), chart(other));
         let (la, lb) = lane.on_face_stations(candidate);
