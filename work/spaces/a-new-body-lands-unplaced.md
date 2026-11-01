@@ -2,13 +2,13 @@
 id: a-new-body-lands-unplaced
 kind: unit
 title: no gesture writes a world Place: each gesture lands what it makes as the viewer README says
-status: parked
+status: review
 opened: 2026-11-01
 priority: P0
 cost: H
 branch: spaces/lands-unplaced
-blocked_on: [the-picture-draws-bodies]
 refs: [6209]
+pr: 6269
 ---
 
 
@@ -49,3 +49,13 @@ transform rows act only on placements a person asked for after this).
 
 Review tier: single, FULL (claims plus style): many gestures change at
 once and each can leave a stray placement.
+
+**Stacked on `the-picture-draws-bodies` (PR 6265; its dual review,
+2026-11-01).** That unit draws a split or pattern in its target's own
+space at the identity while the target's creation-time world `Place`
+still stands, so a split or pattern of a fresh box makes the box
+unpickable (`Err(Ambiguous)`), masked by a `SetBodyHidden{split}` in
+`frame_policy.rs`. This unit removes the world `Place`, so it closes
+that: build on PR 6265's branch, merge the two back to back, and add
+a row that a split and a pattern of a fresh box leave every drawn body
+pickable, with the `frame_policy.rs` hide removed.
