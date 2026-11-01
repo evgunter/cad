@@ -156,13 +156,16 @@ fn a_near_tangent_wedge_whose_volume_is_in_band_reads_its_role_off_a_ray() {
 }
 
 /// **A sliver lump six bands thick refuses at the strut side, in both
-/// orders**: at `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the ∩'s arrival edge
-/// at the wedge's corner ends 6.8e-9 off the plane of the face the germ
-/// runs along, a pair in band (D10: thinness is judged by pairs). The
-/// strut order reads that offset, the germ levered by its lean
-/// (`bool_strut_side`), and refuses typed as the sectors' coincidence in
-/// both orders: the two orders read the one corner. The lump's
-/// certified volume, `[1.69973e-9, 1.69973e-9]`, is never reached here.
+/// orders**: at `vee300 nt e0 a1 d6e-9`, ε = 1e-9, the pierce ring's
+/// germ order (`vtxfac` `germ_order`) reads one germ against another:
+/// the cube face's line with the prism's top (lean 0.4714) against the
+/// germ along the wedge's edge (lean 1), at arm 1. Levered by the
+/// smaller lean, that reading is the offset of a point a unit along the
+/// edge from the cube face's plane, 6.8e-9: a pair in band (D10:
+/// thinness is judged by pairs). It refuses typed as the sectors'
+/// coincidence, reported as `bool_strut_side`, in both orders: the two
+/// orders read the one ring. The lump's certified volume,
+/// `[1.69973e-9, 1.69973e-9]`, is never reached here.
 #[test]
 fn a_sliver_lump_six_bands_thick_refuses_at_the_strut_side_in_both_orders() {
     let tol = Tol::witness();
