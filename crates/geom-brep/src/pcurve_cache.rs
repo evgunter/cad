@@ -9000,6 +9000,7 @@ fn net_incidence<T: Decide>(
         surface,
         span,
         |t| net.eval(t),
+        None,
         T::zero(),
         band,
     )
@@ -10520,6 +10521,7 @@ fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    sits: Sits<'_, T>,
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
@@ -10528,6 +10530,7 @@ fn chart_incidence<T: Decide>(
         surface,
         (T::zero(), T::tau()),
         |t| carrier.eval(t),
+        sits,
         slack,
         band,
     )
@@ -10553,10 +10556,22 @@ fn incidence_over_span<T: Decide>(
     surface: &Surface<T>,
     span: (T, T),
     at: impl Fn(T) -> Point3<T>,
+    sits: Sits<'_, T>,
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (farthest, reach) = farthest_over_span(surface, span, at);
+    let (mut farthest, reach) = farthest_over_span(surface, span, at);
+    // At an enclosure scalar the read where the carrier sits encloses the
+    // same exact distances as the moved one, by an independent argument,
+    // so the smaller of the two encloses the farthest of them too. The
+    // move keeps a carrier far from its chart's anchor tight; read where
+    // it sits, an input that is itself an enclosure (a dimension widened
+    // to a parameter box) is not split into an offset and a remainder
+    // whose widths then add.
+    if let (geom_core::Witness::Exact, Some((carrier, chart))) = (T::WITNESS, sits) {
+        let (direct, _) = farthest_over_span(chart, span, |t| carrier.eval(t));
+        farthest = farthest.min(direct);
+    }
     // The distance is computed from coordinates rounded at the samples'
     // reach, after a move into the carrier's frame that rounded by
     // `slack` (`incidence::anchored`): together the rounding `c`. It is
@@ -10609,6 +10624,11 @@ fn incidence_over_span<T: Decide>(
         Decided { .. } => Ok(Incidence::On),
     }
 }
+
+/// The carrier and its chart where they sit, before the move into the
+/// carrier's frame (`incidence::anchored`): read as well at an enclosure
+/// scalar ([`incidence_over_span`]); `None` where nothing moved.
+type Sits<'a, T> = Option<(&'a Curve3<T>, &'a Surface<T>)>;
 
 /// **The one door to the general lane** (D3): a lane choice picks between
 /// images of a carrier ON the chart, so before a class reading that did
@@ -10701,11 +10721,19 @@ mod incidence {
         {
             *axis = axis.normalize();
         }
-        Some((
-            carrier.translated(geom_core::Point3::origin() - k)?,
-            moved,
-            error,
-        ))
+        // The carrier's own anchor lands on the origin exactly: `k − k`
+        // is zero at `f64`, and at an enclosure scalar would otherwise be
+        // twice `k`'s width wide, its width then counted again in the
+        // offset above.
+        let mut carrier = carrier.translated(geom_core::Point3::origin() - k)?;
+        match &mut carrier {
+            Curve3::Line { origin: at, .. }
+            | Curve3::Circle { center: at, .. }
+            | Curve3::Ellipse { center: at, .. }
+            | Curve3::Spiric { center: at, .. } => *at = geom_core::Point3::origin(),
+            _ => unreachable!("anchored: the carrier's kind is the one its anchor was read off"),
+        }
+        Some((carrier, moved, error))
     }
 
     /// **The chart's incidence test of `carrier`**: a carrier shown off
@@ -10747,6 +10775,7 @@ mod incidence {
             &moved,
             (T::zero(), T::zero()),
             |_| geom_core::Point3::origin(),
+            Some((&probe, surface)),
             slack,
             band,
         )
@@ -10766,15 +10795,17 @@ mod incidence {
         // Read in the chart's own frame, so a sample's distance carries
         // the rounding of the carrier's size, not of its placement.
         let anchored = anchored(carrier, surface);
+        let sits = anchored.as_ref().map(|_| (carrier, surface));
         let (carrier, surface, slack) = anchored
             .as_ref()
             .map_or((carrier, surface, T::zero()), |(c, s, e)| (c, s, *e));
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle { .. } | Curve3::Ellipse { .. }, Surface::Cone { .. }) => {
-                return cone_conic_incidence(carrier, surface, slack, band).map(|()| tested);
+                return cone_conic_incidence(carrier, surface, sits, slack, band).map(|()| tested);
             }
             (Curve3::Line { .. }, _) => {
-                return line_incidence(carrier, surface, place.span, slack, band).map(|()| tested);
+                return line_incidence(carrier, surface, place.span, sits, slack, band)
+                    .map(|()| tested);
             }
             (_, Surface::Sphere { .. }) => (
                 "pcurve_sphere_chart_incident",
@@ -10794,7 +10825,7 @@ mod incidence {
                  its own test (`net_incidence`)"
             ),
         };
-        match chart_incidence(name, carrier, surface, slack, band)? {
+        match chart_incidence(name, carrier, surface, sits, slack, band)? {
             Incidence::On => Ok(tested),
             Incidence::Off(margin) => {
                 Err(OffChart(off_why).with_margin(super::OffMargin::Past(margin), surface, carrier))
@@ -10808,6 +10839,7 @@ mod incidence {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         span: (T, T),
+        sits: super::Sits<'_, T>,
         slack: T,
         band: Band,
     ) -> Result<(), PcurveCertifyError> {
@@ -10816,6 +10848,7 @@ mod incidence {
             surface,
             span,
             |t| carrier.eval(t),
+            sits,
             slack,
             band,
         )? {
@@ -11067,6 +11100,7 @@ fn spiric_chart_pcurve<T: Decide>(
 fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    sits: Sits<'_, T>,
     slack: T,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
@@ -11112,7 +11146,14 @@ fn cone_conic_incidence<T: Decide>(
             return Err(near_apex.with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
-    match chart_incidence("pcurve_cone_chart_incident", carrier, surface, slack, band)? {
+    match chart_incidence(
+        "pcurve_cone_chart_incident",
+        carrier,
+        surface,
+        sits,
+        slack,
+        band,
+    )? {
         Incidence::On => Ok(()),
         Incidence::Off(margin) => Err(OffChart(
             "the conic's points are not on the cone (its distance from the cone at a sample is \

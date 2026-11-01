@@ -1373,14 +1373,16 @@ fn a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis() {
     // rounding already, and the enclosure of the distance widens with
     // the distance slid, about eight ulps of `2ᵏ` for the rim and half an
     // ulp for the plane's circle (measured: `1.88e-12` at `2¹⁰` and
-    // `1.82e-12` at `2¹⁴`). So it reads the placement on below the `k`
+    // `1.82e-12` at `2¹⁴`), less where the read of the carrier where it
+    // sits encloses tighter (a power of two further for the rim). So it
+    // reads the placement on below the `k`
     // where that width passes the zero band, in band from there, never
     // off: the row pins the measured `k` at each ε row CI runs, and that
     // one transition at any other.
     let boundary = |shape: usize| match (shape, e) {
-        (0, x) if x == 1e-9 => Some(20),
-        (0, x) if x == 1e-12 => Some(10),
-        (0, x) if x == 1e-6 => Some(30),
+        (0, x) if x == 1e-9 => Some(21),
+        (0, x) if x == 1e-12 => Some(11),
+        (0, x) if x == 1e-6 => Some(31),
         (1, x) if x == 1e-9 => Some(24),
         (1, x) if x == 1e-12 => Some(14),
         (1, x) if x == 1e-6 => Some(31),
