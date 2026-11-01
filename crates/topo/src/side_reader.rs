@@ -39,6 +39,7 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
     edge_span: "side_at_infinity_edge_span",
     winding: "side_at_infinity_winding",
     represents: "side_at_infinity_met_edge_represents",
+    reaches: "side_at_infinity_met_edge_reaches",
 };
 
 /// **Two crossings of an aimed ray in band of each other along it** —

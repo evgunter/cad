@@ -482,7 +482,9 @@ fn tube() -> Vec<(Point2<f64>, f64)> {
 /// tube's bottom, and crosses the carrier nowhere near it. The rim's
 /// torus half read nearest the root where the ray leaves the tube
 /// across the axis, 3.75 back, and counted that exit as half the rim's.
-/// Its family is [`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`].
+/// It reads wrong without the rule at ε 1e-6 only, so at the other rows
+/// it holds whatever the rule; its family, which reads wrong at every
+/// row, is [`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`].
 #[test]
 fn the_nightlys_ray_grazing_a_torus_rim_reads_right() {
     let tol = Tol::witness();
@@ -518,8 +520,9 @@ fn the_nightlys_ray_grazing_a_torus_rim_reads_right() {
 /// the one the met edge's torus half reads nearest. That root is a
 /// crossing of its own, and the rim stands for no root of the tube that
 /// far off. Three partial turns, each rim of each, both ways along it,
-/// from 8 m and from 5 cm back, each read whole. Before the fix, 72 of
-/// 9024 rays read wrong at each of ε 1e-9, 1e-6 and 1e-12.
+/// from 8 m and from 5 cm back, each read whole, and at least 85% of
+/// them read at every crossing. Without the rule, 72 of 9024 rays read
+/// wrong at each of ε 1e-9, 1e-6 and 1e-12.
 #[test]
 fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
     let tol = Tol::witness();
@@ -528,7 +531,7 @@ fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
     let clear = 10.0 * k_eps;
     let mut wrong = Vec::new();
     let fractions: Vec<f64> = (1..48).map(|i| f64::from(i) / 48.0).collect();
-    let (mut n, mut across) = (0, 0);
+    let (mut n, mut across, mut read) = (0, 0, 0);
     for turn in [1.25, 1.5, 1.75] {
         let name = format!("torus {turn}π");
         let (body, truth) = revolved(&name, tube(), Revolution::Partial(turn * PI), tol);
@@ -550,14 +553,15 @@ fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
                         usize::from((200..1200).any(|i| truth(p + d * (f64::from(i) * 0.005))));
                     for back in [8.0, 0.05] {
                         n += 1;
-                        if let Err(w) = whole_ray(
-                            &body,
-                            f.face,
-                            (p - d * back, d),
-                            (&truth, false),
-                            band,
-                            clear,
-                        ) {
+                        let q = p - d * back;
+                        // Read whole: counted at every crossing, none set aside.
+                        read += usize::from(matches!(
+                            topo::test_support::ray_counts(&body, f.face, (q, d), band, (0, false)),
+                            Ok(hits) if hits.iter().all(|h| !h.3)
+                        ));
+                        if let Err(w) =
+                            whole_ray(&body, f.face, (q, d), (&truth, false), band, clear)
+                        {
                             wrong.push(format!("{name}, {} p={p:?} d={d:?}: {w}", f.label));
                         }
                     }
@@ -568,6 +572,13 @@ fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
     assert!(
         across >= 8,
         "at ε {:e}: {across} of the family's lines cross the tube across the axis",
+        tol.eps()
+    );
+    // 8160 of 9024 read whole at each of ε 1e-9, 1e-6 and 1e-12: a rule
+    // that sets the family aside wholesale goes red here.
+    assert!(
+        20 * read >= 17 * n,
+        "at ε {:e}: {read} of {n} rays read whole, under 85%",
         tol.eps()
     );
     assert!(

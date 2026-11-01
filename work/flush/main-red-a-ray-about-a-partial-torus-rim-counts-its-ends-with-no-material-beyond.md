@@ -88,25 +88,55 @@ reading.
 ## Fix
 
 A met edge's half stands for a curved face's root far from the passage
-only where the ray reaches that root in band of the carrier: where
-`off · |n·d|` (the distance from the passage, times the incidence at
-the root against `geom_brep::implicit_gradient`) is not definitely
-past the band. Otherwise the edge reads nothing, graze-marked as
-before. A plane's held crossing still stands: a ray's distance from a
-plane is linear. On a convex carrier (a cylinder, a cone's nappe, a
-sphere) a root reached from outside satisfies the bound. A graze there
-is followed by no far root at all. On the torus, the root across the
-axis fails the bound by about six orders of magnitude.
+only where the face holds the root and `reaches_root_in_band`
+(`crates/topo/src/boolean/solid_contain.rs`) says the ray reaches it
+in band of the carrier. That predicate decides the rise off the carrier
+over the distance `off` at the root's incidence,
+`levered(|d·n̂|, off)`, against the passage's own clearance from the
+carrier. The rise is charged for the root point's residual tilt and for
+rounding. The comparison fails where it is definitely positive. Where it
+lies in band the root is set aside, graze-marked. A straddling or
+poisoned comparison (a root at a cone's apex or a torus's axis) is the
+ray's `Escalated` fault, as the file's other decided sites do.
 
-Of the about 800 far, held roots one fuzz run at ε 1e-6 met, 98.5%
-satisfy the bound and still stand. The rest, up to 1.5 bands, are set
-aside.
+A plane's held crossing still stands, because a ray's distance from a
+plane is linear. On a convex carrier (a cylinder, a cone's nappe, a
+sphere) a root reached from outside satisfies `|f'|·off ≤ f(passage)`,
+and a graze there is followed by no far root at all. A root reached
+from inside, on a short inside chord, can rise to twice the chord's
+depth, so it is set aside. On the torus the bound is necessary and not
+shown sufficient (`work/flushtail/a-met-edges-reach-bound-is-necessary-not-shown-sufficient-on-a-torus.md`).
+The root across the axis fails it by about six orders of magnitude.
+
+The carrier normal has one home, `chart_normal` over the face's surface
+and `geom_brep::implicit_gradient`. `root_outward`'s cone and torus
+incidences read it too. A face with no carrier is `CorruptFace` in both.
+
+**Measured.**
+
+- **The first head's comparand.** That head compared the rise against
+  the band. Of about 800 far, held roots one fuzz run at ε 1e-6 met,
+  98.5% had a rise of at most Kε. Over three seeds per ε, 93% of the
+  far roots had a rise in (ε, Kε]: they stood only because an in-band
+  `Err` folded into "stands".
+- **The passage-clearance comparand.** 1,713–2,645 of those far roots
+  per run decide Zero and stand. 0–108 per run lie in band and are set
+  aside. None decide Positive, and 0 rays read wrong over the 9 runs.
+- **The reviewer's corpus probe.** 46,080 rays and 31,347 points per ε,
+  head against `origin/main`. The lines that move are rays read
+  `(0, false)` and now set aside: 2 at ε 1e-9, 38 at 1e-6 (mostly
+  inside chords, and shallow or along rays at rims) and 1 at 1e-12.
+  0 are wrong on either tree.
 
 Pinned in `crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
-the seed's ray by `the_nightlys_ray_grazing_a_torus_rim_reads_right`
-(fast), and the family by
-`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`
-(3 s in a debug build, so in the slow set), both at every ε. It reads 0 wrong with the
-fix, after merging main with PR 5781. The fuzz rows ran with 18 fresh
-seeds plus the nightly's at effort 2, at ε 1e-9, 1e-6 and 1e-12: 57
-runs, 0 wrong.
+
+- the seed's ray by `the_nightlys_ray_grazing_a_torus_rim_reads_right`
+  (fast). It reads wrong without the rule at ε 1e-6 only.
+- the family by
+  `rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`
+  (3 s in a debug build, so in the slow set). It reads wrong without the
+  rule at every ε, 72 of 9024 rays. With the rule it reads 0 wrong and
+  8160 rays whole, against a floor of 85%.
+
+The fuzz rows ran with 18 fresh seeds plus the nightly's at effort 2,
+at ε 1e-9, 1e-6 and 1e-12: 57 runs, 0 wrong.

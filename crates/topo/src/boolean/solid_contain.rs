@@ -801,8 +801,6 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// The minor radius `r` (the tube), `R > r` by the ring-torus
         /// convention tier-3 check 1 enforces at rest.
         minor_radius: T,
-        /// The chart's seam direction, where the major azimuth is zero.
-        u_ref: Vec3<T>,
         /// The group's first face in the selection's order. Arms no-op
         /// on every other member.
         representative: FaceKey,
@@ -823,8 +821,6 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         major_radius: T,
         /// The minor radius.
         minor_radius: T,
-        /// The chart's seam direction.
-        u_ref: Vec3<T>,
         /// The face's region on the torus.
         region: TorusFaceRegion<T>,
         /// The face's orientation sense (S10).
@@ -1000,7 +996,7 @@ fn face_geo_arms<T: Decide>(
             axis,
             major_radius,
             minor_radius,
-            u_ref,
+            ..
         }) => {
             if let Some(representative) = torus_closed_group(body, face, charts)? {
                 return Ok(FaceGeo::Torus {
@@ -1008,7 +1004,6 @@ fn face_geo_arms<T: Decide>(
                     axis,
                     major_radius,
                     minor_radius,
-                    u_ref,
                     representative,
                     sense: body
                         .get_face(representative)
@@ -1022,7 +1017,6 @@ fn face_geo_arms<T: Decide>(
                     axis,
                     major_radius,
                     minor_radius,
-                    u_ref,
                     region,
                     sense: f.sense,
                 }),
@@ -2778,6 +2772,7 @@ pub(crate) struct RayRows {
     pub(crate) edge_span: &'static str,
     pub(crate) winding: &'static str,
     pub(crate) represents: &'static str,
+    pub(crate) reaches: &'static str,
 }
 
 /// A schedule ray's rows (module docs).
@@ -2792,6 +2787,7 @@ const SCHEDULE_ROWS: RayRows = RayRows {
     edge_span: "bool_point_in_solid_edge_span",
     winding: "bool_point_in_solid_winding",
     represents: "bool_point_in_solid_met_edge_represents",
+    reaches: "bool_point_in_solid_met_edge_reaches",
 };
 
 /// One ray of the sweep: the side its running count reads
@@ -3869,6 +3865,7 @@ fn carrier_roots<T: Decide>(
 ///
 /// A decision in band.
 fn root_outward<T: Decide>(
+    body: &Body<T>,
     face: FaceKey,
     geo: &FaceGeo<T>,
     root: RootCross<T>,
@@ -3883,30 +3880,20 @@ fn root_outward<T: Decide>(
         (
             RootSide::Cone,
             &FaceGeo::Cone {
-                apex,
-                axis,
-                half_angle,
-                sense,
-                ..
+                apex, axis, sense, ..
             },
         ) => {
-            let (sin_a, cos_a) = half_angle.sin_cos();
             let wp = p - apex;
             let hp = wp.dot(axis);
-            let nappe =
-                match decide("bool_ray_cone_nappe", Margin::of(hp), band).map_err(escalate)? {
-                    Sign::Positive => true,
-                    Sign::Negative => false,
-                    Sign::Zero => return Ok(Sign::Zero),
-                };
-            let rad = wp - axis * hp;
-            let rho = rad.norm();
-            let axial = if nappe { sin_a } else { T::zero() - sin_a };
-            let n_chart = rad / rho * cos_a - axis * axial;
+            if decide("bool_ray_cone_nappe", Margin::of(hp), band).map_err(escalate)? == Sign::Zero
+            {
+                return Ok(Sign::Zero);
+            }
+            let rho = (wp - axis * hp).norm();
             Ok(oriented(
                 decide(
                     "bool_ray_cone_incidence",
-                    Margin::levered(d.dot(n_chart), rho),
+                    Margin::levered(d.dot(chart_normal(body, face, p)?), rho),
                     band,
                 )
                 .map_err(escalate)?,
@@ -3916,47 +3903,108 @@ fn root_outward<T: Decide>(
         (
             RootSide::Torus,
             &(FaceGeo::Torus {
-                center,
-                axis,
-                major_radius,
                 minor_radius,
-                u_ref,
                 sense,
                 ..
             }
             | FaceGeo::TorusPatch {
-                center,
-                axis,
-                major_radius,
                 minor_radius,
-                u_ref,
                 sense,
                 ..
             }),
-        ) => {
-            // The tube's chart normal, from the one home it has.
-            let n_chart = geom_brep::implicit_gradient(
-                &Surface::Torus {
-                    center,
-                    axis,
-                    major_radius,
-                    minor_radius,
-                    u_ref,
-                },
-                p,
-            );
-            Ok(oriented(
-                decide(
-                    "bool_ray_torus_incidence",
-                    Margin::levered(d.dot(n_chart), minor_radius),
-                    band,
-                )
-                .map_err(escalate)?,
-                sense,
-            ))
-        }
+        ) => Ok(oriented(
+            decide(
+                "bool_ray_torus_incidence",
+                Margin::levered(d.dot(chart_normal(body, face, p)?), minor_radius),
+                band,
+            )
+            .map_err(escalate)?,
+            sense,
+        )),
         // A root is made only by its face's own arm.
         _ => Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
+    }
+}
+
+/// **A curved face's carrier at `face`**, the surface its roots and
+/// incidences are read on: a face with none is corrupt.
+fn carrier<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<&Surface<T>, RayFault<PointInSolidError>> {
+    body.get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))
+}
+
+/// **The chart normal of `face`'s carrier at `p`**, from its one home
+/// ([`geom_brep::implicit_gradient`]): unit on the carrier, and poison
+/// where the carrier is singular (a cone's apex or axis, a torus's
+/// axis). Every incidence the ray reads against a curved face is read
+/// against it.
+fn chart_normal<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+) -> Result<Vec3<T>, RayFault<PointInSolidError>> {
+    Ok(geom_brep::implicit_gradient(carrier(body, face)?, p))
+}
+
+/// **Whether the ray reaches a root of `face`'s carrier at advance
+/// `root` from where it passes a met edge of the face, at `passage`, in
+/// band of the carrier**, `off` the root's distance along the ray from
+/// the passage's span.
+///
+/// A ray's distance from a curved carrier need not be monotone along
+/// it: a root far from the passage can be the ray's crossing of the
+/// face elsewhere, past a graze at the edge that crosses the carrier
+/// nowhere (a ray grazing a partial torus's rim, crossing the tube
+/// across the axis). Where the distance `f` is convex (a cylinder, a
+/// cone's nappe, a sphere) and the ray reaches the root from outside,
+/// `|f'| · off ≤ f(passage)` at the root, so the ray, at its incidence
+/// there, rises off the carrier over `off` by no more than it stands
+/// off it at the passage. That is the test: the rise
+/// (`levered(|d·n̂|, off)`) less the passage's clearance (the carrier's
+/// residual there), charged for the root's point lying off the carrier
+/// (the normal's tilt, the residual over the least radius of curvature)
+/// and for rounding, is not definitely positive. A root reached from
+/// inside a convex carrier (a short inside chord) can rise up to twice
+/// the chord's depth, and so is set aside, as is any whose comparison
+/// lies in band. On a torus the bound is necessary and not shown
+/// sufficient.
+///
+/// # Errors
+///
+/// A comparison that no subdivision of a box can leave in band (an
+/// enclosure straddling it), or one a poisoned normal makes invalid (a
+/// root at a singular point of the carrier); a face with no carrier.
+#[allow(clippy::too_many_arguments)] // the face, the ray, its two advances and the rows
+fn reaches_root_in_band<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    (q, d): (Point3<T>, Vec3<T>),
+    (passage, root): (T, T),
+    off: T,
+    band: Band,
+    rows: RayRows,
+) -> Result<bool, RayFault<PointInSolidError>> {
+    let surface = carrier(body, face)?;
+    let at = q + d * root;
+    let n = chart_normal(body, face, at)?;
+    let tilt = geom_brep::implicit_residual(surface, at).abs()
+        / geom_brep::min_radius_of_curvature(surface, at);
+    let incidence = d.dot(n).abs() / n.norm() + tilt + geom_core::rounding_charge(T::one());
+    let rise = Margin::levered(incidence, off).value();
+    let clearance = geom_brep::implicit_residual(surface, q + d * passage).abs();
+    // Lengths both, and a short chain's rounding of the passage's read.
+    let margin = rise - clearance + geom_core::rounding_charge(passage.abs() + off);
+    match decide(rows.reaches, Margin::of(margin), band) {
+        Ok(sign) => Ok(sign != Sign::Positive),
+        Err(diag) if super::join::in_band(&diag) => Ok(false),
+        Err(diag) => Err(RayFault::InBand(PointInSolidError::Escalated {
+            face,
+            diag,
+        })),
     }
 }
 
@@ -4150,7 +4198,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Cross::Root(k) => (
                     roots[k].t,
                     match geo_of(f) {
-                        Some(geo) => root_outward(f, geo, roots[k], q, d, band)?,
+                        Some(geo) => root_outward(body, f, geo, roots[k], q, d, band)?,
                         None => Sign::Zero,
                     },
                 ),
@@ -4170,19 +4218,11 @@ pub(crate) fn ray_crossings<T: Decide>(
             // the ray passes in band of, so its crossing lies between them.
             // Another's crossing stands for the edge only where it lies near
             // the passage, or where the face definitely holds it and the ray
-            // reaches it from the passage in band of the carrier: a ray
-            // shallow to the face can pass an edge of it read clear at the
-            // crossings, and cross its carrier past that edge, outside the
-            // face. A ray's distance from a plane is linear along it, so
-            // any plane crossing is reached so. From a curved carrier it
-            // need not be monotone: a root far from the passage can be the
-            // ray's crossing of the face elsewhere, past a graze at the
-            // edge that crosses the carrier nowhere. Where the distance is
-            // convex (a cylinder, a cone's nappe, a sphere) and the ray
-            // reaches the root from outside, its slope at the root is at
-            // most the band over the distance from the passage, so a root
-            // stands only where the ray, at its incidence there, rises off
-            // the carrier over that distance by no more than the band.
+            // reaches it from the passage in band of the carrier (a plane's
+            // crossing always is; a curved face's root is where
+            // [`reaches_root_in_band`] says): a ray shallow to the face can
+            // pass an edge of it read clear at the crossings, and cross its
+            // carrier past that edge, outside the face.
             if stands && !every_edge_read(body, f, &meets.lines) {
                 let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
                 let near =
@@ -4194,22 +4234,12 @@ pub(crate) fn ray_crossings<T: Decide>(
                         point_in_face(body, f, p.normal, p.p, band).map_err(at_hit)
                     }
                     (Cross::Root(_), _) => {
-                        let at = q + d * t;
-                        let rise = body
-                            .get_face(f)
-                            .and_then(|fc| body.get_surface(fc.surface))
-                            .map(|s| off * d.dot(geom_brep::implicit_gradient(s, at)).abs());
-                        match (geo_of(f), rise) {
-                            (Some(geo), Some(rise))
-                                if geom_core::k_stats::decide_magnitude(
-                                    rows.represents,
-                                    Margin::of(rise),
-                                    band,
-                                ) != Ok(geom_core::k_stats::Magnitude::Positive) =>
-                            {
-                                root_held(f, geo, at, band)
-                            }
-                            _ => Ok(None),
+                        let geo = geo_of(f)
+                            .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face: f }))?;
+                        if reaches_root_in_band(body, f, (q, d), (m.at, t), off, band, rows)? {
+                            root_held(f, geo, q + d * t, band)
+                        } else {
+                            Ok(None)
                         }
                     }
                     _ => Ok(None),
@@ -4349,7 +4379,7 @@ pub(crate) fn ray_crossings<T: Decide>(
         let fault = fault.map(|(_, f)| f);
         match (held, fault, boundary) {
             (Some((r, geo)), ..) => {
-                let outward = root_outward(r.face, geo, r, q, d, band)?;
+                let outward = root_outward(body, r.face, geo, r, q, d, band)?;
                 offer_root(r.face, r.t, outward, false)?;
             }
             (None, Some(fault), _) => return Err(fault),
@@ -4544,7 +4574,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                         side: RootSide::Torus,
                         ordinal: 0,
                     };
-                    let outward = root_outward(face, geo, root, q, d, band)?;
+                    let outward = root_outward(body, face, geo, root, q, d, band)?;
                     offer_root(face, t, outward, false)?;
                 }
             }

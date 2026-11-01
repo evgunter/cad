@@ -2223,7 +2223,7 @@ fn nearer_or_scan<T: Decide>(
 
 /// Whether an undecided reading lies inside the band: a point margin,
 /// or an enclosure wholly inside one sliver band.
-fn in_band(diag: &geom_core::Indeterminate) -> bool {
+pub(super) fn in_band(diag: &geom_core::Indeterminate) -> bool {
     match diag.margin.kind() {
         geom_core::MarginKind::Value => true,
         // An interval-lane reading; one straddling the band's edge is
