@@ -354,17 +354,49 @@ fn plant<T: Scalar>(
     us: (f64, f64),
     ss: (f64, f64),
 ) -> FaceKey {
+    plant_wound(body, face, frame, us, ss, false)
+}
+
+/// [`plant`], the window's corners walked the other way round when
+/// `as_outer`: the ring left on `face` is then wound as an outer loop, so
+/// it bounds the window's rectangle on the face's side rather than off it.
+fn plant_wound<T: Scalar>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    frame: Frame,
+    us: (f64, f64),
+    ss: (f64, f64),
+    as_outer: bool,
+) -> FaceKey {
     let f = body.get_face(face).unwrap();
     let LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
         panic!("the outer loop is a cycle")
     };
-    let p = [
-        frame.at(us.0, ss.0),
-        frame.at(us.1, ss.0),
-        frame.at(us.1, ss.1),
-        frame.at(us.0, ss.1),
-    ]
-    .map(pt::<T>);
+    let corners = if as_outer {
+        [(us.1, ss.0), (us.0, ss.0), (us.0, ss.1), (us.1, ss.1)]
+    } else {
+        [(us.0, ss.0), (us.1, ss.0), (us.1, ss.1), (us.0, ss.1)]
+    };
+    let p = corners.map(|(u, s)| pt::<T>(frame.at(u, s)));
+    // The four sides: from corner 0 to 1, 1 to 2 and 2 to 3 in walk order,
+    // and the closing chord's curve from corner 0 to 3 (each curve starts
+    // where its edge does).
+    let sides = if as_outer {
+        [
+            frame.arc(ss.0, us, false),
+            frame.meridian(us.0, ss),
+            frame.arc(ss.1, us, true),
+            frame.meridian(us.1, ss),
+        ]
+    } else {
+        [
+            frame.arc(ss.0, us, true),
+            frame.meridian(us.1, ss),
+            frame.arc(ss.1, us, false),
+            frame.meridian(us.0, ss),
+        ]
+    };
+    let [s01, s12, s23, s30] = sides;
     let strut = body
         .mev_line(
             MevSite::Fan {
@@ -376,22 +408,16 @@ fn plant<T: Scalar>(
         )
         .unwrap();
     let fan = |he| MevSite::Fan { he1: he, he2: he };
-    let a = body
-        .mev(fan(strut.he_minus), p[1], frame.arc(ss.0, us, true), tol())
-        .unwrap();
-    let b = body
-        .mev(fan(a.he_minus), p[2], frame.meridian(us.1, ss), tol())
-        .unwrap();
-    let c = body
-        .mev(fan(b.he_minus), p[3], frame.arc(ss.1, us, false), tol())
-        .unwrap();
+    let a = body.mev(fan(strut.he_minus), p[1], s01, tol()).unwrap();
+    let b = body.mev(fan(a.he_minus), p[2], s12, tol()).unwrap();
+    let c = body.mev(fan(b.he_minus), p[3], s23, tol()).unwrap();
     let close = body
         .mef(
             MefSite::Chords {
                 he1: a.he_plus,
                 he2: c.he_minus,
             },
-            frame.meridian(us.0, ss),
+            s30,
             FaceSurface::Inherit,
             tol(),
         )
@@ -863,4 +889,96 @@ fn windows_on_an_azimuth_grid_validate() {
 #[test]
 fn windows_on_an_azimuth_grid_validate_at_the_certified_scalar() {
     windows_on_an_azimuth_grid::<geom_core::Interval>("interval");
+}
+
+/// **A ring wound as an outer loop, refused by the essential pair's
+/// readings alone** (M5a, PR 6163's re-check): on the donut's face, a
+/// window whose ring on the face is walked the other way round, so the
+/// region it bounds is the window's own rectangle. The ring's vertices lie
+/// on the face's side of the essential pair (between its two parallels),
+/// so the ring read against the pair passes; each parallel read against
+/// the ring alone lies outside the rectangle, off the face's side, and is
+/// refused. Drop those two readings and the wall draws no finding. The
+/// plug, its outer loop now wound as a ring, is check 6's
+/// (`CurvedSenseInverted`), a different face.
+fn a_ring_wound_as_an_outer_loop<T: Scalar>(scalar: &str) {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let donut = donut::<T>();
+    let face = same_face(&at_f64, face64, &donut);
+    let pair: Vec<topo::VertexKey> = topo::surface_boundary::surface_cycle_windings(&donut, face)
+        .unwrap()
+        .iter()
+        .flat_map(|(cycle, _)| cycle.iter().map(|&h| donut.get_half_edge(h).unwrap().start))
+        .collect();
+    let mut honest = donut.clone();
+    plant(&mut honest, face, frame, (-0.3, 0.3), (-0.4, 0.4));
+    assert_eq!(
+        topo::validate_geometric_structural(&honest, tol()),
+        Ok(()),
+        "[{scalar}] the window in the face validates"
+    );
+    let mut wound = donut;
+    let plug = plant_wound(&mut wound, face, frame, (-0.3, 0.3), (-0.4, 0.4), true);
+    let errors = topo::validate_geometric_structural(&wound, tol()).unwrap_err();
+    let (on_wall, elsewhere): (Vec<_>, Vec<_>) = errors.iter().partition(
+        |e| matches!(e, ValidationError::CycleOffFaceSide { face: f, .. } if *f == face),
+    );
+    assert!(
+        !on_wall.is_empty()
+            && on_wall.iter().all(|e| matches!(
+                e,
+                ValidationError::CycleOffFaceSide { at, .. } if pair.contains(at)
+            )),
+        "[{scalar}] the wall is refused at the pair's vertices, read against the ring: {errors:?}"
+    );
+    assert!(
+        elsewhere
+            .iter()
+            .all(|e| matches!(e, ValidationError::CurvedSenseInverted { face: f } if *f == plug)),
+        "[{scalar}] nothing else refuses but check 6 on the plug: {errors:?}"
+    );
+}
+
+#[test]
+fn a_torus_ring_wound_as_an_outer_loop_is_refused_by_the_pair() {
+    a_ring_wound_as_an_outer_loop::<f64>("f64");
+}
+
+#[test]
+fn a_torus_ring_wound_as_an_outer_loop_is_refused_by_the_pair_at_the_certified_scalar() {
+    a_ring_wound_as_an_outer_loop::<geom_core::Interval>("interval");
+}
+
+/// **A point beside one window reads in the face at the certified
+/// scalar** (PR 6163's re-check, `recheck_e1_gap_door`): one window over
+/// tube angle `(-1, -0.1)` on the donut's face, and points on the face's
+/// middle circle (`s = 0`) at azimuths beside and across from it. A
+/// meridian leg's root on the window's parallel edge is a whole turn wide
+/// at `Interval`, so its point's `ρ` cannot tell the plane's two parallels
+/// apart; its azimuth, read off the point's own coordinates, lies past the
+/// edge's span, which is no crossing whichever parallel it lies on.
+#[test]
+fn a_point_beside_one_torus_window_reads_in_the_face_at_the_certified_scalar() {
+    let at_f64 = donut::<f64>();
+    let (face64, frame) = wall(&at_f64, is_torus);
+    let donut = donut::<geom_core::Interval>();
+    let face = same_face(&at_f64, face64, &donut);
+    let band = geom_core::Band::linear(tol()).unwrap();
+    for windows in [
+        vec![((-0.5, 0.5), (-1.0, -0.1))],
+        vec![((-0.5, 0.5), (-1.0, -0.1)), ((-0.5, 0.5), (0.1, 1.0))],
+    ] {
+        let mut body = donut.clone();
+        for &(us, ss) in &windows {
+            plant(&mut body, face, frame, us, ss);
+        }
+        for u in [0.0, 0.2, 1.0, -0.6] {
+            assert_eq!(
+                topo::curved_face_containment(&body, face, pt(frame.at(u, 0.0)), band),
+                Ok(Some(topo::FaceContainment::In)),
+                "the point ({u}, 0) beside {windows:?}"
+            );
+        }
+    }
 }

@@ -607,18 +607,35 @@ impl<T: Decide> Legs<T> for TorusFaceRegion<T> {
                 // `ρ − R = ±r·cos v`, which the decided `outer` tells apart.
                 for s in found(self.plane_roots(leg, axis, center, band))? {
                     let y = leg.course.round.at(s);
+                    let w = y - center;
+                    let theta = || {
+                        near_span(
+                            w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
+                            (edge.t0, edge.t1),
+                        )
+                    };
                     let (rho, _, _) = self.polar(y);
-                    let side = row("bool_torus_region_component", rho - self.major)?;
+                    let side = match row("bool_torus_region_component", rho - self.major) {
+                        Ok(side) => side,
+                        // A root past the edge's span is no crossing of it,
+                        // whichever parallel it lies on, so only one within
+                        // the span sets the path aside. Where the root's
+                        // leg parameter is wide (a whole turn at the
+                        // certified scalar), its point's `ρ` is too, while
+                        // the azimuth `θ`, read off the point's own
+                        // coordinates, can still lie definitely past the
+                        // span.
+                        Err(fault) => match span(theta(), radius)? {
+                            None => continue,
+                            Some(_) => return Err(fault),
+                        },
+                    };
                     match (side, outer) {
                         (Sign::Zero, _) => return Err(RayFault::Graze),
                         (Sign::Positive, true) | (Sign::Negative, false) => {}
                         _ => continue,
                     }
-                    let w = y - center;
-                    let theta = near_span(
-                        w.dot(axis.cross(u_ref)).atan2(w.dot(u_ref)),
-                        (edge.t0, edge.t1),
-                    );
+                    let theta = theta();
                     if let Some(sideless) = span(theta, radius)? {
                         out.push((y, theta, sideless));
                     }
