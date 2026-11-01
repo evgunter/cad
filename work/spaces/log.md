@@ -247,3 +247,4 @@ Newest entries at the bottom; the tail is the program's live status.
   P1 E (carried by the View-pane unit, PR 6270). P1 left beyond the two
   units in flight: `display-frames-are-not-saved-with-the-document`
   (touches `display.rs` with 6270; dispatched once 6270 lands). (SPACES orchestrator)
+- 2026-11-01 — `the-add-to-the-product-door`: PR 6279 (cloud lane), green at `c997b8e9`. `SessionOp::AddToProduct` with the README's three branches in one action; offered from a viewport pick (the Properties pane reads the copy under the pick), a selected tree row, the EmptyProduct/StrandedProduct recourses and the `unused` finding (its editor-core recourse re-worded — Python sees it too); `InTheProduct` refusal; the hand-placement fixtures retired through the door, three kept with reasons. Review: single FULL. (SPACES orchestrator)
