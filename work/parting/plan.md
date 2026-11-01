@@ -1,6 +1,6 @@
 # PARTING — the plan
 
-Orchestrator: a PARTING cloud session opened 2026-11-01. Live state is `work/parting/log.md`'s tail and the
+No orchestrator (handed back 2026-11-01). Live state is `work/parting/log.md`'s tail and the
 item files beside this plan.
 
 Branch prefix **`parting/`**; away-channel tag `(PARTING orchestrator)`.
