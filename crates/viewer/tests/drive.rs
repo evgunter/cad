@@ -183,6 +183,70 @@ mod driven {
         }
     }
 
+    /// **After a duplicate, a click on either body reaches the tool** —
+    /// the replay of
+    /// `work/chrome/after-a-duplicate-the-original-cannot-be-picked-into-a-tool.md`.
+    /// The duplicate's copy lands beside the plate, so the plate's body
+    /// is read by two placements. With the boolean tool open, a click on
+    /// the original's material seats the plate's extrude, as it does with
+    /// no duplicate, and a click on the copy seats the copy's placement.
+    /// The replay's own point, framed with both bodies in view, falls in
+    /// the original's hole: a miss, which seats nothing.
+    #[test]
+    fn after_a_duplicate_a_click_on_either_body_seats_it() {
+        let mut driver = started("drive-duplicate-pick");
+        driver.resize(egui::vec2(1280.0, 1600.0));
+        driver.settle().expect("settles");
+        let vclick = |driver: &mut Driver, fx: f32, fy: f32| {
+            let at = driver.in_viewport(fx, fy).expect("the viewport");
+            driver
+                .click_at(at, egui::PointerButton::Primary, egui::Modifiers::NONE, 1)
+                .expect("clicked");
+            driver.settle().expect("settles");
+        };
+        driver
+            .click("Combine bodies", 0)
+            .expect("the section opens");
+        driver.settle().expect("settles");
+        driver.click("Duplicate tool…", 0).expect("the tool opens");
+        vclick(&mut driver, 0.3, 0.4);
+        driver.click("Commit duplicate", 0).expect("committed");
+        driver.settle().expect("settles");
+        driver.click("Zoom to fit", 0).expect("framed");
+        driver.settle().expect("settles");
+        driver.click("Boolean tool…", 0).expect("the tool opens");
+        driver.settle().expect("settles");
+        let members = |driver: &Driver| {
+            driver
+                .screen()
+                .iter()
+                .find(|landed| landed.text.starts_with("member 1") || landed.text == "no picks yet")
+                .map(|landed| landed.text.clone())
+                .expect("the boolean tool's picks line")
+        };
+        // The replay's point: the hole in the original.
+        vclick(&mut driver, 0.3, 0.47);
+        assert_eq!(
+            members(&driver),
+            "no picks yet",
+            "the replay's click is a miss"
+        );
+        // The original's material, beside the hole.
+        vclick(&mut driver, 0.2, 0.47);
+        let picked = members(&driver);
+        assert!(
+            picked.starts_with("member 1: Extrude "),
+            "a click on the original seats its extrude: {picked}"
+        );
+        // The copy.
+        vclick(&mut driver, 0.7, 0.55);
+        let picked = members(&driver);
+        assert!(
+            picked.contains("member 2: Place \"Part 1\""),
+            "a click on the copy seats the copy's placement: {picked}"
+        );
+    }
+
     /// **The picture is the window's**: as many pixels as the window
     /// has, and inside the viewport the startup part is drawn — the
     /// pane's pixels are not all the ground it is painted on.
