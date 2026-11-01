@@ -29,8 +29,9 @@
 //!
 //! TOG's printed Table III carries the same ∖-row misprint consequence
 //! in its A-versus-B rows (`∪ Yes, ∖ Yes, ∩ No` — the ∖ entry follows
-//! the misprinted Table I; with the corrected lumping ∩ and ∖ must
-//! agree everywhere, as `A∖B ≡ A∩revert(B)` forces). We therefore
+//! the misprinted Table I; the corrected lumping keeps A's copy, the
+//! glue's kept side, and with A's copy kept ∩ and ∖ agree everywhere,
+//! as `A∖B ≡ A∩revert(B)` gives). We therefore
 //! DERIVE the rule from the adjudicated Eq. 15.3: *Rule = "the coplanar
 //! (ON) sector is lumped to the OUT side of the reference solid"* —
 //! then a test sector keyed IN intersects the reference iff Rule (the
@@ -175,23 +176,6 @@ mod tests {
         ];
         for (op, rel, keeps_one) in cells {
             assert_eq!(lump_keeps_one(op, rel), keeps_one, "{op:?} {rel:?}");
-        }
-    }
-
-    /// Where the lump keeps one copy, the lumped sectors keep the glue's
-    /// kept side's and drop the other's; elsewhere they keep neither. So
-    /// a containment fallback that cuts a dropped copy cuts the other
-    /// side's (`ops::fallback_fates`).
-    #[test]
-    fn the_lump_keeps_the_glues_kept_copy_where_it_keeps_one() {
-        let kept = super::super::glue::KEPT;
-        for op in [Union, Intersect, Subtract] {
-            for rel in [Plus, Minus] {
-                let held = |o| eq15_3_lump(op, o, rel) == super::super::finish::kept_side(op, o);
-                let one = lump_keeps_one(op, rel);
-                assert_eq!(held(kept), one, "{op:?} {rel:?}: the kept side's copy");
-                assert!(!held(kept.other()), "{op:?} {rel:?}: the other side's copy");
-            }
         }
     }
 

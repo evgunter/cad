@@ -42,12 +42,15 @@ use crate::entity::FaceKey;
 /// first-written operand's, A's, a fixed rule that reads no values. An
 /// n-ary operation folds its members in list order, each step's
 /// accumulation its operand A, so the first-written member's
-/// description is the one kept. Every reader takes the side from here:
-/// the zip's fused vertices and edges and the merge's merged faces
-/// through [`kept_first`], the Eq. 15.3 lump's kept copy
-/// (`tables::kept_copy`), and the point a vertex-vertex record class
-/// keeps (`ops::share_recorded_points`).
+/// description is the one kept.
 pub(crate) const KEPT: Operand = Operand::A;
+
+const _: () = assert!(
+    matches!(KEPT, Operand::A),
+    "[coincidence.booleans] keeps the first-written operand's description, \
+     and the boolean assumes it is A's: the result arena is A's clone, the \
+     lump and the containment fallback cut only B's copies"
+);
 
 /// A glued pair's two sides as `(kept, other)` ([`KEPT`]): given
 /// `side`'s `x` and the other operand's `y`. The boolean hands the

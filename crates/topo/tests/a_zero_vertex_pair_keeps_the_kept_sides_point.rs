@@ -32,7 +32,7 @@ fn near(body: &Body<f64>, p: Point3<f64>, r: f64) -> Vec<(PointKey, Point3<f64>)
 /// keeps A's `(1, 1, 1)`, not B's `(1 + δ)³`. Red if the record class
 /// keeps its smallest live key.
 #[test]
-fn a_zero_corner_kiss_keeps_operand_as_point_over_a_lower_key() {
+fn a_zero_corner_kiss_keeps_the_first_operands_point_over_a_lower_key() {
     let delta = tol().eps() / 4.0;
     let a = common::finished(
         "a",
@@ -45,9 +45,26 @@ fn a_zero_corner_kiss_keeps_operand_as_point_over_a_lower_key() {
         common::brick((lo, 2.0), (lo, 2.0), (lo, 2.0), tol()),
         tol(),
     );
+    topo::take_shared_points();
     let Ok(BooleanResult::Body(r)) = topo::union(&a, &b, tol()) else {
         panic!("the kiss unites");
     };
+    // The witness's premise, read from the rebind itself: the class at
+    // the kiss lists its keys' points in key order, so B's point first
+    // is B's grafted key below A's.
+    let shared = topo::take_shared_points();
+    let [(points, _)] = &shared[..] else {
+        panic!("one class rebound, at the kiss: {shared:?}");
+    };
+    let b_kiss = format!("{lo:?}");
+    assert_eq!(
+        points[..],
+        [
+            [b_kiss.clone(), b_kiss.clone(), b_kiss],
+            ["1.0".into(), "1.0".into(), "1.0".into()]
+        ],
+        "B's kiss point holds the class's lower key"
+    );
     let one = Point3::new(1.0, 1.0, 1.0);
     let at_kiss = near(&r.body, one, 10.0 * delta);
     let [(ka, pa), (kb, pb)] = at_kiss[..] else {
@@ -59,14 +76,5 @@ fn a_zero_corner_kiss_keeps_operand_as_point_over_a_lower_key() {
         [xyz(pa), xyz(pb)],
         [[1.0; 3]; 2],
         "the kiss keeps operand A's point"
-    );
-    // The witness's premise: B's corners took the slots below A's.
-    let b_far = near(&r.body, Point3::new(2.0, 2.0, 2.0), 1e-9);
-    let [(k_far, _)] = b_far[..] else {
-        panic!("one corner of B at (2, 2, 2): {b_far:?}");
-    };
-    assert!(
-        k_far < ka,
-        "B's grafted points sit below A's kiss key: {k_far:?} vs {ka:?}"
     );
 }
