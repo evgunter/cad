@@ -627,3 +627,59 @@ fn retyping_a_toleranced_slot_says_its_tolerance_went() {
         }
     }
 }
+
+/// **A mate's dropped values are one notice, in words.** Seating
+/// post_b on the shelf fixes freedoms its bundle wrote values on, and
+/// the door reports one `ValueDropped` row per freedom; the line says
+/// them once, naming the copy, and spells no variable as its raw id.
+///
+/// *Breaks if* each row becomes its own notice again, or the notice
+/// reads a variable's id.
+#[test]
+fn a_mates_dropped_values_are_one_notice() {
+    use common::asm;
+    use viewer::matetool::MateTool;
+
+    let tol = Tol::witness();
+    let bench = asm::bench("dropped-once", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let (a, b) = asm::seat_picks(&session, &bench);
+    asm::unpin(&mut session, bench.post_b);
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), a);
+    tool.pick(session.doc(), b);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, asm::seat_choice())
+        .expect("the seat proposes");
+    let outcome = session.perform(proposal.op_into_target_space());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let rows: Vec<&Maintenance> = outcome
+        .maintenance
+        .iter()
+        .filter(|m| matches!(m, Maintenance::ValueDropped { .. }))
+        .collect();
+    assert!(
+        rows.len() >= 2,
+        "the seat drops several values, one row each: {:?}",
+        outcome.maintenance
+    );
+    let said: Vec<String> = frame::outcome_notices(&outcome)
+        .map(|notice| notice.text().to_owned())
+        .filter(|text| text.contains("dropped"))
+        .collect();
+    let [said] = &said[..] else {
+        panic!("one notice says the drops: {said:?}");
+    };
+    let copy = session.doc().spoken(bench.post_b).to_string();
+    assert!(said.starts_with(&copy), "the notice names the copy: {said}");
+    for row in rows {
+        let Maintenance::ValueDropped { by, .. } = row else {
+            unreachable!("filtered above")
+        };
+        assert!(
+            !said.contains(&by.id().to_string()),
+            "the notice spells no variable by its id: {said}"
+        );
+    }
+}
