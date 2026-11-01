@@ -5556,6 +5556,106 @@ mod properties_pane_tests {
         );
     }
 
+    /// **The variables list paints each variable's value**: a length
+    /// declared in millimetres is listed as `t = 20 mm`, the line
+    /// [`crate::pane::properties::variable_line`] spells.
+    #[test]
+    fn the_variables_list_paints_each_variables_value() {
+        let driven = &mut Driven::with(vec![SessionOp::DeclareVar {
+            name: pncad::document::VarName::from_static("t"),
+            value: crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(0.02),
+                Some(pncad::quantity::MM.def()),
+            ),
+        }]);
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted.iter().any(|(run, _)| run == "t = 20 mm"),
+            "the list says t's value: {painted:?}"
+        );
+    }
+
+    /// **A definition that reads nothing says why under its list
+    /// line** (review of #6242): `w = t / scalar(n - 2)` at `n = 2`
+    /// reads `?` in the list, and the fault is painted, so a list that dropped the note
+    /// or showed a stale value goes red.
+    #[test]
+    fn the_variables_list_says_why_a_definition_reads_nothing() {
+        let length = |value| {
+            crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(value),
+                Some(pncad::quantity::MM.def()),
+            )
+        };
+        let mut driven = Driven::with(vec![
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("t"),
+                value: length(0.02),
+            },
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("n"),
+                value: crate::props::doc_variable(
+                    pncad::document::Dimension::Count,
+                    crate::props::SlotValue::Count(3),
+                    None,
+                ),
+            },
+            SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("w"),
+                value: length(0.04),
+            },
+        ]);
+        let w = crate::props::variable_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.label.to_string() == "w")
+            .expect("w is declared")
+            .var;
+        let n = crate::props::variable_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.label.to_string() == "n")
+            .expect("n is declared")
+            .var;
+        let defined = driven.app.session.perform(SessionOp::SetVariableText {
+            var: w,
+            text: "t / scalar(n - 2)".to_owned(),
+        });
+        assert!(defined.refusal.is_none(), "w is defined: {defined:?}");
+        let moved = driven.app.session.perform(SessionOp::SetVariable {
+            var: n,
+            value: crate::props::SlotValue::Count(2),
+        });
+        assert!(moved.refusal.is_none(), "n moves to 2: {moved:?}");
+        let row = crate::props::defined_rows(driven.app.session.doc())
+            .into_iter()
+            .find(|row| row.var == w)
+            .expect("w is defined");
+        let fault = row
+            .value
+            .as_ref()
+            .expect_err("the definition reads nothing");
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted
+                .iter()
+                .any(|(run, _)| run == &format!("w = {} = {}", row.formula, crate::props::NO_VALUE)),
+            "the list says w reads nothing: {painted:?}"
+        );
+        assert!(
+            painted.iter().any(|(run, _)| run == &format!("w: {fault}")),
+            "and why, under its line: {painted:?}"
+        );
+        // Selected, its own row says why, and the pane says it once.
+        driven.select(Selection::Variable(w));
+        let painted = driven.frame(Vec::new());
+        let said = painted
+            .iter()
+            .filter(|(run, _)| run == &format!("w: {fault}"))
+            .count();
+        assert_eq!(said, 1, "the reason is said once: {painted:?}");
+    }
+
     /// **The add-variable form's commit is live exactly when a click
     /// declares**: a `Count` over a field holding `NaN` is refused by
     /// `SlotValue::of`, so the commit is disabled and the refusal is
