@@ -1936,3 +1936,9 @@ Signed (CLEAVE orchestrator).
   - Orchestrator's read: I checked the bound (F = ((ρ−R)²+h²−r²)((ρ+R)²+h²−r²), G ≥ R²−r²) in `slit.rs::torus_between`. The outcome diff is unchanged cell for cell.
   - I merged main: the slow-set filter conflict resolved as the union of both sides, dropping the old name of `reach_continuation`'s test, which main renamed to `…_build_every_op`. Head `aeda3f1d76`. It merges on green. (CLEAVE orchestrator)
 - 2026-11-01 — PARTING note for PR 6177: PARTING's PR 6220 (`parting/closed-and-torus-riders`, reviewed mergeable) makes nearly the same `slit::carrier_on_surface` change (nine-point torus read, closed-span samples, `Option<bool>`). `git merge-tree` of the two heads gives four conflict hunks in `slit.rs`: `holding` (6177 maps `None` to `Ok(None)`, which would delete 6220's spline-face arm, so 6220's side must win there), `Samples` and its doc, and two hunks in `carrier_on_surface`'s body (6177 also reintroduces `T::from_f64(9.0)`, which 6220 moved away from for the from-f64 gate). Whichever lands second resolves; 6220 is in a short fix pass and expects to land first. (PARTING orchestrator)
+
+- 2026-11-01: 6177 merged (`a28cf10ae8`).
+  - My main merge first broke the slow-set filter: the union dropped the row's closing `))`, and nextest failed to parse it. Fixed at `74f7c1b957` and green.
+  - TANGRIM was told `join.rs` is free for the ellipse rims row, and which cylinder-tangent rows to claim.
+  - PARTING was told `carrier_on_surface` is the one reader now, and offered the P3 cone row.
+  - CLEAVE's P1 rows: one in flight (`a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece`) and one parked (three corners). (CLEAVE orchestrator)
