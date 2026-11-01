@@ -99,7 +99,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, SpokenNode};
+use pncad::document::{
+    Doc, HeldNodes, Node, Operand, ProfileProgram, RecipeNodeId, Speaker, SpokenNode,
+};
 use pncad::select::SplitHalf;
 
 use crate::session::{NodeKindWanted, admits};
@@ -362,10 +364,12 @@ impl Port {
     }
 }
 
-/// **A pick as the panel says it**: the node as `doc` speaks it, and
-/// the half it reads or still waits for.
-pub(crate) fn pick_said(doc: &Doc<ProfileProgram>, node: RecipeNodeId, port: Port) -> String {
-    let node_said = doc.spoken(node).to_string();
+/// **A pick as the panel says it**: the node said by `by`, a node `by`
+/// does not hold as the tool kept it (`kept`, its last label), and the
+/// half it reads or still waits for.
+pub(crate) fn pick_said(by: Speaker<'_>, kept: &SpokenNode, port: Port) -> String {
+    let held: HeldNodes = [kept.clone()].into_iter().collect();
+    let node_said = by.or_held(&held).node(kept.id()).to_string();
     match port {
         Port::Half(half) => format!("{node_said}, {} half", half.name()),
         Port::HalfPending => format!("{node_said}, half not chosen"),
@@ -441,10 +445,12 @@ impl Seats {
         self.ports.get(i) == Some(&Port::HalfPending)
     }
 
-    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]), the
+    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]) by
+    /// `by`, a node `by` does not hold by the label the seat kept: the
     /// item [`seat_line`] composes; `None` for an open seat.
-    pub(crate) fn said(&self, doc: &Doc<ProfileProgram>, i: usize) -> Option<String> {
-        self.held(i).map(|node| pick_said(doc, node, self.ports[i]))
+    pub(crate) fn said(&self, by: Speaker<'_>, i: usize) -> Option<String> {
+        let kept = self.held[i].as_ref()?;
+        Some(pick_said(by, kept, self.ports[i]))
     }
 
     /// Seat `i`'s role.
@@ -667,18 +673,20 @@ pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfilePro
 /// order, or name ones the tool no longer has, and still compile.
 ///
 /// Each item is said in the words a seat's drop notice uses
-/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick as `doc`
-/// speaks it, so the panel and the notice about the same pick call it
-/// one thing.
-pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
-    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(doc, i))))
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by `by`,
+/// the landed speaker the chrome speaks
+/// ([`crate::frame::landed_speaker`]), a node it no longer holds by the
+/// label the seat kept — the label the drop notice says — so the panel
+/// and the notice about the same pick call it one thing.
+pub fn seat_line(seats: &Seats, by: Speaker<'_>) -> String {
+    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(by, i))))
 }
 
 /// **The composition of the seated tools' and the mate tool's
-/// held-picks line**: `no picks yet` while nothing is held, else one
-/// `role: pick` item per seat, `—` for an open one, joined on `"; "`.
+/// held-picks line**: [`NONE_PICKED`] while nothing is held, else one
+/// `role: pick` item per seat, [`NONE_PICKED`] for an open one, joined on `"; "`.
 /// [`seat_line`] reaches it for the seated tools and
-/// [`crate::matetool::MateToolState::line`] for the mate tool, whose
+/// [`crate::matetool::MateTool::line`] for the mate tool, whose
 /// picks are faces and whose state is not [`Seats`] (module docs) but
 /// whose line has this shape. Each caller spells its own items; the
 /// shape, the empty sentence and the mark are this function's.
@@ -695,16 +703,22 @@ pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
 /// second level misread"). Nor does the mark earn a constant of its
 /// own: nothing splits a panel line back into its items, so there is
 /// no hold for a name to carry.
+/// **What a panel says of a pick it does not hold**: an open seat in a
+/// held-picks line, a line holding nothing at all, and a form's latch
+/// row with no face latched (`crate::drafts::latch_said`). The one
+/// spelling of an empty pick.
+pub(crate) const NONE_PICKED: &str = "none picked";
+
 pub(crate) fn picks_line<R: core::fmt::Display>(
     picks: impl IntoIterator<Item = (R, Option<String>)>,
 ) -> String {
     let picks: Vec<_> = picks.into_iter().collect();
     if picks.iter().all(|(_, held)| held.is_none()) {
-        return "no picks yet".to_owned();
+        return NONE_PICKED.to_owned();
     }
     picks
         .iter()
-        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or("—")))
+        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or(NONE_PICKED)))
         .collect::<Vec<_>>()
         .join("; ")
 }

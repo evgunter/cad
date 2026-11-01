@@ -31,7 +31,7 @@ face is exempt, silently, as validate's not-yet-checked list says
   a circle, or one with no certified curve (`sphere_region::sphere_face_region`,
   `Scaffolding::Refused`); a torus edge other than a circle or a spiric
   (`torus_region::torus_face_region`). When tier 3's pole side moves onto
-  the doors (`work/restcurve/the-sphere-door-cannot-settle-a-pole-at-the-certified-scalar.md`),
+  the doors (`work/restcurve/the-sphere-door-has-no-two-leg-path-so-a-pole-beside-a-slim-lune-reads-in-band.md`),
   the same faces become that arm's residue too, where `walk_loop` reads a
   cone loop or a sphere loop with a non-circle edge today.
 - **A torus cycle with no stored joint element**: `cycle_winding`

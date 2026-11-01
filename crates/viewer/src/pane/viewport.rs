@@ -606,7 +606,10 @@ mod composed {
         // One tool is open at a time, so the mate tool's two held faces
         // and the mirror tool's plane share these two slots.
         let [a, b] = match (tools.mate(), tools.mirror()) {
-            (Some(tool), _) => tool.state().picks(),
+            (Some(tool), _) => tool
+                .state()
+                .picks()
+                .map(|pick| pick.map(crate::tree::HeldPick::face)),
             (None, Some(tool)) => [tool.plane(), None],
             (None, None) => [None, None],
         };
@@ -2305,7 +2308,7 @@ mod tests {
             .iter()
             .map(|face| {
                 let by = pncad::document::Speaker::of(landed).within(eval);
-                idpass::SaidFace(by, face).to_string()
+                pncad::document::Said(&crate::tree::PickedName::face(face), by).to_string()
             })
             .collect();
         (unassigned, from_ray, spoken, news)
