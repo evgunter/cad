@@ -371,11 +371,9 @@ fn a_cone_face_that_wraps_alone_holds_its_slant_window_beside_a_shared_chart() {
                     declared: None,
                 }
             }
-            geom_brep::EdgeDescription::Intersection { pair, witness } if pair.contains(old) => {
-                geom_brep::EdgeDescriptionSpec::Intersection {
-                    pair: pair.map(swap),
-                    witness: *witness,
-                }
+            geom_brep::EdgeDescription::Intersection { pair, selector } if pair.contains(old) => {
+                let (pair, selector) = selector.remapped(*pair, |k| Some(swap(k))).unwrap();
+                geom_brep::EdgeDescriptionSpec::Intersection { pair, selector }
             }
             _ => continue,
         };

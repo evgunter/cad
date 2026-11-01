@@ -9,14 +9,14 @@
 //!
 //! - **A3, the `f64` fence**: a mate corpus — every kind of mate the
 //!   fold has a branch for, a LOOSE bundle and an OVERCONSTRAINED one,
-//!   a parametric seat under a pattern, a parametric standoff, a
+//!   a parametric seat under a family, a parametric standoff, a
 //!   parametric world mate, a chain of bundles — solved and evaluated
 //!   at `f64`, digested, and pinned; and the same corpus at `Dual64`
 //!   reading the `f64` bits on its value channel.
 //! - **A2**: a parameter a bundle reads — a value's slide, a standoff,
 //!   a value's spin — moves the mated part in the run that binds it,
 //!   on a `Dual64` seed run by its tangent and on an `Interval` box run
-//!   by an enclosure: the patterned bolt (∂B/∂s = −2, ∂copy2/∂s = 0),
+//!   by an enclosure: the bolt and its row (∂B/∂s = −2, ∂copy2/∂s = 0),
 //!   a standoff and a slid, spun seat.
 //! - **A4**: a seeded pass threaded an unseeded `Dual64` prior reuses no
 //!   zero-tangent pose (the memo key carries the pose's two channels).
@@ -39,9 +39,9 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
-    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
-    evaluate, vertex_position,
+    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate,
+    vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -389,8 +389,8 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
 // ---- The documents the rows share ----
 
 /// **The patterned bolt** (the designers' worked example): the bolt
-/// seated on the slab with its origin at `(6 − 2s, 4)`, and a linear
-/// pattern of it along `+x` at spacing `s`, three copies. Copy #2
+/// seated on the slab with its origin at `(6 − 2s, 4)`, and a row of it
+/// along `+x` slid `scalar(k)·s`, three members. Member #2
 /// stands at `6` for every `s`, so the bolt moves by `−2` per unit of
 /// `s`, copy #1 by `−1` and copy #2 not at all.
 struct Bolted {
@@ -418,20 +418,13 @@ fn bolted(label: &str) -> Bolted {
         bolt,
         p.bolt_foot(bolt),
         p.slab_top(slab),
-        len(0.0),
-        (x, len(4.0), ang(0.0)),
+        Formula::zero(Dimension::Length),
+        (x, len(4.0), Formula::zero(Dimension::Angle)),
     );
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: bolt.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [1.0, 0.0, 0.0].map(scl),
-                spacing: named(spacing(), Dimension::Length),
-            },
-        },
-    );
+    let (doc, k) = fixture::index(doc, "k", 3);
+    let slide = Formula::mul(fixture::scalar_of(k), named(spacing(), Dimension::Length))
+        .expect("a count times a length");
+    let (doc, pattern) = fixture::family_of(doc, bolt, vec![(Coord::Slide(TargetAxis::X), slide)]);
     Bolted {
         doc,
         opts: p.opts(),
@@ -573,7 +566,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         p.bolt_foot(bolts[0]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(1.0, 1.0, 0.0),
     );
     let (doc, _) = seat(
@@ -581,7 +574,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[1],
         p.bolt_foot(bolts[1]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(5.0, 1.0, 0.3),
     );
     out.push(("seats", doc, p.opts()));
@@ -678,7 +671,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         top,
         p.bolt_foot(top),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(x, y, 0.0),
     );
     let (doc, third) = insert(doc, fixture::mated_instance(p.bolt));
@@ -687,7 +680,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         third,
         p.bolt_foot(third),
         p.bolt_head(top),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(x, y, 0.0),
     );
     out.push(("pinned-chain", doc, p.opts()));
@@ -701,7 +694,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[0],
         p.bolt_foot(bolts[0]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(1.0, 1.0, 0.0),
     );
     let (doc, _) = seat(
@@ -709,7 +702,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[1],
         p.bolt_foot(bolts[1]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(4.0, 1.0, 0.0),
     );
     // The third stands over the second: a seat's values are read from
@@ -719,7 +712,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         bolts[2],
         p.bolt_foot(bolts[2]),
         p.bolt_head(bolts[1]),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         at(4.0, 1.0, 0.0),
     );
     out.push(("chain", doc, p.opts()));
@@ -791,227 +784,22 @@ fn run_at<T: editor_core::EvalScalar>(
     evaluate::<T>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 
-/// **The corpus digest, per ε row.** It was measured on the
-/// pre-generic tree from this same file's corpus and digest — first at
-/// `a8f56a79f`, before any solve code moved, again at `2d29576fb` once
-/// PLACE's mate-frame offset (#3961) changed how an authored side is
-/// held, and at `11d9c7a7f` once the corpus took the shaft in two
-/// coaxial bores — which is what showed the generic solve at `f64` to be
-/// the nominal solve, bit for bit. The numbers below are no longer that
-/// tree's: they were re-taken on this tree when the variable table
-/// renumbered the corpus's ids (the paragraph below), so they pin the
-/// generic solve against itself, and the bit-for-bit claim against the
-/// pre-generic tree rests on that measurement and on the id-free rows.
+/// **The corpus digest, per ε row**: every fault, space, solved pose
+/// and evaluation (each body where it stands, composed through
+/// `in_space`, with its name tables) this file's mate corpus gives, fed
+/// in corpus order. The generic solve at `f64` is the nominal solve
+/// bit for bit, so this pins the generic solve against itself; the
+/// id-free rows beside it pin what it solves.
 ///
 /// One number per row because the documents are not ε-free: a part's
 /// content pin hashes its recorded ε, and an instance's id hashes the
 /// pin, so every id the digest feeds moves with the row. The rows are
 /// the three the hosted matrix runs; any other ε has no measurement and
 /// the row fails rather than pass on nothing.
-///
-/// Re-taken when an intrinsic edge description's surfaces became a
-/// set (`geom_brep::SurfacePair`): the digest feeds the evaluated
-/// bodies' `Debug`, which spells the pair differently, and no pose moved
-/// (the id-free rows held).
-///
-/// The digest feeds node ids, so it moves whenever ids do — a declare
-/// extends the mint chain, and an insert's preimage holds its readers by
-/// variable id — with no pose moving: this file's id-free rows (each
-/// pose against the `f64` solve at the box's corners, each tangent
-/// against its central difference) are what say so.
-///
-/// Re-taken once more for INTENT-LITERALS PR C: every slot holds a
-/// variable's id, so every node is minted from other bytes, and the
-/// id-free rows held.
-///
-/// And again when an id became its mint ordinal and its digest (all
-/// three rows): the digest spells every id it feeds. The same digest
-/// with each id replaced by its document position measured equal on
-/// main and on the branch at all three ε, so no pose, role, fault or
-/// placement moved.
-///
-/// And again for INTENT stage 2 C (all three rows): each part places
-/// its body in its world, so every part's pin — and every instance id
-/// hashing it — moved, and the part's names reach an instance under its
-/// placement's copy. The id-free rows held.
-///
-/// And again for INTENT stage 4 E (all three rows): the bodies this
-/// digest feeds carry no provenance side tables, and a node error is
-/// the value-decided refusal or the glued build. The id-free rows held.
-///
-/// And again for INTENT stage 2 F (all three rows): a mate's sides are
-/// selections, minted at its insert, so every id after a mate moved,
-/// and a mate's content key reads its bodies' keys. Each instance's
-/// solved and world pose, each mate's role and whether it faulted,
-/// keyed by document position, measured equal on main and on the
-/// branch at all three ε. Taken over the surface pair's set spelling
-/// above, which landed beside it.
-///
-/// And again for INTENT stage 3 B (all three rows): a mate is a
-/// constraint of the placement it places, so the corpus's documents
-/// changed shape — the lone rest is a loose copy rather than a refusal,
-/// the contradictory pair is an overconstrained bundle, the gauge chain
-/// is a three-step world mate, the closing loop is a chain of bundles,
-/// and both shafts' bundles are overconstrained — and the digest feeds
-/// each node's space and fault where it fed a mate's role and a
-/// group's root.
-///
-/// And again for INTENT stage 3 C (all three rows): a mate is two poses
-/// read off geometry, so every seat of the corpus is a rest and its
-/// values, the coaxial document is one edge mate and its slide and
-/// spin values, the pin documents read the parts' edges, the
-/// world mate is a frame read off the slab equated with a world read,
-/// the patterned bolt and the standoff carry their parameters in a
-/// value and a pose construction rather than a placer, and the clocked
-/// shaft is gone with the rider; every instance is pinned over its
-/// geometry, so its pose is the identity to that pin's rounding.
-///
-/// And again when a slide value became the least translation the
-/// residual holds (all three rows): only the pinned chain moved, its two
-/// seats on the turned slab by a few ulps of translation, where the
-/// plane's normal and the chart's axes are not the coordinate axes and
-/// the divisor of the slide's share is not exactly one. Each document's
-/// own digest measured equal on the tree before and on this one at all
-/// three ε but for that one; its seats' values are listed in the one
-/// order the solve takes them, so no reordering moved it.
-///
-/// And again for the named interim's world pin (all three rows): every
-/// copy the fixtures place where it stands is pinned by a world pin,
-/// which reads nothing, so its pose is the identity exactly rather than
-/// to a pin's rounding, and its placement decides nothing.
-///
-/// And for the bundle rule (FORK-S3O, all three rows): every row that
-/// places a copy measured its own digest equal before and after at all
-/// three ε; the two overconstrained rows are written past the door and
-/// name every constraint the rest fix, and the two-pin and cross-pin
-/// rows, whose fold branches retired, left the corpus.
-///
-/// And again when a pose's frame became the decided shortest turn and
-/// the line across two directions stopped carrying the fold's arm (all
-/// three rows): only the pinned chain's two seats moved, by at most
-/// 8.9e-16 in any entry of their solved maps; every other solved pose is
-/// bit-identical.
-///
-/// And for slides along their chart's own axes (F's follow-ups, all
-/// three rows): a slide moves the copy by `axis · gap` rather than by
-/// the residual's projection of the axis, and no line between two
-/// slides is minted. Both reviews of PR 5314 measured the change
-/// against main before the line-across change above: only the pinned
-/// chain's two seats moved, at the rounding level (by at most 1.55e-15 m,
-/// and 1.99e-15 over every settle with a slide), and every rotation,
-/// fault and space was unchanged.
-///
-/// And for INTENT stage 3 D (Transform retires into a placement, all
-/// three rows): C's world pin retired, so every copy the fixtures place
-/// where it stands is stood by `mate::stand`'s plane mate on a face no
-/// variable reaches, with constant zeros, and solves that mate where
-/// the pin read nothing; a profile carries no frame and an extrude no
-/// side, so the ids the digest feeds moved too. Measured separately:
-/// the box lanes' tight-map fixes (`mate::solve::tightened`,
-/// `Chart::turned`, Sym's at-rest snap) move no bit of this digest at
-/// any of the three ε, read on the tree that introduced them with each
-/// fix switched off and on, and after their switches were removed.
-///
-/// And for the identity bundle (FORK-REST, all three rows): every copy
-/// the fixtures place where it stands is stood by `mate::stand`'s
-/// identity bundle, no mate and the constant `0` on every freedom,
-/// which the fold places by no map and which solves no mate; it is
-/// written as one `AddValues`, which mints a different number of ids
-/// from the plane mate and three values it replaces, so the ids minted
-/// after it moved too. Every other bundle of the corpus is mated and
-/// places by its map as before. Measured on D's head before the change
-/// (`434139ef1c`), where this row was green.
-///
-/// And again when a minted plane's `u_ref` became a direction its
-/// construction holds (all three rows): an extruded cap is charted
-/// along its sketch's `x` axis and a wall along its swept segment,
-/// where `orthonormal_basis` picked both off the axes. The digest feeds
-/// the evaluated bodies, whose planes' `u_ref` moved; no mate reads a
-/// plane's `u_ref` (`mate/pin.rs` reads a plane by its origin and
-/// normal), so no pose moved.
-///
-/// And for D′1 (a placement names its target space, all three rows):
-/// every bundle pins its copy, so the lone-rest `loose` document left
-/// the corpus (a lone rest now refuses `Unpinned` at the door); every
-/// seat and the coaxial document are written as one whole bundle
-/// (`DocEdit::SetConstraints`), which mints their ids in another order
-/// than a mate followed by its values one edit each; every construction
-/// gains a `space` output, so the ids after it moved; and the digest
-/// feeds each node's space as its `Space` variable where it fed the
-/// retired `Space` enum. Re-blessed at all three ε; the solved poses
-/// were not compared against the tree before separately.
-///
-/// And for D′2 (a value charts on the target space, all three rows):
-/// every bundle is spelled in the new vocabulary and the content key's
-/// `VERSION` moved, so the ids moved; and a seat's values came to be
-/// charted on its target space's axes (then swung onto the mated
-/// normal) rather than on the target body's frame. The two seats whose target stands off
-/// its space's identity are written as the motion they mean: the
-/// pinned chain's bolts at the point `(1, 1)` along the slab's sides
-/// from its corner reads on the new chart
-/// ([`seat_on_the_pinned_slab`]), and the chain's third bolt at its
-/// second bolt's `(4, 1)`; each stands on what it is seated on
-/// ([`each_seat_stands_on_what_it_is_seated_on`]). Compared id-free
-/// against main (`be9b907694`) at 1e-9, every other solved pose, fault
-/// and vertex is main's bit for bit; the pinned chain's escalation at
-/// 1e-12 is gone with the seats it was measured on.
-///
-/// And when a plane pose came to hold its normal and offset alone (all
-/// three rows): a mate's frame is aimed from the plane's point nearest
-/// its space's origin rather than from the face's stored point, so only
-/// the pinned chain's two seats on the turned slab moved, each
-/// translation entry by at most one ulp (8.9e-16 m) and every rotation
-/// entry bit-identical; every other solved pose of the corpus is main's
-/// bit for bit (each map dumped on main and on the branch).
-///
-/// And for D′3 (the product is an authored `⊔`, a copy carries its
-/// source's names, all three rows): each corpus document writes its
-/// product as a `⊔` of its world copies, a node the digest walks, and
-/// its instances' copies name their faces as their parts do, so the
-/// evaluations' name tables and every id after the product moved.
-/// Re-blessed at all three ε; each seat still stands on what it is
-/// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
-/// solved poses were not compared id-free against main separately.
-/// Re-measured on main's plane pose merged in, at all three ε. Merged
-/// again over ATREST stage 4 I (PR 5637: a mate writes no class, and
-/// the census at a `⊔` keeps its verdict on the `⊔`'s value), the
-/// content key's `VERSION` moved to 21 and the mates' spelling with it,
-/// so every value token moved; re-measured at all three ε.
-///
-/// And, all three rows, when a certificate came to keep its turn: the
-/// evaluation digest feeds each edge curve's `Debug`, which now spells
-/// it. No pose, fault or point moved. Re-measured with both merged, at
-/// all three ε.
-///
-/// And when the value chart came to read a written orientation (D10
-/// `[placement.values]`, all three rows): every mate carries its
-/// orientation and the content key's `VERSION` moved to 22, so every
-/// id and value token moved; and the pinned chain's two seats on the
-/// turned slab are turned by the least turn where the swing turned
-/// them, so their rotations' off-diagonal entries no longer agree bit
-/// for bit, one translation entry (`z`) moved by an ulp, and five of
-/// their vertices by an ulp each. Every other pose is main's.
-///
-/// And, all three rows, when a body value came to be its body in its own
-/// coordinates under a frame (INTENT stage 3 E). The evaluation digest
-/// feeds each body where it stands, composed through `in_space`.
-/// Compared against main (`29110056e8`, `9d97abd7`, and again `1f851964`
-/// over main's value chart) at 1e-9:
-/// every fault, space and node error is main's; two of the 47 solved
-/// poses moved, each by one ulp in one translation entry and every
-/// rotation entry bit-identical (a mate's `to` read off a copy is the
-/// pose read off the source moved by the copy's frame, where it was read
-/// off the mapped body); and of the evaluations only `pinned-chain`'s
-/// moved, three copies of copies by up to 1.8e-15 at 7, 8 and 16 of
-/// their points, each composing one map where it was rebuilt link by
-/// link. Re-taken over main's merge at `cd5f9dee` (main's three words
-/// `0xd5ec_4277_864d_1dcf`, `0x35c1_08d4_5569_8e4e` and
-/// `0x132e_b1b7_811d_4fd3`): with each copy rebuilt at `place` as
-/// before E, this branch reads main's word at 1e-9 exactly.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x1b2d_48e7_2dce_64ba),
-    (1e-6, 0x9c64_e122_2cde_2239),
-    (1e-12, 0xb126_9c4f_16e2_eb54),
+    (1e-9, 0xb820_871c_94ff_0c0b),
+    (1e-6, 0xef7d_754d_6fdc_f337),
+    (1e-12, 0xf38a_1cb4_4a53_85fc),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1063,11 +851,12 @@ fn each_seat_stands_on_what_it_is_seated_on() {
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and
 /// evaluations are byte-identical to the pre-generic tree's.
 ///
-/// RE-BLESSED for limb 2 for every carrier (PR 5728): check 2's turn
-/// moved from the edge's `Certificate` onto the edge, which changes the
-/// edge curve's `Debug` the digest feeds. With that `Debug` written in
-/// main's shape every digest here reproduces main's value at all three
-/// ε rows, so nothing else moved.
+/// RE-BLESSED twice for the edge curve's `Debug` the digest feeds: when
+/// check 2's turn moved from the edge's `Certificate` onto the edge (PR
+/// 5728), and when `Intersection`'s witness became its selector
+/// (`selector: Witness(p)` where it spelled `witness: p`). Each time, with
+/// that `Debug` written in main's shape, every digest here reproduced
+/// main's value at all three ε rows, so nothing else moved.
 #[test]
 fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
     let eps = Tol::witness().eps();
@@ -1131,11 +920,11 @@ fn f64_vertices_at(
         .collect()
 }
 
-/// The copy of a pattern a vertex of the pattern's value belongs to.
+/// The member of a family a vertex of the family's value belongs to.
 fn copy_of(name: &StableName) -> u32 {
     match name.path.first() {
-        Some(editor_core::RoleSeg::Instance { i, .. }) => *i,
-        other => panic!("a pattern's vertex is copy-wrapped, got {other:?}"),
+        Some(editor_core::RoleSeg::Member { at, .. }) => at[0].1,
+        other => panic!("a family's vertex is member-wrapped, got {other:?}"),
     }
 }
 
@@ -1348,9 +1137,9 @@ fn assert_pose_encloses_corners(
 // ---- A2: a parameter a bundle reads moves its mated part in the run that binds it ----
 
 /// **The patterned bolt, seeded on its spacing** (the designers' worked
-/// example): the bolt instance — seated at `6 − 2s` and the pattern's
-/// master — moves by `∂B/∂s = −2` along `x`, copy #1 by `−1`, and copy
-/// #2 by `∂copy2/∂s = 0`. Every vertex's tangent is the central
+/// example): the bolt instance — seated at `6 − 2s` and the family's
+/// source — moves by `∂B/∂s = −2` along `x`, member #1 by `−1`, and
+/// member #2 by `∂copy2/∂s = 0`. Every vertex's tangent is the central
 /// difference of two `f64` builds, and the value channel is the nominal
 /// build's bits.
 ///
@@ -1384,7 +1173,7 @@ fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two
         b.pattern,
         spacing(),
         SPACING,
-        "the pattern",
+        "the family",
     );
     for (name, t) in &copies {
         let want = [-2.0, -1.0, 0.0][copy_of(name) as usize];
@@ -1392,14 +1181,14 @@ fn a2_a_seed_on_the_bolts_spacing_moves_the_bolt_by_minus_two_and_holds_copy_two
     }
     assert!(
         copies.iter().any(|(n, _)| copy_of(n) == 2),
-        "copy #2 is among the pattern's vertices"
+        "member #2 is among the family's vertices"
     );
 }
 
 /// **The patterned bolt over a box on its spacing.** At the solve: the
 /// bolt's pose encloses its `f64` pose at both corners and the nominal,
 /// and is at least twice the box wide along `x` — not the nominal's
-/// point. Through the evaluation: every vertex of the bolt, the pattern
+/// point. Through the evaluation: every vertex of the bolt, the family
 /// and the slab — whose face the seat reads, and which holds still — is
 /// enclosed at both corners and the nominal.
 ///
@@ -1445,10 +1234,10 @@ fn a2_a_box_on_the_bolts_spacing_encloses_the_bolt_at_every_corner() {
 /// box-wide motion is the copy's frame and no mapped carrier is
 /// certified again — the placement door's re-certification, which
 /// refused over this box while a placement mapped its source, is not
-/// run. The pattern reading the bolt builds its copies the same way.
+/// run. The family reading the bolt builds its members the same way.
 ///
 /// *Breaks if* a copy is rebuilt under a box-wide motion (the mapped
-/// carriers refuse certification), or the pattern is poisoned through
+/// carriers refuse certification), or the family is poisoned through
 /// the bolt.
 #[test]
 fn a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt() {
@@ -1465,7 +1254,7 @@ fn a2_over_a_wide_box_the_bolt_builds_its_copy_unbuilt() {
     );
     assert!(
         matches!(ev.result(b.pattern), Some(NodeResult::Ok(_))),
-        "the pattern builds over the box: {:?}",
+        "the family builds over the box: {:?}",
         ev.node_error(b.pattern)
     );
 }
@@ -1568,7 +1357,7 @@ fn slid_bolt(label: &str) -> Slid {
         bolts[0],
         p.bolt_foot(bolts[0]),
         p.slab_top(slab),
-        len(0.0),
+        Formula::zero(Dimension::Length),
         (
             named(slide(), Dimension::Length),
             len(3.0),
@@ -1737,7 +1526,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
             (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     );
     let opts = p.opts();

@@ -49,8 +49,8 @@ use core::f64::consts::PI;
 
 use corpus::{body_of, eval, failures, hollow_tube_elbow, tube_ring};
 use editor_core::{
-    Axis3, Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
-    RecipeNodeId, SlotId, TubeWindow, apply, load, save,
+    Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
+    SlotId, TubeWindow, apply, load, save,
 };
 use fixture::{ang, len};
 use geom_core::Tol;
@@ -221,13 +221,6 @@ fn the_tube_slots_carry_their_dimensions_and_labels() {
         assert!(!slot.is_structural(), "{label} is a continuous parameter");
         assert!(slot.component().is_none(), "{label} is not a vector part");
     }
-    // The spine is the tube's own z circle: the tube carries no
-    // direction slot.
-    assert!(
-        solid_node(2.0, TubeWindow::Full, 0.5)
-            .expr(SlotId::Direction(Axis3::X))
-            .is_none()
-    );
 }
 
 // ---------------------------------------------------------------

@@ -112,3 +112,341 @@ and moves to the door with the frame's retirement. First dispatches:
 - 2026-10-28 — **PR 5886 merged** (the torus certificate, sphere × torus at rung 3). It took two main merges: once conflicting with no CI run, and once on a slow-set conflict resolved as main's file plus this branch's one line. **The cylinder × torus and torus × torus rung-3 rows go to the designer pair first** (blinding record `analysis/design-fork/torus-pair-tangency`). Both rows name the same open question: how the door decides a pose is not transverse when the pair has no closed-form scalar gap like the sphere's. That must also settle how `pair_section`, the SSI doors and `section_cert`'s torus classifiers share the decision.
 
 - 2026-10-28 — **The torus-pair tangency question converged** (two designers; record `analysis/design-fork/torus-pair-tangency`). Every torus pair decides "not transverse" on one pose value's **critical gap**, `min |D − (ρ₁ ± ρ₂)|` over the critical values of the spine-to-spine distance (offset duality), by a certified 1-D sweep. The symmetric closed forms move from `section_cert` into the value. The designers differed only on the sweep: 1-D over the core angle against 2-D over the torus chart with a separately named tube-circle arm. I took the 1-D form, which covers the tube-circle tangency without a special arm; that tangency is a required Zero row. One designer proposed a C5 sentence stating the principle; that would bind future work, so it is put to Ev, not written. Unit `each-torus-pair-decides-tangency-on-one-pose` (P0 H, dual) is dispatched. The cylinder × torus and torus × torus door rows are parked on it. Sphere × torus's double tangency decision (the 5886 door against `section_cert`) closes inside the unit.
+
+- 2026-10-28 — **A main red traced to PR 5869** (reported by SPLICE; bisected by a SECT lane; suspected 5886, not it): `sweep` `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`. `torus_parallel_torus` refuses the donut pair on an exact top-ownership tie (equal minor radii, h = 0) whose singular point lies outside the arm's triangle, and reports that proof gap as carrier tangency. The pair was traced transverse everywhere, at 23°–52°. A kernel fix is on `sect/two-tori-subtract-red`. **Classes:** a refusal for an arm's own proof gap must not speak as a geometric tangency; and a slow-set row on ground a PR edits is not run by per-PR CI, so 5869's green gate and its single review both missed a row that already pinned this pose. That escape is 5869's (single tier, not in the dual log).
+- 2026-10-28 — **The 5869 main red is fixed** (PR 5925, `sweep` `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`). `torus_parallel_torus` refuses a level-end tie only where W's node lies in the triangle or within its neck. Each branch gets its own neck, derived for its shape (`√(2(r+r₂)δ)` for slabs, `√(2·max(r,r₂)·δ)` for top and bottom), and δ comes from the row's own datum. This also closes SECTTAIL's `level-tubes-of-parallel-tori-refuse-at-the-node`. It files `r-tan-carries-the-arms-proof-gaps-as-tangent-carriers` (P2) for the wider wording class.
+  - **Review:** single FULL. The first pass found one MAJOR by execution: the slabs neck took one sheet's deviation where both add, so it certified `none()` over a real intersection, a regression to a false certificate. The fix pass corrected it, and the same reviewer re-ran its probes on the fixed head: APPROVE.
+  - **Class:** a clearance bound is derived per shape; one constant fitted to two shapes hid this MAJOR.
+- 2026-10-28 — **Step 1b merges** (PR 5894, `cylinder-sphere-germ-pair-has-no-join-lane` closed). The cylinder × sphere chord lane and island closure stand on the section object. All 54 fixture runs pass the join and stop typed downstream, so none builds a body yet. **What waits:**
+  - props, which has no `Projected` arm on an analytic chart (SPIRICARM, filed);
+  - `edge_join`, which cannot join a spline carrier (SPLICE).
+
+  **Review:** dual concurrent (H), R1 APPROVE and R2 APPROVE-WITH-FIXES, with no MAJOR. Row `docs/dual-review-log/rows/PR-5894.md`.
+
+  **Classes** recorded for later steps:
+  - an arc a reader trusts on-surface must carry that evidence in its type, not by convention;
+  - an undecided nearness must escalate, never fold into a verdict (my delta read caught one);
+  - a surface pair's section is carried in operand order (P3, filed).
+
+- 2026-10-28 — **The torus poses merge** (PR 5924, `each-torus-pair-decides-tangency-on-one-pose` closed). Every torus pair decides tangency on one critical gap, and sphere × torus is back on main's closed form. The cylinder × torus and torus × torus door rows are open. Teapot wall 2's union now builds and is refused at validation (`VolumeUncomputable`, a conic trim on the sphere chart, which is SPIRICARM's volume lane).
+  - **Review:** dual concurrent (H). Both reviewers were NOT-MERGEABLE on one bilateral MAJOR, by execution: f64 rounding in G′ divided by D ≈ 0 made in-band poses read Transverse, and a transverse joint read Tangent. Both confirmation passes then APPROVE on `e42da4cecb`. Row `docs/dual-review-log/rows/PR-5924.md`.
+  - **Classes:** a margin that is divided must carry its own rounding first; a certifying sweep's premise must reach generic frames, grid-aligned critical points and scale.
+  - **Filed:** SECTRUNG `the-torus-gaps-rounding-charge-is-first-order-and-reads-the-world-origin` (P2).
+- 2026-10-28 — **Split on Ev's request in chat.** SECT was over its budget, and SECTTAIL was at 27/30.
+  - **SECTARMS** (new, P0-led, 22 points) takes the section object's remaining transverse arms: NURBS × cone/sphere, the cone frames, skew cylinders and the walk order.
+  - **SECTSITE** (new, P1, 16 points) takes the closed edge in a curved face and the C5 plane × torus / cone × cylinder residue (U-H1, D10-held).
+  - **SECTRUNG** (new, P2/P3, 22 points) takes the C5 dispatch and rung-3 residue.
+  - Points are at the tracker's current weights (E 1, M 3, H 8).
+  - **SECT keeps** the torus-pair thread it is driving (teapot wall 2, the torus poses and their two doors), the new P0 main red, and two follow-ups its context makes cheap. The budget override is dropped.
+  - All rows moved by `git mv`, ids unchanged. **Main red** `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6` (nightly, ε 1e-6, slow-set rows from PR 5872) is dispatched on `sect/near-node-at-1e-6`.
+
+## 2026-10-28 — GREEN pinned four rows on `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+
+GREEN's full-suite pins (PR 5958, `green/full-suite-pins`) pin the four
+rows that row names at ε 1e-6, with `test_utils::pinned_red::row`, each
+on main's exact stop: `pair_section::one_loop_keeps_its_order_near_the_node`,
+`pair_section::two_loops_keep_their_sites_and_order_near_the_node`,
+`cylinder_sphere_frame::a_ball_across_a_cylinder_wall_wider_than_the_wall`
+(written out of `pose_rows!` to carry its pin) and
+`cylinder_sphere_frame::every_segment_joins_neighbouring_sites_along_its_loop`.
+A pin goes red the day its row passes, so the fix on
+`sect/near-node-at-1e-6` removes the four pins (and restores the macro
+row) in the same PR, and re-measures what each row runs after the stop.
+
+## 2026-10-28 — PR 5924 merged; the doors and teapot wall 2 dispatched
+
+- **PR 5924 merged** (`each-torus-pair-decides-tangency-on-one-pose`, head
+  b3ecfab, CI green; dual concurrent review, both confirmation passes
+  APPROVE, its row `docs/dual-review-log/rows/PR-5924.md`). Lane reclaimed.
+- **Dispatched `sect-torusdoors`** (branch `sect/torus-doors`): the two door
+  rows `cylinder-torus-rung-three-arm-is-unretired` and
+  `torus-torus-rung-three-arm-is-unretired` as one unit (H), since both
+  owe the same march domain. Tier: **dual concurrent** — a certified rung-3
+  march over a new domain, where a soundness slip is silent.
+- **Dispatched `sect-teapot2`** (branch `sect/teapot-wall-2`): the sphere ×
+  torus half of `torus-germ-pairs-have-no-section-frame`. The row carries
+  `design: true`, so the lane measures and shapes first and stops with a
+  problem statement if a fork shows (telling components apart at a site;
+  the torus face's spline ring path); the designer pair then runs before
+  any build. Tier: **dual concurrent** (H, join-side architecture).
+- The two run concurrently: the doors are in `ssi`/`pair_section`, the
+  teapot lane in the join's carried lane and `ring_path`; the seam is
+  `pair_section::torus`, which each lane announces.
+## 2026-10-28 — the near-node main red fixed (PR 5961)
+
+- `main-red-cylinder-sphere-section-runs-out-of-cells-near-the-node-at-1e-6`
+  closed by PR 5961: an R3 branch whose uniqueness tube its coarse chain
+  boxes hold narrow is refined again (`ssi::refine::refine_for_tube`, the
+  coarse spans read by `certify::coarse_tube_spans` on the tube ladder),
+  keeping a finer carrier only where its tube is wider; a closed spline's
+  foot polishes from both ends across its seam. Tier: **single FULL**
+  (one Opus reviewer); the fix pass took all ten items, and the
+  orchestrator's delta read found the ladder's "next rung up" preserved
+  (`filter(r > radius).last()` over a descending ladder equals the old
+  `2 · radius`). The four `pinned_red` rows main added at 1e-6 come out,
+  since they pass. The near-node cost residue (`CellBudget` at the default
+  ε, unmeasured cause) stays on SECTRUNG's
+  `a-cylinder-sphere-march-near-its-node-costs-seconds-and-refuses-by-budget`.
+
+## 2026-10-29 — PR 5972 in dual review; the components fork to the designers
+
+- **`sect-torusdoors` opened PR 5972** (head f2bd69c, CI green): the
+  cylinder × torus and torus × torus doors over a certified ball; both
+  door rows closed in it. The lane stopped on a design fork, filed in the
+  PR as `a-general-torus-pose-lists-no-components` (P0, `design: true`):
+  a general pose of either pair has no closed-form component list, so
+  `pair_section` still refuses it and the join stops at the germ mint.
+- **Dual concurrent review** dispatched on the frozen head (H; brief on
+  `briefs/sect-torusdoors-review`, both reviewers remote).
+- **Designer pair** (Opus + Fable, concurrent, blind) dispatched on the
+  fork, framed as the problem rather than the lane's three options, and
+  widened to the `Sides::Untold` symmetric poses (square wall, parallel
+  tori, a sphere round both tube circles), which ask the same question.
+  `sect-teapot2` is told to keep to the sphere × torus poses whose
+  closed-form readings already tell components apart.
+
+## 2026-10-29 — the components fork decided; PR 5974 opened
+
+- **The components fork** (`a-general-torus-pose-lists-no-components`):
+  both designers, blind, reached one final state. The classification lists
+  components only where a closed form counts them (`Counted`) and otherwise
+  says they are the march's (`Marched`), never a refusal; `carry` lists the
+  march's branches (a counted list becomes a cross-check); a site's
+  component is its foot on the carried section at every reader, so
+  `component_of`, `Sides` and the `Untold` refusals retire, and the germ
+  mint's three-valued `Branch` gives way to a component index for table
+  pairs; the certificate carries a `Marched` pose. Decided by the
+  orchestrator, no `[ev]` PR: the text it replaces is agent-written (PR
+  5872), and fork row 100's "foot parameters replace frames" already reads
+  this way. Recorded with PR 5972's state sync; built as its own unit after
+  PR 5972 merges.
+- **`sect-teapot2` opened PR 5974** (head 0ebc2aa, CI green). Wall 2 was
+  already past the join on main (PR 5924; `AroundTube`, told by a plane)
+  and stops at SPIRICARM's volume door. The PR adds the torus ring-path arm
+  for spline arcs, a matcher check in `join::along_facing`, a parity fuzzer
+  and placement pins; the `AroundAxis` reading it had built was reverted
+  for the fork. **Re-tiered from dual to single FULL**: the unit shrank to
+  two gate widenings, one comparison and tests, where one review reads the
+  whole change; dual was set at dispatch for an H join-side build that did
+  not happen.
+
+## 2026-10-29 — C5's critical-gap rule ratified (PR 5975)
+
+Ev agreed in chat, then approved the wording on `[ev]` PR 5975 ("looks
+good"), merged: every analytic surface pair decides its tangency and
+coincidence once, on its pose, before any rung, read by every reader — a
+closed-form margin where the pose has one, otherwise its certified critical
+gap, never a root formula; NURBS and `Approx` pairs stay the C2
+certificate's. It binds the cone pairs next (SECTARMS) and plane × torus
+off its axis-aligned arm (SECTSITE).
+## 2026-10-29 — the torus doors merge (PR 5972)
+
+- PR 5972 closes `cylinder-torus-rung-three-arm-is-unretired` and
+  `torus-torus-rung-three-arm-is-unretired`: both doors march a transverse
+  pose over a certified ball holding the whole section; a general pose is
+  `implemented: false` until the components unit lands. Dual concurrent
+  review (row `docs/dual-review-log/rows/PR-5972.md`): both
+  APPROVE-WITH-FIXES, no MAJOR; one fix pass on the union; the
+  orchestrator read the `winds` fix. Cost noted: at ε 1e-12 the new
+  `torus_doors_join` rows take 230–865 s each in debug, on the nightly.
+- The components fork is decided and recorded on its row
+  (`a-general-torus-pose-lists-no-components`, `## Decided`) and as fork
+  row 212; its build is dispatched next as its own unit.
+
+## 2026-10-29 — three lanes after PR 5972
+
+- **`sect-components`** (branch `sect/components-by-foot`): the decided
+  fork `a-general-torus-pose-lists-no-components` (re-costed H: it rewrites
+  the value's list, `carry`, the germ mint and the certificate). Tier:
+  **dual concurrent** (H, architecture).
+- **`sect-oncedecided`** (branch `sect/torus-decided-once`): the two
+  decided-twice rows, banded P1 under C5's ratified rule (PR 5975: a pair
+  decides tangency and coincidence once, read by every reader):
+  `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose`
+  and `a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane`,
+  one unit (both make a topo reader read the pose's decision). Tier:
+  **single FULL** (M; one reader-redirect pattern, readable in one review).
+- **`sect-circlecross`** (branch `sect/circle-crossing-once`):
+  `circle-pair-crossing-is-spelled-three-times` (E). Tier: **orchestrator's
+  read** (a mechanical extraction behind unchanged predicate names).
+- Seams: all three touch `pair_section/torus*.rs` in different places;
+  each announces its seam, and the components unit merges first where
+  they collide. The cylinder-face ring re-homing row waits for PR 5974 and
+  the components unit's germ-mint change in `join.rs`.
+
+## 2026-10-29 — teapot wall 2's sphere × torus half (PR 5974)
+
+PR 5974: a carried ring on a torus face reads its spline arcs (the torus
+`ring_path` arm), and `join::along_facing` refuses germs on two components
+up front as `facing` does. Wall 2 still stops at SPIRICARM's volume door
+(conic trim), now pinned by exact payload; the matcher fix moves its
+refused face (`6v1` → `1v5`) and ball × rod's on every op, which restores
+the mirror symmetry main broke (row
+`a_rod_through_a_ball_pairs_both_loops_alike`). Tier: **single FULL**
+(re-tiered from dual at the PR, the unit having shrunk): APPROVE-WITH-FIXES,
+no soundness defect (0 wrong of 2617 decided paths over 330 random poses);
+one fix pass took every item, with the reviewer's random search landed
+as `random_torus_sections`. The `Untold` placements wait on the components
+unit.
+## 2026-10-29 — two circles cross is spelled once (PR 6001)
+
+`circle-pair-crossing-is-spelled-three-times` closed by PR 6001: the
+coaxial-tube, parallel-tori and square-wall rows and profile's two
+circle-pair sites read `geom_core::Circles` (`reach`, `secant` added).
+Tier: **orchestrator's read** — margins bit-identical (logged decisions
+equal across 952 tests, 800k seeded pairs at `f64` and `Interval`);
+crossings now placed by `Circles2::crossings`, within 3.2 ulps of both
+circles where the old form drifted up to 9.4e5 ulps, same order. The
+unclamped `half_chord` is read only past a decided secant, so its square
+is a product of decided-positive margins. Left as filed: the sphere ×
+tube-circle rows (a verdict would move at `Interval`), P3.
+
+## 2026-10-29 — a torus pair's tangency and coincidence decided once (PR 5994)
+
+PR 5994 closes `torus-coincidence-is-decided-at-the-carrier-ladder-and-the-torus-pose`
+(one decision, `geom_brep::tori_coincide`, read first by the pose in every
+stance and by the carrier ladder's undeclared arm; the declared reading is
+a different question and reads the same displacement) and
+`a-tube-circle-tangency-is-read-by-the-gap-and-by-the-glue-doors-tangency-lane`
+(two questions, argued at `tangency_reading`, one pose pinned showing both
+answers right; no implication between them is claimed). Main read a nearly
+coincident tilted pair Tangent (a wrong definite answer); head reads it one
+surface at both readers. Disclosed moves: in-band pairs main built now refuse
+undecided; corner sites decide One on the bound's sum, not each datum.
+Tier: **single FULL**: APPROVE-WITH-FIXES, no MAJOR (the bound held against an
+exact-distance oracle and an adversarial search); one fix pass took all 11
+items, including one home for the identity walk (`geom_brep::identity_walk`,
+which topo's `identity_data` reads — the orchestrator checked its ranking and
+non-finite handling match main's) and the ring convention refused at the
+ladder.
+
+## 2026-10-29 — the cylinder-face re-homing dispatched beside PR 6011's fix pass
+
+- **`sect-rehome`** (branch `sect/rehome-by-path`):
+  `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`
+  (P1 M). Tier: **single FULL**. Dispatched now rather than after PR 6011:
+  its ground is `chord_join`'s re-homing functions (`rehome_rings`,
+  `chart_ring_side`, `path_ring_side`), which PR 6011 does not edit; the two
+  share only the file, and the lane announces the seam. It also measures
+  whether PR 6011's `RunImageNotYet` stops are this row's site.
+- PR 6011's dual review: both APPROVE-WITH-FIXES, no MAJOR (row written at
+  its state sync); fix pass running.
+## 2026-10-29 — components are the march's (PR 6011)
+
+PR 6011 closes `a-general-torus-pose-lists-no-components` as fork row 212
+decided it. Every P0 consumer passes the germ mint: GERM's radial hole (4
+and 3 loops), all six drum × donut placements, the general donut × donut
+placements and the ball × donut `AroundAxis` placement stop downstream
+(mostly SPIRICARM's volume door); the lily's stem at the march's
+`CellBudget` (SECTRUNG); a torus just clear of a tilted cut builds every op
+with checked volumes. Dual concurrent review (row
+`docs/dual-review-log/rows/PR-6011.md`): no MAJOR; two fix passes and one
+confirmation review. The one-way winding cross-check is a filed deviation
+(`a-counted-sections-winding-is-a-claim-not-a-reading`, P2). Cost: at ε 1e-12
+the new marching rows take up to ~30 min each at opt-level 2 in the nightly
+(`sectrung/torus-germ-rows-march-for-an-hour-at-a-fine-band`).
+
+## 2026-10-29 — PR 6011 merged; the frames row closed; the seam-region red re-banded
+
+- **PR 6011 merged** (head 5c5ca02, CI green); lane reclaimed; `sect-rehome`
+  told to merge main.
+- **`torus-germ-pairs-have-no-section-frame` closed** by the orchestrator:
+  every measured pair passes the germ mint, and each stops at another row's
+  door (named in its `## Closed`).
+- **`main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`**
+  (filed by nightly triage on SECT at P3, GREEN holding the row out of the
+  nightly's 1e-12 row) **re-banded P1** and dispatched as `sect-seamslow`
+  (branch `sect/seam-region-speed`): the slowdown is SECT's own (PR 5894),
+  the guard runs blind meanwhile, and PR 6011's new marching rows put the
+  nightly job's headroom in question. Tier: **single FULL**.
+
+## 2026-10-29 — the repeated march dispatched (Ev: "the time seems pretty egregious")
+
+Filed and dispatched `a-surface-pairs-march-is-repeated-per-operation-and-per-germ`
+(P1 M) as `sect-marchonce` (branch `sect/march-once`), on Ev's go-ahead in
+chat. Measure first, share within an operation, then across operations if
+the answer is the pair's and band's alone; a cache that crosses the public
+API stops for the designer pair. Tier: **single FULL**.
+## 2026-10-29 — the repeated march was not repeated (PR 6056)
+
+`sect-marchonce` measured one march per pair per operation on every slow
+torus row (shared inside an op by the section table's one carry), and the
+march at 3–16 % of each row's time; a gdb profile puts the time in
+certifying the fitted chord edges, pcurves and the result gate. PR 6056 adds
+a test-only march counter and pins one march per op; the row is re-banded
+P3 (cross-op sharing buys ≤ ~11 % and waits on canonical operand order).
+The orchestrator's earlier "about eight marches per pair" was wrong: each of
+a row's eight operations marches once, which is what that count was.
+Tier: **orchestrator's read** (a test-only counter and two pins).
+
+## 2026-10-31 — PR 6011's 1e-6 red dispatched; usage limit lifted
+
+- Nightly 77 (GREEN's triage) found five torus rows red at ε 1e-6 only since
+  PR 6011, bisected to the PR's own head, and pinned them red at 1e-6
+  (`main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`,
+  P1). Cause to measure: PR 6011's second fix pass grew each marched loop's
+  pad (tube + √3 × the hull boxes' side) after the confirmation review's
+  1e-6 run, and its lane re-ran only the compiled ε; four rows refuse
+  `Winds(Unseparated)`. Dispatched as `sect-onesix` (branch
+  `sect/torus-rows-at-1e-6`). Tier: **single FULL**.
+- The account's weekly usage limit stopped `sect-seamslow` mid-poll
+  (2026-10-30); resumed today, as was `sect-rehome`'s PR 6047 fix pass
+  (review: APPROVE-WITH-FIXES, no MAJOR).
+
+## 2026-10-31 — the seam-region door row at its cost again (PR 6062)
+
+PR 6062 closes `main-red-the-seam-region-door-row-runs-15x-slower-since-the-cylinder-sphere-chord`:
+PR 5894 let 20 of the row's 24 ball × cylinder booleans certify chords
+before refusing at the result gate; the projected-pcurve door recomputed
+`twin_span_hulls` per image, now memoized (`pcurve_cache::span_memo`, keyed
+by everything `spans_of` reads); the row is five tests, each pinning every
+boolean's stop by variant and raising door; the nightly's 1e-12 hold-out is
+removed (each part ≤ ~190 s at 1e-12). Tier: **single FULL**:
+APPROVE-WITH-FIXES, no MAJOR; one fix pass took all items, including a
+latent key collision (uncertified knots/weights keyed NaN) closed here and
+its twin in `limb2_memo` filed on PCERT. The lane found the nightly
+`full-suite` job no longer fits 180 min on slow nights (build 50–76 min);
+filed on GREEN (P1).
+
+## 2026-10-31 — a cylinder face re-homes its rings by the path (PR 6047)
+
+PR 6047 closes `a-cylinder-face-re-homes-its-rings-on-a-chart-that-reads-no-spline-chord`:
+every curved face re-homes a bystander ring by the path parity
+(`path_ring_side`), the cylinder's chart walk (`chart_ring_side` and its
+predicates) is deleted, and `ring_path::path_parity` reads a segment ending
+on an arc's plane as a crossing at that end (all curved kinds). The drum ×
+two balls and drum × donut placement 5 now pass the join. Tier: **single
+FULL**: APPROVE-WITH-FIXES, no MAJOR (43,200 random bystanders, 0 wrong);
+one fix pass; every slow row it adds or re-pins run by the lane at
+opt-level 2 at all three ε (drum × donut 12.7 min, two balls 4.7 min at
+1e-12). An essential run on a seamless band is documented, not refused
+(not a regression; `pctail/a-seamless-band-mints-…`).
+
+## 2026-10-31 — the torus rows read at 1e-6 again (PR 6153)
+
+PR 6153 closes `main-red-five-torus-section-rows-refuse-at-1e-6-since-components-by-foot`.
+Cause: PR 6011's second fix pass grew each marched loop's pad to 0.11–0.13 m
+at 1e-6, reaching the axis or core. Now `winds` reads a loop's turns over
+its tube boxes (limb 3's one piece per box), checks the walk has degree ±1
+(`once_round` or `gated`, else `Unordered`), the pad is the tube's farthest
+point from the carrier, and W3 reads a witness `reach`. Four rows un-pinned
+(two now stop at GREEN's open default-ε P0, as on main); `close_rings` stays
+pinned on SSIMARCH's `an-r3-tube-no-rung-makes-a-graph-is-never-refined`.
+Tier: **single FULL** (APPROVE-WITH-FIXES, no MAJOR; independent winding
+oracle 1,612 comparisons, 0 wrong), then a **confirmation review** of the
+fix pass's degree check (no MAJOR; mutation run showed the guards
+untested alone, now each pinned). Filed: the closed chain's seam link
+(SSIMARCH P3), the oracle's blindness and residue (SECT P3). Process note:
+the lane pushed a comment-only commit to re-run CI after an unrelated
+editor-core fast-set timing flake (1.020 s vs 1.0 s) when a re-run was
+refused (403); the brief's rule forbids kicking CI that way.
+
+## 2026-10-31 — handed back (`ready`)
+
+PR 6153 merged; lane reclaimed. SECT has no P0 or P1 row left, so the
+sitting hands the track back per the orchestration model; the remaining
+rows are P2 (`a-counted-sections-winding-is-a-claim-not-a-reading`,
+`a-wall-islands-planar-closing-reads-its-run-on-the-chart`), P3 and P4,
+none an E this sitting is best placed for. `plan.md` "Where it stands"
+says what landed and what is left.
+- 2026-11-01 — **A note from SPLITDOOR** (`splitdoor/sided-followups`): `germ_torus_doors::subtract_and_intersect_refuse_where_union_does`, cited in the two 2026-10-28 entries above, is now `subtract_and_intersect_reach_the_doors_union_does`. PR 6070 made its dumbbell row build: each difference is its minuend, and the intersection is nothing. The two-tori, slab and grazing-cylinder rows that PR 5925 re-pinned still refuse `FallbackExtentUnsupported` with the R-loop sentence. (SPLITDOOR)

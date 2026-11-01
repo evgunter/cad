@@ -3,12 +3,6 @@
 //! param-ref walk, each row measuring one thing no row in
 //! `load_door_payload_param_ref` measures.
 //!
-//! - The walk's DOMAIN is complete only relative to `payload_exprs`.
-//!   A node's `Expr` that neither `slots()` nor `payload_exprs`
-//!   reaches exists — a `Node::Pattern`'s `count` under an `Explicit`
-//!   rule — and PROBE 1 measures what the load door does with one:
-//!   the file is refused, but by the STRUCTURAL walk and in another
-//!   vocabulary, not by either param-ref walk.
 //! - Which door refuses a measure's dimension fault first (PROBE 2):
 //!   the F1 checker at CONSTRUCTION for the arithmetic, and the
 //!   param-ref doors for the param TABLE, which are different faults.
@@ -27,110 +21,12 @@
 
 use crate::fixture;
 
-use crate::wire::doctored;
 use editor_core::{
-    Dimension, DocEdit, EditError, Formula, FreeVar, Node, PatternKind, PersistError, ProfileDoc,
-    RecipeNodeId, SnapshotError, VarName, apply, load, save,
+    Dimension, DocEdit, EditError, Formula, FreeVar, Node, ProfileDoc, RecipeNodeId, SnapshotError,
+    VarName, apply,
 };
-use fixture::{ang, insert, len, on_frame, scl, square};
+use fixture::{ang, insert, len, on_frame, square};
 use geom_core::Tol;
-
-/// A frame, a profile, an extrude and a COUNT document parameter
-/// `howmany`,
-/// plus a linear pattern whose count READS that parameter.
-fn patterned_on_a_count_param() -> (ProfileDoc, VarName, RecipeNodeId) {
-    let name = VarName::from_static("howmany");
-    let (doc, profile) = on_frame(
-        ProfileDoc::empty(
-            editor_core::DocumentId::derive("rv-payloadrefs"),
-            Tol::witness(),
-        ),
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-        },
-    );
-    let doc = apply(
-        &doc,
-        &DocEdit::DeclareVar {
-            name: name.clone(),
-            def: editor_core::VarDecl::Free(FreeVar::Count { value: 3 }),
-        },
-        Tol::witness(),
-    )
-    .expect("a count parameter declares")
-    .doc;
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: extrude.into(),
-            count: Formula::named(name.clone(), Dimension::Count),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
-    (doc, name, pattern)
-}
-
-/// **PROBE 1 — the walk's domain, at its edge.** `Node::slots()` gives
-/// a pattern a `SlotId::Count` only while its rule is a STEPPED one
-/// (`node::rule_rows`), and `payload_exprs` returns `None` for a
-/// pattern at every rule. So a file carrying an `Explicit` rule AND a
-/// count expression holds an `Expr` that NEITHER param-ref walk reads
-/// — and this row measures what the load door does with one whose
-/// parameter the document does not declare.
-///
-/// The answer is that the file is refused, by `Walk::Snapshot`'s
-/// `placement_rule_fault` (the two-spellings-of-the-count state), so
-/// the unit's "every payload expression is walked" claim holds in the
-/// sense that matters: no document reaches memory carrying an
-/// unchecked parameter reference. It does NOT hold in the sense the
-/// arms' prose suggests — the refusal names neither the parameter nor
-/// the reference, and it would still be `PlacementRule` if the
-/// parameter were declared and well-typed.
-#[test]
-fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
-    let (doc, name, pattern) = patterned_on_a_count_param();
-    let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
-    load(&text, Tol::witness()).expect("the fixture loads");
-
-    let corrupt = doctored(&text, |wire| {
-        // The rule becomes EXPLICIT, which takes the count's slot away
-        // without taking the count expression away.
-        wire["snapshot"]["nodes"][pattern.0.to_string()]["Pattern"]["kind"] = serde_json::json!({
-            "Explicit": [{
-                "columns": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
-                "translation": [0.0, 0.0, 0.0]
-            }]
-        });
-        // ... and the parameter it reads leaves the table.
-        crate::wire::wire_undeclare(wire, name.as_str());
-    });
-
-    let verdict = load(&corrupt, Tol::witness());
-    match &verdict {
-        Err(PersistError::Snapshot(SnapshotError::PlacementRule { .. })) => {}
-        other => panic!(
-            "a count expression under an `Explicit` rule is read by no param-ref walk; the file \
-             must still be refused, and it is the STRUCTURAL walk that does it. Got {other:?}"
-        ),
-    }
-    let rendered = format!("{}", verdict.expect_err("refused"));
-    assert!(
-        !rendered.contains(name.as_str()),
-        "the refusal for an unreadable parameter reference does not name the parameter — that is \
-         the cost of the domain edge, and this is the assertion that says so: {rendered}"
-    );
-}
 
 /// **PROBE 2 — which door refuses a measure's dimension fault, and
 /// which fault it is.** The two are not the same question and the

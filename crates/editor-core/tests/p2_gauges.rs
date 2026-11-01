@@ -188,7 +188,7 @@ pub(crate) fn seat_edits(
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
-            (Coord::SPIN, ang(0.0)),
+            (Coord::SPIN, Formula::zero(Dimension::Angle)),
         ],
     };
     let edits = fixture::bundle_edits(&doc, placement, placed.bundle());
@@ -481,11 +481,11 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
     );
     let typed: Vec<(Coord, Formula)> = TargetAxis::ALL
         .into_iter()
-        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain(
             TargetAxis::ALL
                 .into_iter()
-                .map(|axis| (Coord::Spin(Some(axis)), ang(0.0))),
+                .map(|axis| (Coord::Spin(Some(axis)), Formula::zero(Dimension::Angle))),
         )
         .collect();
     let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);
@@ -912,19 +912,11 @@ pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 2],
 }
 
 /// **A cut of `ids` in `doc`, with the world copies of what it
-/// moves**: each `Part` selecting a copy of a cut pattern, then every
-/// world placement of a cut body ([`fixture::with_placements`]) — a
-/// part delivers only its world, so a split moves a body with its
-/// placements.
+/// moves**: every world placement of a cut body or of a member of a cut
+/// family ([`fixture::with_placements`]) — a part delivers only its
+/// world, so a split moves a body with its placements.
 pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
-    let mut out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
-    for id in doc.ids() {
-        if let Some(Node::Part { of, .. }) = doc.node(id)
-            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
-        {
-            out.insert(id);
-        }
-    }
+    let out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
     fixture::with_placements(doc, &out)
 }
 

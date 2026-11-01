@@ -88,15 +88,15 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
     };
     let none = || py.None();
     match err {
-        E::Root(standing) => (
+        E::Read(standing) => (
             id(&standing.node()),
             standing.through().map_or_else(none, |through| id(&through)),
             none(),
         ),
         E::Frame { node, .. } | E::Graft { node, .. } => (id(node), none(), none()),
-        // The first failing placement, in gather order; every failing
-        // placement and output is in the message.
-        E::RootInvalid { findings } => (
+        // The first failing piece, in gather order; every failing
+        // piece and output is in the message.
+        E::PieceInvalid { findings } => (
             findings.first().map_or_else(none, |first| id(&first.node)),
             none(),
             none(),
@@ -477,6 +477,7 @@ pub(crate) struct InterferenceFinding {
     faces: Option<Vec<FaceSite>>,
     unlocalized: Option<&'static str>,
     quiet_by: Option<NodeId>,
+    quiet_at: Vec<(Var, u32)>,
     quietable: bool,
 }
 
@@ -526,6 +527,11 @@ impl InterferenceFinding {
             faces,
             unlocalized,
             quiet_by: finding.quiet.map(NodeId),
+            quiet_at: finding
+                .quiet_at
+                .iter()
+                .map(|&(k, at)| (var(k), at))
+                .collect(),
             quietable: finding.quietable,
         })
     }
@@ -577,6 +583,14 @@ impl InterferenceFinding {
     #[getter]
     fn quiet_by(&self) -> Option<NodeId> {
         self.quiet_by
+    }
+
+    /// The member of `quiet_by`'s family that quiets it, each index and
+    /// its value (D10 `[repetition]`): each member of an assertion whose
+    /// reads reach an index quiets its own finding. Empty for any other.
+    #[getter]
+    fn quiet_at(&self) -> Vec<(Var, u32)> {
+        self.quiet_at.clone()
     }
 
     /// Whether no assertion quiets it.

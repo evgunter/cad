@@ -16,7 +16,7 @@
 
 use crate::common;
 
-use pncad::document::{Doc, DocEdit, ProfileProgram, SlotId};
+use pncad::document::{Doc, DocEdit, ProfileProgram};
 use pncad::geom_core::Tol;
 use viewer::history::History;
 use viewer::props::SlotValue;
@@ -145,20 +145,14 @@ fn undo_at_the_root_and_redo_at_a_leaf_refuse_rather_than_wrap() {
 }
 
 #[test]
-fn a_save_writes_the_current_paths_linear_log() {
+fn a_save_writes_the_document_the_cursor_is_on() {
     let tol = Tol::witness();
     let (mut session, _extrude) = session(tol);
     set_thickness(&mut session, 0.010);
     set_thickness(&mut session, 0.012);
     session.perform(SessionOp::Undo);
     set_thickness(&mut session, 0.014);
-
-    // Four states, three edits in the tree — but the path from the
-    // root to the cursor is two edits long, and that is what a save
-    // records.
     assert_eq!(session.history().len(), 4);
-    let path = session.history().path_edits();
-    assert_eq!(path.len(), 2, "the path, not the tree");
 
     let dir = common::tempdir("gui3-save-path");
     let file = dir.join("doc.pncad");
@@ -170,45 +164,9 @@ fn a_save_writes_the_current_paths_linear_log() {
     );
 
     let reopened = docio::open(&file, tol).expect("the saved file opens");
-    assert_eq!(
-        reopened.path_edits().len(),
-        2,
-        "the reopened history replays exactly the saved log"
-    );
     assert_eq!(thickness_of(reopened.doc()), 0.014);
+    assert_eq!(reopened.len(), 1, "one state: undo ends at an open");
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
-}
-
-#[test]
-fn a_replayed_history_is_the_files_log_step_for_step() {
-    let tol = Tol::witness();
-    let (doc, _profile, extrude) = common::parametric_plate(tol);
-    let edits = vec![
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: common::len(0.02).into(),
-            fresh: Vec::new(),
-        },
-        DocEdit::SetParam {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: common::len(0.03).into(),
-            fresh: Vec::new(),
-        },
-    ];
-    let history = History::replayed(doc, &edits, tol).expect("the log replays");
-    assert_eq!(history.len(), 3);
-    assert_eq!(history.path_edits().len(), 2);
-    assert_eq!(
-        props::slot_rows(history.doc(), extrude)
-            .into_iter()
-            .find(|row| row.slot == SlotId::Distance)
-            .expect("the extrude has a distance")
-            .value
-            .expect("the distance evaluates"),
-        SlotValue::Continuous(0.03)
-    );
 }
 
 /// **Undo restores a reader a delete stranded** (D10; review A's

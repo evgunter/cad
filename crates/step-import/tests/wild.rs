@@ -84,10 +84,11 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // ladder's `#389` polyline gap that stall had masked — retired by
     // #388 (degree-1 carriers promote to `Curve3::Line` and the slit
     // adopts through its reversed wall column). What refuses now is
-    // the arc-rim mint on the l-bracket wall `#382` (four stated u
-    // spans against three-arc rational rim circles): `MapResidual`,
+    // the arc-rim pick on the l-bracket wall `#382`, split at its C⁰
+    // knots into one-span sub-patches whose rows state the circle with
+    // unnormalized weights, against three-arc rational rim circles:
     // typed.
-    ("stepcode/dm1-id-214.stp", "MapResidual"),
+    ("stepcode/dm1-id-214.stp", "not an arc rim of this chart"),
     // A spline-carried edge between analytic surfaces: the file's
     // geometry is inside the subset entity by entity, and the D7
     // ladder still cannot certify any intensional description for the
@@ -520,7 +521,7 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
 fn wild_refusals_are_typed_and_name_their_class() {
     for (name, class) in WILD_REFUSALS {
         // **dm1's row lives in `r1_dm1_probe`.** Its disposition —
-        // the arc-rim mint's `MapResidual` at every band, past the
+        // the arc-rim pick's refusal at every band, past the
         // retired `#389` gap (#388), with the gap's tripwire and the
         // l-bracket witness beside it — is pinned there STRUCTURALLY,
         // on the typed variants, which is strictly more than the

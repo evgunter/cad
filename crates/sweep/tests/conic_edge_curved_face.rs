@@ -301,11 +301,11 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 
 /// **The rim CROSSES**: balls straddling it, and rods standing across
 /// it. The rim's pairs are accepted (its certified roots split it), and
-/// the crossing layer and the sector side pass. A ball's every op stops
-/// at the join: its wall × sphere pair has its section frame and no
-/// chord lane for its quartic section
-/// (`work/sect/cylinder-sphere-germ-pair-has-no-join-lane.md`;
-/// `cylinder_sphere_frame` holds the same balls to their volumes). A
+/// the crossing layer and the sector side pass. A ball's every op passes
+/// the join, whose chords are cut from its wall × sphere pair's quartic
+/// section, and stops past it, at the result gate's volume or the
+/// spline edge join (`cylinder_sphere_frame` pins each op's door and
+/// holds the same balls to their volumes). A
 /// rod's parallel walls join along their rulings, the narrow rods'
 /// pierce ring in the drum's wall joins, and every rod builds in every
 /// op (`parallel_cylinder_join::the_rim_crossing_rods_build_in_every_op`
@@ -316,25 +316,26 @@ fn refusals(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Vec<topo::BooleanError>
 /// (bounded by the rim's arcs) could not place.
 #[test]
 fn a_rim_crossing_reaches_the_join() {
-    use topo::BooleanError as E;
+    use crate::cylinder_sphere_frame::{Door, door};
     let a = drum_lower();
-    let no_lane = |e: &E| {
-        matches!(
-            e,
-            E::CurvedBooleanUnsupported {
-                kind: geom::SurfaceKind::Cylinder | geom::SurfaceKind::Sphere,
-                ..
-            }
-        )
-    };
-    for (label, b) in [
-        ("ball r 0.2 at (0.5, 0, 0.35)", ball(0.2, [0.5, 0.0, 0.35])),
-        ("ball r 0.1 at (0.45, 0, 0.3)", ball(0.1, [0.45, 0.0, 0.3])),
+    // Each op's door, ∪ ∩ ∖ with the drum first: `cylinder_sphere_frame`'s
+    // pins for the same balls.
+    for (label, b, doors) in [
+        (
+            "ball r 0.2 at (0.5, 0, 0.35)",
+            ball(0.2, [0.5, 0.0, 0.35]),
+            [Door::Sphere, Door::Join, Door::Join],
+        ),
+        (
+            "ball r 0.1 at (0.45, 0, 0.3)",
+            ball(0.1, [0.45, 0.0, 0.3]),
+            [Door::Join, Door::Join, Door::Projected],
+        ),
     ] {
         let (_, accepted) = rim_pairs(label, &a, &b);
         assert!(accepted > 0, "{label}: the rim's crossings are accepted");
-        for e in refusals(&a, &b) {
-            assert!(no_lane(&e), "{label}: got {e:?}");
+        for (e, pinned) in refusals(&a, &b).into_iter().zip(doors) {
+            assert_eq!(door(&e), Some(pinned), "{label}: got {e:?}");
         }
     }
     for (label, b) in [

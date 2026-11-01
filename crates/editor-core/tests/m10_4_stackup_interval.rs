@@ -269,6 +269,7 @@ fn plate_spaced(
                 .expect("finite plate corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
@@ -282,6 +283,7 @@ fn plate_spaced(
                 radius: param("hole_r", Dimension::Length),
             }],
             ids: Vec::new(),
+            on: None,
         }));
         holes.push(r.insert(Node::Extrude {
             profile: p.into(),
@@ -352,6 +354,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
@@ -361,7 +364,11 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
         &mut r,
         cube,
         cube,
-        [param("t", Dimension::Length), len(0.0), len(0.0)],
+        [
+            param("t", Dimension::Length),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
+        ],
     );
     let ev = eval(&r.doc);
     let at = |node, x: f64| {
@@ -396,6 +403,7 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
                 .expect("finite corners"),
         ],
         ids: Vec::new(),
+        on: None,
     }));
     let block = r.insert(Node::Extrude {
         profile: p.into(),
@@ -1607,12 +1615,19 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
+    // A plate with a hole: the bore's wall faces into it, so the fit
+    // reads `R − r − d`.
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        loops: vec![LoopProgram::Circle {
-            centre: [len(0.0), len(0.0)],
-            radius: len(0.5),
-        }],
+        loops: vec![
+            LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)])
+                .expect("finite corners"),
+            LoopProgram::Circle {
+                centre: [len(0.0), len(0.0)],
+                radius: len(0.5),
+            },
+        ],
         ids: Vec::new(),
+        on: None,
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_p.into(),
@@ -1624,6 +1639,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
             radius: param("r", Dimension::Length),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     let pin = r.insert(Node::Extrude {
         profile: pin_p.into(),
@@ -1746,6 +1762,7 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
                 editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
             ])],
             ids: Vec::new(),
+            on: None,
         })
     };
     let p0 = r.insert(section());

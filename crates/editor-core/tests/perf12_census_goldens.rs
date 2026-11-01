@@ -27,7 +27,7 @@
 use crate::corpus;
 
 use corpus::{documents, eval, failures};
-use editor_core::{DocEdit, ProfileDoc, VarName, apply, product_recorded};
+use editor_core::{ProfileDoc, product_recorded};
 use geom_core::Tol;
 
 /// The committed goldens, one per ε row `ci-filter.py` draws — keyed by
@@ -96,21 +96,7 @@ const FINS: [i64; 3] = [10, 40, 160];
 /// The corpus heat sink with its fin count driven to `fins`, and each
 /// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
-    let entry = documents()
-        .into_iter()
-        .find(|d| d.name == "heat_sink")
-        .expect("the corpus carries the heat sink");
-    let driven = apply(
-        &entry.doc,
-        &DocEdit::SetVarValue {
-            var: VarName::from_static("fins").into(),
-            value: editor_core::FreeValue::Count(fins),
-        },
-        Tol::witness(),
-    )
-    .expect("the fin count is a document parameter")
-    .doc;
-    corpus::place_pattern_to(driven, fins)
+    crate::corpus::heatsink::placed_fins(fins)
 }
 
 /// One document's row: the product's size, the at-rest check's outcome, and

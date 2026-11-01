@@ -4,7 +4,7 @@ kind: issue
 title: Main red: five slow-set rows refuse at 1e-12 as limb 2's KernelLimit since PR 5728, and the torus support plate refuses NoOffsetBound at 1e-6
 status: open
 opened: 2026-10-28
-priority: P0
+priority: P2
 cost: M
 ---
 
@@ -60,3 +60,57 @@ Reproduce: `CAD_TOLERANCE_EPS=1e-12 cargo nextest run -p sweep -p mesh
 | test(/^band_turn_overrun_oracles::leaning_prisms/) |
 test(/^reach_split_gate_(azimuth|pose)::(every_cut_clear|a_cut_clear)/) |
 test(/^operand_gate_support_plates::plates_at/)'`.
+
+## Band
+
+P2, not P0 (2026-10-28): these are slow-set rows at interval and
+tight-ε ground, which `work/README.md`'s bands put at P2; a main red is
+not P0 by itself. The rows are pinned at what main produces, so main
+is green on them while this row stays open for the mechanism.
+
+## Pinned (2026-10-28)
+
+All six refusals reproduced on main `974f160a` with the bounds and
+extents above. Each row is pinned whole at the ε it refuses at
+(`test_utils::kernel_limit::pinned_row` at 1e-12; the torus plate's
+1e-6 `NoOffsetBound` through `panic_capture::caught`), with a comment
+naming this row. Each row stops at its first refusal, so which other
+cases of the row also refuse is unmeasured; closing this row narrows
+each pin to its refusing cases or removes it.
+
+## A seventh: the lily's stem tube in the K-probe sweep (2026-10-29, GREEN)
+
+`k-lint (dev-probe)` runs `scripts/k_probe_sweep.sh`. At ε 1e-12 its
+demo-scene pass (`demo-tour k-probe`) panics in the lily, on
+`demos/tour/src/lily.rs` `tube_arc`'s `.expect("stem tube arc builds")`:
+
+```
+Revolve(Op { source: Certification { error: AnalyticRung3(KernelLimit {
+  operand: Torus, bound: 3.201461299630955e-12, margin: MarginDiag(Value(
+  3.201461299630955e-12, None, ZeroWord(0))), width: 2.5757174171303632e-14,
+  extent: 0.13416407865000426 }) } })
+```
+
+It is a unit-scale torus (extent 0.134, ring against tube 0.060), the
+same reading as `perf1_torus_sizing` above. It is not a far placement
+or a km-scale edge.
+
+Bisected over two points: the demo-scene pass at 1e-12 runs to the end
+(exit 0) at `b8974faabc^1` and stops on this refusal at `b8974faabc`,
+PR 5728's merge. It reads the same at `a1cfd1cf`, `bc30e8a3` and
+`c173123e`. Nothing had reached it before: every earlier night's
+dev-probe stopped at an earlier step of the sweep.
+
+**Pinned** in `demos/tour/src/probe.rs` (`pinned_stop`). At 1e-12 the
+`lily` and `lily_walls` scenes must stop on `stem tube arc builds` with
+`AnalyticRung3(KernelLimit { operand: Torus`, at the bound and extent
+above; they run as written at
+every other ε. Both pins go red the day the stem builds. Closing this
+row removes them, and un-pinning owes a k-lint re-measure: at 1e-12 the
+pins drop every `lily` and `lily_walls` sample from the K-telemetry
+CSV, so the large-K lint has never read those scenes at that ε.
+
+Reproduce: `cd demos/tour && CAD_TOLERANCE_EPS=1e-12 cargo run
+--features probe -- k-probe /tmp/k.csv` (before the pin, at
+`b8974faabc` against its first parent).
+

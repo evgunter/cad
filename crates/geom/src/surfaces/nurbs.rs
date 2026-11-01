@@ -40,11 +40,12 @@
 
 use core::num::NonZeroUsize;
 use geom_core::spline::ProjectiveScalar;
+use geom_core::spline::algebra::certainly_positive;
 use geom_core::spline::{
     self, KnotAlgebraError, KnotMirrorError, KnotSpan, KnotVector, Knots, Span, SpanLocate,
     SplineError, Weights,
 };
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use std::sync::OnceLock;
 
 use crate::net;
@@ -1537,6 +1538,278 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     pub fn certified_coords(&self) -> Vec<Vec<geom_core::Interval>> {
         net::certified_coords(&self.control)
     }
+}
+
+impl NurbsSurface<Interval> {
+    /// **The patch's enclosure over the parameter rectangle `u × v`**,
+    /// one that narrows with the rectangle: the hull of
+    /// [`Self::rect_net`]'s points. The restricted net converges to the
+    /// patch as the rectangle shrinks, so the enclosure narrows with it.
+    ///
+    /// [`Self::eval`] at a wide interval does not: its basis recurrence
+    /// carries every dependency between the interval arguments, and the
+    /// weight sum it divides by can straddle zero, which encloses a
+    /// whole knot cell by the whole line.
+    ///
+    /// Where `rect_net` refuses, the answer is poison: an unclaimable
+    /// extent, never a smaller one. Past the domain the patch has no
+    /// points, and `eval` there reads the end pieces' polynomial
+    /// extension, so a clipped answer would be smaller than `eval`'s.
+    pub fn rect_enclosure(&self, u: (f64, f64), v: (f64, f64)) -> Point3<Interval> {
+        let seed = Interval::from_bounds(u.0, u.1) + Interval::from_bounds(v.0, v.1);
+        self.rect_net(u, v)
+            .and_then(|points| points.into_iter().reduce(hull_point))
+            .unwrap_or_else(|| poison_point(seed))
+    }
+
+    /// **The control points of the patch restricted to `u × v`**,
+    /// dehomogenized, cell by cell.
+    ///
+    /// On each knot cell the rectangle meets, the window's homogeneous
+    /// net `(w·P, w)` is restricted to the meet, along `u` and then
+    /// along `v` ([`spline::SpanRow::restrict`]): the Bernstein net of
+    /// exactly that piece of the patch. With every restricted weight
+    /// certified positive ([`certainly_positive`]) the piece is a convex
+    /// combination of its dehomogenized control points, so an affine
+    /// function of the point is enclosed by the hull of its values at
+    /// them, and the point itself by their hull. A rectangle with no
+    /// extent on an axis restricts that axis to its one parameter: the
+    /// points are an iso's restricted net, repeated.
+    ///
+    /// `None` for a rectangle past the knot domain, one that meets no
+    /// cell, a restriction the blossom door refuses, and a restricted
+    /// weight not certified positive.
+    pub fn rect_net(&self, u: (f64, f64), v: (f64, f64)) -> Option<Vec<Point3<Interval>>> {
+        let (iu, iv) = (
+            Interval::from_bounds(u.0, u.1),
+            Interval::from_bounds(v.0, v.1),
+        );
+        // The knot reads here and in `clip_to_span` only select cells and
+        // clip ends: the restriction re-admits each end to the span's own
+        // knots (`blossom`'s `admit`) and refuses one outside it.
+        let inside = |knots: &Knots<Interval>, (lo, hi): (f64, f64)| {
+            let (start, end) = knots.domain();
+            start.hi() <= lo && lo <= hi && hi <= end.lo()
+        };
+        if !(inside(&self.knots_u, u) && inside(&self.knots_v, v)) {
+            return None;
+        }
+        let (su, sv) = (self.knots_u.locate(iu)?, self.knots_v.locate(iv)?);
+        let clip_to_span = |knots: &Knots<Interval>, span: Span<'_>, (lo, hi): (f64, f64)| {
+            let values = knots.values();
+            let a = lo.max(values.get(span.index())?.lo());
+            let b = hi.min(values.get(span.index() + 1)?.hi());
+            (a <= b).then(|| (Interval::from_bounds(a, a), Interval::from_bounds(b, b)))
+        };
+        let mut points = Vec::new();
+        for cu in su.0.span().index()..=su.1.span().index() {
+            for cv in sv.0.span().index()..=sv.1.span().index() {
+                let Some(win) = self.window(cu, cv) else {
+                    continue;
+                };
+                let (Some(eu), Some(ev)) = (
+                    clip_to_span(&self.knots_u, win.span_u(), u),
+                    clip_to_span(&self.knots_v, win.span_v(), v),
+                ) else {
+                    continue;
+                };
+                points.extend(restricted_points(win, eu, ev)?);
+            }
+        }
+        (!points.is_empty()).then_some(points)
+    }
+}
+
+impl NurbsSurface<Interval> {
+    /// **The first partials and the mixed partial over a rectangle**,
+    /// enclosed: `(S_u, S_v, S_uv)` at every point of `u × v`.
+    ///
+    /// [`NurbsSurface::rect_enclosure`]'s restriction, one order up. On
+    /// each knot cell the rectangle meets, the homogeneous net `(w·P, w)` is
+    /// restricted to the meet — the Bernstein net of exactly that piece —
+    /// and so are its partials, each axis's derivative read off the
+    /// blossom across that knot cell's own span
+    /// ([`geom_core::spline::SpanRow::restrict_derivative`]), so a meet a
+    /// few ulps wide is enclosed as tightly as a wide one. Their hulls
+    /// enclose the homogeneous partials. The partials of the point follow by
+    /// the quotient rule in interval arithmetic, `S_u = (A_u·w − A·w_u)/w²`
+    /// and its `v`-derivative, with `A` and `w` enclosed by the net's own
+    /// hull and every restricted weight certified positive. The hull over
+    /// the cells encloses the rectangle.
+    ///
+    /// `None` for a rectangle with no extent on an axis, one past the knot
+    /// domain, a restriction the blossom door refuses, and a weight not
+    /// certified positive: no partial is claimed there.
+    #[allow(clippy::type_complexity)]
+    pub fn rect_jet(
+        &self,
+        u: (f64, f64),
+        v: (f64, f64),
+    ) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
+        if !(u.0 < u.1 && v.0 < v.1) {
+            return None;
+        }
+        let (iu, iv) = (
+            Interval::from_bounds(u.0, u.1),
+            Interval::from_bounds(v.0, v.1),
+        );
+        // The knot reads here and in `clip_to_span` only select cells and
+        // clip ends: the restriction re-admits each end to the span's own
+        // knots (`blossom`'s `admit`) and refuses one outside it.
+        let inside = |knots: &Knots<Interval>, (lo, hi): (f64, f64)| {
+            let (start, end) = knots.domain();
+            start.hi() <= lo && lo <= hi && hi <= end.lo()
+        };
+        if !(inside(&self.knots_u, u) && inside(&self.knots_v, v)) {
+            return None;
+        }
+        let (su, sv) = (self.knots_u.locate(iu)?, self.knots_v.locate(iv)?);
+        let clip_to_span = |knots: &Knots<Interval>, span: Span<'_>, (lo, hi): (f64, f64)| {
+            let values = knots.values();
+            let a = lo.max(values.get(span.index())?.lo());
+            let b = hi.min(values.get(span.index() + 1)?.hi());
+            (a < b).then(|| (Interval::from_bounds(a, a), Interval::from_bounds(b, b)))
+        };
+        let mut acc: Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> = None;
+        for cu in su.0.span().index()..=su.1.span().index() {
+            for cv in sv.0.span().index()..=sv.1.span().index() {
+                let Some(win) = self.window(cu, cv) else {
+                    continue;
+                };
+                let (Some(eu), Some(ev)) = (
+                    clip_to_span(&self.knots_u, win.span_u(), u),
+                    clip_to_span(&self.knots_v, win.span_v(), v),
+                ) else {
+                    continue;
+                };
+                let piece = restricted_jet(win, eu, ev)?;
+                acc = Some(match acc {
+                    None => piece,
+                    Some(a) => (
+                        hull_vec(a.0, piece.0),
+                        hull_vec(a.1, piece.1),
+                        hull_vec(a.2, piece.2),
+                    ),
+                });
+            }
+        }
+        acc
+    }
+}
+
+/// What a restriction reads along one axis of a piece: its values, or
+/// its first derivative ([`geom_core::spline::SpanRow::restrict_derivative`]).
+#[derive(Clone, Copy)]
+enum Along {
+    Value,
+    Slope,
+}
+
+/// The restricted homogeneous net of `win`'s piece over `eu × ev`:
+/// `net[k][l]`, Bernstein in both, each `[w·x, w·y, w·z, w]`.
+fn restricted_net(
+    win: SurfaceWindow<'_, Interval>,
+    eu: (Interval, Interval),
+    ev: (Interval, Interval),
+) -> Option<Vec<Vec<[Interval; 4]>>> {
+    read_net(win, (eu, Along::Value), (ev, Along::Value))
+}
+
+/// The Bernstein net over `eu × ev` of `win`'s homogeneous piece, read
+/// along each axis as `Along` says: the values on both, or a partial.
+fn read_net(
+    win: SurfaceWindow<'_, Interval>,
+    (eu, read_u): ((Interval, Interval), Along),
+    (ev, read_v): ((Interval, Interval), Along),
+) -> Option<Vec<Vec<[Interval; 4]>>> {
+    let surface = win.surface();
+    let (pu, pv) = (win.span_u().degree(), win.span_v().degree());
+    let homogeneous = |idx: usize| {
+        let (w, p) = (surface.weights.values()[idx], surface.control[idx]);
+        [w * p.x, w * p.y, w * p.z, w]
+    };
+    let read = |span: Span<'_>, row: &[Interval], ends, along| {
+        let row = span.with_window(row)?;
+        match along {
+            Along::Value => row.restrict(ends),
+            Along::Slope => row.restrict_derivative(ends),
+        }
+        .ok()
+    };
+    let channels = |span: Span<'_>, cells: &[[Interval; 4]], ends, along| {
+        let mut out: Vec<[Interval; 4]> = Vec::new();
+        for c in 0..4 {
+            let row: Vec<Interval> = cells.iter().map(|h| h[c]).collect();
+            let restricted = read(span, &row, ends, along)?;
+            out.resize(restricted.len(), [Interval::zero(); 4]);
+            for (slot, x) in out.iter_mut().zip(restricted) {
+                slot[c] = x;
+            }
+        }
+        Some(out)
+    };
+    let along_u = (0..=pv)
+        .map(|j| {
+            let column: Vec<[Interval; 4]> =
+                (0..=pu).map(|i| homogeneous(win.row(i) + j)).collect();
+            channels(win.span_u(), &column, eu, read_u)
+        })
+        .collect::<Option<Vec<_>>>()?;
+    (0..along_u.first()?.len())
+        .map(|k| {
+            let row: Vec<[Interval; 4]> = along_u.iter().map(|column| column[k]).collect();
+            channels(win.span_v(), &row, ev, read_v)
+        })
+        .collect()
+}
+
+/// `(S_u, S_v, S_uv)` over `win`'s piece restricted to `eu × ev`
+/// ([`NurbsSurface::rect_jet`]).
+#[allow(clippy::type_complexity)]
+fn restricted_jet(
+    win: SurfaceWindow<'_, Interval>,
+    eu: (Interval, Interval),
+    ev: (Interval, Interval),
+) -> Option<(Vec3<Interval>, Vec3<Interval>, Vec3<Interval>)> {
+    let hull = |u: Along, v: Along| -> Option<[Interval; 4]> {
+        read_net(win, (eu, u), (ev, v))?
+            .into_iter()
+            .flatten()
+            .reduce(|a, b| [0, 1, 2, 3].map(|c| a[c].enclosure_hull(b[c])))
+    };
+    let h = hull(Along::Value, Along::Value)?;
+    let hu = hull(Along::Slope, Along::Value)?;
+    let hv = hull(Along::Value, Along::Slope)?;
+    let huv = hull(Along::Slope, Along::Slope)?;
+    let w = h[3];
+    if !certainly_positive(&[w]) {
+        return None;
+    }
+    let at = |x: f64| Interval::from_bounds(x, x);
+    let v3 = |x: [Interval; 4]| Vec3::new(x[0], x[1], x[2]);
+    let (a, au, av, auv) = (v3(h), v3(hu), v3(hv), v3(huv));
+    let (wu, wv, wuv) = (hu[3], hv[3], huv[3]);
+    let w2 = w.powi(2);
+    let su = (au * w - a * wu) * (at(1.0) / w2);
+    let sv = (av * w - a * wv) * (at(1.0) / w2);
+    let suv = (auv * w + au * wv - av * wu - a * wuv) * (at(1.0) / w2)
+        - (au * w - a * wu) * (wv * at(2.0) / (w2 * w));
+    Some((su, sv, suv))
+}
+
+/// The dehomogenized control points of `win`'s piece restricted to
+/// `eu × ev` ([`NurbsSurface::rect_net`]), or `None` where a
+/// restriction refuses or a restricted weight is not certified positive.
+fn restricted_points(
+    win: SurfaceWindow<'_, Interval>,
+    eu: (Interval, Interval),
+    ev: (Interval, Interval),
+) -> Option<Vec<Point3<Interval>>> {
+    restricted_net(win, eu, ev)?
+        .into_iter()
+        .flatten()
+        .map(|[x, y, z, w]| certainly_positive(&[w]).then(|| Point3::new(x / w, y / w, z / w)))
+        .collect()
 }
 
 /// The point a poison parameter pair evaluates to:

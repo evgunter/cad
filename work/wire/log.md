@@ -7248,3 +7248,5 @@ Signed (WIRE orchestrator).
 - 2026-10-28 (WIRE orchestrator) PR 5930 FULL review: mergeable. The witness is red on current main (16 of 24 orders) and no other diagnosis changed (probe).
   - MINORs: `by_fold` takes any Fragment-tailed kept vertex, not just fold-tied member corners; "0 disagreements" has no guard; the witness doc is wrong about which orders fail; the `group_resized` docs are stale; the member-edge row's numbers are pre-5916.
   - Fix pass sent.
+- 2026-10-28 — **Filed by SPLITDOOR:** `a-split-in-the-document-drops-its-operands-contact-records` (P1). `wire_split` gives each side an empty `Carry.contacts`. Found by SPLITDOOR's split-door-records designers. (SPLITDOOR orchestrator)
+- 2026-10-30 (INTENT tail retriage) Received from INTENT by `git mv`, ids and bodies unchanged, priority and cost set (PR body has each row's reason): `an-assemble-of-a-family-counts-it-one-part` (P1). INTENT's charter is D10 and these are follow-ups found while building it.

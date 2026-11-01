@@ -1545,7 +1545,10 @@ fn collinear_overlap<T: Decide>(
 ///   apart by as much, so the pair has no contact whatever its sides
 ///   would read. The four points are the loop's stored vertices
 ///   (`build_loop_seg`), the geometry the simplicity pass reads, so
-///   nothing here computed them and none is charged for its making.
+///   nothing here computed them and none is charged for its making. A
+///   pair with a `shared` vertex is not read: that vertex projects into
+///   both spans on either axis, so their gap is zero by construction,
+///   never past the band.
 /// - Then the four `chord_side` orientations (the Shewchuk-style segment
 ///   test, trileanized), each end against the other's carrier. Both of
 ///   one segment's ends definitely on one side of the other's carrier
@@ -1564,7 +1567,7 @@ fn line_line<T: Decide>(
     shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    if gaps_apart(s1, s2, band) {
+    if shared.is_none() && gaps_apart(s1, s2, band) {
         return Ok(PairOutcome::Contacts(Vec::new()));
     }
     let side = |host: &Seg<T>, q: Point2<T>| chord_side(host, q, band).map(|(sign, _)| sign);
@@ -2560,17 +2563,17 @@ mod pair_contact_tests {
             let (lo, hi) = (tc.min(td).max(0.0), tc.max(td).min(s1.len));
             let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
             let replay = test_utils::fuzz::replay;
-            assert_eq!(along.lo.to_bits(), lo.to_bits(), "lo — {}", replay());
-            let slack = if along.hi.to_bits() == hi.to_bits() {
+            assert_eq!(along.lo().to_bits(), lo.to_bits(), "lo — {}", replay());
+            let slack = if along.hi().to_bits() == hi.to_bits() {
                 0.0
             } else {
                 let end = (s1.b - s1.a).dot(s1.unit);
                 assert!(
                     hi == s1.len
-                        && along.hi == end
+                        && along.hi() == end
                         && (end - s1.len).abs() <= 4.0 * s1.len * f64::EPSILON,
                     "hi {} against {hi}, s1's end projected {end}, L {} — {}",
-                    along.hi,
+                    along.hi(),
                     s1.len,
                     replay()
                 );

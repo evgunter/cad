@@ -160,3 +160,143 @@ fn dual_interval_channels_contain_pointwise_duals() {
         }
     }
 }
+
+/// Whether a point evaluation's enclosure meets the door's: the true
+/// value lies in both, so an empty meet proves the door misses it.
+fn meets(x: Interval, b: Interval) -> bool {
+    b.lo() <= x.hi() && x.lo() <= b.hi()
+}
+
+/// **`span_enclosure` and `span_deriv` enclose the curve and its
+/// derivative over a parameter range**: ranges inside one span, ranges
+/// straddling the circle's double knots, and the whole domain, each
+/// sampled densely; every `C(t)` and `C′(t)` evaluated at `Interval`
+/// at a point parameter meets the door's box. A range with no extent,
+/// or one past the domain, is declined.
+#[test]
+fn span_enclosure_and_span_deriv_contain_every_sampled_value() {
+    let ni = nurbs_circle().map_scalar(Interval::from_f64);
+    let ranges = [
+        (0.05, 0.2),
+        (0.2, 0.3),
+        (0.24, 0.26),
+        (0.1, 0.6),
+        (0.49, 0.5),
+        (0.7, 0.9999),
+        (0.0, 1.0),
+        (0.3, 0.3 + 1e-9),
+    ];
+    for (lo, hi) in ranges {
+        let enc = ni
+            .span_enclosure(lo, hi)
+            .expect("a range inside the domain");
+        let der = ni.span_deriv(lo, hi).expect("a range inside the domain");
+        for k in 0..=64 {
+            let t = (lo + (hi - lo) * f64::from(k) / 64.0).min(hi);
+            let p = ni.eval(Interval::from_f64(t));
+            let d = ni.deriv(Interval::from_f64(t));
+            assert!(
+                meets(p.x, enc.x) && meets(p.y, enc.y) && meets(p.z, enc.z),
+                "C({t}) = {p:?} misses span_enclosure({lo}, {hi}) = {enc:?}"
+            );
+            assert!(
+                meets(d.x, der.x) && meets(d.y, der.y) && meets(d.z, der.z),
+                "C′({t}) = {d:?} misses span_deriv({lo}, {hi}) = {der:?}"
+            );
+        }
+    }
+    for (lo, hi) in [(0.4, 0.4), (0.6, 0.5), (-0.1, 0.5), (0.5, 1.1)] {
+        assert!(
+            ni.span_enclosure(lo, hi).is_none() && ni.span_deriv(lo, hi).is_none(),
+            "{lo}..{hi} is declined"
+        );
+    }
+    // **And they NARROW**, which containment alone cannot see: the whole
+    // line contains every sample. A range inside another has an
+    // enclosure no wider on any axis, and a range a millionth of the
+    // domain long encloses the curve within a few millionths of its
+    // radius (2.5) — the curve's speed bounds its motion over the range.
+    let width = |p: Point3<Interval>| {
+        [p.x, p.y, p.z]
+            .map(|c| c.hi() - c.lo())
+            .into_iter()
+            .fold(0.0f64, f64::max)
+    };
+    let (outer, inner) = (
+        ni.span_enclosure(0.1, 0.6).unwrap(),
+        ni.span_enclosure(0.2, 0.3).unwrap(),
+    );
+    assert!(
+        width(inner) <= width(outer) && width(outer).is_finite(),
+        "a sub-range encloses no wider: {inner:?} within {outer:?}"
+    );
+    let tiny = ni.span_enclosure(0.3, 0.3 + 1e-6).unwrap();
+    assert!(width(tiny) < 1e-4, "a millionth of the domain: {tiny:?}");
+    let speed = |d: geom_core::Vec3<Interval>| {
+        [d.x, d.y, d.z]
+            .map(|c| c.lo().abs().max(c.hi().abs()))
+            .into_iter()
+            .fold(0.0f64, f64::max)
+    };
+    let (d_outer, d_inner) = (
+        ni.span_deriv(0.1, 0.6).unwrap(),
+        ni.span_deriv(0.2, 0.3).unwrap(),
+    );
+    assert!(
+        speed(d_outer).is_finite() && speed(d_inner) <= speed(d_outer),
+        "the hodograph narrows with the range: {d_inner:?} within {d_outer:?}"
+    );
+    // The circle's speed is bounded on a quarter's span: a hodograph
+    // enclosure tens of radii wide would be the whole line by another
+    // name.
+    assert!(speed(d_inner) < 100.0, "{d_inner:?}");
+}
+
+/// **A range's few-ulp meet with the span past a knot narrows like any
+/// other.** A cubic with a simple knot at `k = ½ − 2 ulp` and
+/// coordinates no float holds exactly; the range `[¼, ½]` meets the span
+/// past `k` over two ulps. Every sampled `C′` meets `span_deriv`, and
+/// its enclosure is no wider than a hundredth of the curve's speed
+/// there: red if the derivative were read by differencing the meet's
+/// own two-ulp restriction, whose rounding over its width is slope.
+#[test]
+fn span_deriv_narrows_on_a_few_ulp_meet_past_a_knot() {
+    let k = 0.5f64.next_down().next_down();
+    let p = |x: f64, y: f64| Point3::new(0.3 + 0.1 * x, 0.7 + 0.1 * y, 0.1 * x * y);
+    let control = vec![
+        p(0.0, 0.0),
+        p(1.0, 0.5),
+        p(2.0, 1.5),
+        p(3.0, 1.0),
+        p(4.0, 2.5),
+    ];
+    let ni = NurbsCurve3::new(
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, k, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+        control,
+        vec![1.0; 5],
+    )
+    .unwrap()
+    .map_scalar(Interval::from_f64);
+    let (lo, hi) = (0.25, 0.5);
+    let der = ni.span_deriv(lo, hi).expect("a range inside the domain");
+    for t in [lo, 0.375, k, hi] {
+        let d = ni.deriv(Interval::from_f64(t));
+        assert!(
+            meets(d.x, der.x) && meets(d.y, der.y) && meets(d.z, der.z),
+            "C′({t}) = {d:?} misses span_deriv({lo}, {hi}) = {der:?}"
+        );
+    }
+    let at_knot = ni.deriv(Interval::from_f64(k));
+    let speed = [at_knot.x, at_knot.y, at_knot.z]
+        .map(|c| c.lo().abs().max(c.hi().abs()))
+        .into_iter()
+        .fold(0.0f64, f64::max);
+    let ranged = ni.span_deriv(lo, k).expect("the near span alone");
+    for (c, near) in [(der.x, ranged.x), (der.y, ranged.y), (der.z, ranged.z)] {
+        assert!(
+            c.hi() - c.lo() <= (near.hi() - near.lo()) + speed / 100.0,
+            "the two-ulp meet widens span_deriv({lo}, {hi}) = {der:?} past the near span's \
+             {ranged:?}"
+        );
+    }
+}

@@ -2,8 +2,12 @@
 id: needs-enclosure-names-its-door-by-a-moved-path
 kind: issue
 title: MeasureUnavailableAt::NeedsEnclosure names its door as clearance::min_separation, which now lives at topo::clearance::min_separation
-status: open
+status: closed
 opened: 2026-10-28
+priority: P4
+cost: E
+closed: 2026-10-28
+pr: 5928
 ---
 
 Found by SHELL-3's sweep for readers of the moved symbols. The `f64`

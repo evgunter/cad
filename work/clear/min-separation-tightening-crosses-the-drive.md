@@ -2,10 +2,13 @@
 id: min-separation-tightening-crosses-the-drive
 kind: issue
 title: min_separation cannot mint a chart boundary: the walk's rows are recorded on one lane only and every drive leaf refuses
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: M
+branch: clear/tighten
+pr: 5998
+closed: 2026-10-29
 ---
 
 
@@ -207,3 +210,42 @@ Sequencing: after `SHELL-3`, on the moved door and the generic
 Rejected: having the drive skip the measure node's rows where the
 witness answered `MeasureUnavailable`, and running the measure outside
 the evaluation. Both are argued in fork-log row 206.
+
+## Amended at landing (CLEAR orchestrator, 2026-10-29)
+
+Two points of the decision above did not hold as written. Both were
+ruled on at TIGHTEN (#5998):
+
+- **An absent `hi` does not make the drive bisect.** The drive bisects
+  only on an escalation or a failed node, and an unbounded value would
+  break a value invariant on every lane. The measure answers
+  `MeasureUnavailable { NoUpperBound }`, the assertion reads
+  `Unevaluated`, and the leaf certifies without bisecting. A missing
+  `hi` comes from the cell budget, which a smaller parameter box barely
+  changes. It never occurred in the first probe (0 of 35 calls).
+- **`hi` is a true upper end up to the band.** `OnEdge` and `OnVertex`
+  stations still count, as decided. They are in-band decisions of the
+  point door, so such a station can sit up to the band outside its
+  face. An `AtLeast c` over faces within the band above `c` can
+  therefore read `Violated`, which is the kernel's ε model and not a
+  defect. Every claim site and ledger row F28 say so.
+
+## Closed
+
+TIGHTEN (#5998), with this commit last.
+
+- `k_stats::unlogged` is the scoped unlogged door. `check_unlogged` is
+  its one-margin case, and its ledger row is F28.
+- `min_separation` reads its regions inside that scope. It drops
+  definite-`Outside` pairs from `lo` and reads `hi` only off placed
+  stations.
+- On the notch, the bracket now contains the faces' 0.2693:
+  `[0.1601, 0.3881]` at 512 pairs.
+- `Certified` retired whole, along with `WindowSuperset`,
+  `WINDOW_TIGHTENING` and `window_hi`.
+- No census moved.
+- It costs about 2.4× on single-drive rows and about 1.25× on the
+  suites; the cost is stated in `min_separation`'s `# Cost`.
+- The single sequential review (byte 64) at `e27260a2` returned
+  APPROVE-WITH-FIXES with no MAJOR. The orchestrator read and accepted
+  the fix pass at `535a6988`.

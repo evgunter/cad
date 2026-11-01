@@ -2,7 +2,8 @@
 id: a-placed-unions-separation-certificate-depends-on-the-computing-axes
 kind: issue
 title: A placed union's separation certificate bounds each copy by an axis-aligned box, so whether it proves the copies apart depends on the computing frame
-status: open
+status: closed
+closed: 2026-10-28
 opened: 2026-10-26
 ---
 
@@ -38,3 +39,7 @@ function of the copies and not of the axes. `PlacedUnion` retires at
 INTENT stage 3 G (`patterns-are-index-variables`), whose `∪` over a
 family decides its members' meetings the ordinary way; if G lands
 first this item closes with it.
+
+## Closed by G (`patterns-are-index-variables`)
+
+`PlacedUnion` retired. The certificate is now the union's fast path (`topo::Separation::apart`, `crates/editor-core/src/eval/wire.rs` `images_apart`): a pair it cannot certify apart is judged by the n-ary union rather than refused, so the union's result is the same in any computing frame; only how many pairs are judged (`EvalCounters::judgements`) depends on the axes the boxes are drawn in.

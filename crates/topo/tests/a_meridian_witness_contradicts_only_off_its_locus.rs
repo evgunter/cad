@@ -46,7 +46,7 @@ fn meridian(lift: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     (torus, sphere, circle)
 }
 
-fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
+fn read(lift: f64) -> Result<geom_core::MarginDiag, ContactRefusal> {
     let (torus, sphere, circle) = meridian(lift);
     let whole = core::f64::consts::TAU;
     // The table's finest schedule: `2^REFINE_HALVINGS` spans to each
@@ -62,17 +62,7 @@ fn read(lift: f64) -> Result<topo::contact::ContactVerdict, ContactRefusal> {
     // The ball rests in the tube's hollow: the torus face looks into
     // it (its material outside the tube), the ball's out of the ball,
     // so the two materials touch from outside along the meridian.
-    tangent_locus_relation(
-        &torus,
-        false,
-        &sphere,
-        true,
-        &circle,
-        0.0,
-        whole,
-        true,
-        band(),
-    )
+    tangent_locus_relation(&torus, false, &sphere, true, &circle, 0.0, whole, band())
 }
 
 #[test]
@@ -165,7 +155,6 @@ fn a_sag_on_one_sample_does_not_mask_a_later_contradiction() {
             &turned,
             start,
             start + core::f64::consts::TAU,
-            true,
             band(),
         );
         assert!(

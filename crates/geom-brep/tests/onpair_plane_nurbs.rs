@@ -23,7 +23,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
+    ArcRimRefusal, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneNurbsRefusal, SurfacePair,
 };
 use geom_core::test_support::upper;
@@ -374,16 +374,18 @@ fn an_arc_rim_off_its_wall_refuses_with_both_causes() {
     assert!(
         matches!(
             arc_on_pair(carrier.clone(), None),
-            Err(CertifyError::OnPairArcRim { iso: None, .. })
+            Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(
+                ArcRimRefusal::Refused { iso: None, .. }
+            )))
         ),
         "no image of the wall's rows holds a rim {off:e} off it"
     );
     let refused = arc_on_pair(carrier, Some(quarter_image()));
     let Err(
-        e @ CertifyError::OnPairArcRim {
+        e @ CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
             iso: Some(geom_brep::PcurveCheck::MapResidual),
             ..
-        },
+        })),
     ) = &refused
     else {
         panic!("the stated image refuses at its map residual: {refused:?}");
@@ -573,7 +575,10 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
         })
         .expect("a candidate that is not the rim's row");
     match arc_on_pair(quarter, Some(wrong)) {
-        Err(CertifyError::OnPairArcRim { iso: Some(_), .. }) => {}
+        Err(CertifyError::PlaneNurbs(PlaneNurbsRefusal::ArcRim(ArcRimRefusal::Refused {
+            iso: Some(_),
+            ..
+        }))) => {}
         other => panic!("a wrong stated image refuses as itself: {other:?}"),
     }
 }

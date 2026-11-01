@@ -188,7 +188,7 @@ impl<T: TubeCell> Banked<T> {
             .branches
             .iter()
             .filter_map(|b| match b.end {
-                BranchEnd::Crossings { from, to } => Some([from, to]),
+                BranchEnd::Rim { from, to } => Some([from, to]),
                 _ => None,
             })
             .flatten()

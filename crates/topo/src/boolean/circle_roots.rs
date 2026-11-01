@@ -130,13 +130,14 @@ pub(super) fn door_half_angle_roots<T: Decide>(
     .map(Roots::widen))
 }
 
-/// A root finder's answer as a door gives it: an uncertified count as
-/// the inner `Err`, and an in-band sign escalated as the door's
-/// `decision`.
+/// A root finder's answer as a door gives it: a limit as the inner
+/// `Err`, a sign in the band's gap (a classifying sign, or a touch)
+/// escalated as the door's `decision`, and a fault a kernel defect.
 ///
 /// # Errors
 ///
-/// [`BooleanError::Escalated`], as above.
+/// [`BooleanError::Escalated`], as above, and
+/// [`BooleanError::ClassificationInvariant`] for a fault.
 pub(super) fn door_refusal<V>(
     found: Result<V, RootRefusal>,
     decision: BooleanDecision,
@@ -144,7 +145,12 @@ pub(super) fn door_refusal<V>(
     match found {
         Ok(roots) => Ok(Ok(roots)),
         Err(RootRefusal::Unsettled(why)) => Ok(Err(why)),
-        Err(RootRefusal::Escalated(diag)) => Err(BooleanError::Escalated { decision, diag }),
+        Err(RootRefusal::Escalated(diag) | RootRefusal::Touch(diag)) => {
+            Err(BooleanError::Escalated { decision, diag })
+        }
+        Err(RootRefusal::Fault(fault)) => Err(BooleanError::ClassificationInvariant {
+            what: fault.readings(),
+        }),
     }
 }
 
@@ -300,6 +306,44 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     rows: &FirstHarmonicRows,
     band: Band,
 ) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    harmonic_roots(h, speed, Some((t0, t1)), rows, band)
+}
+
+/// **The roots of a first harmonic in a leg's own parameter over its
+/// whole turn**, as [`first_harmonic_roots_in_band`] reads them over
+/// `[0, τ]`, except where the leg's start lies on the plane: its residual
+/// at `s = 0` within the band's zero. Such a leg has a root at its start,
+/// at the cut of the whole turn's branch about `π`, where unwinding moves
+/// it by a turn either way and an enclosing scalar holds it as a whole
+/// turn's hull (`Real::periodic_branch`'s tie). There each root is left
+/// as computed, `φ ± acos(−c₀/A₁)`, a representative modulo a turn, which
+/// a reader that takes a root as the point it gives (`cos s`, `sin s`)
+/// reads alike. The pick is arithmetic (`Real::select_le_zero`), with no
+/// decision of its own.
+///
+/// # Errors
+///
+/// As [`first_harmonic_roots_in_band`].
+pub(super) fn first_harmonic_leg_roots<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
+    harmonic_roots(h, speed, None, rows, band)
+}
+
+/// The one body of [`first_harmonic_roots_in_band`] and
+/// [`first_harmonic_leg_roots`]: the roots on the branch of `window`'s
+/// middle, or, with none, a leg's over `[0, τ]` unwound where its start
+/// lies on the plane.
+fn harmonic_roots<T: Decide>(
+    h: &FirstHarmonic<T>,
+    speed: T,
+    window: Option<(T, T)>,
+    rows: &FirstHarmonicRows,
+    band: Band,
+) -> Result<FirstHarmonicRoots<T>, RootRefusal> {
     let FirstHarmonic {
         lo: lo_value,
         hi: hi_value,
@@ -358,10 +402,19 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
     // either end. None reads
     // a root as an identity, which is why the floor stays: a structural
     // pick would decide nothing a reader uses.
-    Ok(Roots::all([
-        near_span(phi - half_chord, (t0, t1)),
-        near_span(phi + half_chord, (t0, t1)),
-    ]))
+    let (a, b) = (phi - half_chord, phi + half_chord);
+    Ok(Roots::all(match window {
+        Some(span) => [near_span(a, span), near_span(b, span)],
+        None => {
+            let turn = (T::zero(), T::tau());
+            let at_start =
+                ((lo_value + hi_value) / two + cos_part).abs() - T::from_f64(band.zero());
+            [
+                at_start.select_le_zero(a, near_span(a, turn)),
+                at_start.select_le_zero(b, near_span(b, turn)),
+            ]
+        }
+    }))
 }
 
 /// **An angle on the branch of a span's middle**: `raw` moved by whole
@@ -372,4 +425,22 @@ pub(super) fn first_harmonic_roots_in_band<T: Decide>(
 pub(super) fn near_span<T: Decide>(raw: T, (t0, t1): (T, T)) -> T {
     let mid = (t0 + t1) / T::from_f64(2.0);
     mid + (raw - mid).reduce_periodic_centred(T::tau())
+}
+
+/// A root door's answer for a row: its roots, or its refusal, a limit
+/// (`Some`) or `None` for its decision's escalation.
+///
+/// # Panics
+///
+/// On any other refusal.
+#[cfg(test)]
+#[allow(clippy::panic)]
+pub(super) fn door_answer<T: geom_core::Real>(
+    got: Result<Result<CircleRoots<T>, Unsettled>, BooleanError>,
+) -> Result<CircleRoots<T>, Option<Unsettled>> {
+    match got {
+        Ok(found) => found.map_err(Some),
+        Err(BooleanError::Escalated { .. }) => Err(None),
+        Err(other) => panic!("the door refused outside its decision: {other:?}"),
+    }
 }

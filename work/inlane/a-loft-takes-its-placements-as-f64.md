@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
-refs: [sweep-keeps-computed-values-in-t]
+refs: [4591]
 pr: 4741
 closed: 2026-10-11
 ---

@@ -15,7 +15,7 @@ use editor_core::{
     Evaluation, HitTestError, Node, PickHit, ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx,
     SplitSide, StableName, UnnamedEntity, ValuePayload, body_name, entity_name, evaluate,
 };
-use fixture::{ang, die, insert, len, on_frame, scl};
+use fixture::{ang, die, insert, len, on_frame};
 use geom_core::Tol;
 use topo::{Body, FaceKey};
 
@@ -45,6 +45,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             }
             out
         }
+        ValuePayload::Family => vec![],
         ValuePayload::Instances(v) => v
             .iter()
             .enumerate()
@@ -203,17 +204,7 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         ),
     );
     // A pattern of the union.
-    let (doc, _pat) = insert(
-        doc,
-        Node::Pattern {
-            input: u.into(),
-            count: editor_core::Formula::count(3),
-            kind: editor_core::PatternKind::Linear {
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
+    let (doc, _pat_k, _pat) = crate::fixture::linear(doc, u, [0.0, 0.0, 1.0], 3.0, 3);
     let ev = run(&doc);
     for &id in &ev.order {
         assert!(

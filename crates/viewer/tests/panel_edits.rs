@@ -71,7 +71,10 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
         .expect("an extrude carries a distance");
     assert_eq!(distance.driver, SlotDriver::Literal);
     assert!(!distance.structural);
-    assert_eq!(distance.value, Ok(SlotValue::Continuous(0.008)));
+    assert_eq!(
+        distance.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
+    );
 
     let before = session
         .committed_doc()
@@ -103,14 +106,14 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.012))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.012)))
     );
 }
 
-/// One profile, one extrude with a LITERAL distance, and a pattern
-/// over it whose count is a literal too — a continuous slot and a
-/// structural `Count` slot in one document, so both directions of the
-/// Count/continuous divide have a subject.
+/// One profile, one extrude with a LITERAL distance, and a read of one
+/// member of a row of it whose index is a literal too — a continuous
+/// slot and a structural `Count` slot in one document, so both
+/// directions of the Count/continuous divide have a subject.
 fn literal_and_pattern_doc(
     tol: Tol,
 ) -> (
@@ -129,20 +132,23 @@ fn literal_and_pattern_doc(
         },
         tol,
     );
-    let (doc, pattern) = common::inserted(
+    let (doc, pattern) = common::row_of_copies(
         &doc,
-        pncad::document::Node::Pattern {
-            input: extrude.into(),
-            count: pncad::document::Formula::count(3),
-            kind: pncad::document::PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.03),
-            },
-        },
+        extrude,
+        3,
+        (pncad::document::TargetAxis::X, 0.03),
         tol,
     );
-    (doc, extrude, pattern)
+    let (doc, member) = common::member_read(&doc, pattern, 1, tol);
+    (doc, extrude, member)
 }
+
+/// A member read's index: the structural `Count` slot of
+/// [`literal_and_pattern_doc`]'s member.
+const INDEX: SlotId = SlotId::Index {
+    seat: pncad::document::OperandSlot::Source,
+    k: 0,
+};
 
 /// `text` with the variable id the first `"key":` holds replaced by
 /// `id`: a slot on the wire is its variable's id, so this re-points one
@@ -196,9 +202,9 @@ fn repointed_slot(text: &str, key: &str, id: editor_core::MintId) -> String {
 #[test]
 fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
     let tol = Tol::witness();
-    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, member) = literal_and_pattern_doc(tol);
 
-    for node in [extrude, pattern] {
+    for node in [extrude, member] {
         let rows = props::slot_rows(&doc, node);
         assert!(
             rows.iter().any(|row| row.driver == SlotDriver::Literal),
@@ -219,10 +225,10 @@ fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
     // The Count row really is one of them — otherwise the loop above
     // says nothing about the second direction of the divide.
     assert!(
-        props::slot_rows(&doc, pattern)
+        props::slot_rows(&doc, member)
             .iter()
-            .any(|row| row.slot == SlotId::Count && row.driver == SlotDriver::Literal),
-        "the pattern's count is a literal row"
+            .any(|row| row.slot == INDEX && row.driver == SlotDriver::Literal),
+        "the member's index is a literal row"
     );
 }
 
@@ -232,7 +238,7 @@ fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
 #[test]
 fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
     let tol = Tol::witness();
-    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, member) = literal_and_pattern_doc(tol);
 
     let count_into_continuous = pncad::document::apply(
         &doc,
@@ -266,8 +272,8 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
     let continuous_into_count = pncad::document::apply(
         &doc,
         &DocEdit::SetStructuralParam {
-            node: pattern,
-            slot: SlotId::Count,
+            node: member,
+            slot: INDEX,
             expr: common::len(0.03),
             fresh: Vec::new(),
         },
@@ -279,7 +285,7 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
             expected,
             found,
         }) => {
-            assert_eq!(slot, SlotId::Count);
+            assert_eq!(slot, INDEX);
             assert_eq!(
                 expected,
                 pncad::document::SlotKind::Is(pncad::document::VarKind::Count)
@@ -297,18 +303,18 @@ fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
 /// be read at a `Length` slot, and it is the input the claim above
 /// most needs: everything else in this suite reaches the document
 /// through `apply`. The saved fixture is doctored in ONE field — the
-/// extrude's distance re-pointed at the pattern count's variable — and
+/// extrude's distance re-pointed at the member index's variable — and
 /// `load` is asked what it thinks.
 #[test]
 fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
     let tol = Tol::witness();
-    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+    let (doc, extrude, member) = literal_and_pattern_doc(tol);
     let text = pncad::document::save(&doc, &[], tol).expect("the fixture saves");
     pncad::document::load(&text, tol).expect("and loads back as it was written");
 
     let count = doc
-        .slot(pattern, SlotId::Count)
-        .expect("a pattern reads its count");
+        .slot(member, INDEX)
+        .expect("a member read reads its index");
     let corrupt = repointed_slot(&text, "distance", count.0);
     match pncad::document::load(&corrupt, tol) {
         Err(pncad::document::PersistError::Snapshot(
@@ -347,7 +353,7 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
     assert!(distance.driver.is_driven());
     assert_eq!(
         distance.value,
-        Ok(SlotValue::Continuous(0.004)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.004))),
         "thickness / 2, evaluated under the document's variables"
     );
 
@@ -418,7 +424,7 @@ fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() 
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.010)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.010))),
         "the driven slot followed its variable"
     );
 }
@@ -441,7 +447,7 @@ fn a_driven_slot_still_accepts_an_expression_through_the_text_door() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.016))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.016)))
     );
 
     // And unparseable text refuses typed, committing nothing.
@@ -507,7 +513,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.012))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.012)))
     );
     assert_eq!(
         props::slot_rows(session.committed_doc(), extrude)
@@ -515,7 +521,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.008))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
     );
 
     let outcome = session.perform(SessionOp::CommitGesture {
@@ -533,7 +539,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.008))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008)))
     );
 }
 
@@ -584,7 +590,7 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(last / 2.0)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(last / 2.0))),
         "the LAST previewed value is what the commit recorded"
     );
 
@@ -596,7 +602,7 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.004)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.004))),
         "one undo returns the whole gesture"
     );
 }
@@ -892,7 +898,7 @@ fn an_abandoned_gesture_leaves_no_trace() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.008)),
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.008))),
         "the panels are back on the committed document"
     );
 }
@@ -932,12 +938,6 @@ fn the_tree_selects_a_node_and_the_property_panel_follows() {
     let rows = session.tree_rows();
     let ids: Vec<_> = rows.iter().map(|row| row.id).collect();
     assert!(ids.contains(&profile) && ids.contains(&extrude));
-    assert_eq!(
-        common::row_of(&rows, extrude).depth,
-        0,
-        "the profile is the extrude's primary input, so the extrude \
-         continues its line rather than indenting under it"
-    );
     assert!(!tree::has_faults(&rows));
 
     assert!(session.slot_rows().is_empty(), "nothing selected yet");
@@ -1018,7 +1018,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
             .find(|row| row.slot == SlotId::Distance)
             .expect("still there")
             .value,
-        Ok(SlotValue::Continuous(0.010))
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.010)))
     );
 
     // Undo the expression edit, then ONE undo removes the variable.
@@ -1436,7 +1436,10 @@ fn a_defined_parameters_field_redefines_or_frees_it() {
     text(&mut session, "rim * 2.0");
     let row = &props::defined_rows(session.doc())[0];
     assert_eq!(row.formula, "rim * 2.0");
-    assert_eq!(row.value, Some(SlotValue::Continuous(0.04)));
+    assert_eq!(
+        row.value,
+        Ok(viewer::Reading::One(SlotValue::Continuous(0.04)))
+    );
 
     let begun = session.perform(SessionOp::BeginVariableGesture { var: base_r });
     assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
@@ -1689,12 +1692,7 @@ fn a_count_slot_refuses_a_value_that_is_not_a_number() {
     // Every Count-dimensioned slot, so the refusal is the DIMENSION's
     // and not one slot's: `SlotId::is_structural` is defined as this
     // dimension, so these are exactly the structural slots.
-    for slot in [
-        SlotId::Count,
-        SlotId::VDegree,
-        SlotId::Stations,
-        SlotId::Instance,
-    ] {
+    for slot in [SlotId::VDegree, SlotId::Stations, INDEX] {
         assert!(slot.is_structural(), "{slot:?} is not a structural slot");
         assert!(
             SlotValue::of(slot.expr_dimension(), f64::INFINITY).is_err(),

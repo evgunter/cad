@@ -2,10 +2,12 @@
 id: an-action-of-several-edits-becomes-several-undos-after-reopen
 kind: issue
 title: History::replayed commits each logged edit as its own state, so a several-edit action (duplicate, add-profile on a new frame) is several undos after save and reopen
-status: open
+status: closed
 opened: 2026-09-24
+closed: 2026-10-31
+pr: 6135
 priority: P1
-cost: D
+cost: M
 ---
 
 
@@ -68,3 +70,25 @@ one logged edit and one state after replay, whatever the edit changed.
 `record_action`, cited above, is now folded into
 `DocSession::commit_run`, which calls `History::commit_group` directly.
 The two instances listed above stand.
+
+## 2026-10-31 — band confirmed P1, re-priced D → M, design open
+
+Kept at P1 because the persisted log is architecture that entrenches.
+Every file saved without action boundaries is a file whose reopened
+history can never be grouped, and every new several-edit action adds a
+way to meet this. The fork named under "What deciding it needs" (put
+the boundary in `LoggedEdit`/persist, which is EDIT's ground, or let the
+two histories differ and say so) is open, so `design` is set.
+
+## 2026-10-31 — closed: dissolved by Ev's ruling (PR 6123), built in PR 6135
+
+GQ3 now says a save file holds the document's state and that undo ends
+at a reopen. `History::replayed` is deleted, and `docio::open` seeds
+`History::new` with the loaded document. A reopened session therefore
+has no undo at all, so an action has nothing to be split into. The
+measurement above, taken through the same doors, now reads: box,
+duplicate, save, reopen gives both copies, and Undo refuses "nothing to
+undo" and leaves both drawn
+(`crates/viewer/tests/combine_ops.rs`,
+`a_duplicate_saved_and_reopened_has_nothing_to_undo`). In session, a
+several-edit action is still one undo.

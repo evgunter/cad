@@ -90,6 +90,7 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
         Node::Profile(ProfileProgram {
             loops: vec![lp],
             ids: Vec::new(),
+            on: None,
         })
     };
     let (doc, disc) = insert(doc, profile(LoopProgram::circle(0.0, 0.0, R).unwrap()));

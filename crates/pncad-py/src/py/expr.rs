@@ -825,14 +825,17 @@ pub(crate) fn eval_err(
         E::Unlowered(fault) => return lower_fault_err(py, fault),
         // The defined variable read; its definition's own refusal is
         // the sentence's.
-        E::UnresolvedVar { var } | E::OutputRead { var } | E::DefinitionRefused { var, .. } => {
-            (text(&var_text(var)), none(), none(), none())
-        }
+        E::UnresolvedVar { var }
+        | E::OutputRead { var }
+        | E::DefinitionRefused { var, .. }
+        | E::IndexOutsideMember { var } => (text(&var_text(var)), none(), none(), none()),
         E::VarKindMismatch { var, bound, read } => {
             (text(&var_text(var)), dim(*read), dim(*bound), none())
         }
         E::ContinuousExprInCountEval { found } => (none(), none(), dim(*found), none()),
-        E::CountToScalarOutOfRange(value) => (none(), none(), none(), int(*value)),
+        E::CountToScalarOutOfRange(value) | E::ModByNonPositive(value) => {
+            (none(), none(), none(), int(*value))
+        }
         E::CountExprInContinuousEval | E::CountOverflow | E::NonFiniteResult => {
             (none(), none(), none(), none())
         }

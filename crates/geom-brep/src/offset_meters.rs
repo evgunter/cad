@@ -758,25 +758,23 @@ pub(crate) fn patch_curvature(cells: &[PatchCell]) -> (f64, f64) {
 /// chart at the cell's low corner plus its partials' enclosures over the
 /// cell's sides (mean value, componentwise), up to the rounding of that
 /// corner and those sums. The enclosure holds the cell, so a cell counts
-/// at no more than its distance.
+/// at no more than its distance. A cell whose partials do not certify, or
+/// whose distance reads NaN, bounds nothing and counts at distance `0`.
 ///
 /// The bound is a lower end only ([`crate::classify_seam`] brackets the
 /// arm between it and the reach), so its slack can cost an escalation and
 /// never decide a class.
 ///
-/// `None` where no bound is read: a chart the patch bound refuses (an
-/// integral chart with a C⁰ crease anywhere, a degree-0 direction, a
-/// rational degree past its ceiling), a rational chart's C⁰ crease
-/// bounding a cell within `reach` of `p` (no curvature is read across
-/// it), a cell containing `p` whose curvature is not bounded, or a
-/// poisoned `p` or `reach`.
+/// # Errors
+///
+/// [`ChartArmRefusal`], where no bound is read, naming why.
 pub(crate) fn chart_arm(
     net: &geom::surfaces::NurbsSurface<f64>,
     p: geom_core::Point3<f64>,
     reach: f64,
-) -> Option<f64> {
-    if reach.is_nan() {
-        return None;
+) -> Result<f64, ChartArmRefusal> {
+    if reach.is_nan() || !(p.x.is_finite() && p.y.is_finite() && p.z.is_finite()) {
+        return Err(ChartArmRefusal::Poisoned);
     }
     let splits = crate::patch_bound::RATIONAL_CERT_SPLITS;
     // Not `patch_cells_across_creases` alone: it reads an integral chart's
@@ -786,21 +784,20 @@ pub(crate) fn chart_arm(
     } else {
         crate::patch_bound::patch_cells_across_creases(net)
     }
-    .ok()?;
-    let creases = |knots: &geom_core::spline::Knots<f64>| -> Vec<f64> {
-        let runs: Vec<f64> = knots.runs().map(|(value, _)| value).collect();
-        knots.structure().crease_runs().map(|r| runs[r]).collect()
-    };
-    let (crease_u, crease_v) = (creases(net.knot_values_u()), creases(net.knot_values_v()));
+    .map_err(|_| ChartArmRefusal::PatchBound)?;
+    let (crease_u, crease_v) = (
+        net.knot_values_u().crease_values(),
+        net.knot_values_v().crease_values(),
+    );
     let mut near = Vec::new();
     for cell in &cells {
         let d = cell_distance(net, cell, p);
-        if d.is_nan() || d > reach {
+        if d > reach {
             continue;
         }
         let on = |c: &[f64], (lo, hi): (f64, f64)| c.iter().any(|&k| k == lo || k == hi);
         if on(&crease_u, cell.u) || on(&crease_v, cell.v) {
-            return None;
+            return Err(ChartArmRefusal::CreaseWithinReach);
         }
         let kappa = cell_curvature(cell).map_or(f64::INFINITY, |(lo, hi)| (-lo).max(hi));
         near.push((d, kappa));
@@ -819,17 +816,46 @@ pub(crate) fn chart_arm(
         }
         arm = arm.min(fit);
     }
-    (arm > 0.0).then_some(arm)
+    if arm > 0.0 {
+        Ok(arm)
+    } else {
+        Err(ChartArmRefusal::Unbounded)
+    }
+}
+
+/// **Why [`chart_arm`] read no arm.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChartArmRefusal {
+    /// The patch bound refuses the chart as a whole: an integral chart
+    /// with a C⁰ crease anywhere, a degree-0 direction, a rational degree
+    /// past its ceiling.
+    PatchBound,
+    /// A rational chart's C⁰ crease bounds a cell within the reach of the
+    /// point: no curvature is read across it.
+    CreaseWithinReach,
+    /// A cell containing the point has no bounded curvature (a pole, a
+    /// normal not bounded from zero).
+    Unbounded,
+    /// The point or the reach is poisoned, or wider than a point at the
+    /// scalar.
+    Poisoned,
+    /// The scalar has no certified lane to read the bound at.
+    NoLane,
 }
 
 /// The distance from `p` to `cell`'s spatial enclosure ([`chart_arm`]):
 /// the chart at the cell's low corner, plus, per coordinate, the partials'
-/// enclosures times each side's extent, signed toward either end.
+/// enclosures times each side's extent, signed toward either end. `0`, the
+/// vacuous lower bound, where a partial does not certify or the distance
+/// reads NaN: either way no enclosure was read.
 fn cell_distance(
     net: &geom::surfaces::NurbsSurface<f64>,
     cell: &PatchCell,
     p: geom_core::Point3<f64>,
 ) -> f64 {
+    if !cell.s_u.iter().chain(&cell.s_v).all(|c| c.is_certified()) {
+        return 0.0;
+    }
     let corner = net.ders(cell.u.0, cell.v.0).point;
     let (du, dv) = (cell.u.1 - cell.u.0, cell.v.1 - cell.v.0);
     let gap = |c: f64, q: f64, su: Interval, sv: Interval| {
@@ -842,7 +868,8 @@ fn cell_distance(
         gap(corner.y, p.y, cell.s_u[1], cell.s_v[1]),
         gap(corner.z, p.z, cell.s_u[2], cell.s_v[2]),
     ];
-    (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt()
+    let d = (g[0] * g[0] + g[1] * g[1] + g[2] * g[2]).sqrt();
+    if d.is_nan() { 0.0 } else { d }
 }
 
 /// Meter 2, whole patch: the certified curvature range and the
@@ -1309,6 +1336,40 @@ mod tests {
             ),
             "{escalation:?}"
         );
+    }
+
+    /// **A cell whose partial does not certify counts as touching the
+    /// point.** The unit square in `z = 0`, read from `(0.5, 0.5, 10)`:
+    /// at `10` with certified partials, and at `0` once `S_u`'s `z`
+    /// component is a point bracket that does not certify. Red under a
+    /// read of its ordinary ends, which still say `10`.
+    #[test]
+    fn a_refused_partial_puts_its_cell_at_the_point() {
+        let kv = || geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0), (1.0, 1.0)]
+            .map(|(x, y)| geom_core::Point3::new(x, y, 0.0))
+            .to_vec();
+        let net = geom::surfaces::NurbsSurface::new(kv(), kv(), control, vec![1.0; 4]).unwrap();
+        let p =
+            |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
+        let cell = PatchCell {
+            u: (0.0, 1.0),
+            v: (0.0, 1.0),
+            s_u: p(1.0, 0.0, 0.0),
+            s_v: p(0.0, 1.0, 0.0),
+            s_uu: p(0.0, 0.0, 0.0),
+            s_uv: p(0.0, 0.0, 0.0),
+            s_vv: p(0.0, 0.0, 0.0),
+            s_u_sup: 1.0,
+            s_v_sup: 1.0,
+            m_sup: 1.0,
+            m_inf: 1.0,
+        };
+        let at = geom_core::Point3::new(0.5, 0.5, 10.0);
+        assert_eq!(cell_distance(&net, &cell, at), 10.0, "the certified cell");
+        let mut refused = cell;
+        refused.s_u[2] = geom_core::test_support::refused_point(0.0);
+        assert_eq!(cell_distance(&net, &refused, at), 0.0, "the refused cell");
     }
 
     /// **A refused cell refuses the patch's chart speed.** One cell

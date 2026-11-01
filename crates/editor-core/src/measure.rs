@@ -37,7 +37,10 @@ use crate::node::SitedRef;
 )]
 #[serde(deny_unknown_fields)]
 pub enum MeasurePrimitive<R = SitedRef> {
-    /// The distance between two referenced entities → [`Dimension::Length`].
+    /// The distance between two referenced entities → [`Dimension::Length`]:
+    /// a face, an edge or a vertex, or a pose (a point, an axis, a plane,
+    /// a frame as its xy plane) read off a cell or a split's tool. Two
+    /// axes read as one scalar, zero where they are one line or meet.
     Distance {
         /// The first entity.
         a: R,
@@ -65,8 +68,10 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// value at all and says so
     /// ([`crate::eval::ValuePayload::MeasureUnavailable`]): a station
     /// pair found by a point-scalar search is an upper bound on the
-    /// minimum and not the minimum. At `Interval` over a leaf the value
-    /// IS `topo::clearance::min_separation`'s bracket.
+    /// minimum and not the minimum. At `Interval`, and at the symbolic
+    /// tier over it, the value over a leaf IS
+    /// `topo::clearance::min_separation`'s bracket (at the tier, each end
+    /// re-entered as a computed value).
     MinClearance {
         /// The first selection.
         a: R,
@@ -76,19 +81,22 @@ pub enum MeasurePrimitive<R = SitedRef> {
     /// C5's SIGNED gap between a mating pair → [`Dimension::Length`].
     ///
     /// **Argument order is the mating ROLE**, not a symmetry: `outer`
-    /// is the containing carrier (the socket, the bore, the plane the
-    /// offset is measured FROM) and `inner` is the contained one (the
-    /// ball, the pin). C5's formulas are asymmetric in exactly that
-    /// way — `g = R − r − ‖Δc‖` is not `r − R − ‖Δc‖` — so the roles
-    /// are authored rather than inferred from which radius is larger.
+    /// is the containing carrier (the plane the offset is measured
+    /// FROM, the outer of two nested faces) and `inner` the contained
+    /// one, authored rather than inferred from which radius is larger.
+    /// Two faces are read by both material sides: an opposed pair (a
+    /// rod on a plate, two rods side by side, a pin in a bore) reads the
+    /// same in either order, and an aligned one (a flush pair, two
+    /// coaxial rods end to end) negates.
     ///
     /// Each reference is a face, an edge or a vertex, so a gap is taken
     /// between two cells at whatever dimension they are
-    /// (`[assertions.quiet]`). Between a face and a lower-dimensional
-    /// cell, or an edge and a vertex, the higher-dimensional cell's
-    /// material reads the other in either seat; between two edges or
-    /// two vertices the outer's reads the inner
-    /// ([`mod@crate::eval::measure`]).
+    /// (`[assertions.quiet]`), or a plane pose (a split's tool, a frame
+    /// as its xy plane) against a point. Between a face and a
+    /// lower-dimensional cell, or an edge and a vertex, the
+    /// higher-dimensional cell's material reads the other in either
+    /// seat; between two edges or two vertices the outer's reads the
+    /// inner ([`mod@crate::eval::measure`]).
     Gap {
         /// The containing carrier.
         outer: R,
@@ -218,10 +226,13 @@ impl MeasureVerb {
     pub const fn admits(self, kind: crate::VarKind) -> bool {
         use crate::VarKind as K;
         match self {
-            Self::Distance => matches!(kind, K::Face | K::Edge | K::Vertex),
+            Self::Distance => matches!(
+                kind,
+                K::Face | K::Edge | K::Vertex | K::Point | K::Axis | K::Plane | K::Frame
+            ),
             Self::Angle => matches!(kind, K::Face | K::Edge),
             Self::MinClearance => matches!(kind, K::Body | K::Face),
-            Self::Gap => matches!(kind, K::Face | K::Edge | K::Vertex),
+            Self::Gap => matches!(kind, K::Face | K::Edge | K::Vertex | K::Plane | K::Frame),
         }
     }
 
@@ -230,14 +241,23 @@ impl MeasureVerb {
     #[must_use]
     pub fn admitted(self) -> String {
         use crate::VarKind as K;
-        let said: Vec<String> = [K::Body, K::Face, K::Edge, K::Vertex]
-            .into_iter()
-            .filter(|&kind| self.admits(kind))
-            .map(|kind| {
-                let word = kind.to_string();
-                format!("{} {word}", crate::sentence::article(&word))
-            })
-            .collect();
+        let said: Vec<String> = [
+            K::Body,
+            K::Face,
+            K::Edge,
+            K::Vertex,
+            K::Point,
+            K::Axis,
+            K::Plane,
+            K::Frame,
+        ]
+        .into_iter()
+        .filter(|&kind| self.admits(kind))
+        .map(|kind| {
+            let word = kind.to_string();
+            format!("{} {word}", crate::sentence::article(&word))
+        })
+        .collect();
         match said.as_slice() {
             [] => String::new(),
             [one] => one.clone(),
@@ -248,10 +268,6 @@ impl MeasureVerb {
 
 /// **Why a measure has no value at the scalar the build ran at**
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]).
-///
-/// One arm today, and the type exists so the second one — whenever a
-/// primitive arrives whose answer some other lane cannot carry — lands
-/// as a variant rather than as a second mechanism.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MeasureUnavailableAt {
     /// The primitive's answer is an ENCLOSURE, and this build's scalar
@@ -271,6 +287,19 @@ pub enum MeasureUnavailableAt {
         /// refusal rather than in a reader's memory.
         door: &'static str,
     },
+    /// The engine's bracket has a lower end and no upper one: no pair it
+    /// examined within its cell budget was a pair of points of the two
+    /// scopes (`topo::clearance::MinSeparation::hi`). The lower end alone
+    /// is not an enclosure of the measure, so there is no value.
+    NoUpperBound {
+        /// Which primitive.
+        verb: &'static str,
+        /// The scalar this build ran at, in its own name
+        /// ([`geom_core::Real::NAME`]).
+        scalar: &'static str,
+        /// The door that answers it at a larger cell budget.
+        door: &'static str,
+    },
 }
 
 impl MeasureUnavailableAt {
@@ -278,7 +307,7 @@ impl MeasureUnavailableAt {
     /// goldening form needs, without spelling the whole prose.
     pub fn verb(&self) -> &'static str {
         match self {
-            Self::NeedsEnclosure { verb, .. } => verb,
+            Self::NeedsEnclosure { verb, .. } | Self::NoUpperBound { verb, .. } => verb,
         }
     }
 }
@@ -294,34 +323,14 @@ impl core::fmt::Display for MeasureUnavailableAt {
                  over a parameter box, where `{door}` computes the bracket",
                 interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
+            Self::NoUpperBound { verb, scalar, door } => write!(
+                f,
+                "`{verb}` found no pair of points of the two scopes within its cell budget at \
+                 the {scalar} scalar, so its bracket has a lower end and no upper end. \
+                 Recourse: `{door}` at a larger cell budget"
+            ),
         }
     }
-}
-
-/// **A scalar that can carry a `min_clearance` answer** — the third
-/// lane seam, beside [`crate::analysis::AxisScalar`] (the box axis in)
-/// and [`crate::analysis::SeedScalar`] (the derivative seed in).
-///
-/// [`Self::min_separation`] answers the bracket as a value of `Self`,
-/// or `None` when this scalar has no such value. The trio share one
-/// shape on purpose: a per-scalar CAPABILITY, expressed at compile time
-/// behind a scalar-free door, whose `None` is a typed refusal at the
-/// call site rather than a quietly degraded answer.
-///
-/// The engine that computes it is the interval lane's
-/// (`topo::clearance::min_separation`) and so is the only `Some`.
-pub trait MinClearanceLane: geom_core::Real {
-    /// The minimum separation between two resolved selections, or
-    /// `None` when this scalar cannot carry an enclosure.
-    ///
-    /// # Errors
-    ///
-    /// The engine's own typed refusal
-    /// ([`crate::clearance::ClearanceRefusal`]), carried unaltered.
-    fn min_separation(
-        a: &MinClearanceOperand<'_, Self>,
-        b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>>;
 }
 
 /// One side of a [`MeasurePrimitive::MinClearance`], resolved: the body
@@ -354,109 +363,10 @@ impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
     }
 
     /// Whether two operands read one body: the same output of the same
-    /// node. The engine's wedge rule applies between them exactly then.
+    /// node. Two such operands that meet are at separation 0, read off
+    /// the topology they share.
     pub fn same_body(&self, other: &Self) -> bool {
         self.at == other.at && self.index == other.index
-    }
-}
-
-/// A point scalar has no enclosure to answer with. The whole content of
-/// the trait, at the lane where it bites.
-impl MinClearanceLane for f64 {
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
-    }
-}
-
-/// The recording scalar is `f64` with a sink attached, so it carries
-/// exactly what `f64` carries — here, nothing.
-#[cfg(feature = "probe")]
-impl MinClearanceLane for geom_core::Probe {
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
-    }
-}
-
-/// **A dual does not certify** (the D1 ruling, unmoved). Its value
-/// channel is whatever it is built over, and a `Dual<Interval>`'s
-/// enclosure would be a certified answer arriving through a type E9
-/// and D1 keep out of the certifying lanes — so the whole family
-/// answers `None`, and a document measured for sensitivities reports
-/// the same typed absence a plain f64 build does.
-impl<T> MinClearanceLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: geom_core::Real,
-{
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
-    }
-}
-
-/// The interval lane, and the only one that answers: the engine's own
-/// bracket, at the shipped dials.
-impl MinClearanceLane for geom_core::Interval {
-    fn min_separation(
-        a: &MinClearanceOperand<'_, Self>,
-        b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        // **The engine decides no cell on this path** (it takes no band).
-        // This door runs inside an evaluation, and every funnel row a cell
-        // verdict records lands in that leaf's census, while the `f64`
-        // witness build asks none — so the two builds would differ
-        // `0 -> N` on every box and the leaf would refuse `flip_crossing`
-        // (`work/clear/min-separation-tightening-crosses-the-drive.md`).
-        // For the same reason the pair budget is the engine's small
-        // default: a drive of a few hundred leaves pays this search a few
-        // hundred times.
-        Some(
-            topo::clearance::min_separation(
-                &a.side(),
-                &b.side(),
-                a.same_body(b),
-                topo::clearance::MinSeparationConfig::default(),
-            )
-            .map_err(crate::clearance::ClearanceRefusal::Engine)
-            .map(|m| m.enclosure()),
-        )
-    }
-}
-
-/// **The symbolic tier has no clearance lane, and the absence is a
-/// DISCLOSED limitation rather than a design position** (E12's unit,
-/// deviation D3; issue `symbolic-tier-and-clearance-engine`).
-///
-/// Every other lane the tier composes with is scalar-generic and runs
-/// at `Sym<T>` unaltered. This one does not yet: the engine's door
-/// ([`topo::clearance::min_separation`]) reads a `Body<T>` at any
-/// certifying scalar, but this lane does not call it, because the
-/// bracket's way back into `Sym` — each end a fresh unknown through
-/// [`geom_core::Real::from_computed`] — is not written
-/// (`work/clear/symbolic-tier-and-clearance-engine.md`).
-///
-/// `None` is therefore the honest answer, and it behaves exactly as the
-/// point scalars' `None` does: `min_clearance` refuses TYPED at this
-/// lane, naming it, instead of reporting a number it did not compute. A
-/// document carrying that measure drives with the symbolic tier off
-/// (`DriveConfig::symbolic.enabled = false`) and says so; nothing
-/// silently degrades.
-impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: geom_core::Real,
-{
-    fn min_separation(
-        _a: &MinClearanceOperand<'_, Self>,
-        _b: &MinClearanceOperand<'_, Self>,
-    ) -> Option<Result<Self, crate::clearance::ClearanceRefusal>> {
-        None
     }
 }
 
@@ -492,7 +402,7 @@ impl AssertionRelation {
 /// reads it: no gate consults it, no op takes it as an operand, and no
 /// product or export changes shape because of it. That is structural
 /// rather than promised — an assertion node denotes no body, so the
-/// root gather skips it exactly as it skips a declaration, and its
+/// product gather skips it exactly as it skips a declaration, and its
 /// value payload is not an admissible operand for any op in the
 /// vocabulary. A `Violated` verdict is therefore a fact a REPORT reads:
 /// an assertion checks and never places (D10).
@@ -576,109 +486,6 @@ pub enum UnevaluatedReason {
     /// requirement is recorded, the run cannot answer it, and neither
     /// half of that is hidden.
     MeasureUnavailable(MeasureUnavailableAt),
-    /// **The verdict would have been read off an endpoint this run
-    /// certifies for the CARRIER rather than for the thing the measure
-    /// names** (M10-6; R1's MAJOR). See [`Certified`] for the table of
-    /// which arm reads which endpoint and why only two of the four are
-    /// sound.
-    WindowSuperset {
-        /// The primitive that brought the superset in.
-        verb: &'static str,
-        /// The endpoint the arm would have read.
-        endpoint: &'static str,
-        /// The tracker item the refusal points a reader at. **Not the
-        /// item whose fix retires it** — see [`WINDOW_TIGHTENING`],
-        /// which narrows the superset on the clearance sweep's side
-        /// and retires nothing here.
-        recourse: &'static str,
-    },
-}
-
-/// **The tracker item this refusal points a reader at**, and which
-/// retires nothing on this path: a carrier window cut to the chart
-/// boundary of its trimmed face. Named from the type so the pointer
-/// travels with the refusal instead of living in a reader's memory.
-///
-/// **What it bought, and where.** The clearance SWEEP's windows are
-/// cut and its cells dropped. The path that raises
-/// [`UnevaluatedReason::WindowSuperset`] is
-/// `min_clearance -> topo::clearance::min_separation`, and **no window on
-/// that path is tightened at all**: minting a description inside an
-/// evaluation records the boundary walk's funnel rows in the leaf's
-/// census while the `f64` witness build never walks, so every leaf of
-/// a drive over such a document refuses `flip_crossing`
-/// (`work/trim/min-separation-tightening-crosses-the-drive.md`).
-///
-/// **And it would not retire the refusal even there.** The refusal
-/// retires when `m = M` — when the set the engine measures over is the
-/// trimmed face exactly. A tightened window is not that: a cell
-/// straddling the described boundary, or lying within `K · ε` of it,
-/// is KEPT, because the description is a certificate and every
-/// rounding in it keeps the cell. So `hi` would remain a minimum over
-/// a superset and the two unsound arms would still refuse. The
-/// recourse that retires them is exact-region cells,
-/// `work/charttail/exact-region-cells-for-lower-bound-only.md`.
-pub const WINDOW_TIGHTENING: &str = "work/trim/clearance-window-tightening-needs-chart-boundary.md";
-
-/// **How much of a measured enclosure is certified for the thing the
-/// measure NAMES**, as against the carrier the engine subdivided.
-///
-/// Every measure but `min_clearance` answers about its own subject, so
-/// both endpoints are the subject's and an assertion may read either.
-/// `min_clearance` does not: M10-5's engine subdivides carrier
-/// WINDOWS, a disclosed SUPERSET of the trimmed faces. Writing `m` for
-/// the window separation and `M` for the faces', `m ≤ M` pointwise —
-/// so a lower bound on `m` is a lower bound on `M`, while an attained
-/// window distance is NOT an upper bound on `M`. On an L-shaped cap
-/// the engine finds a window pair straight across the notch that
-/// neither face occupies, and reports it.
-///
-/// The endpoints are therefore not interchangeable, and which VERDICT
-/// an assertion may reach depends on which endpoint its arm reads:
-///
-/// | relation | verdict | endpoint | sound for the faces? |
-/// | --- | --- | --- | --- |
-/// | `AtLeast c` | `Holds` | `lo` | yes — `M ≥ m ≥ lo ≥ c` |
-/// | `AtLeast c` | `Violated` | `hi` | **no** |
-/// | `AtMost c` | `Violated` | `lo` | yes — `M ≥ m ≥ lo > c` |
-/// | `AtMost c` | `Holds` | `hi` | **no** |
-/// | `Equal c` | `Violated` (above) | `lo` | yes — `M ≥ m ≥ lo > c` |
-/// | `Equal c` | `Violated` (below) | `hi` | **no** |
-/// | `Equal c` | `Holds` | `lo` and `hi` | **no** |
-///
-/// The two unsound arms refuse [`UnevaluatedReason::WindowSuperset`]
-/// rather than answering; [`WINDOW_TIGHTENING`] narrows the superset
-/// on the clearance sweep's side, leaves this path's windows
-/// untightened, and retires the refusal in neither place.
-/// Both gating directions survive: a clearance requirement (`AtLeast`)
-/// still certifies, and a maximum-gap requirement (`AtMost`) still
-/// fails loudly.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Certified {
-    /// Both endpoints are the subject's — every tree that reads no
-    /// `min_clearance`.
-    Enclosure,
-    /// The LOWER endpoint only: the tree is exactly one
-    /// `min_clearance` primitive, so `lo` bounds the faces from below
-    /// and `hi` is the carrier's alone.
-    LowerBoundOnly,
-    /// NEITHER endpoint, because a `min_clearance` sits under
-    /// arithmetic that can carry it to either end (a `Neg`, a `Sub`
-    /// with it on the right, a `Min`/`Max` against something else).
-    /// Refusing the whole assertion is the reading that needs no
-    /// per-operator argument; no document this unit ships takes it.
-    Neither,
-}
-
-impl Certified {
-    /// Whether an arm reading `endpoint` may answer.
-    fn admits(self, upper: bool) -> bool {
-        match self {
-            Self::Enclosure => true,
-            Self::LowerBoundOnly => !upper,
-            Self::Neither => false,
-        }
-    }
 }
 
 impl core::fmt::Display for UnevaluatedReason {
@@ -691,16 +498,6 @@ impl core::fmt::Display for UnevaluatedReason {
                 ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::MeasureUnavailable(why) => write!(f, "there is no measured value: {why}"),
-            Self::WindowSuperset {
-                verb,
-                endpoint,
-                recourse,
-            } => write!(
-                f,
-                "this verdict would be read off the {endpoint} end of an enclosure `{verb}` \
-                 certifies only over carrier windows, a superset of the faces the measure \
-                 names. The opposite verdict on this bound still gates. Recourse: {recourse}"
-            ),
         }
     }
 }
@@ -749,22 +546,11 @@ impl<T> AssertionVerdict<T> {
 /// [`AssertionVerdict::Unevaluated`] rather than a node failure: a
 /// bound the run cannot separate from the measurement is a fact about
 /// the report, not a broken document.
-/// # Which arms may answer (M10-6/R1)
-///
-/// `certified` says which endpoints of `measured` belong to the thing
-/// the measure NAMES; [`Certified`] carries the table and the
-/// argument. The funnel runs either way — the decision is the same one
-/// at the same site, and demoting it after the fact rather than
-/// branching before it keeps `assert_bound`'s k-population complete,
-/// so the E6 telemetry still sees every comparison the document asked
-/// for. What changes is only whether the verdict it reached is one
-/// this run may report.
 pub(crate) fn decide_assertion<T: Decide>(
     measured: T,
     bound: T,
     relation: AssertionRelation,
     band: geom_core::Band,
-    certified: Certified,
 ) -> AssertionVerdict<T> {
     let comparand = match relation {
         AssertionRelation::AtLeast | AssertionRelation::Equal => measured - bound,
@@ -778,30 +564,13 @@ pub(crate) fn decide_assertion<T: Decide>(
             };
         }
     };
-    // Which ENDS of the enclosure the verdict reads (`true` the upper):
-    // `measured − bound` decided positive reads the smallest the
-    // measure can be, decided negative the largest, and `=` holds only
-    // off both. At the bound exactly, a non-strict relation holds.
+    // At the bound exactly, a non-strict relation holds.
     use AssertionRelation::{AtLeast, AtMost, Equal};
     use geom_core::Sign::{Negative, Positive, Zero};
-    let (holds, ends): (bool, &[bool]) = match (relation, sign) {
-        (AtLeast, Positive | Zero) => (true, &[false]),
-        (AtMost, Positive | Zero) => (true, &[true]),
-        (AtLeast, Negative) => (false, &[true]),
-        (AtMost, Negative) => (false, &[false]),
-        (Equal, Zero) => (true, &[false, true]),
-        (Equal, Positive) => (false, &[false]),
-        (Equal, Negative) => (false, &[true]),
+    let holds = match (relation, sign) {
+        (AtLeast | AtMost, Positive | Zero) | (Equal, Zero) => true,
+        (AtLeast | AtMost, Negative) | (Equal, Positive | Negative) => false,
     };
-    if let Some(&upper) = ends.iter().find(|&&upper| !certified.admits(upper)) {
-        return AssertionVerdict::Unevaluated {
-            reason: UnevaluatedReason::WindowSuperset {
-                verb: "min_clearance",
-                endpoint: if upper { "upper" } else { "lower" },
-                recourse: WINDOW_TIGHTENING,
-            },
-        };
-    }
     if holds {
         AssertionVerdict::Holds { measured, bound }
     } else {
@@ -833,15 +602,15 @@ pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{AssertionRelation, AssertionVerdict, Certified, UnevaluatedReason};
-    use geom_core::{Band, Interval, Tol};
+    use super::{AssertionRelation, AssertionVerdict, UnevaluatedReason};
+    use geom_core::{Band, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).expect("the run's band")
     }
 
     fn decide(measured: f64, bound: f64, relation: AssertionRelation) -> &'static str {
-        super::decide_assertion(measured, bound, relation, band(), Certified::Enclosure).label()
+        super::decide_assertion(measured, bound, relation, band()).label()
     }
 
     /// `=` holds on a Zero margin, is violated by either definite sign,
@@ -863,48 +632,11 @@ mod tests {
         assert_eq!(decide(ten, 0.009, AtLeast), "Holds");
         assert_eq!(decide(ten, 0.009, AtMost), "Violated");
         let sliver = ten + 3.0 * eps;
-        match super::decide_assertion(ten, sliver, Equal, band(), Certified::Enclosure) {
+        match super::decide_assertion(ten, sliver, Equal, band()) {
             AssertionVerdict::Unevaluated {
                 reason: UnevaluatedReason::Indeterminate { .. },
             } => {}
             other => panic!("a margin of 3ε is undecided under `=`, not {other:?}"),
         }
-    }
-
-    /// Over a window superset (`min_clearance`'s lower end only), `=`
-    /// holds only off both ends, so it never holds, and refuses by the
-    /// end it could not read; above the bound it is violated soundly
-    /// off the lower end, below it refuses the upper.
-    #[test]
-    fn equal_over_a_window_superset_needs_both_ends() {
-        let eps = Tol::witness().eps();
-        let at = |lo: f64, hi: f64, bound: f64, certified| {
-            super::decide_assertion(
-                Interval::from_bounds(lo, hi),
-                Interval::from_bounds(bound, bound),
-                AssertionRelation::Equal,
-                band(),
-                certified,
-            )
-        };
-        let refused = |v: AssertionVerdict<Interval>| match v {
-            AssertionVerdict::Unevaluated {
-                reason: UnevaluatedReason::WindowSuperset { endpoint, .. },
-            } => endpoint,
-            other => panic!("expected a window-superset refusal, got {other:?}"),
-        };
-        let two = 0.002;
-        let lower_only = Certified::LowerBoundOnly;
-        assert!(matches!(
-            at(two, two + eps / 4.0, two, Certified::Enclosure),
-            AssertionVerdict::Holds { .. }
-        ));
-        assert_eq!(refused(at(two, two + eps / 4.0, two, lower_only)), "upper");
-        assert_eq!(refused(at(two, two, two, Certified::Neither)), "lower");
-        assert!(matches!(
-            at(0.003, 0.004, two, lower_only),
-            AssertionVerdict::Violated { .. }
-        ));
-        assert_eq!(refused(at(0.001, 0.0015, two, lower_only)), "upper");
     }
 }

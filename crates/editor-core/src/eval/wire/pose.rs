@@ -230,7 +230,11 @@ fn eval_pose_as<T: crate::mate::SolveScalar>(
     let value = match held.def() {
         VarDef::Output { node, port } => output(doc, results, admits, *node, *port, env, tol)?,
         VarDef::Pose(def) => definition(doc, results, slot, def, env, tol)?,
-        VarDef::Free(_) | VarDef::Defined(_) | VarDef::Select(_) | VarDef::Pick(_) => {
+        VarDef::Free(_)
+        | VarDef::Defined(_)
+        | VarDef::Select(_)
+        | VarDef::Pick(_)
+        | VarDef::Index(_) => {
             return Err(NodeErrorKind::UnresolvedRead { slot, var });
         }
     };
@@ -275,10 +279,11 @@ fn output<T: crate::mate::SolveScalar>(
             )
             .map_err(DirectionRefusal::node_error)?;
             // In the revolve's own coordinates, the ones its profile is
-            // drawn in, whatever frame its body was then read into.
+            // drawn in, whatever frame its body was then read into: the
+            // frame the profile is drawn on, where it is drawn on one.
             Ok(Posed {
                 value: PoseValue::axis_through(plane.to_world(origin), plane.frame().turn(sketch)),
-                frame: Frame::Own,
+                frame: drawn.frame.clone().unwrap_or(Frame::Own),
             })
         }
         // A read the door would have refused, in a document built past
@@ -551,12 +556,54 @@ fn read_off<T: crate::mate::SolveScalar>(
     let projected = super::project_ports(&[body_var], doc, results)?;
     let results = projected.as_ref().unwrap_or(results);
     let (at, ent) = select_one(doc, results, slot, of)?;
-    let framed = super::read_named_body(results, at, ent.body)?;
+    let whole = doc
+        .selection(of)
+        .is_some_and(|select| crate::repetition::names_members(doc, select));
+    let framed = super::read_named_body(results, at, ent.body, whole)?;
     // In the coordinates of the body it is read off.
     Ok(Posed {
         value: read_off_body(framed.body(), ent.key, pose, band)?,
         frame: framed.frame().clone(),
     })
+}
+
+/// **The cell a pose is read directly off**: the selection a point, an
+/// axis or a plane definition reads, and the pose's kind. `None` for
+/// any other variable. A measure reads such a pose off its cell
+/// ([`read_off_cell`]), and the quieting rule sees it as that cell.
+pub(crate) fn read_directly_off<P>(
+    doc: &crate::doc::Doc<P>,
+    var: VarId,
+) -> Option<(VarId, VarKind)> {
+    let held = doc.var(var)?;
+    let VarDef::Pose(PoseDef::Axis { of } | PoseDef::Point { of } | PoseDef::Plane { face: of }) =
+        held.def()
+    else {
+        return None;
+    };
+    doc.selection(*of).map(|_| (*of, held.kind()))
+}
+
+/// **The pose `kind` read off the entity `ent` of `body`**, as a
+/// measure's reference: [`read_off_body`]'s table, with the reach of the
+/// face it is read off as the lever a tilt between two axes is priced
+/// over (`None` off an edge or a vertex).
+///
+/// # Errors
+///
+/// [`read_off_body`]'s, where the cell has no such pose.
+pub(crate) fn read_off_cell<T: crate::mate::SolveScalar>(
+    body: &topo::Body<T>,
+    ent: names::EntityRef,
+    kind: VarKind,
+    band: geom_core::Band,
+) -> Result<crate::eval::measure::Carrier<'_, T>, NodeErrorKind> {
+    let value = read_off_body(body, ent.key, kind, band)?;
+    let pose = crate::eval::measure::Pose::of(&value)
+        .unwrap_or_else(|| unreachable!("a cell reads a point, an axis or a plane off it"));
+    let reach = names::EntityKey::face(ent.key)
+        .and_then(|face| crate::eval::measure::reach_of(body, face, pose.at()));
+    Ok(crate::eval::measure::Carrier::Pose { pose, reach })
 }
 
 /// [`read_off`]'s read of the entity `key` of `body`, in the body's
@@ -763,7 +810,7 @@ fn walk<T: Decide>(
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(Some((*node, *port))));
         }
-        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_)) | None => {
+        Some(VarDef::Free(_) | VarDef::Defined(_) | VarDef::Pick(_) | VarDef::Index(_)) | None => {
             out.push(PoseWord::Tag(w::OUTPUT));
             out.push(port_word(None));
         }

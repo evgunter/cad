@@ -269,21 +269,30 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
     }
 }
 
-/// A face's OUTWARD normal at a point on a curved carrier: the
+/// A face's OUTWARD normal at the foot of `p` on a curved carrier: the
 /// implicit gradient at `p`, normalized, folded through the face's
 /// `sense` bit — the one home of that fold for a door handed a
 /// carrier and the bit rather than a face (the contact verifier
 /// reading two bodies' faces, the dihedral's material pairing, a blend
-/// battery's supports).
+/// battery's supports, `topo`'s `face_outward_normal_at_foot`).
 ///
-/// INVARIANT, enforced by the caller and not here: `p` lies ON `s` (an
-/// off-surface gradient is a direction of nothing, and this door reads
-/// no residual), and `sense` is a `Face::sense` the caller resolved,
-/// never a decided sign. A door that certifies the point onto the
-/// chart first folds the RAW gradient it has just certified
-/// unit-magnitude; this one normalizes, so the two readings can differ
-/// in the last ulps on the same input and neither substitutes for the
-/// other.
+/// The level sets of each implicit form here are the carrier's
+/// parallel offsets, so the gradient's direction at `p` is the
+/// carrier's normal at the point of it nearest `p`, on the carrier or
+/// off it, wherever that point is one point; this door reads no
+/// residual, and a caller that needs `p` ON `s` certifies it. Where the
+/// foot is not one point the answer is no normal of it: poison on a
+/// cylinder's axis, a sphere's centre, a cone's axis and a torus's axis
+/// or core circle, and on the plane through a cone's apex square to its
+/// axis, where the two nappes are equally near, one nappe's normal by
+/// the sign of zero. A caller reading a foot guards those loci itself.
+///
+/// INVARIANT, enforced by the caller and not here: `sense` is a
+/// `Face::sense` the caller resolved, never a decided sign. A door that
+/// certifies the point onto the chart first folds the RAW gradient it
+/// has just certified unit-magnitude; this one normalizes, so the two
+/// readings can differ in the last ulps on the same input and neither
+/// substitutes for the other.
 pub fn implicit_outward_normal<T: Real>(
     s: &Surface<T>,
     sense: bool,
@@ -466,6 +475,46 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
         // one — for the spline fit or the description behind it.
         Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
+}
+
+/// How fast `s` leaves the line through `p` along the unit tangent
+/// `d`, toward the unit `across` (perpendicular to `d`): the second
+/// derivative `−dᵀ(∇²F)d / (∇F·across)` of the surface's graph over
+/// the plane normal to `across`, at unit speed along `d`. Equally, the
+/// acceleration along `across` of the curve the plane spanned by `d`
+/// and `across` cuts from `s` (differentiate `F(c(t)) = 0` twice). A
+/// graph only where `∇F·across` is bounded away from zero; poison in,
+/// poison out.
+pub fn implicit_graph_acceleration<T: Real>(
+    s: &Surface<T>,
+    p: Point3<T>,
+    d: Vec3<T>,
+    across: Vec3<T>,
+) -> T {
+    T::zero() - implicit_hessian_form(s, p, d) / implicit_gradient(s, p).dot(across)
+}
+
+/// How fast the section `reference ∩ other` leaves the line through
+/// `p` along its unit tangent `d`, toward the unit `across` in
+/// `reference`'s tangent plane (perpendicular to `d`): the `across`
+/// component of the section's acceleration at unit speed along `d`.
+/// Differentiating `F(c(t)) = G(c(t)) = 0` twice puts the acceleration's
+/// component along `∇F/|∇F|` at `−dᵀ(∇²F)d/|∇F|`, so its `across`
+/// component is `(dᵀ(∇²F)d·(∇G·∇F)/|∇F|² − dᵀ(∇²G)d)/(∇G·across)`.
+/// Against a plane (`∇²F = 0`) it is [`implicit_graph_acceleration`]
+/// of `other`. Poison where either surface is singular at `p` or has
+/// no implicit form; unbounded where the two meet tangentially there.
+pub fn implicit_section_acceleration<T: Real>(
+    reference: &Surface<T>,
+    other: &Surface<T>,
+    p: Point3<T>,
+    d: Vec3<T>,
+    across: Vec3<T>,
+) -> T {
+    let (f, g) = (implicit_gradient(reference, p), implicit_gradient(other, p));
+    (implicit_hessian_form(reference, p, d) * g.dot(f) / f.norm_squared()
+        - implicit_hessian_form(other, p, d))
+        / g.dot(across)
 }
 
 /// The trace of [`implicit_hessian_form`]'s Hessian restricted to the

@@ -7,11 +7,14 @@ crates/geom 212
 # face crossing arm's ring composite (SPLICE, PR 5789).
 # geom-brep 221 -> 220: PR 5728's one limb-2 reader retires a reader
 # (219 -> 218 on that branch before main's two were merged in).
-crates/geom-brep 220
+# geom-brep 220 -> 219: the span hulls read their net's knots and weights
+# once, before their memo, for its key and the composite alike
+# (SECT, PR 6062).
+crates/geom-brep 219
 crates/geom-core 18
 crates/mesh 37
 crates/step-export 9
-crates/step-import 45
+crates/step-import 44
 crates/sweep 139
 crates/topo 36
 demos/tour 2

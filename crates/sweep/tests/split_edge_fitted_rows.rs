@@ -123,7 +123,9 @@ fn describe<T: AtRestPolicy>(body: &mut Body<T>, edge: EdgeKey, s1: SurfaceKey, 
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
                 pair: SurfacePair::new(s1, s2),
-                witness: carrier.eval((t0 + t1) * T::from_f64(0.5)),
+                selector: geom_brep::CurveSelector::Witness(
+                    carrier.eval((t0 + t1) * T::from_f64(0.5)),
+                ),
             },
             carrier,
             param_start: t0,

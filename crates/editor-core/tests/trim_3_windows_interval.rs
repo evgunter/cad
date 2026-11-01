@@ -18,7 +18,7 @@ use std::collections::BTreeMap;
 use editor_core::UnitSym;
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::clearance::{
-    ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
+    Budgets, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
     ClearanceVerdict, FaceScope, NoTangents, Pruning, Selection, clearance,
 };
 use editor_core::{
@@ -170,6 +170,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -179,8 +180,10 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
 
 fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
     ClearanceConfig {
-        max_cell_depth: depth,
-        max_cell_pairs: pairs,
+        budgets: Budgets {
+            max_cell_depth: depth,
+            max_cell_pairs: pairs,
+        },
         pruning: Pruning::Off,
     }
 }
@@ -192,6 +195,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         config,
         oracle: &NoTangents,
         resolver: None,
+        symbolic: editor_core::drive::SymbolicDials::default(),
     }
 }
 
@@ -246,7 +250,7 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         probe,
         [
             Formula::named(name("place"), Dimension::Length),
-            len(0.0),
+            Formula::zero(Dimension::Length),
             len(-0.05),
         ],
     );
@@ -380,6 +384,7 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let profile = r.insert(Node::Profile(ProfileProgram {
         loops: vec![chain],
         ids: Vec::new(),
+        on: None,
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
@@ -398,8 +403,8 @@ fn scalloped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Some(solid),
         probe,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::named(name("place"), Dimension::Length),
         ],
     );
@@ -486,6 +491,7 @@ fn split_peg(r: &mut Recorder, n: u32, phase: f64) -> RecipeNodeId {
             phase: ang(phase),
         }],
         ids: Vec::new(),
+        on: None,
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
@@ -512,8 +518,8 @@ fn block_at_azimuth(r: &mut Recorder, peg: RecipeNodeId, theta: f64, gap: f64) -
         Some(peg),
         b,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(0.3), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
@@ -630,8 +636,8 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         None,
         block,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
@@ -704,6 +710,7 @@ fn a_quarter_ball_beside_its_missing_quarters_holds_against_a_dense_distance() {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
+        on: None,
     }));
     let quarter = r.insert(fixture::revolve_about(
         profile,
@@ -722,8 +729,8 @@ fn a_quarter_ball_beside_its_missing_quarters_holds_against_a_dense_distance() {
         None,
         block,
         [
-            len(0.0),
-            len(0.0),
+            Formula::zero(Dimension::Length),
+            Formula::zero(Dimension::Length),
             Formula::add(len(-0.2), Formula::named(name("place"), Dimension::Length))
                 .expect("a length"),
         ],
@@ -799,6 +806,7 @@ fn a_holed_cylinder_wall_drops_the_cells_in_its_hole() {
     let disc = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).expect("a literal circle")],
         ids: Vec::new(),
+        on: None,
     }));
     let cylinder = r.insert(Node::Extrude {
         profile: disc.into(),

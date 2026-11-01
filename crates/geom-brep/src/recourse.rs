@@ -691,6 +691,7 @@ mod tests {
                 SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
                 SizedPass::NonZero | SizedPass::AnySign => v != 0.0,
                 SizedPass::Negative => v < 0.0,
+                SizedPass::Zero => false,
             };
             match margin.diagnostic_f64_for_error_text() {
                 geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k),
@@ -717,6 +718,7 @@ mod tests {
             SizedPass::NonZero,
             SizedPass::Negative,
             SizedPass::AnySign,
+            SizedPass::Zero,
         ] {
             for side in SIDES {
                 for no_size in [None, Some("a note")] {

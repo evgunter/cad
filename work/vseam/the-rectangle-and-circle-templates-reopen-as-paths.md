@@ -5,7 +5,8 @@ title: A profile authored from the rectangle or circle template reopens in the e
 status: open
 opened: 2026-09-19
 priority: P1
-cost: D
+design: true
+cost: M
 ---
 
 
@@ -38,3 +39,9 @@ intent; the first is the honest one.
 The profile still opens and its numbers round-trip exactly; what is
 lost is the template's interface in the edit door. That is an
 annoyance, P1's GUI band, and not a shape the GUI cannot author (P0).
+
+## 2026-10-31 — re-priced D → M, design open
+
+The choice under "What would close it" (record the template on the
+node, or recognise it on load) is open, so `design` is set. The first
+option is a document change.

@@ -28,13 +28,15 @@ use test_utils::refusal::tagged;
 use viewer::session::BooleanSpec;
 
 use common::drawn::spacing_of;
-use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
+use common::{
+    ang, body_volume, len, len3, near, no_translation, scl3, session_insert, shape, translation,
+};
 use pncad::document::BooleanValue;
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, Dimension, DimensionError, Doc, DocEdit, EditError, Expr, Formula, LoopProgram, Node,
-    NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, PartSelect,
-    PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    NodeError, NodeErrorKind, NodeResult, NodeStanding, Operand, OperandSlot, ProfileProgram,
+    RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
@@ -50,7 +52,6 @@ use viewer::session::{
     Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
-use viewer::tree::{self, RowStatus};
 
 /// The big block: 40 × 20 × 10 mm, extruded up from the sketch plane.
 const A: [f64; 3] = [0.04, 0.02, 0.01];
@@ -80,7 +81,7 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
             input: raw_b.into(),
             translation: len3(OFFSET),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     (session, a, b)
@@ -179,9 +180,9 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_c.into(),
-            translation: len3([0.0, 0.05, 0.0]),
+            translation: translation([0.0, 0.05, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let mut tools = Tools::new();
@@ -191,7 +192,13 @@ fn a_three_pick_union_commits_one_union_of_three_spelled_members() {
         .map(|node| SessionOp::Select(Selection::Node(node)))
         .collect();
     assert!(
-        tools.feed(session.committed_doc(), &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick landed"
     );
     let tool = tools.boolean().expect("the boolean tool is open");
@@ -411,9 +418,9 @@ fn a_feature_re_points_each_placement_of_its_target() {
         &mut session,
         SessionOp::AddTransform {
             input: body.into(),
-            translation: len3([0.0, 0.0, A[2] * 4.0]),
+            translation: translation([0.0, 0.0, A[2] * 4.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     assert_eq!(
@@ -427,7 +434,7 @@ fn a_feature_re_points_each_placement_of_its_target() {
         input: body.into(),
         translation: len3(OFFSET),
         rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: ang(0.0),
+        rotation_angle: Formula::zero(Dimension::Angle),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
@@ -619,7 +626,9 @@ fn the_split_door_takes_a_body_and_a_plane_in_its_coordinates() {
 
 /// A split's OUTPUT is two bodies, so it is not a body seat's pick —
 /// the door says so rather than letting the operand mismatch surface
-/// after the edit lands. The same is true of a pattern's instances.
+/// after the edit lands. A family is not refused: a reader of it is
+/// evaluated once per member, and a union's member seat reads it
+/// whole.
 #[test]
 fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
@@ -633,27 +642,17 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             normal: scl3([0.0, 0.0, 1.0]),
         },
     );
-    let pattern = session_insert(
-        &mut session,
-        SessionOp::AddPattern {
-            input: body.into(),
-            count: 2,
-            rule: PatternRuleSpec::Linear {
-                direction: scl3([1.0, 0.0, 0.0]),
-                spacing: len(0.05),
-            },
-        },
-    );
-    for wrong in [split, pattern] {
+    {
+        let wrong = split;
         for op in [
             SessionOp::AddBoolean {
                 spec: BooleanSpec::Union(vec![wrong.into(), body.into()]),
             },
             SessionOp::AddTransform {
                 input: wrong.into(),
-                translation: len3([0.0; 3]),
+                translation: no_translation(),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: ang(0.0),
+                rotation_angle: Formula::zero(Dimension::Angle),
             },
             SessionOp::AddSplit {
                 target: wrong.into(),
@@ -767,7 +766,7 @@ fn the_transform_door_places_a_body_with_values() {
         input: body.into(),
         translation: [ang(0.0), len(0.0), len(0.0)],
         rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: ang(0.0),
+        rotation_angle: Formula::zero(Dimension::Angle),
     });
     assert!(
         matches!(
@@ -780,10 +779,11 @@ fn the_transform_door_places_a_body_with_values() {
     assert_eq!(session.history().len(), states, "a refusal records nothing");
 }
 
-/// The pattern door spells its count STRUCTURALLY, and both parametric
-/// rules author what they say.
+/// The pattern door declares an index of the count it was handed, and
+/// both rules author what they say: a row a placement with no mate, a
+/// ring one with one ([`pncad::pattern::recognise`]).
 #[test]
-fn the_pattern_door_spells_its_count_structurally() {
+fn the_pattern_door_declares_an_index_of_its_count() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -798,30 +798,23 @@ fn the_pattern_door_spells_its_count_structurally() {
             },
         },
     );
-    // The count is a Count-dimensioned slot — the structural one —
-    // and the rule is the parametric variant the form offered.
-    let count = session
-        .committed_doc()
-        .slot_expansion(linear, SlotId::Count)
-        .expect("a pattern has a count slot");
+    // The count is the index's, an exact Count literal, and the rule is
+    // the one the form offered.
+    let count = common::family_count(session.committed_doc(), linear);
     assert_eq!(count.dim(), Dimension::Count);
-    assert!(SlotId::Count.is_structural());
     assert!(count.bit_eq(&Formula::count(3)));
     assert!(matches!(
-        session.committed_doc().node(linear),
-        Some(Node::Pattern {
-            kind: PatternKind::Linear { .. },
-            ..
-        })
+        pncad::pattern::recognise(session.committed_doc(), linear),
+        Some(pncad::pattern::Recognised::Linear { .. })
     ));
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
     let ValuePayload::Instances(instances) =
-        &eval.value(linear).expect("the pattern evaluated").payload
+        &eval.value(linear).expect("the family evaluated").payload
     else {
-        panic!("a pattern evaluates to its instances");
+        panic!("a family evaluates to its members");
     };
-    assert_eq!(instances.len(), 3, "three instances, unfused");
+    assert_eq!(instances.len(), 3, "three members, unfused");
 
     // The circular rule's axis is a point and a direction in the
     // body's own coordinates, read off its geometry; one that names no
@@ -839,11 +832,8 @@ fn the_pattern_door_spells_its_count_structurally() {
         },
     );
     assert!(matches!(
-        session.committed_doc().node(circular),
-        Some(Node::Pattern {
-            kind: PatternKind::Circular { .. },
-            ..
-        })
+        pncad::pattern::recognise(session.committed_doc(), circular),
+        Some(pncad::pattern::Recognised::Circular { .. })
     ));
     let refused = session.perform(SessionOp::AddPattern {
         input: body.into(),
@@ -866,8 +856,8 @@ fn the_pattern_door_spells_its_count_structurally() {
 
 /// **The fused door is the affordance the boolean's refusal points
 /// at**: the same form as the pattern door — same prototype, same
-/// count, same rule — minting `Node::PlacedUnion`, whose ONE body a
-/// boolean seat consumes where a pattern's several instances are
+/// count, same rule — minting the family and a `Union` over it, ONE
+/// body a boolean seat consumes where a family's several members are
 /// refused.
 #[test]
 fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
@@ -875,7 +865,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
     let (mut session, part, proto) = two_boxes(tol);
     let fused = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -884,33 +874,38 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
             },
         },
     );
-    // The count slot is PRESENT and structural — the parametric
-    // spelling, which is the only one this door can mint.
-    let count = session
+    // The union reads the family whole, and the family's count is the
+    // index's.
+    let Some(Node::Union {
+        members: Bodies::Family(family),
+    }) = session.committed_doc().node(fused)
+    else {
+        panic!("the fused door mints a union over the family");
+    };
+    let family = session
         .committed_doc()
-        .slot_expansion(fused, SlotId::Count)
-        .expect("a parametric placed union has a count slot");
-    assert_eq!(count.dim(), Dimension::Count);
+        .operation_of(family.read)
+        .expect("the family is a node");
+    let count = common::family_count(session.committed_doc(), family);
     assert!(count.bit_eq(&Formula::count(2)));
     assert!(matches!(
-        session.committed_doc().node(fused),
-        Some(Node::PlacedUnion {
-            count: Some(_),
-            kind: PatternKind::Linear { .. },
-            ..
-        })
+        pncad::pattern::recognise(session.committed_doc(), family),
+        Some(pncad::pattern::Recognised::Linear { .. })
     ));
 
     // ONE body out, and it is the union of the prototype at both
     // placements — where the same form's other door answers with two
-    // separate instances.
+    // separate members.
     session.pump();
     {
         let eval = session.evaluation().expect("the inline seam landed");
-        let value = eval.value(fused).expect("the placed union evaluated");
+        let value = eval.value(fused).expect("the union evaluated");
         assert!(
-            matches!(value.payload, ValuePayload::Body(_)),
-            "a placed union evaluates to one body, not to instances"
+            matches!(
+                value.payload,
+                ValuePayload::Boolean(BooleanValue::Body { .. })
+            ),
+            "a union of a family evaluates to one body, not to members"
         );
     }
     let vb = B[0] * B[1] * B[2];
@@ -920,7 +915,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
         "two disjoint copies of the prototype: {fused_volume}"
     );
 
-    // And the seat that refuses a pattern takes this: the fused group
+    // And the seat that refuses a family takes this: the fused group
     // merges into the part through the ordinary boolean door.
     let union = session_insert(
         &mut session,
@@ -936,17 +931,12 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
     );
 }
 
-/// **Overlapping placements refuse on the fused node's own badge**,
-/// typed and named — the door authors what was asked for, and the
-/// certificate is evaluation's to issue or withhold.
-///
-/// This is the case the unfused door does not have: a `Node::Pattern`
-/// over the same rule builds regardless, because instances that
-/// overlap are still instances. It is also why the two doors are not
-/// interchangeable for a user — choosing `fused` is choosing to be
-/// told.
+/// **Overlapping copies fuse**: the union judges the pairs of members
+/// that meet, so a step shorter than the prototype is wide builds one
+/// body — the copies' hull along the step — exactly as the unfused
+/// family over the same rule builds its members.
 #[test]
-fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
+fn overlapping_copies_fuse_into_one_body() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let proto = common::xy_box_in(&mut session, B);
@@ -954,7 +944,7 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
     // meets.
     let crowded = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
@@ -963,8 +953,6 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
             },
         },
     );
-    // The unfused door over the SAME rule lands a value: the
-    // difference is the certificate, not the placements.
     let loose = session_insert(
         &mut session,
         SessionOp::AddPattern {
@@ -979,27 +967,13 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
     assert!(
-        eval.value(crowded).is_none(),
-        "a group that cannot be certified disjoint has no value"
-    );
-    assert!(
         eval.value(loose).is_some(),
-        "the unfused pattern over the same rule still evaluates"
+        "the unfused family over the same rule evaluates"
     );
-    let badge = common::status_of(
-        &tree::rows(
-            session.committed_doc(),
-            Some(eval),
-            &viewer::parts::PartFiles::default(),
-        ),
-        crowded,
-    );
-    let RowStatus::Failed { message, .. } = badge else {
-        panic!("the tree badge carries the node's own refusal: {badge:?}");
-    };
+    let volume = body_volume(&mut session, crowded, tol);
     assert!(
-        message.contains("not certified disjoint"),
-        "and the refusal names what it could not certify: {message}"
+        near(volume, 1.5 * B[0] * B[1] * B[2]),
+        "three copies a quarter-width apart span one and a half widths: {volume}"
     );
 }
 
@@ -1017,7 +991,7 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     let proto = common::xy_box_in(&mut authoring, B);
     let fused = session_insert(
         &mut authoring,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
@@ -1028,7 +1002,6 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     );
     let volume = body_volume(&mut authoring, fused, tol);
     let authored = authoring.committed_doc().clone();
-    let edits = authoring.history().path_edits().len();
 
     let dir = common::tempdir("gauth4-placed-union");
     let path = dir.join("fused.pncad");
@@ -1049,11 +1022,6 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     assert!(
         reopened.committed_doc().bit_eq(&authored),
         "the reopened document is the authored one, bit for bit"
-    );
-    assert_eq!(
-        reopened.history().path_edits().len(),
-        edits,
-        "the reopened history replays exactly the saved log"
     );
     let reloaded = body_volume(&mut reopened, fused, tol);
     assert_eq!(
@@ -1076,7 +1044,7 @@ fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
     let states = session.history().len();
     let fused = session_insert(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: proto.into(),
             count: 3,
             rule: PatternRuleSpec::Linear {
@@ -1141,7 +1109,10 @@ fn the_output_choice_names_both_doors_and_defaults_to_instances() {
         let minted = matches!(
             (output, &op),
             (PatternOutputChoice::Instances, SessionOp::AddPattern { .. })
-                | (PatternOutputChoice::Fused, SessionOp::AddPlacedUnion { .. })
+                | (
+                    PatternOutputChoice::Fused,
+                    SessionOp::AddFusedPattern { .. }
+                )
         );
         assert!(minted, "{label} commits its own op: {op:?}");
     }
@@ -1206,9 +1177,9 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddTransform {
             input: body.into(),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddPattern {
             input: body.into(),
@@ -1218,7 +1189,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 spacing: len(0.05),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -1271,9 +1242,9 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
         },
         SessionOp::AddTransform {
             input: plane.into(),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         SessionOp::AddPattern {
             input: plane.into(),
@@ -1292,7 +1263,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 step: ang(1.0),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: plane.into(),
             count: 2,
             rule: PatternRuleSpec::Linear {
@@ -1300,7 +1271,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 spacing: len(0.05),
             },
         },
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: body.into(),
             count: 2,
             rule: PatternRuleSpec::Circular {
@@ -1335,13 +1306,15 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     assert!(session.committed_doc().bit_eq(&doc), "and nothing changed");
 }
 
-/// **The authored path admits a non-positive count and the node
-/// refuses it**, typed, on its own badge — the division of labour the
-/// door states: the form declines to offer a count below one, and the
-/// op vocabulary is not narrowed to what the form offers, because the
-/// property panel can write the same number into the slot afterwards.
+/// **The authored path admits any count, and the evaluation judges it**
+/// — the door does not judge the count: the form declines to offer a
+/// count below one, and the op vocabulary is not narrowed to what the
+/// form offers, because the index's count can be written to the same
+/// number afterwards. A count of zero is a family of no member, which
+/// evaluates; a count below zero refuses typed on the family's own
+/// badge (`IndexCountOutOfRange`).
 #[test]
-fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
+fn a_zero_count_is_a_family_of_no_member_and_a_negative_one_refuses() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -1359,25 +1332,32 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
         );
         session.pump();
         let eval = session.evaluation().expect("the inline seam landed");
-        assert!(
-            eval.value(pattern).is_none(),
-            "a pattern of {count} instances does not evaluate to a value"
-        );
-        let badge = common::status_of(
-            &tree::rows(
-                session.committed_doc(),
-                Some(eval),
-                &viewer::parts::PartFiles::default(),
-            ),
-            pattern,
-        );
-        let RowStatus::Failed { message, .. } = badge else {
-            panic!("the tree badge carries the node's own refusal: {badge:?}");
-        };
-        assert!(
-            message.contains("count"),
-            "and the refusal names the count: {message}"
-        );
+        if count == 0 {
+            let members = eval
+                .value(pattern)
+                .unwrap_or_else(|| panic!("a family of count {count} evaluates"))
+                .members
+                .as_ref()
+                .map_or(0, |members| members.members.len());
+            assert_eq!(members, 0, "a family of count {count} has no member");
+        } else {
+            assert!(
+                matches!(
+                    eval.result(pattern),
+                    Some(pncad::document::NodeResult::Failed(
+                        pncad::document::NodeError {
+                            kind: pncad::document::NodeErrorKind::IndexCountOutOfRange {
+                                count: -3,
+                                ..
+                            },
+                            ..
+                        }
+                    ))
+                ),
+                "a family of count {count} refuses typed: {:?}",
+                eval.result(pattern)
+            );
+        }
     }
 }
 
@@ -1474,7 +1454,11 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
 
     let mut transform = TransformTool::new();
     assert!(matches!(
-        transform.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(0.0)),
+        transform.op(
+            no_translation(),
+            scl3([0.0, 0.0, 1.0]),
+            Formula::zero(Dimension::Angle)
+        ),
         Err(SeatError::Empty {
             seat: Seat::TransformBody
         })
@@ -1526,7 +1510,7 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
             scl3([1.0, 0.0, 0.0]),
             len(0.05)
         ),
-        Ok(SessionOp::AddPlacedUnion { count: 3, .. })
+        Ok(SessionOp::AddFusedPattern { count: 3, .. })
     ));
     pattern.clear();
     assert_eq!(pattern.input(), None);
@@ -1699,9 +1683,9 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::TransformBody => SessionOp::AddTransform {
                 input: filled(Seat::TransformBody).into(),
-                translation: len3([0.0; 3]),
+                translation: no_translation(),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: ang(0.0),
+                rotation_angle: Formula::zero(Dimension::Angle),
             },
             Seat::PartInstance => SessionOp::AddPart {
                 of: filled(Seat::PartInstance),
@@ -1853,14 +1837,26 @@ fn the_open_tool_consumes_the_selection_stream() {
     let mut tools = Tools::new();
     // Nothing open: the stream reaches nothing.
     assert!(
-        tools.feed(session.committed_doc(), &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick landed"
     );
     assert_eq!(tools.open_kind(), None);
 
     tools.open(ToolKind::Boolean);
     assert!(
-        tools.feed(session.committed_doc(), &picks).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks
+            )
+            .is_empty(),
         "every pick landed"
     );
     let boolean = tools.boolean().expect("the boolean tool is open");
@@ -1871,7 +1867,13 @@ fn the_open_tool_consumes_the_selection_stream() {
     tools.open(ToolKind::Pattern);
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), None);
     assert!(
-        tools.feed(session.committed_doc(), &picks[..1]).is_empty(),
+        tools
+            .feed(
+                session.committed_doc(),
+                Err(viewer::pickcache::NotIndexed::Absent),
+                &picks[..1]
+            )
+            .is_empty(),
         "the pick landed"
     );
     assert_eq!(tools.pattern().and_then(|tool| tool.input()), Some(a));
@@ -1997,9 +1999,9 @@ fn a_tool_closes_on_its_own_committed_edit() {
             ToolKind::Transform,
             SessionOp::AddTransform {
                 input: (RecipeNodeId::new(0, tagged(1))).into(),
-                translation: len3([0.0; 3]),
+                translation: no_translation(),
                 rotation_axis: scl3([0.0, 0.0, 1.0]),
-                rotation_angle: ang(0.0),
+                rotation_angle: Formula::zero(Dimension::Angle),
             },
         ),
         (
@@ -2098,6 +2100,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         Node::Profile(ProfileProgram {
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );
@@ -2133,22 +2136,14 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     doc = next;
     // The split's tool: a plane read off the body's own geometry.
     let plane = crate::fixture::plane_on(&doc, body, [0.0, 0.0, 0.005], [0.0, 0.0, 1.0]);
-    // A pattern for the Part candidate to read: SEVERAL bodies
+    // A family for the member-read candidate to read: SEVERAL bodies
     // (refused at the seat below, as a candidate in its own right), and
-    // a Part of it is one.
-    let (next, pattern_of_body) = common::inserted(
-        &doc,
-        Node::Pattern {
-            input: body.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Linear {
-                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                spacing: common::len(0.05),
-            },
-        },
-        tol,
-    );
+    // a read of one member of it is one.
+    let (next, pattern_of_body) =
+        common::row_of_copies(&doc, body, 2, (pncad::document::TargetAxis::X, 0.05), tol);
     doc = next;
+    let pattern_index = common::family_index(&doc, pattern_of_body);
+    let pattern_name = doc.var_name(pattern_index).cloned().expect("a named index");
 
     // A real edge of the box, for the two blends: an empty blend
     // selection is an AUTHORING refusal, so a minimal fillet has to
@@ -2231,23 +2226,19 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
         (
             "pattern",
-            Node::Pattern {
-                input: body.into(),
-                count: Formula::count(2),
-                kind: PatternKind::Linear {
-                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                    spacing: common::len(0.05),
-                },
-            },
+            pncad::pattern::linear_pattern(
+                &pattern_name,
+                pncad::document::BodyRead::plain(Operand::from(body)),
+                Operand::Var(doc.node_space(body).expect("the body's space")),
+                &[(pncad::document::TargetAxis::X, common::len(0.05))],
+            )
+            .expect("a length pitch"),
         ),
-        // ONE body out of a pattern: the projection is what makes one
+        // ONE body out of a family: the indexed read is what makes one
         // of several bodies a body at a seat.
         (
             "part of a pattern",
-            Node::Part {
-                of: pattern_of_body.into(),
-                select: PartSelect::Instance(Formula::count(1)),
-            },
+            viewer::combine::part_node(&doc, pattern_of_body, PartSelectSpec::Instance(1)),
         ),
         (
             "loft",
@@ -2272,14 +2263,11 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
             Node::chamfer(body, common::len(0.001), edges.clone()),
         ),
         (
-            "placed union",
-            Node::PlacedUnion {
-                input: body.into(),
-                count: Some(Formula::count(2)),
-                kind: PatternKind::Linear {
-                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
-                    spacing: common::len(0.05),
-                },
+            "family union",
+            Node::Union {
+                members: Bodies::Family(pncad::document::BodyRead::plain(Operand::from(
+                    pattern_of_body,
+                ))),
             },
         ),
         (
@@ -2426,9 +2414,9 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
         &mut session,
         SessionOp::AddTransform {
             input: pncad::document::Operand::output(split, SplitHalf::Below.port()),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let doc = session.committed_doc();
@@ -2449,8 +2437,8 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
 }
 
 /// **The index crosses the door as an `i64` and lands as an exact
-/// Count literal** — [`SessionOp::AddPattern`]'s rule for a structural
-/// slot, which `SlotId::Instance` is.
+/// Count literal** — [`SessionOp::AddPattern`]'s rule for a count, which
+/// a member read's index is.
 ///
 /// The assertion is on the LITERAL the door minted, not on the
 /// arithmetic: a door that lowered the index through a continuous
@@ -2467,25 +2455,24 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
             select: PartSelectSpec::Instance(1),
         },
     );
-    let Some(Node::Part {
-        select: PartSelect::Instance(index),
-        ..
-    }) = session.committed_doc().node(part)
-    else {
-        panic!("the door authored an instance selector");
+    let Some(Node::Place { source, .. }) = session.committed_doc().node(part) else {
+        panic!("the door authored a member read");
+    };
+    let [index] = source.at[..] else {
+        panic!("one index per index of the family: {:?}", source.at);
     };
     assert_eq!(
         Formula::from(
             session
                 .committed_doc()
-                .written(&Expr::var(*index, Dimension::Count))
+                .written(&Expr::var(index, Dimension::Count))
         ),
         Formula::count(1),
         "the index is the exact Count literal, not a continuous one",
     );
     let one = A[0] * A[1] * A[2];
     let projected = body_volume(&mut session, part, tol);
-    assert!(near(projected, one), "one instance {projected} vs {one}");
+    assert!(near(projected, one), "one member {projected} vs {one}");
 }
 
 /// **An index comes out of a pattern**, and the door refuses a split by
@@ -2526,10 +2513,10 @@ fn the_part_door_refuses_a_split() {
     );
 }
 
-/// **A pattern places nothing, and each projection places its copy**
-/// (A10): the pattern defines several bodies, which no placement reads,
-/// so the world keeps the body it replicates; a `Part` is a creation,
-/// so each projection is placed beside what is drawn.
+/// **A pattern places nothing, and each member read places its copy**
+/// (A10): the family stands in its body's own space, which no placement
+/// reads into the world, so the world keeps the body it replicates; a
+/// member read is a creation, so each is placed beside what is drawn.
 #[test]
 fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
     let tol = Tol::witness();
@@ -2554,7 +2541,7 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
     assert_eq!(
         common::world(session.committed_doc()),
         [body, second],
-        "the projection is placed after the body",
+        "the member read is placed after the body",
     );
     let both = drawn_volume(&mut session, tol);
     assert!(near(both, one * 2.0), "both copies drawn {both}");
@@ -2563,7 +2550,8 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
 
 /// **Duplicate leaves the original placed and its copy placed beside
 /// it** — the gesture Ev asked for, in the world's terms: the copy is a
-/// transform of the body, placed in the same action.
+/// placement of the body stepped clear in its own space, placed in the
+/// world in the same action.
 #[test]
 fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     let tol = Tol::witness();
@@ -2579,26 +2567,21 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        3,
-        "a pattern of two, its copy's projection, and that projection's placement, inserted \
-         with its identity bundle"
+        2,
+        "the stepped copy, and its placement, inserted with its identity bundle"
     );
     let minted = outcome.minted.clone();
-    let [pattern, copy, placement] = minted[..] else {
-        panic!("three inserts mint three ids: {minted:?}");
+    let [copy, placement] = minted[..] else {
+        panic!("two inserts mint two ids: {minted:?}");
     };
     let doc = session.committed_doc();
-    let Some(Node::Pattern { input, .. }) = doc.node(pattern) else {
-        panic!("the duplicate is a pattern");
+    let Some(Node::Place { source, .. }) = doc.node(copy) else {
+        panic!("the duplicate is a placement");
     };
     assert_eq!(
-        Some(*input),
+        Some(source.read),
         doc.output(body, 0),
         "of the body it duplicates"
-    );
-    assert!(
-        matches!(doc.node(copy), Some(Node::Part { .. })),
-        "the copy is the pattern's second instance, projected"
     );
     assert!(
         matches!(doc.node(placement), Some(Node::Place { .. })),
@@ -2618,7 +2601,52 @@ fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     assert_eq!(at_rest_findings(&mut session), 0, "and they do not overlap");
 }
 
-/// **One gesture, one undo**: the three inserts are one action, so one
+/// **A duplicate saved and reopened is the document it left**, and undo
+/// ends at the open: the file is the document's state, so the reopened
+/// session has no history in which the duplicate's edits could come
+/// apart.
+#[test]
+fn a_duplicate_saved_and_reopened_has_nothing_to_undo() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    // A duplicate steps clear of the drawn body, so a run lands first.
+    drawn_volume(&mut session, tol);
+    let outcome = session.perform(SessionOp::Duplicate {
+        input: body.into(),
+        beside: None,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let world = common::world(session.committed_doc());
+    assert_eq!(world.len(), 2, "the original and its copy");
+
+    let dir = common::tempdir("vseam-duplicate-reopen");
+    let path = dir.join("duplicated.pncad");
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+    let opened = session.perform(SessionOp::Open(path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    assert_eq!(
+        common::world(session.committed_doc()),
+        world,
+        "both copies reopen"
+    );
+    assert!(
+        matches!(
+            session.perform(SessionOp::Undo).refusal,
+            Some(Refusal::NothingToDo { .. })
+        ),
+        "undo ends at the open"
+    );
+    assert_eq!(
+        common::world(session.committed_doc()),
+        world,
+        "and the refused undo drew no single copy"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **One gesture, one undo**: the two inserts are one action, so one
 /// `Undo` puts the document back exactly as it was.
 #[test]
 fn duplicating_is_one_undo() {
@@ -2642,7 +2670,7 @@ fn duplicating_is_one_undo() {
     );
     assert!(
         session.committed_doc().bit_eq(&before),
-        "one undo puts back all three inserts, bit for bit",
+        "one undo puts back both inserts, bit for bit",
     );
 }
 
@@ -2661,17 +2689,17 @@ fn a_duplicates_copy_moves_on_its_own() {
         beside: None,
     });
     let minted = outcome.minted.clone();
-    let [_pattern, copy, _placement] = minted[..] else {
-        panic!("three inserts mint three ids: {minted:?}");
+    let [copy, _placement] = minted[..] else {
+        panic!("two inserts mint two ids: {minted:?}");
     };
 
     let placed = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: copy.into(),
-            translation: len3([0.0, A[1] * 3.0, 0.0]),
+            translation: translation([0.0, A[1] * 3.0, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     assert_eq!(
@@ -2722,11 +2750,11 @@ fn a_duplicates_copy_moves_on_its_own() {
 /// single-body operand door.
 ///
 /// The check drives the REAL doors: each candidate is offered to a
-/// `Node::Part` with each selector, and the verdict is a refusal at the
-/// edit door (the read's kind) or the part node's own `WrongOperand`
-/// (`wire_part` refusing the VALUE as the family that selector reads).
-/// A transform of a pattern defines a list of bodies, fixed at minting
-/// off its operand, so the instances seat takes it as the door does.
+/// member read ([`viewer::combine::part_node`]), and the verdict is a
+/// refusal at the edit door (the read's rank) or the read's own
+/// `WrongOperand` (evaluation refusing the VALUE as no family). A
+/// placement of a family is a family under the same index, so the
+/// instances seat takes it as the door does.
 #[test]
 fn the_part_seats_track_the_part_door() {
     let tol = Tol::witness();
@@ -2751,8 +2779,8 @@ fn the_part_seats_track_the_part_door() {
             },
         },
     );
-    // A placement of the pattern's copies, authored past the viewer's
-    // own body seat because that seat refuses a pattern.
+    // A placement of the family, authored past the viewer's own body
+    // seat because that seat refuses a family.
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
@@ -2773,10 +2801,11 @@ fn the_part_seats_track_the_part_door() {
             let refused = match pncad::document::apply(
                 &doc,
                 &pncad::document::DocEdit::InsertNode {
-                    node: Box::new(Node::Part {
-                        of: candidate.into(),
-                        select: PartSelect::Instance(Formula::count(0)),
-                    }),
+                    node: Box::new(viewer::combine::part_node(
+                        &doc,
+                        candidate,
+                        PartSelectSpec::Instance(0),
+                    )),
                     fresh: Vec::new(),
                 },
                 tol,
@@ -2835,7 +2864,13 @@ fn a_body_seat_reads_a_split_half_by_its_port() {
     let mut tool = TransformTool::new();
     tool.pick(&doc, split);
     assert!(tool.seats().awaits_half(0));
-    let op = |tool: &TransformTool| tool.op(len3([0.0; 3]), scl3([0.0, 0.0, 1.0]), ang(0.0));
+    let op = |tool: &TransformTool| {
+        tool.op(
+            no_translation(),
+            scl3([0.0, 0.0, 1.0]),
+            Formula::zero(Dimension::Angle),
+        )
+    };
     assert!(matches!(
         op(&tool),
         Err(SeatError::HalfUnchosen {
@@ -2889,23 +2924,24 @@ fn picked_from_above(session: &DocSession, x: f64, y: f64) -> Selection {
     Selection::Face(common::asm::pick_face(session, &common::asm::down_at(x, y)))
 }
 
-/// A duplicate's step, read back off the committed pattern: its
-/// direction scaled by its spacing, which the door authors literal.
-fn step_of(session: &DocSession, pattern: RecipeNodeId) -> [f64; 3] {
+/// A duplicate's step, read back off the committed stepped placement:
+/// its slide along each target axis, which the door authors literal.
+fn step_of(session: &DocSession, copy: RecipeNodeId) -> [f64; 3] {
+    use pncad::document::{Coord, TargetAxis};
     let doc = session.committed_doc();
-    let Some(Node::Pattern {
-        kind: PatternKind::Linear { direction, .. },
-        ..
-    }) = doc.node(pattern)
-    else {
-        panic!("a duplicate is a linear pattern");
+    let Some(Node::Place { constraints, .. }) = doc.node(copy) else {
+        panic!("a duplicate is a stepped placement");
     };
-    let spacing = spacing_of(session, pattern);
-    direction.map(|c| {
-        doc.written(&Expr::var(c, Dimension::Scalar))
-            .literal_value()
-            .expect("a literal component")
-            * spacing
+    [TargetAxis::X, TargetAxis::Y, TargetAxis::Z].map(|axis| {
+        constraints
+            .iter()
+            .filter_map(|c| c.value())
+            .find(|value| value.coord == Coord::Slide(axis))
+            .map(|value| doc.written(&Expr::var(value.by, Dimension::Length)))
+            .filter(|written| !written.is_zero())
+            .map_or(0.0, |written| {
+                written.literal_value().expect("a literal slide")
+            })
     })
 }
 
@@ -2933,17 +2969,17 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let minted = outcome.minted.clone();
-    let [pattern, copy, _placement] = minted[..] else {
-        panic!("three inserts mint three ids: {minted:?}");
+    let [copy, _placement] = minted[..] else {
+        panic!("two inserts mint two ids: {minted:?}");
     };
-    let step = spacing_of(&session, pattern);
+    let step = spacing_of(&session, copy);
     let moved = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: copy.into(),
-            translation: len3([0.0, lift, 0.0]),
+            translation: translation([0.0, lift, 0.0]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     session.pump();
@@ -2980,7 +3016,11 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
     for kind in ToolKind::ALL {
         let mut tools = Tools::new();
         tools.open(kind);
-        let _ = tools.feed(doc, &[SessionOp::Select(picked.clone())]);
+        let _ = tools.feed(
+            doc,
+            Err(viewer::pickcache::NotIndexed::Absent),
+            &[SessionOp::Select(picked.clone())],
+        );
         let held = match kind {
             ToolKind::Boolean => tools.boolean().and_then(|t| t.picks().first().copied()),
             ToolKind::Split => tools.split().and_then(|t| t.target()),
@@ -3013,7 +3053,11 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     let picked = picked_from_above(&session, x, y);
     let mut tools = Tools::new();
     tools.open(ToolKind::Duplicate);
-    let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(picked)],
+    );
     let op = tools
         .duplicate()
         .expect("open")
@@ -3021,14 +3065,14 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
         .expect("the pick filled the seat");
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let pattern = outcome.minted[0];
-    let Some(Node::Pattern { input, .. }) = session.committed_doc().node(pattern) else {
-        panic!("a pattern");
+    let copy = outcome.minted[0];
+    let Some(Node::Place { source, .. }) = session.committed_doc().node(copy) else {
+        panic!("a placement");
     };
     assert_eq!(
-        Some(*input),
+        Some(source.read),
         session.committed_doc().output(moved, 0),
-        "the pattern replicates the moved copy"
+        "the duplicate copies the moved copy"
     );
     assert_eq!(
         at_rest_findings(&mut session),
@@ -3037,10 +3081,10 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     );
 }
 
-/// **A pattern is not drawn, so the part tool takes it from the
-/// tree** (A10): a pattern defines several bodies, which no placement
-/// reads, so the viewport has no copy of it to click — the feature
-/// tree's row is the pick.
+/// **A family is not drawn, so the part tool takes it from the
+/// tree** (A10): the family stands in its body's own space, which no
+/// placement reads into the world, so the viewport has no copy of it
+/// to click — the feature tree's row is the pick.
 #[test]
 fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     let tol = Tol::witness();
@@ -3050,6 +3094,7 @@ fn the_part_tool_seats_a_pattern_picked_in_the_tree() {
     tools.open(ToolKind::Part);
     let _ = tools.feed(
         session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
         &[SessionOp::Select(Selection::Node(pattern))],
     );
     let tool = tools.part().expect("open");
@@ -3152,9 +3197,9 @@ fn a_duplicate_keeps_the_notes_promise() {
 }
 
 /// **A body whose value is several bodies is refused, typed** — a
-/// placement of a pattern's copies, which are several bodies again. The body seat refuses it
-/// by the kind of the variable it defines, before the duplicate door
-/// asks its value.
+/// placement of a family, which is several bodies again. Its variable
+/// is a body's, so the body seat takes it, and the duplicate door
+/// refuses it by its value (`DuplicateFault::NotOneBody`).
 #[test]
 fn duplicating_a_several_body_value_is_refused() {
     let tol = Tol::witness();
@@ -3190,7 +3235,7 @@ fn duplicating_a_several_body_value_is_refused() {
     assert!(
         matches!(
             &out.refusal,
-            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == placed
+            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input.id() == placed
         ),
         "{:?}",
         out.refusal
@@ -3291,7 +3336,11 @@ fn a_body_seat_takes_a_split_half_clicked_in_the_viewport() {
     let picked = picked_from_above(&session, 0.0, 0.0);
     let mut tools = Tools::new();
     tools.open(ToolKind::Transform);
-    let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
+    let _ = tools.feed(
+        session.committed_doc(),
+        Err(viewer::pickcache::NotIndexed::Absent),
+        &[SessionOp::Select(picked)],
+    );
     let tool = tools.transform().expect("open");
     assert_eq!(tool.input(), Some(split));
     assert_eq!(
@@ -3319,7 +3368,7 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
         &mut session,
         SessionOp::AddTransform {
             input: extrude.into(),
-            translation: len3([0.0; 3]),
+            translation: no_translation(),
             rotation_axis: scl3([0.0, 1.0, 0.0]),
             rotation_angle: ang(core::f64::consts::FRAC_PI_2),
         },
@@ -3385,9 +3434,9 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         &mut session,
         SessionOp::AddTransform {
             input: raw.into(),
-            translation: len3([0.0, 0.0, CHANNEL_DROP]),
+            translation: translation([0.0, 0.0, CHANNEL_DROP]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let channelled = session_insert(
@@ -3406,9 +3455,9 @@ fn a_union_across_two_flush_contacts_lands_as_one_action() {
         &mut session,
         SessionOp::AddTransform {
             input: raw_boss.into(),
-            translation: len3([0.0, 0.0, common::BOSS_BLOCK[2]]),
+            translation: translation([0.0, 0.0, common::BOSS_BLOCK[2]]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     session.pump();
@@ -3529,9 +3578,9 @@ fn a_body_read_by_variable_lands_and_a_selection_refuses_typed() {
             body: Box::new(body.into()),
             names: Vec::new(),
         },
-        translation: len3([0.0, 0.0, 0.0]),
+        translation: no_translation(),
         rotation_axis: scl3([0.0, 0.0, 1.0]),
-        rotation_angle: ang(0.0),
+        rotation_angle: Formula::zero(Dimension::Angle),
     });
     assert!(
         matches!(refused.refusal, Some(Refusal::NotABodyRead { .. })),
@@ -3559,9 +3608,9 @@ fn taking_over_one_half_of_a_split_leaves_the_other() {
         &mut session,
         SessionOp::AddTransform {
             input: below,
-            translation: len3([0.0, 0.0, -0.02]),
+            translation: translation([0.0, 0.0, -0.02]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
     );
     let doc = session.committed_doc();
@@ -3630,4 +3679,279 @@ fn a_combine_that_would_strand_a_pick_refuses_typed() {
         out.refusal
     );
     assert_eq!(session.history().len(), steps, "nothing recorded");
+}
+
+/// **The split plane's verdict is the door's, asked before commit**: the
+/// split the panel would commit, staged and evaluated beside the
+/// picture, read as its tree row would read it, with nothing recorded.
+/// A plane through the origin with normal z lies on the block's bottom
+/// face and leaves the below half empty; a plane above the block misses
+/// it; a plane through the block's centre cuts it in two. That the
+/// panel seeds that centre is `drive.rs`'s
+/// `the_split_tool_seeds_its_plane_through_the_picked_plate_and_draws_it_there`.
+///
+/// *Breaks if* staging records an edit, or the verdict stops being the
+/// split's own.
+#[test]
+fn a_staged_split_says_whether_its_plane_cuts_the_body() {
+    use viewer::session::{Creation, Staged};
+    use viewer::tree::{Emptiness, split_reading};
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let states = session.history().len();
+    let verdict = |session: &mut DocSession, origin: [f64; 3]| {
+        let creation = Creation::of(SessionOp::AddSplit {
+            target: body.into(),
+            origin: len3(origin),
+            normal: scl3([0.0, 0.0, 1.0]),
+        })
+        .expect("a split creates a node");
+        assert!(
+            session.staged_for(&creation).is_none(),
+            "{origin:?}: nothing is staged for a plane not yet asked about"
+        );
+        let staged = session.perform(SessionOp::Stage {
+            creation: creation.clone(),
+        });
+        assert!(
+            staged.refusal.is_none() && staged.committed.is_empty(),
+            "{origin:?}: a stage refuses nothing and commits nothing: {staged:?}"
+        );
+        session.pump();
+        match session.staged_for(&creation) {
+            Some(Staged::Evaluated {
+                node, evaluation, ..
+            }) => split_reading(evaluation, node).expect("the staged split evaluates"),
+            other => panic!("{origin:?}: the staged run landed inline: {other:?}"),
+        }
+    };
+    assert_eq!(
+        verdict(&mut session, [0.0; 3]),
+        Some(Emptiness::Half(SplitHalf::Below)),
+        "the old default lies on the bottom face"
+    );
+    assert_eq!(
+        verdict(&mut session, [0.0, 0.0, 1.0]),
+        Some(Emptiness::Half(SplitHalf::Above)),
+        "a plane above the block misses it"
+    );
+    let centre = {
+        let (doc, evaluation) = session.landed_pair().expect("landed");
+        let source = viewer::splitplane::source(doc, evaluation, &body.into()).expect("a body");
+        viewer::splitplane::centre(source).expect("the block has corners")
+    };
+    assert!(
+        near(centre[2], 0.5 * A[2]),
+        "the seed is the block's centre: {centre:?}"
+    );
+    assert_eq!(
+        verdict(&mut session, centre),
+        None,
+        "the seeded plane cuts the block in two"
+    );
+    assert_eq!(session.history().len(), states, "staging recorded nothing");
+}
+
+/// **The split plane is drawn under the part its target was picked
+/// on**, through the path the viewport takes (`splitplane::drawn`, over
+/// the tools, the session and a built pick index). A viewport pick on
+/// the block's world copy keeps that copy, and the plane is drawn where
+/// it stands. A tree pick hit no part, so nothing is drawn. A target
+/// whose frame is a map (a transform's copy, translated, so its body's
+/// `in_space` is `Some`) is drawn where its own copy stands, the
+/// translation applied once.
+///
+/// *Breaks if* the seat forgets the part, the preview stops reading the
+/// index's drawn map, or a target's own frame is applied twice or not
+/// at all.
+#[test]
+fn the_split_plane_is_drawn_under_the_picked_copy() {
+    use pncad::prelude::StableName;
+    use viewer::session::FaceSelection;
+
+    let tol = Tol::witness();
+    let z = [0.0, 0.0, 1.0];
+    let pick_on = |copy: RecipeNodeId| {
+        SessionOp::Select(Selection::Face(FaceSelection {
+            name: StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: copy,
+                path: Vec::new(),
+            },
+            node: copy,
+            body: 0,
+        }))
+    };
+    let drawn = |session: &DocSession, picked: SessionOp| {
+        let index = common::plate_index(session);
+        let mut tools = Tools::new();
+        tools.open(ToolKind::Split);
+        let declined = tools.feed(session.committed_doc(), Ok(&index), &[picked]);
+        assert!(declined.is_empty(), "{declined:?}");
+        let tool = tools.split().expect("the split tool is open");
+        let (doc, evaluation) = session.landed_pair().expect("landed");
+        let target = tool.seats().read(0).expect("a target");
+        let source = viewer::splitplane::source(doc, evaluation, &target).expect("a body");
+        let centre = viewer::splitplane::centre(source).expect("corners");
+        let plane = viewer::splitplane::drawn(
+            &viewer::splitplane::Drawing {
+                seats: tool.seats(),
+                landed: (doc, evaluation),
+                display: &session.display_view(),
+                index: &index,
+            },
+            centre,
+            z,
+        );
+        (tool, source.clone(), centre, plane)
+    };
+
+    let mut session = session(tol);
+    let body = common::xy_box_in(&mut session, A);
+    session.pump();
+    let [copy] = viewer::world::placements_of(session.committed_doc(), body)[..] else {
+        panic!("the block lands with one world copy")
+    };
+    let (tool, _, centre, plane) = drawn(&session, pick_on(copy));
+    assert_eq!(
+        tool.target(),
+        Some(body),
+        "a pick on the copy seats the body"
+    );
+    assert_eq!(
+        tool.seats().through(0),
+        Some(copy),
+        "the seat keeps the part it hit"
+    );
+    let plane = plane.expect("the plane is drawn on the picked copy");
+    assert!(
+        (plane.centre.z - 0.5 * A[2]).abs() < 1e-12 && near(centre[2], 0.5 * A[2]),
+        "the plane is drawn at the block's mid-height: {:?}",
+        plane.centre
+    );
+    let (tool, _, _, plane) = drawn(&session, SessionOp::Select(Selection::Node(body)));
+    assert_eq!(tool.seats().through(0), None, "a tree pick hits no part");
+    assert!(plane.is_none(), "a tree pick draws no plane");
+
+    let lift = 4.0 * A[2];
+    let moved = session_insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: body.into(),
+            translation: translation([0.0, 0.0, lift]),
+            rotation_axis: scl3(z),
+            rotation_angle: Formula::zero(Dimension::Angle),
+        },
+    );
+    session.pump();
+    let [copy] = viewer::world::placements_of(session.committed_doc(), moved)[..] else {
+        panic!("the block's world copy now places the transform")
+    };
+    let (tool, source, centre, plane) = drawn(&session, pick_on(copy));
+    assert_eq!(
+        tool.target(),
+        Some(moved),
+        "the pick seats the transform's copy"
+    );
+    assert!(
+        pncad::document::in_space(&source).is_some(),
+        "the transform's body is framed by a map"
+    );
+    assert!(
+        near(centre[2], 0.5 * A[2] + lift),
+        "the seed is in the space the copy is built in: {centre:?}"
+    );
+    let plane = plane.expect("the plane is drawn on the lifted copy");
+    assert!(
+        (plane.centre.z - (0.5 * A[2] + lift)).abs() < 1e-12,
+        "the lift is applied once: {:?}",
+        plane.centre
+    );
+}
+
+/// **A staged verdict is not carried across a document replacement**
+/// (review of PR 6240): the stage is keyed on the creation and the
+/// history state, and a history id is an arena position — every
+/// freshly opened document's root is the same id. A split staged on a
+/// file must not answer for that file re-opened after it was edited
+/// and saved elsewhere: same node ids, same root id, a flatter block.
+///
+/// *Breaks if* `Open`/`NewDocument` leave the old stage standing.
+#[test]
+fn a_staged_verdict_does_not_survive_reopening_an_edited_file() {
+    use viewer::session::{Creation, Staged};
+    use viewer::tree::{Emptiness, split_reading};
+
+    let tol = Tol::witness();
+    let path = common::tempdir("staged-across-open").join("block.pncad");
+    let mut writer = session(tol);
+    let body = common::xy_box_in(&mut writer, A);
+    writer.pump();
+    let saved = writer.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "the tall block saves: {saved:?}");
+
+    let creation = Creation::of(SessionOp::AddSplit {
+        target: body.into(),
+        origin: len3([0.0, 0.0, 0.5 * A[2]]),
+        normal: scl3([0.0, 0.0, 1.0]),
+    })
+    .expect("a split creates a node");
+    let verdict = |session: &DocSession| match session.staged_for(&creation) {
+        Some(Staged::Evaluated {
+            node, evaluation, ..
+        }) => Some(split_reading(evaluation, node).expect("the staged split evaluates")),
+        None => None,
+        other => panic!("the staged run landed inline: {other:?}"),
+    };
+
+    let mut reader = session(tol);
+    assert!(
+        reader
+            .perform(SessionOp::Open(path.clone()))
+            .refusal
+            .is_none()
+    );
+    reader.pump();
+    reader.perform(SessionOp::Stage {
+        creation: creation.clone(),
+    });
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        Some(None),
+        "mid-height cuts the tall block"
+    );
+
+    // The writer flattens the block and saves over the file.
+    let flattened = writer.perform(SessionOp::SetSlot {
+        node: body,
+        slot: SlotId::Distance,
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.2 * A[2])
+            .expect("a finite length is a value"),
+    });
+    assert!(flattened.refusal.is_none(), "{flattened:?}");
+    writer.pump();
+    let saved = writer.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "the flat block saves: {saved:?}");
+
+    assert!(reader.perform(SessionOp::Open(path)).refusal.is_none());
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        None,
+        "nothing is staged on the re-opened (flat) block yet; the tall block's \
+         verdict would say the plane cuts it"
+    );
+    reader.perform(SessionOp::Stage {
+        creation: creation.clone(),
+    });
+    reader.pump();
+    assert_eq!(
+        verdict(&reader),
+        Some(Some(Emptiness::Half(SplitHalf::Above))),
+        "staged afresh, the plane passes over the flat block"
+    );
 }

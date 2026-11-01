@@ -40,3 +40,21 @@ Find why the touch plane's margin at a point on the ridge's line reads
 nearly the escalation width at 1e-6 (a lever on the segment's length or
 direction that the margin does not discount), fix it, and pin the seed
 as a deterministic row beside the fuzzer.
+
+## Seen again (2026-11-01, PR 6210 gate)
+
+The PR gate's 1e-6 row of `test (kernel)` failed this fuzzer on PR 6210
+(`touchrec/kept-side-reads-the-glue`, head 7d18c80cf), which does not
+touch `crates/topo/src/link*`:
+
+```
+CAD_FUZZ_SEED=0xd28c76886fdb791c CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-6
+ridge (Point3 { x: -0.3407114228332363, y: -0.48885945078971893, z: 0.15291002337969203 },
+       Point3 { x: 0.675925503203203, y: 0.9697684951281023, z: -0.30335285984327015 }):
+Err(Undecided(Indeterminate { margin: -5.988201234069512e-6, band: { zero: 1e-6,
+escalate: 1e-5 }, ... }))
+```
+
+A second seed, same shape: the margin sits inside the escalation gap.
+Because it fails about one run in twenty, any PR touching `topo` can
+pick up this red.

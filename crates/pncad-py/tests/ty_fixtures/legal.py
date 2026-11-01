@@ -96,8 +96,9 @@ from pncad import (
     Resolution,
     PinMultiplicity,
     VarName,
-    PartSelect,
-    PatternKind,
+    Recognised,
+    Value,
+    VarDecl,
     SolvedPoses,
     SplitOutcome,
     Via,
@@ -485,26 +486,23 @@ swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
 frame_origin: tuple[Length, Length, Length] = here.origin
 frame_det: float = here.determinant
 
-stepped: PatternKind = PatternKind.linear((
-    Formula.literal(1.0),
-    Formula.literal(0.0),
-    Formula.literal(0.0),
-), Formula.length_in(0.5, m))
 spin_axis: PoseDef = PoseDef.axis(plate, evaluate(doc).all_edges(plate)[0])
-around: PatternKind = PatternKind.circular(spin_axis, Formula.angle_in(90, deg))
-listed: PatternKind = PatternKind.explicit([here, turned])
 
-fin_group: NodeId = doc.insert(Node.placed_union(plate, Formula.count(5), stepped))
-listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
-count_bound: DocEdit = DocEdit.bind_count_param(fin_group, VarName("fins"))
-
-# LIB-B-PART: the same rule vocabulary over an UNFUSED family, and the
-# projection that takes one body back out of it, by a count index (the
-# structural-slot exception `placed_union`'s count already rides). A
-# split's half is its output, read by port.
-family: NodeId = doc.insert(Node.pattern(plate, Formula.count(5), stepped))
-by_index: PartSelect = PartSelect.instance(Formula.count(2))
-one_copy: NodeId = doc.insert(Node.part(family, by_index))
+# D10 `[repetition]`: a pattern is an index variable read by one
+# placement's values, so its copy is a family; one member is
+# `family[i]` (`family[i, j]` for a grid), the family whole a union's
+# one members argument.
+index_k: DocEdit = DocEdit.declare_var(VarName("k"), VarDecl.index(5))
+index_j: DocEdit = DocEdit.declare_var(VarName("j"), VarDecl.index(Formula.count(2), within=VarName("k")))
+index_count: Formula | None = VarDecl.index(5).count
+family: NodeId = doc.insert(Node.linear_pattern(VarName("k"), plate, doc.world, [("x", Formula.length_in(0.5, m))]))
+grid: Node = Node.grid((VarName("k"), "x", 0.5 * m), (VarName("j"), "y", 0.5 * m), plate, doc.world)
+ring: Node = Node.circular_pattern(doc, VarName("k"), plate, doc.world, (spin_axis, spin_axis, "z"), step=90 * deg)
+bolts: Node = Node.bolt_circle(doc, VarName("k"), 5, plate, doc.world, (spin_axis, spin_axis, "z"))
+seen: Recognised | None = doc.recognise(family)
+grid_member: IndexedRead = family[1, 2]
+members_of: list[tuple[list[int], Value]] = evaluate(doc).value(family).members()
+one_copy: NodeId = doc.place(family[2], doc.world, Placed.identity())
 # A union or an intersect takes a list of operands or ONE family read
 # whole; a subtract names its two operands, `from_` (`from` is a
 # keyword) and `tool`.
@@ -519,9 +517,6 @@ member_cut: Node = Node.subtract(from_=family[1], tool=hole)
 member_split: Node = Node.split(family[1], cutter)
 cut: NodeId = doc.insert(Node.split(plate, spin_axis))
 upper_half: Var | None = doc.output(cut, 0)
-# The index is a STRUCTURAL slot of its own, so it has a door of its
-# own beside the count's.
-index_bound: DocEdit = DocEdit.bind_instance_param(one_copy, VarName("which"))
 
 # LIB-G15: the workspace store. Identity crosses as the canonical hex
 # text, the pin as a value, and a reference as the pair of them.
@@ -541,7 +536,7 @@ listing: dict[str, str] = store.documents()
 written: str = store.create(doc)
 rewritten: str = store.resave(doc)
 saved_at: str = store.save_at(doc, "part.pncad")
-forked: tuple[str, str] = store.save_as_new_document(doc)
+forked: tuple[str, str] = store.save_as_new_document(doc, "fork.pncad")
 resolved: Doc = store.resolve(reference)
 current: ContentPin = store.current_pin(doc.id)
 held: int = len(store)
@@ -854,7 +849,7 @@ table: dict[VarName, FreeVar] = doc.params
 # ordinary formula over the measures' outputs.
 reach: MeasurePrimitive = MeasurePrimitive.distance((upright, cap_name), (upright, cap_name))
 which_verb: str = reach.verb
-which_pair: tuple[tuple[NodeId, str], tuple[NodeId, str]] = reach.refs
+which_pair: tuple[tuple[NodeId, str] | PoseDef | Var, tuple[NodeId, str] | PoseDef | Var] = reach.refs
 measured_kind: str = reach.dimension
 recorded: Measured = doc.measure([reach])
 spans: list[NodeId] = recorded.measures

@@ -144,6 +144,7 @@ fn a_profile_whose_evaluation_refused_draws_nothing() {
                 radius: Formula::named(r.clone(), Dimension::Length),
             }],
             ids: Vec::new(),
+            on: None,
         }),
         tol,
     );

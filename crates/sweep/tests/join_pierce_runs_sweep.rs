@@ -755,7 +755,7 @@ fn two_pinches_in_one_op_are_each_split_per_cone() {
 #[test]
 fn a_corner_pinch_on_the_second_operands_side_builds() {
     let v = [1.0, 1.0, 0.0];
-    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let ga = geom_core::GOLDEN_ANGLE;
     let z: f64 = 1.0 - 2.0 * (19.0 + 0.5) / 120.0;
     let r = (1.0 - z * z).sqrt();
     let m = [r * (ga * 19.0).cos(), r * (ga * 19.0).sin(), z];
@@ -848,7 +848,7 @@ fn a_pinch_round_a_notch_on_a_faces_outer_loop_is_one_vertex_per_cone() {
         &[(2.0, 0.0), (4.0, 0.0), (4.0, 4.0), (2.0, 0.5)],
     ];
     let v = [2.0, 0.5, 1.0];
-    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let ga = geom_core::GOLDEN_ANGLE;
     let z: f64 = 1.0 - 2.0 * (62.0 + 0.5) / 120.0;
     let r = (1.0 - z * z).sqrt();
     let f = frame([r * (ga * 62.0).cos(), r * (ga * 62.0).sin(), z], 0.0);
@@ -2118,7 +2118,7 @@ fn seeded_rotation(seed: u64) -> [[f64; 3]; 3] {
 
 /// Fibonacci direction `i` of `n`.
 fn fibonacci(i: u32, n: u32) -> [f64; 3] {
-    let ga = std::f64::consts::PI * (3.0 - 5f64.sqrt());
+    let ga = geom_core::GOLDEN_ANGLE;
     let z = 1.0 - 2.0 * (f64::from(i) + 0.5) / f64::from(n);
     let r = (1.0 - z * z).sqrt();
     let t = ga * f64::from(i);

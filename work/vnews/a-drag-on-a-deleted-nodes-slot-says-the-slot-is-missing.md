@@ -2,12 +2,11 @@
 id: a-drag-on-a-deleted-nodes-slot-says-the-slot-is-missing
 kind: issue
 title: A drag on a deleted node's slot is refused as a missing slot, where the pane says the node is deleted
-status: parked
+status: open
 opened: 2026-09-28
 priority: P3
 cost: M
 refs: [three-spellings-say-a-parameter-is-not-declared]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the sweep in `three-spellings-say-a-parameter-is-not-declared`,
@@ -42,3 +41,5 @@ for a parameter) or `NoSuchSlot` learns to say which half is missing.
 Either way `driver_of` has to ask the document whether the node exists
 before it asks for the slot. `session.rs` is the door and is edited;
 `refuse.rs` holds the words.
+
+**Re-read 2026-10-29 (INTENT, D10 hold):** released. Stages 1 and 2 are built and the pair stands. `driver_of` refuses `NoSuchSlot` for a missing node (`crates/viewer/src/session.rs:232-243`), while the pane says *deleted* (`crates/viewer/src/pane/properties.rs:1249`).

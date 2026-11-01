@@ -907,12 +907,12 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
             other => format!("{other:?}"),
         };
         let statement = |k: u32| statement(&value.coincidences[k as usize], &cell);
-        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body {
-            contacts, ..
-        }) = &value.payload
+        let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { .. }) =
+            &value.payload
         else {
             panic!("{order:?}: a union of three blocks is a boolean body");
         };
+        let contacts = &value.carry.contacts;
         let mut cited: Vec<(String, Vec<String>)> = contacts
             .rows()
             .iter()
@@ -1064,11 +1064,11 @@ fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
         }
         other => format!("{other:?}"),
     };
-    let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. }) =
-        &value.payload
+    let editor_core::ValuePayload::Boolean(editor_core::BooleanValue::Body { .. }) = &value.payload
     else {
         panic!("{order:?}: a union of bodies is a boolean body");
     };
+    let contacts = &value.carry.contacts;
     value
         .coincidences
         .iter()
@@ -1249,4 +1249,31 @@ fn every_fold_row_names_every_member_cell_its_cells_are_made_of() {
         meetings > 0,
         "the fixtures log meetings of three cells or more"
     );
+}
+
+/// **A pierce held in a face is one statement in every member order**
+/// ([`crate::union_pinch_member_order::edge_in_a_wall`]). Folded with the
+/// wall and the wedge first, the plate's step mints a vertex inside the
+/// wall's face where the wedge's edge pierces the plate's top, and
+/// decides it one with the split that pierce made on the edge: a ring
+/// tie, whose row names the pierced face beside the two cells it reads.
+/// Folded any other way, a step meets the point on cells the members
+/// already hold. Every order states that point as the meeting of the
+/// wedge's edge, the wall's face and the plate's top, and the wedge's
+/// two ends on the wall's face as judged.
+#[test]
+fn a_pierce_held_in_a_face_is_one_statement_in_every_member_order() {
+    const HELD: &[&str] = &[
+        "fold 2 VertexFusion Meet Edge@m2 Face@m0 Face@m1",
+        "judged VertexFusion OnCarrier Face@m1 Vertex@m2",
+        "judged VertexFusion OnCarrier Face@m1 Vertex@m2",
+    ];
+    let fixture: Members = crate::union_pinch_member_order::edge_in_a_wall;
+    let failures: Vec<String> = orders(3)
+        .into_iter()
+        .map(|order| (statements(fixture, &order), order))
+        .filter(|(said, _)| said != HELD)
+        .map(|(said, order)| format!("{order:?}: the statements {said:#?}"))
+        .collect();
+    assert!(failures.is_empty(), "{failures:#?}");
 }

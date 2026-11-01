@@ -2,7 +2,7 @@
 id: tess
 kind: program
 title: TESS — the tessellation kernel's reach: valid bodies the mesh refuses to draw
-status: active
+status: ready
 opened: 2026-09-16
 group: kernel/mesh
 prefix: tess/

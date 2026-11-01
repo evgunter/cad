@@ -7,9 +7,12 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use pncad::document::{Dimension, Formula};
 use viewer::session::BooleanSpec;
 
-use pncad::document::{Doc, DocEdit, Label, Node, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{
+    Doc, DocEdit, Label, Maintenance, Node, ProfileProgram, RecipeNodeId, SlotId,
+};
 use pncad::geom_core::Tol;
 use test_utils::refusal::tag;
 use viewer::session::{Creation, DocSession, SessionOp};
@@ -215,29 +218,58 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
     );
 }
 
-/// **`op`, labelled `text`, as one undo**: the creation commits through
-/// whatever door it takes, the action ends with a `SetLabel` on the
-/// node it made (`viewer::world::made`: the last it minted that is not
-/// a world placement), the label is on that node, and ONE undo returns
-/// the document to what it was before the action. Answers that node.
-fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> RecipeNodeId {
+/// **`op`, labelled `text`, as one recorded action**: the creation is
+/// performed alone first, and undone, so that its own outcome is the
+/// yardstick. Labelled, it commits through whatever door it takes and
+/// its outcome is that same action's with one more edit: the same edits
+/// in the same order and then a `SetLabel` on the node it made
+/// (`viewer::world::made`: the last it minted that is not a world
+/// placement), the same minted ids and the same netted maintenance, and
+/// ONE evaluation requested for the whole of it. The label is on that
+/// node, and ONE undo returns the document to what it was before the
+/// action. Answers that node and the maintenance the action netted.
+///
+/// The helper behind
+/// `every_creation_labelled_is_one_undo_whatever_door_commits_it` and
+/// `a_labelled_creation_nets_the_maintenance_its_own_run_reports`.
+fn labelled_as_one_undo(
+    session: &mut DocSession,
+    op: SessionOp,
+    text: &str,
+) -> (RecipeNodeId, Vec<Maintenance>) {
     let before = session.committed_doc().clone();
     let what = format!("{op:?}");
+    let alone = session.perform(op.clone());
+    assert!(alone.refusal.is_none(), "{what} alone: {:?}", alone.refusal);
+    session.perform(SessionOp::Undo);
+    session.pump();
     let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+    let requested = session.generation();
     let outcome = session.perform(SessionOp::CreateLabelled {
         creation,
         label: label(text),
     });
     assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
+    assert_eq!(
+        session.generation(),
+        requested.next(),
+        "{what}: one action requests one evaluation"
+    );
     let node = viewer::world::made(session.committed_doc(), &outcome.minted)
         .unwrap_or_else(|| panic!("{what} made a node"));
-    assert!(
-        matches!(
-            outcome.committed.last(),
-            Some(DocEdit::SetLabel { node: at, label: Some(l) }) if *at == node && *l == label(text)
-        ),
-        "{what}: the action ends with the label: {:?}",
-        outcome.committed
+    let labelled = DocEdit::SetLabel {
+        node,
+        label: Some(label(text)),
+    };
+    let expected: Vec<_> = alone.committed.iter().cloned().chain([labelled]).collect();
+    assert_eq!(
+        outcome.committed, expected,
+        "{what}: the creation's own edits in order, then its label"
+    );
+    assert_eq!(outcome.minted, alone.minted, "{what}: the same ids minted");
+    assert_eq!(
+        outcome.maintenance, alone.maintenance,
+        "{what}: the label nets no maintenance of its own"
     );
     assert_eq!(
         session.committed_doc().label(node),
@@ -256,11 +288,124 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
         "{what}: redo brings both back"
     );
     session.pump();
-    node
+    (node, outcome.maintenance)
+}
+
+/// **A refused creation applies no label**, whether the door refuses
+/// before its run (an extrude of a node that is no profile) or the run
+/// refuses inside it (a profile of no loops, which the edit door
+/// refuses): nothing is committed, the label included, no history state
+/// is recorded and no evaluation is requested.
+#[test]
+fn a_refused_creation_applies_no_label() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("viewer-node-labels-refused", tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let before = session.committed_doc().clone();
+    let refused = [
+        SessionOp::AddExtrude {
+            profile: extrude,
+            distance: common::len(0.01),
+        },
+        SessionOp::AddProfile { loops: Vec::new() },
+    ];
+    for op in refused {
+        let what = format!("{op:?}");
+        let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+        let requested = session.generation();
+        let outcome = session.perform(SessionOp::CreateLabelled {
+            creation,
+            label: label("never"),
+        });
+        assert!(outcome.refusal.is_some(), "{what}: refused");
+        assert!(
+            outcome.committed.is_empty() && outcome.minted.is_empty(),
+            "{what}: nothing committed: {:?}",
+            outcome.committed
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before) && session.committed_doc().labels().is_empty(),
+            "{what}: the document is as it was, with no label"
+        );
+        assert!(!session.history().can_undo(), "{what}: no history state");
+        assert_eq!(
+            session.generation(),
+            requested,
+            "{what}: nothing to evaluate"
+        );
+    }
+}
+
+/// **A labelled creation nets the maintenance its own run reports**:
+/// a union takes over the first block's world copy and deletes the
+/// second's, which strands the paint keyed on that copy (and retires
+/// the copy's anonymous values). The label is
+/// one more edit of the same run, so the outcome carries the run's
+/// netted row and nothing of the label's own.
+#[test]
+fn a_labelled_creation_nets_the_maintenance_its_own_run_reports() {
+    use editor_core::{Attr, Rgba8};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-maintenance", tol);
+    let mut session = DocSession::inline(doc, tol);
+    let block = |session: &mut DocSession, x: f64| {
+        let made = session.perform(SessionOp::AddProfile {
+            loops: vec![common::rectangle_loop([x, 0.0], 0.02, 0.02)],
+        });
+        let [profile] = made.minted[..] else {
+            panic!("one profile minted: {:?}", made.minted);
+        };
+        let placed = session.perform(SessionOp::AddExtrude {
+            profile,
+            distance: common::len(0.01),
+        });
+        let doc = session.committed_doc();
+        let body = viewer::world::made(doc, &placed.minted).expect("an extrude");
+        let copy = placed
+            .minted
+            .iter()
+            .copied()
+            .find(|&node| matches!(doc.node(node), Some(Node::Place { .. })))
+            .expect("the extrude's world copy");
+        (body, doc.outputs(copy)[0])
+    };
+    let (kept, _) = block(&mut session, 0.0);
+    let (joined, copy) = block(&mut session, 0.05);
+    let (doc, _) = common::edited(
+        session.committed_doc(),
+        DocEdit::SetAppearance {
+            body: copy,
+            name: StableName {
+                kind: EntityKind::Face,
+                node: joined,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            attr: Attr::Color(Rgba8::opaque(200, 30, 30)),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let (_, maintenance) = labelled_as_one_undo(
+        &mut session,
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Union(vec![kept.into(), joined.into()]),
+        },
+        "joined",
+    );
+    assert!(
+        maintenance
+            .iter()
+            .any(|row| matches!(row, Maintenance::StrandedAppearance { .. })),
+        "the deleted copy's paint is stranded: {maintenance:?}"
+    );
 }
 
 /// **Every creating op, labelled, is one undo** — whichever commit door
-/// it takes (`commit`, `commit_run`, or the boolean's own staged run).
+/// it takes, since every door stages its run through one recorder.
 /// The sample set is held to `SessionOp::creates_a_node` through the
 /// gesture table's every-op roster: a creation added there and not
 /// sampled here is red.
@@ -275,7 +420,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     let mut sampled = std::collections::BTreeSet::new();
     let mut run = |session: &mut DocSession, op: SessionOp, text: &str| {
         sampled.insert(format!("{:?}", std::mem::discriminant(&op)));
-        labelled_as_one_undo(session, op, text)
+        labelled_as_one_undo(session, op, text).0
     };
 
     let profile = run(
@@ -310,7 +455,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             input: block.into(),
             translation: len3([0.005, 0.007, 0.003]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: ang(0.0),
+            rotation_angle: Formula::zero(Dimension::Angle),
         },
         "moved",
     );
@@ -345,9 +490,72 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
             },
             loops: vec![common::rectangle_loop([0.0, 0.0], 0.005, 0.005)],
             distance: len(0.005),
-            spin: ang(0.0),
+            spin: Formula::zero(Dimension::Angle),
         },
         "boss",
+    );
+    // A footprint drawn in a cylinder's base, running onto its wall's
+    // trace and along it.
+    let disc = run(
+        &mut session,
+        SessionOp::AddProfile {
+            loops: vec![pncad::document::LoopProgram::circle(0.1, 0.0, 0.01).expect("a disc")],
+        },
+        "disc",
+    );
+    let cylinder = run(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile: disc,
+            distance: len(0.02),
+        },
+        "cylinder",
+    );
+    session.pump();
+    let wall = {
+        let ev = session.evaluation().expect("landed");
+        pncad::select::all_faces(ev, cylinder)
+            .into_iter()
+            .find(|name| {
+                pncad::select::face_carrier_kind(ev, cylinder, name)
+                    == Ok(pncad::prelude::SurfaceKind::Cylinder)
+            })
+            .expect("a wall")
+    };
+    let pick = |name| FaceSelection {
+        name,
+        node: cylinder,
+        body: 0,
+    };
+    run(
+        &mut session,
+        SessionOp::AddDrawnProfile {
+            plane: pick(pncad::prelude::StableName {
+                kind: pncad::prelude::EntityKind::Face,
+                node: cylinder,
+                path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::Start)],
+            }),
+            traced: vec![pick(wall)],
+            chains: vec![
+                pncad::trace::Chain::at(len(0.0), len(-0.005))
+                    .toward(
+                        Formula::scalar(0.0).expect("finite"),
+                        Formula::scalar(1.0).expect("finite"),
+                    )
+                    .onto_trace(
+                        0,
+                        pncad::document::TraceCrossing::first(pncad::document::TracePassage::Leave),
+                        pncad::document::TraceSense::Against,
+                    )
+                    .line(len(0.02))
+                    .line_to(pncad::document::ProgramTarget::Point([
+                        len(0.02),
+                        len(-0.005),
+                    ]))
+                    .line_to(pncad::document::ProgramTarget::Start),
+            ],
+        },
+        "traced",
     );
     let row = || PatternRuleSpec::Linear {
         direction: scl3([1.0, 0.0, 0.0]),
@@ -364,7 +572,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     );
     run(
         &mut session,
-        SessionOp::AddPlacedUnion {
+        SessionOp::AddFusedPattern {
             input: block.into(),
             count: 2,
             rule: row(),
@@ -818,7 +1026,7 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let rows = viewer::frame::check_rows(report, landed);
     let row = rows
         .iter()
-        .find(|row| row.node == big)
+        .find(|row| row.select == viewer::Selection::Node(big))
         .expect("the two overlapping boxes are an interference finding about the big one");
     let b = tag(big.0.digest());
     assert_eq!(row.button, format!("Extrude \"big block\" ({b})"));
@@ -838,4 +1046,141 @@ fn the_checks_window_speaks_from_the_landed_document() {
         !row.sentence.contains("renamed") && !row.button.contains("renamed"),
         "and never the committed label: {row:?}"
     );
+}
+
+/// **An unused variable's row selects the variable**: a named parameter
+/// nothing reads has no node, so its button selects it in the property
+/// panel, said by its name as the sentence says it; an unplaced
+/// construction's row selects its node.
+#[test]
+fn an_unused_variables_row_selects_the_variable() {
+    let tol = Tol::witness();
+    let (doc, extrude) = extruded("checks-window-unused", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::DeclareVar {
+            name: pncad::document::VarName::from_static("spare"),
+            def: pncad::document::VarDecl::Free(pncad::document::FreeVar::continuous(
+                Dimension::Length,
+                0.01,
+            )),
+        },
+        tol,
+    );
+    let spare = doc.var_named("spare").expect("declared");
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    let report =
+        pncad::document::run_checks(&doc, &ev, &pncad::document::ChecksConfig::default(), tol)
+            .expect("the checks run");
+    let rows = viewer::frame::check_rows(&report, &doc);
+    let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
+    assert_eq!(
+        selects,
+        [
+            viewer::Selection::Node(extrude),
+            viewer::Selection::Variable(spare)
+        ],
+        "{rows:?}"
+    );
+    assert_eq!(rows[1].button, "spare");
+    assert!(
+        rows[1]
+            .sentence
+            .contains("check unused: spare: used by nothing"),
+        "{}",
+        rows[1].sentence
+    );
+}
+
+/// **A labelled creation's label is saved and reopened with its node**:
+/// the file carries the one `SetLabel`, and the reopened document's row
+/// leads with the label. (How many undos the reopened action costs is
+/// `an-action-of-several-edits-becomes-several-undos-after-reopen`'s
+/// subject, and is not pinned here.)
+#[test]
+fn a_labelled_creation_keeps_its_label_through_save_and_reopen() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("viewer-node-labels-reopen", tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
+    let mut session = DocSession::inline(doc, tol);
+    let creation = Creation::of(SessionOp::AddExtrude {
+        profile,
+        distance: common::len(0.01),
+    })
+    .unwrap_or_else(|op| panic!("{op:?} creates a node"));
+    let text = "base plate — 板";
+    let outcome = session.perform(SessionOp::CreateLabelled {
+        creation,
+        label: label(text),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let node = viewer::world::made(session.committed_doc(), &outcome.minted).expect("made a node");
+
+    let dir = common::tempdir("node-labels-reopen");
+    let path = dir.join("plate.pncad");
+    let saved = session.perform(SessionOp::Save(path.clone()));
+    assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
+
+    let mut reopened = DocSession::inline(Doc::empty_derived("viewer-node-labels-other", tol), tol);
+    let opened = reopened.perform(SessionOp::Open(path));
+    assert!(opened.refusal.is_none(), "{:?}", opened.refusal);
+    assert_eq!(reopened.committed_doc().label(node), Some(&label(text)));
+    assert_eq!(
+        headline(&reopened.committed_doc().spoken(node), None).lead,
+        text,
+        "the reopened row leads with the label"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A degenerate creation still mints the node its label lands on**: a
+/// pattern of one and a body less itself (the typed empty body) are
+/// accepted, so `DocSession::create`'s "an accepted run mints" holds on
+/// them and each is labelled in its one action.
+#[test]
+fn a_degenerate_creation_still_mints_the_node_it_labels() {
+    use viewer::session::PatternRuleSpec;
+    let tol = Tol::witness();
+    let (doc, block) = extruded("viewer-node-labels-degenerate", tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let degenerate = [
+        SessionOp::AddPattern {
+            input: block.into(),
+            count: 1,
+            rule: PatternRuleSpec::Linear {
+                direction: common::scl3([1.0, 0.0, 0.0]),
+                spacing: common::len(0.05),
+            },
+        },
+        SessionOp::AddBoolean {
+            spec: BooleanSpec::Subtract {
+                from: block.into(),
+                tool: block.into(),
+            },
+        },
+    ];
+    for op in degenerate {
+        let what = format!("{op:?}");
+        let creation = Creation::of(op).unwrap_or_else(|op| panic!("{op:?} creates a node"));
+        let outcome = session.perform(SessionOp::CreateLabelled {
+            creation,
+            label: label("degenerate"),
+        });
+        assert!(outcome.refusal.is_none(), "{what}: {:?}", outcome.refusal);
+        let node = viewer::world::made(session.committed_doc(), &outcome.minted)
+            .unwrap_or_else(|| panic!("{what} made a node"));
+        assert_eq!(
+            session.committed_doc().label(node),
+            Some(&label("degenerate")),
+            "{what}"
+        );
+        session.perform(SessionOp::Undo);
+    }
 }
