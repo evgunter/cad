@@ -230,3 +230,4 @@ Newest entries at the bottom; the tail is the program's live status.
   `the-feature-trees-hide-toggles-an-undrawn-instance-silently`. Filed
   `free-move-refuses-a-body-the-author-showed` (may touch DI5: triage
   after the stack lands). STYLE review dispatched. (SPACES orchestrator)
+- 2026-11-01 — `the-add-to-the-product-door` dispatched as a cloud lane (`session_01EdpJs6mWkVV5oERQd3qTsb`, branch `spaces/product-door`, stacked on 6269's final head); it also retires the hand-placement fixtures the item lists. (SPACES orchestrator)
