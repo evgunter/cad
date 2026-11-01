@@ -996,9 +996,12 @@ fn germ_site<T: Decide>(
 ///
 /// - **a transverse section of a one-face closed wall** that crosses the
 ///   wall's wrap edge (both its halves bound that face) once, piercing
-///   the partner's planar face there;
-/// - **a closed edge lying in the partner** (a one-segment circle, both
-///   of whose ends are its one vertex): the loop is that edge, and the
+///   the partner's planar face there, or meeting a vertex of its
+///   boundary, where the loop only touches that boundary (a wall
+///   tangent to a hole's along the wrap edge);
+/// - **a closed edge lying in the partner** (a one-segment circle or
+///   ellipse, both of whose ends are its one vertex): the loop is that
+///   edge, and the
 ///   site is its vertex. The partner holds it inside a planar or a
 ///   spherical face, whose interior the site pierces; inside a planar
 ///   face whose boundary passes through the site, where the loop only
@@ -1009,9 +1012,10 @@ fn germ_site<T: Decide>(
 /// other [`one_site`] record is left for the
 /// [`SplitJoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
 /// the joiner cannot side a whole conic on, a site on both operands'
-/// wrap edges, a site where a transverse section or a pierce meets an
-/// edge of another face, or a closed edge meets one in a curved face,
-/// and a closed edge that is not a circle.
+/// wrap edges, a site where a pierce meets an edge of another face, a
+/// transverse section or a closed edge meets one in a curved face, and
+/// a closed edge on a carrier the joiner does not copy whole
+/// (`crate::chord_join::copies_closed_edge`).
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
@@ -1083,13 +1087,15 @@ fn one_site_segments<T: Decide>(
 /// **Whether a one-site record's loop closes at its site**
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
-/// planar face, or a closed circle against a pierce of a face
-/// [`RimSide::of`] sides, against a vertex on the boundary of a planar
-/// face it stands on from the other side ([`stands_on`]), or against
-/// another closed circle. At a boundary vertex the germ's
-/// cell is the face, so the circle leaves the vertex into the face and
-/// returns to it; the joiner mints its copy in that face as one chord
-/// from the vertex round to itself, dividing the face. A closed edge of
+/// planar face or a vertex of its boundary, or a closed circle or
+/// ellipse against a pierce of a face [`RimSide::of`] sides, against a
+/// vertex on the boundary of a planar face it stands on from the other
+/// side ([`stands_on`]), or against another closed circle or ellipse.
+/// At a boundary vertex the germ's cell is the face, so the loop leaves
+/// the vertex into the face and
+/// returns to it; the joiner mints it in that face as one chord from the
+/// vertex round to itself, dividing the face
+/// (`crate::chord_join::ChordJoiner`'s null strut). A closed edge of
 /// any other carrier has no copy, and its loop is refused. A pierce is
 /// joined in its face as a ring of its own
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
@@ -1108,8 +1114,12 @@ fn closes_at_its_site<T: Decide>(
             site_cell(&red.a, g0.a_locus, g0.he)?,
             site_cell(&red.b, g0.b_locus, b_he)?,
         ) {
-            (SiteCell::Wrap, SiteCell::Pierce(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
-            (SiteCell::Pierce(f), SiteCell::Wrap) => rim(&red.a, f)? == Some(RimSide::Plane),
+            (SiteCell::Wrap, SiteCell::Pierce(f) | SiteCell::Other(f)) => {
+                rim(&red.b, f)? == Some(RimSide::Plane)
+            }
+            (SiteCell::Pierce(f) | SiteCell::Other(f), SiteCell::Wrap) => {
+                rim(&red.a, f)? == Some(RimSide::Plane)
+            }
             (SiteCell::Closed(Some(_)), SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
             (SiteCell::Pierce(f), SiteCell::Closed(Some(_))) => rim(&red.a, f)?.is_some(),
             (SiteCell::Closed(Some(_)), SiteCell::Closed(Some(_))) => true,
@@ -1134,7 +1144,7 @@ fn closes_at_its_site<T: Decide>(
 /// both faces facing one way, is not: joined there, the piece of the
 /// face the rim walls off is bounded by the copy's half that runs
 /// against the rim's own
-/// (`work/cleave/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
+/// (`work/tangrim/a-flush-closed-rim-at-its-vertex-is-joined-reversed.md`).
 fn stands_on<T: Decide>(
     red: &BooleanReduction<T>,
     (x_is, e): (Operand, EdgeKey),
@@ -1193,9 +1203,9 @@ enum SiteCell {
     /// interior.
     Pierce(FaceKey),
     /// Along an edge: a closed one, both of whose ends are the site
-    /// ([`site_cell`]): the edge where it is a circle, the one closed
-    /// carrier the joiner copies (`crate::chord_join`'s
-    /// `closed_edge_spec`), `None` for any other.
+    /// ([`site_cell`]): the edge where the joiner copies its carrier
+    /// whole (`crate::chord_join::copies_closed_edge`), `None` for any
+    /// other.
     Closed(Option<EdgeKey>),
     /// Inside this face, a real edge there bounding another face: the
     /// site is a vertex of the face's boundary.
@@ -1219,11 +1229,11 @@ fn site_cell<T: Decide>(
             let edge = body
                 .get_edge(e)
                 .ok_or(desync("a germ's closed edge no longer resolves"))?;
-            let circle = body
+            let copied = body
                 .edge_curve_linked(e, edge)
                 .certified()
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }));
-            return Ok(SiteCell::Closed(circle.then_some(e)));
+                .is_some_and(|c| crate::chord_join::copies_closed_edge(c.carrier()));
+            return Ok(SiteCell::Closed(copied.then_some(e)));
         }
     };
     let start = body
@@ -5761,7 +5771,7 @@ fn holding_face_normal<T: Decide>(
 /// read a germ ([`seam_germ_side`]). A crossing's two flanks can both do
 /// that only where no region face offers an interior witness off it.
 /// One such face is curved
-/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
+/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 /// Another is planar, with an inward line from each edge's midpoint that
 /// meets no line or conic carrier beyond the band (`crate::stands`,
 /// rung 3), such as one whose nearest boundary there is a spline or a

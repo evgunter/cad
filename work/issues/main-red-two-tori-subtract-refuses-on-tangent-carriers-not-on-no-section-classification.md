@@ -41,3 +41,11 @@ fix accordingly.
 ## Closed
 
 Fixed by SECT, PR 5925 (`f56c009fca`). SECT bisected the red to its PR 5869, not 5886: the parallel-tori arm refused the donut pair on an exact tie in its own construction. The kernel is fixed and the row is re-pinned to its honest R-loop classification. `germ_torus_doors::subtract_and_intersect_refuse_where_union_does` is green on main.
+
+## 2026-11-01 — the test is renamed, and the dumbbell builds (SPLITDOOR, `splitdoor/sided-followups`)
+
+The test is now `germ_torus_doors::subtract_and_intersect_reach_the_doors_union_does`.
+The `dumbbell` row's words this row compared against are gone. Since
+PR 6070, the dumbbell halves' `∩` is nothing and each difference is its
+minuend, valid at tier 3 and 3′. The two-tori row still refuses with the
+R-loop sentence that PR 5925 pinned.

@@ -327,6 +327,11 @@ pub(super) enum Limit {
     NoCorner,
     /// A chord's end reads in several corners at once.
     SeveralCorners,
+    /// A dropped corner pierced inside an edge of the kept face's
+    /// division, at no vertex of it, whose direction no one piece beside
+    /// that edge holds: the edge curved, or the direction decided along
+    /// it.
+    BesideNoPiece,
     /// A ring of a divided face lies on the new piece's boundary at
     /// every vertex.
     RingUnplaced,
@@ -346,6 +351,9 @@ impl Limit {
         match self {
             Self::NoCorner => "a fate cut's end lies in no corner of the dropped face",
             Self::SeveralCorners => "a fate cut's end lies in several corners of the dropped face",
+            Self::BesideNoPiece => {
+                "a fate cut's end on an edge of its face's division is held by no one piece beside it"
+            }
             Self::RingUnplaced => {
                 "a ring of a face a fate cut divides is placed at none of its vertices"
             }
@@ -614,7 +622,7 @@ enum Holds {
 ///
 /// Where `d` leaves along a bound at first order, its side of that bound
 /// is read one order down off the two bends
-/// ([`super::sectors::bend_parting`], with `û` the unit in-plane
+/// ([`geom_brep::parting`], with `û` the unit in-plane
 /// direction square to the bound into the corner), at the lever that
 /// bound's first-order sign is read at: from both sides where a reach is
 /// known only so, a verdict only where the two agree and their straddle
@@ -647,7 +655,7 @@ fn corner_holds<T: Decide>(
         crate::validate::decide_at_lever(
             ("bool_fate_corner_bend", "bool_fate_corner_bend_straddle"),
             lever,
-            |l| super::sectors::bend_parting((k, kb), u, l),
+            |l| geom_brep::parting(k - kb, u, l),
             band,
         )
         .map(Some)
@@ -759,19 +767,11 @@ fn places<T: Decide>(
             let at_point = body
                 .half_edge_start_point(h)
                 .ok_or_else(|| desync("a fate cut's corner has no point"))?;
-            let no_normal = BooleanError::ClassificationInvariant {
-                what: "a fate cut's corner face has no normal at its vertex",
-            };
-            let normal = match crate::face_normal::face_outward_normal_at(body, f, at_point, band) {
-                Ok(Some(n)) => n,
-                Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
-                    return Err(BooleanError::Escalated {
-                        decision: super::BooleanDecision::of_normal(decision),
-                        diag,
-                    });
-                }
-                Ok(None) | Err(_) => return Err(no_normal),
-            };
+            let normal = normal_at(
+                (body, f, at_point),
+                "a fate cut's corner face has no normal at its vertex",
+                band,
+            )?;
             let wraps = || {
                 let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
                 if bounds[0] == bounds[1] {
@@ -785,7 +785,7 @@ fn places<T: Decide>(
                 }
                 tip_wraps((body, operand), (f, h), band)
             };
-            match corner_holds(d, (out, back), wraps, normal.vec(), band)? {
+            match corner_holds(d, (out, back), wraps, normal, band)? {
                 Holds::Along => found.push(Place::Along(h)),
                 Holds::Tied { along_out } => {
                     tied = true;
@@ -799,6 +799,25 @@ fn places<T: Decide>(
         }
     }
     Ok(held.then_some((found, tied)))
+}
+
+/// Face `f`'s outward normal at `p`, where a corner is read: an
+/// escalation where it reads in band, else `what`.
+fn normal_at<T: Decide>(
+    (body, f, p): (&Body<T>, FaceKey, Point3<T>),
+    what: &'static str,
+    band: Band,
+) -> Result<Vec3<T>, BooleanError> {
+    match crate::face_normal::face_outward_normal_at(body, f, p, band) {
+        Ok(Some(n)) => Ok(n.vec()),
+        Err(crate::face_normal::NormalAtError::Escalated { decision, diag }) => {
+            Err(BooleanError::Escalated {
+                decision: super::BooleanDecision::of_normal(decision),
+                diag,
+            })
+        }
+        Ok(None) | Err(_) => Err(BooleanError::ClassificationInvariant { what }),
+    }
 }
 
 /// **Whether a corner whose two straight bounds leave along one ray is
@@ -1069,16 +1088,17 @@ enum Lies {
     /// Inside none, at these vertices of the pieces' loops, each once: a
     /// vertex of the face's division.
     AtCorners(Vec<VertexKey>),
+    /// Inside none and at none of their vertices, on an edge of the
+    /// face's division: each piece with the edge of its loops it lies on.
+    OnEdge(Vec<(FaceKey, EdgeKey)>),
     /// Placed by no piece ([`Unplaced`]).
     Nowhere(Unplaced),
 }
 
-/// Why no one piece of a face, and no vertex of their loops, places a
-/// point ([`lies`]).
+/// Why no one piece of a face, and no vertex or edge of their loops,
+/// places a point ([`lies`]).
 #[derive(Clone, Copy)]
 enum Unplaced {
-    /// On an edge of the face's division, inside none of its pieces.
-    OnEdge,
     /// Inside several pieces.
     InSeveral,
     /// On no piece.
@@ -1086,11 +1106,14 @@ enum Unplaced {
 }
 
 impl Unplaced {
+    /// A touching end on an edge of its face's division
+    /// ([`Lies::OnEdge`]), which the touch placement does not place.
+    const ON_EDGE: &'static str = "a fate cut's end lies on an edge of its face's division";
+
     /// A fate cut's end placed so.
     const fn refused(self) -> BooleanError {
         BooleanError::ClassificationInvariant {
             what: match self {
-                Self::OnEdge => "a fate cut's end lies on an edge of its face's division",
                 Self::InSeveral => "a fate cut's end lies inside several pieces of its face",
                 Self::Off => "a fate cut's end lies on no piece of its face",
             },
@@ -1098,8 +1121,8 @@ impl Unplaced {
     }
 }
 
-/// Where `p` lies among the faces divided from `root`: inside one, or
-/// at vertices of their loops.
+/// Where `p` lies among the faces divided from `root`: inside one, at
+/// vertices of their loops, or on edges of them.
 fn lies<T: Decide>(
     body: &Body<T>,
     root: FaceKey,
@@ -1111,7 +1134,7 @@ fn lies<T: Decide>(
         return Ok(Lies::Inside(one));
     }
     let unplaced = |e| contained(e, "a fate cut's end is not placed in its face");
-    let (mut inside, mut corners, mut on_edge) = (Vec::new(), Vec::new(), false);
+    let (mut inside, mut corners, mut on_edge) = (Vec::new(), Vec::new(), Vec::new());
     for f in pieces(body, root, divisions) {
         let at = match crate::face_normal::face_outward_normal(body, f) {
             Some(normal) => super::contfp(body, f, normal.vec(), p, band).map_err(unplaced)?,
@@ -1124,7 +1147,7 @@ fn lies<T: Decide>(
         match at {
             super::FaceContainment::In => inside.push(f),
             super::FaceContainment::OnVertex(v) => corners.push(v),
-            super::FaceContainment::OnEdge(_) => on_edge = true,
+            super::FaceContainment::OnEdge(e) => on_edge.push((f, e)),
             super::FaceContainment::Out => {}
         }
     }
@@ -1133,7 +1156,7 @@ fn lies<T: Decide>(
     Ok(match (inside.as_slice(), corners.is_empty()) {
         ([one], _) => Lies::Inside(*one),
         ([], false) => Lies::AtCorners(corners),
-        ([], true) if on_edge => Lies::Nowhere(Unplaced::OnEdge),
+        ([], true) if !on_edge.is_empty() => Lies::OnEdge(on_edge),
         ([], true) => Lies::Nowhere(Unplaced::Off),
         _ => Lies::Nowhere(Unplaced::InSeveral),
     })
@@ -1191,6 +1214,75 @@ fn piece_holding<T: Decide>(
             "a dropped sector held at a pierce runs along a kept edge",
             "a dropped sector held at a vertex of its kept face's division runs along a kept edge",
         )),
+    }
+}
+
+/// **The piece of the kept face beside an edge of its division that
+/// holds a dropped sector**, its interior along unit `d`, its vertex at
+/// `p` inside that edge: the one of `sides` (a piece, and the edge of
+/// its loops `p` lies on) whose corner at `p` holds `d`, its edge's
+/// half-edge in it read as a straight corner there ([`corner_holds`]),
+/// each bound reaching to the end of the edge it runs to.
+///
+/// # Errors
+///
+/// [`Limit::BesideNoPiece`] where no one piece holds `d`: an edge other
+/// than a line, whose direction at `p` is not read here, or `d` decided
+/// along the edge. A side of the edge that reads in band escalates as
+/// the corner reading does ([`corner_holds`]: the sectors'
+/// coincidence), and a piece with no normal at `p` refuses as
+/// [`normal_at`] does.
+fn piece_beside<T: Decide>(
+    body: &Body<T>,
+    sides: &[(FaceKey, EdgeKey)],
+    p: Point3<T>,
+    d: Vec3<T>,
+    band: Band,
+) -> Result<FaceKey, CutError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let mut holding = Vec::new();
+    for &(f, e) in sides {
+        if !crate::census::edge_is_line(body, e) {
+            return Err(Limit::BesideNoPiece.into());
+        }
+        let plus = body
+            .get_edge(e)
+            .ok_or_else(|| desync("a division edge no longer resolves"))?
+            .he_plus;
+        let normal = normal_at(
+            (body, f, p),
+            "a piece of a fate cut's kept face has no normal on its division's edge",
+            band,
+        )?;
+        for h in [Some(plus), body.mate(plus)].into_iter().flatten() {
+            if body.face_of_half_edge(h) != Some(f) {
+                continue;
+            }
+            let ends =
+                [Some(h), body.mate(h)].map(|x| x.and_then(|x| body.half_edge_start_point(x)));
+            let (Some(run), [Some(start), Some(end)]) = (departure(body, h), ends) else {
+                return Err(desync("a division edge's half-edge does not walk").into());
+            };
+            let bound = |dir, reach| Leaving {
+                dir,
+                reach: LeverBounds::Exact(reach),
+                bend: run.bend,
+            };
+            // A straight corner's bounds leave apart: it never wraps.
+            let straight = (
+                bound(run.dir, (end - p).norm()),
+                bound(-run.dir, (p - start).norm()),
+            );
+            if corner_holds(Ray::bisector(d), straight, || Ok(false), normal, band)? == Holds::In {
+                holding.push(f);
+            }
+        }
+    }
+    holding.sort();
+    holding.dedup();
+    match holding.as_slice() {
+        [one] => Ok(*one),
+        _ => Err(Limit::BesideNoPiece.into()),
     }
 }
 
@@ -1753,6 +1845,12 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         let ws = match reading {
             Lies::Inside(face) => vec![super::vtxfac::ring_vertex_in(body, face, p, tol)?.0],
             Lies::AtCorners(corners) => corners,
+            Lies::OnEdge(_) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: Unplaced::ON_EDGE,
+                }
+                .into());
+            }
             Lies::Nowhere(unplaced) => return Err(unplaced.refused().into()),
         };
         let key = touch_points
@@ -1930,9 +2028,10 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                         let held = (kept_body, fc.holder);
                         piece_holding(held, (&copies, HeldAt::RingVertex), root, div_k, d, band)?
                     }
-                    // No ring serves the pierce where the point is a
-                    // vertex of the kept face's division: the piece is
-                    // the one whose corner there holds the sector.
+                    // No ring serves the pierce where the point lies on the
+                    // kept face's division: the piece is the one whose
+                    // corner there holds the sector, at a vertex of the
+                    // division or inside an edge of it.
                     (None, None) => {
                         let p = body
                             .get_vertex(at)
@@ -1949,6 +2048,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                                 d,
                                 band,
                             )?,
+                            Lies::OnEdge(sides) => piece_beside(kept_body, &sides, p, d, band)?,
                             Lies::Nowhere(unplaced) => return Err(unplaced.refused().into()),
                         }
                     }

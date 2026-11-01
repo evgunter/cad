@@ -2,10 +2,12 @@
 id: departure-graph-separator-weighs-each-heading-by-its-cells-offset-along-the-edge
 kind: issue
 title: The departure arm's graph separator takes its normal across two headings normalised before their along-edge part is dropped, so for two cells offset along a seam the farther face weighs less and, at an acute dihedral, both faces read one side: every seam of the tour's twisted_loft refuses at depth
-status: open
+status: closed
+branch: clear/heading
 opened: 2026-11-01
 priority: P0
 cost: E
+closed: 2026-11-01
 ---
 
 
@@ -64,3 +66,17 @@ unchanged (depth 6). The pinned row that flips is
 It shares nothing with SLIVER: these are cross pairs, and the sliver
 knots are a wall against itself. The whole-body `twisted_loft` (43 s)
 and `twisted_tube` refusals in the price row are likely mostly this.
+
+## Landed (HEADING)
+
+`bisector` (`crates/topo/src/injective.rs`) is now the separator in
+`graph_of` and in `plane_through`'s one-line-edge case. In the debug
+build, all four `twisted_loft` seams hold at depth 21–24 at both
+scalars, with one receipt and nothing refused
+(`a_twisted_loft_holds_along_its_seams_at_both_scalars`). The tour's
+whole `twisted_loft` holds in 3.9 s (release with debug assertions).
+`twisted_tube` still refuses: Departure at a cap–wall edge (plane
+`1v1` against wall `7v1`), the cap-corner locus of
+`departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget`.
+`plane_through`'s case has no row yet:
+`plane-through-line-edge-case-has-no-row-that-tells-the-bisector-from-the-weighted-normal`.

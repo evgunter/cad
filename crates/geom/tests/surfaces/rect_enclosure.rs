@@ -26,10 +26,21 @@ use geom_core::spline::KnotVector;
 use geom_core::{Bounds, Interval, Point3, Real};
 use test_utils::fuzz::{self, Rng};
 
+/// `x` moved `n` ulps up (`n > 0`) or down.
+fn ulps(x: f64, n: i64) -> f64 {
+    (0..n.unsigned_abs()).fold(x, |x, _| if n > 0 { x.next_up() } else { x.next_down() })
+}
+
 /// A clamped knot vector of `degree` on `[0, 1]` with up to three
-/// interior knot values, each repeated up to `degree` times.
+/// interior knot values, each repeated up to `degree` times, and
+/// sometimes a further value a few ulps past one of them: a span a few
+/// ulps wide.
 fn knots(rng: &mut Rng, degree: usize) -> (KnotVector, Vec<f64>) {
     let mut interior: Vec<f64> = (0..rng.below(4)).map(|_| rng.range(0.05, 0.95)).collect();
+    if !interior.is_empty() && rng.below(3) == 0 {
+        let k = interior[rng.below(interior.len())];
+        interior.push(ulps(k, 1 + i64::try_from(rng.below(4)).unwrap()));
+    }
     interior.sort_by(f64::total_cmp);
     interior.dedup();
     let mut all = vec![0.0; degree + 1];
@@ -70,9 +81,29 @@ fn patch(rng: &mut Rng) -> (NurbsSurface<Interval>, Vec<f64>, Vec<f64>) {
 }
 
 /// A rectangle side in `[0, 1]`: random, straddling a knot of
-/// `interior` when there is one, or tiny.
+/// `interior` when there is one, ending a few ulps to either side of
+/// one (so it meets the span past it over those ulps), or tiny.
 fn side(rng: &mut Rng, interior: &[f64]) -> (f64, f64) {
-    match rng.below(3) {
+    match rng.below(4) {
+        3 if !interior.is_empty() => {
+            let k = interior[rng.below(interior.len())];
+            // A few ulps to either side, never on a knot: a cell
+            // ending on a knot meets the span past it at one point,
+            // which `rect_jet` reads as no meet
+            // (`work/clear/rect-jet-reads-no-point-meet-at-a-cell-end-on-a-knot.md`).
+            let off = 1 + i64::try_from(rng.below(4)).unwrap();
+            let step = if rng.below(2) == 0 { 1 } else { -1 };
+            let mut end = ulps(k, step * off);
+            while interior.contains(&end) {
+                end = ulps(end, step);
+            }
+            let h = rng.log_uniform(1e-9, 0.25);
+            if rng.below(2) == 0 {
+                ((end - h).max(0.0), end)
+            } else {
+                (end, (end + h).min(1.0))
+            }
+        }
         0 if !interior.is_empty() => {
             let k = interior[rng.below(interior.len())];
             let h = rng.log_uniform(1e-9, 0.05);
@@ -237,5 +268,76 @@ fn a_rectangle_past_the_knot_domain_is_poison() {
     assert!(
         !whole.z.is_poison() && whole.z.lo() <= 0.0 && 1.0 <= whole.z.hi(),
         "the whole domain encloses the patch's z range [0, 1]: {whole:?}"
+    );
+}
+
+/// **A cell's few-ulp meet with the span past a full-multiplicity knot
+/// is enclosed, and tightly.** The ruled patch over `v`-degree 3 with a
+/// triple knot at `k = ½ − 2 ulp`: along `v` its rulings step `0.1` in
+/// `+x` into the knot and `+y` out of it, so `S_v` jumps there from
+/// `(0.3/k, 0, 0)` to `(0, 0.3/(1 − k), 0)`. The cell `v ∈ [¼, ½]` holds the span past the
+/// knot only over `(k, ½]`, two ulps.
+///
+/// Every sampled `S_v` meets the enclosure, the one at `v = ½` on the
+/// far span included: red if the meet were dropped as too narrow to
+/// matter, or bounded by the near span's jet, which the jump makes
+/// unsound. And the enclosure is within an ulp-scale margin of the two
+/// one-sided values: red if the derivative were read by differencing the
+/// meet's own two-ulp restriction, whose rounding over its width is
+/// slope enough to swamp them.
+#[test]
+fn a_few_ulp_meet_past_a_full_multiplicity_knot_is_enclosed_tightly() {
+    let k = 0.5f64.next_down().next_down();
+    // Steps of 0.1 from (0.3, 0.7): coordinates no float holds exactly,
+    // so a restriction rounds.
+    let s = 0.1;
+    let ruled = |x: f64, y: f64| {
+        let (x, y) = (0.3 + s * x, 0.7 + s * y);
+        [Point3::new(x, y, 0.0), Point3::new(x, y, 1.0)]
+    };
+    let rulings = [
+        ruled(0.0, 0.0),
+        ruled(1.0, 0.0),
+        ruled(2.0, 0.0),
+        ruled(3.0, 0.0),
+        ruled(3.0, 1.0),
+        ruled(3.0, 2.0),
+        ruled(3.0, 3.0),
+    ];
+    // Row-major, `u` rows: control `[i][j]` is ruling `j`'s end `i`.
+    let control = (0..2)
+        .flat_map(|i| rulings.iter().map(move |r| r[i]))
+        .collect::<Vec<_>>();
+    let net = NurbsSurface::new(
+        KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+        KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, k, k, k, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+        control,
+        vec![1.0; 14],
+    )
+    .unwrap()
+    .map_scalar(Interval::from_f64);
+    let (u, v) = ((0.0, 1.0), (0.25, 0.5));
+    let (_, sv, _) = net.rect_jet(u, v).expect("the cell is inside the domain");
+    for (s, t) in [(0.0, 0.25), (0.5, 0.375), (1.0, k), (0.0, 0.5), (1.0, 0.5)] {
+        let got = net.ders(Interval::from_f64(s), Interval::from_f64(t)).dv;
+        assert!(
+            meets(got.x, sv.x) && meets(got.y, sv.y) && meets(got.z, sv.z),
+            "S_v at ({s}, {t}) = {got:?} misses the enclosure {sv:?} of {u:?} × {v:?}"
+        );
+    }
+    let (near, far) = (3.0 * s / k, 3.0 * s / (1.0 - k));
+    assert!(
+        sv.y.lo() <= 0.0 && far <= sv.y.hi(),
+        "S_v's y reaches both sides of the jump, 0 and {far}: {sv:?}"
+    );
+    let slack = 1e-12;
+    assert!(
+        sv.x.lo() > -slack
+            && sv.x.hi() < near + slack
+            && sv.y.lo() > -slack
+            && sv.y.hi() < far + slack
+            && sv.z.lo() > -slack
+            && sv.z.hi() < slack,
+        "S_v is enclosed within {slack} of [0, {near}] × [0, {far}] × {{0}}: {sv:?}"
     );
 }

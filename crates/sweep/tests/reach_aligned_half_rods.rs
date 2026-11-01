@@ -107,9 +107,8 @@ fn a_half_rod_stack_unions_at_every_seam_turn() {
 /// **The other three ops build at every seam turn**: ∩ is nothing and
 /// each difference its minuend, π. They take the no-crossings path, the
 /// coaxial wall halves touching across the mating circle with no
-/// crossing event; the section pass defers the settled wall pairs, no
-/// edge of either rod runs inside the other's wall, and the shells'
-/// sides (each rod `Out` the other) stand.
+/// crossing event; the section pass defers the settled wall pairs, and
+/// the shells' sides (each rod `Out` the other) stand.
 #[test]
 fn a_half_rod_stack_intersects_and_subtracts_at_every_seam_turn() {
     for (label, theta) in POSES {

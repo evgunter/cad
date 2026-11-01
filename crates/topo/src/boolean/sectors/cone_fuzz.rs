@@ -680,7 +680,9 @@ fn check_cone(
                     crate::link::bare_cone_reads(o, &faces, o + d, band).map(|got| match got {
                         crate::link::Material::In => SideCode::In,
                         crate::link::Material::Out => SideCode::Out,
-                        crate::link::Material::On(_) => SideCode::On,
+                        crate::link::Material::On(_) | crate::link::Material::Boundary => {
+                            SideCode::On
+                        }
                     }),
                 ),
             ),

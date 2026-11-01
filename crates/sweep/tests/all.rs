@@ -168,6 +168,8 @@ mod a_wall_seam_takes_the_column_it_lies_on;
 mod a_wrap_tip_sits_on_its_faces_chart_singularity;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_apex_lying_in_a_partners_face.rs"]
+mod an_apex_lying_in_a_partners_face;
 #[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
 mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
@@ -1320,6 +1322,8 @@ mod a_body_built_turned_is_the_body_turned;
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
+#[path = "a_cylinder_through_a_hole_tangent_to_its_wall.rs"]
+mod a_cylinder_through_a_hole_tangent_to_its_wall;
 #[path = "a_mirrored_body_is_its_image.rs"]
 mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]

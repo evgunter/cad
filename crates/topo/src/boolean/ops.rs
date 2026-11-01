@@ -105,8 +105,8 @@
 //!   no-crossings fallback, which keeps or drops whole shells; its
 //!   certificates answer a verified `Rest` pair as a touch
 //!   ([`Exempt::Rest`]), and a settled one-carrier pair between two
-//!   shells that lie on each other by their `On` verdict, or whose
-//!   sides one operand's patches certify ([`OnDeferred`]).
+//!   shells that lie on each other by their `On` verdict, or that read
+//!   sides ([`OnDeferred::answered`] states the rule).
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -2163,7 +2163,7 @@ struct Evidence<'r> {
     /// their section.
     rest: &'r [(FaceKey, FaceKey)],
     /// The pairs the reduction settled one carrier, whose refusals are
-    /// held for the `On` verdict ([`OnDeferred`]).
+    /// held for the fallback's shell verdicts ([`OnDeferred`]).
     settled: &'r [super::SettledPair],
     /// The pairs the sweep recorded a contact on ([`event_pairs`]):
     /// touches, since no crossing was found. W4 reads them.
@@ -2305,33 +2305,36 @@ impl OnDeferred {
         }
     }
 
-    /// Each deferred pair answered, or the first one's refusal. A pair
-    /// `(fa, fb)` is answered where `fa`'s shell reads `On` `fb`'s shell
-    /// and `fb`'s reads `On` `fa`'s (`working` the shells' verdicts,
-    /// `pristine` the operands their partners are named in). Nothing
-    /// here reads the pair's patch: what carries the answer is the `On`
-    /// verdict ([`super::shell_witness`]), that every witness the ladder
-    /// takes of each shell, its vertices and its edges' midpoints, lies
-    /// on the other solid's boundary, and that every face of each is
-    /// settled one carrier with a face of the other at one orientation.
-    /// The ladder takes no interior witness on a curved face, so two
-    /// faces on one carrier whose patches differ read `On` only where
-    /// their edges do too; where an edge of one runs off the other
-    /// solid's boundary (a torus lens inside the union of its tori), its
-    /// midpoint sides the shell and the pair keeps its refusal.
+    /// **Each deferred pair answered, or the first one's refusal**: the
+    /// one home of the rule (`working` the shells' verdicts, `pristine`
+    /// the operands their partners are named in, `kept` each operand's
+    /// kept shells). Nothing here reads the pair's patch. A pair is
+    /// answered
     ///
-    /// A pair is answered by its shells' sides instead ([`Self::sided`])
-    /// where both shells read a side, the op keeps the shells of one
-    /// operand at most (`keeps`, A then B), and one operand's deferred
-    /// faces each lie whole on the other's boundary where they meet it
-    /// (`settled` the pairs the reduction settled one carrier).
+    /// - where each face's shell reads `On` the other's
+    ///   ([`super::shell_witness`]): every vertex and edge midpoint of each
+    ///   lies on the other solid's boundary, and every face of each is
+    ///   settled one carrier with a face of the other. An edge running off
+    ///   the other's boundary sides its shell instead (a torus lens inside
+    ///   the union of its tori);
+    /// - or where both shells read a side and the op keeps at most one of
+    ///   them. The fallback runs with no null pair, and the vertex
+    ///   classifier mints one, or refuses, wherever an in-face vertex's
+    ///   sectors, the on-sectors lumped by Eq. 15.3, read two classes
+    ///   (`vtxfac`, Delta 2). So a face leaving the shared carrier inside
+    ///   the other's face lies to its operand's lump's side. A face running
+    ///   on past the other's leaving edge lies there too, since the side it
+    ///   takes and Eq. 15.3's lumps both flip together between aligned and
+    ///   opposed senses. No shell then lies on both sides of the other's
+    ///   boundary, and keeping a shell keeps its patch where Eq. 15.3
+    ///   does. Eq. 15.3 keeps one copy of a patch at most, so a pair whose
+    ///   two shells are both kept means the premise failed, and it keeps
+    ///   its refusal.
     fn answered<T: Decide>(
         self,
         working: [(&Body<T>, &[super::shell_witness::Verdict]); 2],
         pristine: [&Body<T>; 2],
-        settled: &[super::SettledPair],
-        keeps: [bool; 2],
-        band: Band,
+        kept: [&[ShellKey]; 2],
     ) -> Result<(), BooleanError> {
         // `f`'s shell, in `body`'s keys.
         let shell = |body: &Body<T>, f: FaceKey| body.get_face(f).map(|face| face.shell);
@@ -2348,82 +2351,21 @@ impl OnDeferred {
             };
             matches!(verdict(i, f), Some(ShellVerdict::On { partner, .. }) if partner == theirs)
         };
-        let sided = |fa: FaceKey, fb: FaceKey| {
-            matches!(verdict(0, fa), Some(ShellVerdict::Side(_)))
-                && matches!(verdict(1, fb), Some(ShellVerdict::Side(_)))
+        let sided = |i: usize, f: FaceKey| matches!(verdict(i, f), Some(ShellVerdict::Side(_)));
+        let keeps = |i: usize, f: FaceKey| {
+            shell(working[i].0, f).is_some_and(|mine| kept[i].contains(&mine))
         };
-        let by_sides = !(keeps[0] && keeps[1])
-            && self.0.iter().all(|&(fa, fb, _)| sided(fa, fb))
-            && (self.sided(0, (pristine[0], working[1].0), settled, band)
-                || self.sided(1, (pristine[1], working[0].0), settled, band));
+        let by_sides = |fa: FaceKey, fb: FaceKey| {
+            sided(0, fa) && sided(1, fb) && !(keeps(0, fa) && keeps(1, fb))
+        };
         match self
             .0
             .into_iter()
-            .find(|(fa, fb, _)| !by_sides && !(on(0, *fa, *fb) && on(1, *fb, *fa)))
+            .find(|(fa, fb, _)| !by_sides(*fa, *fb) && !(on(0, *fa, *fb) && on(1, *fb, *fa)))
         {
             None => Ok(()),
             Some((.., refusal)) => Err(refusal),
         }
-    }
-
-    /// **Operand `i`'s deferred faces each lie whole on the other
-    /// operand's boundary where they meet it**: no edge of `other` (the
-    /// other operand's working body, cut at every contact the reduction
-    /// found) that takes its boundary off the face's carrier (an edge
-    /// with a face not `settled` with it) has its midpoint strictly
-    /// inside one of them (`body` the operand at rest). The boundary of
-    /// such a face's patch then runs along the face's own edges, which
-    /// the reduction classified. Where one operand's patches are bounded
-    /// so, a shell of each meets the other's boundary only along edges
-    /// the reduction read, on one side of it, and the ladder's side
-    /// holds; where both have an edge inside the other's face (two rods
-    /// overlapping over part of each one's length), each shell's
-    /// remainder may lie on both sides and the sides prove nothing. A
-    /// placement that refuses or reads nothing certifies nothing.
-    fn sided<T: Decide>(
-        &self,
-        i: usize,
-        (body, other): (&Body<T>, &Body<T>),
-        settled: &[super::SettledPair],
-        band: Band,
-    ) -> bool {
-        let one_carrier = |f: FaceKey, g: FaceKey| {
-            let (fa, fb) = if i == 0 { (f, g) } else { (g, f) };
-            settled.iter().any(|q| q.a == fa && q.b == fb)
-        };
-        let faces: BTreeSet<FaceKey> = self
-            .0
-            .iter()
-            .map(|&(fa, fb, _)| if i == 0 { fa } else { fb })
-            .collect();
-        faces.iter().all(|&f| {
-            other.edges().all(|(_, e)| {
-                let on_carrier = [e.he_plus, e.he_minus].into_iter().all(|he| {
-                    other
-                        .face_of_half_edge(he)
-                        .is_some_and(|g| one_carrier(f, g))
-                });
-                let Some(curve) = other.get_curve_geom(e.curve).and_then(|c| c.certified()) else {
-                    return on_carrier;
-                };
-                on_carrier
-                    || matches!(
-                        super::face_placement(
-                            body,
-                            f,
-                            curve.mid_point(),
-                            band,
-                            "bool_point_in_solid_plane"
-                        ),
-                        Ok(super::CurvedPlacement::OffCarrier
-                            | super::CurvedPlacement::Trim(Some(
-                                FaceContainment::Out
-                                    | FaceContainment::OnEdge(_)
-                                    | FaceContainment::OnVertex(_)
-                            )))
-                    )
-            })
-        })
     }
 }
 
@@ -3711,7 +3653,7 @@ impl Descendants {
     }
 }
 
-/// What [`piece_holds`] read of one piece.
+/// What [`piece_reading`] read of one piece.
 #[derive(Debug)]
 pub(super) enum PieceRead {
     /// The point is strictly inside the piece.
@@ -3722,39 +3664,25 @@ pub(super) enum PieceRead {
     NotIn,
     /// The read failed: the containment door's refusal, or `None` where
     /// a curved face's region gives no verdict.
-    Unread(Option<ContainError>),
-}
-
-/// Whether `face` holds `q` strictly inside it, placed as the census
-/// confirms a vertex-on-face record ([`super::contain::face_placement`]).
-///
-/// # Errors
-///
-/// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) on a margin
-/// in band, the on-plane one or the door's.
-pub(super) fn piece_holds<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    q: Point3<T>,
-    band: Band,
-) -> Result<PieceRead, BooleanError> {
-    piece_reading(body, face, q, band, DoorInBand::SelfCheck)
+    Unread(
+        #[expect(dead_code, reason = "its one reader matches it as `Unread(_)`")]
+        Option<ContainError>,
+    ),
 }
 
 /// How [`piece_reading`] types an in-band margin of the containment door.
 #[derive(Clone, Copy)]
 pub(super) enum DoorInBand {
-    /// The carry's check: the door re-reads a cell a record already
-    /// placed, so a margin in band is the kernel disagreeing with itself.
-    SelfCheck,
     /// A first reading of a point against the face: the door's own
     /// decision, whose margin is the operands' geometry.
     Containment,
 }
 
-/// [`piece_holds`], typing an in-band margin of the containment door as
-/// `door` says. The on-plane margin re-reads a plane the census already
-/// put the point on, so it escalates as the carry's check either way.
+/// Whether `face` holds `q` strictly inside it, placed as the census
+/// confirms a vertex-on-face record ([`super::contain::face_placement`]),
+/// typing an in-band margin of the containment door as `door` says. The
+/// on-plane margin re-reads a plane the census already put the point on,
+/// so it escalates as the carry's check.
 ///
 /// # Errors
 ///
@@ -3787,7 +3715,6 @@ pub(super) fn piece_reading<T: Decide>(
             escalation,
             diag,
         })) => Err(match door {
-            DoorInBand::SelfCheck => in_band(diag),
             DoorInBand::Containment => BooleanError::Escalated {
                 decision: BooleanDecision::Containment {
                     decision,
@@ -4226,7 +4153,7 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
 ) -> Result<Carried, BooleanError> {
     let mut pending = ledger.pending.clone();
     let [a, b] = carried(body, ledger, views, desc, discarded, &mut pending, band)?;
-    let mut records = carry_rows(
+    let records = carry_rows(
         body,
         &tagged(&ledger.discovered),
         [&a, &b],
@@ -4235,7 +4162,6 @@ pub(super) fn carry<T: Decide + AtRestPolicy>(
         false,
         band,
     )?;
-    record_spans(body, &mut records, band)?;
     cite_rows(records, ledger, &pending)
 }
 
@@ -5464,290 +5390,6 @@ fn place_found<'b, T: Decide + AtRestPolicy>(
         .collect()
 }
 
-/// **The spans a line edge's records bound** (D1: every pair whose
-/// interiors meet is recorded, an edge lying in a face or along an edge
-/// included). A record bounds a line edge where it names a point of it
-/// ([`bound_reading`]); an edge some record bounds is also bounded by
-/// its own ends, by structure ([`span_bounds`]). Between two
-/// consecutive bounds the edge's span is recorded against each cell
-/// both bounds touch that holds it ([`span_held`]), citing the records
-/// that put each bound on that cell. A record naming a cell the body
-/// does not hold bounds nothing; the census reads it stale.
-///
-/// # Errors
-///
-/// [`BooleanError::Escalated`] (`SelfCheck(CarriedLineage)`) where a
-/// question is in band; [`BooleanError::RestPieceUnread`] where the
-/// containment door cannot place a midpoint in a face.
-fn record_spans<T: Decide>(
-    body: &Body<T>,
-    out: &mut ContactRecords,
-    band: Band,
-) -> Result<(), BooleanError> {
-    let mut spans: Vec<Cited<Contact>> = Vec::new();
-    for e in span_lines(body, out) {
-        let bounds = span_bounds(body, out, e, band)?;
-        for pair in bounds.windows(2) {
-            let [lo, hi] = pair else { continue };
-            for &c in lo.cells().iter().filter(|c| hi.cells().contains(c)) {
-                let (Some(cites), Ok(contact)) = (
-                    either_cites(lo.cites_on(c), hi.cites_on(c)),
-                    Contact::new(body, Cell::Edge(e), c),
-                ) else {
-                    continue;
-                };
-                if span_held(body, (lo.point, hi.point), c, band)? {
-                    spans.push(Cited::new(contact, cites));
-                }
-            }
-        }
-    }
-    for span in spans {
-        out.push(span);
-    }
-    Ok(())
-}
-
-/// The escalation of a question [`record_spans`] asks.
-fn span_in_band(diag: Indeterminate) -> BooleanError {
-    BooleanError::Escalated {
-        decision: BooleanDecision::SelfCheck(SelfCheck::CarriedLineage),
-        diag,
-    }
-}
-
-/// Two optional citations, together.
-fn either_cites(a: Option<Cites>, b: Option<Cites>) -> Option<Cites> {
-    match (a, b) {
-        (Some(a), Some(b)) => Some(a.union(&b)),
-        (a, b) => a.or(b),
-    }
-}
-
-/// The line edges a record names, or meets at one of their ends.
-fn span_lines<T: Real>(body: &Body<T>, out: &ContactRecords) -> BTreeSet<EdgeKey> {
-    let mut lines: BTreeSet<EdgeKey> = BTreeSet::new();
-    for (x, y) in out.cell_pairs() {
-        for c in [x, y] {
-            match c {
-                Cell::Edge(e) => {
-                    lines.insert(e);
-                }
-                Cell::Vertex(v) => lines.extend(body.edges_of_vertex(v).unwrap_or_default()),
-                Cell::Face(_) => {}
-            }
-        }
-    }
-    lines.retain(|&e| crate::census::edge_is_line(body, e));
-    lines
-}
-
-/// A point where a line edge's span may begin or end: its parameter
-/// along the edge, the point, and each reading that put it there: the
-/// cells it touches there, with the citations of the record that read
-/// it (none for the edge's own end, which bounds by structure).
-struct Bound<T: Real> {
-    at: T,
-    point: Point3<T>,
-    reads: Vec<(Vec<Cell>, Option<Cites>)>,
-}
-
-impl<T: Real> Bound<T> {
-    /// Every cell some reading touches.
-    fn cells(&self) -> Vec<Cell> {
-        self.reads
-            .iter()
-            .flat_map(|(t, _)| t.iter().copied())
-            .collect()
-    }
-
-    /// The citations of the readings that touch `c`.
-    fn cites_on(&self, c: Cell) -> Option<Cites> {
-        self.reads
-            .iter()
-            .filter(|(t, _)| t.contains(&c))
-            .fold(None, |acc, (_, cites)| either_cites(acc, cites.clone()))
-    }
-}
-
-/// Edge `e`'s bounds, in order along it, those at one point one bound:
-/// a bound per record that names a point of it, and its two ends. None
-/// where no record bounds it.
-///
-/// # Errors
-///
-/// [`BooleanError::Escalated`] where a reading or the order of two
-/// bounds is in band.
-fn span_bounds<T: Decide>(
-    body: &Body<T>,
-    out: &ContactRecords,
-    e: EdgeKey,
-    band: Band,
-) -> Result<Vec<Bound<T>>, BooleanError> {
-    let Some(((v0, v1), (p0, p1))) = line_ends(body, e)
-        .and_then(|(v0, v1)| Some(((v0, v1), (vertex_point(body, v0)?, vertex_point(body, v1)?))))
-    else {
-        return Ok(Vec::new());
-    };
-    let dir = (p1 - p0).normalize();
-    let mut readings = Vec::new();
-    for c in out.rows() {
-        if let Some((q, touches)) =
-            bound_reading(body, (e, v0, v1, p0, p1), c.record.cells(), band)?
-        {
-            readings.push((q, touches, Some(c.cites.clone())));
-        }
-    }
-    if readings.is_empty() {
-        return Ok(Vec::new());
-    }
-    for (v, p) in [(v0, p0), (v1, p1)] {
-        if let Some(touches) = vertex_star(body, v) {
-            readings.push((p, touches, None));
-        }
-    }
-    let mut bounds: Vec<Bound<T>> = Vec::new();
-    for (q, touches, cites) in readings {
-        let at = (q - p0).dot(dir);
-        let mut place = bounds.len();
-        let mut same = false;
-        for (k, b) in bounds.iter().enumerate() {
-            match decide("bool_span_bound_order", Margin::of(at - b.at), band)
-                .map_err(span_in_band)?
-            {
-                Sign::Positive => {}
-                Sign::Negative => {
-                    place = k;
-                    break;
-                }
-                Sign::Zero => {
-                    (place, same) = (k, true);
-                    break;
-                }
-            }
-        }
-        if same {
-            bounds[place].reads.push((touches, cites));
-        } else {
-            bounds.insert(
-                place,
-                Bound {
-                    at,
-                    point: q,
-                    reads: vec![(touches, cites)],
-                },
-            );
-        }
-    }
-    Ok(bounds)
-}
-
-/// A point a record puts on a line edge, and the cells it touches
-/// there.
-type BoundReading<T> = (Point3<T>, Vec<Cell>);
-
-/// Where a record of `cells` bounds the line edge `edge` (its key, end
-/// vertices and their points), and the cells of the other side it
-/// touches there: a vertex on the edge's interior, at its point; a
-/// line edge crossing it, at the crossing ([`crate::census::segment_cross_point`]);
-/// one of the edge's own ends touching a cell. A line edge along it is
-/// the record of its own overlap, and bounds nothing.
-///
-/// # Errors
-///
-/// [`BooleanError::Escalated`] where the parallel test is in band.
-fn bound_reading<T: Decide>(
-    body: &Body<T>,
-    (e, v0, v1, p0, p1): (EdgeKey, VertexKey, VertexKey, Point3<T>, Point3<T>),
-    cells: [Cell; 2],
-    band: Band,
-) -> Result<Option<BoundReading<T>>, BooleanError> {
-    Ok(match cells {
-        [Cell::Edge(a), other] | [other, Cell::Edge(a)] if a == e => match other {
-            Cell::Vertex(w) => vertex_point(body, w).zip(vertex_star(body, w)),
-            Cell::Edge(g) if crate::census::edge_is_line(body, g) => {
-                let Some(s) = line_ends(body, g)
-                    .and_then(|(w0, w1)| Some((vertex_point(body, w0)?, vertex_point(body, w1)?)))
-                else {
-                    return Ok(None);
-                };
-                if crate::census::segments_parallel((p0, p1), s, band).map_err(span_in_band)? {
-                    None
-                } else {
-                    edge_cells(body, g)
-                        .map(|t| (crate::census::segment_cross_point((p0, p1), s), t))
-                }
-            }
-            _ => None,
-        },
-        [Cell::Vertex(v), other] | [other, Cell::Vertex(v)] if v == v0 || v == v1 => {
-            let touches = match other {
-                Cell::Vertex(w) => vertex_star(body, w),
-                Cell::Edge(g) => edge_cells(body, g),
-                Cell::Face(f) => Some(vec![Cell::Face(f)]),
-            };
-            vertex_point(body, v).zip(touches)
-        }
-        _ => None,
-    })
-}
-
-/// Whether cell `c` holds a line edge's span `(lo, hi)`: a plane
-/// face whose interior holds its midpoint (two points of the plane hold
-/// the line between them), placed by [`piece_holds`]. A curved face is
-/// not read: a line between two of its points need not lie in it. An
-/// edge along `e` is the reduction's own touch record
-/// ([`super::touch_rows`]), not a span's.
-///
-/// # Errors
-///
-/// [`BooleanError::Escalated`] where a placement is in band;
-/// [`BooleanError::RestPieceUnread`] where the containment door cannot
-/// place the midpoint.
-fn span_held<T: Decide>(
-    body: &Body<T>,
-    (lo, hi): (Point3<T>, Point3<T>),
-    c: Cell,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    match c {
-        Cell::Face(f)
-            if matches!(
-                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-                Some(geom::Surface::Plane { .. })
-            ) =>
-        {
-            match piece_holds(body, f, lo + (hi - lo) * T::from_f64(0.5), band)? {
-                PieceRead::In => Ok(true),
-                PieceRead::NotIn => Ok(false),
-                PieceRead::Unread(refusal) => {
-                    Err(BooleanError::RestPieceUnread { face: f, refusal })
-                }
-            }
-        }
-        _ => Ok(false),
-    }
-}
-
-/// An edge and its two faces.
-fn edge_cells<T: Real>(body: &Body<T>, g: EdgeKey) -> Option<Vec<Cell>> {
-    let (f0, f1) = crate::readback::edge_sides(body, g).ok()?.faces();
-    Some(vec![Cell::Edge(g), Cell::Face(f0), Cell::Face(f1)])
-}
-
-/// A vertex, its edges and its faces.
-fn vertex_star<T: Real>(body: &Body<T>, w: VertexKey) -> Option<Vec<Cell>> {
-    let edges = body.edges_of_vertex(w)?;
-    let faces = body.faces_of_vertex(w)?;
-    Some(
-        core::iter::once(Cell::Vertex(w))
-            .chain(edges.into_iter().map(Cell::Edge))
-            .chain(faces.into_iter().map(Cell::Face))
-            .collect(),
-    )
-}
-
-/// A vertex's point.
 /// Whether vertices `a` and `b` of `body` are one point: their gap
 /// decided Zero at `band` by `predicate`, with the margin read.
 ///
@@ -5778,16 +5420,11 @@ fn vertices_meet<T: Decide>(
     Ok((magnitude == geom_core::k_stats::Magnitude::Zero, margin))
 }
 
+/// A vertex's point.
 fn vertex_point<T: Real>(body: &Body<T>, v: VertexKey) -> Option<Point3<T>> {
     body.get_vertex(v)
         .and_then(|d| body.get_point(d.point))
         .copied()
-}
-
-/// An edge's start and end vertices.
-fn line_ends<T: Real>(body: &Body<T>, e: EdgeKey) -> Option<(VertexKey, VertexKey)> {
-    let he = body.get_edge(e)?.he_plus;
-    Some((body.get_half_edge(he)?.start, body.half_edge_end(he)?))
 }
 
 /// Records the cell pair `x`, `y` (result keys), once, backed by
@@ -7945,6 +7582,8 @@ fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
+/// It runs only where the reduction minted no null pair, which is what
+/// certifies a deferred pair's sides ([`OnDeferred::answered`]).
 #[allow(clippy::too_many_arguments)]
 fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
@@ -7975,9 +7614,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     deferred.answered(
         [(&red.a, &a_sides), (&red.b, &b_sides)],
         [a_pristine, b_pristine],
-        &red.coincident,
-        [!a_keep.is_empty(), !b_keep.is_empty()],
-        band,
+        [&a_keep, &b_keep],
     )?;
 
     let carve_kept = |body: &Body<T>, keep: &[ShellKey]| -> Result<Body<T>, BooleanError> {
@@ -9490,6 +9127,8 @@ mod tests {
             b_on_a: vec![],
             ee: vec![],
             ff: vec![],
+            a_in_b: vec![],
+            b_in_a: vec![],
         };
         // Without the descendant row: the record drops (pre-D5 loss).
         let out = found(
@@ -9530,6 +9169,8 @@ mod tests {
             b_on_a: vec![],
             ee: vec![],
             ff: vec![],
+            a_in_b: vec![],
+            b_in_a: vec![],
         };
         let mut desc = Descendants::default();
         desc.vertices.push((dead_vertex, live_vertex)).unwrap();
@@ -9862,6 +9503,8 @@ mod tests {
             )],
             ee: vec![],
             ff: vec![],
+            a_in_b: vec![],
+            b_in_a: vec![],
         };
         let remap = |c: &ReductionContacts| {
             found(&body, c, [&KeyView::Direct; 2], &desc)
@@ -11063,8 +10706,14 @@ mod found_on_a_divided_face {
 
     /// Whether `face` holds the top's point `(x, y)`.
     fn holds(body: &Body<f64>, face: FaceKey, x: f64, y: f64) -> bool {
-        super::piece_holds(body, face, Point3::new(x, y, 1.0), band())
-            .is_ok_and(|r| matches!(r, super::PieceRead::In))
+        super::piece_reading(
+            body,
+            face,
+            Point3::new(x, y, 1.0),
+            band(),
+            super::DoorInBand::Containment,
+        )
+        .is_ok_and(|r| matches!(r, super::PieceRead::In))
     }
 
     /// A lone vertex at `(x, y, z)`.
