@@ -2,3 +2,8 @@ fork: injectivity-price (work/clear/injectivity-price-on-tour-lofts-exceeds-the-
 protocol: 2126b860b6
 byte1 (arm): 42 -> <86 -> three designers
 byte2 (labels): 72 -> 72 mod 3 = 0 -> Fable = A; Opus = B, Opus = C (B dispatched first)
+first reports (rule 4), delivered 11:39–12:05Z:
+A (Fable): defect not fork — rect_jet rational quotient on hulled absolute net; fix by per-entry recentring; keep one lane-owned budget, Budget names its pair; reject per-body budget + coarser arm; door policy lean certifying-scalars-only. Confidence sure (premise)/likely (door). Rejected framing: yes. Ratified text: none changed. Tokens: first report ~101.6k out (total session cost 15.2 USD).
+B (Opus): defect not fork — rect_jet absolute frame; one home for rational derivative (spline::derivative form) + first-order directional distance test; fixed budget per question (PR 6102 shape), typed EmbeddingUncertified; reject B/C; lean against taking off the door. Confidence likely. Rejected framing: yes. Ratified text: extend [tolerance.measure] budget sentence to injectivity. Tokens: 49.9k out.
+C (Opus): defect not fork — cell enclosure; control-net cell model (monotone at control matrices, directional distance, departure off control points); fixed constant budget; reject per-body budget, coarser arm later at most; door question reopen only if price stays high. Confidence likely (rec), sure (cause). Rejected framing: yes. Ratified text: add translation-invariance of price to ERROR-DESIGN Self-intersection scope. Tokens: 45.9k out.
+reconciliation: none needed (converged on the recommended final state). No [ev] PR: no split; so per rule 1 not a log row. Door policy deferred to after JETFRAME/ZEROSIDE/distance numbers.
