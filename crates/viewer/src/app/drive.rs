@@ -486,10 +486,14 @@ impl Driver {
     /// the split panel's numbers).
     #[must_use]
     pub fn split_plane(&self) -> Option<crate::splitplane::PlanePreview> {
+        let tool = self.app.tools.split()?;
         crate::splitplane::drawn(
-            &self.app.tools,
-            &self.app.session,
-            self.app.picks.index(),
+            &crate::splitplane::Drawing {
+                seats: tool.seats(),
+                landed: self.app.session.landed_pair()?,
+                display: &self.app.session.display_view(),
+                index: self.app.picks.index()?,
+            },
             self.app.drafts.split_origin,
             self.app.drafts.split_normal,
         )

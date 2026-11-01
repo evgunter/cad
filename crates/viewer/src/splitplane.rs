@@ -135,26 +135,33 @@ pub fn preview(
     })
 }
 
+/// **What the picture draws a split plane against**: the split tool's
+/// seats, the landed pair, the display view and the pick index, as the
+/// session and the app answer them.
+pub struct Drawing<'a> {
+    /// The open split tool's seats.
+    pub seats: &'a crate::seats::Seats,
+    /// The landed document and its evaluation.
+    pub landed: (&'a Doc<ProfileProgram>, &'a Evaluation<f64>),
+    /// The display view the picture is drawn under.
+    pub display: &'a crate::display::DisplayView,
+    /// The pick index built for the landed run.
+    pub index: &'a crate::pickindex::PickIndex,
+}
+
 /// **The open split tool's plane, where the picture draws its target**:
 /// under the drawn part its target's viewport pick hit
 /// ([`crate::seats::Seats::through`], [`crate::pickindex::PickIndex::drawn_map`]),
 /// against the landed evaluation, for the panel's numbers `origin` and
 /// `normal`. What the viewport draws ([`push_split_plane`]). `None` with
-/// no split tool open, no target held, a tree pick, a part the picture
-/// does not draw, or a normal with no direction.
-pub fn drawn(
-    tools: &crate::tools::Tools,
-    session: &crate::session::DocSession,
-    index: Option<&crate::pickindex::PickIndex>,
-    origin: [f64; 3],
-    normal: [f64; 3],
-) -> Option<PlanePreview> {
-    let tool = tools.split()?;
-    let target = tool.seats().read(0)?;
-    let part = tool.seats().through(0)?;
-    let (doc, evaluation) = session.landed_pair()?;
+/// no target held, a tree pick, a part the picture does not draw, or a
+/// normal with no direction.
+pub fn drawn(drawing: &Drawing<'_>, origin: [f64; 3], normal: [f64; 3]) -> Option<PlanePreview> {
+    let target = drawing.seats.read(0)?;
+    let part = drawing.seats.through(0)?;
+    let (doc, evaluation) = drawing.landed;
     let source = source(doc, evaluation, &target)?;
-    let drawn = index?.drawn_map(&session.display_view(), part)?;
+    let drawn = drawing.index.drawn_map(drawing.display, part)?;
     preview(source, space_to_picture(source, drawn)?, origin, normal)
 }
 

@@ -3796,7 +3796,16 @@ fn the_split_plane_is_drawn_under_the_picked_copy() {
         let target = tool.seats().read(0).expect("a target");
         let source = viewer::splitplane::source(doc, evaluation, &target).expect("a body");
         let centre = viewer::splitplane::centre(source).expect("corners");
-        let plane = viewer::splitplane::drawn(&tools, session, Some(&index), centre, z);
+        let plane = viewer::splitplane::drawn(
+            &viewer::splitplane::Drawing {
+                seats: tool.seats(),
+                landed: (doc, evaluation),
+                display: &session.display_view(),
+                index: &index,
+            },
+            centre,
+            z,
+        );
         (tool, source.clone(), centre, plane)
     };
 
