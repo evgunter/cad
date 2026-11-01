@@ -2,10 +2,11 @@
 id: departure-reads-a-spline-sides-zero-to-second-order-so-a-cap-corner-outruns-the-depth-budget
 kind: issue
 title: At a cap corner no presentation reads the cap, and the wall-departs-the-cap's-plane reading that would certify it reads the wall's zero side through the centred form over a rational spline net, second order in the cell: it decides only at depth 51-73, past the budget of 40
-status: review
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: M
+closed: 2026-11-01
 ---
 
 
