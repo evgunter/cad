@@ -35,9 +35,13 @@
 //!    quarters ([`FullTurn`]). At a cone's apex the window between them
 //!    reads no width, and [`apex_corner_shape`] reads the whole turn round
 //!    the apex the same way. Both take the turn by one rule
-//!    ([`reads_slit_tip_turn`]). The same reading on a one-edge orbit (a
-//!    strut vertex) is the legitimate full-circle sector and takes the
-//!    90° device.
+//!    ([`reads_slit_tip_turn`]). A wrap edge's tip is the one-edge form
+//!    of the same structure: its face's loop walks the edge out and
+//!    straight back, the face wraps the full turn round it, and
+//!    [`SlitTips`] holds it beside the slits' tips (the name covers
+//!    both), so its corner reads the full turn by the same rule. Any
+//!    other one-edge orbit (a strut vertex) is the legitimate
+//!    full-circle sector and takes the 90° device.
 //!
 //! The three items above are the CONTRACT — what each rung decides and
 //! what it returns. The **derivations** — why convex subdivision beats
@@ -471,11 +475,12 @@ pub(crate) enum CornerBounds {
 pub(crate) enum CornerShape<T: Real> {
     /// The rungs decided the corner ([`sector_shape`]).
     Sector(SectorShape<T>),
-    /// The face's full turn round a slit's tip.
+    /// The face's full turn round a slit's tip or a wrap edge's.
     FullTurn(FullTurn<T>),
 }
 
-/// A face's full turn round a slit's tip, from the next orbit chord
+/// A face's full turn round a slit's tip or a wrap edge's ([`SlitTips`],
+/// whose name covers both), from the next orbit chord
 /// counter-clockwise (about the face's outward normal) round to the
 /// corner's own, the two along one ray.
 #[derive(Clone, Copy, Debug)]
@@ -600,24 +605,18 @@ impl SlitTips {
                 }
             }
         }
-        let mut wraps = std::collections::BTreeSet::new();
-        for (f, face) in body.faces() {
-            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-                let crate::entity::LoopBoundary::Cycle { first } =
-                    proven(&body.loops, lk, EntityId::Loop).boundary
-                else {
-                    continue;
-                };
-                let cycle = body.loop_walk(first).closed("loop", first);
-                let wrap = crate::surface_boundary::tips(body, &cycle).unwrap_or_else(|| {
+        let wraps = crate::validate::wrap_tips(body)
+            .into_iter()
+            .map(|(v, he)| {
+                let face = body.face_of_half_edge(he).unwrap_or_else(|| {
                     unreachable!(
-                        "{lk:?}'s walk names a half-edge whose mate does not resolve: on a \
-                         tier-1-valid body every half-edge has its mate"
+                        "{v:?}'s tip half {he:?} has no face: on a tier-1-valid body every \
+                         half-edge lies in a loop of a face"
                     )
                 });
-                wraps.extend(wrap.into_iter().map(|v| (v, f)));
-            }
-        }
+                (v, face)
+            })
+            .collect();
         Self { slits: tips, wraps }
     }
 

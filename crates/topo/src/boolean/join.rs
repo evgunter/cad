@@ -5608,14 +5608,19 @@ fn sliver_along_a_slit<T: Decide>(
 /// its midpoint lies strictly inside one face `F` of `other`, the
 /// material beside it is the half-space behind `F`, and the region face
 /// `R` the chord's mate bounds leaves the chord along its inward
-/// direction ([`crate::stands::inward`]). `R` crosses no surface of
-/// `other` (probing waits for quiescence), so it lies on the side of
-/// `F` that direction points to: Out where its dot with `F`'s outward
+/// direction ([`crate::stands::inward`]): `R`'s normal crossed with the
+/// chord's direction along the mate, in `R`'s plane for a line chord on
+/// a planar `R`, and otherwise in `R`'s tangent plane at the point of
+/// the chord's carrier at its mid-parameter, its direction the
+/// carrier's tangent there. `R` crosses no surface of `other` (probing
+/// waits for quiescence), so near the chord it lies on the side of `F`
+/// that direction points to: Out where its dot with `F`'s outward
 /// normal is positive, In where negative, read at the chord's length.
-/// Zero is a region flush with `F`, and reads nothing; so does a chord
-/// on a curve, a midpoint that no one face holds strictly inside, or
-/// any margin in band. Every chord that reads is read, so where the
-/// chord walk starts cannot matter.
+/// Zero is a region flush with `F` or tangent to it along the chord (a
+/// graze, whose side is the second order's), and reads nothing; so does
+/// a midpoint that no one face holds strictly inside, a closed chord
+/// (its ends one point), or any margin in band. Every chord that reads
+/// is read, so where the chord walk starts cannot matter.
 ///
 /// A planar region face whose rim lies on the other boundary holds no
 /// witness off the band where it is narrower than `2Kε`, and its one
@@ -5648,25 +5653,46 @@ fn seam_germ_side<T: Decide>(
         let m = body
             .get_half_edge(mate)
             .ok_or(desync("section mate no longer resolves"))?;
-        if !crate::census::edge_is_line(body, m.edge) {
-            continue;
-        }
-        let Ok((_, n_r)) = super::solid_contain::face_plane(body, region) else {
-            continue;
-        };
         let end = body
             .half_edge_end(mate)
             .ok_or(desync("section mate has no end"))?;
         let (p0, p1) = (point(m.start)?, point(end)?);
         let len = p0.distance(p1);
-        let into_region = crate::stands::inward(n_r, (p1 - p0) * (T::from_f64(1.0) / len));
-        let Some(n_f) = holding_face_normal(other, p0.lerp(p1, T::from_f64(0.5)), band)? else {
+        let planar = match super::solid_contain::face_plane(body, region) {
+            Ok((_, n_r)) if crate::census::edge_is_line(body, m.edge) => Some(n_r),
+            _ => None,
+        };
+        let (mid, into_region) = if let Some(n_r) = planar {
+            (
+                p0.lerp(p1, T::from_f64(0.5)),
+                crate::stands::inward(n_r, (p1 - p0) * (T::from_f64(1.0) / len)),
+            )
+        } else {
+            let edge = body
+                .get_edge(m.edge)
+                .ok_or(desync("section mate's edge no longer resolves"))?;
+            let Some(curve) = body
+                .get_curve_geom(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            let (t0, t1) = curve.params();
+            let tm = (t0 + t1) * T::from_f64(0.5);
+            let mid = curve.carrier().eval(tm);
+            let d = curve.carrier().deriv(tm);
+            let d = if mate == edge.he_plus { d } else { -d };
+            let Ok(Some(n_r)) = crate::face_normal::face_outward_normal_at(body, region, mid, band)
+            else {
+                continue;
+            };
+            (mid, crate::stands::inward(n_r.vec(), d.normalize()))
+        };
+        let Some(n_f) = holding_face_normal(other, mid, band)? else {
             continue;
         };
-        let read = match decide(SEAM_GERM_SIDE, Margin::of(into_region.dot(n_f) * len), band) {
-            Ok(Sign::Positive) => SideCode::Out,
-            Ok(Sign::Negative) => SideCode::In,
-            Ok(Sign::Zero) | Err(_) => continue,
+        let Some(read) = germ_side(into_region, n_f, len, band) else {
+            continue;
         };
         if side.is_some_and(|s| s != read) {
             return Err(BooleanError::ClassificationInvariant {
@@ -5676,6 +5702,24 @@ fn seam_germ_side<T: Decide>(
         side = Some(read);
     }
     Ok(side)
+}
+
+/// The side of a face of outward normal `n_f` a region leaves a chord
+/// of length `len` to, along `into_region` ([`seam_germ_side`]): Out
+/// where their dot reads positive at the chord's length, In where
+/// negative, and nothing where it reads Zero (a region flush with the
+/// face or tangent to it along the chord) or in band.
+fn germ_side<T: Decide>(
+    into_region: Vec3<T>,
+    n_f: Vec3<T>,
+    len: T,
+    band: Band,
+) -> Option<SideCode> {
+    match decide(SEAM_GERM_SIDE, Margin::of(into_region.dot(n_f) * len), band) {
+        Ok(Sign::Positive) => Some(SideCode::Out),
+        Ok(Sign::Negative) => Some(SideCode::In),
+        Ok(Sign::Zero) | Err(_) => None,
+    }
 }
 
 /// [`seam_germ_side`]'s sign of a region's germ against a face.
@@ -5844,6 +5888,59 @@ fn region_halves<T: Decide>(
         }
     }
     Ok(out)
+}
+
+/// **A region's germ at a seam chord, against the face holding the
+/// chord** ([`germ_side`]): a hemisphere leaving its equator into the
+/// face's side or out of it reads In or Out, and a region tangent to the
+/// face along the chord (a sphere resting on its tangent plane, its
+/// inward direction in that plane) reads nothing, as does a region flush
+/// with the face. The loop it bounds then stays undecided, which
+/// `loop_roles` refuses by name rather than guesses.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod germ_side_rows {
+    use super::super::SideCode;
+    use super::germ_side;
+    use geom_core::{Band, Tol, Vec3};
+
+    #[test]
+    fn a_transversal_germ_reads_its_side_and_a_graze_reads_nothing() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let up = Vec3::new(0.0, 0.0, 1.0);
+        // The unit sphere's equator chord through (1, 0, 0) along +y,
+        // read on each hemisphere: its outward normal there is +x, and
+        // the lower hemisphere walks the chord the other way.
+        let (n_r, t) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+        let upper = crate::stands::inward(n_r, t);
+        let lower = crate::stands::inward(n_r, -t);
+        assert_eq!(
+            germ_side(upper, up, 2.0, band),
+            Some(SideCode::Out),
+            "into +z, the face's outside"
+        );
+        assert_eq!(
+            germ_side(lower, up, 2.0, band),
+            Some(SideCode::In),
+            "into −z, the face's inside"
+        );
+        // A sphere resting on the face's plane: at the touch its normal
+        // is the face's, so a chord there has its inward direction in
+        // the plane.
+        let (n_r, t) = (Vec3::new(0.0, 0.0, -1.0), Vec3::new(1.0, 0.0, 0.0));
+        let graze = crate::stands::inward(n_r, t);
+        assert_eq!(graze.dot(up), 0.0, "the graze's germ lies in the face");
+        assert_eq!(
+            germ_side(graze, up, 2.0, band),
+            None,
+            "a graze reads nothing"
+        );
+        assert_eq!(
+            germ_side(Vec3::new(0.0, 0.0, 0.0), up, 2.0, band),
+            None,
+            "no germ reads nothing"
+        );
+    }
 }
 
 #[cfg(test)]

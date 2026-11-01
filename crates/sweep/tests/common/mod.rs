@@ -200,6 +200,11 @@ pub mod cone_nappe;
 /// Body authoring, so it routes here.
 pub mod wrap_tip;
 
+/// A built body against its analytic region: closed-form volume, tiers 3
+/// and 3′, and point membership at a lattice. A check several suites
+/// make of a body they built, so it routes beside [`orient`].
+pub mod membership;
+
 /// The same-surface latitude-seam fixtures the SHELL-9 suites and
 /// `revert_plane_charts` share — the collinear-cap drum, the two-arc
 /// sphere, the axial door's cavity of either — and the three readers

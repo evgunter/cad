@@ -108,3 +108,46 @@ a one-vertex cap, or `Mixed`), and it now decides
 ## Slate triage (2026-10-26, CLEAVE)
 
 - Moved to HONESPLIT (`work/honesplit/`) by `git mv`, id and body unchanged: whose charter is split and carve bookkeeping, unproven walks and the reads nothing reaches. No fixture reaches it. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## The role read's seam fallback reads curved chords (2026-11-01, SPLITDOOR)
+
+PR 6221 (`splitdoor/wrap-tip-boolean`) extends `boolean/join.rs`
+`seam_germ_side`, the role read's fallback where neither section loop's
+witnesses decide. Before, it read only a line chord on a planar region;
+now it reads every chord at first order:
+- a line chord on a planar region, as before;
+- otherwise the chord's carrier point and tangent at its mid-parameter,
+  and the region's outward normal there.
+
+The region leaves the chord along `n_r × t`, and that is signed against
+the holding face's outward normal (`germ_side`). A graze (the region
+tangent to the face along the chord) or a flush region reads Zero and
+nothing, so the loop stays undecided and `loop_roles` refuses as before
+(`germ_side_rows`).
+
+**What now builds,** each at its closed form with tiers 3 and 3′ and a
+`point_in_solid` lattice against the analytic region:
+- the y-poled pip on the cube's top, every op
+  (`tilted_sphere_pair::a_pip_with_its_seam_in_the_cubes_top_builds_at_its_closed_form`;
+  `germ_coplanar_conic`'s row);
+- the slab well's ring in a sphere island, all six ops
+  (`a_ring_on_a_sphere_face::a_ring_inside_a_sphere_island_moves_and_builds`);
+- the unit ball whose one wrap edge runs pole to pole, cut by a
+  half-space or quarter holding the wrap edge
+  (`a_wrap_tip_reads_its_full_turn_in_the_boolean`).
+
+**What it still does not read:**
+- **The shell witness's caller** (`shell_witness`), whose
+  `ShellWitnessExhausted` / `CoincidentShell` arm is unchanged.
+- **A chord whose region grazes the face.** Its side is the second
+  order's.
+- **A chord whose midpoint no one face holds strictly inside.**
+
+**Measured elsewhere.** PR 9c's die pips (`m5_pr9c_sphere_doors`, the
+slab less the unit ball) now pass the role read. They stop later and
+typed, at the crossings path's interior-loop guard, on the ball's point
+tangency with the top face (`CurvedPairUnsupported` at
+`InteriorLoopGuard`, pinned as
+`the_die_pips_shape_stops_typed_at_its_tangent_top`).
+
+This row's status and priority are left to HONESPLIT.

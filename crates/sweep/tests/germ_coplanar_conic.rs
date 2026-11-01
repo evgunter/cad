@@ -22,8 +22,10 @@
 //!   each section circle crossing its wall's one seam once (every op
 //!   answers its closed form);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
-//!   both poles lie in the cube's top face (today every op refuses at
-//!   the join's role read, `SectionLoopUndecided`).
+//!   both poles lie in the cube's top face: both section loops' regions
+//!   are the ball's hemispheres, every witness of which lies on the top
+//!   face, and the join reads their sides at the seam (`boolean::join`'s
+//!   `seam_germ_side`), so every op answers its closed form.
 //!
 //! Each op must refuse typed or answer its closed-form volume with
 //! `point_in_solid` agreeing on its set membership at witness points,
@@ -333,9 +335,9 @@ const OUTCOMES: [&str; 15] = [
     "the box top across both tube walls: A ∪ B: builds",
     "the box top across both tube walls: A ∩ B: builds",
     "the box top across both tube walls: A ∖ B: builds",
-    "y-poled pip on the cube's top face: A ∪ B: Join",
-    "y-poled pip on the cube's top face: A ∩ B: Join",
-    "y-poled pip on the cube's top face: A ∖ B: Join",
+    "y-poled pip on the cube's top face: A ∪ B: builds",
+    "y-poled pip on the cube's top face: A ∩ B: builds",
+    "y-poled pip on the cube's top face: A ∖ B: builds",
 ];
 
 /// The closed forms the row above holds an answer to, checked against

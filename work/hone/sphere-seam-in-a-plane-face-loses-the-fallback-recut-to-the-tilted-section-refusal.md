@@ -59,3 +59,23 @@ on the cube's (the slab's) face, so neither section loop reads a side
 (`Join(SectionLoopUndecided)`,
 `work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`).
 Re-pinned at that door.
+
+## The y-poled pip builds (2026-11-01, SPLITDOOR)
+
+The pip of this row's What (the cube less a ball, `r = 0.3`, poled
+along `y`, at `(0.5, 0.5, 1)`) builds every op at its closed form, its
+volume, tiers 3 and 3′ and a `point_in_solid` lattice checked. On the
+crossings path it had since got past the tilted section, and stopped at the
+join's role read (`Join(SectionLoopUndecided)`, as both pins said).
+PR 6221 (`splitdoor/wrap-tip-boolean`) has that read take the section
+loops' sides at the seam (`boolean/join.rs` `seam_germ_side`, the note
+on `honesplit/the-uncut-shell-witness-reads-no-curved-face-interior`).
+
+The pins that cite it:
+- `germ_coplanar_conic`'s row now reads `builds`;
+- `tilted_sphere_pair::a_pip_with_its_seam_in_the_cubes_top_builds_at_its_closed_form`;
+- `m5_pr9c_sphere_doors`'s smoke shape is now
+  `the_die_pips_shape_stops_typed_at_its_tangent_top`. It stops later,
+  at the ball's point tangency with the slab's top.
+
+Whether this row closes is HONE's call.

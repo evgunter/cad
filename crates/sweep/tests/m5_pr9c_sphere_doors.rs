@@ -269,17 +269,20 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
 /// on that face (a conic lying in a plane face's plane takes the line
 /// lane's endpoint posture). With those events the reduction takes the
 /// crossings path, and the join chords the section it meets there —
-/// the great circle `z = 0`, along the ball's seam edges — then cannot
-/// read which section loop bounds the result: every witness of both
-/// hemispheres lies on the slab's bottom face
-/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
-/// a typed frontier. The ball is also exactly TANGENT to the top
-/// face's carrier (`z = 1`), which the extent scan refused when the
-/// sweep did not see the poles. (Nudge the ball off both coincidences
-/// and the S13 lanes cut it — the pips suite.) The row pins that door,
-/// not an arc: the role read stops the op whichever arc a chord takes.
+/// the great circle `z = 0`, along the ball's seam edges. Every witness
+/// of both hemispheres lies on the slab's bottom face
+/// (`work/honesplit/the-uncut-shell-witness-reads-no-curved-face-interior.md`),
+/// and the join reads which section loop bounds the result at the seam
+/// instead (`boolean::join`'s `seam_germ_side`). The ball is also
+/// exactly TANGENT to the top face's carrier (`z = 1`) at its point
+/// `(0, 0, 1)`, and that is where the op stops: the crossings path's
+/// interior-loop guard cannot certify the sphere and the top face free
+/// of a loop interior to both, and refuses the pair typed
+/// (`CurvedPairUnsupported` at `InteriorLoopGuard`), an honest frontier
+/// for a point tangency. (Nudge the ball off both coincidences and the
+/// S13 lanes cut it — the pips suite.)
 #[test]
-fn the_die_pips_shape_stops_typed_at_its_section_roles() {
+fn the_die_pips_shape_stops_typed_at_its_tangent_top() {
     let slab = validated(vec![profile::ProfileLoop::polygon([
         Point2::new(-2.0, -2.0),
         Point2::new(2.0, -2.0),
@@ -299,12 +302,17 @@ fn the_die_pips_shape_stops_typed_at_its_section_roles() {
     let a = finished("the slab", a, Tol::witness());
     let b = finished("the ball", ball(), Tol::witness());
     let err = topo::boolean::subtract(&a, &b, Tol::witness()).unwrap_err();
-    let topo::BooleanError::Join(j) = &err else {
-        panic!("expected the undecided section loop, got {err:?}");
-    };
     assert!(
-        matches!(j.error(), topo::SplitJoinError::SectionLoopUndecided { .. }),
-        "expected the undecided section loop, got {err:?}"
+        matches!(
+            err,
+            topo::BooleanError::CurvedPairUnsupported {
+                site: topo::PairRefusalSite::InteriorLoopGuard,
+                kind: geom::SurfaceKind::Sphere,
+                other_kind: geom::SurfaceKind::Plane,
+                ..
+            }
+        ),
+        "expected the interior-loop guard on the sphere and the top face, got {err:?}"
     );
     // The retired claims must be GONE from the surfaced text: revert is
     // wired, the gate is not wholesale, and the sphere class is no
