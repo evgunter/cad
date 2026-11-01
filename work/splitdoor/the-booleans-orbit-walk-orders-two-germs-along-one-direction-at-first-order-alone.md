@@ -50,3 +50,11 @@ the hole rim's vertex of the holed blocks in
 ±0.4, ±0.9, six spins) never reads `bool_strut_order` or
 `bool_shared_cut_order` in band or at zero; it fails earlier
 (`a-brick-corner-at-a-holes-rim-vertex-leaves-loose-ends`).
+
+## One tie arm (2026-11-01, `cleave/orbit-readings-read-the-beside-tie`)
+
+Every reader in the second bullet now asks `walks_before`, whose tie
+arm reads `beside_order` and returns `None` where it reads nothing;
+`walk_faces_first` hands `beside_order` to `strut_order` as its tie.
+`beside_tie` and `walks_before_beside` are gone. A one-order-down
+reading of the bend would go in those two places.
