@@ -23,7 +23,7 @@ use sweep::test_support::{
 };
 use topo::{Body, ContactRecords};
 
-use super::curved_edge_corpus::{Truth, corpus, fast, kinked_bore, robust};
+use super::curved_edge_corpus::{Truth, corpus, fast, kinked_bore, revolved, robust};
 
 test_utils::gated_to![
     "crates/topo/src/boolean/solid_contain.rs",
@@ -466,4 +466,125 @@ fn rays_in_band_of_a_curved_edge_read_it_once() {
             tol.eps()
         );
     }
+}
+
+/// The tube of [`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`]:
+/// radius 0.5 about `r = 2`.
+fn tube() -> Vec<(Point2<f64>, f64)> {
+    vec![(Point2::new(1.5, 0.0), 1.0), (Point2::new(2.5, 0.0), 1.0)]
+}
+
+/// **The nightly's ray grazing a partial torus's rim counts no crossing
+/// of the tube elsewhere for it**
+/// (`work/flush/main-red-a-ray-about-a-partial-torus-rim-counts-its-ends-with-no-material-beyond.md`;
+/// nightly 2026-10-29 at ε 1e-6, `CAD_FUZZ_SEED=0x003481ce0ba06522`). It
+/// passes the 1.5-turn torus's rim within the band, just outside the
+/// tube's bottom, and crosses the carrier nowhere near it. The rim's
+/// torus half read nearest the root where the ray leaves the tube
+/// across the axis, 3.75 back, and counted that exit as half the rim's.
+/// It reads wrong without the rule at ε 1e-6 only, so at the other rows
+/// it holds whatever the rule; its family, which reads wrong at every
+/// row, is [`rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere`].
+#[test]
+fn the_nightlys_ray_grazing_a_torus_rim_reads_right() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let (body, truth) = revolved(
+        "rev torus 1.5pi",
+        tube(),
+        Revolution::Partial(1.5 * PI),
+        tol,
+    );
+    at_rest("rev torus 1.5pi", &body, tol);
+    let face = body.faces().next().expect("a face").0;
+    let q = Point3::new(0.1654750844081492, -0.3689933861942981, -6.0031985322182555);
+    let d = Vec3::new(
+        -0.020687219868856334,
+        -0.01637304530398302,
+        0.9996519205811447,
+    );
+    assert_eq!(
+        whole_ray(&body, face, (q, d), (&truth, false), band, 10.0 * k_eps),
+        Ok(()),
+        "at ε {:e}",
+        tol.eps()
+    );
+}
+
+/// **A ray grazing a partial torus's rim counts no crossing of the tube
+/// elsewhere for it**. A ray along a rim's tangent, just outside the
+/// tube and tilted off the cap's plane, passes the rim within the band
+/// and crosses the carrier nowhere near it. Past a half turn it crosses
+/// the tube again across the axis, and that root, held by its face, is
+/// the one the met edge's torus half reads nearest. That root is a
+/// crossing of its own, and the rim stands for no root of the tube that
+/// far off. Three partial turns, each rim of each, both ways along it,
+/// from 8 m and from 5 cm back, each read whole, and at least 85% of
+/// them read at every crossing. Without the rule, 72 of 9024 rays read
+/// wrong at each of ε 1e-9, 1e-6 and 1e-12.
+#[test]
+fn rays_grazing_a_torus_rim_count_no_crossing_of_the_tube_elsewhere() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let clear = 10.0 * k_eps;
+    let mut wrong = Vec::new();
+    let fractions: Vec<f64> = (1..48).map(|i| f64::from(i) / 48.0).collect();
+    let (mut n, mut across, mut read) = (0, 0, 0);
+    for turn in [1.25, 1.5, 1.75] {
+        let name = format!("torus {turn}π");
+        let (body, truth) = revolved(&name, tube(), Revolution::Partial(turn * PI), tol);
+        at_rest(&name, &body, tol);
+        for f in topo::test_support::edge_frames(&body, &fractions, band) {
+            if !(f.label.starts_with("Circle") && f.label.contains("[Torus | Plane]")) {
+                continue;
+            }
+            let along = f.normal.cross(f.into);
+            for off in [0.3, 0.9] {
+                let p = f.point + f.normal * (off * k_eps);
+                // Tilted off the cap's plane, still tangent to the tube.
+                for d in [along, -along]
+                    .into_iter()
+                    .flat_map(|a| [0.02, -0.02].map(|tilt| (a + f.into * tilt).normalize()))
+                {
+                    // Whether the ray's line crosses the tube across the axis.
+                    across +=
+                        usize::from((200..1200).any(|i| truth(p + d * (f64::from(i) * 0.005))));
+                    for back in [8.0, 0.05] {
+                        n += 1;
+                        let q = p - d * back;
+                        // Read whole: counted at every crossing, none set aside.
+                        read += usize::from(matches!(
+                            topo::test_support::ray_counts(&body, f.face, (q, d), band, (0, false)),
+                            Ok(hits) if hits.iter().all(|h| !h.3)
+                        ));
+                        if let Err(w) =
+                            whole_ray(&body, f.face, (q, d), (&truth, false), band, clear)
+                        {
+                            wrong.push(format!("{name}, {} p={p:?} d={d:?}: {w}", f.label));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    assert!(
+        across >= 8,
+        "at ε {:e}: {across} of the family's lines cross the tube across the axis",
+        tol.eps()
+    );
+    // 8160 of 9024 read whole at each of ε 1e-9, 1e-6 and 1e-12: a rule
+    // that sets the family aside wholesale goes red here.
+    assert!(
+        20 * read >= 17 * n,
+        "at ε {:e}: {read} of {n} rays read whole, under 85%",
+        tol.eps()
+    );
+    assert!(
+        wrong.is_empty(),
+        "at ε {:e}, {} of {n} rays read wrong: {wrong:#?}",
+        tol.eps(),
+        wrong.len()
+    );
 }

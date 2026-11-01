@@ -3038,6 +3038,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::PartingOrder",
         1,
     ),
+    ("slit.rs", "spline_floor", "BooleanDecision::Containment", 1),
+    ("slit.rs", "spline_floor", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "BooleanDecision::of_normal", 1),
     ("slit.rs", "walls_inside", "Coincide::Sectors", 1),
     (
