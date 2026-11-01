@@ -497,8 +497,8 @@ fn the_bite_refuses_at_the_germ_frame() {
 ///   carrier ladder settles the two cone faces one carrier. `∩` is the
 ///   sector, `π/4·((0.8³ − 0.4³)/3 − 0.004)`, and the cone less it
 ///   the rest of `π/3`. `∪` is the cone and the sector less the cone is
-///   nothing: the section pass defers the settled pair, and no edge of
-///   the cone runs inside the sector's face, so the shells' sides stand.
+///   nothing: the section pass defers the settled pair, and the shells'
+///   sides stand.
 #[test]
 fn a_tangent_plane_refuses_and_a_sector_on_the_cone_face_builds_where_it_certifies() {
     let (c, _) = cone(None);

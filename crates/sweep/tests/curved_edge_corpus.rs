@@ -110,40 +110,46 @@ fn op(which: &str, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Result<Option<Body
     Ok(r.body().map(|b| b.body.clone().into_body()))
 }
 
+/// A profile revolved about `y` through the public door, with its
+/// truth: a partial turn's direction is read off one deep point of the
+/// missing wedge.
+pub(crate) fn revolved(
+    name: &str,
+    verts: Vec<(Point2<f64>, f64)>,
+    rev: Revolution<f64>,
+    tol: Tol,
+) -> (Body<f64>, Truth) {
+    let v2 = verts.clone();
+    let Ok(body) = std::panic::catch_unwind(|| revolved_about_y(v2, rev, tol)) else {
+        panic!("{name}: the revolve refuses")
+    };
+    let truth = match rev {
+        Revolution::Full => revolved_truth(verts, None),
+        Revolution::Partial(a) => {
+            let (cr, cy) = deep_point(&verts);
+            let m = a + (2.0 * PI - a) / 2.0;
+            let probe = Point3::new(cr * m.cos(), cy, cr * m.sin());
+            let band = geom_core::Band::linear(tol).expect("band");
+            let dir = if topo::point_in_solid(&body, probe, band, tol)
+                == Ok(topo::SolidContainment::In)
+            {
+                -1.0
+            } else {
+                1.0
+            };
+            revolved_truth(verts, Some((a, dir)))
+        }
+    };
+    (body, truth)
+}
+
 /// The corpus: `(name, body, truth)`; a body that does not build is
 /// reported and left out.
 pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
     let mut out: Vec<(String, Body<f64>, Truth)> = Vec::new();
     let mut revolve = |name: String, verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>| {
-        let angle = match rev {
-            Revolution::Full => None,
-            Revolution::Partial(a) => Some(a),
-        };
-        let v2 = verts.clone();
-        let body = std::panic::catch_unwind(|| revolved_about_y(v2, rev, tol));
-        match body {
-            Ok(body) => {
-                // A partial turn's direction: read off one deep point.
-                let truth: Truth = match angle {
-                    None => revolved_truth(verts, None),
-                    Some(a) => {
-                        let mut dir = 1.0;
-                        let (cr, cy) = deep_point(&verts);
-                        let m = a + (2.0 * PI - a) / 2.0;
-                        let probe = Point3::new(cr * m.cos(), cy, cr * m.sin());
-                        let band = geom_core::Band::linear(tol).expect("band");
-                        if topo::point_in_solid(&body, probe, band, tol)
-                            == Ok(topo::SolidContainment::In)
-                        {
-                            dir = -1.0;
-                        }
-                        revolved_truth(verts, Some((a, dir)))
-                    }
-                };
-                out.push((name, body, truth));
-            }
-            Err(_) => panic!("{name}: the revolve refuses"),
-        }
+        let (body, truth) = revolved(&name, verts, rev, tol);
+        out.push((name, body, truth));
     };
     let quarter = (PI / 2.0 / 4.0).tan();
     let rect = vec![

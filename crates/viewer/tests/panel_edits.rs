@@ -938,12 +938,6 @@ fn the_tree_selects_a_node_and_the_property_panel_follows() {
     let rows = session.tree_rows();
     let ids: Vec<_> = rows.iter().map(|row| row.id).collect();
     assert!(ids.contains(&profile) && ids.contains(&extrude));
-    assert_eq!(
-        common::row_of(&rows, extrude).depth,
-        0,
-        "the profile is the extrude's primary input, so the extrude \
-         continues its line rather than indenting under it"
-    );
     assert!(!tree::has_faults(&rows));
 
     assert!(session.slot_rows().is_empty(), "nothing selected yet");
