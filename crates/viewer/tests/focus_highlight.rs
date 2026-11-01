@@ -318,7 +318,7 @@ fn die(tol: Tol) -> Die {
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let [copy] = viewer::world::drawn_nodes(&doc)[..] else {
+    let [copy] = crate::common::drawn_copies(&doc)[..] else {
         panic!("the die is placed once")
     };
     let composed = viewer::world::seat_of(&doc, copy);
@@ -339,7 +339,18 @@ fn die(tol: Tol) -> Die {
         .copied()
         .find(|&id| id != copy && matches!(doc.node(id), Some(Node::Place { .. })))
         .expect("the die places its pips");
+    // The corpus keeps a fillet of the cube nothing reads, which the
+    // picture draws in the cube's own space: deleted, so the index holds
+    // the die's faces alone.
+    let others: Vec<RecipeNodeId> = viewer::world::drawn_nodes(&doc)
+        .into_iter()
+        .filter(|&node| node != copy)
+        .collect();
     let mut session = crate::common::inline_without_door(doc, tol);
+    for node in others {
+        let deleted = session.perform(SessionOp::DeleteNode { node });
+        assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
+    }
     session.pump();
     Die {
         session,

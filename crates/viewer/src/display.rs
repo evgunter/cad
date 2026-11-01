@@ -445,7 +445,7 @@ impl core::error::Error for DisplayFault {}
 /// [`AdmissionFault::NoSuchNode`], [`AdmissionFault::NotABody`].
 pub fn body_check(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Result<(), AdmissionFault> {
     match doc.node(node) {
-        Some(_) if doc.node_space(node).is_some() => Ok(()),
+        Some(built) if crate::world::builds_a_body(built) => Ok(()),
         Some(_) => Err(AdmissionFault::NotABody {
             node: doc.spoken(node),
         }),

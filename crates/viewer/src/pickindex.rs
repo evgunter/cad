@@ -1081,8 +1081,12 @@ impl PickIndex {
         key: PictureKey,
         tol: Tol,
     ) -> Result<Self, PickIndexError> {
-        Self::assemble(doc, eval, key, |node| {
-            NodePick::build_all(eval, node, key.delta().get(), tol)
+        Self::assemble(doc, eval, key, |node, bodies| match bodies {
+            None => NodePick::build_all(eval, node, key.delta().get(), tol),
+            Some(bodies) => bodies
+                .iter()
+                .map(|&body| NodePick::build(eval, node, body, key.delta().get(), tol))
+                .collect(),
         })
     }
 
@@ -1110,20 +1114,29 @@ impl PickIndex {
         tol: Tol,
         memo: &mut PickMemo,
     ) -> Result<Self, PickIndexError> {
-        let index = Self::assemble(doc, eval, key, |node| {
-            NodePick::build_all_with(eval, node, key.delta().get(), tol, memo)
+        let index = Self::assemble(doc, eval, key, |node, bodies| match bodies {
+            None => NodePick::build_all_with(eval, node, key.delta().get(), tol, memo),
+            Some(bodies) => bodies
+                .iter()
+                .map(|&body| NodePick::build_with(eval, node, body, key.delta().get(), tol, memo))
+                .collect(),
         });
         memo.end_picture();
         index
     }
 
     /// The walk both doors share: every drawn node through `parts`,
-    /// then the id windows over the ones that built.
+    /// the bodies it draws named where they are not all of them
+    /// ([`crate::world::drawn_indices`]), then the id windows over the
+    /// ones that built.
     fn assemble(
         doc: &Doc<ProfileProgram>,
         eval: &Evaluation<f64>,
         key: PictureKey,
-        mut build_parts: impl FnMut(RecipeNodeId) -> Result<Vec<NodePick>, NodePickError>,
+        mut build_parts: impl FnMut(
+            RecipeNodeId,
+            Option<Vec<u32>>,
+        ) -> Result<Vec<NodePick>, NodePickError>,
     ) -> Result<Self, PickIndexError> {
         let mut parts: Vec<NodePick> = Vec::new();
         let mut undrawn = Vec::new();
@@ -1142,7 +1155,7 @@ impl PickIndex {
             if let Some(space) = doc.node_space(node) {
                 spaces.insert(node, space);
             }
-            match build_parts(node) {
+            match build_parts(node, crate::world::drawn_indices(doc, node, &drawn)) {
                 Ok(built) => {
                     for part in built {
                         let body = part.body();
@@ -1523,6 +1536,14 @@ impl PickIndex {
                 });
             }
         }
+        // Across groups, in the parts' order — the order the picture
+        // draws them in — so a tie between bodies of two spaces lists
+        // them as a tie inside one space does.
+        candidates.sort_by_key(|hit| {
+            self.parts
+                .iter()
+                .position(|part| part.node() == hit.node && part.body() == hit.body)
+        });
         // The kernel's own rule over the whole candidate set, through
         // the kernel's own callable: the survivors of `precedes`,
         // grouped by face, then one answer or the refusal.
@@ -2877,7 +2898,7 @@ mod tests {
                 crate::generation::Generation::FIRST,
                 crate::test_support::plate_delta(),
             ),
-            |_| Err(refusal.clone()),
+            |_, _| Err(refusal.clone()),
         )
         .expect("a copy that cannot be drawn does not refuse the index");
         assert!(index.parts().is_empty(), "the copy is not drawn");

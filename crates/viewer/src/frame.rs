@@ -1203,12 +1203,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// went.** Each entry carries the [`crate::display::AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
 /// rest of the crate follows. So the commonest arm names the space and
-/// why it is no longer shown (`NotShown`: *no copy is placed into it, or
-/// its bodies are copied into another space*), a fuse names the product and the instances
-/// fused into it, and a deleted instance says the document does not
-/// hold the node — which is the delete arm's whole point, since the id
-/// alone names something the tree no longer draws without saying that
-/// is why.
+/// why it is no longer shown (`NotShown`: *every body in it is read by
+/// an operation*), and a deleted node says the document does not hold
+/// it — which is the delete arm's whole point, since the id alone names
+/// something the tree no longer draws without saying that is why.
 ///
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`crate::display::AdmissionFault`] names its own SUBJECT, so

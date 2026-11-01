@@ -849,10 +849,14 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             viewer::display::free_move_check(session.committed_doc(), spaces, post),
             "{slot:?}: the shown and committed documents admit the same probes"
         );
+        // The member the read takes is the dragged value, so the two
+        // documents draw different members of the family; the spaces
+        // they show, which the probe's admission and the prune read,
+        // are the graph's.
         assert_eq!(
-            viewer::world::drawn_bodies(session.doc()),
-            viewer::world::drawn_bodies(session.committed_doc()),
-            "{slot:?}: the two documents draw the same bodies"
+            viewer::world::shown_spaces(session.doc()),
+            viewer::world::shown_spaces(session.committed_doc()),
+            "{slot:?}: the two documents show the same spaces"
         );
 
         // And once the SCRATCH lands, its landing answers the committed

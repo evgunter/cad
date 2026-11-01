@@ -694,7 +694,8 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let shelf_i = asm::instance_at(&mut doc, bench.shelf, asm::SHELF_AT, &bench.opts(), tol);
     let post_i = asm::instance_at(&mut doc, bench.post, asm::POST_B_AT, &bench.opts(), tol);
     let room = common::insert_into(&mut doc, Node::Space, tol);
-    let room = Operand::Var(doc.output(room, 0).expect("a new space defines its space"));
+    let room_space = doc.output(room, 0).expect("a new space defines its space");
+    let room = Operand::Var(room_space);
     let family = |doc: Doc<ProfileProgram>, name: &str, of: RecipeNodeId, dir: [f64; 3]| {
         let (doc, k) = crate::fixture::index(doc, name, 2);
         let placed = Placed::of(
@@ -754,6 +755,13 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     let outcome = session.perform(SessionOp::Open(path));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    // The room draws the members no read takes, where the world copies
+    // stand: hidden, so the rows' rays meet the world's picture alone.
+    let hidden = session.perform(SessionOp::SetSpaceHidden {
+        space: room_space,
+        hidden: true,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     (
         session,
         [post_i, shelf_i, inner, part, outer, loose, outer_one],
@@ -1054,6 +1062,13 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     let below = pncad::select::SplitHalf::Below;
     let at = common::drawn::translated([0.1, 0.0, 0.0]);
     let (mut session, half) = common::drawn::half_placed(&session, split, below, &at, tol);
+    // The split itself is drawn whole in the block's own space, over the
+    // block's world copy: hidden, so the rays meet the copies alone.
+    let hidden = session.perform(SessionOp::SetBodyHidden {
+        node: split,
+        hidden: true,
+    });
+    assert!(hidden.refusal.is_none(), "{:?}", hidden.refusal);
     let underside = asm::pick_face(&session, &common::up_at(0.1, 0.0));
     let top = asm::pick_face(&session, &common::down_at(0.0, 0.0));
     assert_eq!(underside.node, half, "the ray met the lower half's copy");

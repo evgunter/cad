@@ -3585,14 +3585,13 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         .expect("a `new_space()` defines the post's own space");
     let space_tag = test_utils::refusal::tag(space_node.0.digest());
     let in_the_world = format!(
-        "InstantiatePart {post} is placed into the world, the product's space, so the \
-         free-move probe refuses. Free-move moves another shown space: place the copy into \
-         a space of its own to probe it"
+        "InstantiatePart {post} is in the world, the product's space, so the free-move \
+         probe refuses. Free-move moves another shown space"
     );
     let not_shown = format!(
-        "InstantiatePart {post}'s free-move moves Space {space_tag}, which is not shown — no \
-         copy is placed into it, or its bodies are copied into another space and drawn there \
-         — so there is no picture of it to move"
+        "InstantiatePart {post}'s free-move moves Space {space_tag}, which is not shown — \
+         every body in it is read by an operation and drawn there — so there is no picture \
+         of it to move"
     );
     assert_eq!(
         line.text(),
@@ -4040,7 +4039,7 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     assert_eq!(
         line.text(),
         "nothing to undo \u{2022} free move: a committed placement was discarded — node 000000000004 is \
-         not in the document \u{2022} hide: a hide was dropped with the instance it was on — \
+         not in the document \u{2022} hide: a hide was dropped with what it was on — \
          node 000000000005 is not in the document \u{2022} free move: the drag in flight was ended — node \
          000000000006 is not in the document"
     );

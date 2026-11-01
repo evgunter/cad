@@ -126,11 +126,15 @@ fn member_at(doc: &Doc<ProfileProgram>, at: &[VarId]) -> Option<u32> {
     u32::try_from(value).ok()
 }
 
-/// **How many members the family `node` builds**, where the recipe
-/// writes it: one index, its count a constant. `None` otherwise, and
-/// then a family whose members are each read alone is still drawn, with
-/// no member, in its space.
-fn member_count(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<u32> {
+/// **How many bodies `node` builds**, where the recipe says: a split's
+/// two halves, or a family's members over one index whose count is
+/// written as a constant. `None` otherwise, and then a node whose
+/// bodies are each read alone is still drawn, with no body, in its
+/// space.
+fn body_count(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<u32> {
+    if matches!(doc.node(node)?, Node::Split { .. }) {
+        return Some(2);
+    }
     let reach = doc.node_reach(node);
     let [index] = reach.chain()? else {
         return None;
@@ -191,7 +195,7 @@ fn takes(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Vec<(RecipeN
 
 /// **Whether `node` builds a body the picture can draw**: one of its
 /// ports is a body, a family of bodies, or a placement's copy.
-fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
+pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
     node.outputs().iter().any(|port| match port.kind {
         PortKind::Of(kind) => matches!(kind, VarKind::Body | VarKind::Bodies),
         PortKind::Placed => true,
@@ -225,9 +229,9 @@ pub fn drawn_bodies(doc: &Doc<ProfileProgram>) -> Vec<Drawn> {
         }
         let covers = match taken.get(&id) {
             None => Covers::all(),
-            // Every member read alone is the family read whole.
+            // Every body read alone is the node read whole.
             Some(Some(bodies))
-                if member_count(doc, id)
+                if body_count(doc, id)
                     .is_some_and(|count| (0..count).all(|k| bodies.contains(&k))) =>
             {
                 continue;
@@ -264,6 +268,31 @@ fn pieces(
             within: within.clone(),
         }),
     }
+}
+
+/// **Which bodies of `node` the drawings in `drawn` cover**, by body
+/// index, or `None` for every body of its value: a node drawn whole, or
+/// a family less members read alone whose count the recipe does not
+/// write ([`body_count`]), which is then built whole and narrowed by
+/// [`Drawn::draws`].
+pub fn drawn_indices(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    drawn: &[Drawn],
+) -> Option<Vec<u32>> {
+    let mut indices = BTreeSet::new();
+    for covers in drawn.iter().filter(|d| d.node == node).map(|d| &d.covers) {
+        match covers {
+            Covers::One(body) => {
+                indices.insert(*body);
+            }
+            Covers::AllBut(taken) if taken.is_empty() => return None,
+            Covers::AllBut(taken) => {
+                indices.extend((0..body_count(doc, node)?).filter(|k| !taken.contains(k)));
+            }
+        }
+    }
+    Some(indices.into_iter().collect())
 }
 
 /// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):
@@ -332,13 +361,23 @@ pub fn copied_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId
 /// **The body the drawn copy `node` places** ([`copied_var`] of a
 /// `Place` the picture draws), or `None` for any other node: a pick
 /// lands on a drawn copy only, and a copy the picture does not draw is
-/// a body some operation reads, which a seat takes as itself.
+/// a body some operation reads, which a seat takes as itself. A family
+/// of copies (a placement evaluated once per member) answers `None`
+/// too: a pick on one of its members is on the family, which is what
+/// a seat over it takes.
 pub fn placed_var(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
-    copied_var(doc, node).filter(|_| is_drawn(doc, node))
+    copied_var(doc, node).filter(|_| is_copy(doc, node) && is_drawn(doc, node))
+}
+
+/// **Whether `node` is one copy**: a `Place` evaluated once, not a
+/// family of copies (a placement whose reads reach an index).
+fn is_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    matches!(doc.node(node), Some(Node::Place { .. })) && doc.node_reach(node).is_none()
 }
 
 /// **The drawn copies of `var`**, in document order: the placements
-/// whose source reads it and whose copy the picture draws.
+/// whose source reads it and whose copy the picture draws, each one
+/// copy ([`placed_var`]'s reading).
 pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
     drawn_copies_where(doc, |copied| copied == var)
 }
@@ -349,17 +388,16 @@ pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<Recip
     drawn_copies_where(doc, |copied| outputs.contains(&copied))
 }
 
-/// The placements the picture draws whose source's read `copies`
+/// The drawn copies ([`placed_var`]) whose source's read `copies`
 /// accepts, in document order, each once.
 fn drawn_copies_where(
     doc: &Doc<ProfileProgram>,
     copies: impl Fn(VarId) -> bool,
 ) -> Vec<RecipeNodeId> {
-    let drawn = drawn_nodes(doc);
-    doc.placements()
+    drawn_nodes(doc)
         .into_iter()
-        .filter(|placement| drawn.contains(placement))
-        .filter(|&placement| copied_var(doc, placement).is_some_and(&copies))
+        .filter(|&node| is_copy(doc, node))
+        .filter(|&node| copied_var(doc, node).is_some_and(&copies))
         .collect()
 }
 

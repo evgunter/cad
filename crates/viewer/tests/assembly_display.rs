@@ -280,6 +280,12 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         tol,
     );
     assert!(session.perform(SessionOp::Open(path)).refusal.is_none());
+    // The product the copy of the union alone, so no `⊔` draws the
+    // instances as its pieces.
+    let product = session.perform(SessionOp::SetProduct {
+        bodies: vec![place.into()],
+    });
+    assert!(product.refusal.is_none(), "{:?}", product.refusal);
     session.pump();
     (session, a, b, place)
 }
@@ -1510,13 +1516,16 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     );
 }
 
-/// **A frame on a space whose copies a placed product fuses goes at
-/// the edit, saying so.** The shelf and post_b share a space with a
-/// frame held on it; placing a union of the two reads that space's
-/// bodies, so the space holds no drawn body, is no longer shown, and the
-/// frame is dropped.
+/// **A frame on a space whose bodies a union reads stays while the
+/// product draws them as its pieces, and goes, saying so, once nothing
+/// draws them.** The shelf and post_b share a space with a frame held on
+/// it; a placed union of the two reads both as bodies, but the
+/// product's `⊔` still reads them, so the picture draws them as its
+/// pieces and the space stays shown. Emptying the product leaves nothing
+/// drawing them: the space is no longer shown, and that edit drops the
+/// frame.
 #[test]
-fn a_frame_whose_copies_are_fused_goes_saying_so() {
+fn a_frame_whose_bodies_are_fused_goes_once_nothing_draws_them() {
     let tol = Tol::witness();
     let bench = asm::bench("fmfuse", tol);
     let union = asm::store_union(&bench, &[bench.shelf_i, bench.post_b], tol);
@@ -1537,10 +1546,18 @@ fn a_frame_whose_copies_are_fused_goes_saying_so() {
         beside: None,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        outcome.withdrawn.superseded.is_empty(),
+        "the product still draws the shelf and the post as its pieces"
+    );
+    assert!(session.display().free_move_of(space).is_some());
+
+    let outcome = session.perform(SessionOp::SetProduct { bodies: vec![] });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     for instance in [bench.shelf_i, bench.post_b] {
         assert!(
-            !viewer::world::is_drawn(session.doc(), instance),
-            "the union reads {instance:?} as a body, so it is not drawn"
+            !viewer::world::is_drawn(session.committed_doc(), instance),
+            "the union reads {instance:?} as a body and nothing else draws it"
         );
     }
     let [withdrawn] = &outcome.withdrawn.superseded[..] else {
@@ -1555,7 +1572,7 @@ fn a_frame_whose_copies_are_fused_goes_saying_so() {
             &withdrawn.cause,
             AdmissionFault::NotShown { space: left, .. } if left.id() == space
         ),
-        "the cause names the space the fuse reads: {}",
+        "the cause names the space the union reads: {}",
         withdrawn.cause
     );
     assert!(session.display().free_move_of(space).is_none());
