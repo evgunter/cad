@@ -986,7 +986,12 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
     );
     // The canonical value is untouched by any of it.
     assert_eq!(
-        row.value.expect("a value").as_f64().to_bits(),
+        row.value
+            .expect("a value")
+            .one()
+            .expect("one value")
+            .as_f64()
+            .to_bits(),
         0.01_f64.to_bits()
     );
 
@@ -994,7 +999,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
     // template lowering — the form's job, not the session's.
     let radius = props::slot_rows(session.committed_doc(), profile)
         .into_iter()
-        .find(|row| matches!(row.value, Ok(ref v) if v.as_f64() == 0.005))
+        .find(|row| matches!(row.value, Ok(ref v) if v.one().expect("one value").as_f64() == 0.005))
         .expect("the circle's radius");
     assert_eq!(radius.unit.map(|u| u.symbol()), Some("mm"));
 

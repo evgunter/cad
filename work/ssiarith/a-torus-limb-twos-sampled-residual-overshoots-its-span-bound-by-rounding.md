@@ -34,3 +34,7 @@ with the torus rather than with `big` (so `torus_readings`,
 test's slack too tight for a millimetre torus? Either way a bound that
 a sample exceeds is not a bound, so the first reading is the one to
 rule out first.
+
+2026-11-01 (SPLICE, PR 6171's CI at 1e-12): another instance. `CAD_FUZZ_SEED=0x6a2d823d74e75b46
+CAD_FUZZ_EFFORT=1 CAD_TOLERANCE_EPS=1e-12`: span 8 at 0.75, residual 1.0122415369981837e-8 over its
+bound 1.0122415334767205e-8. It reproduces on `origin/main` a81699db.

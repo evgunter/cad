@@ -293,3 +293,12 @@ Signed: (CARVE orchestrator)
   - **Cap corners.** No reading presents a plane cap at a corner of two arcs. The carrier arm would certify it, but it reads the wall's zero side through the centred form over a rational spline net. That is second order in the cell, so it decides only at depth 51–73. ZEROSIDE is dispatched to read the side off its own control points.
   - **`m8_14`'s half-turn helix** no longer reproduces on main; it is pinned as holding.
   - **Rows pinned** at both scalars (the tour rows at f64). HEADING and ZEROSIDE flip them.
+- 2026-11-01 — **CARVE's four P0 rows taken up; REFINES, SLIVER and SEAMDIAG dispatched.** CARVE filed four CLEAR rows on 2026-10-31 (`6d2622ba97`) and parked its `self-overlapping-spines-build-and-validate` on them, so CLEAR's sitting continues past SHELL-4.
+  - **REFINES** (`clear/refines`, E, single FULL). The orchestrator decided the shape: an axis refines when EITHER half narrows it. This is CARVE's experiment, and it is sound because the door is admission only.
+  - **SLIVER** (`clear/sliver`, M, single FULL, diagnosis first). The fix shape (drop or bound the sliver span in `rect_jet`, or snap the split to the knot) is the lane's to weigh.
+  - **SEAMDIAG** (`clear/seamdiag`, a diagnosis unit like CAVITYDIAG). It prints the cap-corner and twisted-seam loci and returns a fix shape for each.
+  - **The price row** (`injectivity-price-on-tour-lofts-exceeds-the-pair-budget`) is a design fork: a coarser arm or a per-body budget. It waits on SLIVER's and SEAMDIAG's data before the two designers weigh it.
+- 2026-11-01 — **REFINES merges (#6206)** with this commit last. `refines` admits an axis when either half narrows the window's box. A box with any non-finite bound narrows nothing (`narrows`).
+  - **Now decided rather than turned away at the door:** the arc spine past a full turn, CONTACTHOLD's closed spine and CARVETAIL's loft read `Violated`, all real crossings checked by hand. The long helix holds again. Receipts for faces already admitted are unchanged.
+  - **The review.** A single FULL review at `ae2561ad94` returned APPROVE-WITH-FIXES. M5b (min-side only) and M6 (a poison half narrows) survived. The fix pass (`4dfb0439`) added max-side ribbons and the `narrows` finiteness rule with its row, built the real x = 1 bow-tie wall, and made `arc_spine_places` one shared fixture. The orchestrator read it and accepted it.
+  - **Main red during the unit:** #6200's blend rewording, filed under CHROME as P0 (#6222) and fixed by #6227.
