@@ -481,7 +481,10 @@ mod tests {
         let (c, s) = (tilt.cos(), tilt.sin());
         let t = Vec3::new(c, 0.0, s);
         let bend = Vec3::new(c * bend.x - s * bend.z, bend.y, s * bend.x + c * bend.z);
-        assert!(t.dot(bend).abs() < 1e-15, "the bend is square to the tangent");
+        assert!(
+            t.dot(bend).abs() < 1e-15,
+            "the bend is square to the tangent"
+        );
         let carrier = geom::Curve3::Circle {
             center: Point3::origin() + bend,
             axis: t.cross(bend),
