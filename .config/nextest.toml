@@ -81,6 +81,7 @@ not (
   (binary_id(editor-core::all) & test(=edit_strip_mouth_cups::a_strip_cup_a_size_edit_puts_inside_a_bands_region_vanishes_on_the_blends_verdict)) |
   (binary_id(editor-core::all) & test(=union_pinch_member_order::a_prism_crossing_one_wedge_about_the_line_publishes_one_table_in_every_member_order)) |
   (binary_id(editor-core::all) & test(=union_pinch_member_order::a_block_over_the_wedges_junction_builds_in_every_member_order)) |
+  (binary_id(editor-core::all) & test(=union_member_orders_decide_alike::a_pierce_held_in_a_face_is_one_statement_in_every_member_order)) |
   (binary_id(editor-core::all) & test(=split_pinch_keeps::every_moat_round_a_diamond_pocket_touching_the_block_walls_splits_along_its_floor)) |
   (binary_id(editor-core::all) & test(=intent_dprime1_target_space::every_corpus_space_is_a_space_variable)) |
   (binary_id(editor-core::all) & (test(=coincidence_door::an_unproven_fold_row_is_reported_under_the_judged_row_decided_at_its_point) | test(=coincidence_door::a_corner_the_tool_passes_through_is_not_on_it_by_construction) | test(=coincidence_door::a_placed_halfs_crossings_are_not_on_the_unplaced_face_by_construction) | test(=coincidence_door::a_section_edge_lies_on_the_wall_it_runs_across) | test(=coincidence_door::an_arc_crossed_twice_reunites_by_construction) | test(=coincidence_door::a_pinch_rows_tool_cell_is_the_tool_read_for_every_pose_tool))) |
