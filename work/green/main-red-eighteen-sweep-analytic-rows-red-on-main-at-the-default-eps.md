@@ -107,5 +107,4 @@ in a clean worktree, and both read text that PR 6200
   refusal ("a straight blend would have to stop against a curved face,
   which is not supported yet; …").
 
-Neither test was touched by PR 6200, and both are outside its diff's crate
-tests, so its own CI did not run them red.
+Neither test is in PR 6200's diff. Why its CI passed was not looked into.
