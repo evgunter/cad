@@ -3357,18 +3357,9 @@ impl<T: Decide> IntersectionDraft<T> {
             return None;
         }
         let [(ka, wa, ia), (kb, wb, ib)] = walls;
+        let span = (self.param_start, self.param_end);
         let on_side = |wall: &Surface<T>, image: &Pcurve<T>| {
-            wall.spline_chart()
-                .is_some_and(|chart| crate::description::on_domain_side(chart, image))
-                && crate::pcurve_cache::PcurveCache::certify(
-                    image.clone(),
-                    self.param_start,
-                    self.param_end,
-                    &self.carrier,
-                    wall,
-                    band,
-                )
-                .is_ok()
+            side_row_certifies(wall, image, (&self.carrier, span), band)
         };
         if !(on_side(wa, &ia) && on_side(wb, &ib)) {
             return None;
@@ -3376,6 +3367,24 @@ impl<T: Decide> IntersectionDraft<T> {
         let row = crate::description::SharedRow::new(pair, (ka, ia), (kb, ib))?;
         Some(CurveSelector::Structural(Structural::SharedRow(row)))
     }
+}
+
+/// **A shared row's one admission test, per wall**: `image` is a row on a
+/// domain side of `wall`'s spline chart (`description::on_domain_side`)
+/// and certifies there as the image of `carrier` over `span`
+/// ([`crate::PcurveCache::certify`]). [`IntersectionDraft::shared_row`]
+/// reads each wall by it, and so does the boolean's interior-loop guard
+/// when it hands a rim two spline faces share to their section's reading.
+pub fn side_row_certifies<T: Decide>(
+    wall: &Surface<T>,
+    image: &Pcurve<T>,
+    (carrier, (t0, t1)): (&Curve3<T>, (T, T)),
+    band: Band,
+) -> bool {
+    wall.spline_chart()
+        .is_some_and(|chart| crate::description::on_domain_side(chart, image))
+        && crate::pcurve_cache::PcurveCache::certify(image.clone(), t0, t1, carrier, wall, band)
+            .is_ok()
 }
 
 /// An [`IntersectionDraft`]'s `Intersection`, by whose carrier it is

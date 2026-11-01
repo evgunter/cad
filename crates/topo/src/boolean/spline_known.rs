@@ -5,9 +5,11 @@
 //!   ([`crate::pcurves::pcurve_of`]) is an iso row, whose carrier also
 //!   runs along a whole side of `G`'s chart: `G`'s image of it, stated
 //!   on the same carrier parameter, certifies on `G`'s wall
-//!   ([`crate::pcurves::side_image_of`]). The two images then trace one
-//!   curve, each on its own wall, as a seam's shared row does at the
-//!   result. The reading admits only a row on a side of each chart
+//!   ([`crate::pcurves::side_image_of`]). Both images pass the one test a
+//!   seam's shared row passes at the result
+//!   ([`geom_brep::side_row_certifies`], which
+//!   `IntersectionDraft::shared_row` reads each wall by), so they trace
+//!   one curve, each on its own wall. The reading admits only a row on a side of each chart
 //!   ([`geom_brep::ssi::PairRow`]).
 //! - **A shared corner** is a vertex of `F` at a corner of its wall's
 //!   rectangle and one of `G` at a corner of its own, their distance not
@@ -48,6 +50,10 @@ pub(crate) fn shared<T: Decide + AtRestPolicy>(
         // `G` holds an edge along a side of its own chart, and `F`'s
         // carrier runs along a side of `G`'s chart too.
         if rows_g.is_empty() {
+            continue;
+        }
+        // `F`'s image passes the shared row's test on its own wall too.
+        if !geom_brep::side_row_certifies(sf, ia, (&carrier, (t0, t1)), band) {
             continue;
         }
         if let Some(ib) = crate::pcurves::side_image_of(&carrier, (t0, t1), sg, band) {

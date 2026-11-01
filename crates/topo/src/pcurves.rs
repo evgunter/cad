@@ -1012,8 +1012,8 @@ fn half_edge_curve<T: Real>(
 }
 
 /// **The image on `wall`'s chart of a carrier that runs along a whole
-/// side of it**, over `[t0, t1]`, certified there
-/// ([`geom_brep::PcurveCache::certify`]): a circle's arc rim
+/// side of it**, over `[t0, t1]`, admitted by a shared row's one test
+/// ([`geom_brep::side_row_certifies`]): a circle's arc rim
 /// ([`geom_brep::pick_arc_rim`]), any other carrier's boundary row or
 /// column traversing the chart's whole domain along its moving axis, in
 /// either direction ([`probe_pick`]). `None` where no candidate
@@ -1058,9 +1058,7 @@ pub(crate) fn side_image_of<T: Decide>(
         )
         .ok()?
     }?;
-    geom_brep::PcurveCache::certify(picked.clone(), t0, t1, carrier, wall, band)
-        .is_ok()
-        .then_some(picked)
+    geom_brep::side_row_certifies(wall, &picked, (carrier, (t0, t1)), band).then_some(picked)
 }
 
 /// The certified carrier and parameter interval of `half_edge`'s edge.

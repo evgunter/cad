@@ -812,6 +812,18 @@ impl PairLane<'_> {
     }
 }
 
+/// **An enclosure's centre, and how far every point of it may stand from
+/// that centre**, in metres: its half-widths summed, rounded up, which
+/// bounds the half-diagonal. `None` for an enclosure with no finite
+/// reach.
+fn centre_and_reach(s: Box3) -> Option<(Point3<f64>, f64)> {
+    let centre = |x: geom_core::Interval| 0.5 * (x.lo() + x.hi());
+    let q = Point3::new(centre(s.x), centre(s.y), centre(s.z));
+    let reach = |x: geom_core::Interval| (x.hi() - centre(x)).max(centre(x) - x.lo()).next_up();
+    let pad = (reach(s.x) + reach(s.y) + reach(s.z)).next_up();
+    pad.is_finite().then_some((q, pad))
+}
+
 /// The most halvings [`branch_witness`] takes of a slice about the
 /// branch's middle before it gives up.
 const WITNESS_HALVINGS: u32 = 48;
@@ -860,12 +872,7 @@ pub(crate) fn branch_witness(
             let [(u0, u1), (v0, v1), ..] = root.0;
             let s = super::enclose::NurbsBoxes::new(a)
                 .rect_box(super::enclose::UvWindow::new(u0, u1, v0, v1)?);
-            let centre = |x: geom_core::Interval| 0.5 * (x.lo() + x.hi());
-            let q = Point3::new(centre(s.x), centre(s.y), centre(s.z));
-            let reach =
-                |x: geom_core::Interval| (x.hi() - centre(x)).max(centre(x) - x.lo()).next_up();
-            let pad = (reach(s.x) + reach(s.y) + reach(s.z)).next_up();
-            return pad.is_finite().then_some((q, pad));
+            return centre_and_reach(s);
         }
         half = half.map(|h| 0.5 * h);
     }
@@ -877,9 +884,10 @@ pub(crate) fn branch_witness(
 mod tests {
     use geom::NurbsSurface;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3};
+    use geom_core::{Band, Bounds, Point3};
 
     use super::Section;
+    use crate::ssi::enclose::Box3;
     use crate::ssi::{SsiDomain, SsiError};
 
     /// `z = (x − ½)²` over the unit square, and the plane `z = 0.04 +
@@ -949,6 +957,33 @@ mod tests {
                 .any(|c| c.state == [0.0; 4] && c.at.chart == BoundaryChart::First),
             "the corner is a crossing: {:?}",
             pass.crossings
+        );
+    }
+
+    /// **A witness's pad reaches every point of its enclosure.** Each
+    /// corner of a lopsided box stands within the pad of its centre, and
+    /// the farthest one more than half the pad off, so the pad is no
+    /// looser than twice the half-diagonal. Red against the pad dropped
+    /// and against the pad halved (the half-diagonal of a box exceeds half
+    /// its half-widths' sum).
+    #[test]
+    fn a_witness_pad_reaches_its_whole_enclosure() {
+        use geom_core::Interval;
+        let s = Box3 {
+            x: Interval::from_bounds(1.0, 1.0 + 3e-9),
+            y: Interval::from_bounds(-2.0, -2.0 + 4e-9),
+            z: Interval::from_bounds(0.5, 0.5 + 1e-9),
+        };
+        let (q, pad) = super::centre_and_reach(s).expect("a finite enclosure");
+        let corners = [s.x.lo(), s.x.hi()].into_iter().flat_map(|x| {
+            [s.y.lo(), s.y.hi()]
+                .into_iter()
+                .flat_map(move |y| [s.z.lo(), s.z.hi()].map(|z| Point3::new(x, y, z)))
+        });
+        let far = corners.map(|c| c.distance(q)).fold(0.0, f64::max);
+        assert!(
+            far <= pad && 0.5 * pad < far,
+            "the farthest corner stands {far:e} from the centre, against the pad {pad:e}"
         );
     }
 
