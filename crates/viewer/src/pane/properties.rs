@@ -178,17 +178,27 @@ impl ViewerBehavior<'_> {
         ui.label("variables");
         for row in crate::props::variable_rows(self.session.doc()) {
             // A name the user authored, so nothing bounds its width.
-            if crate::widgets::message_link(ui, row.label.to_string()).clicked() {
+            if crate::widgets::message_link(ui, variable_line(&row, *self.notation)).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
             }
         }
         for row in crate::props::defined_rows(self.session.doc()) {
-            if crate::widgets::message_link(ui, format!("{} = {}", row.label, row.formula))
-                .clicked()
-            {
+            if crate::widgets::message_link(ui, defined_line(&row, *self.notation)).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Variable(row.var)));
+            }
+            // Why it reads nothing, under its line, as the selected
+            // variable's row says it.
+            if row.value.is_err() {
+                for line in reading_notes(
+                    &row.label.to_string(),
+                    &row.value,
+                    row.dimension,
+                    *self.notation,
+                ) {
+                    crate::widgets::message_toned(ui, line, &self.theme, Tone::Advisory);
+                }
             }
         }
         self.add_variable_ui(ui);
@@ -1589,6 +1599,40 @@ pub(crate) fn variable_showing(row: &VariableRow, notation: Notation) -> FieldSh
     }
 }
 
+/// **A free variable's line in the variables list**: its name and its
+/// value, `t = 20 mm`. The value is said in the unit its own field
+/// shows it in ([`variable_showing`]): the notation it was declared in,
+/// or the working notation where it remembers none
+/// ([`props::rendering_unit`]), through [`props::shown_text`] — so the
+/// list and the variable's row never read one value two ways.
+pub(crate) fn variable_line(row: &VariableRow, notation: Notation) -> String {
+    format!(
+        "{} = {}",
+        row.label,
+        props::shown_text(
+            props::rendering_unit(row.dimension, row.unit, notation),
+            row.value.as_f64()
+        )
+    )
+}
+
+/// **A defined variable's line in the variables list**: its name, its
+/// definition and what that reads, `w = 2 * t = 40 mm`. A value nobody
+/// wrote, so said in the working notation ([`props::computed_text`]);
+/// one per member, their span ([`props::MemberValues::span`]); a
+/// definition that reads nothing, [`props::NO_VALUE`], with why said
+/// under the line ([`reading_notes`]), as a driven slot's field does.
+pub(crate) fn defined_line(row: &props::DefinedRow, notation: Notation) -> String {
+    let value = match &row.value {
+        Ok(props::Reading::One(value)) => {
+            props::computed_text(row.dimension, value.as_f64(), notation)
+        }
+        Ok(props::Reading::PerMember(members)) => members.span(row.dimension, notation),
+        Err(_) => props::NO_VALUE.to_owned(),
+    };
+    format!("{} = {} = {value}", row.label, row.formula)
+}
+
 /// **A defined variable's value field**: its formula over the number
 /// it evaluates to, and the formula again as the text an edit starts
 /// from, as a driven slot's field shows its expression. A definition
@@ -2463,6 +2507,76 @@ mod tests {
 /// through [`standing_verdict`] — the function the header calls — so
 /// a literal tone put back at any of its arms, or a swapped mapping
 /// anywhere between [`Standing::tone`] and the glyphs, turns a row red.
+/// **The variables list says each variable's value**, in the unit its
+/// own field shows it in.
+#[cfg(test)]
+mod variable_lines {
+    use pncad::document::{Dimension, EvalError, SpokenVar, VarId, VarName};
+
+    use super::{defined_line, variable_line};
+    use crate::props::{
+        DefinedRow, NO_VALUE, Notation, Reading, SlotFault, SlotValue, VariableRow,
+    };
+
+    fn spoken(name: &'static str) -> SpokenVar {
+        SpokenVar::new(VarId::new(0, 7), Some(VarName::from_static(name)))
+    }
+
+    fn defined(value: Result<Reading, SlotFault>) -> DefinedRow {
+        DefinedRow {
+            var: VarId::new(0, 8),
+            label: spoken("w"),
+            dimension: Dimension::Length,
+            formula: "2 * t".to_owned(),
+            value,
+        }
+    }
+
+    /// A length declared in millimetres reads in millimetres whatever
+    /// the working notation; a count reads as the number it is.
+    #[test]
+    fn a_free_variable_reads_its_value_in_its_own_unit() {
+        let row = VariableRow {
+            var: VarId::new(0, 7),
+            label: spoken("t"),
+            dimension: Dimension::Length,
+            value: SlotValue::Continuous(0.02),
+            unit: Some(pncad::quantity::MM.def()),
+        };
+        assert_eq!(variable_line(&row, Notation::DEFAULT), "t = 20 mm");
+        let count = VariableRow {
+            dimension: Dimension::Count,
+            value: SlotValue::Count(3),
+            unit: None,
+            ..row
+        };
+        assert_eq!(variable_line(&count, Notation::DEFAULT), "t = 3");
+    }
+
+    /// A definition reads its value in the working notation, and one
+    /// that reads nothing says the field's `?`.
+    #[test]
+    fn a_defined_variable_reads_its_definition_and_its_value() {
+        assert_eq!(
+            defined_line(
+                &defined(Ok(Reading::One(SlotValue::Continuous(0.04)))),
+                Notation::DEFAULT
+            ),
+            format!(
+                "w = 2 * t = {}",
+                crate::props::computed_text(Dimension::Length, 0.04, Notation::DEFAULT)
+            )
+        );
+        assert_eq!(
+            defined_line(
+                &defined(Err(SlotFault::Eval(EvalError::NonFiniteResult))),
+                Notation::DEFAULT
+            ),
+            format!("w = 2 * t = {NO_VALUE}")
+        );
+    }
+}
+
 #[cfg(test)]
 mod verdict_tests {
     // Panicking is a test's failure mechanism (workspace lint note).

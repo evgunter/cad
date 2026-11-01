@@ -5539,6 +5539,26 @@ mod properties_pane_tests {
         );
     }
 
+    /// **The variables list paints each variable's value**: a length
+    /// declared in millimetres is listed as `t = 20 mm`, the line
+    /// [`crate::pane::properties::variable_line`] spells.
+    #[test]
+    fn the_variables_list_paints_each_variables_value() {
+        let driven = &mut Driven::with(vec![SessionOp::DeclareVar {
+            name: pncad::document::VarName::from_static("t"),
+            value: crate::props::doc_variable(
+                pncad::document::Dimension::Length,
+                crate::props::SlotValue::Continuous(0.02),
+                Some(pncad::quantity::MM.def()),
+            ),
+        }]);
+        let painted = driven.frame(Vec::new());
+        assert!(
+            painted.iter().any(|(run, _)| run == "t = 20 mm"),
+            "the list says t's value: {painted:?}"
+        );
+    }
+
     /// **The add-variable form's commit is live exactly when a click
     /// declares**: a `Count` over a field holding `NaN` is refused by
     /// `SlotValue::of`, so the commit is disabled and the refusal is
