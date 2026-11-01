@@ -943,7 +943,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// reads it without asking what refused. **Which kinds ride is not
 /// listed here**, on purpose: each door that makes a notice answers
 /// for its own arms and gives its reasons there — [`Withdrawal::notice`],
-/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// [`maintenance_notices`], [`tool_notice`], [`refusal_message`], and
 /// every typed refusal door with its own one-line reason. A census here
 /// would be a second copy that nothing checks against the first.
 ///
@@ -1429,7 +1429,7 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// **One edit's maintenance rows as notices**: each row
 /// [`maintenance_notice`] words, in the rows' own order, then one
 /// notice per placement whose values the edit dropped
-/// ([`Maintenance::values_dropped`]) — a mate that fixes four freedoms
+/// ([`Maintenance::values_dropped`]) — an edit that drops four values
 /// is one thing to say, not four.
 pub fn maintenance_notices(rows: &[Maintenance]) -> impl Iterator<Item = Message> + '_ {
     rows.iter().filter_map(maintenance_notice).chain(
@@ -1479,7 +1479,7 @@ pub fn withdrawal_notices(
 ///   strand; and the carrier's
 ///   kind and its evaluation are not in the row. Where the retelling
 ///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
-pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
         Maintenance::Strand { .. } | Maintenance::StrandedSelection { .. } => Retold::Never,
         // The reading node's own row refuses `UnresolvedRead` at the

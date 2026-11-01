@@ -182,7 +182,7 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
 
 /// **Every worded maintenance row rides beside a refusal**, each by its
 /// own arm: none can show that anything will say it again
-/// (`frame::maintenance_notice` gives each arm's reason).
+/// (`frame::maintenance_notices` gives each arm's reason).
 #[test]
 fn every_maintenance_row_rides_beside_a_refusal() {
     use viewer::session::{Refusal, Step};
@@ -206,10 +206,8 @@ fn every_maintenance_row_rides_beside_a_refusal() {
             took: pncad::document::Took::Node,
         },
     ];
-    let notices: Vec<frame::Message> = rows
-        .iter()
-        .map(|row| frame::maintenance_notice(row).expect("every arm here is worded"))
-        .collect();
+    let notices: Vec<frame::Message> = frame::maintenance_notices(&rows).collect();
+    assert_eq!(notices.len(), rows.len(), "every arm here is worded");
     assert_eq!(
         notices
             .iter()
@@ -666,7 +664,7 @@ fn a_mates_dropped_values_are_one_notice() {
     );
     let said: Vec<String> = frame::outcome_notices(&outcome)
         .map(|notice| notice.text().to_owned())
-        .filter(|text| text.contains("dropped"))
+        .filter(|text| text.contains("written again without"))
         .collect();
     let [said] = &said[..] else {
         panic!("one notice says the drops: {said:?}");

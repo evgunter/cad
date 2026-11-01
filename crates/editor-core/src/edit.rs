@@ -4920,11 +4920,16 @@ impl Maintenance {
     }
 
     /// **The [`Self::ValueDropped`] rows among `rows`, said once per
-    /// placement**: one sentence naming the placement and every freedom
-    /// its new mates took, in the order the rows came, and the named
-    /// variables it no longer reads. A variable with no name is not
-    /// said: its id means nothing to a reader, and it goes with its
-    /// reader ([`Self::AnonymousVarRemoved`]). The rows themselves are
+    /// placement**: one sentence naming the placement, each freedom a
+    /// dropped value was written on, in the order the rows came, and
+    /// each named variable a dropped value read. It says what the rows
+    /// establish and no cause: a value goes when the bundle written
+    /// whole keeps no place for it, whether a new mate fixed its freedom,
+    /// a turn chain was written in another form, or a mate was removed.
+    /// Nor does it say a named variable is read no more, since a kept
+    /// value of the same bundle may still read it. A variable with no
+    /// name is not said: its id means nothing to a reader, and it goes
+    /// with its reader ([`Self::AnonymousVarRemoved`]). The rows themselves are
     /// unchanged; this is the wording for a surface that tells a person
     /// what one edit cost, where one line per freedom says one thing
     /// several times.
@@ -4984,17 +4989,23 @@ impl core::fmt::Display for ValuesDropped<'_> {
                 coords.push(coord.name());
             }
         }
-        let named: Vec<&crate::doc::VarName> =
-            freedoms.iter().filter_map(|(_, by)| by.name()).collect();
-        write!(f, "{placement}'s mates now fix its ")?;
-        joined(f, &coords)?;
-        let values = match freedoms.len() {
+        let mut named: Vec<&crate::doc::VarName> = Vec::new();
+        for name in freedoms.iter().filter_map(|(_, by)| by.name()) {
+            if !named.contains(&name) {
+                named.push(name);
+            }
+        }
+        let values = match coords.len() {
             1 => "value",
             _ => "values",
         };
-        write!(f, ", so this edit dropped the {values} written there")?;
+        write!(
+            f,
+            "{placement}'s placement was written again without the {values} on its "
+        )?;
+        joined(f, &coords)?;
         if !named.is_empty() {
-            f.write_str(", and it no longer reads ")?;
+            f.write_str(", which read ")?;
             joined(f, &named)?;
         }
         Ok(())

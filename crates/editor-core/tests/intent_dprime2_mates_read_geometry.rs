@@ -678,8 +678,8 @@ fn a_mate_reports_each_value_it_drops() {
     assert_eq!(
         said,
         [format!(
-            "{}'s mates now fix its spin about z, spin about x and slide along z, so this edit \
-             dropped the values written there, and it no longer reads tilt",
+            "{}'s placement was written again without the values on its spin about z, spin \
+             about x and slide along z, which read tilt",
             doc.spoken(copy)
         )],
         "the four rows are said once, each freedom once, naming only the named variable"
@@ -746,8 +746,8 @@ fn a_variable_dropped_twice_is_named_once() {
     assert_eq!(
         said,
         [format!(
-            "{}'s mates now fix its spin about z, spin about x and slide along z, so this edit \
-             dropped the values written there, and it no longer reads tilt",
+            "{}'s placement was written again without the values on its spin about z, spin \
+             about x and slide along z, which read tilt",
             doc.spoken(copy)
         )],
         "tilt is named once"

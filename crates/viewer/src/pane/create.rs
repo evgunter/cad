@@ -545,9 +545,6 @@ impl ViewerBehavior<'_> {
                 unit_field(ui, unit, speed, value);
             });
         }
-        if let Some(noun) = self.tool_noun(ToolKind::Mate) {
-            self.creation_label_row(ui, noun);
-        }
         let mut close = false;
         ui.horizontal(|ui| {
             if ui.button(ToolKind::Mate.commit()).clicked() {
@@ -1676,7 +1673,11 @@ impl ViewerBehavior<'_> {
     /// `node_kind_noun`'s word, which its proposed label counts by —
     /// or `None` for the mate tool, whose commit is a constraint in a
     /// placement's bundle and creates no node, so its form offers no
-    /// label ([`Self::tool_commit_row`]). The
+    /// label ([`Self::tool_commit_row`]). It is read off the tool, not
+    /// the op ([`SessionOp::creates_a_node`]), because the label is
+    /// offered before the picks make an op; a noun beside an op that
+    /// creates no node is said at the commit ([`Self::push_labelled`]).
+    /// The
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
