@@ -6172,6 +6172,64 @@ mod properties_pane_tests {
         assert_eq!(camera_pose(&driven.app), moved, "the moved camera stands");
     }
 
+    /// **An index refused as a whole draws nothing**, never the picture
+    /// from before the refusal, and says so loudly. Such a refusal is a
+    /// fault of the index itself, which no document produces, so the
+    /// seam here refuses every build it answers.
+    #[test]
+    fn a_whole_index_refusal_clears_the_picture() {
+        struct Refusing(crate::evalseam::InlineIndexer);
+        impl crate::evalseam::IndexService for Refusing {
+            fn submit(&mut self, request: crate::evalseam::IndexRequest) {
+                self.0.submit(request);
+            }
+            fn poll(&mut self) -> Option<crate::evalseam::IndexDone> {
+                self.0.poll().map(|mut done| {
+                    done.index = Err(crate::pickindex::PickIndexError::DrawnTwice {
+                        node: extrude(),
+                        body: 0,
+                    });
+                    done
+                })
+            }
+            fn busy(&self) -> bool {
+                self.0.busy()
+            }
+        }
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(
+            driven.app.scene.stats().triangles > 0 && driven.app.scene_key.is_some(),
+            "the premise: the plate is drawn from an index"
+        );
+        driven.app.picks = crate::pickcache::PickCache::new(Box::new(Refusing(
+            crate::evalseam::InlineIndexer::new(),
+        )));
+        driven.settle();
+        driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
+        assert!(driven.app.picks.error().is_some(), "the refusal is held");
+        assert!(
+            driven.app.scene.positions().is_empty(),
+            "nothing is drawn under a refused index"
+        );
+        assert_eq!(driven.app.scene_key, None, "and no index minted its ids");
+        let badge = crate::frame::index_badge(
+            driven.app.picks.error(),
+            driven.app.picks.index(),
+            driven.app.session.landed_pair(),
+        )
+        .expect("the refusal badges");
+        assert_eq!(badge.tone(), crate::frame::Tone::Actionable);
+        assert!(
+            badge
+                .label()
+                .ends_with("nothing is drawn or picked until the index builds"),
+            "{}",
+            badge.label()
+        );
+    }
+
     /// **The mate tool's two picks are marked once the selection moves
     /// on, and not once the tool closes.**
     #[test]
