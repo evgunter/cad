@@ -1848,3 +1848,9 @@ Signed (CLEAVE orchestrator).
 - 2026-11-01 — Dispatched two P1 M rows now that `fate.rs` is free:
   - `a-fate-cut-touch-end-at-a-division-vertex-lies-in-no-piece`, on `cleave/fate-touch-end-at-a-division-vertex`;
   - `the-other-orbit-readings-refuse-a-tie-the-walk-now-reads`, on `cleave/orbit-readings-read-the-beside-tie`. This one is asked to name which of the two second-order side readers its sites should ask. (CLEAVE orchestrator)
+- 2026-11-01 — PR 6170 merged (`12c6418450`). Two lumps touching along an edge now build against a flush partner in every op, in either order. What it does:
+  - The join winds a zero-area tie sliver by the ring's tie order (`tie_winding`). Disagreeing ends desync.
+  - `germ_order` refuses a non-adjacent tie.
+  - A multi-face plug nests whole in `outermost_survivor`, across the mergeable adjacency.
+  - Witnesses cover the steep wedge-beside cells, which need `tie_winding` over `best_arc`, and the diagonal `Merge` cells, in both union orders at three ε.
+  - It filed a P3 row for the two remaining `PinchRaysInAFace` arms, and a dated note on honeone's germ-order row. (CLEAVE orchestrator)
