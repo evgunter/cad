@@ -146,11 +146,9 @@ fn modifiers(word: Option<&String>) -> Result<egui::Modifiers, String> {
 /// One command, done.
 fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
     let drive = |result: Result<(), DriveError>| result.map_err(|error| error.to_string());
-    let at =
-        |driver: &Driver, x: Option<&String>, y: Option<&String>| -> Result<egui::Pos2, String> {
-            let _ = driver;
-            Ok(egui::pos2(number(x, "x")?, number(y, "y")?))
-        };
+    let at = |x: Option<&String>, y: Option<&String>| -> Result<egui::Pos2, String> {
+        Ok(egui::pos2(number(x, "x")?, number(y, "y")?))
+    };
     let in_viewport = |driver: &Driver, x: Option<&String>, y: Option<&String>| {
         driver
             .in_viewport(number(x, "fx")?, number(y, "fy")?)
@@ -172,7 +170,7 @@ fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
         }
         "hover" => drive(driver.hover(label(arg(0))?, index(arg(1))?)),
         "clickat" => {
-            let point = at(driver, arg(0), arg(1))?;
+            let point = at(arg(0), arg(1))?;
             drive(driver.click_at(point, button(arg(2))?, modifiers(arg(3))?, 1))
         }
         "vclick" => {
@@ -180,8 +178,8 @@ fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
             drive(driver.click_at(point, button(arg(2))?, modifiers(arg(3))?, 1))
         }
         "drag" => {
-            let from = at(driver, arg(0), arg(1))?;
-            let to = at(driver, arg(2), arg(3))?;
+            let from = at(arg(0), arg(1))?;
+            let to = at(arg(2), arg(3))?;
             drive(driver.drag(from, to, button(arg(4))?, modifiers(arg(5))?, 10))
         }
         "vdrag" => {
@@ -190,7 +188,7 @@ fn perform(driver: &mut Driver, words: &[String]) -> Result<(), String> {
             drive(driver.drag(from, to, button(arg(4))?, modifiers(arg(5))?, 10))
         }
         "scroll" => {
-            let point = at(driver, arg(0), arg(1))?;
+            let point = at(arg(0), arg(1))?;
             let dy = number(arg(2), "dy")?;
             drive(driver.scroll(point, egui::vec2(0.0, dy)))
         }
