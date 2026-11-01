@@ -3023,11 +3023,11 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "slit.rs",
-        "carrier_on_surface",
+        "conic_or_line_on",
         "Coincide::EdgeOnCurvedFace",
         2,
     ),
-    ("slit.rs", "carrier_on_surface", "Coincide::EdgeOnPlane", 2),
+    ("slit.rs", "conic_or_line_on", "Coincide::EdgeOnPlane", 2),
     ("slit.rs", "coplanar_wall_inside", "Coincide::Sectors", 1),
     (
         "slit.rs",

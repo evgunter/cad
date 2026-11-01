@@ -3110,14 +3110,22 @@ pub enum BooleanError {
     /// edge on carriers the glue door verified one with the other's. Any
     /// other conic or spline can meet such a partner again, so the paired
     /// ends do not make the two edges one, and nothing here reads whether
-    /// they are.
+    /// they are (`closed` false). And a closed edge along the germ, whose
+    /// far end is the site itself, where nothing reads whether its
+    /// carrier lies on the partner's faces around the site
+    /// (`sectors::closed_reach`, `closed` true: a spline on either side,
+    /// a fat torus whose samples cannot certify a conic on it).
     GermEdgeCarrierUnsupported {
-        /// The first operand, A before B, whose edge is neither a line nor
-        /// a circle, where the two edges are not sections of one plane
-        /// and one cylinder or cone.
+        /// The operand whose edge is not read: for two edges, the first,
+        /// A before B, that is neither a line nor a circle, where the two
+        /// are not sections of one plane and one cylinder or cone; for a
+        /// closed edge, its own.
         operand: Operand,
         /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
+        /// Whether the edge is one closed edge leaving the site along the
+        /// germ, rather than one of two edges running together.
+        closed: bool,
     },
     /// **Point-in-face on a loop no walk expresses at the point.** The
     /// in-plane walk reads each edge on its own carrier — a line as its
@@ -4795,12 +4803,28 @@ impl core::fmt::Display for BooleanError {
                  solid",
                 operand_word(*operand),
             ),
-            Self::GermEdgeCarrierUnsupported { operand, .. } => write!(
+            Self::GermEdgeCarrierUnsupported {
+                operand,
+                closed: false,
+                ..
+            } => write!(
                 f,
                 "an edge of each solid runs between the same two points, and the Boolean \
                  reads two such edges as one curve only when both are lines or circles, or \
                  both lie where one plane meets one cylinder or cone; the {} operand's edge \
                  is neither. Recourse: move the parts so those edges do not run together",
+                operand_word(*operand),
+            ),
+            Self::GermEdgeCarrierUnsupported {
+                operand,
+                closed: true,
+                ..
+            } => write!(
+                f,
+                "a closed edge of the {} operand touches the other solid at its one vertex, \
+                 and the Boolean cannot read whether the edge lies on the faces it touches \
+                 there: their surface and its curve are a pair it does not read. Recourse: \
+                 move the parts so the edge's vertex does not touch the other solid",
                 operand_word(*operand),
             ),
             // No operand is named, for the same reason as above: some
@@ -8954,6 +8978,12 @@ mod tests {
             BooleanError::GermEdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                closed: false,
+            },
+            BooleanError::GermEdgeCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+                closed: true,
             },
             BooleanError::ArcLoopContainmentUnsupported {
                 operand: Operand::A,
