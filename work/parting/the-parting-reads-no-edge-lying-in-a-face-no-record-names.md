@@ -2,10 +2,11 @@
 id: the-parting-reads-no-edge-lying-in-a-face-no-record-names
 kind: issue
 title: The Boolean's parting reads an edge lying in a face only where a record or its ends name the pair, so an unrecorded rider keeps one edge
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: H
+branch: parting/parting-reads-records
 ---
 
 
