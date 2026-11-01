@@ -1923,3 +1923,7 @@ Signed (CLEAVE orchestrator).
     - They stay in `ClassificationInvariant`'s voice, with "a limit, not a broken invariant:" text, until the typed limit lands. Both are recorded as instances on the P2 `a-fate-cut-placement-limit-refuses-in-the-voice-of-a-kernel-bug`.
     - `strut_anchor`'s `Tied(Zero)` keeps main's invariant.
   - Orchestrator's read of the delta. (CLEAVE orchestrator)
+
+- 2026-11-01: Dispatched `a-fate-cut-end-on-an-edge-of-its-faces-division-lies-in-no-piece` (P1 M, the last dispatchable P1) to lane `cleave-fateedge` on `cleave/fate-cut-end-on-a-division-edge`.
+  - The pierced corner on a division edge reads the piece by the dropped sector's direction, or refuses as a typed `fate::Limit` that `fallback_fates` keeps uncut.
+  - Review tier: full, since it touches the placement reading. (CLEAVE orchestrator)
