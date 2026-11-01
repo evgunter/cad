@@ -189,20 +189,25 @@ pub(super) fn point_classes<T: geom_core::Real>(
 }
 
 /// **The vertices of each class sit on one point key**: where a
-/// class's live vertices sit on several of its keys, they move onto its
-/// smallest live key ([`Body::share_point`]); elsewhere nothing moves.
-/// The classes come from the seams, after the zips ([`point_classes`]),
-/// and from the result's vertex-vertex records, at the output stage
-/// (`ops::record_classes`). The census's same-point rung and the join
-/// then read the point from its keys.
+/// class's live vertices sit on several of its keys, they move onto the
+/// live key `first` orders first, the smallest among keys it ties
+/// ([`Body::share_point`]); elsewhere nothing moves. The classes come
+/// from the seams, after the zips ([`point_classes`]), whose keys hold
+/// one point, so no order moves a value; and from the result's
+/// vertex-vertex records, at the output stage (`ops::record_classes`),
+/// whose keys may hold points apart inside the band, so the order puts
+/// the glue's kept side's first (`ops::share_recorded_points`). The
+/// census's same-point rung and the join then read the point from its
+/// keys.
 ///
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a vertex no longer
 /// resolves, which the index built just before rules out.
-pub(super) fn share_points<T: geom_core::Real>(
+pub(super) fn share_points<T: geom_core::Real, O: Ord>(
     body: &mut Body<T>,
     classes: &[PointClass],
+    first: impl Fn(PointKey) -> O,
 ) -> Result<(), BooleanError> {
     // The classes are disjoint (each caller builds them as a
     // partition), so one index serves them all.
@@ -217,7 +222,10 @@ pub(super) fn share_points<T: geom_core::Real>(
             .copied()
             .filter(|k| on_key.contains_key(k))
             .collect();
-        let [onto, _, ..] = keys[..] else {
+        if keys.len() < 2 {
+            continue;
+        }
+        let Some(&onto) = keys.iter().min_by_key(|&&k| (first(k), k)) else {
             continue;
         };
         let vertices: Vec<VertexKey> = keys.iter().flat_map(|k| on_key[k].clone()).collect();

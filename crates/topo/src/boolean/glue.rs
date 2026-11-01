@@ -37,21 +37,23 @@ use crate::body::Body;
 use crate::contact::GlueClass;
 use crate::entity::FaceKey;
 
-/// **Which side's description a glued pair keeps** (`docs/DESIGN.md`
+/// **Which operand's description a glued pair keeps** (`docs/DESIGN.md`
 /// [coincidence.booleans], its one place [one-way.places]): the
-/// first-written operand's, A's, a fixed rule that reads no values.
-/// Given `side`'s `x` and the other operand's `y`, returns them as
-/// `(kept, other)`. The zip's fused vertices and edges and the merge's
-/// merged faces read the decision here: the boolean hands the merge each
-/// glued pair kept side first (`ops::GluedSurfaces::of_result`). An
+/// first-written operand's, A's, a fixed rule that reads no values. An
 /// n-ary operation folds its members in list order, each step's
 /// accumulation its operand A, so the first-written member's
-/// description is the one kept.
-pub(crate) const fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
-    match side {
-        Operand::A => (x, y),
-        Operand::B => (y, x),
-    }
+/// description is the one kept. Every reader takes the side from here:
+/// the zip's fused vertices and edges and the merge's merged faces
+/// through [`kept_first`], the Eq. 15.3 lump's kept copy
+/// (`tables::kept_copy`), and the point a vertex-vertex record class
+/// keeps (`ops::share_recorded_points`).
+pub(crate) const KEPT: Operand = Operand::A;
+
+/// A glued pair's two sides as `(kept, other)` ([`KEPT`]): given
+/// `side`'s `x` and the other operand's `y`. The boolean hands the
+/// merge each glued pair kept side first (`ops::GluedSurfaces::of_result`).
+pub(crate) fn kept_first<X: Copy>((side, x): (Operand, X), y: X) -> (X, X) {
+    if side == KEPT { (x, y) } else { (y, x) }
 }
 
 /// `decls` with every undeclared pair the operation decides one carrier

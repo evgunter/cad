@@ -137,7 +137,7 @@ use super::{
 use crate::body::Body;
 use crate::coincidence::{Backing, Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, ShellKey, VertexKey};
-use crate::geometry::SurfaceKey;
+use crate::geometry::{PointKey, SurfaceKey};
 use crate::live::{BoundaryMember, linked, proven};
 use crate::merge_faces::{DescribeRefusal, DihedralReading, EdgeDescribeFailure};
 use crate::props::AtRestPolicy;
@@ -1086,7 +1086,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         struts.extend(rep.struts);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
-    super::zip::share_points(&mut body, &points)?;
+    super::zip::share_points(&mut body, &points, |_| ())?;
     // A pinch keeps one vertex per cone, so lumps that met only there
     // share no edge: each connected piece of a shell becomes a shell.
     let shells: Vec<crate::entity::ShellKey> = body
@@ -1142,7 +1142,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+    share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
     let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
     if !parted.is_empty() {
         crate::pcurves::mint_pcurves(&mut body, tol)
@@ -4590,17 +4590,36 @@ fn carried_vertices<T: Real>(
 /// ([`record_classes`]), on every path a boolean builds by. Run
 /// after [`carry`], on the records the result ships.
 ///
+/// A class's keys may hold points apart inside the band, so which key
+/// it keeps is which point the glued vertices keep: the glue's kept
+/// side's ([`super::glue::KEPT`]), the smallest of its keys, and the
+/// smallest key where the class holds none of that side's. A key is
+/// the operand's whose graft put a point there (`views`), and
+/// otherwise the operand whose keys the result holds directly.
+///
 /// # Errors
 ///
 /// As [`record_classes`] and `zip::share_points`.
 fn share_recorded_points<T: Decide>(
     body: &mut Body<T>,
-    contacts: &ContactRecords,
-    coincidences: &[crate::Coincidence],
+    (contacts, coincidences): (&ContactRecords, &[crate::Coincidence]),
+    views: [&KeyView<'_>; 2],
     band: Band,
 ) -> Result<(), BooleanError> {
     let classes = record_classes(body, contacts, coincidences, band)?;
-    super::zip::share_points(body, &classes)
+    let side = |s: usize| [Operand::A, Operand::B][s];
+    let grafted: BTreeMap<PointKey, Operand> = (0..2)
+        .filter_map(|s| match views[s] {
+            KeyView::Graft(g) => Some(g.points.values().map(move |&k| (k, side(s)))),
+            KeyView::Direct | KeyView::Absent => None,
+        })
+        .flatten()
+        .collect();
+    let direct = (0..2)
+        .find(|&s| matches!(views[s], KeyView::Direct))
+        .map(side);
+    let operand = |k: PointKey| grafted.get(&k).copied().or(direct);
+    super::zip::share_points(body, &classes, |k| operand(k) != Some(super::glue::KEPT))
 }
 
 /// **Two vertices a record says touch sit on one point key.** A
@@ -8069,7 +8088,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 [&discarded[0], &discarded[1]],
                 band,
             )?;
-            share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+            share_recorded_points(&mut body, (&contacts, &coincidences), views, band)?;
             let (parted, contacts) = super::slit::part_riders(&mut body, &contacts, band, tol)?;
             if !parted.is_empty() {
                 crate::pcurves::mint_pcurves(&mut body, tol)
@@ -8080,7 +8099,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 substituted,
                 uncut,
                 mut discards,
-                divisions: [_, face_fragments_b],
+                divisions: [mut face_fragments_a, face_fragments_b],
             } = fallback_fates(
                 red,
                 [&discarded[0], &discarded[1]],
@@ -8092,8 +8111,6 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             )?;
             let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) =
                 graft_rows(&graft);
-            let mut face_fragments_a =
-                crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
             let mut cone_splits =
                 crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
             let mut vertex_merges = Fusions::new(crate::lineage::LineageRows::Fusions);
@@ -8186,8 +8203,8 @@ struct FallbackFates {
 /// Every other refusal of the cut, as it is: a key that no longer
 /// resolves, a reading in band, an Euler operator's refusal. A pair
 /// whose kept copy the result drops while it keeps the copy the lump
-/// dropped, or a cut in operand A's clone (the lump keeps A's copy,
-/// `tables::kept_copy`), refuses
+/// dropped, or a cut in the clone of the glue's kept side (the lump
+/// keeps that side's copy, `tables::kept_copy`), refuses
 /// [`BooleanError::ClassificationInvariant`]; a discard row's reading
 /// (`discard::discard_row`) refuses as it does.
 fn fallback_fates<T: Decide + AtRestPolicy>(
@@ -8225,13 +8242,14 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             corners.push(fc);
         }
     }
-    if edges.iter().any(|fe| fe.holder == Operand::B)
-        || corners.iter().any(|fc| fc.holder == Operand::B)
+    let dropped = super::glue::KEPT.other();
+    if edges.iter().any(|fe| fe.holder == dropped) || corners.iter().any(|fc| fc.holder == dropped)
     {
         return Err(BooleanError::ClassificationInvariant {
-            what: "a containment fallback cuts operand A's copy of a coincident pair",
+            what: "a containment fallback cuts the kept side's copy of a coincident pair",
         });
     }
+    let d = usize::from(dropped == Operand::B);
     let fresh = || crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
     let mut divisions = [fresh(), fresh()];
     let mut cuts = super::fate::FateCuts::default();
@@ -8254,23 +8272,25 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
         // A face no fate edge lies in is held whole, and its cut divides
         // nothing; any other is kept as it stands, for a cut that meets a
         // placement limit part way.
-        let before = (!red.fates.edges.is_empty()).then(|| (red.b.clone(), divisions[1].clone()));
-        red.b.enter_surgery();
+        let before = (!red.fates.edges.is_empty())
+            .then(|| (clone_of(red, dropped).clone(), divisions[d].clone()));
+        clone_of(red, dropped).enter_surgery();
         let [div_a, div_b] = &mut divisions;
         let got = super::fate::cut(red, [div_a, div_b], band, tol);
         match (got, before) {
             (Ok(c), _) => {
-                red.b.leave_surgery_and_sweep();
+                clone_of(red, dropped).leave_surgery_and_sweep();
                 cuts.substituted.extend(c.substituted);
                 cuts.chords.extend(c.chords);
             }
-            (Err(super::fate::CutError::Limit(limit)), Some((b, div_b))) => {
-                red.b.leave_surgery();
-                red.b = b;
-                divisions[1] = div_b;
+            (Err(super::fate::CutError::Limit(limit)), Some((was, div))) => {
+                let clone = clone_of(red, dropped);
+                clone.leave_surgery();
+                *clone = was;
+                divisions[d] = div;
                 let e = BooleanError::from(super::fate::CutError::Limit(limit));
                 uncut.extend(red.fates.edges.iter().map(|fe| super::UncutFace {
-                    operand: Operand::B,
+                    operand: dropped,
                     face,
                     by: fe.kept,
                     kind: e.kind(),
@@ -8278,7 +8298,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
                 }));
             }
             (Err(e), _) => {
-                red.b.leave_surgery();
+                clone_of(red, dropped).leave_surgery();
                 return Err(e.into());
             }
         }
@@ -8337,6 +8357,14 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
         discards,
         divisions,
     })
+}
+
+/// `operand`'s clone in the reduction.
+fn clone_of<T: Decide>(red: &mut BooleanReduction<T>, operand: Operand) -> &mut Body<T> {
+    match operand {
+        Operand::A => &mut red.a,
+        Operand::B => &mut red.b,
+    }
 }
 
 /// Finishes a single-operand fallback result (the merge output stage
@@ -8410,7 +8438,12 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         [&discarded[0], &discarded[1]],
         band,
     )?;
-    share_recorded_points(&mut body, &contacts, &coincidences, band)?;
+    share_recorded_points(
+        &mut body,
+        (&contacts, &coincidences),
+        [&a_view, &b_view],
+        band,
+    )?;
     let body = gate(body, band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;

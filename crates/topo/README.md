@@ -766,8 +766,9 @@ reparents only within one shell (`EulerOpError::CrossShell`).
      one point share one point key, whether they stay in one solid or
      lie in two: an op that cuts one vertex into copies hands each copy
      the original's point, as it hands a cut face's fragments one
-     surface; vertices whose gap an op decided Zero share the key it
-     keeps, and the op records that decision (a `VertexFusion` row,
+     surface; vertices whose gap an op decided Zero share the key of
+     the point it keeps, the first-written operand's
+     ([coincidence.booleans]), and the op records that decision (a `VertexFusion` row,
      cited by the pair's vertex-vertex record) for the lint, not for
      the census. A Zero-gap vertex pair on two point keys in a finished
      body is its producer's defect.
