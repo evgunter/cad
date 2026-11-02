@@ -34,7 +34,11 @@ fn authored(
 fn by_on(session: &DocSession, placement: RecipeNodeId, coord: Coord) -> String {
     authored(session, placement)
         .iter()
-        .find_map(|c| c.value().filter(|v| v.coord == coord).map(|v| v.by.to_string()))
+        .find_map(|c| {
+            c.value()
+                .filter(|v| v.coord == coord)
+                .map(|v| v.by.to_string())
+        })
         .unwrap_or_else(|| panic!("a value on {coord:?}"))
 }
 
@@ -45,7 +49,11 @@ fn said(session: &DocSession, placement: RecipeNodeId) -> Vec<String> {
         .collect()
 }
 
-fn id_on(session: &DocSession, placement: RecipeNodeId, coord: Coord) -> pncad::document::ConstraintId {
+fn id_on(
+    session: &DocSession,
+    placement: RecipeNodeId,
+    coord: Coord,
+) -> pncad::document::ConstraintId {
     authored(session, placement)
         .iter()
         .find_map(|c| c.value().filter(|v| v.coord == coord).map(|_| c.id))
@@ -172,7 +180,11 @@ fn r2_the_verdict_on_two_rests_is_what_apply_does() {
             assert!(session.committed_doc().bit_eq(&before), "nothing changed");
         }
         other => {
-            assert!(outcome.refusal.is_none(), "{other:?} but {:?}", outcome.refusal);
+            assert!(
+                outcome.refusal.is_none(),
+                "{other:?} but {:?}",
+                outcome.refusal
+            );
         }
     }
 }
@@ -199,7 +211,10 @@ fn r2_the_create_doors_apply_undoes_to_the_exact_prior_document() {
     assert_eq!(session.history().len(), states + 1, "one history state");
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(session.committed_doc().bit_eq(&before), "one undo takes the copy back");
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo takes the copy back"
+    );
 }
 
 /// Claim 1/9: the tree's `remove` is one undo step back to the exact
@@ -223,7 +238,10 @@ fn r2_a_removal_undoes_to_the_exact_prior_document() {
     let outcome = session.perform(SessionOp::Undo);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     std::fs::remove_dir_all(&bench.dir).expect("removable");
-    assert!(session.committed_doc().bit_eq(&before), "one undo restores the rest");
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo restores the rest"
+    );
 }
 
 /// Claim 3, sense: flipping the loaded rest's sense changes its chart,
@@ -322,7 +340,10 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     let mut tool = MateTool::new();
     assert!(tool.pick(session.doc(), top_small).is_none());
     assert!(tool.pick(session.doc(), top_wide).is_none());
-    assert!(matches!(tool.door(), Some(viewer::matetool::PlaceDoor::Create { .. })));
+    assert!(matches!(
+        tool.door(),
+        Some(viewer::matetool::PlaceDoor::Create { .. })
+    ));
     let flush = MateChoice {
         kind: VarKind::Plane,
         flip: false,
@@ -359,13 +380,19 @@ fn r2_a_created_copy_reopens_through_a_pick_and_its_untouched_draft_stands() {
     let rows = edit.rows().len();
     edit.strike(rows - 1, true);
     let (doc, ev) = session.landed_pair().expect("landed");
-    let untouched = edit.proposal(doc, ev, tol).expect("the loaded bundle proposes");
+    let untouched = edit
+        .proposal(doc, ev, tol)
+        .expect("the loaded bundle proposes");
     let verdict = session.bundle_verdict(&untouched.op());
     assert!(matches!(verdict, BundleVerdict::Stands(_)), "{verdict:?}");
     let states = session.history().len();
     let outcome = session.perform(untouched.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(session.history().len(), states, "an untouched draft writes nothing");
+    assert_eq!(
+        session.history().len(),
+        states,
+        "an untouched draft writes nothing"
+    );
 }
 
 /// The panel's value rows (`pane/create.rs`, `mate_tool_ui`) draw a
@@ -385,7 +412,9 @@ fn r2_the_panels_value_rows_are_editable_numbers() {
     common::commit_mate(&mut session, proposal.op());
     let (doc, ev) = session.landed_pair().expect("landed");
     let edit = MateTool::edit(doc, bench.post_b).expect("a placement");
-    let loaded = edit.proposal(doc, ev, tol).expect("the loaded bundle proposes");
+    let loaded = edit
+        .proposal(doc, ev, tol)
+        .expect("the loaded bundle proposes");
     let labels: Vec<String> = loaded
         .values
         .iter()
