@@ -2,7 +2,8 @@
 id: injectivity-price-on-tour-lofts-exceeds-the-pair-budget
 kind: issue
 title: The injectivity check needs more than 65536 cell pairs on a wall against itself or against a near-parallel wall of the tour's lily blades and Klein loop, and costs 1 to 10 s where it holds
-status: open
+status: closed
+closed: 2026-11-01
 opened: 2026-10-31
 priority: P0
 cost: H
@@ -79,3 +80,76 @@ rebuild, at every scalar or only at the certifying ones. That is CARVE's
 door and Ev's call, and all three advise deciding it on the measured
 numbers after (1), ZEROSIDE and (2) land. This row stays parked on (1)
 and (2), and is re-measured then.
+
+## Measured after the four fixes (2026-11-01)
+
+Main at 37b8832, with JETFRAME #6250, ZEROSIDE #6234, HEADING #6235
+and DIRSUPPORT #6254. Nothing on the question's path (`topo::clearance`,
+`topo::injective`, `geom`, `geom-core`) changed between that commit and
+3759cfa. The question is the row's: `StrictlyPositive`, the body
+against itself, `DEFAULT_MAX_CELL_DEPTH`, 65536 pairs. Release builds
+with debug assertions on (the tour's profile also arms overflow checks;
+the workspace's, which built the helices in `crates/sweep`, does not),
+pinned to one core of an otherwise idle 4-core box. CARVE's scratch harness, re-pointed and not committed.
+
+"Pairs split" is the receipt's `splits`, "certified" its `certified`,
+"refused" its `refused`. "Build" is the loft or sweep call alone. The
+Klein loop's `finished` validation adds 4.07 s to its 7.6 ms. The
+three sepals build together, in 8.4 ms.
+
+| body | verdict | split | certified | refused | deepest | cert | build | cert / build |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| `lily_leaf_a` | Holds | 3410 | 1058 | 0 | 22 | 27.2 s | 5.6 ms | 4900× |
+| `lily_leaf_b` | Holds | 311 | 104 | 0 | 11 | 2.68 s | 2.0 ms | 1300× |
+| `lily_leaf_c` | Holds | 359 | 106 | 0 | 12 | 3.41 s | 1.8 ms | 1900× |
+| `lily_sepal_a` | Holds | 1102 | 347 | 0 | 18 | 9.94 s | 2.8 ms | 3500× |
+| `lily_sepal_b` | Holds | 1206 | 369 | 0 | 17 | 10.5 s | 2.8 ms | 3700× |
+| `lily_sepal_c` | Holds | 1241 | 385 | 0 | 19 | 11.0 s | 2.8 ms | 3900× |
+| Klein loop | Holds | 48162 | 14888 | 0 | 21 | 46.8 s | 7.6 ms | 6200× (11× with `finished`) |
+| `twisted_loft` | Holds | 9403 | 2765 | 0 | 25 | 4.95 s | 1.4 ms | 3500× |
+| `twisted_tube` | Holds | 765 | 257 | 0 | 9 | 3.13 s | 4.0 ms | 780× |
+| `s_duct` | Holds | 189 | 92 | 0 | 6 | 1.16 s | 4.8 ms | 240× |
+| `nonuniform_loft` | Holds | 388 | 163 | 0 | 16 | 0.20 s | 1.9 ms | 105× |
+| helix, 1 turn / 33 | Holds | 558 | 220 | 0 | 9 | 3.68 s | 14 ms | 260× |
+| helix, 1 turn / 65 | Holds | 558 | 220 | 0 | 9 | 5.58 s | 25 ms | 230× |
+| helix, 2 turns / 65 | Holds | 1249 | 444 | 0 | 11 | 8.42 s | 24 ms | 350× |
+
+Every body now answers, and none refuses. The four that ran out of
+budget before (`lily_leaf_a` and the three sepals) take 1100–3400
+splits. The Klein loop takes 48162, 73% of the budget, so it is the one
+body still near the line. The pair count is no longer what costs. Per
+split, the price is 0.5 ms on `twisted_loft` and `nonuniform_loft`,
+1 ms on the Klein loop, and 6–10 ms on the lily blades and the helices.
+The helix at 65 stations takes the same 558 splits as at 33 but 1.5×
+the time, so the per-split price grows with the net the cell is cut
+from.
+
+A callgrind profile of the one-turn helix at 33 stations places the
+time:
+- 71% is inside `injective::departure`.
+- 57% of everything is `nurbs::read_net`, which restricts the face's
+  NURBS net to the cell by blossoming
+  (`SpanRow::restrict` / `restrict_derivative`, from `rect_jet` and
+  `rect_net`). The certified blossom step alone,
+  `Interval::between`, is 47%.
+- The separator and the distance arm, `separated_by_support` and
+  `split_by`, are about 8% and 6%.
+
+What dominates now is restricting the net, cell by cell, in certified
+interval arithmetic, rather than the geometry or the budget.
+
+Where the question answers, it still costs 100–6000× the build, between
+0.2 s and 47 s. That is still too dear to pay on every rebuild. The
+"Left open" question above can now be decided on these numbers.
+
+## Closed (CLEAR, 2026-11-01)
+
+Every tour body now answers within the default pair budget; the Klein
+loop, the busiest, uses 73% of it. What this row named (the question not
+answering, and the area frontier) is fixed by JETFRAME, ZEROSIDE,
+HEADING and DIRSUPPORT.
+
+What remains is the cost per pair, 100–6,000× the build. It is
+`clearance-recomputes-a-cells-net-and-jet-per-pair` (P0). The door
+policy for CARVE's loop (whether it runs this question on every rebuild)
+goes to Ev with that unit's numbers.
