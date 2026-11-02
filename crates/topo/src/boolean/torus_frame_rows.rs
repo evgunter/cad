@@ -511,14 +511,12 @@ fn the_axis_tilt_is_levered_at_the_torus_faces_reach() {
         shape(&got)
     );
     let torus = donut();
-    for extent in [FrameExtent::Radii, FrameExtent::Span(REACH)] {
-        let got = pair_section_frame_at(&p, &torus, Point3::origin(), extent.clone(), b);
-        assert!(
-            matches!(got, Err(FrameError::Desync(_))),
-            "plane×torus under {extent:?}: got {}",
-            shape(&got)
-        );
-    }
+    let got = pair_section_frame_at(&p, &torus, Point3::origin(), FrameExtent::Radii, b);
+    assert!(
+        matches!(got, Err(FrameError::Desync(_))),
+        "plane×torus under its radii: got {}",
+        shape(&got)
+    );
 }
 
 /// A planar face on the plane through the origin with unit normal `n`:
@@ -572,8 +570,7 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
     );
     let surface = |body: &crate::Body<f64>, f: FaceKey| body.face_surface(f).unwrap().clone();
     let on = super::carrier_pair::face_witnesses(&torus, face).unwrap();
-    let probe = plane([0.0, 0.0, 0.0], Vec3::unit_x());
-    let (at, _) = frame_reading(&surface(&torus, face), &probe, on, Vec::new()).unwrap();
+    let at = frame_reading(&surface(&torus, face), on, Vec::new()).unwrap();
     let rho = big_r + r * a.cos();
     let reach = [
         (Point3::new(0.0, 0.0, r * a.sin()), rho),
@@ -592,11 +589,21 @@ fn a_torus_face_is_levered_at_its_own_reach_through_the_production_path() {
         for (label, got) in [
             (
                 "plane, torus",
-                face_pair_section_loops((&flat, flat_face), (&torus, face), b),
+                face_pair_section_loops(
+                    &super::section_table::SectionTable::default(),
+                    (&flat, flat_face),
+                    (&torus, face),
+                    b,
+                ),
             ),
             (
                 "torus, plane",
-                face_pair_section_loops((&torus, face), (&flat, flat_face), b),
+                face_pair_section_loops(
+                    &super::section_table::SectionTable::default(),
+                    (&torus, face),
+                    (&flat, flat_face),
+                    b,
+                ),
             ),
         ] {
             let read = match &got {

@@ -781,6 +781,7 @@ pub(super) fn sphere_torus<T: Decide>(
         decided,
         components: Components::Counted(components),
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     })
 }
 
@@ -1044,6 +1045,7 @@ pub(super) fn cylinder_torus<T: Decide>(
         decided,
         components,
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     })
 }
 
@@ -1286,5 +1288,6 @@ pub(super) fn torus_torus<T: Decide>(
         decided,
         components,
         nodes: Vec::new(),
+        node_sets: Vec::new(),
     })
 }

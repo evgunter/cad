@@ -959,6 +959,9 @@ component is closed, or open with both ends on the domain's boundary,
 or ends at a node (Edge descriptions): a node is
 decided on the pose as a Zero tangency whose section still has
 carriers, placed in closed form, and a site at it reads as the node.
+Arcs that share nodes are one node-joined set (`NodeSet`), the
+connected component: the set claims its winding about each surface,
+and its arcs claim none.
 Two cylinders decide their pose on closed-form margins: parallelism as
 `sin θ · L` at the region's radius `L`; then the gap `e` along the
 common perpendicular against `r₁ + r₂` and `|r₁ − r₂|`, or the axis
