@@ -84,9 +84,13 @@ Each inserts its node at default values, labelled "Extrude N" or
 "Revolve N", and selects it, so its Properties rows are where its
 distance, or its axis point, heading and angle, are written — as a
 number or as a formula over variables. A revolve's default axis runs
-along the profile's +y, one profile-width clear of its left side, so
-any profile revolves into a ring; a value that makes it refuse shows
-on its badge. The toolbar's **Cancel
+along the profile's +y, at least one profile-width clear of its left
+side and rounded outward to a round number in the working unit, so
+every profile with loops revolves into a ring. The axis is read off
+the profile as the current document evaluates it: while that
+evaluation is outstanding, or for a profile with no loops, the Revolve
+button is disabled and its hover says why. A value written later that
+makes the revolve refuse shows on its badge. The toolbar's **Cancel
 drag** and **Cancel free-move** are there only while their gesture is
 in flight.
 

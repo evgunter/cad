@@ -66,8 +66,13 @@ mod driven {
     /// is the profile's own y axis, across the semicircle) leaves its
     /// copy undrawn; a second revolve of the same profile, its heading
     /// written 0, so the axis runs along the semicircle's diameter, is
-    /// the sphere, and it is drawn and picked. Before, the first failure refused the whole index and the
-    /// sphere never reached the picture.
+    /// the sphere, and it is drawn and picked. Before, the first
+    /// failure refused the whole index and the sphere never reached the
+    /// picture.
+    ///
+    /// Over the slow-set bar, but `app`-gated, which the slow-set name
+    /// check cannot see
+    /// (`work/ciw/an-app-feature-only-test-cannot-be-listed-in-the-slow-set.md`).
     #[test]
     fn a_failed_revolve_does_not_hide_the_sphere_revolved_after_it() {
         let mut driver = started("drive-partial-picture");
@@ -122,17 +127,24 @@ mod driven {
                 .into_iter()
                 .find(|row| row.slot == slot)
                 .expect("the revolve's row");
-            // The field paints its number to its own decimals, so it is
-            // found by the number it reads rather than by its text.
-            let shown: f64 = viewer::props::field_text(&row, driver.session().notation())
-                .parse()
-                .expect("a literal's field reads a number");
+            // The slot's field is the run just right of its label, on
+            // the label's line (`slot_group_ui`'s scalar row).
+            let label = driver
+                .screen()
+                .iter()
+                .filter(|landed| landed.text == row.label)
+                .find_map(|landed| landed.visible())
+                .unwrap_or_else(|| panic!("the {:?} row's label is on screen", row.label));
             let field = driver
                 .screen()
                 .iter()
-                .filter(|landed| landed.text.parse::<f64>().ok() == Some(shown))
-                .find_map(|landed| landed.visible().map(|rect| rect.center()))
-                .expect("the slot's field is on screen");
+                .filter_map(|landed| landed.visible())
+                .filter(|rect| {
+                    rect.left() > label.right() && (rect.center().y - label.center().y).abs() < 4.0
+                })
+                .min_by(|a, b| a.left().total_cmp(&b.left()))
+                .expect("the slot's field, right of its label")
+                .center();
             driver
                 .click_at(
                     field,

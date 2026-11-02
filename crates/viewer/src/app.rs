@@ -1396,6 +1396,7 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
+            let selects = op.selects_what_it_makes();
             // The forms' and the open tool's picks are held outside the
             // document: a takeover reads where they go, and they follow
             // it at the commit, with the session's selection.
@@ -1421,6 +1422,7 @@ impl ViewerApp {
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
             let made = outcome.made;
+            let committed = outcome.refusal.is_none();
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 None if replaced => self.document_replaced(),
@@ -1443,10 +1445,19 @@ impl ViewerApp {
                     self.drafts.accepted(&accepted_op);
                     self.drafts
                         .creation_landed(self.session.committed_doc(), made);
-                    if let Some(node) = made.filter(|_| selects_what_it_made(&accepted_op)) {
-                        self.session
-                            .perform(SessionOp::Select(crate::session::Selection::Node(node)));
-                    }
+                }
+            }
+            // A creation under the create rule selects what it made,
+            // which opens that node's edit surface. Its outcome is
+            // heard like the op's: a selection that refuses (a gesture
+            // in flight) is said, never dropped.
+            if let Some(node) = made.filter(|_| selects && committed) {
+                let selected = self
+                    .session
+                    .perform(SessionOp::Select(crate::session::Selection::Node(node)));
+                notices.extend(frame::outcome_notices(&selected));
+                if let Some(next) = selected.refusal {
+                    refusal = Refusal::preferred(refusal, next);
                 }
             }
             // After the match, so a replaced document's held picks are
@@ -2645,21 +2656,6 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
             *self.features_content_height = Some(scrolled.content_size.y);
         }
         UiResponse::None
-    }
-}
-
-/// **Whether `op` is a create gesture that hands its node to the
-/// node's edit surface** (`crates/viewer/README.md`, "A create gesture
-/// commits the node"): once it commits, the node it made
-/// ([`crate::session::OpOutcome::made`]) is selected, so the node's
-/// Properties rows are what the pane shows next. A create gesture
-/// opts in by its op's arm here; a labelled creation answers as its
-/// creation does.
-pub(crate) fn selects_what_it_made(op: &SessionOp) -> bool {
-    match op {
-        SessionOp::AddExtrude { .. } | SessionOp::AddRevolve { .. } => true,
-        SessionOp::CreateLabelled { creation, .. } => selects_what_it_made(creation.op()),
-        _ => false,
     }
 }
 
@@ -6262,8 +6258,8 @@ mod properties_pane_tests {
         );
         assert_eq!(driven.app.session.selection(), &Selection::Node(made));
         assert_eq!(driven.app.session.history().len(), steps + 1);
-        // The circle spans x ∈ [0.015, 0.025]: the axis is one width
-        // left of it, up its +y.
+        // The circle spans x ∈ [0.015, 0.025] m: the axis is a width
+        // left of it, rounded outward to a hundredth, up its +y.
         let read = |driven: &Driven, slot| {
             driven
                 .row(made, slot)
@@ -6273,7 +6269,7 @@ mod properties_pane_tests {
                 .expect("one value")
                 .as_f64()
         };
-        assert!((read(&driven, SlotId::Origin(Axis3::X)) - 0.005).abs() < 1e-12);
+        assert_eq!(read(&driven, SlotId::Origin(Axis3::X)), 0.0);
         assert!((read(&driven, SlotId::AxisHeading) - core::f64::consts::FRAC_PI_2).abs() < 1e-12);
         // Pappus: the disc's area swept along its centre's path.
         let ring =
@@ -6282,8 +6278,8 @@ mod properties_pane_tests {
         driven.settle();
         let full = volume(&driven, made);
         assert!(
-            near(full, ring(core::f64::consts::TAU, 0.015)),
-            "a whole ring about the axis 15 mm from the circle's centre: {full}"
+            near(full, ring(core::f64::consts::TAU, 0.02)),
+            "a whole ring about the axis 20 mm from the circle's centre: {full}"
         );
 
         let mut ops = written_over(
@@ -6339,6 +6335,64 @@ mod properties_pane_tests {
             before,
             "one undo takes the insert"
         );
+    }
+
+    /// **The revolve's default axis point is written as a person would
+    /// type it** in the working unit: the circle of the row above, in
+    /// inches, gets its axis at a tenth of an inch, not at the
+    /// 0.19685… a width to its left converts to.
+    #[test]
+    fn the_revolve_default_axis_reads_as_a_round_number_in_inches() {
+        use crate::pane::create::REVOLVE;
+        let mut driven = Driven::with(vec![SessionOp::AddProfile {
+            loops: vec![
+                pncad::document::LoopProgram::circle(0.02, 0.0, 0.005).expect("a finite circle"),
+            ],
+        }]);
+        driven.app.session.set_notation(crate::props::Notation {
+            length: pncad::prelude::IN,
+            ..crate::props::Notation::DEFAULT
+        });
+        let profile = *driven.app.session.doc().ids().last().expect("the circle");
+        driven.select(Selection::Node(profile));
+        driven.settle();
+        let before = driven.app.session.doc().ids();
+        driven.click(&sweep_button(&driven, REVOLVE, profile));
+        let made = the_new_node(&driven, &before);
+        let row = driven.row(made, SlotId::Origin(Axis3::X));
+        assert_eq!(
+            crate::props::field_text(&row, driven.app.session.notation()),
+            "0.1"
+        );
+        driven.settle();
+        assert!(
+            volume(&driven, made) > 0.0,
+            "and the profile, wholly right of it, revolves"
+        );
+    }
+
+    /// **A profile with no loops has no extent to place an axis by**,
+    /// so the revolve button is disabled and says why, and clicking it
+    /// inserts nothing.
+    #[test]
+    fn the_revolve_button_waits_on_a_profile_with_no_extent() {
+        use crate::pane::create::REVOLVE;
+        let mut driven = Driven::with(vec![SessionOp::AddProfile { loops: Vec::new() }]);
+        let profile = *driven.app.session.doc().ids().last().expect("the profile");
+        driven.select(Selection::Node(profile));
+        driven.settle();
+        let before = driven.app.session.doc().ids();
+        let button = sweep_button(&driven, REVOLVE, profile);
+        let hovered = driven.gained_hovering(&button);
+        assert!(
+            hovered
+                .iter()
+                .any(|run| run == "the profile has no loops to revolve"),
+            "the disabled button says why: {hovered:?}"
+        );
+        driven.click(&button);
+        driven.settle();
+        assert_eq!(driven.app.session.doc().ids(), before, "nothing inserted");
     }
 
     /// **The creation doors that are not tools are reachable too**: the

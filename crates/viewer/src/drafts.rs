@@ -164,8 +164,8 @@ pub(crate) struct Drafts {
     /// is a number sitting in a field, but this one decides what the
     /// viewport draws: the add-profile preview is taken from these
     /// drafts each frame, so a pre-selected shape meant that merely
-    /// opening "Add feature" — to reach the extrude form, say — put a
-    /// circle in the picture that nobody had asked for. `None` is the
+    /// opening "Add feature" — to reach another of its tools, say — put
+    /// a circle in the picture that nobody had asked for. `None` is the
     /// form at rest: no shape fields, no preview, and the commit
     /// disabled until a shape is chosen.
     pub(crate) profile_shape: Option<ShapeKind>,
