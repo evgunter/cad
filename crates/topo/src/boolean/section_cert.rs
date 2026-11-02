@@ -1830,30 +1830,20 @@ pub(super) fn of_pair_section<T: Decide>(
             _ => Section::Tangent(zero.decision.name()),
         };
     }
-    // Each component's set: the least node any arc of its node-joined set
-    // ends at, found by joining arcs that share a node.
-    let mut root: Vec<usize> = (0..section.nodes().len()).collect();
-    fn find(root: &[usize], k: usize) -> usize {
-        let mut k = k;
-        while root[k] != k {
-            k = root[k];
-        }
-        k
-    }
-    for c in components {
-        if let [Some(a), Some(b)] = ends(c).nodes {
-            let (ra, rb) = (find(&root, a), find(&root, b));
-            root[ra.max(rb)] = ra.min(rb);
-        }
-    }
+    // Each component's node-joined set, the value's own ([`geom_brep::NodeSet`]),
+    // which claims the set's winding: an arc of it claims none.
+    let sets = section.node_sets();
+    let set_of = |i: usize| sets.iter().position(|set| set.arcs.contains(&i));
     let mut parts: Vec<(Option<usize>, Component<T>)> = Vec::new();
-    for c in components {
+    for (i, c) in components.iter().enumerate() {
         let ends = ends(c);
         let [on_f, on_g] = ends.rims;
+        let set = set_of(i);
+        let winds = set.map_or(c.winds, |k| sets[k].winds);
         let part = Component {
             unbounded: ends.cut,
-            essential_f: c.winds[0],
-            essential_g: c.winds[1],
+            essential_f: winds[0],
+            essential_g: winds[1],
             witness: c.witness,
             // Only rim ends reach a chart side; a cut end or a node end
             // clears nothing here.
@@ -1866,7 +1856,6 @@ pub(super) fn of_pair_section<T: Decide>(
             },
             pad: c.pad,
         };
-        let set = ends.nodes.iter().flatten().next().map(|&k| find(&root, k));
         match parts.iter_mut().find(|(s, _)| set.is_some() && *s == set) {
             Some((_, joined)) => {
                 joined.unbounded |= part.unbounded;
