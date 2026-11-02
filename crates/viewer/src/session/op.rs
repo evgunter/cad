@@ -529,11 +529,15 @@ pub enum SessionOp {
         /// mate at the door, naming both spaces.
         into_target_space: bool,
     },
-    /// **The placement editor's Create** ([`crate::matetool::MateTool`]):
-    /// one placement of `body` into `target` holding the whole bundle
+    /// **The placement editor's Create** ([`crate::matetool::MateTool`]),
+    /// the Transform tool's on a body nothing places
+    /// ([`crate::matetool::MateTool::moving`]): one placement of `body` into `target` holding the whole bundle
     /// `constraints` (`DocEdit::place`), and what read the body along a
     /// path the picture is seen through — a `⊔` operand, the product —
-    /// re-pointed to it, in one action. One history state, one undo.
+    /// re-pointed to it, in one action. One history state, one undo. A
+    /// `body` that is itself a copy refuses [`Refusal::CreateOnACopy`],
+    /// and one a placement copies [`Refusal::BodyPlaced`], naming that
+    /// copy: each moves by its copy's Edit door.
     Place {
         /// The body, as a seat reads it.
         body: Operand,
@@ -542,7 +546,8 @@ pub enum SessionOp {
         /// The bundle, as authored, in order.
         constraints: Vec<pncad::document::Constraint<Formula>>,
     },
-    /// **The placement editor's Edit**: `placement`'s bundle written
+    /// **The placement editor's Edit**, the Transform tool's on a copy:
+    /// `placement`'s bundle written
     /// whole (`DocEdit::SetConstraints`), each constraint the draft
     /// loaded under its own id. Refused [`Refusal::BundleStale`] where
     /// the placement no longer holds `base`, the bundle the draft was
@@ -756,10 +761,10 @@ pub enum SessionOp {
     /// operand after the first whose value lives in another space than
     /// the first's is placed into the first's, in the same action. A
     /// construction is placed at the identity and the boolean reads the
-    /// new placement; a copy placed into its own body's space
-    /// ([`Self::AddTransform`]'s) is re-targeted in place, its bundle
-    /// the values on the first's space's axes that stand it at the pose
-    /// it held relative to its body. An operand whose pose does not
+    /// new placement; a copy placed into its own body's space by values
+    /// alone ([`Self::Place`] with no mate) is re-targeted in place, its
+    /// values as written, so it stands on the first's axes as it stood
+    /// on its body's. An operand whose pose does not
     /// solve is read as it is, and the boolean refuses `SpaceMismatch`
     /// at evaluation, on its own badge.
     AddBoolean {
@@ -836,33 +841,6 @@ pub enum SessionOp {
         b: ClearedSeat,
         /// The bounds, each a length.
         bounds: pncad::document::ClearanceBounds<Formula>,
-    },
-    /// **Move an existing body rigidly** — the transform tool's one
-    /// committed action: a placement of the body into the space it is
-    /// in (`Node::Place`, no mate), its values on that space's axes —
-    /// rotated by `rotation_angle` about `rotation_axis` through the
-    /// body's own origin, then translated — and the body's world
-    /// placements taken over by it (A10, Ev's residue 1;
-    /// `Recording::take_over`), as one action.
-    ///
-    /// The translation is written as the three slides, each formula as
-    /// given; a rotation about one of the space's axes is the spin about
-    /// it by `rotation_angle` as given, and one about any other axis is
-    /// the chain of turns its frame makes at the numbers' NOMINAL
-    /// values. What the placement holds afterwards is its values,
-    /// editable through their slots. A number of the wrong dimension,
-    /// one that does not evaluate, and an axis that names no direction
-    /// refuse [`Refusal::Frame`]; an input that is no placeable body
-    /// refuses as a body seat does.
-    AddTransform {
-        /// The body placed.
-        input: Operand,
-        /// Translation components (`Length`).
-        translation: [Formula; 3],
-        /// Rotation-axis components (`Scalar`).
-        rotation_axis: [Formula; 3],
-        /// Rotation angle (`Angle`).
-        rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
     /// committed edit: an index `k = index(count)` and one placement of
@@ -1010,7 +988,7 @@ pub enum SessionOp {
     /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
     /// before anything has landed, while an edit has not landed yet,
     /// and for an input whose value is several bodies — which the body
-    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// seat's node-kind gate admits for a placement of a pattern, and
     /// which a pattern of two would index in place, adding nothing.
     /// Both numbers land in the pattern's ordinary slots and are edited
     /// in the property panel afterwards.
@@ -1305,7 +1283,6 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddClearance { .. }
-            | Self::AddTransform { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1436,7 +1413,6 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddClearance { .. }
-            | Self::AddTransform { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1668,7 +1644,6 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddClearance { .. }
-            | Self::AddTransform { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1804,7 +1779,6 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddClearance { .. }
-            | Self::AddTransform { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }
@@ -1883,7 +1857,6 @@ impl SessionOp {
             | Self::AddSplit { .. }
             | Self::AddMirror { .. }
             | Self::AddClearance { .. }
-            | Self::AddTransform { .. }
             | Self::Place { .. }
             | Self::AddPattern { .. }
             | Self::AddFusedPattern { .. }

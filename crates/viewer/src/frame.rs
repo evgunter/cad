@@ -812,7 +812,6 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
         | SessionOp::AddClearance { .. }
-        | SessionOp::AddTransform { .. }
         | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddFusedPattern { .. }
@@ -2198,7 +2197,10 @@ pub fn tool_notice(
             MateToolEvent::PickLost { .. }
             | MateToolEvent::Reloaded { .. }
             | MateToolEvent::PlacementGone { .. }
-            | MateToolEvent::NotPlaceable { .. },
+            | MateToolEvent::NotPlaceable { .. }
+            | MateToolEvent::SeenThroughSeveral { .. }
+            | MateToolEvent::HalfUnchosen { .. }
+            | MateToolEvent::PatternFamily { .. },
         ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,

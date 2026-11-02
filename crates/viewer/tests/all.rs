@@ -157,6 +157,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "probe_6356.rs"]
+mod probe_6356;
 #[path = "product_door.rs"]
 mod product_door;
 #[path = "profile_draw.rs"]

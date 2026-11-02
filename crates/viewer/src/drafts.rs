@@ -200,12 +200,6 @@ pub(crate) struct Drafts {
     /// radians. Opens a quarter turn, along the profile's +y, the axis
     /// a profile drawn beside it turns about.
     pub(crate) revolve_axis_heading: f64,
-    /// The transform tool's translation, metres.
-    pub(crate) transform_translation: [f64; 3],
-    /// Its rotation axis (unitless).
-    pub(crate) transform_axis: [f64; 3],
-    /// Its rotation angle, radians.
-    pub(crate) transform_angle: f64,
     /// The pattern tool's rule choice.
     pub(crate) pattern_kind: PatternLayoutChoice,
     /// Its output choice — which of the two doors the commit button
@@ -983,9 +977,6 @@ impl Default for Drafts {
             revolve_angle: core::f64::consts::TAU,
             revolve_axis_through: Point2::origin(),
             revolve_axis_heading: core::f64::consts::FRAC_PI_2,
-            transform_translation: [0.0; 3],
-            transform_axis: [0.0, 0.0, 1.0],
-            transform_angle: 0.0,
             pattern_kind: PatternLayoutChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
