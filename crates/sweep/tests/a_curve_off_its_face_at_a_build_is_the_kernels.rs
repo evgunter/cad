@@ -128,7 +128,13 @@ fn check<T: Decide + AtRestPolicy + Bounds>() {
     let derived = refused::<T>(false);
     for refusal in [&declared, &derived] {
         assert!(
-            matches!(refusal, CertifyError::CarrierOffChart { margin: None, .. }),
+            matches!(
+                refusal,
+                CertifyError::CarrierOffChart {
+                    margin: Some(geom_brep::OffMargin::Past(_)),
+                    ..
+                }
+            ),
             "{lane}: {refusal:?}"
         );
         assert_eq!(

@@ -964,6 +964,22 @@ impl<T: Real> Body<T> {
         out.points.remove(point).is_some().then_some(out)
     }
 
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with the surface at `key` replaced by `moved` in place,
+    /// every face and edge that names it left naming it: a stored body
+    /// whose surface no longer holds the curves its edges carry, the
+    /// state a damaged file or a defective operation reaches at rest.
+    ///
+    /// Returns `None` if `key` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_surface_moved_for_tests(&self, key: SurfaceKey, moved: Surface<T>) -> Option<Self> {
+        let mut out = self.clone();
+        *out.surfaces.get_mut(key)? = moved;
+        Some(out)
+    }
+
     /// The loop at `key`, or `None` if the key is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly

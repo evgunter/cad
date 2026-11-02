@@ -24,14 +24,14 @@ test_utils::gated_to![
     "crates/geom/src/azimuth.rs",
 ];
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 mod projected;
 mod projected_searches;
 
 use super::{
-    AxisMap, Channel, ChartMap, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve,
-    PcurveCache, PcurveCertifyError, PcurveCheck, Period, angle_rate, carrier_harmonic,
+    AxisMap, Channel, ChartMap, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, IncidenceRead,
+    Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck, Period, angle_rate, carrier_harmonic,
     channels_of, chart_image_harmonic, chart_pcurve, derive_harmonic, focal_section_envelope,
     incidence, orthonormal_chart, periodic_envelope,
 };
@@ -151,14 +151,15 @@ const CLASSES: [Class; 16] = [
 ];
 
 /// Whether a carrier of `class` is imaged to round-off by the arm its
-/// derivation selects. Two classes lie on the chart but are not the
-/// class their derivation selects (`SmallCircle`,
-/// `CylinderMeridianCircle`: their radial motion is the admitted
-/// drift), two do not lie on it at all (`AxisCircle`,
-/// `CylinderLeaningLine`: they are there to reach the zero-winding
-/// arms), and the near-pole meridian's derivation reads its meridian
-/// plane off an `a_r` a few ulps long, so its image is off by that
-/// conditioning.
+/// derivation selects. Four classes lie on the chart within its zero
+/// band, so the mint's incidence read admits them, but not exactly on
+/// the class their derivation selects: `SmallCircle` and
+/// `CylinderMeridianCircle` (their radial motion is the admitted
+/// drift), `AxisCircle` (its plane tilted inside the band) and
+/// `CylinderLeaningLine` (its lean along the wall); they are there to
+/// reach the zero-winding arms. The near-pole meridian's derivation
+/// reads its meridian plane off an `a_r` a few ulps long, so its image
+/// is off by that conditioning.
 fn images_exactly(class: Class) -> bool {
     !matches!(
         class,
@@ -264,19 +265,22 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             )
         }
         Class::CylinderMeridianCircle => {
+            // In the plane tangent to the wall, which holds the axis: its
+            // radial amplitude is its radius, in the band, and it leaves
+            // the wall by its sagitta `ρ²/2R`, far inside it.
             let (chart, radius, v0) = cylinder(s);
             let rho = band().escalate() * s.range(0.02, 0.98);
-            let start = r * s.range(-1.0, 1.0) + axis * s.range(-1.0, 1.0);
+            let start = tang * s.range(-1.0, 1.0) + axis * s.range(-1.0, 1.0);
             (
                 chart,
                 circle(
                     at + r * radius + axis * v0,
-                    tang * sign(s),
+                    r * sign(s),
                     rho,
                     if start.norm() > 0.1 {
                         start.normalize()
                     } else {
-                        r
+                        tang
                     },
                 ),
             )
@@ -354,60 +358,102 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             )
         }
         Class::SmallCircle => {
-            // A small circle about a point of the chart, in a random
-            // plane: its radial amplitude is real but its winding, an
-            // area metered at the chart's lever, reads Zero or in band.
-            let rho = band().zero() * 10f64.powf(s.range(1.5, 4.4));
-            let (chart, point) = match s.below(4) {
+            // A small circle in the plane tangent to the chart at one of
+            // its points: its radial amplitude is real but its winding,
+            // an area metered at the chart's lever, reads Zero or in
+            // band. Its radius keeps its sagitta `κ·ρ²/2` (κ the chart's
+            // largest curvature there) inside half the zero band.
+            let (chart, point, normal, kappa) = match s.below(4) {
                 0 => {
                     let (chart, radius, v0) = cylinder(s);
-                    (chart, at + r * radius + axis * v0)
+                    (chart, at + r * radius + axis * v0, r, 1.0 / radius)
                 }
                 1 => {
                     let (chart, half_angle) = cone(s);
                     let v = sign(s) * s.range(0.2, 3.0);
+                    let (sin, cos) = half_angle.sin_cos();
                     (
                         chart,
-                        at + (axis * half_angle.cos() + r * half_angle.sin()) * v,
+                        at + (axis * cos + r * sin) * v,
+                        r * cos - axis * sin,
+                        cos / (v.abs() * sin),
                     )
                 }
                 2 => {
                     let (chart, radius) = sphere(s);
                     let v = s.range(-1.3, 1.3);
-                    (chart, at + (r * v.cos() + axis * v.sin()) * radius)
+                    let out = r * v.cos() + axis * v.sin();
+                    (chart, at + out * radius, out, 1.0 / radius)
                 }
                 _ => {
                     let (chart, major, minor) = torus(s);
                     let v = s.range(-PI, PI);
-                    (
-                        chart,
-                        at + r * (major + minor * v.cos()) + axis * (minor * v.sin()),
-                    )
+                    let out = r * v.cos() + axis * v.sin();
+                    let kappa = (1.0 / minor).max(1.0 / (major - minor));
+                    (chart, at + r * major + out * minor, out, kappa)
                 }
             };
-            let (n, e) = frame(s);
-            (chart, circle(point, n, rho, e))
+            let rho = (band().zero() / kappa).sqrt() * s.range(0.05, 0.95);
+            let u = unit(s);
+            let e = (u - normal * u.dot(normal)).normalize();
+            (chart, circle(point, normal * sign(s), rho, e))
         }
         Class::AxisCircle => {
-            // From inside the band (the winding, metered at the circle's
-            // own radius on a rim or a torus parallel, reads Zero) to
-            // well clear of it; the plane tilted off ⊥ by an angle the
-            // axial decision still reads Zero at the radius drawn, so a
-            // turning class's two radial coefficients disagree (its
-            // `Radius` pair).
+            // A circle ⊥ the axis and centred on it, on the chart: a cone's
+            // rim at its own height, a sphere's polar circle, a near-horn
+            // torus's inner equator (the parallel nearest the axis). From
+            // inside the band (the winding, metered at the circle's own
+            // radius, reads Zero) to well clear of it; the plane tilted
+            // off ⊥ by an angle the axial decision still reads Zero at
+            // the radius drawn, which moves it off the chart by less than
+            // the zero band, so a turning class's two radial coefficients
+            // disagree (its `Radius` pair). A cylinder holds no circle
+            // about its axis but its rims: its zero-winding arm is
+            // `SmallCircle`'s and `CylinderLeaningLine`'s.
             let rho = band().zero() * 10f64.powf(s.range(-1.5, 4.0));
             let theta = (band().zero() / rho).min(1.0) * s.range(0.0, 0.9);
             let normal = (axis + tang * theta).normalize();
-            let chart = match s.below(4) {
-                0 => cylinder(s).0,
-                1 => cone(s).0,
-                2 => sphere(s).0,
-                _ => torus(s).0,
+            let (chart, height) = match s.below(3) {
+                0 => {
+                    // A rim is one only clear of the apex's band, where
+                    // the apex plane meets the cone at the apex alone: a
+                    // radius the drawn cone would set within that band
+                    // takes a cone narrow enough to set it clear.
+                    let (_, drawn) = cone(s);
+                    let clear = band().escalate() * 10f64.powf(s.range(0.5, 6.0));
+                    let half_angle = if rho / drawn.tan() < clear {
+                        (rho / clear).atan()
+                    } else {
+                        drawn
+                    };
+                    let chart = Surface::Cone {
+                        apex: at,
+                        axis,
+                        half_angle,
+                        u_ref,
+                    };
+                    (chart, sign(s) * rho / half_angle.tan())
+                }
+                1 => {
+                    let (chart, radius) = sphere(s);
+                    (chart, sign(s) * (radius * radius - rho * rho).sqrt())
+                }
+                _ => {
+                    let minor = s.range(0.2, 1.5);
+                    let chart = Surface::Torus {
+                        center: at,
+                        axis,
+                        major_radius: minor + rho,
+                        minor_radius: minor,
+                        u_ref,
+                    };
+                    (chart, 0.0)
+                }
             };
             (
                 chart,
                 circle(
-                    at + axis * s.range(-3.0, 3.0),
+                    at + axis * height,
                     normal * sign(s),
                     rho,
                     (r - normal * r.dot(normal)).normalize(),
@@ -415,12 +461,16 @@ fn on_chart(s: &mut fuzz::Rng, class: Class) -> (Surface<f64>, Curve3<f64>) {
             )
         }
         Class::CylinderLeaningLine => {
+            // Leaning along the wall, not out of it: over any span drawn
+            // (`|t| ≤ 3π`) it leaves the wall by `(t·b)²/2R`, inside half
+            // the zero band, while its radial part moves.
             let (chart, radius, v0) = cylinder(s);
+            let lean = (radius * band().zero()).sqrt() / (3.0 * PI) * s.range(0.05, 0.95);
             (
                 chart,
                 Curve3::Line {
                     origin: at + r * radius + axis * v0,
-                    dir: axis * s.range(-3.0, 3.0) + r * s.range(-1.0, 1.0),
+                    dir: axis * s.range(-3.0, 3.0) + tang * (sign(s) * lean),
                 },
             )
         }
@@ -787,11 +837,79 @@ struct Row {
     noise: f64,
 }
 
+/// **What the draws came to**: the rows checked, and every draw that
+/// gave none, counted by its class and why. A draw the mint refuses is
+/// a reading of the carrier (moved off the chart, or past the band), so
+/// it is no row of the lemma's; it is counted, never dropped unseen,
+/// and each sweep holds a floor on the rows it checked.
+#[derive(Default)]
+struct Tally {
+    rows: usize,
+    none: BTreeMap<(String, String), usize>,
+    /// Rows renamed a whole period over: those the C4 claim was checked
+    /// on, and those it is vacuous on (a circle whose turn is in band).
+    lifted: usize,
+    vacuous: usize,
+}
+
+impl Tally {
+    fn drop(&mut self, class: Class, why: &str) {
+        *self
+            .none
+            .entry((format!("{class:?}"), why.to_owned()))
+            .or_default() += 1;
+    }
+
+    /// Why the mint refused a draw: its incidence read, definite or in
+    /// band, or a refusal of another kind.
+    fn refused(&mut self, class: Class, e: &PcurveCertifyError) {
+        let why = match IncidenceRead::of(e) {
+            Some(read) if read.is_definite() => "the mint reads it off the chart",
+            Some(_) => "the mint reads it in band",
+            None => {
+                let variant = format!("{e:?}");
+                let variant = variant.split([' ', '{', '(']).next().unwrap_or_default();
+                return self.drop(class, &format!("the mint refuses it: {variant}"));
+            }
+        };
+        self.drop(class, why);
+    }
+
+    /// The sweep's report, and its floors: at least `floor` of `trials`
+    /// draws checked as rows, and at least `lift_floor` of the rows
+    /// renamed a whole period over checked against C4.
+    fn hold(&self, name: &str, trials: usize, floor: f64, lift_floor: f64) {
+        println!(
+            "[fuzz] {name}: {} of {trials} draws checked as rows; none from {:?}; \
+             {} of {} whole-period renamings checked against C4",
+            self.rows,
+            self.none,
+            self.lifted,
+            self.lifted + self.vacuous
+        );
+        assert!(
+            self.rows as f64 >= floor * trials as f64,
+            "{name}: only {} of {trials} draws checked as rows (floor {floor}); none from {:?} — {}",
+            self.rows,
+            self.none,
+            fuzz::replay()
+        );
+        assert!(
+            self.lifted as f64 >= lift_floor * (self.lifted + self.vacuous) as f64
+                && self.lifted > 0,
+            "{name}: only {} of {} whole-period renamings checked against C4 (floor {lift_floor}) — {}",
+            self.lifted,
+            self.lifted + self.vacuous,
+            fuzz::replay()
+        );
+    }
+}
+
 /// Draw one row of `class` and assert the lemma on it: the envelope at
 /// `f64` is not under the sampled sup, and the envelope at `Interval`
 /// (over the row's lifted inputs) is not under it either; a renamed
 /// exact image costs nothing.
-fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
+fn row(s: &mut fuzz::Rng, class: Class, trial: usize, tally: &mut Tally) -> Option<Row> {
     let (chart, exact) = on_chart(s, class);
     // 0: the carrier moves; 1: the image moves; 2: both; 3: neither,
     // the image only renamed (its sphere twin, or a whole period over,
@@ -812,23 +930,31 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     let reach = t0.abs().max(t1.abs());
     // The stored image is what the mint derives on the chart as stored,
     // placed over the span it is certified on (C4).
-    let (derived, _) = derive_harmonic(
+    let derived = derive_harmonic(
         &carrier,
         &surface,
         super::Placement::over((t0, t1), &carrier, &surface),
         band(),
-    )
-    .ok()?;
-    let (_, derivation) = derive_harmonic(
+    );
+    let derivation = derive_harmonic(
         &carrier,
         &orthonormal_chart(&surface),
         super::Placement::own(&carrier, &surface),
         band(),
-    )
-    .ok()?;
+    );
+    let ((derived, _), (_, derivation)) = match (derived, derivation) {
+        (Ok(d), Ok(o)) => (d, o),
+        (Err(e), _) | (_, Err(e)) => {
+            tally.refused(class, &e);
+            return None;
+        }
+    };
     // An ellipse a move left on a cone images as a cone section, which
     // its own lane certifies.
-    derived.harmonic_form()?;
+    if derived.harmonic_form().is_none() {
+        tally.drop(class, "a cone section, its own lane's");
+        return None;
+    }
     let drift = if matches!(mode, 1 | 2) {
         magnitude(s)
     } else {
@@ -872,6 +998,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     // A NaN envelope decides `Invalid`, which refuses (a circle past a
     // sphere's pole has no polar angle): sound, and no bound to compare.
     if envelope.is_nan() {
+        tally.drop(class, "an envelope that decides Invalid");
         return None;
     }
     let sup = sampled_sup(&stored, &surface, &carrier, t0, t1);
@@ -890,7 +1017,29 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
     // azimuth's fidelity term reads the period as its offset and refuses
     // alone, whatever else the draw moved. An exact image renamed by its
     // sphere's twin costs nothing.
-    if k != 0 {
+    //
+    // Vacuous where the term's own lever reads a whole period Zero: a
+    // copy one period over sits `π` past half a period, which the term
+    // levers at the azimuth's arm over the row's chart box, so where
+    // `π·arm` decides Zero the copy is the same point set to within the
+    // tolerance and no term can see it; at the door check 2 refuses such
+    // a circle's span before check 4
+    // (`work/pcert/a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies.md`).
+    let turn_in_band =
+        super::chart_sup_arms_at(&surface, &stored.chart_box(t0, t1)).is_ok_and(|(arm_u, _)| {
+            matches!(
+                decide(
+                    "pcurve_envelope_term",
+                    Margin::of(arm_u.to_meters(PI)),
+                    band()
+                ),
+                Ok(Sign::Zero)
+            )
+        });
+    if k != 0 && turn_in_band {
+        tally.vacuous += 1;
+    } else if k != 0 {
+        tally.lifted += 1;
         assert!(
             !matches!(
                 decide(
@@ -940,6 +1089,7 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
             fuzz::replay()
         );
     }
+    tally.rows += 1;
     Some(Row {
         arm: arm(derivation),
         terms: terms.0,
@@ -959,12 +1109,13 @@ fn row(s: &mut fuzz::Rng, class: Class, trial: usize) -> Option<Row> {
 #[test]
 fn the_envelope_dominates_the_stored_images_residual_on_every_periodic_arm() {
     let mut s = fuzz::start("pcurve_cache::envelope_lemma::dominates");
-    let mut checked = 0usize;
-    for trial in 0..fuzz::scaled(700) {
+    let mut tally = Tally::default();
+    let trials = fuzz::scaled(700);
+    for trial in 0..trials {
         let class = CLASSES[s.below(CLASSES.len())];
-        checked += usize::from(row(&mut s, class, trial).is_some());
+        row(&mut s, class, trial, &mut tally);
     }
-    println!("[fuzz] envelope_lemma::dominates: {checked} rows checked");
+    tally.hold("envelope_lemma::dominates", trials, 0.6, 0.9);
 }
 
 /// **The lemma, swept where no circle reaches** (a counterexample
@@ -1136,11 +1287,12 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
         0x5ca1_ab1e_c0ff_ee42,
     );
     let mut seen: BTreeSet<(&'static str, usize)> = BTreeSet::new();
+    let mut tally = Tally::default();
     let mut trial = 0usize;
     for class in CLASSES {
         for _ in 0..if class == Class::AxisCircle { 640 } else { 160 } {
             trial += 1;
-            let Some(row) = row(&mut s, class, trial) else {
+            let Some(row) = row(&mut s, class, trial, &mut tally) else {
                 continue;
             };
             for term in EnvelopeTerm::ALL {
@@ -1159,6 +1311,7 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
             }
         }
     }
+    tally.hold("envelope_lemma::coverage", trial, 0.6, 0.9);
     let missing: Vec<(&str, EnvelopeTerm)> = arm_terms()
         .into_iter()
         .flat_map(|(arm, terms)| terms.into_iter().map(move |t| (arm, t)))
@@ -1179,7 +1332,14 @@ fn every_arm_and_term_is_load_bearing_in_a_pinned_sweep() {
 /// sweep's are. Returned with the row: its `Centre` term's lower end at
 /// `Interval`, which the row that pins the witness reads.
 fn zero_winding_axis_circle(chart: &Surface<f64>, floors: f64) -> (Row, f64) {
-    let (rho, h, reach) = (0.25 * band().zero(), 1.0, TAU);
+    let (rho, reach) = (axis_rho(), TAU);
+    // On the chart: the cone's rim at its own height, the near-horn
+    // torus's inner equator.
+    let h = match *chart {
+        Surface::Cone { half_angle, .. } => rho / half_angle.tan(),
+        Surface::Torus { .. } => 0.0,
+        _ => unreachable!("zero_winding_axis_circle: a cone or a torus"),
+    };
     let on_axis = circle(
         Point3::new(0.0, 0.0, h),
         Vec3::unit_z(),
@@ -1281,15 +1441,317 @@ fn a_zero_winding_axis_circles_centre_off_the_axis_is_load_bearing() {
     }
 }
 
+/// **A zero-winding parallel near a sphere's pole**: a circle in band
+/// about the axis whose parallel's radius `ρ = √(R² − h²)` is read where
+/// `h ≈ R`, so the polar angle the image reads, `asin(h/R)`, is
+/// conditioned by `R/ρ`. Returns the envelope's total at `f64`, its upper
+/// end at `Interval`, the sampled sup and the noise floor.
+fn zero_winding_near_the_pole(
+    chart: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    (t0, t1): (f64, f64),
+) -> (f64, f64, f64, f64) {
+    let reach = t0.abs().max(t1.abs());
+    let (stored, derivation) = derive_harmonic(
+        carrier,
+        chart,
+        super::Placement::own(carrier, chart),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("the parallel derives: {e}"));
+    assert!(
+        matches!(derivation, Derivation::SphereParallel { beta: 0 }),
+        "{derivation:?}"
+    );
+    let form = carrier_harmonic(carrier).unwrap();
+    let terms = periodic_envelope(
+        channels_of(&stored),
+        carrier,
+        form,
+        chart,
+        (t0, t1),
+        reach,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("the envelope refused at f64: {e}"));
+    let lift = Interval::from_f64;
+    let carrier_i = carrier.map_scalar(lift);
+    let at_iv = periodic_envelope(
+        channels_of(&lift_harmonic(&stored)),
+        &carrier_i,
+        carrier_harmonic(&carrier_i).unwrap(),
+        &chart.map_scalar(lift),
+        (lift(t0), lift(t1)),
+        lift(reach),
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("the envelope refused at Interval: {e}"));
+    (
+        terms.total(),
+        at_iv.total().hi(),
+        sampled_sup(&stored, chart, carrier, t0, t1),
+        64.0 * f64::EPSILON * scale(chart, carrier, reach),
+    )
+}
+
+/// **The zero-winding parallel's envelope holds near the pole**, at
+/// `f64` and at `Interval`: the pinned coverage sweep's trial 2273, a
+/// circle of radius `3.3e-11` about the axis of a sphere of radius `0.64`
+/// where the parallel's radius is `1.05e-8`, written down on the sphere
+/// exactly, and the same circle on the unit sphere where the parallel's
+/// radius is `1e-6`. Near the pole `asin(h/R)` is conditioned by `R/ρ`,
+/// so the image's parallel lies off `√(R² − h²)` by up to `ε·R²/ρ`; the
+/// sphere parallel's `Radius` reads the radius the image turns at
+/// (`polar_read_radius`).
+#[test]
+fn a_zero_winding_parallel_near_the_pole_is_bounded() {
+    let rows = [(0.6400109500871758, 1.0536712127723509e-8), (1.0, 1e-6)].map(|(r, rho)| {
+        (
+            format!("a parallel of radius {rho:e} on a sphere of radius {r}"),
+            Surface::Sphere {
+                center: Point3::origin(),
+                radius: r,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            circle(
+                Point3::new(0.0, 0.0, (r * r - rho * rho).sqrt()),
+                Vec3::unit_z(),
+                3.3246718371187426e-11,
+                Vec3::unit_x(),
+            ),
+            (0.0, TAU),
+        )
+    });
+    for (what, chart, carrier, span) in rows {
+        let (at_f64, at_iv, sup, noise) = zero_winding_near_the_pole(&chart, &carrier, span);
+        assert!(
+            at_f64 >= sup - noise,
+            "{what}: envelope {at_f64:e} under the sampled sup {sup:e}"
+        );
+        assert!(
+            at_iv >= sup - noise,
+            "{what}: the Interval envelope {at_iv:e} under the sampled sup {sup:e}"
+        );
+    }
+}
+
+/// **A lifted copy of a circle whose turn is within the band is not
+/// seen by check 4, and never reaches it**
+/// (`work/pcert/a-lifted-copy-of-a-circle-whose-turn-is-within-the-band-certifies.md`):
+/// the pinned coverage sweep's trial 2244 written down, a cone's
+/// zero-winding rim of radius a tenth of the band's zero, set clear of
+/// the apex, its image renamed a whole period over. The copy is the same
+/// point set to within the tolerance, so `FidelityU`, the offset past half
+/// a period levered at the rim's radius, reads `π·ρ`, decided Zero. At the
+/// door the rim's whole span is a length within the band, so check 2
+/// refuses it (`IntervalNotForward`) before check 4, at `f64` and at
+/// `Interval`, the lifted copy and the exact image alike. A rim ten
+/// thousand times wider (a turning one) passes check 2 and refuses its
+/// copy on `FidelityU`, as C4 asks.
+#[test]
+fn a_lifted_copy_of_a_circle_whose_turn_is_within_the_band_never_reaches_check_4() {
+    let rim = |rho: f64| {
+        let half_angle = (rho / (1e3 * band().escalate())).atan();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let carrier = circle(
+            Point3::new(0.0, 0.0, rho / half_angle.tan()),
+            Vec3::unit_z(),
+            rho,
+            Vec3::unit_x(),
+        );
+        let (derived, derivation) = derive_harmonic(
+            &carrier,
+            &cone,
+            super::Placement::own(&carrier, &cone),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("ρ {rho:e}: the rim derives: {e}"));
+        (cone, carrier, derived, derivation)
+    };
+    let certify = |image: &Pcurve<f64>, carrier: &Curve3<f64>, cone: &Surface<f64>| {
+        let f = Interval::from_f64;
+        [
+            PcurveCache::certify(image.clone(), 0.0, TAU, carrier, cone, band()).map(|_| ()),
+            PcurveCache::certify(
+                lift_harmonic(image),
+                f(0.0),
+                f(TAU),
+                &carrier.map_scalar(f),
+                &cone.map_scalar(f),
+                band(),
+            )
+            .map(|_| ()),
+        ]
+    };
+    let small = 0.1 * band().zero();
+    let (cone, carrier, derived, derivation) = rim(small);
+    assert!(
+        matches!(derivation, Derivation::ConeRim { beta: 0, .. }),
+        "a rim of radius {small:e} winds zero: {derivation:?}"
+    );
+    let lifted = derived.shift_branch(-1, Period::new(TAU));
+    let terms = periodic_envelope(
+        channels_of(&lifted),
+        &carrier,
+        carrier_harmonic(&carrier).unwrap(),
+        &cone,
+        (0.0, TAU),
+        TAU,
+        band(),
+    )
+    .unwrap();
+    let fidelity = terms.0[EnvelopeTerm::FidelityU.slot()];
+    assert!(
+        matches!(
+            decide("pcurve_envelope_term", Margin::of(fidelity), band()),
+            Ok(Sign::Zero)
+        ),
+        "the lift of a rim of radius {small:e} reads {fidelity:e}, within the zero band"
+    );
+    for image in [&derived, &lifted] {
+        for got in certify(image, &carrier, &cone) {
+            assert!(
+                matches!(got, Err(PcurveCertifyError::IntervalNotForward)),
+                "a rim of radius {small:e} is refused at check 2: {got:?}"
+            );
+        }
+    }
+    let wide = 1e3 * band().zero();
+    let (cone, carrier, derived, _) = rim(wide);
+    let lifted = derived.shift_branch(-1, Period::new(TAU));
+    for got in certify(&lifted, &carrier, &cone) {
+        assert!(
+            matches!(
+                got,
+                Err(PcurveCertifyError::ResidualExceeded {
+                    check: PcurveCheck::EnvelopeTerm(EnvelopeTerm::FidelityU),
+                    ..
+                })
+            ),
+            "the lifted copy of a rim of radius {wide:e} refuses on FidelityU: {got:?}"
+        );
+    }
+}
+
+/// **The incidence terms read the carrier's own departure from its
+/// chart**, written down on carriers the mint images: each moved off the
+/// unit cylinder by less than the zero band, so its incidence read is on,
+/// and the one term that reads that move carries it, to a few ulps of
+/// the unit data, at `f64` and inside the `Interval` enclosure:
+///
+/// - a rim whose centre sits `d` off the axis: `Centre` is `d`;
+/// - a ruling `d` outside the wall: `Radius` is `d`;
+/// - a ruling leaning radially by `d` per metre over `[0, 1]`: `Line` is
+///   `d` (its radial rate over the span's reach).
+#[test]
+fn the_incidence_terms_read_the_carriers_departure() {
+    let d = 0.3 * band().zero();
+    let cyl = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let rows = [
+        (
+            EnvelopeTerm::Centre,
+            circle(
+                Point3::new(d, 0.0, 0.5),
+                Vec3::unit_z(),
+                1.0,
+                Vec3::unit_x(),
+            ),
+            (0.0, PI),
+        ),
+        (
+            EnvelopeTerm::Radius,
+            Curve3::Line {
+                origin: Point3::new(1.0 + d, 0.0, 0.0),
+                dir: Vec3::unit_z(),
+            },
+            (0.0, 1.0),
+        ),
+        (
+            EnvelopeTerm::Line,
+            Curve3::Line {
+                origin: Point3::new(1.0, 0.0, 0.0),
+                dir: Vec3::new(d, 0.0, 1.0),
+            },
+            (0.0, 1.0),
+        ),
+    ];
+    let lift = Interval::from_f64;
+    for (term, carrier, (t0, t1)) in rows {
+        let reach = t0.abs().max(t1.abs());
+        let (stored, _) = derive_harmonic(
+            &carrier,
+            &cyl,
+            super::Placement::over((t0, t1), &carrier, &cyl),
+            band(),
+        )
+        .unwrap_or_else(|e| panic!("{term:?}: the moved carrier images: {e}"));
+        let at_f64 = periodic_envelope(
+            channels_of(&stored),
+            &carrier,
+            carrier_harmonic(&carrier).unwrap(),
+            &cyl,
+            (t0, t1),
+            reach,
+            band(),
+        )
+        .unwrap();
+        // The data are of unit size, so the move itself rounds by a few
+        // ulps of 1.
+        let ulps = 8.0 * f64::EPSILON;
+        let read = at_f64.0[term.slot()];
+        assert!(
+            (read - d).abs() <= ulps,
+            "{term:?} reads {read:e} for a move of {d:e}"
+        );
+        let carrier_i = carrier.map_scalar(lift);
+        let at_iv = periodic_envelope(
+            channels_of(&lift_harmonic(&stored)),
+            &carrier_i,
+            carrier_harmonic(&carrier_i).unwrap(),
+            &cyl.map_scalar(lift),
+            (lift(t0), lift(t1)),
+            lift(reach),
+            band(),
+        )
+        .unwrap();
+        let enclosure = at_iv.0[term.slot()];
+        assert!(
+            enclosure.lo() <= d + ulps && enclosure.hi() >= d - ulps,
+            "{term:?} at Interval encloses the move {d:e}: {enclosure:?}"
+        );
+    }
+}
+
+/// The radius of [`zero_winding_axis_circle`]'s circle: a quarter of the
+/// band's zero at the run's ε, so its winding, metered at its own
+/// radius, reads Zero at every ε row.
+fn axis_rho() -> f64 {
+    0.25 * band().zero()
+}
+
 /// The charts [`zero_winding_axis_circle`] is drawn on, with the arm each
-/// selects.
+/// selects: a cone narrow enough that a rim of [`axis_rho`] sits clear
+/// of the apex's sliver (its height `ρ/tan α` a hundred radii up, two
+/// and a half times the band's escalation), and
+/// a near-horn torus whose inner equator is that rim.
 fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
     [
         (
             Surface::Cone {
                 apex: Point3::origin(),
                 axis: Vec3::unit_z(),
-                half_angle: 0.4,
+                half_angle: 0.01,
                 u_ref: Vec3::unit_x(),
             },
             "cone rim, zero winding",
@@ -1298,7 +1760,7 @@ fn axis_charts() -> [(Surface<f64>, &'static str); 2] {
             Surface::Torus {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
-                major_radius: 2.0,
+                major_radius: 1.5 + axis_rho(),
                 minor_radius: 1.5,
                 u_ref: Vec3::unit_x(),
             },

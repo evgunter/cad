@@ -215,7 +215,8 @@ pub use pcurve_cache::{
     Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period,
     ProjectedChart, ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate,
     chart_iso_family, chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup,
-    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
+    chart_stretch_sup_v, chart_sup_arms_at, harmonic_form_of, iso_arc_spans, read_incidence,
+    read_point_incidence,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

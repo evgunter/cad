@@ -138,7 +138,10 @@ fn off_chart(e: &PcurveMintError) -> bool {
     matches!(
         e,
         PcurveMintError::Certify {
-            error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+            error: PcurveCertifyError::CarrierOffChart {
+                margin: Some(geom_brep::OffMargin::Past(_)),
+                ..
+            },
             ..
         }
     ) && e.to_string().ends_with(geom_core::KERNEL_DEFECT_ENDING)
@@ -692,7 +695,10 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
             matches!(
                 finding,
                 PcurveMintError::Certify {
-                    error: PcurveCertifyError::CarrierOffChart { margin: None, .. },
+                    error: PcurveCertifyError::CarrierOffChart {
+                        margin: Some(geom_brep::OffMargin::Past(_)),
+                        ..
+                    },
                     ..
                 }
             ),
@@ -721,7 +727,20 @@ fn a_strut_off_its_face_ends_by_the_door_whoever_placed_it() {
                 "declared {declared} at {door}: {text}"
             );
         }
-        texts.push([built, wrapped, at_rest]);
+        texts.push([built, wrapped, at_rest].map(|t| unquoted(&t)));
     }
     assert_eq!(texts[0], texts[1], "who placed the strut moves no ending");
+}
+
+/// `text` without the margin its read quotes: the two placements read
+/// the one miss from coordinates rounded at their own reach, so the
+/// quoted number may differ in its last place while the words may not.
+fn unquoted(text: &str) -> String {
+    match text.find(" (margin ") {
+        Some(at) => {
+            let close = at + text[at..].find(')').expect("the quote closes");
+            format!("{}{}", &text[..at], &text[close + 1..])
+        }
+        None => text.to_owned(),
+    }
 }

@@ -1439,8 +1439,8 @@ fn mef_onto_a_second_key_holding_one_surface_mints_the_new_face_in_its_chart() {
 /// **A chord off the chart leaves both pieces unminted, and the pass
 /// refuses the result.** A straight chord from `a` to `c` cuts through
 /// the cylinder rather than lying on it, so neither piece of the lower
-/// panel has a closed-form row set that certifies: the chord's own
-/// chart image does not represent it. The operator does not
+/// panel has a closed-form row set: the mint reads the chord off the
+/// wall before it images it. The operator does not
 /// refuse — it is called mid-surgery on states a later door finishes
 /// describing — and it does not return a panel half-minted either: both
 /// pieces store nothing. At rest, tier 3 re-derives each and names the
@@ -1474,11 +1474,11 @@ fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
         findings.iter().all(|f| matches!(
             f,
             PcurveMintError::Certify {
-                error: PcurveCertifyError::ResidualExceeded { .. },
+                error: PcurveCertifyError::CarrierOffChart { .. },
                 ..
             }
         )),
-        "the chord's own row does not represent it: {findings:?}"
+        "the mint reads the chord off the wall: {findings:?}"
     );
     let refused = topo::mint_pcurves(&mut s.body, tol())
         .expect_err("the pass refuses a panel whose chord leaves its chart");
@@ -1839,8 +1839,8 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
 /// swaps a rim ARC for the straight line between its own endpoints,
 /// which leaves the cylinder: the closed-form lane has no row set for
 /// either face, so each stores nothing, and tier 3 reads on each the
-/// refusal the mint would raise: the line's own row does not represent
-/// it.
+/// refusal the mint would raise: its incidence read of the line, off
+/// the wall.
 #[test]
 fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let mut s = sheet();
@@ -1868,7 +1868,7 @@ fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
             && findings.iter().all(|f| matches!(
                 f,
                 PcurveMintError::Certify {
-                    error: PcurveCertifyError::ResidualExceeded { .. },
+                    error: PcurveCertifyError::CarrierOffChart { .. },
                     ..
                 }
             ))

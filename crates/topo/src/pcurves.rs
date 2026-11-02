@@ -5241,7 +5241,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                 let Some(cache) = body.pcurve(he) else {
                     continue;
                 };
-                let (carrier, _, _) = match half_edge_carrier(body, he) {
+                let (carrier, t0, t1) = match half_edge_carrier(body, he) {
                     Ok(found) => found,
                     Err(e) => {
                         findings.push(e);
@@ -5251,7 +5251,7 @@ pub(crate) fn pcurve_pass<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Pcurve
                 if let Err(e) = row_interval(body, he, cache, &carrier, band) {
                     findings.push(e);
                 }
-                if let Err(error) = cache.recertify(&carrier, surface, band, lane) {
+                if let Err(error) = cache.recertify(&carrier, (t0, t1), surface, band, lane) {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,
@@ -6744,7 +6744,7 @@ mod recourse_tests {
         let certify_error = PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
-            why: "a sphere holds no line",
+            why: "the line's points are not on the chart (its distance from the chart at a sample of its span is past the band)",
             margin: None,
         };
         let arms = [

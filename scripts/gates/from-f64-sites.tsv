@@ -43,6 +43,7 @@ crates/geom-brep/src/newell.rs	1	constant	points.len() as f64	a point count
 crates/geom-brep/src/pair_section/gap.rs	1	constant	k as f64	the index of a cell of the critical gap's first cut of the turn
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	band.escalate()	the band's escalation width, a tolerance (the parallel-tori arm's level-row width)
 crates/geom-brep/src/pair_section/torus_arms.rs	1	constant	n as f64	a strand count along a loop of the parallel-tori arm's matching curve
+crates/geom-brep/src/pcurve_cache.rs	1	constant	band.zero()	the band's zero width, a tolerance: the incidence read's charge fraction
 crates/geom-brep/src/pcurve_cache.rs	1	constant	a	own_interval: a net's knot-domain lower end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	b	own_interval: a net's knot-domain upper end, a knot of its bare KnotVector, which holds no value in a scalar
 crates/geom-brep/src/pcurve_cache.rs	1	constant	f64::from(i) / n	a sample schedule's fraction

@@ -181,7 +181,7 @@ use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Decided, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2,
-    Vec3,
+    Vec3, rounding_charge,
 };
 
 pub(crate) use geom::Window;
@@ -2366,7 +2366,7 @@ impl PcurveCertifyError {
             // the read's ([`Self::ending`], [`IncidenceRead::ending`]).
             Self::CarrierOffChart { margin, .. } => (
                 PcurveCheck::ChartIncidence,
-                IncidenceRead::of_margin(*margin).arm(),
+                RefusedArm::SignCertain(margin.map(OffMargin::diag)),
             ),
             Self::NoGeneralLane {
                 gap: LaneGap::Unwritten,
@@ -4367,6 +4367,11 @@ impl<T: Decide> PcurveCache<T> {
     ///
     /// The check sequence (fixed order, D9; every margin in metres):
     ///
+    /// 0. **Incidence**: the carrier is read on the chart before any
+    ///    image is metered (`read_incidence`, the mint's own read, D3),
+    ///    so a carrier off its face ends as that read, the stored culprit
+    ///    at rest, and never as check 3's residual; check 3 then meters
+    ///    the image's fidelity to a carrier on the face.
     /// 1. **Lane**: the chart and carrier kinds are ones this module
     ///    certifies in closed form. On a [`Pcurve::Harmonic`] image, the
     ///    **kind check**: each channel is its chart coordinate's kind, a
@@ -4443,6 +4448,7 @@ impl<T: Decide> PcurveCache<T> {
         surface: &Surface<T>,
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
+        read_incidence(carrier, t0, t1, surface, band)?;
         let certificate = match &pcurve {
             Pcurve::Fitted(_) | Pcurve::General(_) => {
                 return Err(PcurveCertifyError::ImageMismatch {
@@ -4639,6 +4645,14 @@ impl<T: Decide> PcurveCache<T> {
     /// (re-certification re-derives, it does not trust — for a fitted
     /// cache, its hull bound).
     ///
+    /// The carrier's incidence on the chart is read first, over
+    /// `edge_span`, the edge's own interval: the read is about the edge,
+    /// not the row. A row stored over another span (a foreign arc of the
+    /// same locus, a row cut short) is the row's defect, which its own
+    /// checks name (check 1's identity, `topo`'s row interval); read over
+    /// the row's span, the carrier past its edge's ends would wear an
+    /// incidence ending instead.
+    ///
     /// `lane` is the pass's fitted door (`topo::AtRestPolicy::fitted_lane`),
     /// or `None` where the scalar may not certify or the caller
     /// withholds it. Only the `Fitted | General` arm reads it, where
@@ -4655,10 +4669,12 @@ impl<T: Decide> PcurveCache<T> {
     pub fn recertify(
         &self,
         carrier: &Curve3<T>,
+        (t0, t1): (T, T),
         surface: &Surface<T>,
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
+        read_incidence(carrier, t0, t1, surface, band)?;
         match &self.pcurve {
             Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
@@ -5782,6 +5798,25 @@ fn constant_and_pair<T: Real>(c: Vec3<T>, a: Vec3<T>, b: Vec3<T>) -> T {
     (c.norm_squared() + harmonic_sup(a, b).powi(2) + two * cross).sqrt()
 }
 
+/// **The sphere parallel's radius as its image reads it**: `R·cos v`
+/// with `v = asin(x)` and `x = h/R` the quotient the derivation takes,
+/// spelled `R·√((1 − x)(1 + x))`, with its square.
+///
+/// Near the pole `asin` is conditioned by `R/ρ`: an ulp of `x` moves the
+/// image's parallel by `ε·R²/ρ`, so `√(R² − h²)`, read off the carrier's
+/// own height, can miss the radius the image actually turns at by more
+/// than the band (the pinned envelope sweep's trial 2273: `1.05e-8`
+/// against the image's `1.35e-8`). The image's radius is read here off
+/// the same `x`, where `1 − x` is exact for `x` near 1, so it carries
+/// only the round trip through `asin`, `cos` and `sin`: a few ulps of `R`,
+/// which the caller charges beside it (`rounding_charge(R + |h|)`, eight
+/// ulps), together with the image's height `R·sin v` off `h`.
+fn polar_read_radius<T: Real>(radius: T, h: T) -> (T, T) {
+    let x = h / radius;
+    let rho_sq = radius.powi(2) * ((T::one() - x) * (T::one() + x));
+    (rho_sq.sqrt(), rho_sq)
+}
+
 /// A rim's or a parallel's **class circle** against the carrier's
 /// `(a, b)`: the image turns `ρ·â_r` at the decided winding, so its
 /// `cos t` and `sin t` coefficients are `a_r·(1 + k)` and
@@ -5974,10 +6009,10 @@ fn incidence<T: Decide>(
             terms.add(Line, l.norm() * reach);
             match derivation {
                 Derivation::SphereParallel { beta } => {
-                    let rho_sq = radius.powi(2) - h.powi(2);
-                    let rho = rho_sq.sqrt();
+                    let (rho, rho_sq) = polar_read_radius(radius, h);
                     terms.add(Centre, w_r.norm());
                     class_circle(terms, beta, (rho, rho_sq), (a, b), axis, true, None);
+                    terms.add(Radius, geom_core::rounding_charge(radius + h.abs()));
                 }
                 Derivation::SphereMeridian { pole, sigma, far } => {
                     // The image turns `(1 + k)·(a′·cos t + σ·b′·sin t)` with
@@ -8888,9 +8923,13 @@ fn chart_image<T: Decide>(
                 chart: surface.kind(),
             });
         }
-        if let Incidence::Off = net_incidence(net, span, surface, band)? {
+        if let Incidence::Off(margin) = net_incidence(net, span, surface, band)? {
             return Err(
-                OffChart("the spline carrier does not lie on the chart").refusal(surface, carrier)
+                OffChart("the spline carrier does not lie on the chart").with_margin(
+                    OffMargin::Past(margin),
+                    surface,
+                    carrier,
+                ),
             );
         }
         return projected::project(carrier, span, surface, band)
@@ -8988,22 +9027,113 @@ fn general_lane_refusal<T: Real>(
 /// `at(t)` at [`INCIDENCE_SAMPLES`] + 1 evenly spaced parameters of
 /// `[t0, t1]`, its ends included: an open carrier's sampled incidence. A
 /// poisoned distance is carried to the decision rather than dropped by
-/// `max`.
+/// `max`. Returned with the samples' reach: their largest offset from
+/// the chart's anchor, plus the chart's own size, the scale every
+/// coordinate the distance is computed from is rounded at.
 fn farthest_over_span<T: Real>(
     surface: &Surface<T>,
     (t0, t1): (T, T),
     at: impl Fn(T) -> Point3<T>,
-) -> T {
+) -> (T, T) {
+    let (anchor, size) = match *surface {
+        Surface::Plane { origin, .. } => (origin, T::zero()),
+        Surface::Cylinder { origin, radius, .. } => (origin, radius),
+        Surface::Sphere { center, radius, .. } => (center, radius),
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => (center, major_radius + minor_radius),
+        Surface::Cone { apex, .. } => (apex, T::zero()),
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("farthest_over_span: the incidence test reads an analytic chart")
+        }
+    };
     let n = f64::from(INCIDENCE_SAMPLES);
-    (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
+    (0..=INCIDENCE_SAMPLES).fold((T::zero(), size), |(far, reach), i| {
         let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
-        let d = chart_distance(surface, at(t));
-        if far.is_poison() || d.is_poison() {
+        let p = at(t);
+        let d = chart_distance(surface, p);
+        let far = if far.is_poison() || d.is_poison() {
             d + far
         } else {
             far.max(d)
-        }
+        };
+        (far, reach.max((p - anchor).norm() + size))
     })
+}
+
+/// **The mint's incidence read alone** (D3), for a door that meters an
+/// image it was handed rather than one the mint derived (a description's
+/// stated image, a stored one restated at rest), or that decides an
+/// edge's place on its face with no image at all (`topo`'s planar tier):
+/// whether `carrier` lies on `surface`'s chart over `[t0, t1]`, read as
+/// [`chart_pcurve`] reads it before it images, in the carrier's own
+/// frame and less its rounding, so a carrier off its face ends as that
+/// read and never as another decider's arithmetic. A spline chart's
+/// images are description-driven and read nothing here.
+///
+/// # Errors
+///
+/// The read's refusal: [`PcurveCertifyError::CarrierOffChart`] for a
+/// definite miss or a pose, [`PcurveCertifyError::Escalated`]
+/// ([`PcurveCheck::ChartIncidence`]) in band.
+pub fn read_incidence<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        return Ok(());
+    }
+    if let Curve3::Nurbs(net) = carrier {
+        return match net_incidence(net, Some((t0, t1)), surface, band)? {
+            Incidence::Off(margin) => Err(OffChart("the spline carrier does not lie on the chart")
+                .with_margin(OffMargin::Past(margin), surface, carrier)),
+            Incidence::On => Ok(()),
+        };
+    }
+    incidence::incident(
+        carrier,
+        surface,
+        Placement::over((t0, t1), carrier, surface),
+        band,
+    )
+    .map(|_| ())
+}
+
+/// **The mint's incidence read of one point** (D3): whether `point` lies
+/// on `surface`'s chart, read by the same decider as a carrier's
+/// ([`read_incidence`]), in the point's own frame (the chart's anchor
+/// slid to its foot nearest the point) and less its rounding, so a
+/// corner far from its plane's anchor is read on where it lies on, at
+/// every distance. `topo`'s planar tier reads a flat face's corners here.
+/// A spline chart reads nothing.
+///
+/// # Errors
+///
+/// As [`read_incidence`]: [`PcurveCertifyError::CarrierOffChart`] for a
+/// definite miss, [`PcurveCertifyError::Escalated`]
+/// ([`PcurveCheck::ChartIncidence`]) in band.
+pub fn read_point_incidence<T: Decide>(
+    point: Point3<T>,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        return Ok(());
+    }
+    match incidence::point_incident(point, surface, band)? {
+        Incidence::On => Ok(()),
+        Incidence::Off(margin) => Err(OffChart("the point is not on the chart").with_margin(
+            OffMargin::Past(margin),
+            surface,
+            &incidence::point_probe(point),
+        )),
+    }
 }
 
 /// The incidence test of a spline carrier: [`chart_incidence`]'s, at
@@ -9022,6 +9152,8 @@ fn net_incidence<T: Decide>(
         surface,
         span,
         |t| net.eval(t),
+        None,
+        T::zero(),
         band,
     )
 }
@@ -9126,21 +9258,18 @@ pub fn chart_iso_family<T: Decide>(
 /// [`chart_pcurve`]'s harmonic arms, answering the image together with
 /// the structure selections that produced it ([`Derivation`]) — the
 /// one body both the mint and check 4's re-derivation run.
+///
+/// **Every arm reads incidence first** (D3): whether the carrier lies on
+/// the chart is read by the chart's incidence test
+/// ([`incidence::incident`]) before any class or kind gate reads it, and
+/// every arm images, or takes the general lane, only behind the witness
+/// that test returns ([`incidence::Incident`]).
 fn derive_class<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     place: Placement<T>,
     band: Band,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
-    let off_chart = |why| Underived::Refused(OffChart(why).refusal(surface, carrier));
-    // A class rate read Zero: the carrier is not that class, and the
-    // reading says nothing of whether it lies on the chart (a circle in
-    // the plane through a torus's tube centre ⊥ the meridian reads its
-    // meridional rate 0 off the torus; a great circle tilted in band at
-    // `K < √2` reads its polar rate in band on the sphere). So the
-    // incidence test decides, through D3's one door to the general lane:
-    // off, a definite miss; not shown off, the general lane or "not yet".
-    let not_this_class = || incidence::general_lane(carrier, surface, place, band, None);
     let Some(form) = carrier_harmonic(carrier) else {
         return Err(Underived::Refused(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Harmonic,
@@ -9153,6 +9282,9 @@ fn derive_class<T: Decide>(
             normal,
             u_ref,
         } => {
+            // The affine chart images exactly any carrier the test does not
+            // show off the plane.
+            incidence::incident(carrier, surface, place, band)?;
             // Affine chart: the coefficients map through one by one.
             let v_ref = normal.cross(u_ref);
             let chart = |v: Vec3<T>| Vec2::new(v.dot(u_ref), v.dot(v_ref));
@@ -9173,6 +9305,7 @@ fn derive_class<T: Decide>(
             radius,
             u_ref,
         } => {
+            let shown = incidence::incident(carrier, surface, place, band)?;
             let cv = axis.cross(u_ref);
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
             let w = form.c - origin;
@@ -9242,13 +9375,7 @@ fn derive_class<T: Decide>(
                     ) {
                         Ok(sign) => winding_of(sign),
                         Err(cause) => {
-                            return Err(incidence::general_lane(
-                                carrier,
-                                surface,
-                                place,
-                                band,
-                                Some(cause),
-                            ));
+                            return Err(incidence::general_lane(shown, Some(cause)));
                         }
                     };
                     let alpha = place.phase(
@@ -9291,15 +9418,11 @@ fn derive_class<T: Decide>(
             half_angle,
             u_ref,
         } => {
+            let shown = incidence::incident(carrier, surface, place, band)?;
             let c_ha = half_angle.cos();
             let cv = axis.cross(u_ref);
             match *carrier {
                 Curve3::Line { origin, dir } => {
-                    // Incidence first: a line the cone does not hold
-                    // refuses as off it wherever its parameter starts,
-                    // and none reaches the nappe readings below, whose
-                    // in-band arm is a lane choice.
-                    incidence::incident(carrier, surface, place, band)?;
                     // The RULING class. The azimuth branch IS the
                     // nappe: a point at v < 0 sits at spatial azimuth
                     // u + π (the mirror nappe — the Seam docs' case),
@@ -9317,57 +9440,52 @@ fn derive_class<T: Decide>(
                     // from any origin on the line: `radial · sign h` is one
                     // direction at every point of a ruling through the
                     // apex, so where the parameter starts moves nothing.
-                    let (r_ref, h_sign, anchored) = match decide(
-                        "pcurve_cone_chart_nappe",
-                        Margin::of(h0),
-                        band,
-                    )
-                    .map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
-                        Sign::Positive => (radial(w), Nappe::Pos, true),
-                        Sign::Negative => (radial(w), Nappe::Neg, true),
-                        Sign::Zero => {
-                            match geom_core::k_stats::decide_flagged_reported(
-                                "pcurve_cone_chart_nappe",
-                                hs,
-                                band,
-                                "F13",
-                            )
-                            .map_err(|cause| {
-                                incidence::general_lane(carrier, surface, place, band, Some(cause))
-                            })? {
-                                Decided {
-                                    sign: Sign::Positive,
-                                    ..
-                                } => (radial(dir), Nappe::Pos, false),
-                                Decided {
-                                    sign: Sign::Negative,
-                                    ..
-                                } => (radial(dir), Nappe::Neg, false),
-                                // The apex plane meets the cone at
-                                // its radius `h·tan α = 0`: the apex
-                                // alone.
-                                Decided {
-                                    sign: Sign::Zero,
-                                    margin,
-                                } => {
-                                    return Err(Underived::Refused(
-                                        OffChart(
-                                            "the line is not shown off the plane through the \
+                    let (r_ref, h_sign, anchored) =
+                        match decide("pcurve_cone_chart_nappe", Margin::of(h0), band)
+                            .map_err(incidence::undecided(shown))?
+                        {
+                            Sign::Positive => (radial(w), Nappe::Pos, true),
+                            Sign::Negative => (radial(w), Nappe::Neg, true),
+                            Sign::Zero => {
+                                match geom_core::k_stats::decide_flagged_reported(
+                                    "pcurve_cone_chart_nappe",
+                                    hs,
+                                    band,
+                                    "F13",
+                                )
+                                .map_err(incidence::undecided(shown))?
+                                {
+                                    Decided {
+                                        sign: Sign::Positive,
+                                        ..
+                                    } => (radial(dir), Nappe::Pos, false),
+                                    Decided {
+                                        sign: Sign::Negative,
+                                        ..
+                                    } => (radial(dir), Nappe::Neg, false),
+                                    // The apex plane meets the cone at
+                                    // its radius `h·tan α = 0`: the apex
+                                    // alone.
+                                    Decided {
+                                        sign: Sign::Zero,
+                                        margin,
+                                    } => {
+                                        return Err(Underived::Refused(
+                                            OffChart(
+                                                "the line is not shown off the plane through the \
                                              apex ⊥ the axis, which meets the cone only at the \
                                              apex",
-                                        )
-                                        .with_margin(
-                                            OffMargin::InBand(margin),
-                                            surface,
-                                            carrier,
-                                        ),
-                                    ));
+                                            )
+                                            .with_margin(
+                                                OffMargin::InBand(margin),
+                                                surface,
+                                                carrier,
+                                            ),
+                                        ));
+                                    }
                                 }
                             }
-                        }
-                    };
+                        };
                     let r_dir = r_ref * h_sign.value();
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9416,25 +9534,18 @@ fn derive_class<T: Decide>(
                         Margin::of(harmonic_sup_scalar(aa, ba)),
                         band,
                     )
-                    .map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
-                        Sign::Zero => decide(
-                            "pcurve_cone_chart_centered",
-                            Margin::norm3(w_r),
-                            band,
-                        )
-                        .map_err(|cause| {
-                            incidence::general_lane(carrier, surface, place, band, Some(cause))
-                        })?,
+                    .map_err(incidence::undecided(shown))?
+                    {
+                        Sign::Zero => {
+                            decide("pcurve_cone_chart_centered", Margin::norm3(w_r), band)
+                                .map_err(incidence::undecided(shown))?
+                        }
                         tilted @ (Sign::Positive | Sign::Negative) => tilted,
                     };
                     match rim {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(incidence::general_lane(
-                                carrier, surface, place, band, None,
-                            ));
+                            return Err(incidence::general_lane(shown, None));
                         }
                     }
                     let a_r = radial(form.a);
@@ -9449,9 +9560,8 @@ fn derive_class<T: Decide>(
                         Margin::of(h),
                         band,
                     )
-                    .map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
+                    .map_err(incidence::undecided(shown))?
+                    {
                         Decided {
                             sign: Sign::Positive,
                             ..
@@ -9494,9 +9604,7 @@ fn derive_class<T: Decide>(
                             Margin::over_lever(orient, rho),
                             band,
                         )
-                        .map_err(|cause| {
-                            incidence::general_lane(carrier, surface, place, band, Some(cause))
-                        })?,
+                        .map_err(incidence::undecided(shown))?,
                     );
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9528,11 +9636,6 @@ fn derive_class<T: Decide>(
                     // over cos α; the azimuth is the true anomaly of
                     // the radial projection `r0 + ra·cos t + rb·sin t`,
                     // whose focus is the axis.
-                    //
-                    // The incidence test decides first: an ellipse off
-                    // this cone is no section of it, and its refusal
-                    // names that rather than an image's residual.
-                    incidence::incident(carrier, surface, place, band)?;
                     // The image is read about the major vertex, where
                     // the focus is on the `t = t0` side: a carrier seamed
                     // at a minor vertex is read a quarter turn on. The
@@ -9583,9 +9686,8 @@ fn derive_class<T: Decide>(
                         Margin::over_lever(orient, ra.norm()),
                         band,
                     )
-                    .map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
+                    .map_err(incidence::undecided(shown))?
+                    {
                         Decided {
                             sign: Sign::Positive,
                             ..
@@ -9595,10 +9697,10 @@ fn derive_class<T: Decide>(
                             ..
                         } => T::zero() - T::one(),
                         // The class rate read Zero: not this class, and no
-                        // reading of incidence (`not_this_class`).
+                        // reading of incidence: the general lane, behind the test.
                         Decided {
                             sign: Sign::Zero, ..
-                        } => return Err(not_this_class()),
+                        } => return Err(incidence::general_lane(shown, None)),
                     };
                     // The vertex at `t = 0` lies along `ra` from the axis:
                     // `r0 = −e·ra` (the focus), so `r0 + ra = (1 − e)·ra`,
@@ -9665,17 +9767,13 @@ fn derive_class<T: Decide>(
             axis,
             u_ref,
         } => {
-            // Structural carrier gate: only circles lie on a sphere — a
-            // bounded algebraic surface holds no line, and its plane
-            // sections are circles. An `Ellipse` is refused by kind,
-            // before any incidence read: its roundness is no reading of
-            // whether it lies on the sphere, so no margin is quoted.
-            // Reading incidence first, as the cone's ellipse arm does, is
-            // E1c's (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`).
+            let shown = incidence::incident(carrier, surface, place, band)?;
+            // Only circles are the sphere's classes: a bounded surface
+            // holds no line, and its plane sections are circles. A line or
+            // an ellipse the test did not show off the sphere (one within
+            // ε of it) is no class of it: the general lane.
             if !matches!(carrier, Curve3::Circle { .. }) {
-                return Err(off_chart(
-                    "a sphere holds no line, and its plane sections are circles",
-                ));
+                return Err(incidence::general_lane(shown, None));
             }
             let cv = axis.cross(u_ref);
             let w = form.c - center;
@@ -9689,7 +9787,7 @@ fn derive_class<T: Decide>(
                 Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
-            .map_err(|cause| incidence::general_lane(carrier, surface, place, band, Some(cause)))?
+            .map_err(incidence::undecided(shown))?
             {
                 Sign::Zero => {
                     // POLAR-circle class: a,b ⊥ axis, and the centre on
@@ -9699,14 +9797,12 @@ fn derive_class<T: Decide>(
                     // circle's radius `ρ` and this one at its height
                     // `h`, so near a pole an on-sphere circle tilted
                     // inside the first band fails the second.
-                    match decide("pcurve_sphere_chart_centered", Margin::norm3(w_r), band).map_err(
-                        |cause| incidence::general_lane(carrier, surface, place, band, Some(cause)),
-                    )? {
+                    match decide("pcurve_sphere_chart_centered", Margin::norm3(w_r), band)
+                        .map_err(incidence::undecided(shown))?
+                    {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(incidence::general_lane(
-                                carrier, surface, place, band, None,
-                            ));
+                            return Err(incidence::general_lane(shown, None));
                         }
                     }
                     let orient = a_r.cross(b_r).dot(axis);
@@ -9716,9 +9812,7 @@ fn derive_class<T: Decide>(
                             Margin::over_lever(orient, radius),
                             band,
                         )
-                        .map_err(|cause| {
-                            incidence::general_lane(carrier, surface, place, band, Some(cause))
-                        })?,
+                        .map_err(incidence::undecided(shown))?,
                     );
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9745,27 +9839,19 @@ fn derive_class<T: Decide>(
                     // on the sphere or off it, which the incidence
                     // test decides.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), radius);
-                    let meridian =
-                        decide("pcurve_sphere_chart_meridian", coax, band).map_err(|cause| {
-                            incidence::general_lane(carrier, surface, place, band, Some(cause))
-                        })?;
+                    let meridian = decide("pcurve_sphere_chart_meridian", coax, band)
+                        .map_err(incidence::undecided(shown))?;
                     let centred = match meridian {
-                        Sign::Zero => decide(
-                            "pcurve_sphere_chart_centered",
-                            Margin::norm3(w),
-                            band,
-                        )
-                        .map_err(|cause| {
-                            incidence::general_lane(carrier, surface, place, band, Some(cause))
-                        })?,
+                        Sign::Zero => {
+                            decide("pcurve_sphere_chart_centered", Margin::norm3(w), band)
+                                .map_err(incidence::undecided(shown))?
+                        }
                         Sign::Positive | Sign::Negative => meridian,
                     };
                     match centred {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return Err(incidence::general_lane(
-                                carrier, surface, place, band, None,
-                            ));
+                            return Err(incidence::general_lane(shown, None));
                         }
                     }
                     // v(t) = σ·t + δ with sin δ = aa/r, cos δ = ‖a_r‖/r
@@ -9774,9 +9860,8 @@ fn derive_class<T: Decide>(
                     // is structurally nonzero.
                     let use_a =
                         match decide("pcurve_sphere_chart_pole_frame", Margin::norm3(a_r), band)
-                            .map_err(|cause| {
-                                incidence::general_lane(carrier, surface, place, band, Some(cause))
-                            })? {
+                            .map_err(incidence::undecided(shown))?
+                        {
                             Sign::Positive | Sign::Negative => true,
                             Sign::Zero => false,
                         };
@@ -9800,18 +9885,17 @@ fn derive_class<T: Decide>(
                         Margin::of(sigma_margin),
                         band,
                     )
-                    .map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
+                    .map_err(incidence::undecided(shown))?
+                    {
                         Decided {
                             sign: sign @ (Sign::Positive | Sign::Negative),
                             ..
                         } => sign,
                         // The class rate read Zero: not this class, and no
-                        // reading of incidence (`not_this_class`).
+                        // reading of incidence: the general lane, behind the test.
                         Decided {
                             sign: Sign::Zero, ..
-                        } => return Err(not_this_class()),
+                        } => return Err(incidence::general_lane(shown, None)),
                     };
                     let sigma = winding_of(sigma_sign);
                     // The half of the great circle the edge lies on is
@@ -9913,15 +9997,15 @@ fn derive_class<T: Decide>(
             minor_radius,
             u_ref,
         } => {
+            let shown = incidence::incident(carrier, surface, place, band)?;
             let cv = axis.cross(u_ref);
             // A bounded surface holds no line, and a torus's plane
             // sections are bicircular quartics, whose conic components
-            // are circles. An `Ellipse` is refused by kind, as on the
-            // sphere arm, before any incidence read (E1c's).
+            // are circles. A line or an ellipse the test did not show off
+            // the torus is no class of it: the general lane, as on the
+            // sphere arm.
             if !matches!(carrier, Curve3::Circle { .. }) {
-                return Err(off_chart(
-                    "a torus holds no line, and the conics among its plane sections are circles",
-                ));
+                return Err(incidence::general_lane(shown, None));
             }
             let w = form.c - t_center;
             let radial = |v: Vec3<T>| v - axis * v.dot(axis);
@@ -9934,7 +10018,7 @@ fn derive_class<T: Decide>(
                 Margin::of(harmonic_sup_scalar(aa, ba)),
                 band,
             )
-            .map_err(|cause| incidence::general_lane(carrier, surface, place, band, Some(cause)))?
+            .map_err(incidence::undecided(shown))?
             {
                 Sign::Zero => {
                     // PARALLEL: centred on the axis, checked. Failing it,
@@ -9943,12 +10027,12 @@ fn derive_class<T: Decide>(
                     // centre offset `δ` leaves the torus only by
                     // `δ²/2r`, so a definite offset can sit on the
                     // chart within the band. The incidence test decides.
-                    match decide("pcurve_torus_chart_centered", Margin::norm3(w_r), band).map_err(
-                        |cause| incidence::general_lane(carrier, surface, place, band, Some(cause)),
-                    )? {
+                    match decide("pcurve_torus_chart_centered", Margin::norm3(w_r), band)
+                        .map_err(incidence::undecided(shown))?
+                    {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, place, band);
+                            return torus_oblique_circle(carrier, surface, place, band, shown);
                         }
                     }
                     let rho = a_r.norm();
@@ -9959,9 +10043,7 @@ fn derive_class<T: Decide>(
                             Margin::over_lever(orient, rho),
                             band,
                         )
-                        .map_err(|cause| {
-                            incidence::general_lane(carrier, surface, place, band, Some(cause))
-                        })?,
+                        .map_err(incidence::undecided(shown))?,
                     );
                     let alpha = place.phase(
                         Along::Azimuth,
@@ -9997,15 +10079,15 @@ fn derive_class<T: Decide>(
                     // certified by the residual schedule; the first is
                     // the class gate.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), minor_radius);
-                    match decide("pcurve_torus_chart_meridian", coax, band).map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
+                    match decide("pcurve_torus_chart_meridian", coax, band)
+                        .map_err(incidence::undecided(shown))?
+                    {
                         Sign::Zero => {}
                         // Oblique circles DO lie on a torus (the
                         // Villarceau class), and the incidence test
                         // separates them from circles off it.
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, place, band);
+                            return torus_oblique_circle(carrier, surface, place, band, shown);
                         }
                     }
                     let alpha = place.phase(
@@ -10034,18 +10116,17 @@ fn derive_class<T: Decide>(
                         Margin::over_lever(ba * a_rad - b_r.dot(rad) * aa, tube.length()),
                         band,
                     )
-                    .map_err(|cause| {
-                        incidence::general_lane(carrier, surface, place, band, Some(cause))
-                    })? {
+                    .map_err(incidence::undecided(shown))?
+                    {
                         Decided {
                             sign: sign @ (Sign::Positive | Sign::Negative),
                             ..
                         } => winding_of(sign),
                         // The class rate read Zero: not this class, and no
-                        // reading of incidence (`not_this_class`).
+                        // reading of incidence: the general lane, behind the test.
                         Decided {
                             sign: Sign::Zero, ..
-                        } => return Err(not_this_class()),
+                        } => return Err(incidence::general_lane(shown, None)),
                     };
                     // The tube angle placed in the window at the span's
                     // midpoint; σ, read off the direction above, is the
@@ -10158,12 +10239,14 @@ fn derive_harmonic<T: Decide>(
     })
 }
 
-/// The margin a [`PcurveCertifyError::CarrierOffChart`] read at a
-/// degenerate pose (the cone's apex plane, which meets the cone only at
-/// the apex), and which side of the band it fell.
+/// The margin a [`PcurveCertifyError::CarrierOffChart`]'s incidence
+/// read decided, and which side of the band it fell: the carrier's
+/// sampled distance from the chart, or its height off a degenerate pose
+/// (the cone's apex plane, which meets the cone only at the apex).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum OffMargin {
-    /// Decided past the pose: the carrier is off the chart.
+    /// Decided past the band: the carrier is off the chart by this
+    /// margin (its distance, or its height past the pose).
     Past(geom_core::MarginDiag),
     /// A band-decided Zero: the carrier is not shown away from the pose,
     /// so at this tolerance it is read as there, and no carrier of its
@@ -10184,8 +10267,8 @@ impl OffMargin {
 /// **How a carrier's incidence on its chart was read**: the one
 /// classifier every door's incidence ending matches on
 /// ([`IncidenceRead::of`], [`IncidenceRead::ending`]).
-#[derive(Clone, Copy, Debug)]
-pub enum IncidenceRead<'a> {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum IncidenceRead {
     /// Decided off the chart: past the band, or with no margin to quote.
     Off(Option<geom_core::MarginDiag>),
     /// A band-decided Zero at a degenerate pose ([`OffMargin::InBand`]):
@@ -10194,24 +10277,24 @@ pub enum IncidenceRead<'a> {
     AtPose(geom_core::MarginDiag),
     /// The incidence test landed in the band
     /// ([`PcurveCheck::ChartIncidence`] escalated).
-    Undecided(&'a Indeterminate),
+    Undecided(Indeterminate),
 }
 
-impl<'a> IncidenceRead<'a> {
+impl IncidenceRead {
     /// **The one incidence classifier**: the read a refusal carries, or
     /// `None` for a refusal of anything else. Every reader of an incidence
     /// refusal reads it here (the edge certificate's through
     /// [`crate::CertifyError::incidence_read`], which agrees arm for arm),
     /// and decides definite or in band by [`Self::is_definite`].
     #[must_use]
-    pub fn of(error: &'a PcurveCertifyError) -> Option<Self> {
+    pub fn of(error: &PcurveCertifyError) -> Option<Self> {
         match error {
             PcurveCertifyError::CarrierOffChart { margin, .. } => Some(Self::of_margin(*margin)),
             PcurveCertifyError::Escalated {
                 check: PcurveCheck::ChartIncidence,
                 cause,
                 ..
-            } => Some(Self::Undecided(cause)),
+            } => Some(Self::Undecided(*cause)),
             // The test's residual decided past the band: a definite miss
             // with no margin carried.
             PcurveCertifyError::ResidualExceeded {
@@ -10234,11 +10317,11 @@ impl<'a> IncidenceRead<'a> {
 
     /// The refused arm the read carries.
     #[must_use]
-    pub fn arm(self) -> RefusedArm<'a> {
-        match self {
+    pub fn arm(&self) -> RefusedArm<'_> {
+        match *self {
             Self::Off(margin) => RefusedArm::SignCertain(margin),
             Self::AtPose(m) => RefusedArm::SignCertain(Some(m)),
-            Self::Undecided(cause) => RefusedArm::Undecided(cause),
+            Self::Undecided(ref cause) => RefusedArm::Undecided(cause),
         }
     }
 
@@ -10257,7 +10340,7 @@ impl<'a> IncidenceRead<'a> {
             RefusedArm::Zero(crate::recourse::Classified { margin, .. }) => {
                 IncidenceRead::AtPose(margin).ending(at)
             }
-            RefusedArm::Undecided(cause) => IncidenceRead::Undecided(cause).ending(at),
+            RefusedArm::Undecided(cause) => IncidenceRead::Undecided(*cause).ending(at),
             RefusedArm::Straddle => crate::recourse::INCIDENCE_UNSHOWN.recourse(arm, at),
         }
     }
@@ -10346,7 +10429,8 @@ impl OffChart {
 #[derive(Clone, Copy, Debug)]
 enum Incidence {
     On,
-    Off,
+    /// Off the chart, by the margin the test decided.
+    Off(geom_core::MarginDiag),
 }
 
 /// The escalation an identity check on a stored image's copied data
@@ -10411,6 +10495,7 @@ fn torus_oblique_circle<T: Decide>(
     surface: &Surface<T>,
     place: Placement<T>,
     band: Band,
+    shown: incidence::Incident,
 ) -> Result<(Pcurve<T>, Derivation), Underived> {
     let (
         &Curve3::Circle {
@@ -10430,7 +10515,6 @@ fn torus_oblique_circle<T: Decide>(
     else {
         unreachable!("torus_oblique_circle: the torus arm reads a circle carrier")
     };
-    let shown = incidence::incident(carrier, surface, place, band)?;
     let w = c - center;
     let w_r = w - axis * w.dot(axis);
     let gates = [
@@ -10475,16 +10559,10 @@ fn torus_oblique_circle<T: Decide>(
         // choice sends it to the general lane, which a circle on a torus
         // does not have yet ("not yet", unit E4).
         IdentityLadder::Apart { .. } => {
-            return Err(incidence::general_lane(carrier, surface, place, band, None));
+            return Err(incidence::general_lane(shown, None));
         }
         IdentityLadder::Undecided(kept) => {
-            return Err(incidence::general_lane(
-                carrier,
-                surface,
-                place,
-                band,
-                Some(kept.refusing_cause()),
-            ));
+            return Err(incidence::general_lane(shown, Some(kept.refusing_cause())));
         }
     }
     let d = w_r / w_r.norm();
@@ -10570,7 +10648,7 @@ fn torus_oblique_circle<T: Decide>(
 
 /// Why a circle off a torus chart is off it: one sample of it is past the
 /// band from the torus.
-const TORUS_OFF: &str = "the circle's points are not on the torus (its distance from the torus \
+const TORUS_OFF: &str = "the carrier's points are not on the torus (its distance from the torus \
                          at a sample is past the band)";
 
 /// The carrier parameters [`chart_incidence`] samples over one turn.
@@ -10627,6 +10705,8 @@ fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    sits: Sits<'_, T>,
+    slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     incidence_over_span(
@@ -10634,6 +10714,8 @@ fn chart_incidence<T: Decide>(
         surface,
         (T::zero(), T::tau()),
         |t| carrier.eval(t),
+        sits,
+        slack,
         band,
     )
 }
@@ -10641,8 +10723,9 @@ fn chart_incidence<T: Decide>(
 /// **A carrier's sampled incidence test**, decided one-sidedly: `Off`
 /// only when the carrier is definitely off the chart somewhere. The
 /// largest exact distance from the chart of its points at the
-/// [`farthest_over_span`] samples of `span` bounds its distance from
-/// below, so a `Positive` verdict is certified; `Zero` says only that the
+/// [`farthest_over_span`] samples of `span`, less the rounding of the
+/// coordinates it is computed from, bounds its distance from below, so
+/// a `Positive` verdict on it is certified; `Zero` says only that the
 /// carrier is not shown off, and is `On` here — the image the caller
 /// derives is then measured by its certificate, and a carrier that is no
 /// class of the chart takes D3's lane choice ([`incidence::general_lane`]).
@@ -10657,14 +10740,79 @@ fn incidence_over_span<T: Decide>(
     surface: &Surface<T>,
     span: (T, T),
     at: impl Fn(T) -> Point3<T>,
+    sits: Sits<'_, T>,
+    slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let farthest = farthest_over_span(surface, span, at);
-    match decide(name, Margin::of(farthest), band).map_err(incidence_escalated)? {
-        Sign::Positive => Ok(Incidence::Off),
-        Sign::Zero | Sign::Negative => Ok(Incidence::On),
+    let (mut farthest, reach) = farthest_over_span(surface, span, at);
+    // At an enclosure scalar the read where the carrier sits encloses the
+    // same exact distances as the moved one, by an independent argument,
+    // so the smaller of the two encloses the farthest of them too. The
+    // move keeps a carrier far from its chart's anchor tight; read where
+    // it sits, an input that is itself an enclosure (a dimension widened
+    // to a parameter box) is not split into an offset and a remainder
+    // whose widths then add.
+    if let (geom_core::Witness::Exact, Some((carrier, chart))) = (T::WITNESS, sits) {
+        let (direct, _) = farthest_over_span(chart, span, |t| carrier.eval(t));
+        farthest = farthest.min(direct);
+    }
+    // The distance is computed from coordinates rounded at the samples'
+    // reach, after a move into the carrier's frame that rounded by
+    // `slack` (`incidence::anchored`): together the rounding `c`. It is
+    // decided less that rounding, on a lower bound of the exact
+    // distance, so a carrier on the chart reads Zero wherever it sits
+    // and a miss is decided off only past its rounding. A miss inside
+    // the rounding (a placement whose own ulp passes the band) is not
+    // shown off here; the image it gets is measured by its certificate.
+    //
+    // The charge is `2c · far / (far + zero)`, a multiple of the
+    // distance rather than `c` alone: a distance the symbolic tier
+    // proves identically zero over a parameter box (`geom_core::sym`)
+    // must stay a zero form once charged, or the box lane reads the
+    // enclosure and escalates a theorem. It is the lower bound all the
+    // same. A definite off reading has `charged ≥ escalate`, so
+    // `far ≥ escalate ≥ zero`, the fraction is at least a half and the
+    // charge at least `c`: `charged ≤ far − c`. On the chart `far ≤ c`:
+    // if `c ≥ zero` the charge is at least `far` and `charged ≤ 0`;
+    // otherwise `charged ≤ far < zero`. Either way it reads Zero.
+    //
+    // It is written as the distance times one factor, so an interval
+    // enclosure `[a, b]` of the distance is charged at `a` for its lower
+    // end and at `b` for its upper, rather than pairing `b` with the
+    // charge at `a`; and clamped at zero (`max(0, 0)` is a zero form
+    // too), so an on reading's enclosure does not straddle a negative
+    // escalation.
+    //
+    // At an enclosure scalar ([`geom_core::Witness::Exact`]: `Interval`,
+    // `Sym<Interval>`) none of this is charged: the move into the
+    // carrier's frame and the distance are computed in the enclosure's
+    // own arithmetic, which already holds the exact value, so the
+    // distance is decided as it is, and its width is the lane's honest
+    // reading.
+    let charged = match T::WITNESS {
+        geom_core::Witness::Exact => farthest,
+        geom_core::Witness::Inexact if farthest.is_poison() => farthest,
+        geom_core::Witness::Inexact => {
+            let c = slack + rounding_charge(T::from_f64(2.0) * reach);
+            let zero = T::from_f64(band.zero());
+            (farthest * (T::one() - T::from_f64(2.0) * c / (farthest + zero))).max(T::zero())
+        }
+    };
+    match geom_core::k_stats::decide_reported(name, Margin::of(charged), band)
+        .map_err(incidence_escalated)?
+    {
+        Decided {
+            sign: Sign::Positive,
+            margin,
+        } => Ok(Incidence::Off(margin)),
+        Decided { .. } => Ok(Incidence::On),
     }
 }
+
+/// The carrier and its chart where they sit, before the move into the
+/// carrier's frame (`incidence::anchored`): read as well at an enclosure
+/// scalar ([`incidence_over_span`]); `None` where nothing moved.
+type Sits<'a, T> = Option<(&'a Curve3<T>, &'a Surface<T>)>;
 
 /// **The one door to the general lane** (D3): a lane choice picks between
 /// images of a carrier ON the chart, so before a class reading that did
@@ -10688,6 +10836,90 @@ mod incidence {
         _tested: (),
     }
 
+    /// **The read in the carrier's own frame.** The carrier and the
+    /// chart are moved together by the carrier's own anchor (a conic's or
+    /// spiric's centre, a line's origin), so the carrier's points are
+    /// evaluated at its own size; the chart's axis is made unit; and a
+    /// plane's or cylinder's anchor, which the chart reads up to a slide
+    /// in its plane or along its axis, is slid to its foot nearest the
+    /// carrier. A move keeps every distance; the surface an axisymmetric
+    /// chart denotes reads its axis's direction only (its length is a
+    /// frame defect the at-rest margin bounds, which a distance taken
+    /// through it would lever by the sample's height); and every
+    /// coordinate the sampled distance is then computed from is of the
+    /// carrier's size off the chart, wherever the chart's anchor sat.
+    ///
+    /// Returned with the move's own rounding, a first-order running
+    /// bound ([`geom_core::running`]): the read charges it
+    /// (`incidence_over_span`), so data exactly on the chart read Zero,
+    /// and a miss the move's rounding could hide is not decided. A
+    /// sphere's or torus's centre is within the chart's own size of any
+    /// carrier on it, and a cone's apex slides nowhere, so theirs are
+    /// read from where they sit. `None` for a spline carrier or chart,
+    /// read where it is.
+    fn anchored<T: geom_core::Real>(
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+    ) -> Option<(Curve3<T>, Surface<T>, T)> {
+        use geom_core::running::{Rounded, dot, exact_vec};
+        let k = match *carrier {
+            Curve3::Line { origin, .. } => origin,
+            Curve3::Circle { center, .. }
+            | Curve3::Ellipse { center, .. }
+            | Curve3::Spiric { center, .. } => center,
+            _ => return None,
+        };
+        let mut moved = surface.clone();
+        let anchor = match &mut moved {
+            Surface::Plane { origin, .. } | Surface::Cylinder { origin, .. } => origin,
+            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
+            Surface::Cone { apex, .. } => apex,
+            Surface::Nurbs(_) | Surface::Approx(_) => return None,
+        };
+        // The anchor's offset from the carrier's, with its rounding.
+        let [ax, ay, az] = exact_vec(*anchor - geom_core::Point3::origin());
+        let [kx, ky, kz] = exact_vec(k - geom_core::Point3::origin());
+        let mut off = [ax - kx, ay - ky, az - kz];
+        // Slid to its foot nearest the carrier: in the plane, the normal
+        // part of the offset; on the axis, its radial part.
+        let slide = |off: [Rounded<T>; 3], dir: geom_core::Vec3<T>, keep_along: bool| {
+            let d = exact_vec(dir);
+            let along = dot(off, d).quotient(dot(d, d));
+            let part = [d[0] * along, d[1] * along, d[2] * along];
+            if keep_along {
+                part
+            } else {
+                [off[0] - part[0], off[1] - part[1], off[2] - part[2]]
+            }
+        };
+        match *surface {
+            Surface::Plane { normal, .. } => off = slide(off, normal, true),
+            Surface::Cylinder { axis, .. } => off = slide(off, axis, false),
+            _ => {}
+        }
+        let error = off[0].error + off[1].error + off[2].error;
+        *anchor = geom_core::Point3::new(off[0].value, off[1].value, off[2].value);
+        if let Surface::Cylinder { axis, .. }
+        | Surface::Cone { axis, .. }
+        | Surface::Torus { axis, .. } = &mut moved
+        {
+            *axis = axis.normalize();
+        }
+        // The carrier's own anchor lands on the origin exactly: `k − k`
+        // is zero at `f64`, and at an enclosure scalar would otherwise be
+        // twice `k`'s width wide, its width then counted again in the
+        // offset above.
+        let mut carrier = carrier.translated(geom_core::Point3::origin() - k)?;
+        match &mut carrier {
+            Curve3::Line { origin: at, .. }
+            | Curve3::Circle { center: at, .. }
+            | Curve3::Ellipse { center: at, .. }
+            | Curve3::Spiric { center: at, .. } => *at = geom_core::Point3::origin(),
+            _ => unreachable!("anchored: the carrier's kind is the one its anchor was read off"),
+        }
+        Some((carrier, moved, error))
+    }
+
     /// **The chart's incidence test of `carrier`**: a carrier shown off
     /// the chart refuses `CarrierOffChart`, one whose test lands in band
     /// escalates [`PcurveCheck::ChartIncidence`], and only one not shown
@@ -10700,6 +10932,39 @@ mod incidence {
     /// # Errors
     ///
     /// As above.
+    /// A point as the anchored read takes it: a line through it, whose
+    /// origin is the frame's anchor and whose direction nothing reads.
+    pub(super) fn point_probe<T: geom_core::Real>(point: geom_core::Point3<T>) -> Curve3<T> {
+        Curve3::Line {
+            origin: point,
+            dir: geom_core::Vec3::new(T::one(), T::zero(), T::zero()),
+        }
+    }
+
+    /// **The chart's incidence test of one point** ([`super::read_point_incidence`]):
+    /// the point's distance from the analytic chart, decided by
+    /// [`incidence_over_span`] in the point's own frame ([`anchored`]).
+    pub(super) fn point_incident<T: Decide>(
+        point: geom_core::Point3<T>,
+        surface: &Surface<T>,
+        band: Band,
+    ) -> Result<Incidence, PcurveCertifyError> {
+        let probe = point_probe(point);
+        let (moved, slack) = match anchored(&probe, surface) {
+            Some((_, moved, slack)) => (moved, slack),
+            None => (surface.clone(), T::zero()),
+        };
+        super::incidence_over_span(
+            "pcurve_point_chart_incident",
+            &moved,
+            (T::zero(), T::zero()),
+            |_| geom_core::Point3::origin(),
+            Some((&probe, surface)),
+            slack,
+            band,
+        )
+    }
+
     pub(super) fn incident<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
@@ -10711,31 +10976,44 @@ mod incidence {
         if super::mutants::skip_incidence() {
             return Ok(tested);
         }
+        // Read in the chart's own frame, so a sample's distance carries
+        // the rounding of the carrier's size, not of its placement.
+        let anchored = anchored(carrier, surface);
+        let sits = anchored.as_ref().map(|_| (carrier, surface));
+        let (carrier, surface, slack) = anchored
+            .as_ref()
+            .map_or((carrier, surface, T::zero()), |(c, s, e)| (c, s, *e));
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle { .. } | Curve3::Ellipse { .. }, Surface::Cone { .. }) => {
-                return cone_conic_incidence(carrier, surface, band).map(|()| tested);
+                return cone_conic_incidence(carrier, surface, sits, slack, band).map(|()| tested);
             }
             (Curve3::Line { .. }, _) => {
-                return line_incidence(carrier, surface, place.span, band).map(|()| tested);
+                return line_incidence(carrier, surface, place.span, sits, slack, band)
+                    .map(|()| tested);
             }
             (_, Surface::Sphere { .. }) => (
                 "pcurve_sphere_chart_incident",
-                "the circle is not at the sphere's radius from its centre",
+                "the carrier's points are not at the sphere's radius from its centre",
             ),
             (_, Surface::Torus { .. }) => ("pcurve_torus_chart_incident", super::TORUS_OFF),
             (_, Surface::Cylinder { .. }) => (
                 "pcurve_cylinder_chart_incident",
                 "the carrier's points are not at the cylinder's radius from its axis",
             ),
+            (_, Surface::Plane { .. }) => (
+                "pcurve_plane_chart_incident",
+                "the carrier's points are not on the plane",
+            ),
             _ => unreachable!(
-                "incident: only the sphere, cone, torus and cylinder mints read incidence (a \
-                 plane's mint reads none until E1c; a spline chart has no mint), and a spline or \
-                 spiric carrier takes its own test"
+                "incident: a spline chart has no closed-form mint, and a spline carrier takes \
+                 its own test (`net_incidence`)"
             ),
         };
-        match chart_incidence(name, carrier, surface, band)? {
+        match chart_incidence(name, carrier, surface, sits, slack, band)? {
             Incidence::On => Ok(tested),
-            Incidence::Off => Err(OffChart(off_why).refusal(surface, carrier)),
+            Incidence::Off(margin) => {
+                Err(OffChart(off_why).with_margin(super::OffMargin::Past(margin), surface, carrier))
+            }
         }
     }
 
@@ -10745,6 +11023,8 @@ mod incidence {
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         span: (T, T),
+        sits: super::Sits<'_, T>,
+        slack: T,
         band: Band,
     ) -> Result<(), PcurveCertifyError> {
         match super::incidence_over_span(
@@ -10752,32 +11032,31 @@ mod incidence {
             surface,
             span,
             |t| carrier.eval(t),
+            sits,
+            slack,
             band,
         )? {
-            Incidence::Off => Err(OffChart(
+            Incidence::Off(margin) => Err(OffChart(
                 "the line's points are not on the chart (its distance from the chart at a \
                  sample of its span is past the band)",
             )
-            .refusal(surface, carrier)),
+            .with_margin(super::OffMargin::Past(margin), surface, carrier)),
             Incidence::On => Ok(()),
         }
     }
 
-    /// **The general lane, through the incidence test** (D3's lane
+    /// [`general_lane`] for a class reading that landed in band: the
+    /// refusal every class gate's in-band read takes.
+    pub(super) fn undecided(shown: Incident) -> impl Fn(Indeterminate) -> Underived {
+        move |cause| general_lane(shown, Some(cause))
+    }
+
+    /// **The general lane, behind the incidence test** (D3's lane
     /// choice): [`Underived::General`] for a carrier the test did not show
-    /// off the chart, carrying the class reading's cause where it was in
-    /// band; the test's own refusal otherwise.
-    pub(super) fn general_lane<T: Decide>(
-        carrier: &Curve3<T>,
-        surface: &Surface<T>,
-        place: Placement<T>,
-        band: Band,
-        undecided: Option<Indeterminate>,
-    ) -> Underived {
-        match incident(carrier, surface, place, band) {
-            Ok(shown) => Underived::General { shown, undecided },
-            Err(refused) => Underived::Refused(refused),
-        }
+    /// off the chart (`shown`, its witness), carrying the class reading's
+    /// cause where it was in band.
+    pub(super) fn general_lane(shown: Incident, undecided: Option<Indeterminate>) -> Underived {
+        Underived::General { shown, undecided }
     }
 
     /// The escalation of a class reading that did not show one of the
@@ -10829,16 +11108,18 @@ fn incidence_escalated(cause: Indeterminate) -> PcurveCertifyError {
 /// `v₀` is zero at the mint and gains `k·τ` only from the loop walk's
 /// branch shift.
 ///
-/// Nothing here is a class decision beyond the sign and the tag: the image is
-/// built, and [`PcurveCache::certify`] then measures it against the
-/// chart and the carrier. A spiric handed a torus that is neither of
-/// its two mints an image whose check 1 refuses it as off the chart,
-/// which is the module's standing posture.
+/// Nothing here is a class decision beyond the sign and the tag: the
+/// chart's incidence test reads the oval on the plane or the torus first
+/// (a torus that is neither of its two is off it), then the image is
+/// built, and [`PcurveCache::certify`] measures it against the chart and
+/// the carrier.
 ///
 /// # Errors
 ///
-/// [`spiric_off_own_chart`]'s refusal for a cylinder, cone or sphere
-/// chart and for a torus whose axis is perpendicular to the carrier's;
+/// The incidence test's for a plane or torus the oval is not shown on
+/// ([`incidence::incident`]); [`spiric_off_own_chart`]'s for a cylinder,
+/// cone or sphere chart and for a torus whose axis is perpendicular to
+/// the carrier's;
 /// [`PcurveCertifyError::UnsupportedChart`] for a spline or
 /// approximating chart, whose images are description-driven.
 fn spiric_chart_pcurve<T: Decide>(
@@ -10864,6 +11145,11 @@ fn spiric_chart_pcurve<T: Decide>(
         offset,
         image,
     };
+    // D3: whether the oval lies on the chart is read first, by the
+    // chart's incidence test, before the cap or the wall is imaged.
+    if matches!(surface, Surface::Plane { .. } | Surface::Torus { .. }) {
+        incidence::incident(carrier, surface, place, band)?;
+    }
     match *surface {
         Surface::Plane {
             origin,
@@ -10998,6 +11284,8 @@ fn spiric_chart_pcurve<T: Decide>(
 fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    sits: Sits<'_, T>,
+    slack: T,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
     let (Some(form), &Surface::Cone { apex, axis, .. }) = (carrier_harmonic(carrier), surface)
@@ -11042,13 +11330,20 @@ fn cone_conic_incidence<T: Decide>(
             return Err(near_apex.with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
-    match chart_incidence("pcurve_cone_chart_incident", carrier, surface, band)? {
+    match chart_incidence(
+        "pcurve_cone_chart_incident",
+        carrier,
+        surface,
+        sits,
+        slack,
+        band,
+    )? {
         Incidence::On => Ok(()),
-        Incidence::Off => Err(OffChart(
+        Incidence::Off(margin) => Err(OffChart(
             "the conic's points are not on the cone (its distance from the cone at a sample is \
              past the band)",
         )
-        .refusal(surface, carrier)),
+        .with_margin(OffMargin::Past(margin), surface, carrier)),
     }
 }
 
@@ -12033,9 +12328,9 @@ mod tests {
         }
     }
 
-    /// The term [`EnvelopeTerms::first_over`] names for a carrier or an
-    /// image moved by `100·ε` in one respect — what a refused check 4
-    /// carries on a periodic chart.
+    /// The term [`EnvelopeTerms::first_over`] names for an image moved by
+    /// `100·ε` in one respect — what a refused check 4 carries on a
+    /// periodic chart.
     fn named_term(stored: &Pcurve<f64>, carrier: &Curve3<f64>, s: &Surface<f64>) -> EnvelopeTerm {
         let form = carrier_harmonic(carrier).unwrap();
         let terms = periodic_envelope(channels_of(stored), carrier, form, s, (0.0, PI), PI, band())
@@ -12051,9 +12346,10 @@ mod tests {
     /// band, yet its fidelity term levers the drift by the window's
     /// reach from the origin, and refuses definitely. At rest that
     /// refusal ends in the kernel-limit recourse and claims only that
-    /// the certificate cannot show the image; a rim off the axis by
-    /// `100·ε`, whose sample residual is the miss itself, ends in the
-    /// defect ending.
+    /// the certificate cannot show the image. The rim's image moved up
+    /// its axis by `100·ε`, whose sample residual is the miss itself,
+    /// ends in the defect ending; the rim itself moved off the axis is
+    /// read off its face before any meter.
     #[test]
     fn a_refused_envelope_reads_as_a_bound_at_rest() {
         use crate::recourse::{Reading, defect_ending};
@@ -12099,11 +12395,34 @@ mod tests {
             loose.to_string().contains("the certificate cannot show"),
             "{loose}"
         );
+        // The rim moved off the axis by 100·ε: the mint reads it off the
+        // cylinder (D3), and so does the row stored for the rim,
+        // certified against it: the read comes before any meter.
         let off = rim(Point3::new(100.0 * Tol::witness().eps(), 0.0, 0.0));
-        let image = chart_pcurve(&off, &cyl, band()).unwrap();
-        let miss = PcurveCache::certify(image, 0.0, PI, &off, &cyl, band())
+        assert!(matches!(
+            chart_pcurve(&off, &cyl, band()),
+            Err(PcurveCertifyError::CarrierOffChart { .. })
+        ));
+        let image = chart_pcurve(&carrier, &cyl, band()).unwrap();
+        let read = PcurveCache::certify(image.clone(), 0.0, PI, &off, &cyl, band())
             .map(|_| ())
             .expect_err("a rim off the axis by 100·ε refuses");
+        assert!(
+            matches!(
+                read,
+                PcurveCertifyError::CarrierOffChart {
+                    margin: Some(OffMargin::Past(_)),
+                    ..
+                }
+            ),
+            "the stored row's rim is read off its face: {read:?}"
+        );
+        // The rim on its face and its image moved up the axis by 100·ε:
+        // the read passes it, and the samples meter the image's miss.
+        let moved = bumped(&image, 0.0, [100.0 * Tol::witness().eps(), 0.0, 0.0, 0.0]);
+        let miss = PcurveCache::certify(moved, 0.0, PI, &carrier, &cyl, band())
+            .map(|_| ())
+            .expect_err("an image moved by 100·ε refuses");
         assert!(
             matches!(
                 miss,
@@ -12121,61 +12440,24 @@ mod tests {
         );
     }
 
-    /// **A refused envelope names the incidence that failed.** Each row
-    /// moves the carrier off the cylinder, or the stored image off the
-    /// one derived from it, in exactly one respect, and the term the
-    /// refusal carries is that respect's.
+    /// **A refused envelope names the fidelity that failed.** Each row
+    /// moves the stored image off the one derived from the rim in exactly
+    /// one respect, and the term the refusal carries is that respect's.
+    /// (A carrier moved off the cylinder past the band is read off it by
+    /// check 4's own re-derivation first; its terms in band are the
+    /// envelope sweep's, `envelope_lemma_fuzz`.)
     #[test]
-    fn a_refused_envelope_names_the_incidence_that_failed() {
+    fn a_refused_envelope_names_the_fidelity_that_failed() {
         let r = 0.5;
         let cyl = cylinder(r);
         let d = 100.0 * Tol::witness().eps();
-        let rim = |center: Point3<f64>, axis: Vec3<f64>, radius: f64| Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref: Vec3::unit_x(),
-        };
-        let own = |carrier: &Curve3<f64>| chart_pcurve(carrier, &cyl, band()).unwrap();
-        // `b` short of `a`'s quarter turn by `d`, `a` on the chart: the
-        // turning pair off the class circle, the radius's own term.
-        let squashed = Curve3::Ellipse {
+        let carrier = Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
-            semi_u: r,
-            semi_v: r - d,
+            radius: r,
             u_ref: Vec3::unit_x(),
         };
-        let rows = [
-            (
-                rim(Point3::new(d, 0.0, 0.0), Vec3::unit_z(), r),
-                EnvelopeTerm::Centre,
-            ),
-            (
-                rim(Point3::origin(), Vec3::unit_z(), r + d),
-                EnvelopeTerm::Radius,
-            ),
-            (squashed, EnvelopeTerm::Radius),
-            // A radial slope over the band reads as a moving carrier;
-            // one inside the escalation band takes the meridian (the
-            // D9 tie-break) and lands in the line's own term.
-            (
-                Curve3::Line {
-                    origin: Point3::new(r, 0.0, 0.0),
-                    dir: Vec3::new(2.0 * Tol::witness().eps(), 0.0, 1.0),
-                },
-                EnvelopeTerm::Line,
-            ),
-        ];
-        for (carrier, term) in rows {
-            assert_eq!(
-                named_term(&own(&carrier), &carrier, &cyl),
-                term,
-                "{carrier:?}"
-            );
-        }
-        let carrier = rim(Point3::origin(), Vec3::unit_z(), r);
-        let good = own(&carrier);
+        let good = chart_pcurve(&carrier, &cyl, band()).unwrap();
         for (stored, term) in [
             (bumped(&good, d, [0.0; 4]), EnvelopeTerm::FidelityU),
             (
@@ -12225,28 +12507,24 @@ mod tests {
         );
     }
 
-    /// A circle in a plane holding the cylinder's axis is no carrier of
-    /// the cylinder, and its radial parts are parallel, so the
-    /// derivation decides it MOVING with a zero winding — the one
-    /// moving class whose image does not turn. The envelope still
-    /// bounds the residual of the image it derives, and refuses.
+    /// A small circle in the plane tangent to the wall, which holds the
+    /// axis, of radius `√(R·ε)/2`: it leaves the wall by its sagitta,
+    /// `ε/8`, so the mint's incidence read admits it, and its radial
+    /// part moves without winding, so the derivation decides it MOVING
+    /// with a zero winding — the one moving class whose image does not
+    /// turn. The envelope bounds the residual of that image.
     #[test]
     fn a_moving_carrier_with_no_winding_is_still_bounded() {
         let r = 0.5;
         let cyl = cylinder(r);
         let carrier = Curve3::Circle {
             center: Point3::new(r, 0.0, 0.0),
-            axis: Vec3::unit_y(),
-            radius: 0.1,
-            u_ref: Vec3::unit_x(),
+            axis: Vec3::unit_x(),
+            radius: 0.5 * (r * band().zero()).sqrt(),
+            u_ref: Vec3::unit_y(),
         };
-        let (image, derivation) = derive_harmonic(
-            &carrier,
-            &cyl,
-            super::Placement::own(&carrier, &cyl),
-            band(),
-        )
-        .unwrap();
+        let place = super::Placement::own(&carrier, &cyl);
+        let (image, derivation) = derive_harmonic(&carrier, &cyl, place, band()).unwrap();
         assert!(
             matches!(derivation, Derivation::CylinderMoving { beta: 0 }),
             "{derivation:?}"
@@ -12264,7 +12542,6 @@ mod tests {
         .unwrap()
         .total();
         assert!(envelope >= true_sup(&image, &cyl, &carrier, 0.0, PI));
-        assert!(PcurveCache::certify(image, 0.0, PI, &carrier, &cyl, band()).is_err());
     }
 
     /// The chart-derivation pins across the frontier's two flips
@@ -12531,8 +12808,8 @@ mod tests {
                 &cone,
             ),
             (
-                "a line on a sphere",
-                "a sphere holds no line",
+                "a line through the sphere's centre",
+                "the line's points are not on the chart",
                 Curve3::Line {
                     origin: Point3::origin(),
                     dir: Vec3::unit_x(),
@@ -12551,8 +12828,8 @@ mod tests {
                 &sphere,
             ),
             (
-                "an ellipse on a torus",
-                "a torus holds no line",
+                "an ellipse in the torus's equatorial plane",
+                "not on the torus",
                 Curve3::Ellipse {
                     center: Point3::origin(),
                     axis: Vec3::unit_z(),
@@ -12839,7 +13116,7 @@ mod tests {
             ),
             (
                 RefusedArm::Undecided(&cause),
-                IncidenceRead::Undecided(&cause).ending(Reading::Build),
+                IncidenceRead::Undecided(cause).ending(Reading::Build),
             ),
             (
                 RefusedArm::Straddle,
@@ -13520,8 +13797,9 @@ mod escape_tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod iso_family {
     //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
-    //! `V`, an oblique line no family, and a line whose tilt off the
-    //! axis is in the band refuses — the mint's tie-break takes the
+    //! `V`, an oblique section no family; a line tilted off the wall is
+    //! refused by its incidence read, and one whose tilt off the axis is
+    //! in the band refuses undecided — the mint's tie-break takes the
     //! ruling's form there, which no family may be read off.
     use super::{IsoFamily, IsoFamilyRefusal, chart_iso_family};
     use geom::{Curve3, Surface};
@@ -13554,7 +13832,24 @@ mod iso_family {
             chart_iso_family(&rim, &cylinder, band),
             Ok(Some(IsoFamily::V))
         );
-        assert_eq!(chart_iso_family(&line(1e-2), &cylinder, band), Ok(None));
+        // An oblique section lies on the cylinder and is no iso line.
+        let theta = 0.3_f64;
+        let section = Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, theta.sin(), theta.cos()),
+            semi_u: 1.0,
+            semi_v: 1.0 / theta.cos(),
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(chart_iso_family(&section, &cylinder, band), Ok(None));
+        // A line tilted 1e-2 leaves the cylinder past the band over its
+        // span: the incidence test reads it off before any family.
+        assert!(matches!(
+            chart_iso_family(&line(1e-2), &cylinder, band),
+            Err(IsoFamilyRefusal::Image(
+                super::PcurveCertifyError::CarrierOffChart { .. }
+            ))
+        ));
         assert!(matches!(
             chart_iso_family(&line(1e-7), &cylinder, band),
             Err(IsoFamilyRefusal::Undecided(_))

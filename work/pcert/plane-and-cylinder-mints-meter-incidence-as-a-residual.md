@@ -2,8 +2,9 @@
 id: plane-and-cylinder-mints-meter-incidence-as-a-residual
 kind: issue
 title: The plane and cylinder mints, the sphere, cone and torus class arms, and the sphere and torus ellipse kind gates end a carrier without reading its incidence first (as ChartResidual's defect, or off by kind)
-status: open
+status: closed
 opened: 2026-10-25
+closed: 2026-10-28
 ---
 
 
@@ -119,3 +120,44 @@ E1c.
   (a class reading, "not yet"); the near-round ellipse 10 m off each is
   the definite miss (already pinned in
   `chart_incidence::only_an_incidence_reading_ends_as_one`).
+
+## Landed (E1c, `pcert/mints-read-incidence`)
+
+- `derive_class` opens every analytic arm (plane, cylinder, cone, sphere,
+  torus) with the chart's incidence test, and the general lane takes its
+  witness (`incidence::general_lane(shown, undecided)`), so no arm images
+  or takes the general lane before the read. The spiric's plane cap and
+  torus wall read it too (`spiric_chart_pcurve`), so a torus that is
+  neither of the oval's two is off it at the mint, not at check 1.
+- The sphere and torus kind gates read incidence first: an ellipse or a
+  line the test does not show off is the general lane ("not yet"), and the
+  Off payload quotes the incidence read (`TORUS_OFF`, the sphere's radius
+  why), never a roundness distance.
+- `topo::chart_region`'s plane site maps an incidence refusal to
+  `ChartRegionError::TrimOffFace`, which the at-rest classifier ends by
+  the read (`classify_chart_region`).
+- The read is taken in the chart's own frame (`incidence::anchored`):
+  the carrier and the chart are moved so the anchor is the origin, and
+  the axis is made unit. So the read is the distance from the surface
+  the chart denotes, at the carrier's own size. A read where the carrier
+  sat read its own rounding far out as distance: an exact rim 1e7 m out
+  was off at 1e-12. It levered an axis's length defect by the height: a
+  ruling up an axis long by δ, inside the at-rest margin, was off at
+  1e-6.
+- `ChartResidual` is unchanged and meters the image's own fidelity.
+- Rows:
+  - `sweep::an_arc_off_a_plane_or_cylinder_face_ends_as_its_incidence_read`:
+    `set_edge_curve` arcs off a cylinder wall (meridian and moving arms)
+    and off a box's plane sides, at a build, at rest and at import, at
+    `f64` and `Interval`.
+  - `chart_incidence::a_wrong_radius_circle_on_each_class_arm_ends_as_its_incidence_read`:
+    each class arm, plus the plane and cylinder, half a metre off (the
+    definite miss) and mid-band off (the lever, never a defect), at every
+    door and both lanes.
+  - `chart_incidence::a_tiny_ellipse_within_eps_of_the_sphere_or_torus_is_not_yet`:
+    the review's tiny ellipse, in its E1c shape.
+  - `pcurve_spiric::a_plane_or_torus_off_the_oval_is_read_off_at_the_mint`.
+  - `chart_incidence::a_carrier_on_its_face_is_read_on_it_far_out_and_on_a_long_axis`.
+- The import door is read by the door rule (`ending(FileCoincidence)`).
+  A real STEP file's miss still refuses earlier, at the description
+  ladder's meters; that is EXCH's, as E1d recorded.
