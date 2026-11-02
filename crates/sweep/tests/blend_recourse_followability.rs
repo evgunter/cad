@@ -1310,9 +1310,10 @@ fn top_front_edge(body: &Body<f64>) -> [EdgeKey; 1] {
 /// and the bore subtracted after. The chamfer's band is a plane strip,
 /// which the Boolean serves against the bore's cylinder, so the
 /// reordered request builds, tier-3 valid. The fillet's band is a
-/// cylinder skew to the bore's, a pair the Boolean does not serve yet,
-/// so the reordered fillet refuses at the Boolean: the leg is the
-/// sentence's, the gap the intersection table's.
+/// cylinder skew to the bore's, which the Boolean reads on its section
+/// value and carries, marched; the result gate then refuses the body,
+/// whose spline-chorded walls have no volume lane: the leg is the
+/// sentence's, the gap the volume lane's.
 #[test]
 fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     use crate::common::bores::bored_brick;
@@ -1370,15 +1371,13 @@ fn the_reorder_leg_builds_where_the_boolean_serves_the_band() {
     let filleted = cut(&blended(false));
     assert!(
         matches!(
-            filleted,
-            Err(topo::boolean::BooleanError::GermFrameUnsupported {
-                a_kind: geom::SurfaceKind::Cylinder,
-                b_kind: geom::SurfaceKind::Cylinder,
-                ..
-            })
+            &filleted,
+            Err(topo::boolean::BooleanError::ResultInvalid { errors })
+                if errors.iter().any(|v| matches!(v, topo::ValidationError::VolumeUncomputable { .. }))
         ),
-        "the bore after the fillet: the Boolean does not serve the band's cylinder against \
-         the skew bore yet; once it does, this row flips to a build. Got {:?}",
+        "the bore after the fillet: the band's cylinder against the skew bore is carried, and \
+         the body waits on the volume lane of a spline-chorded wall; once that lands, this row \
+         flips to a build. Got {:?}",
         filleted.err()
     );
 }
