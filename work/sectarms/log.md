@@ -228,3 +228,14 @@ and bodies unchanged. No orchestrator yet.
   - **Filed:** `a-curved-partners-coincidence-ceiling-is-read-per-net` (P3 E) and `the-canonical-implicit-forms-are-spelled-three-times` (P3 M).
   - A wall tangent along a whole side refuses by the cell budget on the plane path too, so it is not new and not filed.
   - **Class to watch:** fixtures at unit scale cannot see a units error. A conversion's rows need a scale far from 1.
+
+- 2026-11-02 14:55 — **Cylinder stage 3 is up as PR 6373** (the join reads the value).
+  - **What retires:** the `join_reads` gate, the frame cylinder lane, `crossing_cylinder_reading` and `parallel_radical_plane`.
+  - **F1:** needed no `SiteFoot::Node`. A germ's branch is its bisector plane, read on the value's planes.
+  - **F2:** `NodeSet`, with `held_per_set`.
+  - **F3:** the carried lane chords only spline carriers, so the parallel and bisector lanes stay as plane lanes, with their planes from the value. Stage 3b is filed P1.
+  - **Moved rows:**
+    - Skew and unequal-radius poses now carry to `VolumeUncomputable`, after marches of minutes (P2 filed). One row ran over 30 minutes at 1e-12.
+    - The seams row moves at the lever change (fork 224).
+  - **Also:** a ruling-sweep cut fix.
+  - **Review:** dual review dispatched to two cloud sessions (R1 `session_01VyvYnLxpmpgJaDabW3UtZe`, R2 `session_01VyvYnKGe2QchhxrQ33ztCU`), with cost asked as claim 7.
