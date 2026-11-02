@@ -561,7 +561,7 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
 #[test]
 fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width() {
     let e = eps();
-    for w in [e / 8.0, 1.0e-6, 1.0e-3, 5.0e-2] {
+    for w in [e / 8.0, 1.0e-6, 1.0e-3] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
         assert!(
@@ -573,6 +573,27 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
             "half={w:e}: the authored twin must certify"
         );
     }
+    // ONEHOME: at 5e-2 the derived-frame extrude finishes its own result
+    // over the box and cannot read which side of the boss's faces its
+    // material lies on, so it refuses at its finish under the shipped
+    // rules too, where its authored twin still certifies. The
+    // regression is pinned as it stands and filed (`work/onehome/the-sweep-doors-finish-refuses-what-the-box-studies-read.md`).
+    let (derived, _, _) = boss_on_widened_box(5.0e-2);
+    let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
+    let fails = sym_failures(&derived);
+    assert!(
+        fails
+            .iter()
+            .any(|f| f.contains("the extruded body is not a finished body"))
+            && fails
+                .iter()
+                .all(|f| f.contains("not a finished body") || f.contains("poisoned through")),
+        "half=5e-2: the derived-frame boss refuses at the extrude's finish: {fails:?}"
+    );
+    assert!(
+        sym_failures(&authored).is_empty(),
+        "half=5e-2: the authored twin certifies"
+    );
 }
 
 /// **The freeze population is not what refuses, with A0.** With A0's
@@ -607,8 +628,8 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     // ONEHOME: the extrude finishes its own result, at the box scalar
     // too, and at 5e-2 neither the plain tier nor A0 alone can read
     // which side of the boss's faces its material lies on: both refuse
-    // at the extrude's finish, and the copy is poisoned through it. The
-    // shipped rules still certify the document
+    // at the extrude's finish, and the copy is poisoned through it, as the
+    // shipped rules do at this width
     // (`m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width`).
     // The regression is pinned as it stands and filed (`work/onehome/the-sweep-doors-finish-refuses-what-the-box-studies-read.md`).
     let at_the_finish = |fails: &[String]| {

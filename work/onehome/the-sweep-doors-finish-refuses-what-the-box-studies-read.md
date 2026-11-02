@@ -42,8 +42,21 @@ body ran it (a Boolean's operand, the product). Three measured effects:
 3. **The derived-frame boss's plain and A0-alone rungs refuse.**
    `m10_derived_frame_interval.rs::m10_the_derived_frames_refusal_is_not_a_freeze`
    at 5e-2: both rungs refuse at the extrude's finish, on the same
-   unread orientation. The shipped rules still certify the document.
-   The row pins the refusal.
+   unread orientation, and so do the shipped rules
+   (`m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width`,
+   a slow-set row), where the authored twin still certifies. The rows
+   pin the refusal.
+
+4. **Cost.** The finish at every door is paid in every replay. Rows
+   that ran in about a second now take minutes:
+   `editor-core` `docm9_range::a_certified_side_stops_at_the_seeds_edge`
+   189 s, `a_parameter_field_boxes_directly` 186 s,
+   `the_query_does_not_touch_the_input_document` 157 s, and
+   `sweep`'s `pinned_corners_at_the_loft_door::an_elbow_builds_from_every_spelling`
+   37 s, `revolve_washer::m10_9_…` 33 s,
+   `one_segment_loop::a_one_segment_strut_…` 27 s (CI, opt-1). They
+   join the slow set in this change. The slow set's own rows that this
+   branch did not touch were not run here: the nightly runs them.
 
 The decision counts the box studies pin also moved, because the
 finish's battery now decides in every replay:
