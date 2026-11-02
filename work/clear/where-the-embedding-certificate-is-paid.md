@@ -2,9 +2,10 @@
 id: where-the-embedding-certificate-is-paid
 kind: ruling
 title: Where the embedding certificate is paid: at the loft and sweep doors, or as part of what a finished body promises; and whether f64 certifies
-status: open
+status: closed
 opened: 2026-11-02
 priority: P0
+closed: 2026-11-02
 ---
 
 
@@ -40,3 +41,15 @@ carrying-out of ratified text rather than a new decision:
 
 D5 is unchanged. The drag stall when a boolean consumes a loft is named
 as a residual.
+
+## Ruled (Ev, PR 6301, 2026-11-02)
+
+The recommendation is taken as written: embedding is part of what a
+finished body promises, and f64 certifies. Ev asked first why a body
+may not interfere with itself when two bodies may. The answer: two
+interfering bodies each keep an inside every reader agrees on, while a
+self-crossing boundary has none (point-in-solid reads ray parity, so it
+reads a region swept twice as outside). Ev: "3 is fine indefinitely,
+then". Refusing to finish is the standing answer, not an interim; the
+refusal is the report. The unit is
+`the-at-rest-gate-certifies-embedding`.

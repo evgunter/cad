@@ -7,7 +7,7 @@ opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
-blocked_on: [where-the-embedding-certificate-is-paid]
+blocked_on: [the-at-rest-gate-certifies-embedding]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL
