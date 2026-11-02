@@ -597,9 +597,10 @@ pub enum SessionOp {
     /// outer boundary and which are holes is decided by the profile
     /// layer's containment forest at replay
     /// (`profile::structure`), never by list position — a list
-    /// written holes-first describes the same profile. Every refusal
-    /// is the edit door's own: an empty list, a degenerate loop and a
-    /// non-nested pair all refuse through the authoring-time check
+    /// written holes-first describes the same profile. An empty list
+    /// inserts the empty region, a profile with no loops. Every refusal
+    /// is the edit door's own: a degenerate loop and a non-nested pair
+    /// both refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
     /// the literal door). A profile reads no frame: where it stands is

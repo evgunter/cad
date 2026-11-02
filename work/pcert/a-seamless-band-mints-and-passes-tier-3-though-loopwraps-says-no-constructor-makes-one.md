@@ -3,6 +3,8 @@ id: a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor
 kind: issue
 title: A seamless band mints and passes tier 3 through public Euler doors, though LoopWraps says no constructor produces one and ring_path leans on the mint refusing it
 status: open
+priority: P3
+cost: M
 opened: 2026-10-12
 ---
 
