@@ -2190,8 +2190,12 @@ pattern member writes nothing: a pick on a drawn member seats
 `family[k]`. The transform gesture places an unplaced body into its own
 space by values on that space's axes: the three slides as the person
 wrote them, and the spin about the axis the rotation names where it is
-one of the space's, else the chain of turns its frame makes; on a copy
-it edits the copy's placement. A combine re-places an operand from
+one of the space's, else the chain of turns its frame makes. A pick on
+a copy is read as the copy's body, so the gesture writes the same new
+placement of the body and re-points the body's readers to it (its
+copies' sources, a `⊔` operand, the product slot): the copy then
+places that placement, a copy of a copy, and leaves its own bundle as
+it was. A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
 

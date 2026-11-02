@@ -73,3 +73,9 @@ Parked on the row in `blocked_on`, a live lane rewriting the same gesture code; 
 "i don't think the change to DESIGN.md is necessary. the current state seems pretty clearly in violation of what's already written there." The final state is taken: Transform retires into the placement editor. There is no DESIGN.md change. The row rides with `mate-tool-commits-one-mate` and, like it, waits on the P0 whose tool state the editor rewrites. Ev also asked whether anything similar was missed by the INTENT refactor; that sweep is logged on `work/placing/log.md`.
 
 **Downstream consumer to retire with it** (PLACING's INTENT sweep, 2026-11-02, likely). In `in_one_space` (`crates/viewer/src/session.rs`), the `self_placed` branch re-targets "the transform gesture's" copy into the first operand's space, values included. It exists for the stacked-placement shape and goes when that shape goes.
+
+**README as built (2026-11-01).** `crates/viewer/README.md`'s
+"A new body lands unplaced" paragraph had said the transform gesture
+"on a copy edits the copy's placement", which is this row's decided
+end state, not the code. It now says what `add_transform` does (a copy
+of a copy). The retirement rewrites that sentence to the editor's doors.
