@@ -251,11 +251,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
-    # `RefusalReason::MeasureRefused`'s closed class, which replaced a
-    # `&'static str`. The carry owes a Python word and a decision about
-    # `ClearanceRefusal`, the eleven-arm enum its engine arm holds.
-    "MeasureRefusalClass": ("filed", "work/lib/measure-refusal-class-is-a-rung-under-"
-                            "refusal-reason.md"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
     "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
@@ -376,10 +371,6 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Distribution": ("argued", "the parameter vocabulary is `document`'s and is spelled "
                                "once; the general rule is at the payload-rule header of "
                                "crates/pncad/src/document.rs"),
-    "MeasureUnavailableAt": ("argued", "the measurement vocabulary is `document`'s and is "
-                                       "spelled once; the general rule is at the "
-                                       "payload-rule header of "
-                                       "crates/pncad/src/document.rs"),
     # A node's standing is the evaluation's own vocabulary — the refusal of
     # `Evaluation::usable`, carried beside `Evaluation` on `document` — and the
     # select-list refusals (hit test, pick, name lookup, name read, resolution,

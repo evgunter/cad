@@ -275,22 +275,19 @@ class TestTheAssertionRowsAreEmpirical(unittest.TestCase):
         doc = Doc()
         prism = slab(doc, Distribution.normal(SIGMA * m))
         ev = evaluate(doc)
-        clearance = doc.insert(
-            Node.measure(MeasurePrimitive.min_clearance((prism, face_at_height(ev, prism, 0.0)), (prism, face_at_height(ev, prism, NOMINAL))))
-        )
         assertion = doc.insert(
-            Node.assertion(doc.output(clearance), AssertionRelation.AtLeast, doc.parse_formula("1 mm"))
+            Node.clearance(
+                (prism, face_at_height(ev, prism, 0.0)),
+                (prism, face_at_height(ev, prism, NOMINAL)),
+                at_least=doc.parse_formula("1 mm"),
+            )
         )
         report = monte_carlo(doc, analyzed_box(doc), McConfig(samples=8))
         row = next(r for r in report.assertions if r.node == assertion)
+        # A clearance is decided by the certified sweep and this lane
+        # evaluates at `f64`, so no draw decides it.
         self.assertIsNone(row.violation_fraction)
         self.assertEqual(row.unevaluated, 8)
-        # And its measure is unmeasured at every draw: a
-        # `min_clearance`'s value is an enclosure and this lane
-        # evaluates at `f64`, so there is nothing for it to estimate.
-        measured = next(r for r in report.measures if r.node == clearance)
-        self.assertEqual(measured.unmeasured, 8)
-        self.assertEqual(measured.measured, 0)
 
 
 class TestTheScheduleChangesNothing(unittest.TestCase):

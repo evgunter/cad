@@ -201,6 +201,9 @@ pub enum OperandSlot {
     /// Reference `i` of a measure, in argument order, under its
     /// primitive (which decides what the reference admits).
     Measured(crate::MeasureVerb, u8),
+    /// Seat `i` of a clearance assertion ([`crate::Claim::Clearance`]):
+    /// a body, or one face.
+    Cleared(u8),
     /// A split's plane.
     Tool,
     /// The body a subtract cuts.
@@ -234,7 +237,7 @@ impl OperandSlot {
             Self::Open => Some(format!("open face {reference}")),
             Self::Face => Some("face".to_owned()),
             Self::Traced(i) => Some(format!("traced face {i}")),
-            Self::Measured(_, i) => Some(format!("reference {i}")),
+            Self::Measured(_, i) | Self::Cleared(i) => Some(format!("reference {i}")),
             Self::Side { constraint, side } => Some(format!("{constraint} side {}", side.name())),
             _ => None,
         }
@@ -258,7 +261,7 @@ impl OperandSlot {
                 format!("constraint {constraint} side {}", side.name())
             }
             Self::Source => "source".to_owned(),
-            Self::Measured(_, i) => format!("reference {}", u16::from(i) + 1),
+            Self::Measured(_, i) | Self::Cleared(i) => format!("reference {}", u16::from(i) + 1),
             Self::Tool => "tool".to_owned(),
             Self::From => "from".to_owned(),
             Self::Cut => "tool".to_owned(),
@@ -292,6 +295,7 @@ impl OperandSlot {
             // two sides agree (`MateFault::KindsDiffer`).
             Self::Side { .. } => SlotKind::Pose(crate::pose::PoseAdmits::Any),
             Self::Measured(verb, _) => SlotKind::Measured(verb),
+            Self::Cleared(_) => SlotKind::Cleared,
             // A placement copies a body, or a family read whole.
             Self::Input | Self::Source => SlotKind::Placeable,
         }
@@ -312,8 +316,8 @@ impl core::fmt::Display for OperandSlot {
 /// [`SlotKind::Is`]. One operand seat admits a set of kinds:
 /// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
 /// one body or a list of them), and [`SlotKind::Measured`] the kinds
-/// its primitive admits ([`crate::MeasureVerb::admits`]: one entity, or
-/// for `min_clearance` a whole body).
+/// its primitive admits ([`crate::MeasureVerb::admits`]: one entity),
+/// and [`SlotKind::Cleared`] a body or a face.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum SlotKind {
     /// Exactly this kind: a seat's own, or a scalar slot's dimension.
@@ -323,6 +327,8 @@ pub enum SlotKind {
     /// What a reference of this primitive admits
     /// ([`crate::MeasureVerb::admits`]).
     Measured(crate::MeasureVerb),
+    /// A clearance seat's: a `Body` (all of its faces) or a `Face`.
+    Cleared,
     /// What a pose definition's read admits beyond one kind
     /// ([`crate::pose::PoseAdmits::kinds`]).
     Pose(crate::pose::PoseAdmits),
@@ -337,6 +343,7 @@ impl SlotKind {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
             Self::Measured(verb) => verb.admits(kind),
+            Self::Cleared => matches!(kind, VarKind::Body | VarKind::Face),
             Self::Pose(admits) => admits.kinds().contains(&kind),
         }
     }
@@ -357,7 +364,7 @@ impl SlotKind {
             // The singleton of the names' entity kind, whether or not
             // the primitive admits it: the door mints it and the read's
             // kind check refuses it as any seat's would.
-            Self::Measured(_) => match entity {
+            Self::Measured(_) | Self::Cleared => match entity {
                 E::Face => Some(VarKind::Face),
                 E::Edge => Some(VarKind::Edge),
                 E::Vertex => Some(VarKind::Vertex),
@@ -383,6 +390,7 @@ impl core::fmt::Display for SlotKind {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
             Self::Measured(verb) => f.write_str(&verb.admitted()),
+            Self::Cleared => f.write_str("a body or a face"),
             Self::Pose(admits) => {
                 let said: Vec<String> = admits
                     .kinds()

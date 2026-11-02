@@ -85,11 +85,11 @@ fn with_gap(doc: &ProfileDoc, outer: &FaceSite, inner: &FaceSite) -> (ProfileDoc
     let value = crate::fixture::value_of(&d, measure);
     insert(
         d,
-        Node::Assertion {
+        Node::Assertion(editor_core::Claim::Value {
             value,
             bound: len(-1e-5),
             relation: AssertionRelation::AtMost,
-        },
+        }),
     )
 }
 

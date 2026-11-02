@@ -397,11 +397,11 @@ fn bracket_with(
     let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     let web = Formula::sub(r.len_of(measured.outputs[0]), div(w(), 8.0)).unwrap();
 
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: web,
         bound: len(7.0e-3),
         relation: editor_core::AssertionRelation::AtLeast,
-    });
+    }));
     let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }

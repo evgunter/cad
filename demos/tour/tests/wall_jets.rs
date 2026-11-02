@@ -89,6 +89,8 @@ fn class<W>(verdict: &BoundVerdict<W>) -> &'static str {
     match verdict {
         BoundVerdict::Holds => "Holds",
         BoundVerdict::Violated(_) => "Violated",
+        BoundVerdict::Within(_) => "Within",
+        BoundVerdict::Exceeded => "Exceeded",
         BoundVerdict::Refused(_) => "Refused",
     }
 }

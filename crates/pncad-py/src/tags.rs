@@ -129,11 +129,10 @@ use pncad::document::{
     AtRestEvidence, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, DimensionError,
     Distribution, DistributionFault, DistributionField, EditError, EvalError, FlattenError,
     InlineError, InterfaceCrossing, LeverRefusal, LoftFault, Maintenance, MateFault,
-    MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PinRefusal, ProductReadFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
-    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized,
-    UpdateError,
+    MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind, NodeStanding, ParseError,
+    PersistError, PinRefusal, ProductReadFault, ProgramFault, ProgramRefusal, ReachRefusal,
+    RecordedProgramError, ResolveFault, ShellClassifyError, SlotId, SnapshotError, SplitError,
+    StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -557,6 +556,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Side { .. } => "side",
         S::Source => "source",
         S::Measured(..) => "measured",
+        S::Cleared(_) => "cleared",
         S::Tool => "tool",
         S::From => "from",
         S::Cut => "cut",
@@ -779,20 +779,6 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
     }
 }
 
-/// The stable tag for a measure with no value at this build's scalar.
-///
-/// Deliberately NOT sharing a function with
-/// [`measure_unavailable_tag`] one screen up: that one is the
-/// ANALYSIS lane's band refusal and this one the MEASUREMENT lane's
-/// missing enclosure, two kernel types whose names differ by one word
-/// and whose questions do not overlap at all.
-pub fn measure_unavailable_at_tag(reason: &MeasureUnavailableAt) -> &'static str {
-    match reason {
-        MeasureUnavailableAt::NeedsEnclosure { .. } => "needs_enclosure",
-        MeasureUnavailableAt::NoUpperBound { .. } => "no_upper_bound",
-    }
-}
-
 /// The stable tag for a policy the analysis lane cannot honour.
 pub fn analysis_policy_error_tag(err: &AnalysisPolicyError) -> &'static str {
     match err {
@@ -901,10 +887,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MeasureUnsupported => "measure_unsupported",
         C::MeasureNotParallel => "measure_not_parallel",
         C::MeasureNonFinite => "measure_non_finite",
-        // And its own again: the clearance engine refused, so the
-        // recourse is the engine's — a wider budget, an admitted
-        // carrier — and not the measurement vocabulary's.
-        C::MeasureClearanceRefused => "measure_clearance_refused",
         C::PayloadExpr => "payload_expr",
         C::AssertionDimension => "assertion_dimension",
         C::ToleranceConflict => "tolerance_conflict",
@@ -1119,10 +1101,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         // match, so the pair stays in the prose it is already in.
         NodeErrorKind::MeasureUnsupported(_) => None,
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
-        // The clearance engine's class name is a `&str` the engine
-        // mints, not a discriminant this crate can match; it is already
-        // the whole of the message.
-        NodeErrorKind::MeasureClearanceRefused(_) => None,
         NodeErrorKind::AssertionDimension { .. } => None,
     }
 }

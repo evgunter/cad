@@ -16,7 +16,7 @@ use std::collections::BTreeMap;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
     CertificateArm, ClearanceRefusal, ClearanceVerdict, EngineRefusal, FaceScope,
-    MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which, clearance,
+    MinSeparationRefusal, Selection, SelectionRefusal, SharedCell, Which,
 };
 use editor_core::{EntityKind, Entry, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName};
 use geom_core::{BandError, Tol};
@@ -32,7 +32,7 @@ fn tagged() -> RecipeNodeId {
 /// The selection refusal a clearance between `a` and `b` answers.
 fn refused_selection(doc: &ProfileDoc, a: &Selection, b: &Selection) -> SelectionRefusal {
     let leaf = ParamBox::from_axes(BTreeMap::new());
-    let report = clearance(doc, &leaf, a, b, 0.1, Tol::witness());
+    let report = crate::fixture::selection_clearance(doc, &leaf, a, b, 0.1, Tol::witness());
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(r)) => r.clone(),
         other => panic!("expected a selection refusal, got {other:?}"),
@@ -132,7 +132,8 @@ fn a_refused_report_renders_the_refusal_in_words() {
     let whole = Selection::body_of(RecipeNodeId::new(0, 7));
     let doc = ProfileDoc::empty_derived("cleartext_render", Tol::witness());
     let leaf = ParamBox::from_axes(BTreeMap::new());
-    let report = clearance(&doc, &leaf, &whole, &nothing, 0.1, Tol::witness());
+    let report =
+        crate::fixture::selection_clearance(&doc, &leaf, &whole, &nothing, 0.1, Tol::witness());
     let rendered = report.render();
     assert_eq!(
         rendered.lines().next(),
@@ -194,16 +195,6 @@ fn a_one_face_refusal_names_its_side() {
         collapsed.payload(),
         "second=FaceKey(null) VertexKey(null)",
         "the collapsed chart's payload names its side"
-    );
-    let measured = editor_core::NodeErrorKind::MeasureClearanceRefused(
-        MinSeparationRefusal::PoisonEnclosure { a: k, b: k },
-    );
-    assert_eq!(
-        measured.to_string(),
-        "the clearance engine refused: the enclosure between face FaceKey(null) of the first \
-         operand and face FaceKey(null) of the second operand did not evaluate, which is \
-         geometry, not a budget",
-        "the measure door says the engine's words, its operands the sides"
     );
     let name = StableName {
         kind: EntityKind::Face,

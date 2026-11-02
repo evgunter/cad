@@ -1,6 +1,6 @@
 //! **Authoring a measurement** (ERROR-DESIGN E3/E10, CONTACT-DESIGN
-//! C5): the vocabulary a `Node.measure` and a `Node.assertion` are
-//! built from, and the refusal the fourth verb adds.
+//! C5): the vocabulary a `Node.measure`, a `Node.assertion` and a
+//! `Node.clearance` are built from.
 //!
 //! The READING half ships in `py/value.rs` — `Value.measure` answers a
 //! `Measurement`, `Evaluation.reading` a measured value no node holds,
@@ -32,67 +32,25 @@
 //! measuring it gives the moved number; naming the minting node gives
 //! the authored one. Both are legal and they are different questions.
 //!
-//! # The fourth verb, and the scalar it needs
+//! # A clearance is a requirement, not a measure
 //!
-//! `min_clearance` is answered by an engine rather than a closed form,
-//! and its value is an ENCLOSURE. Python evaluates at `f64` alone, and
-//! a point scalar has nowhere to put one: the measure evaluates fine
-//! and has no value, which reaches a caller as
-//! [`MeasureUnavailableAt`](crate::errors::ErrorClass::MeasureUnavailableAt)
-//! naming the verb, the scalar and the door that could answer. That is
-//! a typed ABSENCE and not a failure, which is why an assertion over
-//! such a measure reports `Unevaluated` rather than being poisoned.
-//!
-//! The engine's own refusal (`MinSeparationRefusal`) is therefore not
-//! reachable from Python at all: only a certifying scalar holds the
-//! engine's door, and the binding does not evaluate at one. It
-//! would arrive as `EvaluationError` with
-//! `kind == "measure_clearance_refused"` the day Python gains a
-//! certified scalar, and it should gain its spelling in the unit that
-//! brings one.
+//! The minimum distance between two bodies is never a value: it is
+//! stated as a requirement, `Node.clearance`, whose verdict comes from
+//! the certified sweep at its bounds. Its seats are the same `(NodeId,
+//! str)` pairs a cell reference here takes.
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
 
-use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::typed_err;
-use crate::tags::measure_unavailable_at_tag;
+use crate::errors::dimension_tag;
 use pncad::document as d;
 
 use super::doc::NodeId;
 
-/// Raise `MeasureUnavailableAt` — the typed absence a point scalar
-/// answers an enclosure-valued measure with.
-///
-/// Every field of every arm, and the DOOR among them: the refusal
-/// carries where the answer lives rather than a worse answer, which
-/// is the whole shape of the kernel type.
-pub(crate) fn measure_unavailable_at_err(
-    py: Python<'_>,
-    reason: &d::MeasureUnavailableAt,
-) -> PyErr {
-    let (d::MeasureUnavailableAt::NeedsEnclosure { verb, scalar, door }
-    | d::MeasureUnavailableAt::NoUpperBound { verb, scalar, door }) = reason;
-    let text = |s: &str| PyString::new(py, s).unbind().into_any();
-    typed_err(
-        py,
-        ErrorClass::MeasureUnavailableAt,
-        reason.to_string(),
-        &[
-            ("variant", text(measure_unavailable_at_tag(reason))),
-            ("verb", text(verb)),
-            ("scalar", text(scalar)),
-            ("door", text(door)),
-        ],
-    )
-}
-
 /// **Which closed-form measurement a measure computes**, and of which
 /// two references.
 ///
-/// Four verbs and no fifth. `distance` and `angle` are the two
-/// geometric readings, `gap` is C5's SIGNED mating gap, and
-/// `min_clearance` is the one an engine answers.
+/// Three verbs. `distance` and `angle` are the two geometric
+/// readings, and `gap` is C5's SIGNED mating gap.
 ///
 /// The shape is `StationMove`'s: a frozen value class of static
 /// constructors, one per kernel arm, spelled in snake case. Each reference is a `(node, name)` pair: the entity's stable
@@ -108,7 +66,7 @@ pub(crate) struct MeasurePrimitive {
 }
 
 /// A `(node, name)` pair as the kernel's sited reference.
-fn sited((at, name): (NodeId, String)) -> PyResult<d::SitedRef> {
+pub(crate) fn sited((at, name): (NodeId, String)) -> PyResult<d::SitedRef> {
     Ok(d::SitedRef::new(at.0, super::doc::name_from_text(&name)?))
 }
 
@@ -186,29 +144,6 @@ impl MeasurePrimitive {
         })
     }
 
-    /// **The minimum clearance between two selections** — a `Length`,
-    /// and the one verb whose value is an ENCLOSURE.
-    ///
-    /// Each reference's entity kind is the selection's face scope: a
-    /// BODY reference selects every face of that body, a FACE
-    /// reference selects the one. Anything else (an edge, a vertex)
-    /// refuses when the measure is inserted, `slot_var_kind`.
-    ///
-    /// At the `f64` scalar Python evaluates at, this measure HAS NO
-    /// VALUE: a station pair found by a point-scalar search is an
-    /// upper bound on the minimum rather than the minimum, and
-    /// reporting one would be the degradation E7 forbids by name. So
-    /// `Value.measure` raises `MeasureUnavailableAt` naming the door
-    /// that could answer, and an assertion over it reports
-    /// `Unevaluated` carrying the same reason. The measure node itself
-    /// evaluates successfully — the absence is a value, not a failure.
-    #[staticmethod]
-    fn min_clearance(a: (NodeId, String), b: (NodeId, String)) -> PyResult<Self> {
-        Self::of(MeasureRef::Cell(a), MeasureRef::Cell(b), |a, b| {
-            d::MeasurePrimitive::MinClearance { a, b }
-        })
-    }
-
     /// C5's SIGNED gap between a mating pair — a `Length`.
     ///
     /// **Argument order is the mating ROLE, not a symmetry.** `outer`
@@ -233,8 +168,8 @@ impl MeasurePrimitive {
         })
     }
 
-    /// The verb, as the one stable word: `"distance"`, `"angle"`,
-    /// `"gap"` or `"min_clearance"` — the kernel's own `verb()`, which
+    /// The verb, as the one stable word: `"distance"`, `"angle"` or
+    /// `"gap"` — the kernel's own `verb()`, which
     /// is also what its refusals name themselves with.
     #[getter]
     fn verb(&self) -> &'static str {

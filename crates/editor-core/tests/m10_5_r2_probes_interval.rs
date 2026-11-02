@@ -325,7 +325,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
@@ -928,7 +928,7 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
             &sel,
             &sel,
             &ClearanceQuery {
-                bound: ClearanceBound::AtLeast(c),
+                bound: ClearanceBound::at_least(c),
                 tol: Tol::witness(),
                 config: ClearanceConfig {
                     pruning: Pruning::Facets,
@@ -965,7 +965,7 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
             &sel,
             &sel,
             &ClearanceQuery {
-                bound: ClearanceBound::AtLeast(c),
+                bound: ClearanceBound::at_least(c),
                 tol: Tol::witness(),
                 config: ClearanceConfig {
                     pruning: Pruning::Facets,
@@ -1003,7 +1003,7 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
         &sel,
         &sel,
         &ClearanceQuery {
-            bound: ClearanceBound::AtLeast(0.7),
+            bound: ClearanceBound::at_least(0.7),
             tol: Tol::witness(),
             config: ClearanceConfig {
                 pruning: Pruning::Facets,

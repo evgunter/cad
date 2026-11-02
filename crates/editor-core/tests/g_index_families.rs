@@ -203,11 +203,11 @@ fn sunk_fins(n: i64) -> (ProfileDoc, VarId, RecipeNodeId, RecipeNodeId) {
     let value = fixture::value_of(&doc, gap);
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion(editor_core::Claim::Value {
             value,
             bound: fixture::len(-0.1),
             relation: AssertionRelation::AtMost,
-        },
+        }),
     );
     (doc, k, fins, assertion)
 }

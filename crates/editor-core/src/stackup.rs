@@ -124,7 +124,6 @@ use geom_core::{Dual64, Readable, Tol};
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
-use crate::eval::measure::Observed;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, EvalOutcome, Evaluation, NodeErrorKind, NodeResult,
     evaluate,
@@ -236,9 +235,6 @@ pub enum SensitivityOutcome {
 pub enum RecordReading {
     /// The build of record measured the value.
     Measured(f64),
-    /// The measure has no value at `f64` by its own door (a
-    /// `min_clearance`, answered by an engine that needs an enclosure).
-    Unavailable(crate::measure::MeasureUnavailableAt),
     /// The value refused in the build of record: its measure, or a
     /// node under it, did not build.
     Refused {
@@ -251,9 +247,6 @@ impl core::fmt::Display for RecordReading {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Measured(v) => write!(f, "the f64 build of record measured {v:e}"),
-            Self::Unavailable(reason) => {
-                write!(f, "the f64 build of record has no value: {reason}")
-            }
             Self::Refused { cause } => write!(f, "the f64 build of record refused it: {cause}"),
         }
     }
@@ -541,8 +534,7 @@ pub fn sensitivities(
 /// nominal reading, the mark, and the entries — [`stackup()`] consumes
 /// all three, [`sensitivities`] keeps the entries.
 struct Driven {
-    nominal:
-        Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)>,
+    nominal: Result<f64, (Option<RecipeNodeId>, String)>,
     chamber: Chamber,
     entries: Vec<Sensitivity>,
 }
@@ -704,48 +696,14 @@ fn leaf_opts(box_: ParamBox, resolver: Option<&Arc<dyn crate::part::PartResolver
     }
 }
 
-/// The stackup's NOMINAL column: the f64 value, or the typed reason
-/// there is none — distinguished from a measure that genuinely failed,
-/// which stays an error.
-///
-/// [`measure_of`] folds both into one `Err` because its other callers
-/// want that; this one is the report's advisory column and has to tell
-/// a forfeit from a fault.
-fn nominal_of(
-    doc: &Doc<ProfileProgram>,
-    ev: &Evaluation<f64>,
-    value: VarId,
-) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)> {
-    match ev.reading_spoken(doc, value)? {
-        Observed::Value(v) => Ok(Ok(v)),
-        Observed::Unavailable(reason) => Ok(Err(reason)),
-    }
-}
-
 /// The measured value of `value`, or the refusal rendered with the node
 /// it came from ([`Evaluation::reading`]).
-///
-/// **A measure with no value at this scalar reads as a refusal HERE**,
-/// carrying its own reason, and that is the honest shape rather than a
-/// gap in this report: E5's nominal is the f64 build's number, its
-/// per-param table is a `Dual` pass's, and a `min_clearance` has
-/// neither. So a stackup over one refuses `MeasureRefusedAtNominal`
-/// naming the scalar and the door, and the certified answer for such a
-/// measure is the per-leaf enclosure table
-/// ([`crate::report::LeafHistogram`]) rather than a nominal with
-/// contributions around it.
 fn measure_of<T: geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     value: VarId,
 ) -> Result<T, (Option<RecipeNodeId>, String)> {
-    match ev.reading_spoken(doc, value)? {
-        Observed::Value(v) => Ok(v),
-        Observed::Unavailable(reason) => Err((
-            Some(crate::eval::measure::unavailable_at(doc, value)),
-            format!("{reason}"),
-        )),
-    }
+    ev.reading_spoken(doc, value)
 }
 
 // ------------------------------------------------------- the binding
@@ -863,8 +821,7 @@ impl BuildIdentity {
 struct Record {
     identity: BuildIdentity,
     /// The measured value's reading in the build of record.
-    nominal:
-        Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)>,
+    nominal: Result<f64, (Option<RecipeNodeId>, String)>,
 }
 
 /// Why a pass yields no entry: the binding refused it, or its measured
@@ -895,15 +852,14 @@ impl Record {
         }
         Ok(Self {
             identity: BuildIdentity::of(ev)?,
-            nominal: nominal_of(doc, ev, value),
+            nominal: measure_of(doc, ev, value),
         })
     }
 
     /// What the build of record read for the measured value.
     fn reading(&self) -> RecordReading {
         match &self.nominal {
-            Ok(Ok(v)) => RecordReading::Measured(*v),
-            Ok(Err(reason)) => RecordReading::Unavailable(*reason),
+            Ok(v) => RecordReading::Measured(*v),
             Err((_, cause)) => RecordReading::Refused {
                 cause: cause.clone(),
             },
@@ -1189,9 +1145,7 @@ impl core::fmt::Display for Unavailable {
                          leaves unrun at a dual, or a decision the two scalars took \
                          differently (a D9 break)"
                     ),
-                    RecordReading::Unavailable(_) | RecordReading::Refused { .. } => {
-                        write!(f, " ({record})")
-                    }
+                    RecordReading::Refused { .. } => write!(f, " ({record})"),
                 }
             }
             Self::Unliftable { var } => write!(
@@ -1298,22 +1252,8 @@ pub struct Stackup {
     pub measurement: VarId,
     /// The f64 build of record's measured value — read from the
     /// evaluation the passes were bound to (the handed one, or the
-    /// driver's own build) — or the typed reason there is none.
-    ///
-    /// **Absent rather than missing** (M10-6, R2's MINOR-3). The
-    /// nominal is an ADVISORY column: E5 puts the certified worst case
-    /// first and calls it the only gating number, and E9's rule is that
-    /// a degraded advisory column forfeits while the gate stays. A
-    /// `min_clearance` measure has no f64 value by construction — it is
-    /// answered by an engine that needs an enclosure — and refusing the
-    /// whole report for it inverted that rule: the worst case IS
-    /// computable from the certified leaves' enclosures, and it was
-    /// being withheld because an advisory number beside it was not.
-    ///
-    /// So this forfeits, `per_param` and `rss` forfeit with it (they
-    /// are a `Dual` pass's and there is no tangent either), and
-    /// `worst_case` is built and gates.
-    pub nominal: Result<f64, crate::measure::MeasureUnavailableAt>,
+    /// driver's own build).
+    pub nominal: f64,
     /// The nominal's chamber — the one mark every derivative row
     /// carries, stated once so a nominal in refused mass is visible
     /// without walking the rows.
@@ -1354,12 +1294,9 @@ impl Stackup {
         let mut s = String::new();
         let _ = writeln!(
             s,
-            "stackup measure={} nominal={} chamber={}",
+            "stackup measure={} nominal={:016x} chamber={}",
             self.measurement.full(),
-            match &self.nominal {
-                Ok(v) => format!("{:016x}", v.to_bits()),
-                Err(why) => format!("unavailable:{}", why.verb()),
-            },
+            self.nominal.to_bits(),
             match &self.chamber {
                 Chamber::ChamberCertified {
                     verdict_vector_key, ..
@@ -1465,29 +1402,15 @@ impl Stackup {
             Readable(self.worst_case.hi),
             self.worst_case.leaves
         );
-        match &self.nominal {
-            Ok(v) => {
-                let _ = writeln!(
-                    s,
-                    "  nominal (f64 build): {}  [{}]",
-                    Readable(*v),
-                    match &self.chamber {
-                        Chamber::ChamberCertified { .. } =>
-                            "the nominal sits in a certified chamber",
-                        Chamber::LocalOnly => "LOCAL ONLY: the nominal's chamber was not certified",
-                    }
-                );
+        let _ = writeln!(
+            s,
+            "  nominal (f64 build): {}  [{}]",
+            Readable(self.nominal),
+            match &self.chamber {
+                Chamber::ChamberCertified { .. } => "the nominal sits in a certified chamber",
+                Chamber::LocalOnly => "LOCAL ONLY: the nominal's chamber was not certified",
             }
-            // The advisory column forfeits and SAYS SO — E9's rule,
-            // and the gating line above it is unaffected.
-            Err(why) => {
-                let _ = writeln!(
-                    s,
-                    "  nominal (f64 build): UNAVAILABLE (advisory column forfeited, the \
-                     worst case above still gates) — {why}"
-                );
-            }
-        }
+        );
         let _ = writeln!(s, "  ADVISORY, never gating:");
         let _ = write!(s, "{}", render_rss(&self.rss, doc));
         for row in &self.per_param {
@@ -1602,7 +1525,7 @@ fn sensitivity_text(outcome: &SensitivityOutcome, node: impl Fn(RecipeNodeId) ->
                 RecordReading::Measured(v) => {
                     format!(" (the f64 build of record measured {v:e}: the dual's refusal alone)")
                 }
-                RecordReading::Unavailable(_) | RecordReading::Refused { .. } => String::new(),
+                RecordReading::Refused { .. } => String::new(),
             };
             format!("refused{at}: {cause}{alone}")
         }
@@ -1680,9 +1603,8 @@ pub enum StackupRefusal {
     /// and the drive's accounting and receipt saying where the mass
     /// went — so a real study's answer is legible from the refusal.
     NothingCertified {
-        /// The f64 build's measured value, or the typed reason there
-        /// is none (M10-6; see [`Stackup::nominal`]).
-        nominal: Result<f64, crate::measure::MeasureUnavailableAt>,
+        /// The f64 build's measured value.
+        nominal: f64,
         /// The driver's entries, every derivative marked
         /// [`Chamber::LocalOnly`].
         sensitivities: Vec<Sensitivity>,
@@ -1816,17 +1738,9 @@ pub fn stackup(
     )
     .map_err(StackupRefusal::Sensitivity)?;
 
-    // **The nominal, read from the build of record — and
-    // FORFEITED rather than fatal when the measure has no f64 value**
-    // (M10-6, R2's MINOR-3). E5 makes the certified worst case the only
-    // gating number and E9 says a degraded advisory column forfeits
-    // while the gate stays; refusing the whole report because an
-    // advisory number is missing inverted both. A `min_clearance` is
-    // exactly that case, by construction and at every f64 build.
-    //
-    // A measure that FAILED for any other reason is still fatal here:
-    // `measure_of`'s other error arms mean the node did not evaluate,
-    // which is a broken report and not a forfeited column.
+    // The nominal, read from the build of record. A measure that failed
+    // is fatal here: the node did not evaluate, which is a broken
+    // report and not a forfeited column.
     let nominal = match nominal {
         Ok(n) => n,
         Err((node, cause)) => {

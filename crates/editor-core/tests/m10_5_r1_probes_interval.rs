@@ -20,13 +20,14 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use bvh::Aabb;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
     ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, NoTangents, Selection, Which,
-    clearance, clearance_over, clearance_with, self_intersection,
+    clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -651,7 +652,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &r.doc,
         &box_of(&r.doc, "place"),
         &sq,
@@ -701,7 +702,7 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
             &leaf,
             &sa,
             &sb,
-            &query(ClearanceBound::AtLeast(c), config),
+            &query(ClearanceBound::at_least(c), config),
         );
         assert!(report.receipt().holds(), "c = {c}: {}", report.serialize());
         report
@@ -774,7 +775,8 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         body: 0,
         faces: FaceScope::Named(vec![]),
     };
-    let vacuous = clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
+    let vacuous =
+        crate::fixture::selection_clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
     println!("[r1] empty selection: {}", vacuous.serialize());
     assert!(
         matches!(
@@ -814,14 +816,14 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         &leaf,
         &twice,
         &sb,
-        &query(ClearanceBound::AtLeast(0.5), cfg_small),
+        &query(ClearanceBound::at_least(0.5), cfg_small),
     );
     let single = clearance_with(
         &doc,
         &leaf,
         &once,
         &sb,
-        &query(ClearanceBound::AtLeast(0.5), cfg_small),
+        &query(ClearanceBound::at_least(0.5), cfg_small),
     );
     assert!(doubled.receipt().holds());
     assert!(doubled.receipt().candidates >= 1, "{}", doubled.serialize());
@@ -842,7 +844,7 @@ fn a_nan_bound_is_not_refused_at_the_door() {
         &sa,
         &sb,
         &query(
-            ClearanceBound::AtLeast(f64::NAN),
+            ClearanceBound::at_least(f64::NAN),
             ClearanceConfig {
                 budgets: Budgets {
                     max_cell_pairs: 4_096,
@@ -882,7 +884,7 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let q = query(
-        ClearanceBound::AtLeast(0.4),
+        ClearanceBound::at_least(0.4),
         ClearanceConfig {
             budgets: Budgets {
                 max_cell_pairs: 16_384,
@@ -1033,7 +1035,8 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     };
     for (c, expect) in [(0.3, "Holds"), (0.45, "Holds"), (0.55, "Violated")] {
         let started = std::time::Instant::now();
-        let report = clearance(&doc, &leaf, &inner, &ss, c, Tol::witness());
+        let report =
+            crate::fixture::selection_clearance(&doc, &leaf, &inner, &ss, c, Tol::witness());
         println!(
             "[r1 e2e] c = {c}: {:?} {}",
             started.elapsed(),
@@ -1088,7 +1091,10 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         &verdict,
         &sc,
         &ss,
-        &ClearanceQuery::at_least(0.3, Tol::witness()),
+        &ClearanceQuery {
+            bound: ClearanceBound::at_least(0.3),
+            ..ClearanceQuery::strictly_positive(Tol::witness())
+        },
     );
     println!(
         "[r1 e2e] fold: leaves = {}, verdict = {:?}",
@@ -1145,7 +1151,7 @@ fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
         &sa,
         &sb,
         &query(
-            ClearanceBound::AtLeast(0.5),
+            ClearanceBound::at_least(0.5),
             ClearanceConfig {
                 budgets: Budgets {
                     max_cell_pairs: 4,

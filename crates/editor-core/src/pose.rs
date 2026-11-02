@@ -1032,7 +1032,9 @@ pub fn role_kind(
     let admitted = match admits {
         crate::SlotKind::Is(is) => is == kind,
         crate::SlotKind::Pose(set) => set.kinds().contains(&kind),
-        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) => false,
+        crate::SlotKind::Placeable | crate::SlotKind::Measured(_) | crate::SlotKind::Cleared => {
+            false
+        }
     };
     (found == role.of() && admitted).then_some(kind)
 }

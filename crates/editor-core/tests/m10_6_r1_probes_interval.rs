@@ -12,21 +12,20 @@
 //!
 //! What the rows attack, in order:
 //!
-//! 1. `min_clearance`'s enclosure over TRIMMED faces: the engine
+//! 1. A clearance over TRIMMED faces: the engine
 //!    subdivides carrier WINDOWS (bounding rectangles), so a non-convex
 //!    face's window covers material the face does not have. On the
 //!    L-shaped cap below a window pair straight across the notch belongs
-//!    to neither face; the bracket must still contain the faces' own
-//!    separation, and neither assertion arm may read a verdict the faces
+//!    to neither face; neither assertion arm may read a verdict the faces
 //!    contradict.
-//! 2. The unary elaboration (D8): `min_clearance(body, body)` on one
+//! 2. The unary elaboration (D8): `clearance(body, body)` on one
 //!    body. It was the selection's self-clearance over the pairs the
 //!    wedge rule kept; a clearance is metric now (E7, *Self-intersection
 //!    scope*), so the body meets itself and reads exactly 0, named on
 //!    the shared cell.
 //! 3. `drive::certifying_vector` moves the witness-vector key of every
 //!    assertion-carrying document (claim 1's "bit-identical keys" for
-//!    documents without `min_clearance`).
+//!    documents without a clearance).
 //! 4. `report_key` omits the drive/MC config, so two different reports
 //!    over one (slice, box, ε, K) tuple share a key.
 //! 5. Row 1's three reds, as rows: a planted `Violated`, a planted
@@ -41,7 +40,7 @@
 //! 7. A caption check: an enclosure that STRADDLES the bound is
 //!    `Unevaluated` at the node while `worst_case.lo < bound` — the
 //!    tour's "FAILS somewhere in the box" reading.
-//! 8. The MC lane over a `min_clearance` document.
+//! 8. The MC lane over a clearance document.
 //! 9. An end-to-end consumer walk on a bracket (post over base), through
 //!    the public doors: drive, stackup, fold, histogram, MC, budget.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -57,11 +56,12 @@ use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionRelation, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    AssertionRelation, AssertionVerdict, CancelToken, CapEnd, ClearanceBounds, Dimension,
+    Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, UnitSym, ValuePayload,
+    VarName, evaluate,
 };
-use geom_core::{Bounds, Tol};
+use geom_core::Tol;
 use topo::clearance::{Budgets, Side, min_separation};
 
 use fixture::{Recorder, len};
@@ -106,6 +106,15 @@ fn on_lane(
         Tol::witness(),
     )
     .expect("an assertion node has a verdict over a certified leaf")
+}
+
+/// The clearance bounds `relation` reads at `bound`.
+fn bounds(relation: AssertionRelation, bound: f64) -> ClearanceBounds<Formula> {
+    match relation {
+        AssertionRelation::AtLeast => ClearanceBounds::AtLeast(len(bound)),
+        AssertionRelation::AtMost => ClearanceBounds::AtMost(len(bound)),
+        AssertionRelation::Equal => ClearanceBounds::Equal(len(bound)),
+    }
 }
 
 fn assertion_verdict<T: geom_core::Decide>(
@@ -158,29 +167,17 @@ const LIFT: f64 = 0.1;
 const OFFSET: f64 = 0.25;
 
 /// An L-shaped prism (notch at `x, y ∈ [1, 2]`) and a small block parked
-/// over the notch at height `LIFT`, with `min_clearance` between the L's
+/// over the notch at height `LIFT`, with a clearance between the L's
 /// top cap and the block's underside asserted against `bound`.
-fn notch(
-    bound: f64,
-    relation: AssertionRelation,
-) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
+fn notch(bound: f64, relation: AssertionRelation) -> (ProfileDoc, RecipeNodeId) {
     let n = notch_nodes(bound, relation);
-    (n.doc, n.measure, n.assertion)
+    (n.doc, n.assertion)
 }
 
 /// [`notch`]'s nodes, named.
 struct Notch {
     doc: ProfileDoc,
-    measure: editor_core::VarId,
-    /// The measure node.
-    measure_node: RecipeNodeId,
     assertion: RecipeNodeId,
-    /// The L, which mints and holds its cap.
-    ell: RecipeNodeId,
-    /// The block, which mints its underside's name.
-    block: RecipeNodeId,
-    /// The block placed over the notch, where the underside is read.
-    block_at: RecipeNodeId,
 }
 
 fn notch_nodes(bound: f64, relation: AssertionRelation) -> Notch {
@@ -208,27 +205,14 @@ fn notch_nodes(bound: f64, relation: AssertionRelation) -> Notch {
         block,
         &editor_core::Frame::translation([0.0, 0.0, 1.0 + LIFT]),
     );
-    let measured = r.measure(
-        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-        &[
-            crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-            SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
-        ],
-    );
-    let (measure, measure_node) = (measured.outputs[0], measured.measures[0]);
-    let assertion = r.insert(Node::Assertion {
-        value: fixture::read_var(&r.doc, measure),
-        bound: len(bound),
-        relation,
-    });
+    let assertion = r.insert(Node::clearance(
+        crate::fixture::sited_ref(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(block_at, fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+        bounds(relation, bound),
+    ));
     Notch {
         doc: r.doc,
-        measure,
-        measure_node,
         assertion,
-        ell,
-        block,
-        block_at,
     }
 }
 
@@ -240,103 +224,18 @@ fn true_notch_clearance() -> f64 {
     (OFFSET * OFFSET + LIFT * LIFT).sqrt()
 }
 
-/// **The notch bracket contains the faces' separation, at every
-/// budget.** The L cap's carrier window is its bounding square, which
-/// covers the notch, so a window pair straight under the block sits
-/// `LIFT` apart. The engine reads its upper end only off cells decided
-/// inside their faces and stations the point doors place on them, so
-/// the bracket brackets `0.269`, the faces' own separation, and not the
-/// windows' `0.1`: through the measure, and through the engine's door
-/// at four cell budgets.
+/// **The engine's readings stay out of the clearance node's log.** The
+/// notch's sweep decides cells and stations at every level, and every
+/// one of those readings runs in the unlogged scope (audit row F30), so
+/// the node records none of their rows and none of their in-band
+/// escalations. Breaks if the scope is removed: measured, the node then
+/// holds 2140 region-reading verdicts and 297 escalations.
 #[test]
-fn the_notch_bracket_contains_the_faces_separation() {
+fn the_notch_clearance_records_none_of_the_engines_region_readings() {
     let n = notch_nodes(0.2, AssertionRelation::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&n.doc, None);
-    let truth = true_notch_clearance();
-    let value =
-        fixture::reading(&n.doc, &ev, n.measure).expect("the measure has an interval value");
-    eprintln!(
-        "notch measure [{}, {}] vs faces {truth}",
-        value.lo(),
-        value.hi()
-    );
-    assert!(
-        value.lo() <= truth && truth <= value.hi() && LIFT < value.lo(),
-        "the measure [{}, {}] brackets the faces' {truth}, not the windows' {LIFT}",
-        value.lo(),
-        value.hi()
-    );
-    // Each side where it stands in its space, so the two are in one
-    // frame; the composition keeps the arena keys the names resolve to.
-    let face = |at: RecipeNodeId, minted: RecipeNodeId, end: CapEnd| {
-        let Some(NodeResult::Ok(v)) = ev.result(at) else {
-            panic!("node {} evaluated", at.0);
-        };
-        let ValuePayload::Body(body) = &v.payload else {
-            panic!("node {} is a body", at.0);
-        };
-        let name = fixture::fname(minted, RoleSeg::Cap(end));
-        let Some(editor_core::Entry::Unique(ent)) =
-            ev.table_at(at).expect("one table").lookup(&name)
-        else {
-            panic!("the cap name resolves uniquely");
-        };
-        let editor_core::EntityKey::Face(k) = ent.key else {
-            panic!("a cap name is a face");
-        };
-        (fixture::in_space(body), k)
-    };
-    let (ell, cap) = face(n.ell, n.ell, CapEnd::End);
-    let (block, underside) = face(n.block_at, n.block, CapEnd::Start);
-    let (cap, underside) = (
-        Side {
-            body: &ell,
-            faces: vec![cap],
-        },
-        Side {
-            body: &block,
-            faces: vec![underside],
-        },
-    );
-    for pairs in [4usize, 32, 128, 512] {
-        let m = min_separation(
-            &cap,
-            &underside,
-            false,
-            band(),
-            Budgets {
-                max_cell_pairs: pairs,
-                ..Budgets::MIN_SEPARATION
-            },
-        )
-        .expect("admitted");
-        eprintln!(
-            "notch @ pairs={pairs}: {}",
-            m.serialize().replace('\n', " | ")
-        );
-        let hi = m.hi().expect("a station pair is placed on both faces");
-        assert!(
-            m.lo() <= truth && truth <= hi,
-            "budget {pairs}: [{}, {hi}] brackets {truth}",
-            m.lo()
-        );
-    }
-}
-
-/// **The engine's region readings stay out of the measure node's log.**
-/// The notch's walk decides cells and stations at every level, and
-/// every one of those readings runs in the unlogged scope (audit row
-/// F28), so the node records none of their rows and none of their
-/// in-band escalations. What it does record is reading the block into
-/// the cap's frame. Breaks if the scope is removed: measured, the node
-/// then holds 3901 more verdicts, under the region doors' names, and
-/// 138 escalations.
-#[test]
-fn the_notch_measure_records_none_of_the_engines_region_readings() {
-    let n = notch_nodes(0.2, AssertionRelation::AtLeast);
-    let ev = eval_over::<geom_core::Interval>(&n.doc, None);
-    let Some(NodeResult::Ok(v)) = ev.result(n.measure_node) else {
-        panic!("the measure node evaluated");
+    let Some(NodeResult::Ok(v)) = ev.result(n.assertion) else {
+        panic!("the clearance node evaluated");
     };
     let region = |name: &str| {
         ["cell_region_", "bool_contact_", "point_in_loop_"]
@@ -346,7 +245,7 @@ fn the_notch_measure_records_none_of_the_engines_region_readings() {
     let leaked: Vec<_> = v.verdicts.iter().filter(|x| region(x.predicate)).collect();
     assert!(
         leaked.is_empty() && v.escalations.is_empty(),
-        "the measure node's log holds {} region-reading verdicts and {} escalations: {:?} {:?}",
+        "the clearance node's log holds {} region-reading verdicts and {} escalations: {:?} {:?}",
         leaked.len(),
         v.escalations.len(),
         leaked.iter().take(4).collect::<Vec<_>>(),
@@ -354,16 +253,16 @@ fn the_notch_measure_records_none_of_the_engines_region_readings() {
     );
 }
 
-/// `min_clearance(cap, underside) ≥ 0.2` holds on the faces (they are
+/// `clearance(cap, underside) ≥ 0.2` holds on the faces (they are
 /// 0.269 apart), so it never reads `Violated`.
 #[test]
 fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clear_it() {
-    let (doc, _, assertion) = notch(0.2, AssertionRelation::AtLeast);
+    let (doc, assertion) = notch(0.2, AssertionRelation::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
     let verdict = assertion_verdict(&ev, assertion);
     eprintln!("notch AtLeast 0.2 (true 0.269): {verdict:?}");
     assert!(
-        !matches!(verdict, AssertionVerdict::Violated { .. }),
+        verdict.holds() != Some(false),
         "the faces clear 0.2 by 35%, so a certified Violated is false: {verdict:?}"
     );
 }
@@ -371,13 +270,35 @@ fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clea
 /// And `≤ 0.15` never reads `Holds`.
 #[test]
 fn an_at_most_assertion_over_a_notch_does_not_read_holds_when_the_faces_exceed_it() {
-    let (doc, _, assertion) = notch(0.15, AssertionRelation::AtMost);
+    let (doc, assertion) = notch(0.15, AssertionRelation::AtMost);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
     let verdict = assertion_verdict(&ev, assertion);
     eprintln!("notch AtMost 0.15 (true 0.269): {verdict:?}");
     assert!(
-        !matches!(verdict, AssertionVerdict::Holds { .. }),
+        verdict.holds() != Some(true),
         "the faces are 0.269 apart, so `≤ 0.15` cannot hold: {verdict:?}"
+    );
+}
+
+/// **An upper bound over the notch is proved only by face points.**
+/// `clearance ≤ 0.3` holds — the faces are 0.269 apart — and the pair
+/// that proves it is two points of the FACES: the windows' pair straight
+/// across the notch, 0.1 apart, is no pair of the faces, so a proving
+/// pair closer than 0.269 sits off a trimmed face.
+#[test]
+fn an_upper_bound_over_a_notch_is_proved_only_by_face_points() {
+    let (doc, assertion) = notch(0.3, AssertionRelation::AtMost);
+    let ev = eval_over::<geom_core::Interval>(&doc, None);
+    let AssertionVerdict::Clearance(report) = assertion_verdict(&ev, assertion) else {
+        panic!("a clearance's verdict");
+    };
+    let editor_core::clearance::ClearanceVerdict::Within(w) = report.verdict() else {
+        panic!("the faces are within 0.3: {}", report.render());
+    };
+    let (d, truth) = (w.geometry.distance, true_notch_clearance());
+    assert!(
+        truth - band().zero() <= d && d <= 0.3,
+        "the proving pair is two face points, no closer than the faces' {truth}: {d}"
     );
 }
 
@@ -444,7 +365,7 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
 // ------------------------------------------------- 2. unary (D8)
 
 /// The dumbbell of the unit's own suite, but measured BODY against
-/// BODY: `min_clearance(sel, sel)` is E7's unary shape. It used to drop
+/// BODY: `clearance(sel, sel)` is E7's unary shape. It used to drop
 /// every pair that shared a vertex and read the neck's 0.4; a
 /// clearance is metric now (E7, *Self-intersection scope*), so the
 /// body meets itself and reads exactly 0, named on the cell the scopes
@@ -501,7 +422,7 @@ fn min_clearance_of_a_body_against_itself_meets_itself_and_reads_zero() {
 
 /// A plate whose web is `distance(wall 0, wall 2) = 2`, placed by a
 /// uniform parameter, with an assertion `web ≥ bound`. No
-/// `min_clearance` anywhere.
+/// clearance anywhere.
 fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     web_across(
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
@@ -544,11 +465,11 @@ fn web_across(
             ],
         )
         .outputs[0];
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
         relation: AssertionRelation::AtLeast,
-    });
+    }));
     (r.doc, measure, assertion)
 }
 
@@ -563,7 +484,7 @@ fn uniform() -> Distribution {
 /// witness vector is `certifying`, not `of`, so for EVERY
 /// assertion-carrying document its key differs from the full vector's —
 /// which is what the merge base serialized. Documents without a
-/// `min_clearance` measure do not key their drive bit-identically.
+/// clearance do not key their drive bit-identically.
 #[test]
 fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document() {
     let (doc, _, _) = web_plate(1.0, uniform());
@@ -827,32 +748,23 @@ fn neck_related(
             len(0.0),
         ],
     );
-    let measure = r
-        .measure(
-            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-            &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
-                ),
-            ],
-        )
-        .outputs[0];
-    let assertion = r.insert(Node::Assertion {
-        value: fixture::read_var(&r.doc, measure),
-        bound: len(bound),
-        relation,
-    });
+    let assertion = r.insert(Node::clearance(
+        SitedRef::new(
+            placed,
+            fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+        ),
+        SitedRef::new(
+            placed,
+            fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+        ),
+        bounds(relation, bound),
+    ));
     (r.doc, assertion)
 }
 
-/// Planted `Violated`: `min_clearance ≤ 0.3` over a neck that is `0.4`
+/// Planted `Violated`: `clearance ≤ 0.3` over a neck that is `0.4`
 /// apart reads `Violated` over a certified leaf — the red row 1
-/// promises — off the bracket's lower end.
+/// promises — every pair certified clear of the bound.
 #[test]
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let (doc, assertion) = neck_related(0.3, 9, uniform(), AssertionRelation::AtMost);
@@ -860,26 +772,26 @@ fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
     let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
-    assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
+    assert_eq!(v.holds(), Some(false), "{v:?}");
 }
 
-/// **The review's own `AtLeast 0.5` fixture reads `Violated` off the
-/// upper end**, which bounds the faces: the neck is `0.4` apart.
+/// **The review's own `AtLeast 0.5` fixture reads `Violated`**, by a
+/// pair of the faces: the neck is `0.4` apart.
 #[test]
 fn the_at_least_arm_reads_violated_off_the_faces_upper_end() {
     let (doc, assertion) = neck(0.5, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     let v = on_lane(&doc, &verdict, &verdict.certified()[0], assertion);
-    assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
+    assert_eq!(v.holds(), Some(false), "{v:?}");
 }
 
-/// **`=` reads both ends of the faces' bracket.** Over the 0.4 neck on a
-/// certified leaf, `= 0.3` is violated off `lo` and `= 0.5` off `hi`.
-/// Breaks if `Equal` reads one end only (one of the two holds or
-/// refuses).
+/// **`=` reads both bounds.** Over the 0.4 neck on a certified leaf,
+/// `= 0.3` is violated by every pair clear of it and `= 0.5` by a pair
+/// closer. Breaks if `Equal` reads one bound only (one of the two holds
+/// or refuses).
 #[test]
-fn equal_over_min_clearance_is_violated_off_either_end() {
+fn equal_over_a_clearance_is_violated_off_either_bound() {
     let at = |bound| {
         let (doc, assertion) = neck_related(bound, 9, uniform(), AssertionRelation::Equal);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -889,17 +801,13 @@ fn equal_over_min_clearance_is_violated_off_either_end() {
     };
     for bound in [0.3, 0.5] {
         let v = at(bound);
-        assert!(
-            matches!(v, AssertionVerdict::Violated { .. }),
-            "= {bound}: {v:?}"
-        );
+        assert_eq!(v.holds(), Some(false), "= {bound}: {v:?}");
     }
 }
 
 /// **A wall against itself.** A clearance is metric: the wall meets
-/// itself and `min_clearance` reads exactly `[0, 0]`, so the measure node
-/// builds, the drive certifies the leaf, and the `AtLeast 0.3` bound is
-/// violated off the meeting's 0.
+/// itself at distance 0, so the drive certifies the leaf and the
+/// `AtLeast 0.3` bound is violated by the meeting.
 #[test]
 fn a_wall_against_itself_reads_zero_and_violates_its_at_least_bound() {
     let (doc, assertion) = neck(0.3, 2, uniform());
@@ -919,10 +827,10 @@ fn a_wall_against_itself_reads_zero_and_violates_its_at_least_bound() {
     let leaf = verdict
         .certified()
         .first()
-        .expect("the measure builds, so the leaf certifies");
+        .expect("the assertion builds, so the leaf certifies");
     let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
     let v = assertion_verdict(&ev, assertion);
-    assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
+    assert_eq!(v.holds(), Some(false), "{v:?}");
 }
 
 /// **A wide box over a copy certifies whole.** The neck's placed prism
@@ -1007,11 +915,11 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             ],
         )
         .outputs[0];
-    r.insert(Node::Assertion {
+    r.insert(Node::Assertion(editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, measure),
         bound: len(1.0),
         relation: AssertionRelation::AtLeast,
-    });
+    }));
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     match MassBasis::of(&analyzed) {
         MassBasis::Forced { by } => {
@@ -1041,13 +949,14 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     }
 }
 
-// ---------------------------------------------- 8. MC over min_clearance
+// ---------------------------------------------- 8. MC over a clearance
 
-/// The MC lane over a `min_clearance` document: every sample is
-/// unmeasured and undecided, the fraction is `None`, and the rendering
-/// says so with its count and seed — an honest nothing.
+/// The MC lane over a clearance document: every sample is an `f64`
+/// build, where a clearance reads its third state, so every sample is
+/// undecided, the fraction is `None`, and the rendering says so with its
+/// count and seed — an honest nothing.
 #[test]
-fn the_mc_lane_over_a_min_clearance_document_decides_nothing_and_says_so() {
+fn the_mc_lane_over_a_clearance_document_decides_nothing_and_says_so() {
     let (doc, _) = neck(0.3, 9, uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let report = monte_carlo(
@@ -1061,7 +970,10 @@ fn the_mc_lane_over_a_min_clearance_document_decides_nothing_and_says_so() {
     )
     .expect("replays");
     eprintln!("{}", report.render(&doc));
-    assert_eq!(report.measures[0].unmeasured, 16);
+    assert!(
+        report.measures.is_empty(),
+        "no node holds a clearance value"
+    );
     assert_eq!(report.assertions[0].unevaluated, 16);
     assert!(report.assertions[0].violation_fraction().is_none());
     assert!(report.render(&doc).contains("no sample decided"));
@@ -1076,13 +988,7 @@ fn the_mc_lane_over_a_min_clearance_document_decides_nothing_and_says_so() {
 fn bracket(
     offset_law: Distribution,
     lift_law: Distribution,
-) -> (
-    ProfileDoc,
-    editor_core::VarId,
-    RecipeNodeId,
-    editor_core::VarId,
-    RecipeNodeId,
-) {
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     param(&mut r, "offset", 0.0, Some(offset_law));
     param(&mut r, "lift", 0.2, Some(lift_law));
@@ -1124,37 +1030,28 @@ fn bracket(
             ],
         )
         .outputs[0];
-    let web_ok = r.insert(Node::Assertion {
+    let web_ok = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, web),
         bound: len(0.9),
         relation: AssertionRelation::AtLeast,
-    });
-    let clearance = r
-        .measure(
-            &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
-            &[
-                SitedRef::new(
-                    post,
-                    editor_core::StableName {
-                        kind: editor_core::EntityKind::Body,
-                        node: post_solid,
-                        path: vec![RoleSeg::OutputBody],
-                    },
-                ),
-                crate::fixture::sited_ref(editor_core::StableName {
-                    kind: editor_core::EntityKind::Body,
-                    node: base,
-                    path: vec![RoleSeg::OutputBody],
-                }),
-            ],
-        )
-        .outputs[0];
-    let clear_ok = r.insert(Node::Assertion {
-        value: fixture::read_var(&r.doc, clearance),
-        bound: len(0.1),
-        relation: AssertionRelation::AtLeast,
-    });
-    (r.doc, web, web_ok, clearance, clear_ok)
+    }));
+    let clear_ok = r.insert(Node::clearance(
+        SitedRef::new(
+            post,
+            editor_core::StableName {
+                kind: editor_core::EntityKind::Body,
+                node: post_solid,
+                path: vec![RoleSeg::OutputBody],
+            },
+        ),
+        crate::fixture::sited_ref(editor_core::StableName {
+            kind: editor_core::EntityKind::Body,
+            node: base,
+            path: vec![RoleSeg::OutputBody],
+        }),
+        ClearanceBounds::AtLeast(len(0.1)),
+    ));
+    (r.doc, web, web_ok, clear_ok)
 }
 
 /// The walk a consumer takes today, rendered as a consumer would read
@@ -1163,7 +1060,7 @@ fn bracket(
 #[test]
 fn the_bracket_walk_through_the_public_doors() {
     let tol = Tol::witness();
-    let (doc, web, web_ok, clearance, clear_ok) = bracket(
+    let (doc, web, web_ok, clear_ok) = bracket(
         uniform(),
         Distribution::Normal {
             sigma: half() / 3.0,
@@ -1182,26 +1079,6 @@ fn the_bracket_walk_through_the_public_doors() {
     eprintln!("{}", report.render(&doc, &analyzed));
     assert!(report.worst_case.lo <= 1.0 && 1.0 <= report.worst_case.hi);
 
-    // **The walk's finding, and what the fix pass did with it.** This
-    // used to refuse `MeasureRefusedAtNominal` — the whole report
-    // withheld because an ADVISORY column (the f64 nominal) cannot
-    // exist for a `min_clearance`. E9 says a degraded advisory column
-    // forfeits and the gate stays, so the report builds now: the
-    // certified worst case is there and gates, and the nominal
-    // forfeits by name.
-    eprintln!("== stackup(min_clearance)");
-    let clearance_report =
-        stackup(&doc, clearance, &analyzed, &verdict, None, true, None, tol).expect("a stackup");
-    eprintln!("{}", clearance_report.render(&doc, &analyzed));
-    assert!(
-        clearance_report.worst_case.leaves > 0,
-        "the gating column is built from the certified leaves"
-    );
-    assert!(
-        clearance_report.nominal.is_err(),
-        "…and the advisory nominal forfeits, because a point scalar has no enclosure"
-    );
-
     eprintln!("== fold(post vs base ≥ 0.1)");
     let fold = clearance_over(
         &doc,
@@ -1209,12 +1086,15 @@ fn the_bracket_walk_through_the_public_doors() {
         &verdict,
         &Selection::body_of(verdict_post(&doc)),
         &Selection::body_of(verdict_base(&doc)),
-        &ClearanceQuery::at_least(0.1, tol),
+        &ClearanceQuery {
+            bound: editor_core::clearance::ClearanceBound::at_least(0.1),
+            ..ClearanceQuery::strictly_positive(tol)
+        },
     );
     // **§2's two doors and the key, on the three reports that shipped
     // with no row at all** (R2's MINOR-10): `LeafFold`'s trio,
     // `ClearanceReport`'s — which had no `content_key` until the fix
-    // pass, though claim 3 names it — and `MinSeparation::render`.
+    // pass, though claim 3 names it.
     let fold_gold = fold.serialize();
     let fold_human = fold.render();
     eprintln!("{fold_human}");
@@ -1234,7 +1114,7 @@ fn the_bracket_walk_through_the_public_doors() {
     // And the per-leaf report the fold is made of, through its own
     // single-leaf door.
     let leaf_box = verdict.certified()[0].box_.clone();
-    let report = editor_core::clearance::clearance(
+    let report = crate::fixture::clearance(
         &doc,
         &leaf_box,
         &Selection::body_of(verdict_post(&doc)),
@@ -1254,18 +1134,6 @@ fn the_bracket_walk_through_the_public_doors() {
     eprintln!("== histogram(web)");
     let h = leaf_histogram(&doc, &analyzed, &verdict, web, tol);
     eprintln!("{}", h.render(&doc));
-    eprintln!("== histogram(min_clearance)");
-    let hc = leaf_histogram(&doc, &analyzed, &verdict, clearance, tol);
-    eprintln!("{}", hc.render(&doc));
-    assert_eq!(hc.rows.len(), verdict.certified().len());
-    for row in &hc.rows {
-        assert!(
-            row.enclosure.0 <= 0.2 && 0.2 <= row.enclosure.1,
-            "{:?}",
-            row.enclosure
-        );
-    }
-
     eprintln!("== assertions over the certified leaves");
     for leaf in verdict.certified() {
         let (a, b) = (
@@ -1279,8 +1147,7 @@ fn the_bracket_walk_through_the_public_doors() {
     eprintln!("== mc");
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
     eprintln!("{}", mc.render(&doc));
-    assert_eq!(mc.measures.len(), 2);
-    assert_eq!(mc.measures[1].unmeasured, mc.samples);
+    assert_eq!(mc.measures.len(), 1, "the web; a clearance holds no value");
 
     eprintln!("== budget");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
@@ -1290,7 +1157,7 @@ fn the_bracket_walk_through_the_public_doors() {
     // The same bracket with a BAND on the offset: the budget reads
     // forced, the MC lane refuses typed, and the stackup's rss is
     // unavailable.
-    let (doc, web, _, _, _) = bracket(
+    let (doc, web, _, _) = bracket(
         Distribution::Band {
             lo: -half(),
             hi: half(),
@@ -1448,11 +1315,11 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     )
     .expect("L − L");
     let measure = r.define("measure", web);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
         relation: AssertionRelation::AtLeast,
-    });
+    }));
 
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let verdict = drive(&r.doc, &analyzed, &DriveConfig::default(), tol).expect("builds");

@@ -97,18 +97,17 @@ fn every_form() -> ProfileDoc {
             }),
         },
     );
-    // distance - gap + min_clearance, halved, floored by a parameter and
+    // distance - gap, padded, halved, floored by a parameter and
     // ceilinged by a literal: every arithmetic arm and every Length
-    // primitive at once. `min_clearance` (M10-6) is here for the same
-    // reason the other three are — this fixture IS the populated wire
-    // golden for the primitive table, so a primitive absent from it
-    // round-trips under no test at all.
+    // primitive at once. This fixture IS the populated wire golden for
+    // the primitive table, so a primitive absent from it round-trips
+    // under no test at all; a clearance band rides beside it for the
+    // same reason.
     let (doc, refs) = two_named_faces(&doc);
     let (mut doc, measured) = crate::fixture::measure(
         doc,
         &[
             MeasurePrimitive::Distance { a: 0, b: 1 },
-            MeasurePrimitive::MinClearance { a: 0, b: 1 },
             MeasurePrimitive::Gap { outer: 1, inner: 0 },
         ],
         &refs,
@@ -119,11 +118,7 @@ fn every_form() -> ProfileDoc {
             Formula::div(
                 Formula::mul(
                     Formula::add(
-                        Formula::sub(
-                            Formula::add(out(0), out(1)).expect("Length + Length"),
-                            out(2),
-                        )
-                        .expect("Length - Length"),
+                        Formula::sub(out(0), out(1)).expect("Length - Length"),
                         Formula::neg(Formula::named(
                             VarName::from_static("pad"),
                             Dimension::Length,
@@ -146,11 +141,25 @@ fn every_form() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::clearance(
+                refs[0].clone(),
+                refs[1].clone(),
+                editor_core::ClearanceBounds::Within {
+                    lo: len(0.0001),
+                    hi: len(0.5),
+                },
+            )),
+            fresh: Vec::new(),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
                 value,
                 bound: len(0.0005),
                 relation: AssertionRelation::AtMost,
-            }),
+            })),
             fresh: Vec::new(),
         },
     );
@@ -186,11 +195,11 @@ fn angular() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
                 value: crate::fixture::read_var(&doc, measured.outputs[0]),
                 bound: ang(0.5),
                 relation: AssertionRelation::AtLeast,
-            }),
+            })),
             fresh: Vec::new(),
         },
     );
@@ -292,11 +301,11 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
                 value: crate::fixture::value_of(&doc, measure(&doc)),
                 bound: len(0.5),
                 relation: AssertionRelation::AtLeast,
-            }),
+            })),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -326,11 +335,11 @@ fn an_assertion_over_a_non_scalar_refuses() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Assertion {
+            node: Box::new(Node::Assertion(editor_core::Claim::Value {
                 value: Formula::var(point, Dimension::Angle),
                 bound: ang(0.5),
                 relation: AssertionRelation::AtLeast,
-            }),
+            })),
             fresh: Vec::new(),
         },
         Tol::witness(),

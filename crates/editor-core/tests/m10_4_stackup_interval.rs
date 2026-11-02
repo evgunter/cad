@@ -308,11 +308,11 @@ fn plate_spaced(
     )
     .expect("Length - Length");
 
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: web,
         bound: len(MIN_WEB),
         relation: AssertionRelation::AtLeast,
-    });
+    }));
     let web = fixture::assertion_value(&r.doc, assertion);
     (r.doc, web, assertion)
 }
@@ -523,16 +523,9 @@ fn the_two_hole_plate_stackup() {
 
     // The nominal: the plate's own formula, 2·0.30 − 2·0.2.
     assert!(
-        (report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
-            - 0.2)
-            .abs()
-            < 1e-12,
+        (report.nominal - 0.2).abs() < 1e-12,
         "nominal {}",
-        report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
+        report.nominal
     );
     assert_eq!(report.measurement, measure);
 
@@ -606,16 +599,7 @@ fn the_two_hole_plate_stackup() {
     // [`PLATE_ROUNDING`], stated in the honest-limits section of the
     // PR rather than hidden in a slack term.
     assert!(
-        wc.lo
-            <= report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-                - 2.0 * half
-            && report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-                + 2.0 * half
-                <= wc.hi,
+        wc.lo <= report.nominal - 2.0 * half && report.nominal + 2.0 * half <= wc.hi,
         "the hull must enclose the true range: {wc:?}"
     );
     let padding = (wc.hi - wc.lo) - 4.0 * half;
@@ -718,16 +702,7 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
         other => panic!("rss over two bands: {other:?}"),
     }
     assert!(report.per_param.iter().all(|p| p.contribution.is_ok()));
-    assert!(
-        report.worst_case.lo
-            <= report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-            && report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-                <= report.worst_case.hi
-    );
+    assert!(report.worst_case.lo <= report.nominal && report.nominal <= report.worst_case.hi);
     // Mass over a band does not price, and the accounting says so
     // rather than inventing a shape.
     assert!(report.coverage.total().is_err());
@@ -764,10 +739,7 @@ fn worst_case_is_the_hull_not_the_linearized_sum() {
     }
     let contribution = row.contribution.clone().expect("available");
     assert_eq!(contribution.to_bits(), 1.0f64.to_bits());
-    let linearized_hi = report
-        .nominal
-        .expect("this fixture measures a closed form, which has an f64 nominal")
-        + contribution;
+    let linearized_hi = report.nominal + contribution;
     let wc = report.worst_case;
     assert!(
         wc.hi > linearized_hi,
@@ -822,13 +794,7 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("E9: tangent state reached a refusal: {e}"));
-    assert_eq!(
-        report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
-            .to_bits(),
-        0.0f64.to_bits()
-    );
+    assert_eq!(report.nominal.to_bits(), 0.0f64.to_bits());
     let row = &report.per_param[0];
     assert!(matches!(
         row.sensitivity,
@@ -1228,12 +1194,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
             coverage,
             receipt,
         }) => {
-            assert_eq!(
-                nominal
-                    .expect("a closed-form measure has an f64 nominal")
-                    .to_bits(),
-                1.0f64.to_bits()
-            );
+            assert_eq!(nominal.to_bits(), 1.0f64.to_bits());
             assert_eq!(sensitivities, refused);
             assert_eq!(&*coverage, verdict.accounting());
             assert_eq!(receipt, verdict.receipt());
@@ -1689,16 +1650,9 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     )
     .unwrap_or_else(|e| panic!("{e}"));
     assert!(
-        (report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
-            - 0.2)
-            .abs()
-            < 1e-12,
+        (report.nominal - 0.2).abs() < 1e-12,
         "gap {}",
-        report
-            .nominal
-            .expect("this fixture measures a closed form, which has an f64 nominal")
+        report.nominal
     );
     match &report.per_param[0].sensitivity {
         SensitivityOutcome::Derivative { value, chamber } => {
@@ -1713,16 +1667,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     }
     let wc = report.worst_case;
     assert!(
-        wc.lo
-            <= report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-                - half
-            && report
-                .nominal
-                .expect("this fixture measures a closed form, which has an f64 nominal")
-                + half
-                <= wc.hi,
+        wc.lo <= report.nominal - half && report.nominal + half <= wc.hi,
         "{wc:?}"
     );
 }

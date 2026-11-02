@@ -1449,9 +1449,8 @@ Flagged, NOT fixed here (dispositions):
     over faces within the band above `c` can read `Violated`: the
     kernel's ε model, not a defect. The readings choose which pairs feed
     the bracket and decide nothing a census must see.
-  - `min_separation` runs inside an evaluation, under the
-    `min_clearance` measure, at the interval lane only: the `f64`
-    witness answers `MeasureUnavailable`. Logged, its readings would be
+  - `min_separation` once ran inside an evaluation, under a measure
+    that no longer exists; no evaluation asks it now. Logged, its readings would be
     rows in the leaf's vector that the witness's cannot have, and every
     leaf would refuse `flip_crossing`; its in-band escalations would
     hand the driver a cue to bisect that no smaller parameter box
@@ -1463,7 +1462,7 @@ Flagged, NOT fixed here (dispositions):
     which is where a receipt belongs. And the readings' K samples keep their names, which
     is vacuous at this site today: `Probe` never runs `min_separation`,
     since only a certifying scalar holds the engine's door. If a
-    `min_clearance` document enters the driver's K population at a
+    `min_separation` call enters the driver's K population at a
     certifying scalar, its 137–186 in-band samples per call would fire
     k-lint rule 1; that is a finding to re-derive then, per the K-REPORT
     runbook, not a reason to log them.
@@ -1507,6 +1506,28 @@ Flagged, NOT fixed here (dispositions):
     An in-band support compare is not refinable in a parameter box (it
     is one-sided), and logged it would cue the driver to bisect leaves
     no smaller box answers, as F28 measured for `min_separation`.
+
+- **F30** (added by DOORS' clearance-assertion unit)
+  `editor-core/src/eval/wire.rs` `wire_clearance`: the bound sweep a
+  clearance assertion runs at a certifying lane, every decision under
+  it (F17's and F29's sites, the region readings F28 lists, the
+  injectivity rows). Every row keeps its own dimension; what this row
+  argues is why their outcomes stay out of the node's verdict log.
+  - The sweep's outcome is the assertion's REPORT: a verdict, a
+    verified pair, or a typed refusal (a sliver, a budget), with its
+    receipt. An in-band reading is split or refused inside the sweep,
+    and a refusal is the verdict's third state, never a node failure
+    the driver could re-read.
+  - Logged, the readings would be rows in the leaf's vector that the
+    `f64` witness build cannot have (a point scalar runs no sweep), so
+    every leaf of a document asserting a clearance would refuse
+    `flip_crossing`; and their in-band escalations would cue the
+    driver to bisect a parameter box over cell pairs that only a
+    smaller CELL answers (measured on the dumbbell neck: drives that
+    certified at once ran past ten minutes).
+
+  **Carried as `k_stats::unlogged("F30", ..)`**. Not a `decide_flagged`
+  site; `LEDGER_FLAGGED_SITES` does not move.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

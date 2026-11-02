@@ -54,30 +54,6 @@ pub enum MeasurePrimitive<R = SitedRef> {
         /// The second.
         b: R,
     },
-    /// **The minimum clearance between two selections** →
-    /// [`Dimension::Length`] (E3's last v1 primitive, E7's engine).
-    ///
-    /// Each reference's ENTITY KIND is the selection's face scope: a
-    /// reference to a BODY selects all of that body's faces, a
-    /// reference to a FACE selects that one. Those are the two scopes
-    /// M10-5's `clearance::FaceScope` carries. A reference to anything
-    /// else (a vertex, an edge, a pose) refuses typed.
-    ///
-    /// **Its value is an enclosure, so it exists only where enclosures
-    /// do.** At `f64`, `Probe` and `Dual<f64>` the measure has no
-    /// value at all and says so
-    /// ([`crate::eval::ValuePayload::MeasureUnavailable`]): a station
-    /// pair found by a point-scalar search is an upper bound on the
-    /// minimum and not the minimum. At `Interval`, and at the symbolic
-    /// tier over it, the value over a leaf IS
-    /// `topo::clearance::min_separation`'s bracket (at the tier, each end
-    /// re-entered as a computed value).
-    MinClearance {
-        /// The first selection.
-        a: R,
-        /// The second.
-        b: R,
-    },
     /// C5's SIGNED gap between a mating pair → [`Dimension::Length`].
     ///
     /// **Argument order is the mating ROLE**, not a symmetry: `outer`
@@ -109,9 +85,7 @@ impl<R> MeasurePrimitive<R> {
     /// The F1 dimension this primitive yields, fixed per primitive.
     pub fn dim(&self) -> Dimension {
         match self {
-            Self::Distance { .. } | Self::Gap { .. } | Self::MinClearance { .. } => {
-                Dimension::Length
-            }
+            Self::Distance { .. } | Self::Gap { .. } => Dimension::Length,
             Self::Angle { .. } => Dimension::Angle,
         }
     }
@@ -119,7 +93,7 @@ impl<R> MeasurePrimitive<R> {
     /// The two references, in argument order.
     pub fn refs(&self) -> [&R; 2] {
         match self {
-            Self::Distance { a, b } | Self::Angle { a, b } | Self::MinClearance { a, b } => [a, b],
+            Self::Distance { a, b } | Self::Angle { a, b } => [a, b],
             Self::Gap { outer, inner } => [outer, inner],
         }
     }
@@ -127,7 +101,7 @@ impl<R> MeasurePrimitive<R> {
     /// The two references, in argument order, exclusive.
     pub fn refs_mut(&mut self) -> [&mut R; 2] {
         match self {
-            Self::Distance { a, b } | Self::Angle { a, b } | Self::MinClearance { a, b } => [a, b],
+            Self::Distance { a, b } | Self::Angle { a, b } => [a, b],
             Self::Gap { outer, inner } => [outer, inner],
         }
     }
@@ -145,7 +119,6 @@ impl<R> MeasurePrimitive<R> {
         Ok(match self {
             Self::Distance { a, b } => MeasurePrimitive::Distance { a: f(a)?, b: f(b)? },
             Self::Angle { a, b } => MeasurePrimitive::Angle { a: f(a)?, b: f(b)? },
-            Self::MinClearance { a, b } => MeasurePrimitive::MinClearance { a: f(a)?, b: f(b)? },
             Self::Gap { outer, inner } => MeasurePrimitive::Gap {
                 outer: f(outer)?,
                 inner: f(inner)?,
@@ -173,7 +146,6 @@ impl<R> MeasurePrimitive<R> {
             Self::Distance { .. } => MeasureVerb::Distance,
             Self::Angle { .. } => MeasureVerb::Angle,
             Self::Gap { .. } => MeasureVerb::Gap,
-            Self::MinClearance { .. } => MeasureVerb::MinClearance,
         }
     }
 }
@@ -188,7 +160,6 @@ impl<R> MeasurePrimitive<R> {
 /// | --- | --- |
 /// | `distance` | a `Face`, an `Edge` or a `Vertex` |
 /// | `angle` | a `Face` or an `Edge` |
-/// | `min_clearance` | a `Body` or a `Face` |
 /// | `gap` | a `Face`, an `Edge` or a `Vertex` |
 ///
 /// What stays at evaluation is the carrier CLASS (a cone face in a
@@ -202,8 +173,6 @@ pub enum MeasureVerb {
     Distance,
     /// [`MeasurePrimitive::Angle`].
     Angle,
-    /// [`MeasurePrimitive::MinClearance`].
-    MinClearance,
     /// [`MeasurePrimitive::Gap`].
     Gap,
 }
@@ -216,7 +185,6 @@ impl MeasureVerb {
             Self::Distance => "distance",
             Self::Angle => "angle",
             Self::Gap => "gap",
-            Self::MinClearance => "min_clearance",
         }
     }
 
@@ -231,7 +199,6 @@ impl MeasureVerb {
                 K::Face | K::Edge | K::Vertex | K::Point | K::Axis | K::Plane | K::Frame
             ),
             Self::Angle => matches!(kind, K::Face | K::Edge),
-            Self::MinClearance => matches!(kind, K::Body | K::Face),
             Self::Gap => matches!(kind, K::Face | K::Edge | K::Vertex | K::Plane | K::Frame),
         }
     }
@@ -266,81 +233,14 @@ impl MeasureVerb {
     }
 }
 
-/// **Why a measure has no value at the scalar the build ran at**
-/// ([`crate::eval::ValuePayload::MeasureUnavailable`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeasureUnavailableAt {
-    /// The primitive's answer is an ENCLOSURE, and this build's scalar
-    /// is a point: it has nowhere to put one.
-    ///
-    /// Not a degradation and not a fallback — the two are the same
-    /// thing said twice, which is why this carries the DOOR that can
-    /// answer instead of a number: a reader is told where the answer
-    /// lives, not handed a worse one.
-    NeedsEnclosure {
-        /// Which primitive.
-        verb: &'static str,
-        /// The scalar this build ran at, in its own name
-        /// ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-        /// The door that answers it, named so the recourse is in the
-        /// refusal rather than in a reader's memory.
-        door: &'static str,
-    },
-    /// The engine's bracket has a lower end and no upper one: no pair it
-    /// examined within its cell budget was a pair of points of the two
-    /// scopes (`topo::clearance::MinSeparation::hi`). The lower end alone
-    /// is not an enclosure of the measure, so there is no value.
-    NoUpperBound {
-        /// Which primitive.
-        verb: &'static str,
-        /// The scalar this build ran at, in its own name
-        /// ([`geom_core::Real::NAME`]).
-        scalar: &'static str,
-        /// The door that answers it at a larger cell budget.
-        door: &'static str,
-    },
-}
-
-impl MeasureUnavailableAt {
-    /// The primitive whose answer is unavailable — the one word a
-    /// goldening form needs, without spelling the whole prose.
-    pub fn verb(&self) -> &'static str {
-        match self {
-            Self::NeedsEnclosure { verb, .. } | Self::NoUpperBound { verb, .. } => verb,
-        }
-    }
-}
-
-impl core::fmt::Display for MeasureUnavailableAt {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::NeedsEnclosure { verb, scalar, door } => write!(
-                f,
-                "`{verb}` answers with a certified enclosure, which only the {interval} \
-                 scalar computes; a {scalar} point search finds an upper bound on the minimum, \
-                 not the minimum. Recourse: evaluate the document at the {interval} scalar \
-                 over a parameter box, where `{door}` computes the bracket",
-                interval = <geom_core::Interval as geom_core::Real>::NAME,
-            ),
-            Self::NoUpperBound { verb, scalar, door } => write!(
-                f,
-                "`{verb}` found no pair of points of the two scopes within its cell budget at \
-                 the {scalar} scalar, so its bracket has a lower end and no upper end. \
-                 Recourse: `{door}` at a larger cell budget"
-            ),
-        }
-    }
-}
-
-/// One side of a [`MeasurePrimitive::MinClearance`], resolved: the body
-/// the reference landed in, where it was read, and the faces its entity
-/// kind selects.
+/// One seat of a clearance assertion ([`Claim::Clearance`]), resolved:
+/// the body the reference landed in, where it was read, and the faces
+/// its entity kind selects.
 ///
 /// The resolution is the evaluator's — it already walked the N5 ladder
 /// to read the carrier of every other primitive's reference — so this
 /// carries the ANSWER of that walk and no naming machinery.
-pub struct MinClearanceOperand<'b, T: geom_core::Real> {
+pub struct ClearanceSeat<'b, T: geom_core::Real> {
     /// The node the body was read at.
     pub at: crate::node::RecipeNodeId,
     /// Which of that node's output bodies.
@@ -352,8 +252,8 @@ pub struct MinClearanceOperand<'b, T: geom_core::Real> {
     pub faces: Vec<topo::entity::FaceKey>,
 }
 
-impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
-    /// The operand as the engine's side: the body and its faces, without
+impl<'b, T: geom_core::Real> ClearanceSeat<'b, T> {
+    /// The seat as the engine's side: the body and its faces, without
     /// the address.
     pub fn side(&self) -> topo::clearance::Side<'b, T> {
         topo::clearance::Side {
@@ -362,9 +262,9 @@ impl<'b, T: geom_core::Real> MinClearanceOperand<'b, T> {
         }
     }
 
-    /// Whether two operands read one body: the same output of the same
-    /// node. Two such operands that meet are at separation 0, read off
-    /// the topology they share.
+    /// Whether two seats read one body: the same output of the same
+    /// node. Two such seats that meet are at separation 0, read off the
+    /// topology they share.
     pub fn same_body(&self, other: &Self) -> bool {
         self.at == other.at && self.index == other.index
     }
@@ -392,6 +292,284 @@ impl AssertionRelation {
             Self::AtLeast => ">=",
             Self::AtMost => "<=",
             Self::Equal => "=",
+        }
+    }
+}
+
+/// **What an [`Assertion`](crate::Node::Assertion) claims** (E10, E3's
+/// clearance amendment): a relation between a scalar variable and a
+/// bound, or a clearance between two seats bounded below, above or both.
+///
+/// The two are one node kind because they are one thing to every
+/// reader but the evaluator: a report-only verdict that checks and
+/// never places. A band is a clearance's alone, so the type admits it
+/// nowhere else.
+///
+/// **On the wire a claim's fields are the node's** (`ClaimWire`): a
+/// value claim reads `{value, bound, relation}` and a clearance `{a, b,
+/// bounds}`, read in one pass with no variant tried and abandoned.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(try_from = "ClaimWire<S>", into = "ClaimWire<S>")]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub enum Claim<S: crate::expr::Slot = crate::VarId> {
+    /// `value relation bound`.
+    Value {
+        /// The value checked: any scalar variable, typically an observed
+        /// one (a measure's output, or a definition over outputs). Not a
+        /// slot: a slot's address fixes its dimension, and this one's is
+        /// whatever the variable's is.
+        value: S,
+        /// The bound, in the value's dimension; a mismatch is a typed
+        /// document error at every door, never a silent comparison of
+        /// radians with metres.
+        bound: S,
+        /// How the value must relate to the bound: `>=`, `<=` or `=`.
+        relation: AssertionRelation,
+    },
+    /// **`clearance(a, b)` within `bounds`.** Each seat reads a `Body`
+    /// (all of its faces) or a `Face` (that one), the two seats of
+    /// [`crate::OperandSlot::Cleared`]. No clearance value exists: the
+    /// verdict comes from E7's sweep at the bounds, and the minimum is
+    /// never computed.
+    Clearance {
+        /// The first seat.
+        a: S::Read,
+        /// The second.
+        b: S::Read,
+        /// The bounds, each a length.
+        bounds: ClearanceBounds<S>,
+    },
+}
+
+impl<S: crate::expr::Slot> Claim<S> {
+    /// The payload expressions in their one order: a value claim's value
+    /// then bound, a clearance's bounds low to high.
+    pub fn exprs(&self) -> Vec<&S> {
+        match self {
+            Self::Value { value, bound, .. } => vec![value, bound],
+            Self::Clearance { bounds, .. } => bounds.exprs(),
+        }
+    }
+
+    /// [`Self::exprs`], exclusive.
+    pub fn exprs_mut(&mut self) -> Vec<&mut S> {
+        match self {
+            Self::Value { value, bound, .. } => vec![value, bound],
+            Self::Clearance { bounds, .. } => bounds.exprs_mut(),
+        }
+    }
+
+    /// The same claim with every payload expression rewritten by `f` and
+    /// every seat by `read`; the first refusal is the answer.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s or `read`'s first.
+    pub fn try_map<S2: crate::expr::Slot, E>(
+        &self,
+        mut f: impl FnMut(&S) -> Result<S2, E>,
+        mut read: impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
+    ) -> Result<Claim<S2>, E> {
+        Ok(match self {
+            Self::Value {
+                value,
+                bound,
+                relation,
+            } => Claim::Value {
+                value: f(value)?,
+                bound: f(bound)?,
+                relation: *relation,
+            },
+            Self::Clearance { a, b, bounds } => Claim::Clearance {
+                a: read(crate::OperandSlot::Cleared(0), a)?,
+                b: read(crate::OperandSlot::Cleared(1), b)?,
+                bounds: bounds.try_map(&mut f)?,
+            },
+        })
+    }
+}
+
+/// **A [`Claim`] as the wire spells it**: every field either claim
+/// carries, each present for its own claim and absent for the other, so
+/// one pass reads either and a mix refuses by name.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub(crate) struct ClaimWire<S: crate::expr::Slot> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    value: Option<S>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bound: Option<S>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    relation: Option<AssertionRelation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    a: Option<S::Read>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    b: Option<S::Read>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bounds: Option<ClearanceBounds<S>>,
+}
+
+impl<S: crate::expr::Slot> From<Claim<S>> for ClaimWire<S> {
+    fn from(claim: Claim<S>) -> Self {
+        match claim {
+            Claim::Value {
+                value,
+                bound,
+                relation,
+            } => Self {
+                value: Some(value),
+                bound: Some(bound),
+                relation: Some(relation),
+                a: None,
+                b: None,
+                bounds: None,
+            },
+            Claim::Clearance { a, b, bounds } => Self {
+                value: None,
+                bound: None,
+                relation: None,
+                a: Some(a),
+                b: Some(b),
+                bounds: Some(bounds),
+            },
+        }
+    }
+}
+
+impl<S: crate::expr::Slot> TryFrom<ClaimWire<S>> for Claim<S> {
+    type Error = String;
+
+    fn try_from(wire: ClaimWire<S>) -> Result<Self, String> {
+        match wire {
+            ClaimWire {
+                value: Some(value),
+                bound: Some(bound),
+                relation: Some(relation),
+                a: None,
+                b: None,
+                bounds: None,
+            } => Ok(Claim::Value {
+                value,
+                bound,
+                relation,
+            }),
+            ClaimWire {
+                value: None,
+                bound: None,
+                relation: None,
+                a: Some(a),
+                b: Some(b),
+                bounds: Some(bounds),
+            } => Ok(Claim::Clearance { a, b, bounds }),
+            _ => Err(
+                "an assertion carries `value`, `bound` and `relation`, or a clearance's \
+                      `a`, `b` and `bounds`, and nothing of the other"
+                    .to_owned(),
+            ),
+        }
+    }
+}
+
+/// **A clearance's bounds**: below, above, or both. `= c` keeps its own
+/// spelling, so a report reads the equation the author wrote, and is
+/// decided as the band with `lo = hi = c`.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum ClearanceBounds<S> {
+    /// `clearance(a, b) ≥ c`.
+    AtLeast(S),
+    /// `clearance(a, b) ≤ c`.
+    AtMost(S),
+    /// `clearance(a, b) = c`.
+    Equal(S),
+    /// `lo ≤ clearance(a, b) ≤ hi`.
+    Within {
+        /// The lower bound.
+        lo: S,
+        /// The upper bound.
+        hi: S,
+    },
+}
+
+impl<S> ClearanceBounds<S> {
+    /// The bound expressions, low to high (`= c` reads one).
+    pub fn exprs(&self) -> Vec<&S> {
+        match self {
+            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
+            Self::Within { lo, hi } => vec![lo, hi],
+        }
+    }
+
+    /// [`Self::exprs`], exclusive.
+    pub fn exprs_mut(&mut self) -> Vec<&mut S> {
+        match self {
+            Self::AtLeast(c) | Self::AtMost(c) | Self::Equal(c) => vec![c],
+            Self::Within { lo, hi } => vec![lo, hi],
+        }
+    }
+
+    /// The same bounds over other expressions.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map<S2, E>(
+        &self,
+        mut f: impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<ClearanceBounds<S2>, E> {
+        Ok(match self {
+            Self::AtLeast(c) => ClearanceBounds::AtLeast(f(c)?),
+            Self::AtMost(c) => ClearanceBounds::AtMost(f(c)?),
+            Self::Equal(c) => ClearanceBounds::Equal(f(c)?),
+            Self::Within { lo, hi } => ClearanceBounds::Within {
+                lo: f(lo)?,
+                hi: f(hi)?,
+            },
+        })
+    }
+
+    /// The same shape over the bounds' evaluated values, in
+    /// [`Self::exprs`] order.
+    ///
+    /// # Panics
+    ///
+    /// When `values` is not one value per expression: the evaluator
+    /// hands back what [`Self::exprs`] asked for.
+    pub fn with<T: Copy>(&self, values: &[T]) -> ClearanceBounds<T> {
+        match (self, values) {
+            (Self::AtLeast(_), [c]) => ClearanceBounds::AtLeast(*c),
+            (Self::AtMost(_), [c]) => ClearanceBounds::AtMost(*c),
+            (Self::Equal(_), [c]) => ClearanceBounds::Equal(*c),
+            (Self::Within { .. }, [lo, hi]) => ClearanceBounds::Within { lo: *lo, hi: *hi },
+            _ => unreachable!("one evaluated value per bound expression"),
+        }
+    }
+
+    /// The relation as the row reads it: `clearance(a, b) ≥ c`, with each
+    /// bound said by `say`.
+    pub fn equation(&self, a: &str, b: &str, mut say: impl FnMut(&S) -> String) -> String {
+        match self {
+            Self::AtLeast(c) => format!("clearance({a}, {b}) ≥ {}", say(c)),
+            Self::AtMost(c) => format!("clearance({a}, {b}) ≤ {}", say(c)),
+            Self::Equal(c) => format!("clearance({a}, {b}) = {}", say(c)),
+            Self::Within { lo, hi } => {
+                format!("{} ≤ clearance({a}, {b}) ≤ {}", say(lo), say(hi))
+            }
+        }
+    }
+}
+
+impl ClearanceBounds<geom_core::Interval> {
+    /// The engine's question at these bounds.
+    #[must_use]
+    pub fn sweep_bound(&self) -> topo::clearance::ClearanceBound {
+        use topo::clearance::ClearanceBound as B;
+        match *self {
+            Self::AtLeast(c) => B::AtLeast(c),
+            Self::AtMost(c) => B::AtMost(c),
+            Self::Equal(c) => B::Within { lo: c, hi: c },
+            Self::Within { lo, hi } => B::Within { lo, hi },
         }
     }
 }
@@ -430,6 +608,14 @@ pub enum AssertionVerdict<T> {
         /// Why, in the reporting layer's own words.
         reason: UnevaluatedReason,
     },
+    /// **A clearance requirement's answer** ([`Claim::Clearance`]): the
+    /// sweep's report, whose verdict holds (with an upper bound's
+    /// proving pair), is violated (with the pair below the lower bound,
+    /// or with every pair clear of the upper one), or refuses typed —
+    /// the third state, never a poisoned node. At a scalar that cannot
+    /// certify, that third state names the lane that can
+    /// ([`crate::clearance::ClearanceRefusal::NeedsCertifyingLane`]).
+    Clearance(Box<crate::clearance::ClearanceReport>),
 }
 
 impl<T> AssertionVerdict<T> {
@@ -447,6 +633,7 @@ impl<T> AssertionVerdict<T> {
                 bound: f(bound),
             },
             Self::Unevaluated { reason } => AssertionVerdict::Unevaluated { reason },
+            Self::Clearance(report) => AssertionVerdict::Clearance(report),
         }
     }
 }
@@ -456,13 +643,9 @@ impl<T> AssertionVerdict<T> {
 /// The upstream-FAILURE lanes are NOT here: a failed or poisoned
 /// measure poisons its assertion through the ordinary DAG edge (F2),
 /// so the assertion has no value at all rather than an
-/// `Unevaluated` one. What is left is the two cases where the measure
-/// node itself came out fine and the COMPARISON still has no answer:
-/// the margin was undecidable, or there was no measured value to
-/// compare — a typed absence
-/// ([`crate::eval::ValuePayload::MeasureUnavailable`]), which is a
-/// value and not a failure, and therefore reaches here rather than
-/// poisoning.
+/// `Unevaluated` one. What is left is the case where the measure node
+/// itself came out fine and the COMPARISON still has no answer: the
+/// margin was undecidable.
 // `Eq` is not derived: the undecided arm keeps the escalation, whose
 // reporting margin is floating point.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -481,11 +664,6 @@ pub enum UnevaluatedReason {
         /// the reporting margin it was classified on.
         cause: geom_core::Indeterminate,
     },
-    /// The measure has no value at this build's scalar, and says why.
-    /// E10's third state used for exactly what it is for: the
-    /// requirement is recorded, the run cannot answer it, and neither
-    /// half of that is hidden.
-    MeasureUnavailable(MeasureUnavailableAt),
 }
 
 impl core::fmt::Display for UnevaluatedReason {
@@ -497,7 +675,6 @@ impl core::fmt::Display for UnevaluatedReason {
                  assertion has no verdict. {}",
                 ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
-            Self::MeasureUnavailable(why) => write!(f, "there is no measured value: {why}"),
         }
     }
 }
@@ -511,6 +688,7 @@ impl<T> AssertionVerdict<T> {
             Self::Holds { .. } => Some(true),
             Self::Violated { .. } => Some(false),
             Self::Unevaluated { .. } => None,
+            Self::Clearance(report) => report.verdict().holds(),
         }
     }
 
@@ -520,6 +698,7 @@ impl<T> AssertionVerdict<T> {
             Self::Holds { .. } => "Holds",
             Self::Violated { .. } => "Violated",
             Self::Unevaluated { .. } => "Unevaluated",
+            Self::Clearance(report) => report.verdict().label(),
         }
     }
 }

@@ -99,11 +99,11 @@ fn asserted_contact(
     let value = crate::fixture::value_of(&doc, measure);
     let (doc, assertion) = insert(
         doc,
-        Node::Assertion {
+        Node::Assertion(editor_core::Claim::Value {
             value,
             bound: len(0.0),
             relation: AssertionRelation::Equal,
-        },
+        }),
     );
     (doc, measure, assertion)
 }

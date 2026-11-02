@@ -68,3 +68,17 @@ by the description or not at all.
 (r2), filed here because `clearance.rs` is SHELL's ground
 (`python3 scripts/work.py territory`); related to `work/trim/`'s window
 item by mechanism, not by owner.
+
+## Update (2026-11-02, DOORS' `a-clearance-assertion-is-decided-by-the-sweep`)
+
+User-facing now, and for an upper bound's PROOF as well as a violation:
+a clearance assertion's `Within` pair is a verified pair of face points
+drawn by the viewer. The verifier is offered only stations the faces'
+point doors place on their faces (`Candidate::on_face_stations`), for
+both questions. Two rows pin it on non-convex faces whose windows cover
+material the faces lack:
+`m10_6_r1_probes_interval::an_upper_bound_over_a_notch_is_proved_only_by_face_points`
+(the windows' pair across the notch is 0.1 apart, the faces' 0.269) and
+`r2_m10_6_probes_interval::a_clearance_between_two_separated_bodies_reads_their_gap`.
+The membership question at a station the point door places `OnEdge`
+within the band is the row's remaining edge.

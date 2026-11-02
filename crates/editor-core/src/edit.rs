@@ -1554,9 +1554,10 @@ fn mint_selection<P: crate::ProfilePayload>(
         slot,
         fault,
     };
-    // A whole body named at a measure seat is a read of that body: the
-    // name must be the body read's, its operation's or upstream of it.
-    if let ([name], crate::SlotKind::Measured(_)) = (names, expected)
+    // A whole body named at a measure or clearance seat is a read of that
+    // body: the name must be the body read's, its operation's or upstream
+    // of it.
+    if let ([name], crate::SlotKind::Measured(_) | crate::SlotKind::Cleared) = (names, expected)
         && name.kind == EntityKind::Body
     {
         if !doc.nodes.contains_key(&name.node) {

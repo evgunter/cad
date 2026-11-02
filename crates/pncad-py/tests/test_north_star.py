@@ -3981,11 +3981,16 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `drawn_profile` JOINED it at INTENT stage 6 C: a profile drawn
         # on a frame of a body's space, tracing its faces. The positive
         # form is `tests/test_traced_profile.py`.
+        #
+        # `clearance` is the clearance requirement, an assertion whose
+        # claim is a clearance between two seats rather than a value
+        # against a bound. The positive form is `tests/test_measures.py`.
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "assemble", "assertion", "bolt_circle", "chamfer",
-                "circular_pattern", "drawn_profile", "extrude", "fillet", "grid",
+                "circular_pattern", "clearance", "drawn_profile", "extrude",
+                "fillet", "grid",
                 "hollow_tube", "instantiate_part", "intersect",
                 "linear_pattern", "loft", "measure", "mirror", "place",
                 "polygon", "profile", "revolve", "shell", "space",

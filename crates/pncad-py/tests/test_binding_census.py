@@ -594,9 +594,8 @@ BOUND_AS = {
     "measure": "Doc.measure",
     "MeasureOutcome": "Doc.measure",
     # A measured value outside an assertion is read through
-    # `Evaluation.reading`, which raises the refusal and the typed
-    # absence rather than answering them.
-    "Observed": "Evaluation.reading",
+    # `Evaluation.reading`, which raises the refusal rather than
+    # answering it.
     "ObservedRefusal": "Evaluation.reading",
     # The coincidence door's row and its verdict (D10) cross as ONE
     # value, `Coincidence`: its cells as `(node, name)` pairs, the
@@ -639,6 +638,20 @@ BOUND_AS = {
     "FreshFault": "EvalError.variant",
     "DEG": "deg",
     "AssertionVerdict": "Verdict",
+    # An assertion's claim is chosen by its constructor: a value against
+    # a bound is `Node.assertion`, a clearance within its bounds
+    # `Node.clearance`, whose bounds are its keyword arguments.
+    "Claim": "Node.clearance",
+    "ClearanceBounds": "Node.clearance",
+    # A clearance verdict reads through the one `Verdict`: its state,
+    # its refusal's class (with the sentence on `reason`), and the pair
+    # that decided it, whose two points and distance are a
+    # `ClearancePair`.
+    "ClearanceReport": "Verdict",
+    "ClearanceVerdict": "Verdict.status",
+    "ClearanceRefusal": "Verdict.refusal",
+    "Witness": "Verdict.pair",
+    "GeometryWitness": "ClearancePair",
     "DocumentId": "Doc.id",
     "IN": "inch",
     "M": "m",
@@ -1464,9 +1477,8 @@ BOUND_AS = {
     # scalar the door that fills them answers at.
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
-    # one level in. An `f64` evaluation cannot produce either today,
-    # which is the same sentence `MinSeparationRefusal` carries one
-    # roster down: the LANE decides.
+    # one level in. An `f64` evaluation cannot produce either today:
+    # the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
 }
@@ -3152,31 +3164,6 @@ NOT_BOUND = {
     # crosses, for `NotAFaceName`'s reason.
     "Label": SHAPE,
     "LabelFault": SHAPE,
-    # **The clearance engine's refusal, flattened to a tag — and
-    # unreachable at the lane Python evaluates on.** It reaches Python
-    # as `EvaluationError.kind == "measure_clearance_refused"`
-    # (`src/tags.rs`), which is this bullet's ordinary shape. What is
-    # NOT ordinary is that no Python evaluation can produce one: the
-    # refusal's only producer on the measure path is the
-    # `topo::ClearanceLane` door, which only a certifying scalar holds,
-    # and the binding evaluates at `f64` alone (`src/py/value.rs`), so
-    # the SCALAR is what gates it. That is the box's and the seed's
-    # sentence above arriving on the refusal side: the door starts
-    # answering differently exactly when Python gains a non-`f64`
-    # evaluation, and it should gain its spelling in the unit that
-    # brings one. Binding an exception class nothing raises would move
-    # a name off this roster without moving anything a caller can do,
-    # which is `sweep_body`'s argument two bullets up.
-    #
-    # Its SIBLING went the other way and the pair is the measurement:
-    # `MeasureUnavailableAt` is what the `f64` lane answers a
-    # `min_clearance` WITH, so it is reachable today and is bound
-    # top-level under rule 1. One verb, two refusals, and the lane
-    # decides which of them a Python caller can ever see.
-    "MinSeparationRefusal": SHAPE,
-    # The side an arm of it names a face by: carried for its carrier,
-    # and unreachable for its carrier's reason.
-    "Which": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -3230,50 +3217,17 @@ NOT_BOUND = {
     # positive form is `tests/test_distributions.py`.
     # B-MEASURES IS GONE FROM THIS ROSTER, closed at LIB-B-MEASURES,
     # and the id left `FAMILIES` with it — which emptied that map, the
-    # last census-owned charter closing. It cited SEVEN names and they
-    # left three different ways, which is one more way than
-    # B-DISTRIBUTIONS demonstrated:
+    # last census-owned charter closing. Of its names, `MeasurePrimitive`
+    # and `AssertionRelation` are declared top-level in `pncad.pyi` at
+    # the same spelling (rule 1), and `SitedRef` is `SHAPE`, argued at
+    # its own entry above. The clearance a measure once answered is a
+    # requirement, `Node.clearance`, whose vocabulary is accounted
+    # beside `AssertionVerdict`'s.
     #
-    #   - FIVE leave the roster ENTIRELY under rule 1, because
-    #     `pncad.pyi` declares each top-level at the same spelling:
-    #     `MeasureExpr`, `MeasurePrimitive` and `AssertionRelation` as the
-    #     authoring vocabulary, and `MeasureNodeFault` and
-    #     `MeasureUnavailableAt` as exception classes keeping their
-    #     Rust types' own names. (INTENT stage 2 PR D retires
-    #     `MeasureExpr` and `MeasureNodeFault`: a measure holds one
-    #     primitive over its own references, and its arithmetic is a
-    #     formula.)
-    #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
-    #     `MinClearanceRefusal`, each argued at its own entry above.
-    #     Neither is a debt any more and neither is reach: one is a
-    #     type whose two halves are what the doors take, the other a
-    #     refusal flattened to a tag no `f64` evaluation can raise.
-    #
-    #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
-    #     measure path carries the engine's own `ClearanceRefusal` — and
-    #     its entry is now `ClearanceRefusal`'s, with the two payloads
-    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
-    #     three `SHAPE` for the same reason.)
-    #
-    #     (2026-10-28, SYMCLEAR: the measure path carries
-    #     `MinSeparationRefusal`, the four arms its door can raise, and
-    #     the entry is now that type's alone; `ClearanceRefusal`,
-    #     `SelectionRefusal` and `CellBudget` are no longer carried.)
-    #
-    # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
-    # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
-    # one unit earlier, and this family's `MeasureUnavailableAt` is a
-    # DIFFERENT kernel type answering a different question — the band
-    # that states limits without a shape, against the point scalar
-    # with nowhere to put an enclosure. Both keep their own Rust
-    # names, neither subclasses the other, and the two tag functions
-    # are deliberately not one function.
-    #
-    # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
-    # every name this family owns is curated in
-    # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
-    # LANE — see the `MinSeparationRefusal` entry — and it bites one
-    # refusal out of the family's whole surface.
+    # THE GATE, MEASURED: every name this family owns is curated in
+    # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit
+    # is a LANE: a clearance verdict at `f64` is always the third
+    # state, so a decided one never reaches Python.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
     # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
@@ -3420,9 +3374,12 @@ NOT_BOUND = {
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`. `MinSeparationRefusal`'s entry two
-    # screens up is the same sentence from the refusal side, and it is
-    # the sharper statement of it: the LANE is what gates.
+    # owes a spelling or a `gap:`.
+    #
+    # A witness's parameter point is the same: offsets per variable
+    # over a box, carried only by a decided clearance, which an `f64`
+    # evaluation never produces.
+    "ParamWitness": SHAPE,
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
     "CertifiedLeaf": SHAPE,
@@ -3747,8 +3704,6 @@ MEMBERS_BOUND_AS = {
     # values writes this edit (`DocEdit::removing`) and answers the
     # others' addresses.
     "DocEdit::RemoveConstraints": "Doc.remove_mate",
-    "MeasureUnavailableAt::NeedsEnclosure": "MeasureUnavailableAt.variant",
-    "MeasureUnavailableAt::NoUpperBound": "MeasureUnavailableAt.variant",
     "NodePickError::Standing": "NodePickError.variant",
     "NodePickError::NotABody": "NodePickError.variant",
     "NodePickError::NoSuchBody": "NodePickError.variant",

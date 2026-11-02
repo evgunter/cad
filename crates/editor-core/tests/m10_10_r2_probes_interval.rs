@@ -377,11 +377,11 @@ pub(crate) fn d_tab_at(
     let gap = MeasurePrimitive::Distance { a: 0, b: 1 };
     let measured = r.measure(&[gap], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
-    let assertion = r.insert(Node::Assertion {
+    let assertion = r.insert(Node::Assertion(editor_core::Claim::Value {
         value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(1.78e-3),
         relation: editor_core::AssertionRelation::AtLeast,
-    });
+    }));
     (r.doc, measure, assertion)
 }
 

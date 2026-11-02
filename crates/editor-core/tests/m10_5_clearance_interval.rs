@@ -32,10 +32,16 @@
 //! refuses a chart that halving cannot narrow, whatever made it wide.
 //!
 //! A rigid translation keeps the rest clean: its rotation is the
-//! identity, so every stored direction passes through exactly. It does
-//! not lift the width ceiling — a transform re-certifies its mapped
-//! edges against their carriers, and that identity widens with the box
-//! like every other — so every box here is ε-scaled.
+//! identity, so every stored direction passes through exactly. At plain
+//! `Interval` it does not lift the width ceiling — a transform
+//! re-certifies its mapped edges against their carriers, and that
+//! identity widens with the box like every other — so every box here is
+//! ε-scaled. The drive's symbolic lane (E12) is what lifts it: a
+//! translation's re-certification identities are identically zero in
+//! the parameters there, so a translated pair replays over a
+//! MACROSCOPIC box through `drive::assertion_at` and the drive
+//! certifies it (`m10_6_clearance_assertion_interval`'s box-dependent
+//! fixture, at `±0.05`). These rows ask the plain lane, and keep ε.
 //!
 //! One consequence is worth stating rather than leaving to be inferred.
 //! The monotonicity accelerator's value is to collapse an axis whose
@@ -134,13 +140,13 @@ use crate::fixture;
 
 use std::collections::BTreeMap;
 
+use crate::fixture::clearance;
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     Budgets, CellBudget, CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery,
     ClearanceRefusal, ClearanceReport, ClearanceVerdict, EngineRefusal, FaceScope, MonotoneOracle,
-    NoTangents, Pruning, Selection, Which, clearance, clearance_over, clearance_with,
-    self_intersection,
+    NoTangents, Pruning, Selection, Which, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -153,9 +159,10 @@ use fixture::{Recorder, len};
 
 /// The analysis box's half-width, in metres.
 ///
-/// See the module header: no node's interval replay survives a wider
-/// one, on any fixture, because every certification predicate it runs
-/// is an identity whose enclosure grows with the box.
+/// See the module header: at plain `Interval` no node's replay survives
+/// a wider one, because every certification predicate it runs is an
+/// identity whose enclosure grows with the box. The drive's symbolic
+/// lane replays a translated pair over a macroscopic box.
 fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
@@ -258,7 +265,7 @@ pub(crate) fn slid_by(
 }
 
 /// A copy of `input` slid by `by` along its own +x ([`slid_by`]).
-fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
+pub(crate) fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeId {
     slid_by(
         r,
         input,
@@ -272,7 +279,7 @@ fn translated(r: &mut Recorder, input: RecipeNodeId, by: Formula) -> RecipeNodeI
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
-fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
+pub(crate) fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let p = r.insert(Node::Profile(ProfileProgram {
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
@@ -470,7 +477,7 @@ fn witness_distance(report: &ClearanceReport) -> f64 {
 /// A query at a bound and a config, with no accelerator.
 fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
@@ -805,7 +812,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
         faces: FaceScope::Named(vec![fixture::ename(at, fixture::wall(&doc, at, 0))]),
     };
     let whole = Selection::body_of(at);
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &doc,
         &box_of(&doc, "place"),
         &sel,
@@ -825,7 +832,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
 fn a_node_that_does_not_exist_refuses_at_the_selection() {
     let (doc, _minted, _at) = hexagon();
     let sel = Selection::body_of(RecipeNodeId::new(0, 9999));
-    let report = clearance(
+    let report = crate::fixture::selection_clearance(
         &doc,
         &box_of(&doc, "place"),
         &sel,
@@ -912,7 +919,7 @@ fn gap_run(
     oracle: &dyn MonotoneOracle,
 ) -> ClearanceReport {
     let q = ClearanceQuery {
-        bound: ClearanceBound::AtLeast(c),
+        bound: ClearanceBound::at_least(c),
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
@@ -964,7 +971,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
     );
     let facet = ParamBox::from_axes(facet_axes);
     let q = |pruning, oracle: &'static dyn MonotoneOracle| ClearanceQuery {
-        bound: ClearanceBound::AtLeast(0.5),
+        bound: ClearanceBound::at_least(0.5),
         tol: Tol::witness(),
         config: ClearanceConfig {
             pruning,
@@ -1033,7 +1040,10 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         &verdict,
         &wa,
         &wb,
-        &ClearanceQuery::at_least(0.2, Tol::witness()),
+        &ClearanceQuery {
+            bound: ClearanceBound::at_least(0.2),
+            ..ClearanceQuery::strictly_positive(Tol::witness())
+        },
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
@@ -1094,7 +1104,10 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         );
     };
     let [a, b] = plate.holes.map(Selection::body_of);
-    let query = ClearanceQuery::at_least(0.3e-3, tol);
+    let query = ClearanceQuery {
+        bound: ClearanceBound::at_least(0.3e-3),
+        ..ClearanceQuery::strictly_positive(tol)
+    };
     let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
     assert_eq!(
         fold.verdict,
@@ -1106,8 +1119,11 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         &leaf.box_,
         &a,
         &b,
-        &ClearanceQuery::at_least(0.3e-3, tol)
-            .certified_at(editor_core::drive::SymbolicDials::off()),
+        &ClearanceQuery {
+            bound: ClearanceBound::at_least(0.3e-3),
+            ..ClearanceQuery::strictly_positive(tol)
+        }
+        .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
         *clearance_with(
@@ -1292,20 +1308,30 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
     let leaf = box_of(&doc, "place");
-    for c in [f64::NAN, f64::INFINITY, -1.0] {
-        let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
-        match report.verdict() {
-            ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. }) => {}
-            other => panic!("expected NotADistance for c = {c}, got {other:?}"),
-        }
-        assert_eq!(report.receipt(), CellReceipt::default());
+    // A bound that is no number at all is no literal a document holds:
+    // the formula refuses it before any assertion is authored.
+    for c in [f64::NAN, f64::INFINITY] {
+        assert!(
+            editor_core::Formula::literal(c, editor_core::Dimension::Length).is_err(),
+            "c = {c} is refused as a literal"
+        );
     }
+    // A negative one is a length the document holds and the assertion
+    // refuses as no distance, before any cell pair is read.
+    let report = clearance(&doc, &leaf, &sel, &sel, -1.0, Tol::witness());
+    match report.verdict() {
+        ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. }) => {}
+        other => panic!("expected NotADistance for c = -1, got {other:?}"),
+    }
+    assert_eq!(report.receipt(), CellReceipt::default());
     let empty = Selection {
         at: minted,
         body: 0,
         faces: FaceScope::Named(Vec::new()),
     };
-    match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
+    match crate::fixture::selection_clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness())
+        .verdict()
+    {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
             refusal: EngineRefusal::EmptyScope { side: Which::First },
             ..

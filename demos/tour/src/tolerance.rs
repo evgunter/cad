@@ -498,10 +498,7 @@ fn real_study(tol: Tol) {
             receipt,
         }) => {
             println!("   NOTHING CERTIFIED — and the refusal carries the study's answer anyway:");
-            println!(
-                "     nominal web {:.4} mm",
-                nominal.expect("the web is a closed form, so it has an f64 nominal") * 1e3
-            );
+            println!("     nominal web {:.4} mm", nominal * 1e3);
             for s in &sensitivities {
                 // Through the library's own spelling, not `Debug`:
                 // the E4 chamber mark is the load-bearing half of a
@@ -630,7 +627,7 @@ fn certified_study(tol: Tol) {
         pncad::analysis::Rss::Advisory { sigma } => sigma,
         ref other => panic!("every contributor carries a measure here: {other:?}"),
     };
-    let three_sigma = report.nominal.expect("the web has an f64 nominal") - 3.0 * sigma;
+    let three_sigma = report.nominal - 3.0 * sigma;
     assert!(
         three_sigma >= bound,
         "and the RSS's 3σ reading does not reach under the bound; σ = {sigma:e}"
@@ -905,16 +902,7 @@ fn print_divergence(report: &Stackup, bound: f64, linear_worst: f64, decided: &D
     );
     match &report.rss {
         pncad::analysis::Rss::Advisory { sigma } => {
-            let Ok(nominal) = report.nominal else {
-                // A measure with no f64 nominal has no linearized
-                // figure to disagree with; the certified column above
-                // still printed and still gates.
-                println!(
-                    "     ADVISORY rss: no linearized figure — this measure has no f64 \
-                     nominal to expand around"
-                );
-                return;
-            };
+            let nominal = report.nominal;
             let three_sigma = nominal - 3.0 * sigma;
             println!(
                 "     ADVISORY rss: σ ≈ {sigma:e}, so a 3σ reading says the web reaches \
