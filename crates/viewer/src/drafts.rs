@@ -90,6 +90,9 @@ pub(crate) struct Drafts {
     /// The placement editor's value fields being typed in, by freedom:
     /// the text, until the field loses focus and the draft takes it.
     pub(crate) mate_value_edits: Vec<(pncad::document::Coord, String)>,
+    /// The door the value edits were typed under: a different door, or
+    /// the same one over another bundle (a reload), drops them.
+    pub(crate) mate_value_door: Option<crate::matetool::PlaceDoor>,
     /// The toolbar's New… form: `Some(text)` while the name field is
     /// open, `None` while it is not. The op is not emitted until
     /// its commit — a name in flight is a draft, not a document.
@@ -953,6 +956,7 @@ impl Default for Drafts {
             new_variable_offer: None,
             mate_verdict: None,
             mate_value_edits: Vec::new(),
+            mate_value_door: None,
             new_doc_name: None,
             profile_open: false,
             sketch_on_face: false,
@@ -1341,6 +1345,23 @@ impl Drafts {
         for held in self.latches().into_iter().flatten() {
             *held = held.respoken(doc);
         }
+    }
+
+    /// **Keep the placement editor's value edits to its draft**: dropped
+    /// when the editor closes (`door` is `None`), opens on another door
+    /// or reloads its bundle, and each edit whose freedom the draft no
+    /// longer lists (`coords`) dropped with its row.
+    pub(crate) fn sync_mate_edits(
+        &mut self,
+        door: Option<&crate::matetool::PlaceDoor>,
+        coords: &[pncad::document::Coord],
+    ) {
+        if self.mate_value_door.as_ref() != door {
+            self.mate_value_edits.clear();
+            self.mate_value_door = door.cloned();
+        }
+        self.mate_value_edits
+            .retain(|(coord, _)| coords.contains(coord));
     }
 
     /// **The face this form holds**: [`Self::sketch_face`] while the
@@ -1982,6 +2003,63 @@ mod tests {
     /// new base, so the draft is untouched again; going back to the
     /// earlier document (an undo) replaces the draft with the program
     /// held there; and a selection that leaves the node drops it.
+    /// **The placement editor's value edits live with its draft**: a
+    /// freedom's typed text survives frames of the same draft, goes with
+    /// its row when the draft stops listing the freedom, and all of it
+    /// goes when the door changes (a reload's bundle) or the editor closes.
+    #[test]
+    fn the_placement_editors_value_edits_live_with_its_draft() {
+        use crate::matetool::PlaceDoor;
+        use pncad::document::{Coord, Operand, RecipeNodeId, TargetAxis};
+        let x = Coord::Slide(TargetAxis::X);
+        let y = Coord::Slide(TargetAxis::Y);
+        let door = PlaceDoor::Edit {
+            placement: RecipeNodeId::new(0, 7),
+            base: Vec::new(),
+        };
+        let reloaded = PlaceDoor::Edit {
+            placement: RecipeNodeId::new(0, 7),
+            base: pncad::document::stand().bundle(),
+        };
+        let mut drafts = Drafts::default();
+        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned()), (y, "6 mm".to_owned())];
+        drafts.sync_mate_edits(Some(&door), &[x, y]);
+        assert_eq!(
+            drafts.mate_value_edits.len(),
+            2,
+            "kept across frames of one draft"
+        );
+        drafts.sync_mate_edits(Some(&door), &[x]);
+        assert_eq!(
+            drafts.mate_value_edits,
+            [(x, "5 mm".to_owned())],
+            "y's row left"
+        );
+        drafts.sync_mate_edits(Some(&reloaded), &[x]);
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "a reload drops the edits"
+        );
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.sync_mate_edits(
+            Some(&PlaceDoor::Create {
+                body: Operand::Node(RecipeNodeId::new(0, 9)),
+            }),
+            &[x],
+        );
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "another door drops the edits"
+        );
+        drafts.mate_value_edits = vec![(x, "5 mm".to_owned())];
+        drafts.sync_mate_edits(None, &[]);
+        assert!(
+            drafts.mate_value_edits.is_empty(),
+            "a closed editor holds none"
+        );
+    }
+
     #[test]
     fn the_edit_draft_reloads_on_undo_and_is_abandoned_off_selection() {
         let (before, mut drafts, profile) = authored_by_the_form();

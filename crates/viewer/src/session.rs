@@ -2072,27 +2072,12 @@ impl DocSession {
                 constraints,
                 into_target_space,
             } => {
-                let op = SessionOp::SetBundle {
-                    placement,
-                    base,
-                    constraints,
-                    into_target_space,
-                };
-                match self.withheld(&op) {
-                    Some(refusal) => OpOutcome::refused(refusal),
-                    None => {
-                        let SessionOp::SetBundle {
-                            placement,
-                            base,
-                            constraints,
-                            into_target_space,
-                        } = op
-                        else {
-                            unreachable!("built just above")
-                        };
-                        self.set_bundle(placement, &base, constraints, into_target_space)
-                    }
+                if let Some(refusal) =
+                    self.withheld_bundle(placement, &base, &constraints, into_target_space)
+                {
+                    return OpOutcome::refused(refusal);
                 }
+                self.set_bundle(placement, &base, constraints, into_target_space)
             }
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
             SessionOp::IntoOwnSpace { placement } => self.commit_run(|run| {
@@ -4493,6 +4478,22 @@ impl DocSession {
     /// evaluate to a fault, or read what does not evaluate, is not
     /// committed from the editor — the panel says why, and the draft
     /// stays open. A door's refusal is the door's to give.
+    fn withheld_bundle(
+        &self,
+        placement: RecipeNodeId,
+        base: &[pncad::document::Constraint<Formula>],
+        constraints: &[pncad::document::Constraint<Formula>],
+        into_target_space: bool,
+    ) -> Option<Refusal> {
+        self.withheld(&SessionOp::SetBundle {
+            placement,
+            base: base.to_vec(),
+            constraints: constraints.to_vec(),
+            into_target_space,
+        })
+    }
+
+    /// [`Self::withheld_bundle`] of any Apply.
     fn withheld(&self, op: &SessionOp) -> Option<Refusal> {
         match self.bundle_verdict(op) {
             BundleVerdict::Faults(fault) => Some(Refusal::PlacementFails { fault: Some(fault) }),

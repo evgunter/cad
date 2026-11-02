@@ -494,3 +494,151 @@ fn a_create_draft_over_a_body_placed_since_is_refused() {
     );
     assert_eq!(session.history().len(), states, "nothing is recorded");
 }
+
+/// Declare the angle `name` at `at` and let `post_b`'s value `coord`
+/// read it.
+fn reads_angle(session: &mut DocSession, bench: &asm::Bench, coord: Coord, name: &str, at: f64) {
+    let outcome = session.perform(SessionOp::DeclareVar {
+        name: VarName::new(name).expect("a name"),
+        value: pncad::document::FreeVar::continuous(Dimension::Angle, at),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let (constraint, _) = value_on(session, bench.post_b, coord);
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: bench.post_b,
+        slot: SlotId::ValueSpin { constraint },
+        text: name.to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+}
+
+/// Set the angle `name` to `at`, landed.
+fn set_angle(session: &mut DocSession, name: &str, at: f64) {
+    let var = common::var_of(session.committed_doc(), name);
+    let outcome = session.perform(SessionOp::SetVariable {
+        var,
+        value: viewer::props::SlotValue::Continuous(at),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+}
+
+/// post_b's turn, landed.
+fn turn_of(session: &DocSession, bench: &asm::Bench, tol: Tol) -> [[f64; 3]; 3] {
+    let (doc, _) = session.landed_pair().expect("landed");
+    common::solve(session, doc, tol)
+        .placement(doc, bench.post_b)
+        .expect("post_b has a pose")
+        .columns
+}
+
+/// **A carried turn writes the exact quarter turns between the two
+/// zeros**: post_b turned 100° about `z` before its rest, so the rest's
+/// orientation is a quarter turn (`x` on `y`) and the spin's zero stands
+/// a quarter turn from the chain's. Its spin reading `pa`, the rest
+/// removed: the chain's turn about `z` reads `-pa + turn/4`, written
+/// exactly, and `pa` turns the freed copy as it turned the rested one.
+#[test]
+fn a_carried_turn_writes_the_quarter_turns_between_the_zeros() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-carry-quarter", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // Picked before the turn moves the post off the rays.
+    let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
+    let (spin_z, _) = value_on(&session, bench.post_b, Coord::Spin(Some(TargetAxis::Z)));
+    let outcome = session.perform(SessionOp::SetSlot {
+        node: bench.post_b,
+        slot: SlotId::ValueSpin { constraint: spin_z },
+        value: viewer::props::SlotValue::of(Dimension::Angle, 100.0_f64.to_radians())
+            .expect("a value"),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), post_top);
+    tool.pick(session.doc(), shelf_bottom);
+    let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
+    let mate = common::commit_mate(&mut session, proposal.op());
+    reads_angle(&mut session, &bench, Coord::SPIN, "pa", 0.0);
+    set_angle(&mut session, "pa", 0.3);
+    let rested = turn_of(&session, &bench, tol);
+    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let z = viewer::matetool::value_text(
+        session.committed_doc(),
+        &authored(&session, bench.post_b)
+            .iter()
+            .find_map(|c| {
+                c.value()
+                    .filter(|v| v.coord == Coord::Spin(Some(TargetAxis::Z)))
+                    .map(|v| v.by.clone())
+            })
+            .expect("the chain turns about z"),
+    );
+    let freed = turn_of(&session, &bench, tol);
+    set_angle(&mut session, "pa", -0.4);
+    let turned = turn_of(&session, &bench, tol);
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+    assert!(
+        z.contains("pa") && z.contains("turn"),
+        "the turn about z reads pa and a quarter turn: {z}"
+    );
+    let close = |a: &[[f64; 3]; 3], b: &[[f64; 3]; 3]| {
+        a.iter()
+            .flatten()
+            .zip(b.iter().flatten())
+            .all(|(x, y)| (x - y).abs() < 1e-9)
+    };
+    assert!(
+        close(&freed, &rested),
+        "the freed copy stands as the rested one: {freed:?} {rested:?}"
+    );
+    assert!(!close(&turned, &freed), "pa still turns the freed copy");
+}
+
+/// **A turn the kernel cannot state as a chain link is said dropped**:
+/// post_b's +x side face rests on the shelf's underside, so its `x`
+/// stands on `z` — the chain's pole, where the chain's turns about `x`
+/// and `z` turn about one line. Its spin reading `pa`, the rest struck
+/// out: `pa` is carried onto no freedom, and the draft says it dropped.
+#[test]
+fn a_turn_at_the_chains_pole_is_said_dropped() {
+    let tol = Tol::witness();
+    let bench = asm::bench("bundle-carry-pole", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let side = asm::pick_face(
+        &session,
+        &common::along_x(-1.0, asm::POST_SECTION / 2.0, asm::POST_HEIGHT / 2.0),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(session.doc(), side);
+    tool.pick(session.doc(), asm::shelf_underside(&session));
+    let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
+    let mate = common::commit_mate(&mut session, proposal.op());
+    reads_angle(&mut session, &bench, Coord::SPIN, "pa", 0.3);
+    let (doc, ev) = session.landed_pair().expect("landed");
+    let struck = MateTool::edit_striking(doc, mate)
+        .expect("the rest is a mate")
+        .proposal(doc, ev, tol)
+        .expect("the struck draft proposes");
+    let read = |rows: &[viewer::matetool::ValueRow]| {
+        rows.iter()
+            .filter(|row| viewer::matetool::value_text(doc, &row.by).contains("pa"))
+            .map(|row| row.coord)
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        read(&struck.values).is_empty(),
+        "pa is carried onto no freedom: {:?}",
+        struck.values
+    );
+    assert_eq!(
+        read(&struck.dropped),
+        [Coord::SPIN],
+        "pa is said dropped: {:?}",
+        struck.dropped
+    );
+    std::fs::remove_dir_all(&bench.dir).expect("removable");
+}

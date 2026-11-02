@@ -4281,6 +4281,83 @@ mod properties_pane_tests {
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
 
+    /// **The placement editor's value rows are fields**: the Edit door on
+    /// the startup copy, its identity bundle loaded. Each row is drawn as
+    /// its freedom's word and, next after it, a field showing the number
+    /// the bundle holds — never a variable's raw id — and typing into one
+    /// replaces that value in the draft.
+    #[test]
+    fn the_placement_editors_value_rows_are_editable_number_fields() {
+        let key = |key| egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: if key == egui::Key::A {
+                egui::Modifiers::COMMAND
+            } else {
+                egui::Modifiers::default()
+            },
+        };
+        let mut driven = Driven::with(Vec::new());
+        driven.settle();
+        let tool = crate::matetool::MateTool::edit(driven.app.session.committed_doc(), placement())
+            .expect("the startup copy is a placement");
+        driven.app.tools.open_mate(tool);
+        driven.click(crate::pane::create::ASSEMBLE_PARTS);
+        let painted = driven.quiet();
+        let words: Vec<&str> = pncad::document::TargetAxis::ALL
+            .into_iter()
+            .flat_map(|axis| {
+                [
+                    pncad::document::Coord::Slide(axis),
+                    pncad::document::Coord::Spin(Some(axis)),
+                ]
+            })
+            .map(pncad::document::Coord::name)
+            .collect();
+        let fields: Vec<(String, egui::Pos2)> = painted
+            .windows(2)
+            .filter(|pair| words.contains(&pair[0].0.as_str()))
+            .map(|pair| (pair[1].0.clone(), pair[1].1.center()))
+            .collect();
+        assert_eq!(
+            fields.len(),
+            6,
+            "a field per freedom of the identity: {painted:?}"
+        );
+        for (text, _) in &fields {
+            assert!(!text.contains('#'), "no field spells a raw id: {text:?}");
+            assert_eq!(
+                text.trim(),
+                "0",
+                "the identity's number reads as the number: {text:?}"
+            );
+        }
+        let slide_x = painted
+            .windows(2)
+            .find(|pair| {
+                pair[0].0 == pncad::document::Coord::Slide(pncad::document::TargetAxis::X).name()
+            })
+            .map(|pair| pair[1].1.center())
+            .expect("the slide along x is drawn");
+        driven.click_at(slide_x);
+        driven.frame(vec![key(egui::Key::A)]);
+        driven.frame(vec![egui::Event::Text("5 mm".to_owned())]);
+        driven.frame(vec![key(egui::Key::Enter)]);
+        driven.quiet();
+        let typed = driven.app.tools.mate().map(|tool| tool.typed().to_vec());
+        assert!(
+            typed
+                .as_ref()
+                .is_some_and(|typed| typed.iter().any(|(coord, by)| {
+                    *coord == pncad::document::Coord::Slide(pncad::document::TargetAxis::X)
+                        && by.literal_value() == Some(0.005)
+                })),
+            "typing replaces the slide along x in the draft: {typed:?}"
+        );
+    }
+
     /// **A deleted node is called deleted, and nothing claims it
     /// carries no parameters** — it carries nothing because it is not
     /// there, which the `live()` gate on that line keeps unsaid.

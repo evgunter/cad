@@ -113,20 +113,22 @@ fn r2_removing_a_mate_keeps_a_spin_reading_a_variable() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     let after = said(&session, bench.post_b);
-    let read: Vec<String> = authored(&session, bench.post_b)
+    let z = authored(&session, bench.post_b)
         .iter()
-        .filter_map(|c| {
+        .find_map(|c| {
             c.value()
+                .filter(|v| v.coord == Coord::Spin(Some(TargetAxis::Z)))
                 .map(|v| viewer::matetool::value_text(session.committed_doc(), &v.by))
         })
-        .collect();
+        .expect("the freed chain turns about z");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
     // The rest's spin turns about the shelf's own normal, `-z`, so the
-    // chain's turn about `z` reads it with its sign: `-pa`, still `pa`.
-    assert!(
-        read.iter().any(|text| text.replace(' ', "") == "-pa"),
-        "the turn about z still reads pa ({pa}) after the rest is removed: {read:?} \
-         ({after:?}, was {before:?})"
+    // chain's turn about `z` — the same line, its last link — reads it
+    // with its sign: `-pa`.
+    assert_eq!(
+        z.replace(' ', ""),
+        "-pa",
+        "the turn about z reads pa ({pa}) after the rest is removed ({after:?}, was {before:?})"
     );
 }
 
@@ -153,10 +155,21 @@ fn r2_adding_a_rest_keeps_a_turn_about_its_normal_reading_a_variable() {
     let proposal = common::proposed(&session, &tool, rest()).expect("the rest proposes");
     common::commit_mate(&mut session, proposal.op());
     let after = said(&session, bench.post_b);
+    let spin = authored(&session, bench.post_b)
+        .iter()
+        .find_map(|c| {
+            c.value()
+                .filter(|v| v.coord == Coord::SPIN)
+                .map(|v| viewer::matetool::value_text(session.committed_doc(), &v.by))
+        })
+        .expect("the rest leaves its spin");
     std::fs::remove_dir_all(&bench.dir).expect("removable");
-    assert!(
-        after.iter().any(|s| s.ends_with(&format!("= {pa}"))),
-        "the spin about the shelf's normal still reads pa ({pa}): {after:?} (was {before:?})"
+    // The rest's spin turns about the shelf's own normal, `-z`, the line
+    // of the chain's last turn, so it reads `pa` with its sign.
+    assert_eq!(
+        spin.replace(' ', ""),
+        "-pa",
+        "the spin about the shelf's normal reads pa ({pa}): {after:?} (was {before:?})"
     );
 }
 
@@ -422,21 +435,33 @@ fn r2_the_panels_value_rows_are_editable_numbers() {
     let loaded = edit
         .proposal(doc, ev, tol)
         .expect("the loaded bundle proposes");
-    let texts: Vec<String> = loaded
+    // Each field's text is its number: typed back into the field, it is
+    // the value the bundle holds, bit for bit. The driven panel row
+    // (`app`'s `the_placement_editors_value_rows_are_editable_number_fields`)
+    // types into one.
+    let read: Vec<(String, Option<f64>, Option<f64>)> = loaded
         .values
         .iter()
-        .map(|row| viewer::matetool::value_text(doc, &row.by))
+        .map(|row| {
+            let text = viewer::matetool::value_text(doc, &row.by);
+            let typed = viewer::matetool::typed_value(doc, row.coord, &text)
+                .ok()
+                .and_then(|by| doc.resolve(&by).ok())
+                .and_then(|by| pncad::document::eval::<f64>(&by, &doc.var_env()).ok());
+            let held = doc
+                .resolve(&row.by)
+                .ok()
+                .and_then(|by| pncad::document::eval::<f64>(&by, &doc.var_env()).ok());
+            (text, typed, held)
+        })
         .collect();
     std::fs::remove_dir_all(&bench.dir).expect("removable");
-    assert_eq!(texts.len(), 3, "a rest leaves two slides and its spin");
-    assert!(
-        texts.iter().all(|text| !text.contains('#')),
-        "a value row spells a variable as its raw id: {texts:?}"
-    );
-    assert!(
-        texts
-            .iter()
-            .all(|text| text.chars().any(|c| c.is_ascii_digit())),
-        "each loaded number reads as a number: {texts:?}"
-    );
+    assert_eq!(read.len(), 3, "a rest leaves two slides and its spin");
+    for (text, typed, held) in &read {
+        assert!(!text.contains('#'), "a value row spells a raw id: {read:?}");
+        assert!(
+            typed.is_some() && typed == held,
+            "the field {text:?} reads as the number the bundle holds: {read:?}"
+        );
+    }
 }

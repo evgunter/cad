@@ -615,6 +615,7 @@ fn striking_a_point_or_a_direction_drops_nothing_silently() {
                 .values
                 .iter()
                 .chain(&struck.dropped)
+                .chain(&struck.retired)
                 .any(|row| row.from == ValueFrom::Loaded(*id));
             let replaced = struck
                 .values

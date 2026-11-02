@@ -661,6 +661,7 @@ impl ViewerBehavior<'_> {
         // A CLONE of the tool value, edited here and written back whole
         // when it changed.
         let Some(tool) = self.tools.mate().cloned() else {
+            self.drafts.sync_mate_edits(None, &[]);
             return self.tool_door(ui, ToolKind::Mate);
         };
         let by = frame::landed_speaker(self.session.landed_pair());
@@ -725,6 +726,11 @@ impl ViewerBehavior<'_> {
                 .map_err(|error| error.respoken(doc))
         });
         let doc = self.session.committed_doc();
+        let coords: Vec<_> = match &proposal {
+            Some(Ok(proposal)) => proposal.values.iter().map(|row| row.coord).collect(),
+            _ => Vec::new(),
+        };
+        self.drafts.sync_mate_edits(tool.door(), &coords);
         let op = match &proposal {
             Some(Ok(proposal)) => {
                 // Every value row is a field showing its formula as the
@@ -768,14 +774,22 @@ impl ViewerBehavior<'_> {
                     });
                 }
                 for row in &proposal.dropped {
-                    crate::widgets::message(
+                    crate::widgets::message_toned(
                         ui,
                         ToolKind::Mate.says(&format_args!(
                             "drops the {} value {}: the mates leave no such freedom",
                             row.coord.name(),
                             crate::matetool::value_text(doc, &row.by)
                         )),
+                        &self.theme,
+                        Tone::Advisory,
                     );
+                }
+                if !proposal.retired.is_empty() {
+                    ui.weak(format!(
+                        "{} number(s) on freedoms the mates now fix go",
+                        proposal.retired.len()
+                    ));
                 }
                 Some(if tool.into_target_space() {
                     proposal.op_into_target_space()

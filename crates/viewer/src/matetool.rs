@@ -1008,11 +1008,15 @@ pub struct MateProposal {
     pub mates: Vec<ProposedMate>,
     /// The value rows.
     pub values: Vec<ValueRow>,
-    /// **The values Apply drops**: each loaded or typed value on a
-    /// freedom the live mates do not leave, and carried onto none, with
-    /// its formula — said in the draft before Apply, never dropped
-    /// silently.
+    /// **The values Apply drops that the person wrote**: each loaded
+    /// value reading a variable or an expression, and each typed number,
+    /// on a freedom the live mates do not leave and carried onto none,
+    /// with its formula — said prominently in the draft before Apply,
+    /// never dropped silently.
     pub dropped: Vec<ValueRow>,
+    /// **The constants Apply drops**: numbers on freedoms the live mates
+    /// now fix, said once, quietly.
+    pub retired: Vec<ValueRow>,
     /// The bundle Apply writes: the mates, then the values.
     pub bundle: Vec<Constraint<Formula>>,
 }
@@ -1153,21 +1157,121 @@ pub(crate) fn number(by: f64, dim: Dimension) -> Option<Formula> {
     }
 }
 
-/// **`by`, a loaded turn, as the turn a freedom measures `measured`**:
-/// itself where it evaluates to `measured`, its negation where it
-/// evaluates to `-measured` (the freedom turns the other way about the
-/// same line), `None` otherwise — read off the document's own values,
-/// so a turn is carried only where writing it moves nothing.
-fn carried_turn(doc: &Doc<ProfileProgram>, by: &Formula, measured: f64) -> Option<Formula> {
-    let held = doc.resolve(by).ok()?;
-    let at = pncad::document::eval::<f64>(&held, &doc.var_env()).ok()?;
-    let near = |a: f64, b: f64| (a - b).abs() <= CARRIED_TURN;
-    if near(at, measured) {
-        Some(by.clone())
-    } else if near(at, -measured) {
-        Formula::neg(by.clone()).ok()
+/// **The loaded turn carried onto the turn freedom `coord`**, where the
+/// kernel states the two one rotation about one line
+/// ([`editor_core::mate::spin_as_chain_turn`]): the spin about a loaded
+/// chart's direction onto the new chain's `z`, or a loaded chain's `z`
+/// onto the new chart's spin. The value is written `s·v + q·¼`, `s` the
+/// sign and `q` the exact quarter turns between the two freedoms' zeros;
+/// onto a chart, only where the loaded chain's other turns are the
+/// chart's own, exactly, so the copy stands where the snap stands it.
+/// `None` where no loaded value carries; a constant never does, it is
+/// measured again.
+///
+/// # Errors
+///
+/// [`MateToolError::Unwritable`] where the quarter turns write no value.
+#[allow(clippy::too_many_arguments)]
+fn carried_turn(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    tol: Tol,
+    coord: Coord,
+    coords: &[Coord],
+    loaded: &[(ConstraintId, &Value<Formula>)],
+    landed: &[ConstraintId],
+    snap: Option<&crate::session::snap::DraftSnap>,
+    placement: Option<RecipeNodeId>,
+    base_chart: Option<ConstraintId>,
+    orient: Option<Orientation>,
+) -> Option<Result<(ConstraintId, Formula), MateToolError>> {
+    let free = |id: &ConstraintId, v: &Value<Formula>| {
+        !landed.contains(id) && !coords.contains(&v.coord) && !written_constant(doc, placement, *id)
+    };
+    let (id, v, turn, onto_chart) = match coord {
+        // A spin about a loaded chart's direction onto the new chain.
+        Coord::Spin(Some(axis)) => {
+            let (id, v) = loaded
+                .iter()
+                .find(|(id, v)| v.coord == Coord::SPIN && free(id, v))?;
+            let turn = crate::session::snap::loaded_chain_turn(
+                doc,
+                ev,
+                placement?,
+                base_chart?,
+                coords,
+                tol,
+            )?;
+            (turn.axis == axis).then_some((*id, *v, turn, false))?
+        }
+        // A loaded chain's last turn onto the new chart's spin.
+        Coord::Spin(None) => {
+            let chain: Vec<Coord> = loaded.iter().map(|(_, v)| v.coord).collect();
+            let turn = snap?.chain_turn(orient, &chain)?;
+            let (id, v) = loaded
+                .iter()
+                .find(|(id, v)| v.coord == Coord::Spin(Some(turn.axis)) && free(id, v))?;
+            // The chain's other turns must be the chart's own, exactly.
+            let inner = [
+                (TargetAxisX, turn.quarters[0]),
+                (TargetAxisY, turn.quarters[1]),
+            ];
+            let exact = inner.iter().all(|&(axis, q)| {
+                loaded
+                    .iter()
+                    .find(|(_, w)| w.coord == Coord::Spin(Some(axis)))
+                    .and_then(|(_, w)| {
+                        let held = doc.resolve(&w.by).ok()?;
+                        pncad::document::eval::<f64>(&held, &doc.var_env()).ok()
+                    })
+                    .is_some_and(|at| at == quarter_angle(q))
+            });
+            exact.then_some((*id, *v, turn, true))?
+        }
+        Coord::Slide(_) => return None,
+    };
+    let signed = if turn.sign > 0 {
+        Some(v.by.clone())
     } else {
-        None
+        Formula::neg(v.by.clone()).ok()
+    };
+    // Onto the chain: `γ = s·θ + q_z`; onto the chart: `θ = s·(γ − q_z)`.
+    let q = if onto_chart {
+        -turn.sign * turn.quarters[2]
+    } else {
+        turn.quarters[2]
+    };
+    let carried = signed.and_then(|signed| match quarter_turns(q) {
+        None => Some(signed),
+        Some(offset) => Formula::add(signed, offset.ok()?).ok(),
+    });
+    Some(carried.map(|by| (id, by)).ok_or(MateToolError::Unwritable {
+        coord,
+        by: quarter_angle(q),
+    }))
+}
+
+use pncad::document::TargetAxis::{X as TargetAxisX, Y as TargetAxisY};
+
+/// `q` quarter turns as an angle, exactly as the chain read writes it.
+fn quarter_angle(q: i32) -> f64 {
+    match q.rem_euclid(4) {
+        0 => 0.0,
+        1 => core::f64::consts::FRAC_PI_2,
+        2 => core::f64::consts::PI,
+        _ => -core::f64::consts::FRAC_PI_2,
+    }
+}
+
+/// **`q` quarter turns as a value**, written exactly (`turn/4`, `turn/2`,
+/// `-turn/4`); `None` for none.
+fn quarter_turns(q: i32) -> Option<Result<Formula, pncad::document::DimensionError>> {
+    let turn = |den| Formula::turn_over(den);
+    match q.rem_euclid(4) {
+        0 => None,
+        1 => Some(turn(4)),
+        2 => Some(turn(2)),
+        _ => Some(turn(4).and_then(Formula::neg)),
     }
 }
 
@@ -1196,6 +1300,11 @@ pub fn typed_value(
     let by = pncad::document::parse_formula(text, &doc.var_scope())
         .map_err(|error| TypedValueError::Parse(Box::new(error)))?;
     let wanted = coord.dimension();
+    // A bare `0` is every dimension's zero: the text a zero value's field
+    // shows ([`value_text`]) reads back as that zero.
+    if by.dim() != wanted && (by == Formula::count(0) || by.literal_value() == Some(0.0)) {
+        return Ok(Formula::zero(wanted));
+    }
     if by.dim() == wanted {
         Ok(by)
     } else {
@@ -1235,11 +1344,6 @@ impl core::fmt::Display for TypedValueError {
 }
 
 impl core::error::Error for TypedValueError {}
-
-/// How near a loaded turn's number and a freedom's measure are taken
-/// as one turn (radians): far below any turn a person writes, far
-/// above the chain read's rounding.
-const CARRIED_TURN: f64 = 1.0e-9;
 
 /// Whether a mate of `kind` fixes one direction — the chart's mate, by
 /// the kernel's family rule ([`pncad::document::SubgroupFamily::fixes_one_direction`]).
@@ -1928,20 +2032,24 @@ impl MateTool {
                 });
                 continue;
             };
-            // A loaded turn about another freedom that reads what this
-            // one measures, a variable or an expression: carried, read
-            // with its sign, so the link survives the change of freedom.
-            if let Coord::Spin(_) = coord
-                && let Some((id, carried)) = loaded.iter().find_map(|&(id, v)| {
-                    let other = matches!(v.coord, Coord::Spin(_)) && v.coord != coord;
-                    (other
-                        && !landed.contains(&id)
-                        && !coords.contains(&v.coord)
-                        && !written_constant(doc, placement, id))
-                    .then(|| carried_turn(doc, &v.by, by))
-                    .flatten()
-                    .map(|carried| (id, carried))
-                })
+            // A loaded turn whose freedom goes is carried onto this one
+            // only where the kernel states the two one rotation about one
+            // line ([`editor_core::mate::spin_as_chain_turn`]), with the
+            // exact quarter turns between their zeros.
+            if let Some((id, carried)) = carried_turn(
+                doc,
+                ev,
+                tol,
+                coord,
+                &coords,
+                &loaded,
+                &landed,
+                snap.as_ref(),
+                placement,
+                base_chart,
+                chart.map(|k| written[k].orient),
+            )
+            .transpose()?
             {
                 landed.push(id);
                 values.push(ValueRow {
@@ -1957,24 +2065,28 @@ impl MateTool {
                 from: ValueFrom::Measured,
             });
         }
-        let dropped: Vec<ValueRow> =
-            loaded
-                .iter()
-                .filter(|(id, _)| !landed.contains(id))
-                .filter(|(_, v)| !coords.contains(&v.coord))
-                .map(|&(id, v)| ValueRow {
-                    coord: v.coord,
-                    by: v.by.clone(),
-                    from: ValueFrom::Loaded(id),
-                })
-                .chain(draft.typed.iter().filter(|(c, _)| !coords.contains(c)).map(
-                    |(coord, by)| ValueRow {
-                        coord: *coord,
-                        by: by.clone(),
-                        from: ValueFrom::Typed,
-                    },
-                ))
-                .collect();
+        let gone = loaded
+            .iter()
+            .filter(|(id, _)| !landed.contains(id))
+            .filter(|(_, v)| !coords.contains(&v.coord));
+        let (retired, read): (Vec<_>, Vec<_>) =
+            gone.partition(|(id, _)| written_constant(doc, placement, *id));
+        let row = |&(id, v): &(ConstraintId, &Value<Formula>)| ValueRow {
+            coord: v.coord,
+            by: v.by.clone(),
+            from: ValueFrom::Loaded(id),
+        };
+        let retired: Vec<ValueRow> = retired.iter().map(row).collect();
+        let typed_gone = draft.typed.iter().filter(|(c, _)| !coords.contains(c));
+        let dropped: Vec<ValueRow> = read
+            .iter()
+            .map(row)
+            .chain(typed_gone.map(|(coord, by)| ValueRow {
+                coord: *coord,
+                by: by.clone(),
+                from: ValueFrom::Typed,
+            }))
+            .collect();
         // A loaded row keeps its id, a value carried or measured on a
         // freedom keeps the id of the value it replaces; every other
         // constraint is minted at Apply.
@@ -2018,6 +2130,7 @@ impl MateTool {
             mates,
             values,
             dropped,
+            retired,
             bundle,
         })
     }

@@ -52,8 +52,8 @@ pub use solve::{
 pub use turn::{LeastTurn, slides_left_along, turn_onto};
 pub use unobservable::{Unobservable, unobservable};
 pub use value::{
-    Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction, read_back,
-    side_flipped,
+    ChainTurn, Charted, MatedDirection, MatedHold, chain_turns, flipped, mated_direction,
+    read_back, side_flipped, spin_as_chain_turn,
 };
 
 /// Which side of a mate a diagnostic is about.

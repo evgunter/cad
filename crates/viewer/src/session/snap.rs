@@ -23,13 +23,14 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use editor_core::mate::{
-    Charted, MatedDirection, MatedHold, mated_direction, read_back, slides_left_along, turn_onto,
+    ChainTurn, Charted, MatedDirection, MatedHold, mated_direction, read_back, slides_left_along,
+    spin_as_chain_turn, turn_onto,
 };
 use editor_core::{Coord, Formula, Orientation, SlideAxes};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
     ConstraintId, Doc, DocEdit, Evaluation, Frame, Mate, MateSide, Node, Operand, OperandSlot,
-    Placed, ProfileProgram, Recording,
+    Placed, ProfileProgram, RecipeNodeId, Recording,
 };
 use pncad::geom_core::Tol;
 use pncad::geom_core::linalg::{Mat3, Point3, Vec3};
@@ -133,6 +134,77 @@ impl DraftSnap {
         });
         read_back(chart, &self.at, coords, band)
     }
+
+    /// **The new chart's spin as a link of the loaded chain `chain`**,
+    /// where the kernel states it one ([`spin_as_chain_turn`]), under
+    /// the chart's orientation `orient`.
+    pub(crate) fn chain_turn(
+        &self,
+        orient: Option<Orientation>,
+        chain: &[Coord],
+    ) -> Option<ChainTurn> {
+        let (on, to, to_flipped) = self.chart.as_ref()?;
+        spin_as_chain_turn(
+            Charted {
+                on,
+                to,
+                to_flipped: *to_flipped,
+                orient: orient.or(self.orient)?,
+            },
+            chain,
+        )
+    }
+}
+
+/// **The loaded chart's spin as a link of the new chain `chain`**: the
+/// chart of `placement`'s mate `id` as the landed pair `doc`, `ev` reads
+/// it, where the kernel states its spin one link of `chain`
+/// ([`spin_as_chain_turn`]).
+pub(crate) fn loaded_chain_turn(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    placement: RecipeNodeId,
+    id: ConstraintId,
+    chain: &[Coord],
+    tol: pncad::geom_core::Tol,
+) -> Option<ChainTurn> {
+    let (raw, instance) = match doc.node(placement)? {
+        Node::Place { constraints, .. } => (constraints, false),
+        Node::InstantiatePart { constraints, .. } => (constraints, true),
+        _ => return None,
+    };
+    let c = raw.iter().find(|c| c.id == id)?;
+    let m = c.mate()?;
+    let bind = |side, var| {
+        editor_core::eval::bound_pose(
+            doc,
+            ev,
+            OperandSlot::Side {
+                constraint: id,
+                side,
+            },
+            RoleRead::plain(var),
+            tol,
+        )
+        .ok()
+    };
+    let on = bind(MateSide::On, m.on)?;
+    let on = if instance {
+        let (r0, t0) = parts(&pncad::document::SolvedPoses::of(doc, ev).relative(placement)?);
+        unplaced(on, r0, t0, tol)?
+    } else {
+        on
+    };
+    let to = bind(MateSide::To, m.to)?;
+    spin_as_chain_turn(
+        Charted {
+            on: &on,
+            to: &to,
+            to_flipped: editor_core::mate::flipped(doc, m.to),
+            orient: m.orient,
+        },
+        chain,
+    )
 }
 
 /// **A draft's copy snapped onto `mates`**, read off `ev`, the landed

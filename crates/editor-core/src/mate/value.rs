@@ -128,6 +128,120 @@ pub fn flipped<P>(doc: &crate::doc::Doc<P>, pose: crate::VarId) -> bool {
     odd
 }
 
+/// **A bundle's spin about the target's own direction, as a link of the
+/// chain** ([`spin_as_chain_turn`]): the target axis the link turns
+/// about, the sign the spin reads along it, and the chain `x`, `y`, `z`
+/// of the chart's constant turn `S·O`, each a whole number of quarter
+/// turns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ChainTurn {
+    /// The axis of the chain's last link, which the spin turns about.
+    pub axis: TargetAxis,
+    /// `+1` or `-1`: `rot(about, θ) = rot(axis, sign·θ)`.
+    pub sign: i32,
+    /// The chain `x`, `y`, `z` of `S·O`, in quarter turns.
+    pub quarters: [i32; 3],
+}
+
+/// **The link of the chain `chain` that the spin of a bundle charted by
+/// `charted` is, exactly, where it is one** (D10 `[placement.values]`).
+/// The chart places its copy at `rot(about, θ)·S·O` ([`Chart`]); a chain
+/// `x`, `y`, `z` places it at `Rz(γ)·Ry(β)·Rx(α)` ([`chain`]). The two
+/// are one rotation about one line, link for link, exactly when:
+///
+/// - the chain is the three turns about `x`, `y` and `z` in that order,
+///   so `z` is its last link, turning the whole copy about the target's
+///   own `z`;
+/// - `about` lies along `z` exactly ([`super::turn::aligned`]), so
+///   `rot(about, θ) = Rz(s·θ)`;
+/// - `S·O` is a signed permutation, so its own chain is a whole number of
+///   quarter turns about each axis, read exactly; and it does not stand
+///   `x` on `±z`, the chain's pole, where `γ` and `α` turn about one line
+///   and the chain read gives the whole turn to `α`.
+///
+/// Then `rot(about, θ)·S·O = Rz(s·θ + q_z·¼)·Ry(q_y·¼)·Rx(q_x·¼)`. `None`
+/// for every other chart and chain — no number decides it, and a caller
+/// carries no value across a change of freedom the kernel does not state.
+#[must_use]
+pub fn spin_as_chain_turn(charted: Charted<'_>, chain: &[Coord]) -> Option<ChainTurn> {
+    let spins: Vec<TargetAxis> = chain
+        .iter()
+        .filter_map(|coord| match coord {
+            Coord::Spin(axis) => Some(*axis),
+            Coord::Slide(_) => None,
+        })
+        .collect::<Option<_>>()?;
+    if spins != TargetAxis::ALL {
+        return None;
+    }
+    let (d, copy_d, _) = Chart::<f64>::sides(charted.on, charted.to)?;
+    let about = if charted.to_flipped {
+        -d.get()
+    } else {
+        d.get()
+    };
+    if super::turn::aligned(about) != Some(TargetAxis::Z.index()) {
+        return None;
+    }
+    let sign = if about.z > 0.0 { 1 } else { -1 };
+    // `S·O`: the least turn carrying `O·copy_d` onto `d`, after `O`. A
+    // signed permutation only where the least turn is none, `O·copy_d`
+    // being `d` exactly.
+    let n = charted.orient.apply(copy_d.get());
+    if [n.x - d.get().x, n.y - d.get().y, n.z - d.get().z] != [0.0; 3] {
+        return None;
+    }
+    let column = |axis: super::SignedAxis| {
+        let mut v = [0; 3];
+        v[axis.index()] = if axis.negative() { -1 } else { 1 };
+        v
+    };
+    let o = [
+        column(charted.orient.x()),
+        column(charted.orient.y()),
+        column(charted.orient.z()),
+    ];
+    // The pole: `x` carried onto `±z`.
+    if o[0][2] != 0 {
+        return None;
+    }
+    // `S·O = Rz(γ)·Ry(β)·Rx(α)` with `β` off the pole: `β` is `0` or a
+    // half turn by where `x` lands, and `γ` the quarter turns from `x`
+    // to the column's direction in the `xy` plane.
+    let gamma: i32 = match (o[0][0], o[0][1]) {
+        (1, 0) => 0,
+        (0, 1) => 1,
+        (-1, 0) => 2,
+        (0, -1) => -1,
+        _ => return None,
+    };
+    // Rz(−γ)·S·O = Ry(β)·Rx(α) carries `x` onto `x`: β = 0, and α the
+    // quarter turns carrying `y` onto that turn's `y` column.
+    let unturned = |v: [i32; 3]| -> [i32; 3] {
+        // Rz(−γ) by quarter turns, exactly.
+        let [x, y, z] = v;
+        match gamma.rem_euclid(4) {
+            0 => [x, y, z],
+            1 => [y, -x, z],
+            2 => [-x, -y, z],
+            _ => [-y, x, z],
+        }
+    };
+    let y = unturned(o[1]);
+    let alpha = match (y[1], y[2]) {
+        (1, 0) => 0,
+        (0, 1) => 1,
+        (-1, 0) => 2,
+        (0, -1) => -1,
+        _ => return None,
+    };
+    Some(ChainTurn {
+        axis: TargetAxis::Z,
+        sign,
+        quarters: [alpha, 0, gamma],
+    })
+}
+
 /// **Whether a mate's side, as authored, reads the opposite sense of its
 /// own direction**: [`flipped`] over an operand — a pose variable read
 /// as [`flipped`] reads it, a pose definition walked the same way.
