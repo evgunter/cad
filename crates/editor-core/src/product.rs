@@ -1647,11 +1647,20 @@ fn carry_names(
     ix: u32,
     keys: &topo::GraftKeys,
 ) {
-    let carried = rows.carry(from, ix, |key| match key {
-        EntityKey::Body => None,
-        EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
-        EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
-        EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+    let carried = rows.carry(from, ix, |key| {
+        let image = match key {
+            EntityKey::Body => return None,
+            EntityKey::Face(f) => keys.face(f).map(EntityKey::Face),
+            EntityKey::Edge(e) => keys.edge(e).map(EntityKey::Edge),
+            EntityKey::Vertex(v) => keys.vertex(v).map(EntityKey::Vertex),
+        };
+        let Some(image) = image else {
+            unreachable!(
+                "{node:?}: the gather's graft has no image for {key:?}; {}",
+                crate::names::GRAFT_TOTAL
+            )
+        };
+        Some(image)
     });
     if let Err(e) = carried {
         unreachable!(

@@ -2,13 +2,14 @@
 id: a-new-body-lands-unplaced
 kind: unit
 title: no gesture writes a world Place: each gesture lands what it makes as the viewer README says
-status: review
+status: closed
 opened: 2026-11-01
 priority: P0
 cost: H
 branch: spaces/lands-unplaced
 refs: [6209]
 pr: 6269
+closed: 2026-11-01
 ---
 
 
@@ -59,3 +60,18 @@ unpickable (`Err(Ambiguous)`), masked by a `SetBodyHidden{split}` in
 that: build on PR 6265's branch, merge the two back to back, and add
 a row that a split and a pattern of a fresh box leave every drawn body
 pickable, with the `frame_policy.rs` hide removed.
+
+## Closed
+
+PR 6269 (merged right after 6265). No gesture writes a world `Place` on
+the person's behalf; each gesture lands as the viewer README says; one
+`Takeover` re-points a copy's source, a `⊔` operand and the product slot
+in one action, and refuses a takeover that would strand a pick through
+any chain of copies; the "Add part…" frame is part of its insert's
+history step (undo takes it back, redo restores it, no other action
+inherits it); a split or pattern of a fresh box leaves every drawn body
+pickable. Review (single FULL, then a targeted re-check): two MAJORs and
+the copy-of-a-copy guard fixed. Residue filed:
+`display-frames-are-not-saved-with-the-document`,
+`the-projection-tool-writes-a-member-read-a-pick-already-seats`; the
+hand-placement fixtures are retired by `the-add-to-the-product-door`.

@@ -2,13 +2,13 @@
 id: the-add-to-the-product-door
 kind: unit
 title: one Add-to-the-product door, from a viewport pick, a tree row and every product recourse
-status: parked
+status: review
 opened: 2026-11-01
 priority: P1
 cost: M
 branch: spaces/product-door
-blocked_on: [a-new-body-lands-unplaced]
 refs: [6209]
+pr: 6279
 ---
 
 

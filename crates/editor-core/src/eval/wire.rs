@@ -460,7 +460,7 @@ where
             &crate::verbs::blend::fillet(),
             id,
             &select(doc, results, O::Selection, *selection)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -468,7 +468,7 @@ where
             &crate::verbs::blend::chamfer(),
             id,
             &select(doc, results, O::Selection, *selection)?,
-            results,
+            (doc, results),
             vals,
             tol,
         ),
@@ -1776,6 +1776,8 @@ fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeError
 /// the op itself is [`NodeErrorKind::Blend`], carrying
 /// the kernel's error unaltered; the input body is never passed
 /// through, so a blend that did not happen reads as a failed node.
+/// An operand record the carry onto the blended body refuses is
+/// [`NodeErrorKind::ContactCarry`].
 ///
 /// # Naming
 ///
@@ -1790,7 +1792,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     selection: &Selected<topo::EdgeKey>,
-    results: &Results<T>,
+    (doc, results): (&crate::doc::Doc<ProfileProgram>, &Results<T>),
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
@@ -1801,7 +1803,8 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // It computes in its operand's frame.
     let (body, operand) = finished_operand(results, target, tol)?;
     let size = slot_scalar(vals, verb.slots.size_slot);
-    let target_table = read_table(value_of(results, target)?);
+    let target_value = value_of(results, target)?;
+    let target_table = read_table(target_value);
     // D9 order; the kernel refuses a repeated edge itself.
     let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
     edges.sort_unstable();
@@ -1817,6 +1820,19 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             verb.no_records
         )
     };
+    // The operand's records, as its door kept them, ride the blended
+    // body through the lineage its birth records state. Caller-side,
+    // until the blend's door carries them itself onto a finished body
+    // that holds its records (heldrecords' ratified unit
+    // `a-finished-body-holds-its-contact-records-at-every-door`).
+    let carried = rec
+        .carry_contacts(
+            &target_value.carry.kept(doc, tol).contacts,
+            &out.body,
+            band(tol)?,
+            T::region_lane(),
+        )
+        .map_err(|refusal| NodeErrorKind::ContactCarry { refusal })?;
     let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
     let inputs = crate::coincide::RowInputs {
@@ -1830,6 +1846,10 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             operand.frame().clone(),
         )),
         table,
+    )
+    .holding(
+        Arc::new(carried),
+        vec![crate::coincide::CitedInput::Read(target_read)],
     )
     .recording(&out.coincidences, &inputs)
 }

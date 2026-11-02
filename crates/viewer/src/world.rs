@@ -88,6 +88,12 @@ impl Drawn {
     pub fn draws(&self, node: RecipeNodeId, body: u32) -> bool {
         self.node == node && self.covers.covers(body)
     }
+
+    /// Whether this is a drawing of `node`'s body: `node`'s own, or a
+    /// piece of `node` when it is a `⊔`.
+    pub fn of_node(&self, node: RecipeNodeId) -> bool {
+        self.node == node || self.within.contains(&node)
+    }
 }
 
 /// **What `var`, read as a body by `reader` with the indices `at`,
@@ -242,6 +248,30 @@ pub fn builds_a_body(node: &Node<ProfileProgram>) -> bool {
     })
 }
 
+/// **The bodies the author's toggles show** beyond what the default
+/// draws ([`Picture::showing`]): display state, and the third part of
+/// the picture's key ([`crate::pickindex::PictureKey`]), compared by
+/// the set it holds. Shared, so a key and a request carry it cheaply.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Shown(std::sync::Arc<BTreeSet<RecipeNodeId>>);
+
+impl Shown {
+    /// No show: the default picture.
+    pub fn none() -> Self {
+        Self::default()
+    }
+
+    /// The show of `nodes`.
+    pub fn of(nodes: BTreeSet<RecipeNodeId>) -> Self {
+        Self(std::sync::Arc::new(nodes))
+    }
+
+    /// The nodes shown, in id order.
+    pub fn nodes(&self) -> &BTreeSet<RecipeNodeId> {
+        &self.0
+    }
+}
+
 /// **The picture a document draws**, computed once (module docs): every
 /// drawing of a body, and the product's pieces among them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -297,13 +327,48 @@ impl Picture {
         {
             pieces(doc, node, covers, &mut Vec::new(), &mut product);
         }
+        let mut picture = Self {
+            drawn,
+            product: Vec::new(),
+        };
         // The product slot's body is in the picture whatever reads it.
-        for piece in &product {
-            if !drawn.contains(piece) {
-                drawn.push(piece.clone());
+        picture.draw(product.iter().cloned());
+        picture.product = product;
+        picture
+    }
+
+    /// **The picture `doc` draws with `shown` drawn too**: [`Picture::of`],
+    /// and every body of a node `shown` names drawn whole where it
+    /// stands, a `⊔` as its pieces — an operand a boolean took over, a
+    /// fillet's input, a piece of a hidden `⊔` drawn on its own. What a
+    /// show adds is the picture's only: the product is the document's.
+    pub fn showing(doc: &Doc<ProfileProgram>, shown: &Shown) -> Self {
+        let mut picture = Self::of(doc);
+        for &node in shown.nodes() {
+            if !doc.node(node).is_some_and(builds_a_body) {
+                continue;
+            }
+            let mut added = Vec::new();
+            pieces(doc, node, Covers::all(), &mut Vec::new(), &mut added);
+            picture.draw(added);
+        }
+        picture
+    }
+
+    /// Add `drawings`, each one the picture does not already hold: a
+    /// drawing is drawn once however many reasons draw it.
+    fn draw(&mut self, drawings: impl IntoIterator<Item = Drawn>) {
+        for drawn in drawings {
+            if !self.drawn.contains(&drawn) {
+                self.drawn.push(drawn);
             }
         }
-        Self { drawn, product }
+    }
+
+    /// **Whether a drawing is of `node`'s body**: the body itself, or
+    /// for a `⊔` one of its pieces.
+    pub fn draws_node(&self, node: RecipeNodeId) -> bool {
+        self.drawn.iter().any(|drawn| drawn.of_node(node))
     }
 
     /// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):
@@ -653,20 +718,6 @@ pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
         Operand::Name(name) => doc.var_named(name.as_str()),
         Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
     }
-}
-
-/// **The node a creation made**, out of the ids its action minted: the
-/// last one that is not a placement — a creation gesture places
-/// what it made after making it, and the placement is the world's, not
-/// the thing a label or a form is about — or, for a gesture whose
-/// creation IS a placement (the transform's), the first it minted.
-pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<RecipeNodeId> {
-    minted
-        .iter()
-        .rev()
-        .copied()
-        .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
-        .or_else(|| minted.first().copied())
 }
 
 /// **The bodies the product reads** (D10 `[operations]`): the

@@ -44,15 +44,12 @@ use crate::widgets::{
 pub(crate) const MIN_PART_INSTANCE: i64 = 0;
 
 /// **What a projection does to the picture**, said on the panel
-/// before the click: the projected body is placed in the world, so it
-/// is drawn beside whatever is drawn already (A10).
-///
-/// The pattern it reads is never drawn itself — it defines several
-/// bodies, which no world placement reads — so it is reached from the
-/// feature tree, and a person who wants another of its copies projects
-/// that one too.
-pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is placed in the world and drawn: the pattern it is read out of is not \
-     drawn itself — to project another of its copies, pick it again in the feature tree";
+/// before the click: the projected member is read alone, a body of its
+/// own drawn where it stands in the pattern, and the pattern draws the
+/// rest of its members.
+pub(crate) const PROJECTION_IS_PLACED: &str = "the selected copy is read out of the pattern as a body of its own, drawn where it \
+     stands: the pattern draws its other copies, and a pick on any of them in the viewport \
+     seats that copy";
 
 /// **The part form's rows**: the instance index, and what committing it
 /// does to the picture ([`PROJECTION_IS_PLACED`]).
@@ -198,13 +195,15 @@ pub(crate) fn mate_picks_row(ui: &mut egui::Ui, tool: &MateTool, by: Speaker<'_>
 
 /// **The smallest pattern count the form offers.**
 ///
-/// A pattern of zero instances refuses at evaluation
-/// (`CountOutOfRange`, typed, on the node's own badge), so the form
-/// declines to author one — the same rule the bore field follows. There
-/// is deliberately NO upper bound: the property panel imposes none on
-/// the slot afterwards, and a cap here would be a limit the document
-/// does not have.
-pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
+/// A pattern of zero is a family of no member, and fused it is the
+/// empty boolean value: both evaluate, so the form offers it, as the
+/// door does. A count below zero refuses at evaluation
+/// (`IndexCountOutOfRange`, typed, on the family's own badge), so the
+/// form declines to author one — the rule [`MIN_PART_INSTANCE`]
+/// follows. There is deliberately NO upper bound: the property panel
+/// imposes none on the index afterwards, and a cap here would be a
+/// limit the document does not have.
+pub(crate) const MIN_PATTERN_COUNT: i64 = 0;
 
 /// **The "Add part" chooser's window**, as wide as the pane its door
 /// is drawn in (`opener`) and never under
@@ -1509,9 +1508,6 @@ impl ViewerBehavior<'_> {
         });
         ui.horizontal(|ui| {
             ui.label("count");
-            // Clamped at one instance: a count is a structural slot
-            // and a non-positive one refuses at evaluation, so the
-            // form does not offer to author a node that cannot build.
             ui.add(
                 number_field(&mut self.drafts.pattern_count, COUNT_DRAG_SPEED)
                     .range(MIN_PATTERN_COUNT..=i64::MAX),
@@ -2028,6 +2024,78 @@ mod tests {
     use pncad::select::SplitHalf;
     use pncad::topo::BooleanOp;
 
+    /// **The pattern form's floor is the least count a pattern
+    /// evaluates at**, through both doors the form commits by. At
+    /// [`super::MIN_PATTERN_COUNT`] the unfused pattern is a family of
+    /// no member and the fused one the empty boolean value; one below
+    /// it, the family refuses typed on its own badge and the fused
+    /// pattern has no value. So the form offers exactly the counts that
+    /// evaluate, and the door, which judges no count, takes them all.
+    #[test]
+    fn the_pattern_forms_floor_is_the_least_count_that_evaluates() {
+        use crate::session::{DocSession, PatternRuleSpec, SessionOp};
+        use pncad::document::{BooleanValue, NodeErrorKind, NodeResult, ValuePayload};
+        let tol = Tol::witness();
+        let (doc, body) = crate::scene::plate_with_hole(tol).expect("the plate");
+        let floor = super::MIN_PATTERN_COUNT;
+        for fused in [false, true] {
+            for count in [floor, floor - 1] {
+                let mut session = DocSession::inline(doc.clone(), tol);
+                session.pump();
+                let rule = PatternRuleSpec::Linear {
+                    direction: crate::test_support::scl3([1.0, 0.0, 0.0]),
+                    spacing: crate::test_support::len(0.05),
+                };
+                let op = if fused {
+                    SessionOp::AddFusedPattern {
+                        input: body.into(),
+                        count,
+                        rule,
+                    }
+                } else {
+                    SessionOp::AddPattern {
+                        input: body.into(),
+                        count,
+                        rule,
+                    }
+                };
+                let outcome = session.perform(op);
+                assert!(
+                    outcome.refusal.is_none(),
+                    "fused {fused}, count {count}: the door admits it: {:?}",
+                    outcome.refusal
+                );
+                let made = outcome.made.expect("the door made a node");
+                session.pump();
+                let eval = session.evaluation().expect("the inline seam landed");
+                let value = eval.value(made).map(|value| &value.payload);
+                match (fused, count == floor) {
+                    (false, true) => assert!(
+                        matches!(value, Some(ValuePayload::Instances(members)) if members.is_empty()),
+                        "the floor is a family of no member: {value:?}"
+                    ),
+                    (true, true) => assert!(
+                        matches!(value, Some(ValuePayload::Boolean(BooleanValue::Empty))),
+                        "the fused floor is the empty boolean value: {value:?}"
+                    ),
+                    (false, false) => assert!(
+                        matches!(
+                            eval.result(made),
+                            Some(NodeResult::Failed(error))
+                                if matches!(error.kind, NodeErrorKind::IndexCountOutOfRange { .. })
+                        ),
+                        "below the floor the family refuses typed: {:?}",
+                        eval.result(made)
+                    ),
+                    (true, false) => assert!(
+                        value.is_none(),
+                        "below the floor the fused pattern has no value: {value:?}"
+                    ),
+                }
+            }
+        }
+    }
+
     /// The end cap `minted` made, picked on the body of `drawn`.
     fn cap_on(minted: u64, drawn: u64) -> FaceSelection {
         FaceSelection {
@@ -2195,18 +2263,19 @@ mod tests {
     }
 
     /// **The projection panel says what a projection does to the
-    /// picture** — the copy it selects is placed and drawn, and a person
-    /// should hear that before the click, not discover it after.
+    /// picture** — the copy it selects is read alone and drawn where it
+    /// stands, and a person should hear that before the click, not
+    /// discover it after.
     #[test]
-    fn the_part_form_says_the_projection_is_placed() {
+    fn the_part_form_says_what_the_projection_draws() {
         let mut instance = 1_i64;
         let drawn = painted_text(|ui| part_selector_rows(ui, &Theme::DEFAULT, &mut instance));
         assert!(
-            drawn.contains("the selected copy is placed in the world and drawn"),
+            drawn.contains("the selected copy is read out of the pattern as a body of its own"),
             "{drawn}"
         );
         assert!(
-            drawn.contains("pick it again in the feature tree"),
+            drawn.contains("a pick on any of them in the viewport"),
             "and where the rest can still be reached from: {drawn}"
         );
     }
@@ -2534,12 +2603,12 @@ mod creation_nouns {
     use crate::session::{DocSession, SessionOp};
     use crate::test_support::{len, square_profile};
 
-    /// The node `op` made on `session` ([`crate::world::made`]), by its
-    /// kind noun.
+    /// The node `op` made on `session` ([`crate::session::OpOutcome::made`]),
+    /// by its kind noun.
     fn minted_noun(session: &mut DocSession, op: SessionOp) -> &'static str {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let node = crate::world::made(session.doc(), &outcome.minted).expect("the op made a node");
+        let node = outcome.made.expect("the op made a node");
         node_kind_noun(session.doc().node(node).expect("the minted node is live"))
     }
 
@@ -2721,7 +2790,11 @@ mod tools_respeak {
             crate::pickindex::PickIndex::build(
                 doc,
                 eval,
-                crate::pickindex::PictureKey::of(generation, crate::test_support::plate_delta()),
+                crate::pickindex::PictureKey::of(
+                    generation,
+                    crate::test_support::plate_delta(),
+                    crate::world::Shown::none(),
+                ),
                 session.tol(),
             )
             .expect("the block indexes")

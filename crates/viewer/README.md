@@ -1558,8 +1558,9 @@ handed a non-positive radius, where refusing is right.
 ### A pick id is one index's word
 
 `PickIndex` holds an `IdMap` keyed by a `PictureKey` — the landed
-generation and the δ its copies were tessellated at, one value because
-it is one question — and every id in the drawn mesh's per-corner `ids`
+generation, the δ its copies were tessellated at, and the bodies the
+author's toggles show (`world::Shown`), one value because it is one
+question — and every id in the drawn mesh's per-corner `ids`
 was minted by the id map of the index that built it. So an id is only a name in the alphabet of the
 index that minted it, and reading one through another index resolves it
 to whatever that index happens to keep at the same number.
@@ -1575,7 +1576,7 @@ exists and every corner carries `IdMap::NOTHING`.
 
 **An index covers the bodies it drew, and a refused one draws
 nothing.** `PickIndex::build` walks every drawn body
-(`world::drawn_bodies`); a node whose build refuses (no value, no
+(`world::Picture::showing`, over the key's shows); a node whose build refuses (no value, no
 body, a tessellation or indexing refusal) is held in
 `PickIndex::undrawn` with its reason and gets no part, no ids and no
 window, so the id map stays one-to-one over the drawn bodies and a
@@ -2070,26 +2071,34 @@ Each drawn body is drawn in its own space through the one composing
 door (`editor_core::mate::solve::in_space`), a `⊔` as its pieces. The
 **shown spaces** are the world and every space that holds a drawn body
 (IDENTITY DI5). That is the default picture; the author's show and
-hide is display state over it. The View pane lists the shown spaces,
-the world first, and every body of the document under its space, each
-with its toggle, so a body the default leaves out (an operand a boolean
-took over, a fillet's input) can be shown, and any drawn one hidden
-(Ev, PR 6209: "all bodies should be viewable by toggle in the view
-pane").
+hide is display state over it. The View pane lists the world first,
+then every other space that holds a body of the document — the shown
+spaces among them — each with its toggle and every body in it with
+its own, so a body the default leaves out (an operand a boolean took
+over, a fillet's input) can be shown, and any drawn one hidden (Ev, PR
+6209: "all bodies should be viewable by toggle in the view pane"). A
+body's toggle is decided against what it reads now: off where the
+picture draws the body is a hide, on where it leaves it out is a show,
+and either turned back holds nothing.
 A drawn body the product slot does not reach is tinted as outside the
 product. Every shown space stands at the identity, so a body is drawn
 where it was written; where a space is drawn otherwise is held in one
 way only, as a display frame. The "Add part…" gesture writes the new
 space's display frame clear of what is drawn, the same kind of value a
 free-move writes (IDENTITY DI5), so two inserted parts never land on
-each other (Ev, PR 6209: one way to store where something is
-displayed, not a derived layout beside it).
+each other within a session (Ev, PR 6209: one way to store where
+something is displayed, not a derived layout beside it). Display frames
+are not saved with the document yet, so a reopened document draws them
+at the identity (`work/spaces/display-frames-are-not-saved-with-the-document.md`).
 
 A free-move frame is display state keyed by a shown space's `Space`
 variable and moves every body drawn in it; it is dropped when the space
-is no longer shown or is gone once the next evaluation has settled
-(`display::space_check`), so an undo and redo of the gesture that made
-the space keeps its frame. The world is
+is no longer shown or is gone (`display::space_check`, IDENTITY DI5).
+The frame the "Add part…" gesture writes belongs to that gesture's
+history step: it is measured once the evaluation answering the insert
+lands (`pickindex::clear_of_drawn`), taken back by the step's undo and
+written again by its redo, and no other action inherits it, whatever
+space it mints. The world is
 the frame the other spaces move against: a frame on it would be the
 camera a second time, so the probe refuses it
 (`AdmissionFault::InTheWorld`). Any other shown space under a pick is

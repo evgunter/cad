@@ -355,3 +355,10 @@ Signed: (CARVE orchestrator)
   - **Filed:** CLEARTAIL's `support-separation-has-two-vocabularies-for-faces-and-cells` (P2) and `clearance-recomputes-a-cells-net-and-jet-per-pair` (P3).
   - **Base reds seen in editor-core:** `coincidence_door` is GREEN's open row; `seat7_sweep_lowering` is in FIXTURE's `editor-core-raw-twin-planes-unreconciled`. Neither is CLEAR's.
   - **The price row is unparked** for re-measurement on main with JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT all in.
+- 2026-11-01 — **The price is re-measured (PRICEMEASURE); the price row closes; NETCACHE is next.** On main after JETFRAME, ZEROSIDE, HEADING and DIRSUPPORT, all 14 tour bodies hold within the default pair budget:
+  - the lily leaves and sepals: 311–3,410 splits, 2.7–27 s;
+  - the Klein loop: 48k splits (73% of the budget), 47 s;
+  - the `skinned` lofts: 0.2–5 s;
+  - the `m8_14` helices: 3.7–8.4 s.
+
+  Nothing refuses. **The remaining cost is per pair,** 100–6,000× the build. The callgrind profile puts 57% of the time in `nurbs::read_net`, which restricts the net again for every pair; `Interval::between` alone is 47%. So `clearance-recomputes-a-cells-net-and-jet-per-pair` moves from CLEARTAIL to CLEAR, re-banded P0 because CARVE's P0 spines row now waits on it. The door-policy question for CARVE's door (whether loft and sweep run injectivity on every rebuild, at which scalars) goes to Ev with NETCACHE's numbers, as the designers advised.

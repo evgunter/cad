@@ -116,6 +116,8 @@ mod input_mapping;
 mod instance_authoring;
 #[path = "landing_gathers.rs"]
 mod landing_gathers;
+#[path = "lands_unplaced.rs"]
+mod lands_unplaced;
 #[path = "mate_door_and_badge.rs"]
 mod mate_door_and_badge;
 #[path = "mate_tool_flow.rs"]
@@ -202,6 +204,8 @@ mod tree_shape;
 mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
+#[path = "view_toggles.rs"]
+mod view_toggles;
 #[path = "whole_rim_pick.rs"]
 mod whole_rim_pick;
 

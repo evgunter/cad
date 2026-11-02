@@ -470,13 +470,14 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 15] = [
     (
         "crates/editor-core/src/eval/members.rs",
-        18,
+        20,
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \
          indices: it holds the result map as the evaluator writes it, overlays each member's \
          raw values on the family's (a member's result where it has one, carrying the \
          family it stands for, a failure poisoning its readers), and reads each \
          member's own result to write the family's: its values, or the refusal the family \
-         refuses with naming the member (`MemberRefused`)",
+         refuses with naming the member (`MemberRefused`); its unit tests hand-build each \
+         member's result and read the family's",
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
