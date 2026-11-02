@@ -58,7 +58,7 @@ pub(crate) enum StrutRefusal {
     LoneOutline,
 }
 
-impl<T: crate::props::AtRestPolicy> Body<T> {
+impl<T: geom_core::Real> Body<T> {
     /// **Does `toward` dangle alone at its start vertex**: is that vertex
     /// the free end of a strut? The orbit of one is the vertex
     /// [`crate::surface_boundary::tips`] reads off a loop; a wrap edge's
@@ -88,7 +88,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             .find(|&(_, from_free)| self.strut_tip(from_free))
             .map(|(toward, _)| toward)
     }
+}
 
+impl<T: crate::props::AtRestPolicy> Body<T> {
     /// **Plans the delete of a strut of `face`** by `toward_free`, its
     /// half running toward a free end ([`Body::toward_free_end`]). Reads
     /// only.

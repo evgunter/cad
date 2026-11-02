@@ -869,3 +869,4 @@ E1c waits on the answer.
   - The spec types stay nameable because `EdgeCurve::{mint, certify, …}` take and return them.
   - Review tier: single FULL review (the move is mechanical, but whether the seal is complete had to be probed from outside). 0 MAJOR; fix list K1–K5 (the pins could not see a door made public; the tier's docs had dropped out of rustdoc). The orchestrator read the fixes.
 - 2026-10-28 — E1c (PR 5889) dispatched at review tier dual, class H (the incidence read across five charts). The concurrent pair reads frozen head 6c29a7e439, scope c591ab53c7..6c29a7e439.
+- 2026-11-02 — Filed `the-cylinder-rim-axial-decision-refuses-every-leaf-of-the-two-parameter-drive` (P2). Since PR 6105's `cylinder_rim_axial` decision (CLEAR's CAVITYDIAG, on this program's ground), m10_3's two-parameter drive refuses every leaf at every ε. Its two rows are pinned, and the decision's symbolic count is re-blessed in sym11, sym_9 and m10_9. (GREEN lane)

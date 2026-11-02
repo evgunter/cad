@@ -2,10 +2,11 @@
 id: boxes-not-finite-asks-x-minus-x
 kind: issue
 title: not_finite asks (x − x).is_poison(), which an unbounded Interval enclosure passes ([−∞,∞] is not poison), so a torus chart window end at infinity reads finite
-status: open
+status: parked
 opened: 2026-10-13
 priority: P3
 cost: E
+blocked_on: [cover-topo-faces]
 ---
 
 

@@ -307,6 +307,8 @@ mod load_door_payload_param_ref;
 mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
+#[path = "loft_section_ids.rs"]
+mod loft_section_ids;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
 #[path = "m10_1_distribution_wire.rs"]
@@ -333,6 +335,8 @@ mod m10_4_r1_probes_interval;
 mod m10_4_seed;
 #[path = "maintenance_net.rs"]
 mod maintenance_net;
+#[path = "member_budget.rs"]
+mod member_budget;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve11_mate_log.rs"]
