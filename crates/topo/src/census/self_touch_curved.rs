@@ -143,18 +143,11 @@ fn read(body: &Body<f64>, corner: VertexKey, ties: &Ties) -> (TouchUnread, SelfT
     )
 }
 
-/// **A corner on a curved post of its own solid reads the post's
-/// tangent cone**, at the post's corner, inside its arc and inside its
-/// wall: off the post it rests, into it or straddling its wall it
-/// crosses. An edge along the wall's ruling lies in the wall as the
-/// wall keeps it, so the corner reads as its other edges place it; an
-/// edge along the arc's tangent or the wall's circle leaves the post
-/// only to second order, which no reading here parts, and refuses. Red
-/// where the planar reading reads a curved face or edge, a curved
-/// face's normal or an edge's departure reads the other way, a crossing
-/// reads as a rest, or a tangency reads at all.
-#[test]
-fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
+/// The rows at `at`: where the corner's edges point and what the
+/// reading must make of it, near the origin and a kilometre off it.
+/// Red where the planar reading reads a curved face or edge, or a row
+/// reads otherwise.
+fn rows_hold(at: Seat) {
     use TouchVerdict::Crossing;
     let off = [[0.3, 0.1, -0.05], [0.3, -0.1, 0.1], [0.3, 0.05, -0.1]];
     let into = [[-0.3, 0.1, 0.15], [-0.3, -0.1, 0.1], [-0.2, 0.05, 0.3]];
@@ -167,24 +160,30 @@ fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
     let crossing = |v: &SelfTouch| *v == SelfTouch::Read(Crossing);
     let tangency = |v: &SelfTouch| *v == SelfTouch::SecondOrder(TouchUnread::Unreadable);
     type Reads = fn(&SelfTouch) -> bool;
-    let rows: [(Seat, &str, [[f64; 3]; 3], Reads); 12] = [
-        (Seat::Corner, "off", off, rest),
-        (Seat::Corner, "into", corner_into, crossing),
-        (Seat::Corner, "straddling", straddle, crossing),
-        (Seat::Corner, "along the arc", circle, tangency),
-        (Seat::Arc, "off", off, rest),
-        (Seat::Arc, "into", into, crossing),
-        (Seat::Arc, "along the arc", circle, tangency),
-        (Seat::Wall, "off", off, rest),
-        (Seat::Wall, "straddling", straddle, crossing),
-        (Seat::Wall, "along the ruling", ruling, rest),
-        (Seat::Wall, "along the ruling, into", ruling_into, crossing),
-        (Seat::Wall, "along the circle", circle, tangency),
-    ];
+    let rows: Vec<(&str, [[f64; 3]; 3], Reads)> = match at {
+        Seat::Corner => vec![
+            ("off", off, rest),
+            ("into", corner_into, crossing),
+            ("straddling", straddle, crossing),
+            ("along the arc", circle, tangency),
+        ],
+        Seat::Arc => vec![
+            ("off", off, rest),
+            ("into", into, crossing),
+            ("along the arc", circle, tangency),
+        ],
+        Seat::Wall => vec![
+            ("off", off, rest),
+            ("straddling", straddle, crossing),
+            ("along the ruling", ruling, rest),
+            ("along the ruling, into", ruling_into, crossing),
+            ("along the circle", circle, tangency),
+        ],
+    };
     let mut bad = Vec::new();
     for far in [0.0, 1e3] {
         let c = Point3::new(0.3 + far, 0.2 - 2.0 * far, 0.5 * far);
-        for (at, what, edges, reads) in rows {
+        for &(what, edges, reads) in &rows {
             let (body, corner, ties) = seat(c, at, edges);
             let (planar, verdict) = read(&body, corner, &ties);
             if planar != TouchUnread::Unreadable || !reads(&verdict) {
@@ -195,6 +194,40 @@ fn a_corner_on_its_own_curved_post_reads_the_posts_tangent_cone() {
         }
     }
     assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// **A corner on a curved post's corner reads the post's tangent
+/// corner**: the corner of its wall, its chord's plane and its bottom,
+/// whose arc leaves the vertex along its tangent. Off the post it rests,
+/// into it or straddling it it crosses; an edge along the arc's tangent
+/// leaves the arc only to second order and refuses. Red where a curved
+/// face's normal or an arc's departure reads the other way.
+#[test]
+fn a_corner_on_its_own_curved_posts_corner_reads_its_tangent_corner() {
+    rows_hold(Seat::Corner);
+}
+
+/// **A corner inside a curved post's arc reads the arc's two faces as
+/// half-planes**: the wall's and the bottom's, along the arc's tangent
+/// there. Off the post it rests, into it it crosses; an edge along the
+/// arc's tangent refuses. Red where the arc's direction at the point
+/// reads the other way.
+#[test]
+fn a_corner_inside_its_own_curved_posts_arc_reads_its_two_half_planes() {
+    rows_hold(Seat::Arc);
+}
+
+/// **A corner inside a curved post's wall reads the wall as its
+/// tangent plane**: off the post it rests, straddling the wall it
+/// crosses; an edge along the wall's ruling lies in the wall as the
+/// wall keeps it, so the corner reads as its other edges place it; an
+/// edge along the wall's circle leaves the wall only to second order,
+/// which no reading here parts, and refuses. Red where the wall's normal
+/// reads the other way, a crossing reads as a rest, or the tangency
+/// reads at all.
+#[test]
+fn a_corner_inside_its_own_curved_posts_wall_reads_its_tangent_plane() {
+    rows_hold(Seat::Wall);
 }
 
 /// **An edge leaves its vertex along its tangent there**
