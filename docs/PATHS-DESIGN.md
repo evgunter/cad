@@ -478,21 +478,6 @@ A rotated or rounded rectangle is a chain.
 **Refusals**: `width` or `height` not definitely positive, through the
 same funnel as the other sign gates.
 
-### 1b. A centre may be another loop's
-
-A complete-loop form's centre is written one of two ways: as a point,
-or as **the centre of an earlier loop of the same profile**. That is
-how a bore concentric with its boss is authored: a second `circle`
-whose centre is loop k's. The centre is stored once, so the two are
-concentric by construction (`[intent.structural]`), and each loop is
-still one program entry. The reference resolves to the earlier loop's
-resolved centre, as a leg aimed at `Start` takes the first step's
-resolved point; it holds no variable, so it is no second reader of the
-earlier loop's numbers.
-
-**Refusals**: a reference to a loop that is not earlier in the profile,
-or that has no centre.
-
 ### 2. The arc through a point — the `Via { q, p }` mode of
 ### `arc_to(spec)` (§2c's unified family; the standalone `arc_via`
 ### name is gone)

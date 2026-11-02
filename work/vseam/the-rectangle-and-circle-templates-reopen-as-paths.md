@@ -61,6 +61,11 @@ a derived number stored in place of the one written.
   `circle` loops, each with its own copy of the centre. Moving one
   leaves the bore off-centre.
 
-The answer in front of Ev: a `rectangle(centre, width, height)`
-complete-loop form, and a centre that can be written as an earlier
-loop's (`docs/PATHS-DESIGN.md` §1a, §1b), with VQ5 restated.
+Ev's answers on PR 6143:
+- `rectangle(centre, width, height)` as a complete-loop form
+  (`docs/PATHS-DESIGN.md` §1a), with VQ5 restated.
+- **Drop the bore preset.** A profile already holds any number of
+  loops, so a bore is a second circle loop authored like any other.
+- How part of a profile refers to earlier parts of the same profile
+  (written values and derived ones, such as an arc's centre) is its own
+  question: `work/vseam/a-profile-cannot-refer-to-its-own-earlier-parts`.
