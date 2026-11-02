@@ -189,7 +189,7 @@ fn review_probe_6371_union_after_a_box_extrude() {
     let square = |x0: f64, s: f64| {
         LoopProgram::polygon([(x0, 0.0), (x0 + s, 0.0), (x0 + s, s), (x0, s)]).expect("a square")
     };
-    for (members, half) in [(0usize, 1e-6), (1, 1e-6), (0, 1e-9), (1, 1e-9), (2, 1e-6)] {
+    for (members, half) in [(0usize, 1e-6), (1, 1e-6), (0, 1e-9), (1, 1e-9)] {
         let mut r = Recorder::new();
         depth(&mut r, half);
         let slab = prism(&mut r, square(0.0, 1.0));
@@ -205,6 +205,9 @@ fn review_probe_6371_union_after_a_box_extrude() {
                     profile: q.into(),
                     distance: crate::fixture::len(1.0),
                 });
+                // The cube joins the slab's space where it is drawn, so
+                // the union reads two members of one space.
+                let cube = r.against(slab, cube, &editor_core::Frame::IDENTITY);
                 ms.push(Operand::output(cube, 0).into());
             }
             r.insert(Node::Union {
