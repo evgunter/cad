@@ -2012,6 +2012,11 @@ mod display_tests {
                         operand: topo::Operand::B,
                         vertex: two_vertices().0,
                         partner: two_vertices().1,
+                        in_band: topo::EdgeInBand {
+                            edge: topo::HalfEdgeKey::default(),
+                            face: None,
+                            predicate: None,
+                        },
                     },
                 },
                 vec![

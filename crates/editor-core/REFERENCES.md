@@ -58,24 +58,40 @@ reader's seat.
 Also kept from elsewhere: a selection freezes (#217, `node.rs`); selectors
 materialize and are never stored (`names/select.rs`).
 
-## DM1 — A sketch on a face is placed against the face's plane
+## DM1 — What stands on a face reads the face
 
-A profile is drawn on its own plane and a construction computes in its
-own coordinates (D10), so a sketch on a face is a placement: the
-construction placed against the face's body by a `Plane` mate from its
-own start cap, flipped to look up its own `z` (`Flip`), to the pose
-`Plane { face }` (`pose.rs`), and values setting the freedoms the mate
-leaves — the slides along the target space's axes as the least turn
-carries them onto the face's normal, and the spin about it, under the
-orientation the gesture writes nearest the face. `face` reads a `Face` selection: its body read is the DAG edge
-to the body whose value the face is read out of, and its one name is
-frozen and resolved through that value's name table under the N5 ladder.
-It is the `SitedRef` shape applied to a mate's target. The plane is the
-plane through the face with its outward normal (DM1a), and no
-u-reference, because a plane has no in-plane direction (D10: no pose
-definition takes a carrier's reference direction): where the sketch is
-turned on the face is the spin value's. A split's tool reads the same
-pose.
+What is built on a face locates itself by reading the face's geometry,
+never by copying numbers off it. Two things stand on a face, and each
+reads it in its own way:
+
+- **A sketch on a face is drawn on a frame read off the face.** Its
+  profile's `on` is a frame in the space of the face's body
+  (`ProfileProgram.on`, `DrawnOn`): `Spin { pose: Through { axis, point
+  }, about: z, by: spin }`, whose `z` is the face's outward normal, whose
+  `x` points toward a cell of the body the gesture names (along an edge at
+  a vertex, where the face has one), and whose `spin` turns it (the
+  constant `0` unless named). The profile and every sweep of it are in
+  that body's space, and nothing is placed. Extrude and Combine are the
+  ordinary acts after it: a signed depth sweeps above the face (a boss) or
+  into it (a pocket's tool).
+- **A body on a face (a construction, a part) is placed against the face's
+  plane**, by a `Plane` mate from its own start cap, flipped to look up
+  its own `z` (`Flip`), to the pose `Plane { face }` (`pose.rs`), and
+  values setting the freedoms the mate leaves — the slides along the
+  target space's axes as the least turn carries them onto the face's
+  normal, and the spin about it, under the orientation the gesture writes
+  nearest the face. `face` reads a `Face` selection: its body read is the
+  DAG edge to the body whose value the face is read out of, and its one
+  name is frozen and resolved through that value's name table under the N5
+  ladder. It is the `SitedRef` shape applied to a mate's target. The plane
+  is the plane through the face with its outward normal (DM1a), and no
+  u-reference, because a plane has no in-plane direction (D10: no pose
+  definition takes a carrier's reference direction): where the body is
+  turned on the face is the spin value's. A split's tool reads the same
+  pose.
+
+The clauses below are spelled for the placement; each holds for the
+frame's reads in the same way.
 
 - **Why derived, not frozen.** A sketch carries no twelve-float plane
   snapshot (`program.rs`); a placement whose target were nine literals
@@ -105,9 +121,6 @@ pose.
   elaboration: it is read off the evaluated body at the lane scalar, so at
   `Interval` it is an enclosure, which is what a face's plane is at that
   scalar. The profile itself is 2-D and stays f64-pinned (PP1).
-- **In the chrome**, "on this face" is one committed action
-  (`commit_action`): the profile, the construction, its placement against
-  the face (mate and values) and the combine with the face's body.
 
 *Built: DOCM-1 (PR 1829), with DM1a, DM1b and DM2; the placement form,
 INTENT stage 3 D.*
