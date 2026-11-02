@@ -591,7 +591,7 @@ pub fn space(doc: &ProfileDoc, node: RecipeNodeId) -> VarId {
 /// here levers nothing: every mate on a part faults in the resolver's
 /// voice, which is the kernel's answer and not a fixture default.
 pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
-    solve_document(doc, o, tol)
+    solve_document(doc, o, &editor_core::CancelToken::new(), tol)
 }
 
 /// **Every mate-placed copy pinned to the world where its mates solve
@@ -714,7 +714,8 @@ where
         unused: editor_core::Advisory::Off,
         ..editor_core::ChecksConfig::default()
     };
-    editor_core::run_checks(doc, ev, &cfg, Tol::witness()).map(|report| report.findings)
+    editor_core::run_checks(doc, ev, &cfg, &editor_core::Stop::default(), Tol::witness())
+        .map(|report| report.findings)
 }
 
 /// **Whether the at-rest check could look at every pair**, as a mate
@@ -1775,7 +1776,14 @@ pub fn split_world(
     tol: Tol,
     resolver: Option<&std::sync::Arc<dyn editor_core::PartResolver>>,
 ) -> Result<editor_core::SplitOutcome, editor_core::SplitError> {
-    editor_core::split(doc, &with_placements(doc, cut), part_id, tol, resolver)
+    editor_core::split(
+        doc,
+        &with_placements(doc, cut),
+        part_id,
+        tol,
+        resolver,
+        &editor_core::Stop::default(),
+    )
 }
 
 /// **A world the gather refuses while every copy evaluates**: one
@@ -4056,4 +4064,13 @@ pub fn product_in_world(
         Some(map) => topo::transform_rigid(&product.body, &map, tol)
             .expect("a product composes into the world"),
     })
+}
+
+/// **The stop a query helper that answers `'static` holds**: a token
+/// nobody holds, at the default member budget ([`editor_core::Stop`]'s
+/// default), shared by every caller.
+pub fn no_stop() -> &'static editor_core::Stop {
+    static STOP: std::sync::LazyLock<editor_core::Stop> =
+        std::sync::LazyLock::new(editor_core::Stop::default);
+    &STOP
 }

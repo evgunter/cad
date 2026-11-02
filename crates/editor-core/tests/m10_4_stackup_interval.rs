@@ -431,7 +431,14 @@ fn the_two_hole_plate_stackup() {
     let (doc, measure, assertion) = plate(Some(uniform(half)), Some(uniform(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let t0 = Instant::now();
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("the plate builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the plate builds");
     let t_drive = t0.elapsed();
     assert!(
         !verdict.certified().is_empty(),
@@ -448,6 +455,7 @@ fn the_two_hole_plate_stackup() {
         Some(&handed),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the stackup refused: {e}"));
@@ -690,7 +698,14 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
     let half = 0.05;
     let (doc, measure, _) = plate(Some(band(half)), Some(band(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(!verdict.certified().is_empty());
     let report = stackup(
         &doc,
@@ -700,6 +715,7 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("the stackup refused: {e}"));
@@ -741,7 +757,14 @@ fn a_band_contributor_refuses_the_rss_whole_naming_every_band() {
 fn worst_case_is_the_hull_not_the_linearized_sum() {
     let (doc, measure) = square(1.0, uniform(0.5));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(16),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert_eq!(verdict.certified().len(), 1, "{:?}", verdict.receipt());
     let report = stackup(
         &doc,
@@ -751,6 +774,7 @@ fn worst_case_is_the_hull_not_the_linearized_sum() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("{e}"));
@@ -789,7 +813,14 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
     let half = eps() / 16.0;
     let (doc, measure) = kink(uniform(half));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(
         !verdict.certified().is_empty(),
         "the value channel certifies: {:?}",
@@ -803,6 +834,7 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("no refusal");
@@ -819,6 +851,7 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("E9: tangent state reached a refusal: {e}"));
@@ -894,6 +927,7 @@ fn the_binding_is_red_capable_on_a_stale_build() {
             None,
             false,
             None,
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .err()
@@ -1089,6 +1123,7 @@ fn a_drifted_measured_value_refuses() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     ) {
         Err(refusal @ SensitivityRefusal::MeasuredValueDrift { .. }) => {
@@ -1135,6 +1170,7 @@ fn a_drift_on_every_parameter_refuses_the_same_in_either_schedule() {
             None,
             parallel,
             None,
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .err()
@@ -1170,7 +1206,17 @@ fn a_drift_on_every_parameter_refuses_the_same_in_either_schedule() {
 fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
     let (doc, measure) = slab(0.05);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let local = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).expect("ok");
+    let local = sensitivities(
+        &doc,
+        measure,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("ok");
     match entry(&doc, &local, "depth") {
         SensitivityOutcome::Derivative { value, chamber } => {
             assert_eq!(value.to_bits(), 1.0f64.to_bits());
@@ -1191,6 +1237,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
             symbolic: SymbolicDials::off(),
             ..config(32)
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("builds");
@@ -1202,6 +1249,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("ok");
@@ -1220,6 +1268,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     ) {
         Err(StackupRefusal::NothingCertified {
@@ -1245,7 +1294,14 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
     // chamber-certified by a leaf holding the nominal.
     let (doc, measure) = slab(eps() / 16.0);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(64),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let certified = sensitivities(
         &doc,
         measure,
@@ -1253,6 +1309,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("ok");
@@ -1269,7 +1326,14 @@ fn the_driver_and_the_report_are_schedule_independent() {
     let half = eps() / 8.0;
     let (doc, measure, _) = plate(Some(uniform(half)), Some(uniform(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let seq = sensitivities(
         &doc,
         measure,
@@ -1277,6 +1341,7 @@ fn the_driver_and_the_report_are_schedule_independent() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     let par = sensitivities(
@@ -1286,6 +1351,7 @@ fn the_driver_and_the_report_are_schedule_independent() {
         Some(&verdict),
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert_eq!(seq, par);
@@ -1297,6 +1363,7 @@ fn the_driver_and_the_report_are_schedule_independent() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     let par = stackup(
@@ -1307,6 +1374,7 @@ fn the_driver_and_the_report_are_schedule_independent() {
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert_eq!(seq, par);
@@ -1357,8 +1425,17 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     let (doc, measured) =
         fixture::measure(doc, &[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     let unsupported = measured.outputs[0];
-    let entries = sensitivities(&doc, unsupported, None, None, false, None, Tol::witness())
-        .expect("a refusing measure is not a driver failure");
+    let entries = sensitivities(
+        &doc,
+        unsupported,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("a refusing measure is not a driver failure");
     assert_eq!(entries.len(), 2);
     for e in &entries {
         assert!(
@@ -1368,7 +1445,17 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     }
     let body = doc.output(plate_node, 0).expect("the plate's body");
     assert_eq!(
-        sensitivities(&doc, body, None, None, false, None, Tol::witness()).err(),
+        sensitivities(
+            &doc,
+            body,
+            None,
+            None,
+            false,
+            None,
+            &editor_core::Stop::default(),
+            Tol::witness()
+        )
+        .err(),
         Some(SensitivityRefusal::NotAScalar {
             var: doc.spoken_var(body)
         })
@@ -1386,6 +1473,7 @@ fn a_foreign_verdict_or_box_refuses_typed() {
         &other,
         &analyzed_box(&other, &AnalysisPolicy::default()),
         &config(16),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("builds");
@@ -1397,13 +1485,21 @@ fn a_foreign_verdict_or_box_refuses_typed() {
             Some(&foreign),
             false,
             None,
-            Tol::witness()
+            &editor_core::Stop::default(),
+            Tol::witness(),
         )
         .err(),
         Some(SensitivityRefusal::ForeignVerdict)
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let (wider, _, _) = plate(Some(uniform(eps() / 4.0)), None);
     let other_box = analyzed_box(&wider, &AnalysisPolicy::default());
     assert_eq!(
@@ -1415,7 +1511,8 @@ fn a_foreign_verdict_or_box_refuses_typed() {
             None,
             false,
             None,
-            Tol::witness()
+            &editor_core::Stop::default(),
+            Tol::witness(),
         )
         .err(),
         Some(StackupRefusal::ForeignBox)
@@ -1437,7 +1534,14 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
     let half = eps() / 8.0;
     let (doc, measure, _) = plate(Some(uniform(half)), Some(uniform(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(!verdict.certified().is_empty());
 
     // A value edit the box cannot see: the nominal moves, the offsets
@@ -1462,6 +1566,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     ) {
         Err(
@@ -1503,7 +1608,8 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             None,
             false,
             None,
-            Tol::witness()
+            &editor_core::Stop::default(),
+            Tol::witness(),
         ),
         Err(StackupRefusal::Sensitivity(
             SensitivityRefusal::VerdictNotOfThisBuild { .. }
@@ -1523,6 +1629,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     ) {
         Err(refusal @ SensitivityRefusal::VerdictNotOfThisBuild { node, .. }) => {
@@ -1551,7 +1658,8 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             None,
             false,
             None,
-            Tol::witness()
+            &editor_core::Stop::default(),
+            Tol::witness(),
         ),
         Err(StackupRefusal::Sensitivity(
             SensitivityRefusal::VerdictNotOfThisBuild { .. }
@@ -1563,8 +1671,14 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
     // driver, marked by that drive's leaf.
     let (narrow, narrow_measure, _) = plate(Some(uniform(half / 2.0)), Some(uniform(half / 2.0)));
     let narrow_box = analyzed_box(&narrow, &AnalysisPolicy::default());
-    let narrow_verdict =
-        drive(&narrow, &narrow_box, &config(1024), Tol::witness()).expect("builds");
+    let narrow_verdict = drive(
+        &narrow,
+        &narrow_box,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert_ne!(*narrow_verdict.root(), *verdict.root());
     let marked = sensitivities(
         &doc,
@@ -1573,6 +1687,7 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
         Some(&narrow_verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a leaf of this build holding the nominal is a certificate over itself");
@@ -1592,7 +1707,8 @@ fn a_stale_or_foreign_verdict_is_refused_by_content() {
             None,
             false,
             None,
-            Tol::witness()
+            &editor_core::Stop::default(),
+            Tol::witness(),
         )
         .err(),
         Some(StackupRefusal::ForeignBox)
@@ -1675,7 +1791,14 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     assert_eq!(value.deriv, -1.0, "∂gap/∂r through the profile's carrier");
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
     let report = stackup(
         &doc,
@@ -1685,6 +1808,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("{e}"));
@@ -1790,8 +1914,17 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
-    let entries =
-        sensitivities(&doc, measure_value, None, None, false, None, Tol::witness()).expect("ok");
+    let entries = sensitivities(
+        &doc,
+        measure_value,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("ok");
     match entry(&doc, &entries, "w") {
         SensitivityOutcome::Derivative { value, .. } => {
             assert!(
@@ -1806,7 +1939,14 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
     // section is wider than a point, and the loft skins it at the lane
     // scalar, so the box certifies in one leaf.
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(256),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert_eq!(
         verdict.receipt(),
         editor_core::drive::Receipt {
@@ -1831,7 +1971,14 @@ fn an_untoleranced_parameter_is_no_axis_and_blocks_no_rss() {
     let (doc, measure, _) = plate(Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(analyzed.axis_std_deviation(v(&doc, "depth")), None);
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let report = stackup(
         &doc,
         measure,
@@ -1840,6 +1987,7 @@ fn an_untoleranced_parameter_is_no_axis_and_blocks_no_rss() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("{e}"));

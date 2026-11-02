@@ -23,8 +23,14 @@ use geom_core::Tol;
 
 fn report(doc: &ProfileDoc) -> editor_core::ChecksReport {
     let run = corpus::eval::<f64>(doc);
-    editor_core::run_checks(doc, &run, &ChecksConfig::default(), Tol::witness())
-        .unwrap_or_else(|e| panic!("the checks run: {e}"))
+    editor_core::run_checks(
+        doc,
+        &run,
+        &ChecksConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the checks run: {e}"))
 }
 
 fn findings(doc: &ProfileDoc) -> Vec<InterferenceFinding> {

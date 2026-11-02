@@ -184,6 +184,7 @@ fn over_the_box(
         assertion,
         &ParamBox::of(&analyzed),
         symbolic,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("an assertion has a verdict over the box")
@@ -245,6 +246,7 @@ fn equal_over_a_box_holds_only_on_a_structural_zero() {
                 max_leaves: 16,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the witness builds")

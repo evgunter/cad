@@ -1088,6 +1088,7 @@ fn assert_pose_encloses_corners(
     let poses = editor_core::mate::solve_document_at::<Interval>(
         doc,
         &boxed(doc, opts, param.clone(), lo, hi),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     assert!(
@@ -1534,6 +1535,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
     let poses = editor_core::mate::solve_document_at::<Interval>(
         &doc,
         &boxed(&doc, &opts, drift(), lo, hi),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     assert!(poses.fault(bolt).is_none(), "{:?}", poses.fault(bolt));
@@ -1595,6 +1597,7 @@ fn a_box_on_a_tilted_standoff_widens_the_map_by_the_box_alone() {
     let poses = editor_core::mate::solve_document_at::<Interval>(
         &doc,
         &boxed(&doc, &opts, gap(), lo, hi),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     );
     assert!(poses.fault(bolt).is_none(), "{:?}", poses.fault(bolt));
@@ -2039,6 +2042,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
         None,
         false,
         Some(&resolver),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the driver runs");
@@ -2069,6 +2073,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
             None,
             false,
             Some(&resolver),
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
     };
@@ -2102,6 +2107,7 @@ fn a5_sensitivities_cross_a_seated_mate() {
             None,
             false,
             Some(&gone),
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .err(),
@@ -2141,7 +2147,8 @@ fn a5_certified_clearance_runs_over_a_seated_mate() {
             &leaf,
             &Selection::body_of(b.bolt),
             &copy2,
-            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+            &ClearanceQuery::at_least(c, &editor_core::Stop::default(), Tol::witness())
+                .resolved_by(&resolver),
         )
         .verdict()
         .clone()
@@ -2198,7 +2205,8 @@ fn r1_clearance_answers_alike_in_either_order() {
             &leaf,
             x,
             y,
-            &ClearanceQuery::at_least(c, Tol::witness()).resolved_by(&resolver),
+            &ClearanceQuery::at_least(c, &editor_core::Stop::default(), Tol::witness())
+                .resolved_by(&resolver),
         );
         format!("{:?}", r.verdict())
             .chars()

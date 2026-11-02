@@ -369,6 +369,7 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
         &Selection::body_of(base),
         &Selection::body_of(top),
         0.5,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     match report.verdict() {
@@ -470,6 +471,7 @@ fn split_of(
         DocumentId::derive(label),
         Tol::witness(),
         p.opts().resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
 }
 

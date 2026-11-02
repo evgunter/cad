@@ -1083,6 +1083,7 @@ fn a_boss_is_authored_on_a_picked_face() {
     let poses = pncad::document::solve_document(
         session.committed_doc(),
         &pncad::document::EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
         tol,
     );
     let at = poses

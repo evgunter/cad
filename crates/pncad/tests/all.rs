@@ -4152,7 +4152,12 @@ fn asm_r2a_child_mated_probe() {
         resolver: Some(std::sync::Arc::new(ws.clone())),
         ..pncad::document::EvalOptions::default()
     };
-    let poses = pncad::document::solve_document(&doc, &opts, Tol::witness());
+    let poses = pncad::document::solve_document(
+        &doc,
+        &opts,
+        &pncad::document::CancelToken::new(),
+        Tol::witness(),
+    );
     let placed = poses.placement(&doc, ids[1]).expect("the pair determines");
     let ev = asm2a_eval(&doc, &ws);
     let body = pncad::document::product(&doc, &ev, Tol::witness()).expect("gathers");
@@ -4253,6 +4258,7 @@ fn asm_r2b_child_crossing_probe() {
         pncad::document::DocumentId::derive("asm-r2b-probe-split"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("a whole-group cut splits");
     let text =
@@ -4601,6 +4607,7 @@ fn asm4_split_and_inline_through_the_real_store() {
         d::DocumentId::derive("asm4-e2e-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     ws_mut
@@ -4674,6 +4681,7 @@ fn asm4_child_split_probe() {
         d::DocumentId::derive("asm4-probe-new"),
         Tol::witness(),
         Some(&store),
+        &pncad::document::Stop::default(),
     )
     .expect("legal");
     let text = format!(

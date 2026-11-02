@@ -470,6 +470,7 @@ fn witness_distance(report: &ClearanceReport) -> f64 {
 /// A query at a bound and a config, with no accelerator.
 fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::AtLeast(c),
         tol: Tol::witness(),
         config,
@@ -506,6 +507,7 @@ fn a_generous_wall_clearance_holds_over_the_dumbbell() {
         &whole,
         &whole,
         0.2,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert_eq!(
@@ -516,7 +518,15 @@ fn a_generous_wall_clearance_holds_over_the_dumbbell() {
     );
     assert_eq!(witness_distance(&itself), 0.0, "{}", itself.serialize());
     let (wa, wb) = neck_walls(&doc, minted, minted);
-    let report = clearance(&doc, &box_of(&doc, "place"), &wa, &wb, 0.2, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &wa,
+        &wb,
+        0.2,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -539,7 +549,15 @@ fn a_generous_wall_clearance_holds_over_the_dumbbell() {
 fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
     let (doc, minted, _at) = dumbbell();
     let (wa, wb) = neck_walls(&doc, minted, minted);
-    let report = clearance(&doc, &box_of(&doc, "place"), &wa, &wb, 0.6, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &wa,
+        &wb,
+        0.6,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
         panic!("expected a violation at c = 0.6: {}", report.serialize());
     };
@@ -681,7 +699,15 @@ fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
 fn a_slanted_pair_the_tree_cannot_exclude_is_discharged_at_its_root() {
     let (doc, minted, _at) = hexagon();
     let (fa, fb) = opposite_flats(&doc, minted);
-    let report = clearance(&doc, &box_of(&doc, "place"), &fa, &fb, 1.5, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &fa,
+        &fb,
+        1.5,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -719,7 +745,13 @@ fn a_sound_prism_certifies_its_boundary_injective() {
         },
     ] {
         let sel = Selection::body_of(at);
-        let report = self_intersection(&doc, &box_of(&doc, "place"), &sel, Tol::witness());
+        let report = self_intersection(
+            &doc,
+            &box_of(&doc, "place"),
+            &sel,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,
@@ -741,7 +773,15 @@ fn a_sound_prism_certifies_its_boundary_injective() {
 fn a_bound_under_the_parameter_band_holds() {
     let (doc, a, b) = facing_blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let report = clearance(&doc, &box_of(&doc, "gap"), &sa, &sb, 0.3, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "gap"),
+        &sa,
+        &sb,
+        0.3,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -757,7 +797,15 @@ fn a_bound_under_the_parameter_band_holds() {
 fn a_bound_over_the_parameter_band_is_violated() {
     let (doc, a, b) = facing_blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let report = clearance(&doc, &box_of(&doc, "gap"), &sa, &sb, 0.5, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "gap"),
+        &sa,
+        &sb,
+        0.5,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(
         report.verdict().holds(),
         Some(false),
@@ -811,6 +859,7 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
         &sel,
         &whole,
         0.1,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     match report.verdict() {
@@ -831,6 +880,7 @@ fn a_node_that_does_not_exist_refuses_at_the_selection() {
         &sel,
         &sel,
         0.1,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     match report.verdict() {
@@ -855,7 +905,15 @@ fn the_answer_is_deterministic_across_repeats() {
     // is the tube's walls at 0.3 against their 0.5 — thousands of cell
     // pairs classified in a level-synchronous order that must not
     // drift.
-    let first = clearance(&tube, &leaf, &fa, &fb, 0.3, Tol::witness());
+    let first = clearance(
+        &tube,
+        &leaf,
+        &fa,
+        &fb,
+        0.3,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     let r = first.receipt();
     let cells = r.discharged + r.violated + r.refused;
     assert!(
@@ -863,17 +921,42 @@ fn the_answer_is_deterministic_across_repeats() {
         "the determinism row runs on a multi-thousand-cell subdivision: {r:?}"
     );
     for _ in 0..3 {
-        let again = clearance(&tube, &leaf, &fa, &fb, 0.3, Tol::witness());
+        let again = clearance(
+            &tube,
+            &leaf,
+            &fa,
+            &fb,
+            0.3,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         assert_eq!(again.serialize(), first.serialize());
     }
     // And a violated run is stable too, witness and all — the goldening
     // form carries the witness's points and chart, so a drift in WHERE
     // the witness sits is visible here rather than silent.
-    let violated = clearance(&doc, &leaf, &wa, &wb, 0.6, Tol::witness());
+    let violated = clearance(
+        &doc,
+        &leaf,
+        &wa,
+        &wb,
+        0.6,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(violated.verdict().label(), "Violated");
     for _ in 0..3 {
         assert_eq!(
-            clearance(&doc, &leaf, &wa, &wb, 0.6, Tol::witness()).serialize(),
+            clearance(
+                &doc,
+                &leaf,
+                &wa,
+                &wb,
+                0.6,
+                &editor_core::Stop::default(),
+                Tol::witness()
+            )
+            .serialize(),
             violated.serialize()
         );
     }
@@ -912,6 +995,7 @@ fn gap_run(
     oracle: &dyn MonotoneOracle,
 ) -> ClearanceReport {
     let q = ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::AtLeast(c),
         tol: Tol::witness(),
         config: ClearanceConfig {
@@ -964,6 +1048,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
     );
     let facet = ParamBox::from_axes(facet_axes);
     let q = |pruning, oracle: &'static dyn MonotoneOracle| ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::AtLeast(0.5),
         tol: Tol::witness(),
         config: ClearanceConfig {
@@ -1019,8 +1104,14 @@ fn a_degraded_tangent_forfeits_the_pruning_and_nothing_else() {
 fn a_driver_certified_leaf_carries_the_certificate() {
     let (doc, minted, _at) = dumbbell();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the dumbbell builds at its nominal");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the dumbbell builds at its nominal");
     assert!(
         !verdict.certified().is_empty(),
         "the driver certifies this box: {}",
@@ -1033,7 +1124,7 @@ fn a_driver_certified_leaf_carries_the_certificate() {
         &verdict,
         &wa,
         &wb,
-        &ClearanceQuery::at_least(0.2, Tol::witness()),
+        &ClearanceQuery::at_least(0.2, &editor_core::Stop::default(), Tol::witness()),
     );
     assert_eq!(fold.verdict, ClearanceVerdict::Holds);
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
@@ -1084,6 +1175,7 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
             max_leaves: 1,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the plate builds at its nominal");
@@ -1094,7 +1186,8 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         );
     };
     let [a, b] = plate.holes.map(Selection::body_of);
-    let query = ClearanceQuery::at_least(0.3e-3, tol);
+    let stop = editor_core::Stop::default();
+    let query = ClearanceQuery::at_least(0.3e-3, &stop, tol);
     let fold = clearance_over(&plate.doc, &analyzed, &verdict, &a, &b, &query);
     assert_eq!(
         fold.verdict,
@@ -1106,7 +1199,7 @@ fn the_fold_replays_a_leaf_on_the_drives_own_lane() {
         &leaf.box_,
         &a,
         &b,
-        &ClearanceQuery::at_least(0.3e-3, tol)
+        &ClearanceQuery::at_least(0.3e-3, &editor_core::Stop::default(), tol)
             .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(
@@ -1160,7 +1253,15 @@ fn the_cost_curve_is_measured_at_both_ends() {
     let leaf = box_of(&doc, "place");
     let mut violated_cells = Vec::new();
     for c in [0.9, 0.8, 0.7, 0.6, 0.5, 0.41] {
-        let report = clearance(&doc, &leaf, &wa, &wb, c, Tol::witness());
+        let report = clearance(
+            &doc,
+            &leaf,
+            &wa,
+            &wb,
+            c,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         let r = report.receipt();
         assert!(r.holds(), "{r:?}");
         assert_eq!(
@@ -1191,7 +1292,15 @@ fn the_cost_curve_is_measured_at_both_ends() {
     let (tube, minted, _at) = tube();
     let (fa, fb) = tube_walls(&tube, minted);
     let leaf = box_of(&doc, "place");
-    let held = clearance(&tube, &leaf, &fa, &fb, 0.2, Tol::witness());
+    let held = clearance(
+        &tube,
+        &leaf,
+        &fa,
+        &fb,
+        0.2,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     let hr = held.receipt();
     assert_eq!(
         held.verdict(),
@@ -1215,7 +1324,15 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // inside the pair's own separation range leaves cell pairs whose
     // enclosures straddle it at EVERY depth. 0.499 against a 0.5 m
     // separation spends the whole dial and refuses, priced.
-    let frontier = clearance(&tube, &leaf, &fa, &fb, 0.499, Tol::witness());
+    let frontier = clearance(
+        &tube,
+        &leaf,
+        &fa,
+        &fb,
+        0.499,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     let fr = frontier.receipt();
     assert!(fr.holds());
     match frontier.verdict() {
@@ -1258,6 +1375,7 @@ fn early_exit_accounts_for_what_it_did_not_examine() {
         &sel,
         &sel,
         0.6,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     let r = report.receipt();
@@ -1278,7 +1396,15 @@ fn early_exit_accounts_for_what_it_did_not_examine() {
     // A query that runs to completion abandons nothing: the two neck
     // walls, which do not meet.
     let (wa, wb) = neck_walls(&doc, minted, minted);
-    let held = clearance(&doc, &box_of(&doc, "place"), &wa, &wb, 0.2, Tol::witness());
+    let held = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &wa,
+        &wb,
+        0.2,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(held.verdict(), &ClearanceVerdict::Holds);
     assert_eq!(held.receipt().abandoned, 0, "{:?}", held.receipt());
 }
@@ -1293,7 +1419,15 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
     let sel = Selection::body_of(minted);
     let leaf = box_of(&doc, "place");
     for c in [f64::NAN, f64::INFINITY, -1.0] {
-        let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
+        let report = clearance(
+            &doc,
+            &leaf,
+            &sel,
+            &sel,
+            c,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         match report.verdict() {
             ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. }) => {}
             other => panic!("expected NotADistance for c = {c}, got {other:?}"),
@@ -1305,7 +1439,17 @@ fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
         body: 0,
         faces: FaceScope::Named(Vec::new()),
     };
-    match clearance(&doc, &leaf, &empty, &sel, 0.2, Tol::witness()).verdict() {
+    match clearance(
+        &doc,
+        &leaf,
+        &empty,
+        &sel,
+        0.2,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .verdict()
+    {
         ClearanceVerdict::Refused(ClearanceRefusal::Engine {
             refusal: EngineRefusal::EmptyScope { side: Which::First },
             ..
@@ -1359,7 +1503,7 @@ fn a_lofts_walls_have_windows_and_its_boundary_is_injective() {
         &box_of(&doc, "place"),
         &sel,
         &sel,
-        &ClearanceQuery::strictly_positive(Tol::witness())
+        &ClearanceQuery::strictly_positive(&editor_core::Stop::default(), Tol::witness())
             .certified_at(editor_core::drive::SymbolicDials::off()),
     );
     assert_eq!(

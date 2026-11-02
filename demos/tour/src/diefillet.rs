@@ -347,6 +347,7 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         [0.0, 0.0, L],
         [L, 0.0, 0.0],
         &EvalOptions::default(),
+        &pncad::document::CancelToken::new(),
         tol,
     )
     .expect("the cube has its corner at its own origin");

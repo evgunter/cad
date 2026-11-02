@@ -190,6 +190,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::AtLeast(c),
         tol: Tol::witness(),
         config,
@@ -430,7 +431,15 @@ fn a_cylinder_band_answers_on_its_whole_turn_window() {
         vec![fixture::fname(solid, fixture::wall(&doc, solid, 3))],
     );
     let sp = Selection::body_of(probe);
-    let report = clearance(&doc, &box_of(&doc, "place"), &ss, &sp, 1.0, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &ss,
+        &sp,
+        1.0,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     println!(
         "[E7] scalloped block vs the probe in the scallop at c = 1.0: decided {:?}, {}",
         report.decided(),
@@ -558,6 +567,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
         &wall,
         &Selection::body_of(block),
         0.3,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(
@@ -649,6 +659,7 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         &sq,
         &sb,
         1.0,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(
@@ -767,6 +778,7 @@ fn a_quarter_ball_beside_its_missing_quarters_holds_against_a_dense_distance() {
             &sq,
             &sb,
             c,
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
     };
@@ -852,6 +864,7 @@ fn a_holed_cylinder_wall_drops_the_cells_in_its_hole() {
         &Selection::body_of(cut),
         &Selection::body_of(probe),
         0.05,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!("[holed wall] c = 0.05: {}", report.serialize());

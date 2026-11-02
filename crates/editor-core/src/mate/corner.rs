@@ -263,6 +263,7 @@ pub fn corner_frame_in(
 /// # Errors
 ///
 /// As [`corner_frame_in`]'s.
+#[allow(clippy::too_many_arguments)] // the gesture's picks, then the run it reads
 pub fn corner_frame(
     doc: &crate::ProfileDoc,
     body: &Operand,

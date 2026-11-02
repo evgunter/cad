@@ -325,6 +325,7 @@ fn cfg(pairs: usize, depth: u32) -> ClearanceConfig {
 
 fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::AtLeast(c),
         tol: Tol::witness(),
         config,
@@ -336,6 +337,7 @@ fn at_least(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
 
 fn strict(config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::StrictlyPositive,
         tol: Tol::witness(),
         config,
@@ -392,8 +394,14 @@ fn the_combs_internal_gaps_answer_at_three_bounds() {
 fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
     let (doc, minted, _placed) = comb();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the comb builds at its nominal");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the comb builds at its nominal");
     assert!(
         !verdict.certified().is_empty(),
         "the drive certifies something to fold over: {}",
@@ -659,6 +667,7 @@ fn self_intersection_over_a_sound_body_examines_every_face_pair() {
         &doc,
         &box_of(&doc, "place"),
         &Selection::body_of(minted),
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert_eq!(
@@ -928,6 +937,7 @@ fn the_accelerator_changes_no_verdict_on_the_comb() {
             &sel,
             &sel,
             &ClearanceQuery {
+                stop: crate::fixture::no_stop(),
                 bound: ClearanceBound::AtLeast(c),
                 tol: Tol::witness(),
                 config: ClearanceConfig {
@@ -965,6 +975,7 @@ fn no_tangents_forfeits_the_pruning_and_nothing_else_on_the_comb() {
             &sel,
             &sel,
             &ClearanceQuery {
+                stop: crate::fixture::no_stop(),
                 bound: ClearanceBound::AtLeast(c),
                 tol: Tol::witness(),
                 config: ClearanceConfig {
@@ -1003,6 +1014,7 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
         &sel,
         &sel,
         &ClearanceQuery {
+            stop: crate::fixture::no_stop(),
             bound: ClearanceBound::AtLeast(0.7),
             tol: Tol::witness(),
             config: ClearanceConfig {
@@ -1043,6 +1055,7 @@ fn the_fold_is_the_same_over_a_parallel_and_a_sequential_drive() {
                 parallel,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the comb builds at its nominal");
@@ -1090,6 +1103,7 @@ fn a_fold_over_zero_certified_leaves_refuses_by_name() {
             max_leaves: 0,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the comb builds at its nominal");
@@ -1214,6 +1228,7 @@ fn the_unsupported_arm_names_its_carrier_class_when_it_fires() {
         &doc,
         &box_of(&doc, "place"),
         &Selection::body_of(minted),
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert_eq!(

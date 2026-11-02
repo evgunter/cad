@@ -187,7 +187,7 @@ fn sym_profile_slab_drive() {
     };
     start_profile();
     let t0 = Instant::now();
-    let v = drive(&doc, &analyzed, &config, tol).unwrap();
+    let v = drive(&doc, &analyzed, &config, &editor_core::Stop::default(), tol).unwrap();
     let wall = t0.elapsed();
     let profile = take_profile();
     println!(

@@ -536,6 +536,7 @@ impl core::error::Error for SensitivityRefusal {}
 /// [`SensitivityRefusal`] — the node is not a measure, the verdict is
 /// foreign or not of this build, the binding fired, or a pass's
 /// measured value drifted from the build of record's.
+#[allow(clippy::too_many_arguments)] // the question, then the run it is asked of
 pub fn sensitivities(
     doc: &Doc<ProfileProgram>,
     value: VarId,

@@ -146,11 +146,18 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
             parallel: false,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the nominal builds");
-    let parallel = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let parallel = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert_eq!(
         sequential.serialize(),
         parallel.serialize(),
@@ -167,6 +174,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -178,6 +186,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -222,8 +231,14 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
 fn a_content_key_moves_exactly_when_the_report_does() {
     let (doc, measure, _) = plate(uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     let report = stackup(
         &doc,
         crate::fixture::output(&doc, measure),
@@ -232,6 +247,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -245,6 +261,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -259,8 +276,14 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         hi: half() / 2.0,
     });
     let wider = analyzed_box(&wider_doc, &AnalysisPolicy::default());
-    let wider_verdict = drive(&wider_doc, &wider, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let wider_verdict = drive(
+        &wider_doc,
+        &wider,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     let other = stackup(
         &wider_doc,
         crate::fixture::output(&wider_doc, wider_measure),
@@ -269,6 +292,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -333,8 +357,14 @@ fn a_content_key_moves_exactly_when_the_report_does() {
 fn the_cache_serves_equal_keys_and_only_those() {
     let (doc, measure, _) = plate(uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     let report = stackup(
         &doc,
         crate::fixture::output(&doc, measure),
@@ -343,6 +373,7 @@ fn the_cache_serves_equal_keys_and_only_those() {
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a stackup");
@@ -416,15 +447,23 @@ fn the_cache_serves_equal_keys_and_only_those() {
 fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
     let (doc, measure, _) = plate(uniform());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     let histogram = leaf_histogram(
         &doc,
         &analyzed,
         &verdict,
         crate::fixture::output(&doc, measure),
+        &editor_core::Stop::default(),
         Tol::witness(),
-    );
+    )
+    .expect("no stop");
     assert_eq!(
         histogram.rows.len(),
         verdict.certified().len(),
@@ -457,7 +496,13 @@ fn the_mc_lane_refuses_a_band_typed() {
         hi: half(),
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    match monte_carlo(&doc, &analyzed, &McConfig::default(), Tol::witness()) {
+    match monte_carlo(
+        &doc,
+        &analyzed,
+        &McConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    ) {
         Err(McRefusal::BandHasNoMeasure(e)) => {
             assert!(
                 format!("{e}").contains("place"),
@@ -480,8 +525,22 @@ fn the_mc_report_is_deterministic_and_labeled() {
         samples: 64,
         ..McConfig::default()
     };
-    let a = monte_carlo(&doc, &analyzed, &cfg, Tol::witness()).expect("replays");
-    let b = monte_carlo(&doc, &analyzed, &cfg, Tol::witness()).expect("replays");
+    let a = monte_carlo(
+        &doc,
+        &analyzed,
+        &cfg,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("replays");
+    let b = monte_carlo(
+        &doc,
+        &analyzed,
+        &cfg,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("replays");
     assert_eq!(a.serialize(), b.serialize(), "same seed, same report");
 
     // The two SCHEDULES agree bit for bit — the whole reason each
@@ -493,6 +552,7 @@ fn the_mc_report_is_deterministic_and_labeled() {
             parallel: false,
             ..cfg
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("replays");
@@ -507,6 +567,7 @@ fn the_mc_report_is_deterministic_and_labeled() {
         &doc,
         &analyzed,
         &McConfig { seed: 12345, ..cfg },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("replays");
@@ -549,6 +610,7 @@ fn the_mc_lane_changes_no_document_and_mints_no_assertion() {
             samples: 32,
             ..McConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("replays");
@@ -597,6 +659,7 @@ fn the_mc_tail_fraction_converges_on_the_accountings_tail() {
             samples: 2048,
             ..McConfig::default()
         },
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("replays");
@@ -630,8 +693,14 @@ fn the_mc_tail_fraction_converges_on_the_accountings_tail() {
 fn the_budget_renders_its_tail_and_its_containment() {
     let (doc, _, _) = plate(Distribution::Normal { sigma: half() });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     let rendered = budget.render(&doc);
     assert!(rendered.contains("tail"), "the tail has a line: {rendered}");

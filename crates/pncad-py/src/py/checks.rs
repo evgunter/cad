@@ -1025,7 +1025,9 @@ pub(crate) fn run_checks(
         .paired_with(doc)
         .map_err(|m| mispaired_checks(py, m))?;
     evaluation
-        .gathered(|memo, doc, ev| crate::product_memo::checks_report(memo, doc, ev, cfg, tol))
+        .gathered(|memo, doc, ev| {
+            crate::product_memo::checks_report(memo, doc, ev, cfg, evaluation.stop(), tol)
+        })
         .map(|report| ChecksReport {
             report,
             doc: evaluation.doc_shared(),

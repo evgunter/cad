@@ -457,6 +457,7 @@ fn a_split_refuses_an_assertion_over_a_stranded_measure() {
         editor_core::DocumentId::derive("s2d-split-part"),
         Tol::witness(),
         None,
+        &editor_core::Stop::default(),
     ) {
         Err(editor_core::SplitError::UnresolvedVarCrossesCut { var, node }) => {
             assert_eq!((var.id(), node.id()), (out, assertion));

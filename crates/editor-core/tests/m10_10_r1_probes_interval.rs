@@ -202,6 +202,7 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                 symbolic: dials(rules),
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         );
         let dt = t.elapsed().as_secs_f64();
@@ -221,6 +222,7 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     None,
                     false,
                     None,
+                    &editor_core::Stop::default(),
                     tol,
                 );
                 match &stack {
@@ -230,8 +232,14 @@ fn r1_the_segment_bosss_real_study_end_to_end() {
                     ),
                     Err(e) => println!("   stackup: REFUSED {e}"),
                 }
-                let a =
-                    editor_core::drive::assertion_at(&doc, assertion, v.root(), dials(rules), tol);
+                let a = editor_core::drive::assertion_at(
+                    &doc,
+                    assertion,
+                    v.root(),
+                    dials(rules),
+                    &editor_core::Stop::default(),
+                    tol,
+                );
                 println!("   assertion at the root box: {a:?}");
                 let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
                 println!("   whole-study replay stops at {refusal:?}");
@@ -371,6 +379,7 @@ fn r1_what_the_plates_budget_refusals_are_bounded_by() {
             symbolic: dials(rules),
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the plate builds");

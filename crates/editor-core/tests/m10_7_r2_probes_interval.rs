@@ -209,6 +209,7 @@ fn drive_at(doc: &editor_core::ProfileDoc, dials: SymbolicDials, tol: Tol) -> Op
             max_leaves: 512,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .ok()
@@ -240,6 +241,7 @@ fn r2_end_to_end_bracket_study() {
                     max_leaves: 512,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             );
             match v {
@@ -252,10 +254,25 @@ fn r2_end_to_end_bracket_study() {
                     );
                     println!("{}", v.render(&doc, &analyzed));
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, None, tol,
+                        &doc,
+                        measure,
+                        &analyzed,
+                        &v,
+                        None,
+                        false,
+                        None,
+                        &editor_core::Stop::default(),
+                        tol,
                     );
                     println!("   stackup: {stack:?}");
-                    let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), dials, tol);
+                    let a = editor_core::drive::assertion_at(
+                        &doc,
+                        assertion,
+                        v.root(),
+                        dials,
+                        &editor_core::Stop::default(),
+                        tol,
+                    );
                     println!("   assertion at the root box: {a:?}");
                 }
             }
@@ -416,6 +433,7 @@ fn r2_what_a_real_study_gets_today() {
                 max_leaves: 512,
                 ..DriveConfig::default()
             },
+            &editor_core::Stop::default(),
             tol,
         ) {
             Err(e) => println!("== {name}: the drive refused: {e}"),
@@ -425,12 +443,27 @@ fn r2_what_a_real_study_gets_today() {
                     println!("   refused: {:?}", l.reason);
                 }
                 let s = editor_core::stackup::stackup(
-                    &doc, measure, &analyzed, &v, None, false, None, tol,
+                    &doc,
+                    measure,
+                    &analyzed,
+                    &v,
+                    None,
+                    false,
+                    None,
+                    &editor_core::Stop::default(),
+                    tol,
                 );
                 println!("   stackup: {s:?}");
                 println!(
                     "   assertion: {:?}",
-                    editor_core::drive::assertion_at(&doc, assertion, v.root(), dials, tol)
+                    editor_core::drive::assertion_at(
+                        &doc,
+                        assertion,
+                        v.root(),
+                        dials,
+                        &editor_core::Stop::default(),
+                        tol
+                    )
                 );
             }
         }

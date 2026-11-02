@@ -1076,9 +1076,14 @@ fn an_unused_variables_row_selects_the_variable() {
         &pncad::document::EvalOptions::default(),
         tol,
     );
-    let report =
-        pncad::document::run_checks(&doc, &ev, &pncad::document::ChecksConfig::default(), tol)
-            .expect("the checks run");
+    let report = pncad::document::run_checks(
+        &doc,
+        &ev,
+        &pncad::document::ChecksConfig::default(),
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the checks run");
     let rows = viewer::frame::check_rows(&report, &doc);
     let selects: Vec<_> = rows.iter().map(|row| row.select.clone()).collect();
     assert_eq!(

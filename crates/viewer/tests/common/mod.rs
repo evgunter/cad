@@ -50,7 +50,12 @@ use viewer::camera::Camera;
 /// the kernel's public door. `doc` is the session's landed document, or
 /// one derived from it that resolves against the same directory.
 pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
-    solve_document(doc, &session.eval_options(), tol)
+    solve_document(
+        doc,
+        &session.eval_options(),
+        &pncad::document::CancelToken::new(),
+        tol,
+    )
 }
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
 

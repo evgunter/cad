@@ -386,7 +386,14 @@ pub fn narration(tol: Tol) -> String {
         ..McConfig::default()
     };
 
-    let report = monte_carlo(&base.doc, &analyzed, &config, tol).expect("the nominal builds");
+    let report = monte_carlo(
+        &base.doc,
+        &analyzed,
+        &config,
+        &pncad::document::Stop::default(),
+        tol,
+    )
+    .expect("the nominal builds");
     let row = report
         .measures
         .iter()

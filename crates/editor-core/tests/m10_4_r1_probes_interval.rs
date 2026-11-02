@@ -332,8 +332,28 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
         assert_eq!(d.value.to_bits(), nominal.to_bits(), "{p} value channel");
     }
     // Schedule independence at the driver, on this document.
-    let seq = sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("ok");
-    let par = sensitivities(&doc, m, None, None, true, None, Tol::witness()).expect("ok");
+    let seq = sensitivities(
+        &doc,
+        m,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("ok");
+    let par = sensitivities(
+        &doc,
+        m,
+        None,
+        None,
+        true,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("ok");
     assert_eq!(seq, par);
     assert_eq!(seq.len(), 2);
 }
@@ -418,7 +438,14 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     let half = eps() / 16.0;
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
 
     // Edit the document in a way the analyzed box cannot see: the boss
@@ -476,6 +503,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         Some(&verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert!(
@@ -493,6 +521,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         Some(&handed),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert!(
@@ -508,8 +537,17 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // drives anything), which is the proof that the certified chamber
     // is not this document's — read without a chamber, where it is
     // honestly `LocalOnly`.
-    let entries = sensitivities(&edited, m, Some(&handed), None, false, None, Tol::witness())
-        .expect("the binding is satisfied by a fresh build of record");
+    let entries = sensitivities(
+        &edited,
+        m,
+        Some(&handed),
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the binding is satisfied by a fresh build of record");
     match entries
         .iter()
         .find(|s| s.param == edited.var_named("h2").expect("declared"))
@@ -532,7 +570,14 @@ fn r1_another_documents_verdict_certifies_this_one() {
     let half = eps() / 16.0;
     let (a_doc, _) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(half)));
     let a_analyzed = analyzed_box(&a_doc, &AnalysisPolicy::default());
-    let a_verdict = drive(&a_doc, &a_analyzed, &config(1024), Tol::witness()).expect("builds");
+    let a_verdict = drive(
+        &a_doc,
+        &a_analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(!a_verdict.certified().is_empty());
 
     // Document B: the same two parameter names, nominals and
@@ -560,6 +605,7 @@ fn r1_another_documents_verdict_certifies_this_one() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert!(
@@ -578,6 +624,7 @@ fn r1_another_documents_verdict_certifies_this_one() {
         Some(&a_verdict),
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     assert!(
@@ -605,8 +652,17 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
         Formula::max(a(), Formula::neg(a()).expect("a shallow negation"))
             .expect("Scalar lattice max")
     });
-    let entries =
-        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
+    let entries = sensitivities(
+        &doc,
+        m,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("no refusal");
     match &entries[0].outcome {
         SensitivityOutcome::Derivative { value, .. } => {
             assert!(
@@ -631,8 +687,17 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
         Formula::div(a(), a()).expect("Scalar / Scalar")
     });
-    let entries =
-        sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
+    let entries = sensitivities(
+        &doc,
+        m,
+        None,
+        None,
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("no refusal");
     println!(
         "EVIDENCE-ONLY r1 0/0-value outcome: {:?}",
         entries[0].outcome
@@ -661,7 +726,14 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
         Formula::mul(Formula::mul(a(), a()).expect("scalar"), a()).expect("scalar")
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(16),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let report = stackup(
         &doc,
         m,
@@ -670,6 +742,7 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("a certified arithmetic box");
@@ -794,7 +867,14 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     let half = eps() / 16.0;
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), Some(uniform(2.0 * half)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let report = stackup(
         &doc,
         m,
@@ -803,6 +883,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("ok");
@@ -829,7 +910,14 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
         }),
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let report = stackup(
         &doc,
         m,
@@ -838,6 +926,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("ok");
@@ -860,7 +949,14 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
     // it contributes a zero term.
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(half)), None);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(1024),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let report = stackup(
         &doc,
         m,
@@ -869,6 +965,7 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("ok");
@@ -939,15 +1036,31 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
 fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let (doc, m) = stepped_shaft(1.0, 0.5, Some(uniform(0.1)), Some(uniform(0.1)));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &config(512), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config(512),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     println!(
         "EVIDENCE-ONLY r1 ±0.1 study: receipt {:?}; certified {}; refused {}",
         verdict.receipt(),
         verdict.certified().len(),
         verdict.refused().len()
     );
-    let entries =
-        sensitivities(&doc, m, None, Some(&verdict), false, None, Tol::witness()).expect("ok");
+    let entries = sensitivities(
+        &doc,
+        m,
+        None,
+        Some(&verdict),
+        false,
+        None,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("ok");
     println!("EVIDENCE-ONLY r1 ±0.1 sensitivities: {entries:?}");
     let got = stackup(
         &doc,
@@ -957,6 +1070,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
         None,
         false,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");

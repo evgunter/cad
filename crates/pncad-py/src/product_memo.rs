@@ -139,17 +139,15 @@ pub fn checks_report(
     doc: &d::ProfileDoc,
     evaluation: &d::Evaluation<f64>,
     cfg: &d::ChecksConfig,
+    stop: &d::Stop,
     tol: Tol,
 ) -> Result<d::ChecksReport, d::ChecksError> {
-    // No Python door states a stop for its checks: no `cancel=` reaches
-    // one, and its coincidence replay runs at the kernel's one budget.
-    let stop = d::Stop::default();
     if !cfg.needs_a_subject() {
         // The kernel wrapper's own lazy path, which gathers nothing —
         // reached through the wrapper rather than re-spelled, because
         // the sentence a subject-free run reports under is the
         // registry's to word.
-        return d::run_checks(doc, evaluation, cfg, &stop, tol);
+        return d::run_checks(doc, evaluation, cfg, stop, tol);
     }
     // The gather's refusal is a SUBJECT the residents report over, not
     // an error, and WHICH subject it is belongs to `Subject::refused`:
@@ -163,19 +161,14 @@ pub fn checks_report(
             evaluation,
             d::Subject::Product(product),
             cfg,
-            &stop,
+            stop,
             tol,
         )
     }) {
         Ok(report) => report,
-        Err(source) => d::run_checks_on(
-            doc,
-            evaluation,
-            d::Subject::refused(source),
-            cfg,
-            &stop,
-            tol,
-        ),
+        Err(source) => {
+            d::run_checks_on(doc, evaluation, d::Subject::refused(source), cfg, stop, tol)
+        }
     }
 }
 

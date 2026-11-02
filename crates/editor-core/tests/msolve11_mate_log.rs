@@ -641,8 +641,14 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
         max_leaves: 8,
         ..DriveConfig::default()
     };
-    let refusal = editor_core::drive::drive(&derived.doc, &analyzed, &config, Tol::witness())
-        .expect_err("the witness does not build");
+    let refusal = editor_core::drive::drive(
+        &derived.doc,
+        &analyzed,
+        &config,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect_err("the witness does not build");
     let DriveRefusal::WitnessDoesNotBuild { cause, .. } = &refusal else {
         panic!("expected WitnessDoesNotBuild, got {refusal:?}");
     };

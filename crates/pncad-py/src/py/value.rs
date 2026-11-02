@@ -1310,9 +1310,19 @@ pub(crate) struct Evaluation {
     /// that want a product — `run_checks`, `product`, `product_named` —
     /// share one gather.
     product: crate::product_memo::ProductMemo,
+    /// **What stopped the run**: `evaluate`'s `cancel=` token and
+    /// `member_budget=`, captured at `evaluate`: every evaluation a door
+    /// reading this one runs on its behalf (the coincidence door's
+    /// replay) is held to it.
+    stop: d::Stop,
 }
 
 impl Evaluation {
+    /// The stop the run was evaluated under ([`Self::stop`]).
+    pub(crate) fn stop(&self) -> &d::Stop {
+        &self.stop
+    }
+
     /// The document this evaluation is of: the one a refusal raised
     /// from it speaks its nodes from.
     pub(crate) fn doc(&self) -> &d::ProfileDoc {
@@ -1475,9 +1485,10 @@ impl Evaluation {
             &[(node.0, &*value.coincidences)],
             self.inner.resolver(),
             Tol::witness(),
-            &d::Stop::default(),
+            &self.stop,
         ) else {
-            unreachable!("a token no one else holds is never canceled")
+            // The run's `cancel=` token, canceled: no row is decided.
+            return Ok(Vec::new());
         };
         value
             .coincidences
@@ -2737,6 +2748,7 @@ pub(crate) fn evaluate(
         params: doc.inner.var_env::<f64>(),
         doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
+        stop: d::Stop::of(&token, &opts),
     }
 }
 

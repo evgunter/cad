@@ -510,8 +510,14 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     let f = dumbbell();
     let (doc, assertion) = (f.doc, f.assertion);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the witness build succeeds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the witness build succeeds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies at least one leaf; refused: {}",
@@ -523,6 +529,7 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
             assertion,
             &leaf.box_,
             verdict.symbolic(),
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the assertion evaluated over a certified leaf, on its lane");
@@ -548,8 +555,14 @@ fn the_symbolic_tier_certifies_a_clearance_measure_bit_identical_to_the_numeric_
             symbolic,
             ..DriveConfig::default()
         };
-        let verdict =
-            drive(&f.doc, &analyzed, &config, Tol::witness()).expect("the witness build succeeds");
+        let verdict = drive(
+            &f.doc,
+            &analyzed,
+            &config,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("the witness build succeeds");
         assert!(
             !verdict.certified().is_empty(),
             "the ε-scaled box certifies at least one leaf (tier on: {}); refused: {}",
@@ -564,6 +577,7 @@ fn the_symbolic_tier_certifies_a_clearance_measure_bit_identical_to_the_numeric_
             None,
             true,
             None,
+            &editor_core::Stop::default(),
             Tol::witness(),
         )
         .expect("the report builds");
@@ -678,8 +692,14 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_at_the_door() {
 fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates() {
     let f = dumbbell();
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict = drive(
+        &f.doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("the nominal builds");
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,
@@ -689,6 +709,7 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
         None,
         true,
         None,
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("the report builds even though the nominal cannot");

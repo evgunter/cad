@@ -588,6 +588,7 @@ fn a_sketch_on_a_face_stands_on_the_face_it_names() {
         Formula::zero(editor_core::Dimension::Angle),
         None,
         &EvalOptions::default(),
+        &editor_core::CancelToken::new(),
         Tol::witness(),
     )
     .expect("the gesture lands");

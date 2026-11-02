@@ -10395,7 +10395,15 @@ mod product_memo_rows {
 
         let memo = ProductMemo::default();
         let checks_then_product = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
         });
         assert_eq!(checks_then_product, 1);
@@ -10403,8 +10411,24 @@ mod product_memo_rows {
         let memo = ProductMemo::default();
         let product_then_checks = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("and runs again");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("and runs again");
         });
         assert_eq!(product_then_checks, 1);
     }
@@ -10422,7 +10446,15 @@ mod product_memo_rows {
         let count = gathers(|| {
             product_memo::body(&memo, &doc, &ev, tol).expect("the gather succeeds");
             product_memo::body_and_names(&memo, &doc, &ev, tol).expect("and names its entities");
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(count, 1);
     }
@@ -10445,7 +10477,15 @@ mod product_memo_rows {
         let tol = Tol::witness();
         let memo = ProductMemo::default();
         let none = gathers(|| {
-            product_memo::checks_report(&memo, &doc, &ev, &cfg, tol).expect("the registry runs");
+            product_memo::checks_report(
+                &memo,
+                &doc,
+                &ev,
+                &cfg,
+                &pncad::document::Stop::default(),
+                tol,
+            )
+            .expect("the registry runs");
         });
         assert_eq!(none, 0);
         let first = gathers(|| {
@@ -10491,6 +10531,7 @@ mod product_memo_rows {
             &doc,
             &ev,
             &d::ChecksConfig::default(),
+            &pncad::document::Stop::default(),
             Tol::witness(),
         )
         .expect("an empty world is a subject, not a refusal");
@@ -10580,6 +10621,7 @@ fn a_split_node_map_reaches_python_in_target_id_order() {
         DocumentId::derive("place-node-map-part"),
         Tol::witness(),
         None,
+        &pncad::document::Stop::default(),
     )
     .expect("a cut of free profiles splits");
     let listed = crate::node_map::in_target_id_order(&out.node_map, &out.part);

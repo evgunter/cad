@@ -1229,6 +1229,7 @@ fn the_same_flush_seat_unmated_is_a_finding_not_a_refusal() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run over the seat");
@@ -1363,6 +1364,7 @@ fn a_mated_assembly_is_silent_and_the_mate_is_why() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run over a completed evaluation");
@@ -1441,6 +1443,7 @@ fn two_solids_of_one_arrival_are_the_parts_own_meeting() {
         &doc,
         &ev,
         &editor_core::ChecksConfig::default(),
+        &editor_core::Stop::default(),
         Tol::witness(),
     )
     .expect("checks run over a completed evaluation");
@@ -1498,7 +1501,7 @@ fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
         &[(ids[1], &[caps, same_side][..])],
         ev.resolver(),
         Tol::witness(),
-        &editor_core::CancelToken::new(),
+        &editor_core::Stop::default(),
     )
     .expect("not canceled");
     let first_rung = editor_core::Proof::Structural(editor_core::Rung::SameConstruction);

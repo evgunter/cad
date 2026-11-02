@@ -365,6 +365,7 @@ fn r1_annulus_end_to_end() {
                     max_leaves: 128,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             );
             let dt = t.elapsed().as_secs_f64();
@@ -387,10 +388,18 @@ fn r1_annulus_end_to_end() {
                         None,
                         false,
                         None,
+                        &editor_core::Stop::default(),
                         tol,
                     );
                     println!("   stackup: {stack:?}");
-                    let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), d, tol);
+                    let a = editor_core::drive::assertion_at(
+                        &doc,
+                        assertion,
+                        v.root(),
+                        d,
+                        &editor_core::Stop::default(),
+                        tol,
+                    );
                     println!("   assertion at the root box: {a:?}");
                 }
             }

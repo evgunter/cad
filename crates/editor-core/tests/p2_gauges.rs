@@ -941,6 +941,7 @@ fn a_cut_of_one_placed_pair_moves_its_bundles_as_they_are() {
         DocumentId::derive("p2-one-group-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("one placed pair");
     assert!(
@@ -978,6 +979,7 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_po
         DocumentId::derive("p2-inline-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("one placed pair");
     let mut store = p.store.clone();
@@ -1086,6 +1088,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
         DocumentId::derive("p2-face-crossing-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("the face crosses with its head");
     let mut store = p.store.clone();
@@ -1167,6 +1170,7 @@ fn a_cut_of_two_pinned_instances_moves_verbatim() {
         DocumentId::derive("p2-two-groups-part"),
         Tol::witness(),
         o.resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("two pinned instances");
     assert!(
@@ -1248,6 +1252,7 @@ fn a_verbatim_split_keeps_every_bundle() {
         DocumentId::derive("p2-carry-split-part"),
         Tol::witness(),
         p.opts().resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("the placements move verbatim");
     assert!(left_at_identity(&p, &out), "the move is verbatim");
@@ -1318,6 +1323,7 @@ fn a_carry_replays_without_a_solve() {
         part_id,
         Tol::witness(),
         p.opts().resolver.as_ref(),
+        &editor_core::Stop::default(),
     )
     .expect("a cut of every placement moves verbatim");
     assert!(left_at_identity(&p, &out), "the move is verbatim");

@@ -142,6 +142,7 @@ fn recomputed_distance(report: &ClearanceReport) -> f64 {
 
 fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'static> {
     ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound,
         tol: Tol::witness(),
         config,
@@ -200,7 +201,15 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     let c = 0.4;
     let (doc, a, b) = blocks(c + 5.0 * eps());
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let report = clearance(&doc, &box_of(&doc, "gap"), &sa, &sb, c, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "gap"),
+        &sa,
+        &sb,
+        c,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
     assert!(
@@ -325,7 +334,15 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
         faces: FaceScope::Named(vec![fixture::fname(block, RoleSeg::Cap(CapEnd::Start))]),
     };
     let leaf = box_of(&doc, "lift");
-    let sound = clearance(&doc, &leaf, &top, &bottom, 0.45, Tol::witness());
+    let sound = clearance(
+        &doc,
+        &leaf,
+        &top,
+        &bottom,
+        0.45,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     assert_eq!(
         sound.verdict(),
         &ClearanceVerdict::Holds,
@@ -334,7 +351,15 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert!(sound.receipt().holds());
 
-    let tight = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
+    let tight = clearance(
+        &doc,
+        &leaf,
+        &top,
+        &bottom,
+        0.52,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     println!(
         "[r1] L-plate vs floating block at c = 0.52: decided {:?}, {}",
         tight.decided(),
@@ -458,6 +483,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
     let sel = Selection::body_of(solid);
     let q = ClearanceQuery {
+        stop: crate::fixture::no_stop(),
         bound: ClearanceBound::StrictlyPositive,
         tol: Tol::witness(),
         config: ClearanceConfig {
@@ -557,6 +583,7 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         &sq,
         &sb,
         1.0,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(
@@ -657,6 +684,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         &sq,
         &sb,
         1.0,
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(
@@ -774,7 +802,15 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         body: 0,
         faces: FaceScope::Named(vec![]),
     };
-    let vacuous = clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
+    let vacuous = clearance(
+        &doc,
+        &leaf,
+        &nothing,
+        &sb,
+        0.1,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     println!("[r1] empty selection: {}", vacuous.serialize());
     assert!(
         matches!(
@@ -897,7 +933,14 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
             parallel,
             ..DriveConfig::default()
         };
-        let verdict = drive(&doc, &analyzed, &config, Tol::witness()).expect("builds");
+        let verdict = drive(
+            &doc,
+            &analyzed,
+            &config,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        )
+        .expect("builds");
         assert!(!verdict.certified().is_empty(), "{}", verdict.serialize());
         folds.push(clearance_over(&doc, &analyzed, &verdict, &sa, &sb, &q));
     }
@@ -986,7 +1029,15 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     let (doc, channel, slider) = channel_and_slider(half());
     let (sc, ss) = (Selection::body_of(channel), Selection::body_of(slider));
     let leaf = box_of(&doc, "place");
-    let whole = clearance(&doc, &leaf, &sc, &ss, 0.3, Tol::witness());
+    let whole = clearance(
+        &doc,
+        &leaf,
+        &sc,
+        &ss,
+        0.3,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    );
     println!(
         "[r1 e2e] whole-body c = 0.3: decided {:?}, {}",
         whole.decided(),
@@ -1033,7 +1084,15 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     };
     for (c, expect) in [(0.3, "Holds"), (0.45, "Holds"), (0.55, "Violated")] {
         let started = std::time::Instant::now();
-        let report = clearance(&doc, &leaf, &inner, &ss, c, Tol::witness());
+        let report = clearance(
+            &doc,
+            &leaf,
+            &inner,
+            &ss,
+            c,
+            &editor_core::Stop::default(),
+            Tol::witness(),
+        );
         println!(
             "[r1 e2e] c = {c}: {:?} {}",
             started.elapsed(),
@@ -1075,7 +1134,14 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         max_leaves: 64,
         ..DriveConfig::default()
     };
-    let verdict = drive(&doc, &analyzed, &config, Tol::witness()).expect("builds at nominal");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &config,
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds at nominal");
     println!(
         "[r1 e2e] drive over ±0.05: certified = {}, refused = {}, accounting = {:?}",
         verdict.certified().len(),
@@ -1088,7 +1154,7 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         &verdict,
         &sc,
         &ss,
-        &ClearanceQuery::at_least(0.3, Tol::witness()),
+        &ClearanceQuery::at_least(0.3, &editor_core::Stop::default(), Tol::witness()),
     );
     println!(
         "[r1 e2e] fold: leaves = {}, verdict = {:?}",
@@ -1136,7 +1202,14 @@ fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
     let (doc, a, b) = blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig::default(),
+        &editor_core::Stop::default(),
+        Tol::witness(),
+    )
+    .expect("builds");
     let certified_mass = verdict.accounting().certified.clone();
     let fold = clearance_over(
         &doc,
@@ -1238,6 +1311,7 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         &r.doc,
         &box_of(&r.doc, "place"),
         &Selection::body_of(dumbbell),
+        &editor_core::Stop::default(),
         Tol::witness(),
     );
     println!(

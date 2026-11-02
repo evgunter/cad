@@ -610,11 +610,22 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
                     symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .expect("the document builds");
-            let report = stackup(doc, measure, &analyzed, &verdict, None, false, None, tol)
-                .unwrap_or_else(|e| panic!("{e}"));
+            let report = stackup(
+                doc,
+                measure,
+                &analyzed,
+                &verdict,
+                None,
+                false,
+                None,
+                &editor_core::Stop::default(),
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{e}"));
             let wc = report.worst_case;
             println!(
                 "   {name:<22} {label}: {:?}; hull [{:.6e}, {:.6e}] over {} leaves; padding {:.3} half-widths",
@@ -648,6 +659,7 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
                     max_leaves: 1,
                     ..DriveConfig::default()
                 },
+                &editor_core::Stop::default(),
                 tol,
             )
             .expect("builds");
@@ -722,6 +734,7 @@ fn m10_10_the_plates_real_study_driven_whole() {
             max_leaves,
             ..DriveConfig::default()
         },
+        &editor_core::Stop::default(),
         tol,
     )
     .expect("the nominal builds");
@@ -752,7 +765,17 @@ fn m10_10_the_plates_real_study_driven_whole() {
         }
     }
     println!("{}", verdict.render(&doc, &analyzed));
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
+    match stackup(
+        &doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        true,
+        None,
+        &editor_core::Stop::default(),
+        tol,
+    ) {
         Ok(report) => println!("   stackup OK:\n{}", report.render(&doc, &analyzed)),
         Err(e) => println!("   stackup refused: {e}"),
     }
