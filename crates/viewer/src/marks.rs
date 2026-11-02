@@ -94,6 +94,13 @@ pub struct Highlight {
     pub selected: u32,
     /// The hovered patch's id, or [`IdMap::NOTHING`].
     pub hovered: u32,
+    /// **A second patch the selection lights**, or [`IdMap::NOTHING`]:
+    /// a selected clearance row lights both faces of its witness pair
+    /// ([`witness`]), the first in [`Self::selected`].
+    pub selected_second: u32,
+    /// A second patch the hover lights: a hovered clearance row's
+    /// second witness face, as [`Self::selected_second`] is.
+    pub hovered_second: u32,
     /// The held faces' patch ids, slot for slot with [`Held::faces`],
     /// each [`IdMap::NOTHING`] where its slot holds nothing drawn.
     pub held: [u32; HELD_FACES],
@@ -121,6 +128,9 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
     Highlight {
         selected: selection.face().map_or(IdMap::NOTHING, mark),
         hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
+        // A face pick is one face; only a clearance row lights two.
+        selected_second: IdMap::NOTHING,
+        hovered_second: IdMap::NOTHING,
         // Nothing a SELECTION implies: a held pick is held by a form
         // or a tool, so [`compose`] adds it from [`Held`].
         held: [IdMap::NOTHING; HELD_FACES],
@@ -292,6 +302,69 @@ pub fn compose(
         ..edge_overlay(index, display, selection, hover)
     };
     (highlight, edges)
+}
+
+/// **Which mark a clearance row's witness wears**: the row is
+/// selected, or the pointer is over it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WitnessLit {
+    /// The row is the selection: the selection's mark.
+    Selected,
+    /// The pointer is over the row: the hover's mark.
+    Hovered,
+}
+
+/// **A clearance row's witness pair, marked** over what a frame already
+/// marks: its two faces lit in the selection's lanes or the hover's
+/// ([`Highlight::selected`] and [`Highlight::selected_second`], or the
+/// hovered pair), and the leg between its two points drawn in the
+/// matching edge lane, where the picture draws each end
+/// ([`crate::pickindex::witness_leg`]).
+///
+/// A face the picture does not draw lights nothing, by [`drawn_patch`]'s
+/// rule; the leg is drawn either way, since its ends are points of the
+/// faces wherever those are. A leg the display seam cannot hold is
+/// not drawn ([`LegLane`]).
+pub fn witness(
+    index: &PickIndex,
+    display: &DisplayView,
+    witnessed: &crate::session::Witnessed<'_>,
+    lit: WitnessLit,
+    (highlight, edges): (&mut Highlight, &mut EdgeOverlay),
+) {
+    let [a, b] = witnessed
+        .faces
+        .each_ref()
+        .map(|face| drawn_patch(index, display, face).unwrap_or(IdMap::NOTHING));
+    let [face_a, face_b] = &witnessed.faces;
+    let [from, to] = crate::pickindex::witness_leg(
+        display,
+        witnessed.computing,
+        [
+            (face_a.node, witnessed.points[0]),
+            (face_b.node, witnessed.points[1]),
+        ],
+    );
+    let mut leg = LegLane::default();
+    leg.leg(from, to);
+    let (first, second, lane, probed) = match lit {
+        WitnessLit::Selected => (
+            &mut highlight.selected,
+            &mut highlight.selected_second,
+            &mut edges.selected,
+            &mut edges.selected_probed,
+        ),
+        WitnessLit::Hovered => (
+            &mut highlight.hovered,
+            &mut highlight.hovered_second,
+            &mut edges.hovered,
+            &mut edges.hovered_probed,
+        ),
+    };
+    *first = a;
+    *second = b;
+    lane.extend(leg.into_segments());
+    *probed |= moved(display, face_a.node) || moved(display, face_b.node);
 }
 
 /// Whether `node` is drawn in a free-moved space — the one read behind

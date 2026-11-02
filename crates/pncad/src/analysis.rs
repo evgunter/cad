@@ -126,21 +126,28 @@ pub use editor_core::clearance::{
 
 /// **Every clearance requirement of `doc`, answered at nominal**: the
 /// document evaluated at the certifying scalar over no parameter box,
-/// and each clearance assertion's verdict read back in plain numbers,
-/// in document order. The door an at-rest certify seam submits: it is
-/// stopped by `cancel` like any evaluation, and says so.
+/// its parts resolved through `resolver`, and each clearance
+/// assertion's verdict read back in plain numbers, in document order,
+/// a refusal said in `doc`'s own words. The door an at-rest certify
+/// seam submits: it is stopped by `cancel` like any evaluation, and
+/// says so.
 ///
 /// # Errors
 ///
 /// [`Canceled`] when `cancel` was set before the evaluation finished.
 pub fn clearances_at_nominal(
     doc: &crate::document::ProfileDoc,
+    resolver: Option<std::sync::Arc<dyn crate::document::PartResolver>>,
     cancel: &crate::document::CancelToken,
     tol: geom_core::Tol,
 ) -> Result<Vec<ClearanceAnswer>, Canceled> {
     use editor_core::{AssertionVerdict, Claim, EvalOutcome, Node, NodeResult, ValuePayload};
+    let opts = editor_core::EvalOptions {
+        resolver,
+        ..editor_core::EvalOptions::default()
+    };
     let ev: editor_core::Evaluation<geom_core::Interval> =
-        editor_core::evaluate(doc, None, cancel, &editor_core::EvalOptions::default(), tol);
+        editor_core::evaluate(doc, None, cancel, &opts, tol);
     if ev.outcome == EvalOutcome::Canceled {
         return Err(Canceled);
     }
@@ -153,7 +160,7 @@ pub fn clearances_at_nominal(
             let answer = match ev.result(assertion) {
                 Some(NodeResult::Ok(value)) => match &value.payload {
                     ValuePayload::Assertion(AssertionVerdict::Clearance(report)) => {
-                        ClearanceOutcome::of(report.verdict())
+                        ClearanceOutcome::of(report.verdict(), crate::document::Speaker::of(doc))
                     }
                     _ => unreachable!("a clearance assertion's value is its report"),
                 },
@@ -212,7 +219,9 @@ pub enum ClearanceOutcome {
 }
 
 impl ClearanceOutcome {
-    fn of(verdict: &ClearanceVerdict) -> Self {
+    /// `verdict` in plain numbers, a refusal said by `by` — the
+    /// document's speaker, so a seat reads as the document names it.
+    pub fn of(verdict: &ClearanceVerdict, by: crate::document::Speaker<'_>) -> Self {
         match verdict {
             ClearanceVerdict::Holds => Self::Holds,
             ClearanceVerdict::Within(w) => Self::Within(PairOfPoints::of(w)),
@@ -220,7 +229,7 @@ impl ClearanceOutcome {
             ClearanceVerdict::Exceeded => Self::Exceeded,
             ClearanceVerdict::Refused(r) => Self::Refused {
                 name: r.name(),
-                sentence: r.to_string(),
+                sentence: crate::document::Said(r, by).to_string(),
             },
         }
     }

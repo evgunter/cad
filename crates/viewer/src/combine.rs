@@ -35,7 +35,9 @@ use crate::seats::{
     FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
 };
 use crate::session::refuse::one_body;
-use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
+use crate::session::{
+    BooleanSpec, ClearedSeat, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp,
+};
 use crate::tree::HeldPick;
 use crate::vocab::vocabulary;
 
@@ -561,6 +563,271 @@ impl core::fmt::Display for MirrorEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { plane, .. } => self.say(f, Speaker::held(plane.said())),
+        }
+    }
+}
+
+vocabulary! {
+    /// **Which side a clearance requirement bounds** — the clearance
+    /// form's choice, and which of [`ClearanceBounds`]' shapes its
+    /// commit writes: from below, from above, both at one value, or a
+    /// band.
+    ///
+    /// [`ClearanceBounds`]: pncad::document::ClearanceBounds
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    pub enum ClearanceBoundChoice {
+        /// `clearance(a, b) ≥ c`.
+        #[default]
+        AtLeast = "at least",
+        /// `clearance(a, b) ≤ c`.
+        AtMost = "at most",
+        /// `clearance(a, b) = c`.
+        Equal = "exactly",
+        /// `lo ≤ clearance(a, b) ≤ hi`.
+        Between = "between",
+    }
+
+    /// Every choice with its button label — the form's radio row.
+    pub const ALL;
+}
+
+impl ClearanceBoundChoice {
+    /// **The bounds this choice writes**, from the form's two lengths:
+    /// `lo` is the one bound of a one-sided or exact requirement, and a
+    /// band's lower end; `hi` is a band's upper end, read by nothing
+    /// else. A reversed band and a negative bound are written as typed:
+    /// the evaluation refuses them (`EmptyBand`, `NotADistance`), on
+    /// the requirement's own row.
+    pub fn bounds<S>(self, lo: S, hi: S) -> pncad::document::ClearanceBounds<S> {
+        use pncad::document::ClearanceBounds as B;
+        match self {
+            Self::AtLeast => B::AtLeast(lo),
+            Self::AtMost => B::AtMost(lo),
+            Self::Equal => B::Equal(lo),
+            Self::Between => B::Within { lo, hi },
+        }
+    }
+}
+
+/// **One seat of a clearance requirement, as the tool holds it**: a
+/// body (all of its faces), picked in the tree, or a face, picked in
+/// the picture.
+///
+/// **Held where it is drawn, not where it is built.** A requirement
+/// between two parts is about the parts as they stand, so a seat is
+/// never re-read on the body a copy places, which every other seated
+/// tool does ([`Seats::pick`]); the commit door reads a tree pick of a
+/// construction on its world copy (`DocSession`'s `AddClearance` arm).
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ClearancePick {
+    /// A body: the node picked, as the document last spoke it.
+    Body(SpokenNode),
+    /// A face, held as the mirror tool holds its plane.
+    Face(HeldPick),
+}
+
+/// **The clearance tool**: a requirement's two seats, a body or a face
+/// each, committing one [`SessionOp::AddClearance`] with the bounds the
+/// form holds.
+///
+/// A pick fills the first open seat; with both full it replaces the
+/// second, the seats' pick rule ([`Seats::pick`]). A face picked in the
+/// picture seats that face, on the body the picture draws it on; a node
+/// picked in the tree seats its body.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ClearanceTool {
+    picks: [Option<ClearancePick>; 2],
+}
+
+/// The two seats' roles, as bodies and as faces.
+const CLEARED: [(Seat, FaceRole); 2] = [
+    (Seat::ClearedFirst, FaceRole::ClearedFirst),
+    (Seat::ClearedSecond, FaceRole::ClearedSecond),
+];
+
+impl ClearanceTool {
+    /// A tool holding nothing.
+    pub const fn new() -> Self {
+        Self {
+            picks: [None, None],
+        }
+    }
+
+    /// The seat the next pick lands in.
+    fn next(&self) -> usize {
+        usize::from(self.picks[0].is_some())
+    }
+
+    /// **Feed one node pick**: its body, in the next seat.
+    pub fn seat_body(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        let i = self.next();
+        self.picks[i] = Some(ClearancePick::Body(doc.spoken(node)));
+    }
+
+    /// **Feed one face pick**: the face, in the next seat.
+    pub fn seat_face(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        let i = self.next();
+        self.picks[i] = Some(ClearancePick::Face(HeldPick::new(doc, face)));
+    }
+
+    /// The face seat `i` holds, if it holds one.
+    pub fn face(&self, i: usize) -> Option<&FaceSelection> {
+        match self.picks.get(i)? {
+            Some(ClearancePick::Face(held)) => Some(held.face()),
+            Some(ClearancePick::Body(_)) | None => None,
+        }
+    }
+
+    /// The node seat `i` holds as a body, if it holds one.
+    pub fn body(&self, i: usize) -> Option<RecipeNodeId> {
+        match self.picks.get(i)? {
+            Some(ClearancePick::Body(node)) => Some(node.id()),
+            Some(ClearancePick::Face(_)) | None => None,
+        }
+    }
+
+    /// Empty both seats.
+    pub fn clear(&mut self) {
+        self.picks = [None, None];
+    }
+
+    /// **The body seats' survival step** ([`crate::seats`]): a seat
+    /// whose node the document no longer holds is dropped, said by the
+    /// last label it had.
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
+        let mut events = Vec::new();
+        for (pick, (seat, _)) in self.picks.iter_mut().zip(CLEARED) {
+            if let Some(ClearancePick::Body(node)) = pick
+                && doc.node(node.id()).is_none()
+                && let Some(ClearancePick::Body(node)) = pick.take()
+            {
+                events.push(SeatEvent::PickLost { seat, node });
+            }
+        }
+        events
+    }
+
+    /// **The face seats' survival step**: each held face re-read
+    /// against the landed pair, and dropped when it no longer resolves
+    /// — the mirror tool's plane's rule.
+    pub fn reconcile_faces(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Vec<ClearanceEvent> {
+        let mut events = Vec::new();
+        for (pick, (_, role)) in self.picks.iter_mut().zip(CLEARED) {
+            let Some(ClearancePick::Face(held)) = pick else {
+                continue;
+            };
+            let face = held.face();
+            let verdict = crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
+            if crate::session::select::resolves(&verdict) {
+                continue;
+            }
+            let Some(ClearancePick::Face(face)) = pick.take() else {
+                unreachable!("the seat was just read as a face")
+            };
+            events.push(ClearanceEvent::FaceLost {
+                role,
+                face,
+                resolution: Box::new(verdict),
+            });
+        }
+        events
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        for pick in self.picks.iter_mut().flatten() {
+            match pick {
+                ClearancePick::Body(node) => *node = node.respoken(doc),
+                ClearancePick::Face(held) => *held = held.respoken(doc),
+            }
+        }
+    }
+
+    /// **The faces the tool holds** ([`crate::session::Holds`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.picks
+            .iter_mut()
+            .filter_map(|pick| match pick {
+                Some(ClearancePick::Face(held)) => Some(crate::session::select::Held::One(held)),
+                Some(ClearancePick::Body(_)) | None => None,
+            })
+            .collect()
+    }
+
+    /// **The panel's held-picks line**: each seat said by `by` — a body
+    /// as a seat says its node, a face as the chrome says a held pick.
+    pub fn line(&self, by: Speaker<'_>) -> String {
+        let said = |i: usize| match &self.picks[i] {
+            Some(ClearancePick::Body(node)) => Some(pick_said(by, node, Port::Alone)),
+            Some(ClearancePick::Face(held)) => Some(Said(held, by).to_string()),
+            None => None,
+        };
+        picks_line([
+            (CLEARED[0].1.name(), said(0)),
+            (CLEARED[1].1.name(), said(1)),
+        ])
+    }
+
+    /// **The one committed edit**: the requirement between the two
+    /// seats, within `bounds`.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] naming the first seat still open.
+    pub fn op(
+        &self,
+        bounds: pncad::document::ClearanceBounds<Formula>,
+    ) -> Result<SessionOp, SeatError> {
+        let seat = |i: usize| match &self.picks[i] {
+            Some(ClearancePick::Body(node)) => Ok(ClearedSeat::Body(Operand::Node(node.id()))),
+            Some(ClearancePick::Face(held)) => Ok(ClearedSeat::Face(held.face().clone())),
+            None => Err(SeatError::Empty { seat: CLEARED[i].0 }),
+        };
+        Ok(SessionOp::AddClearance {
+            a: seat(0)?,
+            b: seat(1)?,
+            bounds,
+        })
+    }
+}
+
+/// A typed clearance-tool event the chrome renders: a face seat's drop.
+/// A body seat's drop is a [`SeatEvent`].
+#[derive(Debug)]
+pub enum ClearanceEvent {
+    /// A held face no longer resolves against the landed evaluation;
+    /// the tool dropped it and the seat is open.
+    FaceLost {
+        /// Which seat.
+        role: FaceRole,
+        /// The face that was held, by the last labels the tool kept.
+        face: HeldPick,
+        /// The resolution machinery's own verdict.
+        resolution: Box<pncad::select::Resolution>,
+    },
+}
+
+/// A node `by` does not hold is said as the tool kept it.
+impl Say for ClearanceEvent {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            Self::FaceLost { role, face, .. } => {
+                crate::matetool::pick_lost(f, role.name(), face, by)
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node as the tool
+/// kept it.
+impl core::fmt::Display for ClearanceEvent {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::FaceLost { face, .. } => self.say(f, Speaker::held(face.said())),
         }
     }
 }

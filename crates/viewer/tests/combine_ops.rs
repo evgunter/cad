@@ -1564,6 +1564,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Part => tools.part().is_some(),
         ToolKind::Duplicate => tools.duplicate().is_some(),
         ToolKind::Mirror => tools.mirror().is_some(),
+        ToolKind::Clearance => tools.clearance().is_some(),
     })
 }
 
@@ -1722,6 +1723,13 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
                     node: body,
                     body: 0,
                 },
+            },
+            // The other seat a body of the right kind, so the refusal
+            // is about the seat under test.
+            Seat::ClearedFirst | Seat::ClearedSecond => SessionOp::AddClearance {
+                a: viewer::session::ClearedSeat::Body(filled(Seat::ClearedFirst).into()),
+                b: viewer::session::ClearedSeat::Body(filled(Seat::ClearedSecond).into()),
+                bounds: pncad::document::ClearanceBounds::AtLeast(Formula::zero(Dimension::Length)),
             },
             Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
@@ -2340,8 +2348,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
         tools.open(kind);
         let want = match kind {
             // The mirror tool's plane is a face, and its body is
-            // picked by one too.
-            ToolKind::Mate | ToolKind::Mirror => PickKinds::FacesOnly,
+            // picked by one too; the clearance tool seats faces, and
+            // bodies from the tree.
+            ToolKind::Mate | ToolKind::Mirror | ToolKind::Clearance => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
             // The one tool whose seat reads a profile.
             ToolKind::Revolve => PickKinds::Any,
@@ -3150,6 +3159,8 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             // Faces and edges, taken whole rather than as a node; and
             // a profile and an axis, which a face pick never is.
             ToolKind::Mate | ToolKind::Blend | ToolKind::Revolve => continue,
+            // A face pick seats the face itself, not its body.
+            ToolKind::Clearance => continue,
         };
         assert_eq!(
             held,

@@ -811,6 +811,7 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
         | SessionOp::AddMirror { .. }
+        | SessionOp::AddClearance { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::Place { .. }
         | SessionOp::AddPattern { .. }
@@ -2189,6 +2190,7 @@ pub fn tool_notice(
         ToolNotice::Mate(_)
         | ToolNotice::Blend(_)
         | ToolNotice::Mirror(_)
+        | ToolNotice::Clearance(_)
         | ToolNotice::Seated { .. } => Subject::Document,
     };
     let retold = match notice {
@@ -2199,6 +2201,7 @@ pub fn tool_notice(
             | MateToolEvent::NotPlaceable { .. },
         ) => Retold::Never,
         ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
+        ToolNotice::Clearance(crate::combine::ClearanceEvent::FaceLost { .. }) => Retold::Never,
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..

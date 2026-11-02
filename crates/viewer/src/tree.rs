@@ -348,6 +348,7 @@ impl TreeRow {
     pub fn tone(&self) -> Tone {
         match &self.readout {
             Some(Readout::Asserted(asserted)) => asserted.tone(),
+            Some(Readout::Clearance(cleared)) => cleared.tone(),
             Some(Readout::Value(_) | Readout::Empty(_)) | None => self.status.tone(),
         }
     }
@@ -365,6 +366,8 @@ pub enum Readout {
     Value(Computed),
     /// An assertion's verdict.
     Asserted(Asserted),
+    /// A clearance requirement, as its equation and its answer.
+    Clearance(Cleared),
     /// A boolean's typed empty result, or a split with a side that
     /// holds no material. A legal value, and the one a consumer
     /// refuses as its input, so the row it came from says so.
@@ -418,11 +421,10 @@ pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
 pub struct Asserted {
     /// The landed verdict.
     pub verdict: AssertionVerdict<Computed>,
-    /// How the value must relate to the bound; `None` for a clearance,
-    /// whose bounds are its own.
-    pub relation: Option<AssertionRelation>,
+    /// How the value must relate to the bound.
+    pub relation: AssertionRelation,
     /// The measure under the value the assertion bounds, or `None` for a
-    /// value no measure is under and for a clearance.
+    /// value no measure is under.
     pub measure: Option<SpokenNode>,
 }
 
@@ -453,11 +455,213 @@ impl Asserted {
             | AssertionVerdict::Violated { measured, bound } => Some(format!(
                 "{} {} {}",
                 measured.spelled(notation),
-                self.relation?.symbol(),
+                self.relation.symbol(),
                 bound.spelled(notation)
             )),
             AssertionVerdict::Unevaluated { .. } | AssertionVerdict::Clearance(_) => None,
         }
+    }
+}
+
+/// **A clearance requirement, as its row says it**: the claim read as
+/// an equation — `clearance(<a>, <b>) ≥ 2 mm` — with both seats and
+/// every bound in the document's own words, and the answer the run in
+/// hand gave it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cleared {
+    /// The first seat, as the document says it.
+    pub a: String,
+    /// The second seat.
+    pub b: String,
+    /// The bounds, each the length it evaluates to where it does.
+    pub bounds: pncad::document::ClearanceBounds<Bound>,
+    /// What the run in hand said.
+    pub answer: Certified,
+}
+
+// `ClearanceOutcome` derives `PartialEq` alone, for its points' sake;
+// over bitwise-compared numbers that is an equivalence.
+impl Eq for Cleared {}
+
+/// **One bound of a clearance, said**: its length, spelled when the
+/// row is drawn, or the formula as the document writes it where it
+/// has no value of its own (a bound over a measured output).
+#[derive(Clone, Debug, PartialEq)]
+pub enum Bound {
+    /// The bound's value, a length.
+    Value(Computed),
+    /// The bound as written.
+    Written(String),
+}
+
+impl Bound {
+    /// The bound in `notation`.
+    pub fn spelled(&self, notation: Notation) -> String {
+        match self {
+            Self::Value(value) => value.spelled(notation),
+            Self::Written(written) => written.clone(),
+        }
+    }
+}
+
+/// **What a clearance row's run said**: the certifying scalar's answer,
+/// or that it is still owed.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Certified {
+    /// The landing owes the certifying scalar's answer, which runs at
+    /// rest (`crate::session::DocSession::certifying`).
+    Certifying,
+    /// The answer, in plain numbers. At `f64` it is the third state,
+    /// naming the lane that certifies.
+    Answered(pncad::analysis::ClearanceOutcome),
+}
+
+/// The word the row's state reads as while the answer is owed.
+pub const CERTIFYING: &str = "certifying…";
+
+impl Cleared {
+    /// **The claim as an equation**, its bounds spelled in `notation`:
+    /// `clearance(a, b) ≥ 2 mm`, `≤`, `=`, or the band
+    /// `1 mm ≤ clearance(a, b) ≤ 3 mm`.
+    pub fn equation(&self, notation: Notation) -> String {
+        use pncad::document::ClearanceBounds as B;
+        let clearance = format!("clearance({}, {})", self.a, self.b);
+        match &self.bounds {
+            B::AtLeast(c) => format!("{clearance} ≥ {}", c.spelled(notation)),
+            B::AtMost(c) => format!("{clearance} ≤ {}", c.spelled(notation)),
+            B::Equal(c) => format!("{clearance} = {}", c.spelled(notation)),
+            B::Within { lo, hi } => format!(
+                "{} ≤ {clearance} ≤ {}",
+                lo.spelled(notation),
+                hi.spelled(notation)
+            ),
+        }
+    }
+
+    /// **The answer's state**, in the verdict's own word.
+    pub fn state(&self) -> &'static str {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Certifying => CERTIFYING,
+            Certified::Answered(answer) => match answer {
+                O::Holds => "Holds",
+                O::Within(_) => "Within",
+                O::Violated(_) => "Violated",
+                O::Exceeded => "Exceeded",
+                O::Refused { .. } => "Refused",
+                O::Unanswered { .. } => "Unevaluated",
+            },
+        }
+    }
+
+    /// **What the answer says beside its state**, in `notation`: the
+    /// pair that decided it — "a violating pair 1.84 mm apart", "a pair
+    /// 2.1 mm apart lies within it" — or that every pair clears the
+    /// upper bound. `None` where the state is the whole answer.
+    pub fn detail(&self, notation: Notation) -> Option<String> {
+        use pncad::analysis::ClearanceOutcome as O;
+        let apart = |distance: f64| {
+            Computed {
+                canonical: distance,
+                dimension: pncad::document::Dimension::Length,
+            }
+            .spelled(notation)
+        };
+        match &self.answer {
+            Certified::Answered(O::Violated(pair)) => {
+                Some(format!("a violating pair {} apart", apart(pair.distance)))
+            }
+            Certified::Answered(O::Within(pair)) => Some(format!(
+                "a pair {} apart lies within it",
+                apart(pair.distance)
+            )),
+            Certified::Answered(O::Exceeded) => {
+                Some("every pair is farther apart than the upper bound".to_owned())
+            }
+            Certified::Certifying
+            | Certified::Answered(O::Holds | O::Refused { .. } | O::Unanswered { .. }) => None,
+        }
+    }
+
+    /// **The sentence drawn under the row**: the refusal said with its
+    /// recourse, or why the assertion did not evaluate.
+    pub fn sentence(&self) -> Option<&str> {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Answered(O::Refused { sentence, .. } | O::Unanswered { sentence }) => {
+                Some(sentence)
+            }
+            Certified::Certifying
+            | Certified::Answered(O::Holds | O::Within(_) | O::Violated(_) | O::Exceeded) => None,
+        }
+    }
+
+    /// **The witness pair the answer drew on**, where it has one.
+    pub fn pair(&self) -> Option<&pncad::analysis::PairOfPoints> {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Answered(O::Within(pair) | O::Violated(pair)) => Some(pair),
+            Certified::Certifying
+            | Certified::Answered(
+                O::Holds | O::Exceeded | O::Refused { .. } | O::Unanswered { .. },
+            ) => None,
+        }
+    }
+
+    /// **How loud the row is**: a requirement the geometry fails —
+    /// `Violated` or `Exceeded` — is one to act on; every other state is
+    /// a report.
+    pub fn tone(&self) -> Tone {
+        use pncad::analysis::ClearanceOutcome as O;
+        match &self.answer {
+            Certified::Answered(O::Violated(_) | O::Exceeded) => Tone::Actionable,
+            Certified::Certifying
+            | Certified::Answered(
+                O::Holds | O::Within(_) | O::Refused { .. } | O::Unanswered { .. },
+            ) => Tone::Advisory,
+        }
+    }
+}
+
+/// **A clearance claim's row**, its answer the run's own verdict.
+fn cleared(
+    doc: &Doc<ProfileProgram>,
+    [a, b]: [pncad::document::VarId; 2],
+    bounds: &pncad::document::ClearanceBounds<pncad::document::VarId>,
+    verdict: &AssertionVerdict<f64>,
+) -> Cleared {
+    let by = Speaker::of(doc);
+    let bound = |var: pncad::document::VarId| match crate::props::variable_value(doc, var) {
+        Some(crate::props::SlotValue::Continuous(canonical)) => Bound::Value(Computed {
+            canonical,
+            dimension: pncad::document::Dimension::Length,
+        }),
+        Some(crate::props::SlotValue::Count(_)) | None => Bound::Written(by.read(var)),
+    };
+    let AssertionVerdict::Clearance(report) = verdict else {
+        unreachable!("a clearance assertion's verdict is its report")
+    };
+    // A face seat is its face, said; a body seat its read — a world
+    // copy's as the body it places ([`crate::world::copy_source`]), the
+    // part the author picked.
+    let seat = |var: pncad::document::VarId| match doc.selection(var).and_then(|s| s.names.first())
+    {
+        Some(face) => by.name(face).to_string(),
+        None => by.read(
+            doc.defined_by(var)
+                .and_then(|(node, _)| crate::world::copy_source(doc, node, 0))
+                .filter(|source| !source.member)
+                .map_or(var, |source| source.var),
+        ),
+    };
+    Cleared {
+        a: seat(a),
+        b: seat(b),
+        bounds: match bounds.try_map(|&var| Ok::<_, core::convert::Infallible>(bound(var))) {
+            Ok(bounds) => bounds,
+            Err(never) => match never {},
+        },
+        answer: Certified::Answered(pncad::analysis::ClearanceOutcome::of(report.verdict(), by)),
     }
 }
 
@@ -901,7 +1105,12 @@ fn readout_of(
             canonical: *value,
             dimension: *dim,
         })),
-        ValuePayload::Assertion(verdict) => Some(Readout::Asserted(asserted(doc, node, verdict))),
+        ValuePayload::Assertion(verdict) => Some(match node {
+            Node::Assertion(editor_core::Claim::Clearance { a, b, bounds }) => {
+                Readout::Clearance(cleared(doc, [*a, *b], bounds, verdict))
+            }
+            _ => Readout::Asserted(asserted(doc, node, verdict)),
+        }),
         ValuePayload::Boolean(BooleanValue::Empty) => Some(Readout::Empty(Emptiness::Whole)),
         ValuePayload::Split { above, below } => split_emptiness(above, below).map(Readout::Empty),
         ValuePayload::Body(_)
@@ -965,10 +1174,9 @@ impl std::fmt::Display for SplitUnread {
     }
 }
 
-/// **An assertion's verdict, its numbers carried in its value's
+/// **A value assertion's verdict, its numbers carried in its value's
 /// dimension.** A value claim's value is a scalar variable, and its
-/// kind's dimension is the one both numbers are in; a clearance carries
-/// no number of its own.
+/// kind's dimension is the one both numbers are in.
 fn asserted(
     doc: &Doc<ProfileProgram>,
     node: &Node<ProfileProgram>,
@@ -992,7 +1200,7 @@ fn asserted(
             };
             Asserted {
                 verdict: map(verdict, dim),
-                relation: Some(*relation),
+                relation: *relation,
                 measure: doc
                     .observed_outputs(*value)
                     .into_iter()
@@ -1000,12 +1208,8 @@ fn asserted(
                     .map(|measure| doc.spoken(measure)),
             }
         }
-        Node::Assertion(editor_core::Claim::Clearance { .. }) => Asserted {
-            verdict: map(verdict, editor_core::Dimension::Length),
-            relation: None,
-            measure: None,
-        },
-        _ => unreachable!("only an assertion node evaluates to a verdict"),
+        // A clearance reads as its equation ([`Cleared`]).
+        _ => unreachable!("only a value assertion's verdict reads as `Asserted`"),
     }
 }
 

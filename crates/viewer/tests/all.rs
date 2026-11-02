@@ -76,6 +76,8 @@ mod camera_ops;
 mod cascade_delete;
 #[path = "chrome_labels.rs"]
 mod chrome_labels;
+#[path = "clearance_consumer.rs"]
+mod clearance_consumer;
 #[path = "combine_ops.rs"]
 mod combine_ops;
 #[path = "creation_ops.rs"]

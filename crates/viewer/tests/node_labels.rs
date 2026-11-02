@@ -627,6 +627,15 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "image",
     );
+    run(
+        &mut session,
+        SessionOp::AddClearance {
+            a: viewer::session::ClearedSeat::Body(block.into()),
+            b: viewer::session::ClearedSeat::Body(block.into()),
+            bounds: pncad::document::ClearanceBounds::AtLeast(len(0.001)),
+        },
+        "gap",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,

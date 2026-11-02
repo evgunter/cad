@@ -459,6 +459,10 @@ pub struct ViewerApp {
     /// and the same editor opened on a committed profile
     /// (`ViewerBehavior::edit_profile_ui`).
     profile_drawn: ProfileDoors<bool>,
+    /// **The feature-tree row the pointer was over on the last frame**,
+    /// set by the Features pane while it draws: the viewport marks a
+    /// clearance row's witness while it is ([`crate::marks::witness`]).
+    row_hovered: Option<pncad::document::RecipeNodeId>,
     /// Whether the advisory-check findings window is open.
     ///
     /// Application chrome state, not a draft: nothing is being
@@ -711,6 +715,27 @@ fn prover() -> Result<Box<dyn crate::evalseam::DoorService>, StartupError> {
     }
 }
 
+/// The certify seam: [`prover`]'s shape over a landing's clearance
+/// requirements at the certifying scalar.
+///
+/// # Errors
+///
+/// [`StartupError::Worker`] if the OS refuses the thread; the wasm arm
+/// is infallible. Every clearance row would otherwise read certifying
+/// forever.
+fn certifier() -> Result<Box<dyn crate::evalseam::CertifyService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            crate::evalseam::ThreadCertifier::spawn().map_err(StartupError::Worker)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineCertifier::new()))
+    }
+}
+
 /// The staged seam: [`prover`]'s shape over a staged operation's run.
 ///
 /// # Errors
@@ -941,6 +966,7 @@ impl ViewerApp {
 
         let mut session = DocSession::new(document, tol, evaluator()?)
             .with_door(prover()?)
+            .with_certifier(certifier()?)
             .with_stager(stager()?);
         session.set_notation(notation);
 
@@ -968,6 +994,7 @@ impl ViewerApp {
             tools: Tools::new(),
             part_chooser: None,
             profile_drawn: ProfileDoors::default(),
+            row_hovered: None,
             checks_shown: false,
             camera,
             input,
@@ -1968,10 +1995,11 @@ impl ViewerApp {
                 }
                 None => {}
             }
-            // The door's answer is a background result too; it changes
-            // the Checks window and its badge, not the picture, so a
+            // The door's answer and the certified clearances are
+            // background results too; they change the Checks window,
+            // its badge and the tree's rows, not the picture, so a
             // slower wake than a spinner's is enough.
-            if self.session.proving() {
+            if self.session.proving() || self.session.certifying() {
                 ui.ctx()
                     .request_repaint_after(std::time::Duration::from_millis(250));
             }
@@ -2208,6 +2236,7 @@ impl eframe::App for ViewerApp {
         // which the committed-profile pass leaves out.
         let profile_edited = self.drafts.edited_in_place(profile_previews.edit.as_ref());
         let mut profile_drawn = ProfileDoors::<bool>::default();
+        let mut row_hovered = None;
         // **Zeroed here, every frame: after the toolbar has read last
         // frame's value and before the panes draw.** A frame the
         // viewport does not draw at all is a frame it found nothing in,
@@ -2267,6 +2296,8 @@ impl eframe::App for ViewerApp {
                     profile_constructions: &profile_constructions,
                     profile_drawn: &mut profile_drawn,
                     profile_was_drawn: self.profile_drawn,
+                    row_hovered: &mut row_hovered,
+                    row_was_hovered: self.row_hovered,
                     profile_edited,
                     pending_fit: &mut self.pending_fit,
                     projection_fault: &mut self.projection_fault,
@@ -2288,6 +2319,7 @@ impl eframe::App for ViewerApp {
             self.remember_prefs();
         }
         self.profile_drawn = profile_drawn;
+        self.row_hovered = row_hovered;
         // An edit made while the panes drew leaves the preview a
         // frame behind. Asking for a repaint is what makes that one
         // frame rather than "until the next input event".
@@ -2462,6 +2494,12 @@ pub(crate) struct ViewerBehavior<'a> {
     /// are on screen, the one read every preview and mark of a door
     /// follows.
     pub(crate) profile_was_drawn: ProfileDoors<bool>,
+    /// Set by the Features pane to the row the pointer is over while it
+    /// draws; read next frame.
+    pub(crate) row_hovered: &'a mut Option<pncad::document::RecipeNodeId>,
+    /// What [`Self::row_hovered`] said on the last frame: the row whose
+    /// clearance witness the viewport marks as hovered.
+    pub(crate) row_was_hovered: Option<pncad::document::RecipeNodeId>,
     /// The committed profile the edit door is previewing this frame,
     /// which the committed-profile pass leaves out
     /// (`sketch::committed`'s `except`).
@@ -4183,7 +4221,9 @@ mod properties_pane_tests {
     /// activation button**. The one answer every row here that opens a
     /// tool reads.
     fn section_of(kind: crate::tools::ToolKind) -> &'static str {
-        use crate::pane::create::{ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES};
+        use crate::pane::create::{
+            ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES, REQUIREMENTS,
+        };
         use crate::tools::ToolKind;
         match kind {
             ToolKind::Mate => ASSEMBLE_PARTS,
@@ -4196,6 +4236,7 @@ mod properties_pane_tests {
             | ToolKind::Duplicate
             | ToolKind::Mirror => COMBINE_BODIES,
             ToolKind::Blend => BLEND_EDGES,
+            ToolKind::Clearance => REQUIREMENTS,
         }
     }
 
@@ -6875,6 +6916,7 @@ mod properties_pane_tests {
                 &self.app.tools,
                 &self.app.drafts,
                 self.app.profile_drawn.create,
+                self.app.row_hovered,
             )
         }
 
