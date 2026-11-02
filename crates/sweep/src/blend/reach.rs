@@ -3071,13 +3071,11 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
 ) -> Result<(), BlendError> {
     let mut links = Vec::with_capacity(req.edges.len());
     for edge in &req.edges {
-        links.push(super::battery::resolve_link(
-            req.body,
-            *edge,
-            req.size,
-            band,
-            BlendKind::Fillet,
-        )?);
+        if let super::battery::Resolved::Link(link) =
+            super::battery::resolve_link(req.body, *edge, req.size, band, BlendKind::Fillet)?
+        {
+            links.push(link);
+        }
     }
     let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;

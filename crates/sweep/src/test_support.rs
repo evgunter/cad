@@ -130,7 +130,9 @@ use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanInputs, EdgeKey, FaceKey, LoopBoundary};
 
 use crate::blend::BlendKind;
-use crate::blend::battery::{BlendRequest, Chain, Link, resolve_link, run_battery, walk_chains};
+use crate::blend::battery::{
+    BlendRequest, Chain, Link, Resolved, resolve_link, run_battery, walk_chains,
+};
 use crate::blend::build::Blended;
 pub use crate::blend::reach::band_reach_for_tests as band_reach;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
@@ -364,8 +366,8 @@ pub fn dome_profile(r: f64) -> Vec<(Point2<f64>, f64)> {
 /// and the kernel door that hands back the rest.
 ///
 /// A rim a chart seam has SPLIT is several edges, and the fillet verbs
-/// take exactly its set: adding one edge more refuses `TangentialEdge`
-/// at margin zero, one edge fewer stops at a seam vertex. Producing
+/// take exactly its set: one edge fewer stops at a seam vertex, and a
+/// seam meridian added is a smooth seam the verb leaves as it is. Producing
 /// that set is [`topo::query::rim_of`]'s job and not a fixture's, so
 /// this scan does the half only a fixture can do — find the arc the
 /// suite means, by the radius and station it stated analytically — and
@@ -2275,9 +2277,16 @@ pub fn resolved_links(
 ) -> Vec<Link<f64>> {
     edges
         .iter()
-        .map(|&e| resolve_link(body, e, size, band, BlendKind::Fillet))
-        .collect::<Result<Vec<_>, _>>()
-        .unwrap_or_else(|e| panic!("every requested edge resolves to a link, got {e}"))
+        .map(
+            |&e| match resolve_link(body, e, size, band, BlendKind::Fillet) {
+                Ok(Resolved::Link(link)) => link,
+                Ok(Resolved::Smooth(e)) => {
+                    panic!("every requested edge resolves to a link, {e:?} is smooth")
+                }
+                Err(e) => panic!("every requested edge resolves to a link, got {e}"),
+            },
+        )
+        .collect()
 }
 
 /// **The battery's walk over `links` as given** — the incidence a
@@ -2341,7 +2350,7 @@ pub fn turn_readings_interval(
 fn turn_readings_of<T: Decide>(
     body: &Body<T>,
     edges: [EdgeKey; 2],
-    links: [Result<Link<T>, crate::blend::BlendError>; 2],
+    links: [Result<Resolved<T>, crate::blend::BlendError>; 2],
 ) -> (T, [T; 2]) {
     let ends = |e: EdgeKey| {
         let he = body.get_edge(e).expect("an edge").he_plus;
@@ -2364,7 +2373,11 @@ fn turn_readings_of<T: Decide>(
             thirds.len()
         )
     };
-    let links = links.map(|l| l.unwrap_or_else(|err| panic!("a turning edge resolves, got {err}")));
+    let links = links.map(|l| match l {
+        Ok(Resolved::Link(link)) => link,
+        Ok(Resolved::Smooth(e)) => panic!("a turning edge resolves, {e:?} is smooth"),
+        Err(err) => panic!("a turning edge resolves, got {err}"),
+    });
     let reading = crate::blend::battery::turn_reading(body, vertex, [&links[0], &links[1]], third)
         .unwrap_or_else(|err| panic!("the turn reads, got {err}"));
     (reading.gap, reading.chords)

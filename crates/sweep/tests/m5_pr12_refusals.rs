@@ -11,12 +11,11 @@
 
 use crate::common::approx::band;
 use geom_core::Tol;
-use geom_core::{Point2, Sign, Vec3};
+use geom_core::{Point2, Point3, Sign, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::blend::battery::{
-    BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
-    spine_regularity,
+    BlendRequest, chain_g1, corner_config, face_clearance, run_battery, spine_regularity, wedge_at,
 };
 use sweep::blend::{BlendDecision, BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::test_support::cube;
@@ -179,15 +178,15 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
 }
 
 /// A **same-surface smooth split** (the cylinder's two wall faces meet
-/// on one cylinder) is refused by predicate 5 with a margin of
-/// EXACTLY zero. Here the supports really do share a tangent plane —
-/// both sides are the same surface by construction, so the dihedral
-/// sine is structurally zero and there is no wedge for a ball to
-/// roll into. Pinned because it is the honest
-/// pre-construction answer for a whole class of requests a user will
-/// make by accident (selecting every edge of a curved body).
+/// on one cylinder) is a smooth seam: predicate 5 decides its wedge
+/// sign Zero at a margin of EXACTLY zero, both sides being one surface,
+/// and its outward normals aligned, so the battery leaves it out of
+/// every chain and names it. The request whose only edge it is returns
+/// the body as it is, through both verbs, with that edge in the smooth
+/// row — the class of request a user makes by selecting every edge of
+/// a curved body.
 #[test]
-fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
+fn a_same_surface_smooth_split_is_a_smooth_seam_left_as_it_is() {
     let body = cylinder();
     let wall_edge = body
         .edges()
@@ -207,17 +206,33 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
         edges: vec![wall_edge],
         size: 0.05,
     };
-    match run_battery(&req, band()) {
-        Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin.predicate, "fillet3_convexity_sign");
-            assert_eq!(margin.sign, Sign::Zero);
-            assert_eq!(
-                margin.reading.diagnostic_f64_for_error_text().value(),
-                Some(0.0),
-                "a smooth split has an exactly-zero wedge"
-            );
-        }
-        other => panic!("expected a zero-wedge refusal, got {other:?}"),
+    let verdict = run_battery(&req, band()).expect("a smooth seam is no refusal");
+    assert_eq!(
+        verdict.smooth,
+        vec![wall_edge],
+        "the battery names the seam smooth"
+    );
+    assert!(verdict.chains.is_empty(), "and builds no chain on it");
+    let operand = sweep::test_support::at_rest(&body, tol());
+    let fillet = sweep::blend::fillet_edges(&operand, &[wall_edge], 0.05, tol());
+    let chamfer = sweep::blend::chamfer_edges(&operand, &[wall_edge], 0.05, tol());
+    for (verb, out) in [("fillet", fillet), ("chamfer", chamfer)] {
+        let out = out.unwrap_or_else(|e| panic!("the {verb} of a smooth seam refused: {e}"));
+        let naming = out.naming.as_ref().expect("the door writes its records");
+        assert_eq!(
+            naming.smooth,
+            vec![wall_edge],
+            "the {verb} names the seam it left"
+        );
+        assert_eq!(
+            (out.body.faces().count(), out.body.edges().count()),
+            (body.faces().count(), body.edges().count()),
+            "the {verb} of a seam alone returns the body as it is"
+        );
+        assert!(
+            out.blend_faces.is_empty() && out.band_faces.is_empty(),
+            "the {verb} minted a band for a seam"
+        );
     }
 }
 
@@ -485,22 +500,47 @@ fn trio_chain_g1() {
     assert_same_recourse(&definite, &collapsed, "tangent-continuous wherever");
 }
 
-#[test]
-fn trio_convexity_sign() {
-    let body = cube(1.0, Tol::witness());
-    let (_, _, e) = keys(&body);
-    let b = band();
-    let tau = Vec3::new(0.0, 0.0, 1.0);
-    let (convex, m) = convexity_at(
-        Vec3::new(-1.0, 0.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        tau,
+/// A plane through the origin with outward normal `normal`.
+fn plane(normal: Vec3<f64>) -> geom::Surface<f64> {
+    let u_ref = if normal.z.abs() < 0.9 {
+        Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize()
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
+    geom::Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal,
+        u_ref,
+    }
+}
+
+/// [`wedge_at`] between two planes through the origin, along `+z`.
+fn plane_wedge(
+    na: Vec3<f64>,
+    nb: Vec3<f64>,
+    e: EdgeKey,
+) -> Result<(sweep::blend::LinkWedge, sweep::blend::ClassifiedMargin), BlendError> {
+    let (a, b) = (plane(na), plane(nb));
+    let o = Point3::new(0.0, 0.0, 0.0);
+    wedge_at(
+        (&a, true),
+        (&b, true),
+        o,
+        Vec3::new(0.0, 0.0, 1.0),
         1.0,
         e,
-        b,
+        band(),
     )
-    .expect("a definite box edge");
-    assert_eq!(convex, sweep::blend::Convexity::Convex);
+}
+
+#[test]
+fn trio_convexity_sign() {
+    use sweep::blend::{Convexity, LinkWedge};
+    let body = cube(1.0, Tol::witness());
+    let (_, _, e) = keys(&body);
+    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let (convex, m) = plane_wedge(-x, -y, e).expect("a definite box edge");
+    assert_eq!(convex, LinkWedge::Blend(Convexity::Convex));
     assert_eq!(m.predicate, "fillet3_convexity_sign");
     assert_eq!(m.sign, Sign::Positive);
     assert!(
@@ -510,46 +550,25 @@ fn trio_convexity_sign() {
             .is_some_and(|v| (v - 1.0).abs() < 1e-12),
         "the 90° box edge margin is the arm"
     );
-    let (concave, _) = convexity_at(
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(-1.0, 0.0, 0.0),
-        tau,
-        1.0,
-        e,
-        b,
-    )
-    .expect("the mirrored configuration");
-    assert_eq!(concave, sweep::blend::Convexity::Concave);
-    // Exactly on: coplanar supports — a tangential edge with no side
-    // for the ball to roll on, refused definitely. (The perturbation
-    // below turns the normals ABOUT the edge tangent, which is the
-    // only turn the margin's triple product can see.)
-    let flat = convexity_at(
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        tau,
-        1.0,
-        e,
-        b,
-    )
-    .unwrap_err();
-    // Fix pass F6: a tangential edge gets its OWN situation, not a
-    // convexity DISAGREEMENT with a chain verdict that was never taken.
-    assert!(matches!(flat, BlendError::TangentialEdge { .. }));
-    assert!(format!("{flat}").contains("no definite wedge side"));
+    let (concave, _) = plane_wedge(-y, -x, e).expect("the mirrored configuration");
+    assert_eq!(concave, LinkWedge::Blend(Convexity::Concave));
+    // Exactly on, normals aligned: coplanar supports continuing one
+    // another, the smooth seam the verb leaves as it is.
+    let (smooth, m) = plane_wedge(x, x, e).expect("a smooth seam is no refusal");
+    assert_eq!(smooth, LinkWedge::Smooth);
+    assert_eq!(m.sign, Sign::Zero);
+    // Exactly on, normals opposed: the material meets across one
+    // tangent plane — a cusp or slit, refused definitely.
+    let knife = plane_wedge(x, -x, e).unwrap_err();
+    assert!(matches!(knife, BlendError::KnifeEdge { .. }), "{knife:?}");
+    assert!(format!("{knife}").contains("cusp or slit"), "{knife}");
     // In band: the same site, one wedge too small to call. It carries
-    // the decided-Zero arm's sentence — a chain flip is a different
-    // refusal at a different site and nothing here decided one.
-    let escalated = convexity_at(
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(1.0, in_band(), 0.0).normalize(),
-        tau,
-        1.0,
-        e,
-        b,
-    )
-    .unwrap_err();
-    assert_same_recourse(&flat, &escalated, "meet at a definite angle");
+    // the knife's sentence — a chain flip is a different refusal at a
+    // different site and nothing here decided one. (The perturbation
+    // turns the normals ABOUT the edge tangent, which is the only turn
+    // the margin's triple product can see.)
+    let escalated = plane_wedge(x, Vec3::new(1.0, in_band(), 0.0).normalize(), e).unwrap_err();
+    assert_same_recourse(&knife, &escalated, "meet at a definite angle");
 }
 
 #[test]

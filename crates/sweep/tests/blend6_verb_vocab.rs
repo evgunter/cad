@@ -279,7 +279,7 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 /// **The shared TANGENTIAL arm is chamfer-reachable, and speaks as the
 /// chamfer**: the dihedral sign is metered during link RESOLUTION,
 /// before the arm table, so a co-surface seam meridian (one sphere on
-/// both sides, sine exactly zero) refuses `TangentialEdge` through
+/// both sides, sine exactly zero) refuses `KnifeEdge` through
 /// `chamfer_edges` too — not the arm-table refusal.
 #[test]
 fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
@@ -301,7 +301,7 @@ fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
     )
     .expect_err("a co-surface seam has no definite wedge side");
     match err.error {
-        BlendError::TangentialEdge { margin, .. } => {
+        BlendError::KnifeEdge { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(margin.sign, geom_core::Sign::Zero);
             assert_eq!(

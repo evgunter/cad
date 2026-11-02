@@ -27,7 +27,7 @@
 //!    a randomized range of dihedral angles
 //!    (`the_554_pair_agrees_across_a_randomized_dihedral`).
 //! 5. **The detector survived** — a co-surface seam still refuses
-//!    `TangentialEdge` at a margin of exactly 0.0 while a transverse
+//!    `KnifeEdge` at a margin of exactly 0.0 while a transverse
 //!    closed rim of the same body family does not
 //!    (`co_surface_seams_still_refuse_while_transverse_rims_do_not`).
 //! 6. **Both convexity signs on closed rims**
@@ -320,7 +320,7 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
 /// **Claim 4, #554's pair.** A cylinder×cone latitude rim DECIDES its
 /// dihedral, definitely and honestly, whether the rim closes or not,
 /// across a randomized dihedral and radius. The pre-fix kernel read a
-/// collapsed lever on the closed leg and reported `TangentialEdge` on a
+/// collapsed lever on the closed leg and reported `KnifeEdge` on a
 /// transverse corner; that is what a revert reds here, at every draw.
 ///
 /// The legs no longer end in one place, and where they part is the
@@ -363,7 +363,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 
         for (which, v) in [("closed", &closed_verdict), ("open", &open_verdict)] {
             assert!(
-                !matches!(v, Err(BlendError::TangentialEdge { .. })),
+                !matches!(v, Err(BlendError::KnifeEdge { .. })),
                 "{which} rim at half-angle {half_angle} rad reports tangency on a \
                  transverse cone×cylinder corner: {v:?}"
             );
@@ -388,7 +388,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
 /// scale:
 ///
 /// - a full revolve's co-surface seam meridian — the same sphere on
-///   both sides — refuses `TangentialEdge` at a margin of EXACTLY
+///   both sides — refuses `KnifeEdge` at a margin of EXACTLY
 ///   0.0, at every randomized radius;
 /// - the transverse plane–sphere equator of a dome of the same
 ///   radius does not refuse tangency at all.
@@ -417,7 +417,7 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
         )
         .map_err(|r| r.error)
         {
-            Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
+            Err(BlendError::KnifeEdge { margin, .. }) => assert_eq!(
                 (
                     margin.predicate,
                     margin.reading.diagnostic_f64_for_error_text().value()
@@ -600,7 +600,7 @@ fn open_arcs_approaching_a_full_turn_do_not_collapse() {
     }
 }
 
-/// **Claim 8, the prose.** `TangentialEdge` is raised whenever the
+/// **Claim 8, the prose.** `KnifeEdge` is raised whenever the
 /// dihedral's signed margin DECIDES Zero — of which genuine tangency
 /// is one cause. Its user-visible text must therefore state no
 /// geometric fact it has not established. Asserted on a real refusal

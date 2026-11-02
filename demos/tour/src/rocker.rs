@@ -501,7 +501,7 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
     );
     let over = fillet_edges(&operand, &described, R_CREASE, tol);
     assert!(
-        matches!(&over, Err(e) if matches!(e.error, BlendError::TangentialEdge { .. })),
+        matches!(&over, Err(e) if matches!(e.error, BlendError::KnifeEdge { .. })),
         "the description alone hands the door a tangent seam: {:?}",
         over.as_ref().err()
     );
@@ -548,7 +548,7 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
          r = {R_CREASE}, the outline's own blend radius, on its two convex disc/slot \
          creases. Selected as `Line` edges between a `Cylinder` and a `Plane`, scoped to the keyhole loop's struts — the \
          description alone also matches the outline's six tangent seams, and the door \
-         refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
+         refuses those (`KnifeEdge`): the selector has no convexity atom. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
          measured {dv:.6e}. Smaller radii carve at their closed forms too, down to the \
          eye tip's ({R_EYE})."

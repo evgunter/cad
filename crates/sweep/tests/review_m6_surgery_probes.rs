@@ -643,7 +643,7 @@ fn p6_reversed_pip_walls_carry_through() {
 }
 
 /// P7 (charter F, dev 1): every-edge fillet on a pipped body refuses
-/// TangentialEdge at margin EXACTLY 0.0, at every radius — the
+/// KnifeEdge at margin EXACTLY 0.0, at every radius — the
 /// margin must be structural (co-surface cap meridians), not tuned.
 #[test]
 fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
@@ -658,7 +658,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         )
         .expect_err("every-edge on a pipped body must refuse");
         match err.error {
-            sweep::blend::BlendError::TangentialEdge { margin, .. } => {
+            sweep::blend::BlendError::KnifeEdge { margin, .. } => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
                     margin.reading.diagnostic_f64_for_error_text().value(),
@@ -666,10 +666,10 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
                     "radius {r}: {margin} is not structural zero"
                 );
             }
-            other => panic!("radius {r}: expected TangentialEdge, got {other}"),
+            other => panic!("radius {r}: expected KnifeEdge, got {other}"),
         }
     }
-    println!("P7: TangentialEdge margin bit-zero at all radii");
+    println!("P7: KnifeEdge margin bit-zero at all radii");
 }
 
 /// P8: a duplicated edge in the request refuses before the battery.

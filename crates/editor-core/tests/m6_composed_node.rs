@@ -6,7 +6,7 @@
 //! nothing to go stale under a bump. A pipped cube's edge set includes
 //! the cap's MERIDIAN seam edges — two half-cap faces on ONE sphere
 //! surface — and a co-surface seam has no dihedral wedge, so the
-//! battery honestly refused `TangentialEdge` at exactly zero margin,
+//! battery honestly refused `KnifeEdge` at exactly zero margin,
 //! at any radius. This file pinned that refusal, executed, and said:
 //! the day `Node::Fillet` can name a subset, the pin flips and
 //! `die_composed` joins `documents()`.
@@ -21,7 +21,7 @@
 //! What is left here is what membership does not check:
 //!
 //! - the refusal is still REAL — the two meridians still refuse
-//!   `TangentialEdge` at zero margin, and the document builds because
+//!   `KnifeEdge` at zero margin, and the document builds because
 //!   it leaves them OUT, not because anything got looser;
 //! - the authored selection is exactly the target's edge set minus
 //!   those two names (provenance in `corpus/die_composed.rs`);
@@ -140,7 +140,7 @@ fn the_composed_die_recipe_evaluates() {
 
 /// **The refusal is still real, and still typed.** Adding either
 /// cavity meridian to the selection reproduces the original blocker
-/// verbatim: `TangentialEdge` at a margin of exactly zero. The
+/// verbatim: `KnifeEdge` at a margin of exactly zero. The
 /// document builds because it EXCLUDES a co-surface seam, not because
 /// the battery got looser.
 #[test]
@@ -181,7 +181,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         };
         match &e.kind {
             NodeErrorKind::Blend {
-                error: sweep::blend::BlendError::TangentialEdge { margin, .. },
+                error: sweep::blend::BlendError::KnifeEdge { margin, .. },
                 ..
             } => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
@@ -191,7 +191,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
                     "a co-surface seam has exactly no wedge"
                 );
             }
-            other => panic!("expected the battery's TangentialEdge refusal, got {other:?}"),
+            other => panic!("expected the battery's KnifeEdge refusal, got {other:?}"),
         }
     }
 }

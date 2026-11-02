@@ -36,7 +36,8 @@
 //!    mutation
 //! 3. [`battery::spine_regularity`] — `fillet3_spine_regularity`
 //! 4. [`battery::chain_g1`] — `fillet3_chain_g1`
-//! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
+//! 5. [`battery::wedge_at`] — `fillet3_convexity_sign`, and on a
+//!    decided zero `material_wedge_side`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`; and,
 //!    at a RULED link's end, [`battery::cap_transverse`] —
 //!    `fillet3_cap_transverse`, the same predicate's classification of
@@ -158,8 +159,8 @@ use topo::{DihedralReading, EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Overrun, Turn, TurnRunOut,
-    run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, LinkWedge, Overrun, Turn,
+    TurnRunOut, run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -252,8 +253,13 @@ pub enum BlendDecision {
     /// `fillet3_chain_arm`: a link is long enough to measure an angle
     /// over, gating [`Self::ChainG1`] and [`Self::ConvexitySign`].
     ChainArm,
-    /// `fillet3_convexity_sign`: the edge has a definite wedge side.
+    /// `fillet3_convexity_sign`: the edge is convex, concave, or
+    /// neither at its lever.
     ConvexitySign,
+    /// `material_wedge_side`: an edge whose convexity sign decided zero
+    /// is a smooth seam or a cusp or slit
+    /// ([`geom_brep::MATERIAL_PAIRING`]).
+    MaterialSide,
     /// `fillet3_ring_clearance`: a trimline clears a ring or edge in its
     /// support face.
     RingClearance,
@@ -312,13 +318,14 @@ pub enum BlendDecision {
 impl BlendDecision {
     /// Every decision, for the suites that read the closed set.
     #[cfg(any(test, feature = "test-support"))]
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::RadiusHeadroom,
         Self::FaceClearance,
         Self::SpineRegularity,
         Self::ChainG1,
         Self::ChainArm,
         Self::ConvexitySign,
+        Self::MaterialSide,
         Self::RingClearance,
         Self::SupportCoaxiality,
         Self::ContactArm,
@@ -354,6 +361,7 @@ impl BlendDecision {
             Self::ChainG1 => "fillet3_chain_g1",
             Self::ChainArm => "fillet3_chain_arm",
             Self::ConvexitySign => "fillet3_convexity_sign",
+            Self::MaterialSide => "material_wedge_side",
             Self::RingClearance => "fillet3_ring_clearance",
             Self::SupportCoaxiality => "fillet3_support_coaxiality",
             Self::ContactArm => "dihedral_arm",
@@ -383,6 +391,7 @@ impl BlendDecision {
             Self::ChainG1 => "whether two links of the chain meet tangentially",
             Self::ChainArm => "whether a link of the chain is long enough to measure an angle over",
             Self::ConvexitySign => "whether the edge is convex or concave",
+            Self::MaterialSide => geom_brep::material_pairing_clause!(),
             Self::RingClearance => "whether a trimline clears a hole in its support face",
             Self::SupportCoaxiality => "whether the two support faces share an axis or a ruling",
             Self::ContactArm => concat!(
@@ -440,6 +449,7 @@ impl BlendDecision {
             Self::SpineRegularity => FILLET3_SPINE_RECOURSE,
             Self::ChainG1 | Self::ChainArm => FILLET3_CHAIN_RECOURSE,
             Self::ConvexitySign => FILLET3_TANGENTIAL_RECOURSE,
+            Self::MaterialSide => geom_brep::MATERIAL_PAIRING.lever,
             Self::RingClearance => FILLET3_RING_RECOURSE,
             Self::SupportCoaxiality => FILLET3_SPINE_KIND_RECOURSE,
             Self::ContactArm => FILLET3_CONTACT_ARM_RECOURSE,
@@ -467,6 +477,7 @@ impl BlendDecision {
             Self::ChainArm => Some(("link length", SizedPass::Positive)),
             Self::CutOffFeet => Some(("separation of the feet", SizedPass::Positive)),
             Self::ConvexitySign => Some(("wedge opening", SizedPass::NonZero)),
+            Self::MaterialSide => Some((geom_brep::MATERIAL_PAIRING.size, SizedPass::NonZero)),
             Self::CornerIndependence => Some(("spread of the face normals", SizedPass::Positive)),
             // Either definite sign of the sagitta picks a description.
             Self::ContactSecondOrder => Some(("separation", SizedPass::AnySign)),
@@ -1032,12 +1043,14 @@ pub const FILLET3_CLEARANCE_RECOURSE: &str = "reduce the blend size, enlarge the
 pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request \
      into SEQUENTIAL calls (the second on the first's result), since the two setbacks \
      belong to different chains";
-/// The recourse for an edge whose dihedral sign decided Zero — no
-/// definite wedge side at the metered lever, at any size. Both verbs
-/// meter the dihedral (the strip needs a wedge to sit in exactly as
-/// the ball does), so the sentence speaks of the blend, not the ball.
-pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; with no definite wedge \
-     side the blend has no side to sit in, at any size";
+/// The recourse for an edge whose supports meet tangentially with their
+/// material facing each other — a cusp or slit, at any size — and for
+/// a convexity sign in band. Both verbs meter the dihedral (the strip
+/// needs a wedge to sit in exactly as the ball does), so the sentence
+/// speaks of the blend, not the ball.
+pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; at a cusp or slit, \
+     where the two faces' material meets across one tangent plane, the blend has no side to \
+     sit in, at any size";
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
@@ -1473,15 +1486,15 @@ pub enum BlendError {
         /// of the face's boundary inside the material, another outside.
         bounded: bool,
     },
-    /// **Predicate 5, the undecided wedge**: the dihedral's signed
-    /// margin decided Zero, so there is no definite wedge side for a
-    /// rolling ball at the metered lever. Genuine tangency — the two
-    /// supports sharing a tangent plane along the edge — is one cause
-    /// (a co-surface seam produces it at a margin of exactly zero),
-    /// not a fact this refusal establishes. Distinct from
-    /// [`BlendError::ConvexitySignFlip`]: a `Zero` edge does not
-    /// disagree with the chain's convexity — none was decided.
-    TangentialEdge {
+    /// **Predicate 5, the knife edge**: the dihedral's signed margin
+    /// decided Zero with the two faces' outward normals opposed
+    /// ([`geom_brep::EdgeWedge::Knife`]): a cusp (wedge 0) or a knife
+    /// slit (wedge 2π), where no band has a side to sit in. (Zero with
+    /// the normals aligned is the smooth seam, which the verb leaves
+    /// as it is.) Distinct from [`BlendError::ConvexitySignFlip`]: a
+    /// `Zero` edge does not disagree with the chain's convexity — none
+    /// was decided.
+    KnifeEdge {
         /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
         /// `((n_a × n_b)·τ̂)·arm`, meters — decided Zero at the
@@ -1518,7 +1531,8 @@ pub enum BlendError {
     },
     /// **Predicate 5**: the dihedral's convexity sign is not constant
     /// along the chain. (An edge whose sign decided Zero is not a
-    /// flip — it refuses as [`BlendError::TangentialEdge`].)
+    /// flip — it is a smooth seam, or refuses as
+    /// [`BlendError::KnifeEdge`].)
     ///
     /// # No fixture reaches this arm through a `Body`, and why
     ///
@@ -1880,6 +1894,53 @@ pub enum BlendError {
     },
 }
 
+impl BlendError {
+    /// **The one edge this refusal is about**, where it names one: a
+    /// link's, or the entity it was read at when that is an edge. A
+    /// consumer that holds names for the operand's edges says it by
+    /// name; the key itself is the operand's arena slot.
+    #[must_use]
+    pub fn edge(&self) -> Option<EdgeKey> {
+        match self {
+            Self::ChainNotConnected { edge }
+            | Self::KnifeEdge { edge, .. }
+            | Self::ConvexitySignFlip { edge, .. }
+            | Self::SpineUnsupported { edge, .. }
+            | Self::ChamferArmUnsupported { edge, .. }
+            | Self::RepeatedEdge { edge }
+            | Self::UnsupportedChain { edge, .. }
+            | Self::Escalated {
+                site: BlendSite::Link { edge },
+                ..
+            } => Some(*edge),
+            Self::FaceClearance { at, .. }
+            | Self::UnsupportedRunOut { at, .. }
+            | Self::UnsupportedGeometry { at, .. }
+            | Self::BodyNotIntact { at, .. }
+            | Self::SurgeryInvariant { at, .. }
+            | Self::WhollyInside { at, .. } => match at {
+                EntityId::Edge(edge) => Some(*edge),
+                _ => None,
+            },
+            Self::Band(_)
+            | Self::RadiusHeadroom { .. }
+            | Self::FaceClearanceUncertified { .. }
+            | Self::SpineIrregular { .. }
+            | Self::ChainNotG1 { .. }
+            | Self::UnsupportedCorner { .. }
+            | Self::Escalated { .. }
+            | Self::NonpositiveSize { .. }
+            | Self::ScaffoldingOperand { .. }
+            | Self::InsideOutOperand { .. }
+            | Self::UnjoinedOperand { .. }
+            | Self::RingClearance { .. }
+            | Self::Certify { .. }
+            | Self::Op { .. }
+            | Self::Join { .. } => None,
+        }
+    }
+}
+
 impl From<BandError> for BlendError {
     fn from(source: BandError) -> Self {
         Self::Band(source)
@@ -1965,10 +2026,10 @@ impl fmt::Display for BlendError {
                     BlendDecision::FaceClearance.recourse(margin.arm())
                 )
             }
-            Self::TangentialEdge { margin, .. } => write!(
+            Self::KnifeEdge { margin, .. } => write!(
                 f,
-                "an edge's supports meet tangentially, so its dihedral has no definite \
-                 wedge side ({margin}). {}",
+                "an edge's supports meet tangentially with their material on opposite sides, \
+                 a cusp or slit, so its dihedral has no wedge for a blend ({margin}). {}",
                 BlendDecision::ConvexitySign.recourse(margin.arm())
             ),
             Self::SpineIrregular { margin, radius } => write!(
@@ -2300,7 +2361,7 @@ mod recourse_tests {
                 })
             }
             BlendError::FaceClearance { .. } => Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE),
-            BlendError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
+            BlendError::KnifeEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
             BlendError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
             BlendError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             BlendError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
@@ -2391,7 +2452,7 @@ mod recourse_tests {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 bounded: true,
             },
-            BlendError::TangentialEdge {
+            BlendError::KnifeEdge {
                 edge: EdgeKey::default(),
                 margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
             },

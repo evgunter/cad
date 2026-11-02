@@ -15,7 +15,7 @@
 //! "every edge" includes the cap's MERIDIAN seam edges. Two half-cap
 //! faces share ONE sphere surface, so a meridian has no dihedral
 //! wedge, and the battery honestly refuses
-//! `BlendError::TangentialEdge` at a margin of exactly zero. That
+//! `BlendError::KnifeEdge` at a margin of exactly zero. That
 //! refusal is CORRECT — a co-surface seam cannot be blended at any
 //! radius — so the composed die was not unbuildable, it was
 //! UNSAYABLE.
@@ -89,7 +89,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// **Why the meridians are excluded, and why this document exists.**
 /// The two half-cap faces of the cavity share ONE sphere surface, so a
 /// meridian between them has no dihedral wedge — nothing to roll a
-/// ball into. `fillet_edges` refuses it `TangentialEdge` at margin
+/// ball into. `fillet_edges` refuses it `KnifeEdge` at margin
 /// exactly zero, correctly, at any radius. That refusal is what kept
 /// this document out of the registry while `Node::Fillet` meant
 /// "every edge" (`m6_composed_node.rs`, now flipped): the composed die

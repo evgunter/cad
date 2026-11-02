@@ -1593,6 +1593,86 @@ pub fn classify_material_pairing<T: Decide>(
     pairing.map_err(|refusal| pairing_at_wedge(refusal, cos_theta, sin_theta, arm, band))
 }
 
+/// **An edge's material wedge, signed**: what [`classify_edge_wedge`]
+/// decides of the dihedral between an edge's two faces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeWedge {
+    /// Material wedge below π.
+    Convex,
+    /// Material wedge above π.
+    Concave,
+    /// The sign decided zero with the outward normals aligned: wedge
+    /// π, the two faces continuing one another ([`MaterialWedge::Seam`]).
+    Smooth,
+    /// The sign decided zero with the outward normals opposed: wedge 0
+    /// or 2π, a cusp or a knife slit ([`MaterialWedge::Cusp`],
+    /// [`MaterialWedge::Slit`]; which end is the jet's question, not
+    /// this door's).
+    Knife,
+}
+
+/// Which read of [`classify_edge_wedge`] escalated.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EdgeWedgeEscalation {
+    /// The signed dihedral landed in band or was poisoned.
+    Sign(Indeterminate),
+    /// The sign decided zero and the material pairing
+    /// ([`classify_material_pairing`]) refused.
+    Side(Indeterminate),
+}
+
+/// **The one door that classifies an edge's dihedral with its material
+/// side**: [`EdgeWedge`] at the on-edge point `p`.
+///
+/// The sign is `((n₊ × n₋)·τ̂)·arm` in meters, decided as `name`: `n₊`,
+/// `n₋` the two faces' outward normals ([`implicit_outward_normal`],
+/// each folded by its `Face::sense` bit), `τ̂` the edge's direction as
+/// the plus face's loop walks it, `arm` the folded lever arm
+/// ([`folded_lever_arm`]), which the caller has gated definitely
+/// positive. Swapping the faces also reverses the walk, so the sign is
+/// the edge's and not the order's: positive is convex, negative
+/// concave.
+///
+/// Both normals are perpendicular to the edge, so their cross product
+/// lies along `τ̂`, and a sign decided zero says the normals are
+/// parallel to within the band: which way is
+/// [`classify_material_pairing`] at the same point and arm, aligned
+/// ([`EdgeWedge::Smooth`]) or opposed ([`EdgeWedge::Knife`]). Returns
+/// the signed margin it decided beside the class.
+///
+/// # Errors
+///
+/// [`EdgeWedgeEscalation::Sign`] in band or on poison;
+/// [`EdgeWedgeEscalation::Side`] where the pairing refuses, which past
+/// a definitely positive arm a decided-zero sign leaves only in band.
+#[allow(clippy::too_many_arguments)] // two faces, the point, its walk, the arm, the name, the band
+pub fn classify_edge_wedge<T: Decide>(
+    name: &'static str,
+    (s_plus, sense_plus): (&Surface<T>, bool),
+    (s_minus, sense_minus): (&Surface<T>, bool),
+    p: Point3<T>,
+    tau: geom_core::Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<(EdgeWedge, Margin<T>), EdgeWedgeEscalation> {
+    let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
+    let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
+    let margin = Margin::levered(n_plus.cross(n_minus).dot(tau.normalize()), arm);
+    let wedge = match decide(name, margin, band).map_err(EdgeWedgeEscalation::Sign)? {
+        Sign::Positive => EdgeWedge::Convex,
+        Sign::Negative => EdgeWedge::Concave,
+        Sign::Zero => {
+            match classify_material_pairing(s_plus, sense_plus, s_minus, sense_minus, p, arm, band)
+                .map_err(EdgeWedgeEscalation::Side)?
+            {
+                MaterialPairing::Aligned => EdgeWedge::Smooth,
+                MaterialPairing::Opposed => EdgeWedge::Knife,
+            }
+        }
+    };
+    Ok((wedge, margin))
+}
+
 /// The pairing's construction and margin, decided as `name`, for a
 /// caller asking it about a pair of planes it reached by no dihedral (an
 /// on-plane face against a candidate plane), which keeps its own

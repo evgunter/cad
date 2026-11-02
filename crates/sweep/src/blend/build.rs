@@ -226,7 +226,40 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    super::surgery::blend_surgery(body, &verdict, band, tol)
+    assemble(body, &verdict, band, tol)
+}
+
+/// **Both doors' assembly**: the composition surgery over the verdict's
+/// chains, with the smooth seams the battery left out named in the
+/// result's [`super::naming::BlendNaming::smooth`] row. A request every
+/// edge of which is a smooth seam has no chain to carve, and returns
+/// the operand as it is.
+fn assemble<T: Decide + Bounds + topo::AtRestPolicy>(
+    body: &Body<T>,
+    verdict: &super::BatteryVerdict<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<Blended<T>, BlendError> {
+    let mut blended = if verdict.chains.is_empty() && !verdict.smooth.is_empty() {
+        Blended {
+            body: body.clone(),
+            shells: Vec::new(),
+            blend_faces: Vec::new(),
+            corner_faces: Vec::new(),
+            band_faces: Vec::new(),
+            naming: Some(super::naming::BlendNaming {
+                source: topo::SourceGeometry::of(body),
+                ..super::naming::BlendNaming::default()
+            }),
+            coincidences: Vec::new(),
+        }
+    } else {
+        super::surgery::blend_surgery(body, verdict, band, tol)?
+    };
+    if let Some(naming) = blended.naming.as_mut() {
+        naming.smooth.clone_from(&verdict.smooth);
+    }
+    Ok(blended)
 }
 
 /// **Both doors' operand gate** (module docs): the band the request is
@@ -501,7 +534,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
         size: distance,
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
-    super::surgery::blend_surgery(body, &verdict, band, tol)
+    assemble(body, &verdict, band, tol)
 }
 
 #[cfg(test)]

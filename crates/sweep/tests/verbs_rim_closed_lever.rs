@@ -7,11 +7,11 @@
 //! The rows pin the change from both sides:
 //! - the #554 pair: the same cone×cylinder corner, full and partial
 //!   revolve, DECIDES its dihedral on both (the closed rim no longer
-//!   misreports `TangentialEdge` on a transverse corner) — and past
+//!   misreports `KnifeEdge` on a transverse corner) — and past
 //!   that decision the closed rim's band is BUILT while the open arc
 //!   reaches the unimplemented seam-meridian corner;
 //! - the differential: a co-surface seam meridian — dihedral sine
-//!   exactly zero — still refuses `TangentialEdge` at a margin of
+//!   exactly zero — still refuses `KnifeEdge` at a margin of
 //!   exactly 0.0, at a lever that is now definitely nonzero (the fix
 //!   removed the false positive, not the detector);
 //! - convexity classification on closed rims: a dome's equator
@@ -84,7 +84,7 @@ fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
 /// corner at a 30° dihedral DECIDES its dihedral — no tangency
 /// reported on a transverse corner — whether the rim is CLOSED (full
 /// revolve) or open (partial). Before the lever fix the closed form
-/// falsely refused `TangentialEdge` at a ~0 margin: its lever was the
+/// falsely refused `KnifeEdge` at a ~0 margin: its lever was the
 /// endpoint chord, structurally zero on a closed rim.
 ///
 /// Past that decision the two forms part company, and where they part
@@ -118,7 +118,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     )
     .map_err(|r| r.error);
     assert!(
-        !matches!(open, Err(BlendError::TangentialEdge { .. })),
+        !matches!(open, Err(BlendError::KnifeEdge { .. })),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
@@ -131,7 +131,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 /// **The differential row: genuine tangency is still detected.** A
 /// full revolve's seam meridian is a co-surface edge — the same
 /// sphere on both sides, dihedral sine exactly 0 — and it still
-/// refuses `TangentialEdge` at a margin of exactly 0.0 even though
+/// refuses `KnifeEdge` at a margin of exactly 0.0 even though
 /// its lever is now definitely nonzero. The zero comes from the
 /// sine, not from a collapsed arm.
 #[test]
@@ -171,7 +171,7 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
     )
     .map_err(|r| r.error)
     {
-        Err(BlendError::TangentialEdge { margin, .. }) => {
+        Err(BlendError::KnifeEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
                 margin.reading.diagnostic_f64_for_error_text().value(),
@@ -179,7 +179,7 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
                 "a co-surface seam's sine is structurally zero"
             );
         }
-        other => panic!("expected TangentialEdge at exactly zero, got {other:?}"),
+        other => panic!("expected KnifeEdge at exactly zero, got {other:?}"),
     }
 }
 

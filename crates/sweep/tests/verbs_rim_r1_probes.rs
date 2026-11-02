@@ -13,17 +13,17 @@
 //!   over-reports.
 //! - **The #554 pair at randomized geometry**: full and partial
 //!   revolves of one profile DECIDE the same dihedral — red if the
-//!   closed form regresses to `TangentialEdge`. Past that decision the
+//!   closed form regresses to `KnifeEdge`. Past that decision the
 //!   closed rim's band is built and the open arc reaches its
 //!   unimplemented seam-meridian corner.
 //! - **The detector differential**: a co-surface seam meridian still
-//!   refuses `TangentialEdge` at margin exactly 0.0 — red if the fix
+//!   refuses `KnifeEdge` at margin exactly 0.0 — red if the fix
 //!   removed the detector rather than the false positive.
 //! - **A closed one-edge chain has no junctions**: the structural fact
 //!   the explicit wrap-around G1 site rests on — red if the walk
 //!   starts minting junctions for self-closed links.
 //! - **The newly reachable frontier builds**: a convex plane–sphere
-//!   closed rim PASSES the battery (it used to refuse `TangentialEdge`
+//!   closed rim PASSES the battery (it used to refuse `KnifeEdge`
 //!   before any construction) and `fillet_edges` mints its annulus
 //!   band — red if a one-edge rim stops reaching, or stops building
 //!   at, the surgery's closed-chain door.
@@ -255,7 +255,7 @@ fn closed_rims_meter_their_diameter_and_never_exceed_arc_length() {
 /// same cone×cylinder corner DECIDES its dihedral — never reporting
 /// tangency on a transverse corner — whether its rim is CLOSED (full
 /// revolve) or open (partial at any sweep). Red if the closed form
-/// regresses to the false `TangentialEdge`.
+/// regresses to the false `KnifeEdge`.
 ///
 /// Past that decision the forms part: the closed rim's band is built by
 /// the cylinder×cone arm, the open arc terminates at the revolve's
@@ -293,7 +293,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
             )
             .map_err(|r| r.error);
             assert!(
-                !matches!(v, Err(BlendError::TangentialEdge { .. })),
+                !matches!(v, Err(BlendError::KnifeEdge { .. })),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
                  got {v:?}; {}",
                 fuzz::replay()
@@ -315,7 +315,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
 
 /// **The detector differential**: a full ball's seam meridian is a
 /// co-surface edge (one sphere on both sides, dihedral sine exactly
-/// zero) and still refuses `TangentialEdge` at margin exactly 0.0 —
+/// zero) and still refuses `KnifeEdge` at margin exactly 0.0 —
 /// the fix removed the collapsed lever, not the tangency detector.
 #[test]
 fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
@@ -341,7 +341,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
         )
         .map_err(|r| r.error)
         {
-            Err(BlendError::TangentialEdge { margin, .. }) => {
+            Err(BlendError::KnifeEdge { margin, .. }) => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
                     margin.reading.diagnostic_f64_for_error_text().value(),
@@ -351,7 +351,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
                 );
             }
             other => panic!(
-                "expected TangentialEdge at 0.0, got {other:?}; {}",
+                "expected KnifeEdge at 0.0, got {other:?}; {}",
                 fuzz::replay()
             ),
         }
@@ -391,7 +391,7 @@ fn a_closed_one_edge_chain_has_no_junctions_to_fold_the_arm_at() {
 }
 
 /// **The newly reachable frontier BUILDS.** Before the lever fix, every
-/// closed edge refused `TangentialEdge` inside the battery, so the
+/// closed edge refused `KnifeEdge` inside the battery, so the
 /// surgery's closed-chain door had never seen a one-link closed chain;
 /// the fix made it live and this row pinned the typed refusal that met
 /// it. The annulus band is the construction that door now reaches: a
@@ -464,7 +464,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
     )
     .map_err(|r| r.error);
     assert!(
-        !matches!(v, Err(BlendError::TangentialEdge { .. })),
+        !matches!(v, Err(BlendError::KnifeEdge { .. })),
         "the dihedral must decide at the honest lever, not starve: {v:?}"
     );
     assert!(

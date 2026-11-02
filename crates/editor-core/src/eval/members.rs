@@ -425,6 +425,7 @@ fn family_value<T: Decide>(
         outputs,
         carry,
         coincidences: coincidences.into(),
+        left_alone: Arc::new([]),
         motion: None,
         members: Some(Arc::new(members)),
         family: None,

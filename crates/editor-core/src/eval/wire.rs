@@ -61,6 +61,8 @@ pub(crate) struct OpOut<T: Decide> {
     /// The coincidences the op decided from values, named in its
     /// inputs' tables (`NodeValue::coincidences`).
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// The edges a blend left as they are (`NodeValue::left_alone`).
+    pub left_alone: Arc<[crate::node::StableName]>,
     /// A placement's solved motion (`NodeValue::motion`).
     pub motion: Option<RigidMotion<T>>,
 }
@@ -73,6 +75,7 @@ impl<T: Decide> OpOut<T> {
             outputs: vec![super::OutputNames::new(names, Arc::default())],
             carry: super::Carry::default(),
             coincidences: Arc::new([]),
+            left_alone: Arc::new([]),
             motion: None,
         }
     }
@@ -91,6 +94,14 @@ impl<T: Decide> OpOut<T> {
     ) -> Self {
         Self {
             carry: self.carry.recording(contacts, inputs),
+            ..self
+        }
+    }
+
+    /// This output naming the edges its blend left as they are.
+    fn leaving(self, left_alone: Vec<crate::node::StableName>) -> Self {
+        Self {
+            left_alone: left_alone.into(),
             ..self
         }
     }
@@ -1716,7 +1727,11 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
 fn verb_refused<T: geom_core::Bounds>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
-            NodeErrorKind::Blend { verb, error }
+            NodeErrorKind::Blend {
+                verb,
+                error,
+                edge: None,
+            }
         }
         verbs::VerbError::Boolean(error) => NodeErrorKind::Boolean(error),
         verbs::VerbError::Extrude(error) => NodeErrorKind::Extrude(error),
@@ -1779,7 +1794,23 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
         .run(&body, tol)
-        .map_err(verb_refused)?;
+        .map_err(|refusal| match verb_refused(refusal) {
+            // The kernel names its edge by key; the reader is told its
+            // name in the operand's table.
+            NodeErrorKind::Blend { verb, error, .. } => NodeErrorKind::Blend {
+                edge: error.edge().and_then(|e| {
+                    target_table
+                        .name_of(&names::EntityRef {
+                            body: 0,
+                            key: names::EntityKey::Edge(e),
+                        })
+                        .map(|name| Box::new(name.clone()))
+                }),
+                verb,
+                error,
+            },
+            other => other,
+        })?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
@@ -1809,7 +1840,25 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         b: None,
         tool: None,
     };
-    OpOut::plain(
+    // A left-alone edge is a survivor or carved like any unrequested
+    // edge, so the emitter names it as one; the badge names it as the
+    // selection did, in the operand's table, which names every edge.
+    let left_alone = rec
+        .smooth
+        .iter()
+        .map(|&e| {
+            target_table
+                .name_of(&names::EntityRef {
+                    body: 0,
+                    key: names::EntityKey::Edge(e),
+                })
+                .cloned()
+                .unwrap_or_else(|| {
+                    unreachable!("a selected edge {e:?} has a name in the table it was selected in")
+                })
+        })
+        .collect();
+    Ok(OpOut::plain(
         ValuePayload::Body(super::Framed::in_frame(
             Arc::new(out.body),
             operand.frame().clone(),
@@ -1820,7 +1869,8 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         Arc::new(carried),
         vec![crate::coincide::CitedInput::Read(target_read)],
     )
-    .recording(&out.coincidences, &inputs)
+    .recording(&out.coincidences, &inputs)?
+    .leaving(left_alone))
 }
 
 /// **The shell's lowering**, driven by the verb's correspondence

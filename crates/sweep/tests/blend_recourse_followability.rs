@@ -280,7 +280,7 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     assert!(
         matches!(
             err,
-            BlendError::TangentialEdge { margin, .. }
+            BlendError::KnifeEdge { margin, .. }
                 if margin.predicate == "fillet3_convexity_sign"
                     && margin.sign == Sign::Zero
                     && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0)

@@ -2210,6 +2210,7 @@ fn inner_arm_tags_are_stable() {
         pair(&NodeErrorKind::Blend {
             verb: BlendKind::Chamfer,
             error: BlendError::NonpositiveSize { size: -1.0 },
+            edge: None,
         }),
         ("chamfer", Some("nonpositive_size"))
     );

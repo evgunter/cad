@@ -888,8 +888,8 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
         ] {
             match got {
                 Err(refusal) => assert!(
-                    matches!(refusal.error, BlendError::TangentialEdge { edge, .. } if edge == strut),
-                    "{name} {verb}: expected TangentialEdge on the strut, got {refusal:?}"
+                    matches!(refusal.error, BlendError::KnifeEdge { edge, .. } if edge == strut),
+                    "{name} {verb}: expected KnifeEdge on the strut, got {refusal:?}"
                 ),
                 Ok(()) => panic!("{name} {verb}: blended a wedge-{name} edge"),
             }

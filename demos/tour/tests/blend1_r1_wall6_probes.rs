@@ -3,7 +3,7 @@
 //!
 //! The PR body claims, on the tour's lily lantern: (a) wall 6 as
 //! authored — EVERY edge requested — still refuses
-//! `TangentialEdge { margin: 0.0 }` before any closed-rim door;
+//! `KnifeEdge { margin: 0.0 }` before any closed-rim door;
 //! (b) requested one rim at a time, the three transverse rims at
 //! carrier radii ~0.090, ~0.183, ~0.052 fillet whole at r = 0.02
 //! through the new door; (c) the fourth (~0.253, the mouth) is CONCAVE
@@ -116,7 +116,7 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let (lant, _) = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     match fillet_edges(&finished("lant", lant.clone(), tol), &all, 0.02, tol).map_err(|r| r.error) {
-        Err(BlendError::TangentialEdge { margin, .. }) => {
+        Err(BlendError::KnifeEdge { margin, .. }) => {
             assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
                 margin.reading.diagnostic_f64_for_error_text().value(),

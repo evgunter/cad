@@ -830,6 +830,11 @@ pub struct NodeValue<T: Decide> {
     /// the verdicts are, so no content key reads it; it rides the value
     /// with the names it is spelled in.
     pub coincidences: Arc<[crate::coincide::NamedCoincidence]>,
+    /// **The requested edges the node's blend left as they are**: the
+    /// smooth seams (`sweep::blend::LinkWedge::Smooth`) its selection
+    /// named, each by its name in the operand's table, in selection
+    /// order. Empty for every other node. The node's badge reads it.
+    pub left_alone: Arc<[StableName]>,
     /// **A placement's solved motion** (D10): where its copy sits
     /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
@@ -916,6 +921,7 @@ impl<T: Decide> NodeValue<T> {
             outputs: out.outputs.into(),
             carry: out.carry,
             coincidences: out.coincidences,
+            left_alone: out.left_alone,
             members: None,
             family: None,
             verdicts: Arc::new(Vec::new()),
@@ -946,6 +952,7 @@ impl NodeValue<f64> {
             outputs: vec![OutputNames::new(Arc::new(table), Arc::new(groups))].into(),
             carry: Carry::default(),
             coincidences: Arc::new([]),
+            left_alone: Arc::new([]),
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
@@ -1513,6 +1520,10 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The kernel's own refusal.
         error: sweep::blend::BlendError,
+        /// The name, in the operand's table, of the edge the refusal is
+        /// about ([`sweep::blend::BlendError::edge`]); `None` where it
+        /// names no edge, or one the table does not name.
+        edge: Option<Box<StableName>>,
     },
     /// The boolean op refused.
     Boolean(BooleanError),
@@ -2139,7 +2150,16 @@ impl crate::spoken::Say for NodeErrorKind {
                     )
                 )
             }
-            Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
+            Self::Blend {
+                verb,
+                error,
+                edge: Some(edge),
+            } => write!(f, "the {verb} op refused at {edge}: {error}"),
+            Self::Blend {
+                verb,
+                error,
+                edge: None,
+            } => write!(f, "the {verb} op refused: {error}"),
             // No cause is guessed here: the kernel's refusal names its
             // own, and a coincidence refusal carries its own recourse.
             Self::Boolean(e) => write!(f, "the Boolean op refused: {e}"),
@@ -4529,6 +4549,7 @@ where
                 outputs: out.outputs.into(),
                 carry: out.carry,
                 coincidences: out.coincidences,
+                left_alone: out.left_alone,
                 motion: out.motion,
                 members: None,
                 family: None,
