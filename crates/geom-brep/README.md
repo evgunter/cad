@@ -958,7 +958,14 @@ extent enters it, so two faces on one carrier read one value. A
 component is closed, or open with both ends on the domain's boundary,
 or ends at a node (Edge descriptions): a node is
 decided on the pose as a Zero tangency whose section still has
-carriers, placed in closed form, and a site at it reads as the node.
+carriers, placed in closed form or enclosed alone in a certified box,
+and a site at it reads as the node. The value lists each node with the
+surfaces' common normal, its two tangent lines and the side of each
+other the surfaces lie on in the sectors between them, all read off
+their relative second fundamental form there, indefinite and
+nondegenerate. Each arc end at a node names its line and the sense it
+leaves along. A germ leaving a node is minted from its arc end, and no
+reading of a site names an arc there.
 Arcs that share nodes are one node-joined set (`NodeSet`), the
 connected component: the set claims its winding about each surface,
 and its arcs claim none.
