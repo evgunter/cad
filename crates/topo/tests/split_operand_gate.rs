@@ -114,6 +114,7 @@ fn brick_beside_inside_out_wedge() -> Body<f64> {
     }
     common::describe_as_intersections(&mut parts, tol);
     assert!(
+        // Raw door: the merged body does not finish (the wedge's solid is inside out, check 7), and its total volume is the subject.
         topo::test_support::measure_unvalidated(
             &parts,
             tol,

@@ -113,9 +113,7 @@ fn build_members(op: NaryOp, members: Vec<MemberInputs>) -> Members {
 /// The boolean family's arm of the record channel. Exhaustive with no
 /// wildcard (D3): a family added to the channel breaks this at compile
 /// time and is routed here deliberately.
-fn boolean_record<T: topo::AtRestPolicy + geom_core::Real>(
-    record: VerbRecord<T>,
-) -> Option<BooleanRecord> {
+fn boolean_record<T: topo::AtRestPolicy>(record: VerbRecord<T>) -> Option<BooleanRecord> {
     match record {
         VerbRecord::Boolean {
             kind,

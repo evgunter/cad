@@ -64,7 +64,7 @@ fn assert_tier3_after_upgrade(body: &Body<f64>) {
     assert_eq!(validate_geometric(body, Tol::witness()), Ok(()));
 }
 
-fn body_of<T: topo::AtRestPolicy + geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
+fn body_of<T: topo::AtRestPolicy>(part: &SplitPart<T>) -> &Body<T> {
     part.body().expect("side has material")
 }
 

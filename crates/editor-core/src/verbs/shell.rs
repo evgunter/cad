@@ -82,7 +82,7 @@ pub(crate) type ShellEmitter<T> = fn(
 /// name table. Adding a field here is how the verb declares something
 /// the lowering must know; adding an arm to a match inside the
 /// lowering is not.
-pub(crate) struct ShellVerb<T: topo::AtRestPolicy + geom_core::Real> {
+pub(crate) struct ShellVerb<T: topo::AtRestPolicy> {
     /// **Resolved open faces + slot value → the kernel verb.** The
     /// designation order crosses verbatim (module docs).
     pub(crate) build: fn(Vec<FaceKey>, T) -> Shell<T>,
@@ -120,9 +120,7 @@ fn build_shell<T: geom_core::Real>(open: Vec<FaceKey>, thickness: T) -> Shell<T>
 /// The shell family's arm of the record channel. Exhaustive with no
 /// wildcard (D3): a family added to the channel breaks this at compile
 /// time and is routed here deliberately.
-fn shell_record<T: topo::AtRestPolicy + geom_core::Real>(
-    record: VerbRecord<T>,
-) -> Option<ShellNaming> {
+fn shell_record<T: topo::AtRestPolicy>(record: VerbRecord<T>) -> Option<ShellNaming> {
     match record {
         VerbRecord::Shell(naming) => Some(naming),
         VerbRecord::Blend(_)
@@ -138,7 +136,7 @@ fn shell_record<T: topo::AtRestPolicy + geom_core::Real>(
 /// A function rather than a `const` because the struct is generic in
 /// the lane scalar and a module-level const cannot be: the call is
 /// monomorphized and inlined, so this costs nothing at run time.
-pub(crate) fn shell<T: topo::AtRestPolicy + geom_core::Real>() -> ShellVerb<T> {
+pub(crate) fn shell<T: topo::AtRestPolicy>() -> ShellVerb<T> {
     ShellVerb {
         build: build_shell,
         emitter: names::name_shell,

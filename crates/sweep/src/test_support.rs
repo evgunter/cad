@@ -1190,7 +1190,7 @@ pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
 /// accounted for, mint or source alike. The
 /// per-row COUNTS (feet, splits, retired seam vertices) stay in the
 /// rows, because they are the fixture's, not the walk's.
-pub fn assert_naming_totality<T: topo::AtRestPolicy + Real>(
+pub fn assert_naming_totality<T: topo::AtRestPolicy>(
     source: &Body<T>,
     out: &Blended<T>,
     requested: &[EdgeKey],

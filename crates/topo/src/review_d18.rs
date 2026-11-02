@@ -3710,15 +3710,9 @@ fn read_every_key(body: &Body<f64>, capture: &PanicCapture) -> Exposure {
         deep_snapshot(&trial) == snapshot,
         "revert wrote to the torn body it read"
     );
-    // A torn body never finishes, so it reaches the boolean the one way
-    // the gate is still asked: carried with no verdict.
-    let other = crate::AtRestBody::not_run(
-        crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body,
-    );
-    let torn = crate::AtRestBody::not_run(body.clone());
-    judge_read(capture, &mut census, "union", || {
-        Ok(crate::boolean::union(&torn, &other, Tol::witness()).is_ok())
-    });
+    // A torn body never finishes, and the boolean takes the scalar's
+    // finished body only, so no union reads it: there is no read here
+    // to judge.
     for (l, _) in body.loops() {
         judge_read(capture, &mut census, "planar_loop_winding", || {
             Ok(body.planar_loop_winding(l, Vec3::unit_z(), band).is_some())

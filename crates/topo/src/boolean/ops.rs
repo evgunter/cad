@@ -1268,7 +1268,7 @@ fn fused_through(map: &SeamCorrespondence, merges: &Fusions) -> SeamCorresponden
 }
 
 /// What the pipeline reaches through its join ([`through_the_join`]).
-pub(super) enum Joined<T: crate::props::AtRestPolicy + Real> {
+pub(super) enum Joined<T: crate::props::AtRestPolicy> {
     /// The pipeline's answer, reached without a join to finish: the
     /// no-crossings path (the re-cut or the containment fallback).
     Answered(Box<BooleanResult<T>>),
