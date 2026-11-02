@@ -2,11 +2,13 @@
 id: a-union-whose-fold-glues-a-run-no-judgement-opened
 kind: issue
 title: A union whose members glue a face run only together refuses: N2's third clause has no exact descent to read
-status: spec
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: H
 pr: 6387
+closed: 2026-11-02
+branch: reads/holdings
 ---
 
 
@@ -118,3 +120,7 @@ With Ev's per-face rule approved (PR 6381), this row is that rule's prerequisite
 The naming that consumes `Holdings` (union and subtract, the edge classification made total, `UnsupportedUnjudgedGlue` retired) is built in PR 6381 after this lands. Also re-check `VerdictsDisagree` once lineage is only a router, and record what was found.
 
 Review tier: **dual** (kernel architecture every boolean's naming will read). Class H, so a concurrent pair.
+
+## Closed (2026-11-02, PR 6387)
+
+The kernel's boolean doors publish exact per-face `Holdings`, from the pair door's records and from the n-ary door per step through `topo::overlap`. Discarded fragments are keyed the same way, cut-ins and re-charts are read after their rewrites, and a subtract reads B turned. The naming that consumes it is the per-face unit `a-merged-face-is-named-for-exactly-the-member-faces-it-holds` (PR 6381), with `naming-still-reads-the-folds-lineage-through-a-hidden-door`. Rows filed by the unit: `an-in-band-holding-refusal-lands-by-member-order`, `overlap-on-two-cone-faces-meeting-at-the-apex-is-unwitnessed`, and TOPO's `a-unions-stacked-coaxial-walls-finish-as-one-face-or-two-by-member-order`.
