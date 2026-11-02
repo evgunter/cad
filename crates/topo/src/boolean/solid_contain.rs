@@ -2579,7 +2579,11 @@ impl<T: Decide> Centred<T> {
         let [a, b, _] = self.coeffs;
         let e = a.abs() * geom_core::rounding_charge(self.far * self.gradient * self.near)
             + T::from_f64(2.0) * b.abs() * geom_core::rounding_charge(self.far * self.speed);
-        disc.select_le_zero((disc + e).min(T::zero()), (disc - e).max(T::zero()))
+        geom_core::Rounded {
+            value: disc,
+            error: e,
+        }
+        .toward_zero()
     }
 
     /// **Both roots in the line's own parameter, and a bound on either's
