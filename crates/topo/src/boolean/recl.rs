@@ -3625,7 +3625,6 @@ mod tests {
         assert_eq!(twins(&[sector(false, false), sector(false, false)], 0), [0]);
     }
 
-    /// `mark_germ` rewrites the On bound to the transition partner.
     /// TOG's worked example (Fig. 18, ∪, identical orientation),
     /// through the fold: A's test sectors keyed (IN, ON) against B's
     /// reference cross on the IN sector, its ON one lumping Out (AonB⁺ →
@@ -3678,6 +3677,7 @@ mod tests {
         }
     }
 
+    /// `mark_germ` rewrites the On bound to the transition partner.
     #[test]
     fn germ_rewrite() {
         let mut r = rec(0, 0, (On, In), (Out, On));
