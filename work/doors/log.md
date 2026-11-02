@@ -168,3 +168,9 @@ AUTHOR's narrative is recoverable from
 - Re-verify 4 of `1eef5d4ffa`: identity choice, verdict cache, merge adaptation and cost all sound. R4-A (MAJOR): the door's seed answered the document *before* its own last rebinds, yet was filed as answering the shown document — a downstream pick was dropped. R4-B: the round trigger looked only at chain links (a regression from pass 3).
 - Ruling (the class's root, after the same window reopened in passes 2, 3 and 4): an evaluation carries the document it answers as part of its value, set where it is produced; only that identity lets it answer names. No extra evaluation to make the seed current — abstain instead.
 - 6264 has now had four fix passes; each closed its findings and opened one smaller window in the same gate. If pass 5's re-verify finds the gate leaking again, stop iterating and re-spec the gate as its own unit.
+
+## 2026-11-02 04:55 — 6292 correctness review: fix pass 1
+
+- Correctness review (PR comment): fused sweep HOLDS (a band costs the max of its bounds, not the sum); dials door unreachable from product; wire holds. M1 MAJOR: over a parameter box, an upper bound's `Within` rested on one f64 pair at the box's midpoint and was reported for the whole box — reachable through pncad's `assertion_at` and the drive. M1b: facet pruning picks the lower bound's facet for an upper bound.
+- Ruling: over a box, `Within` needs a proof over the whole box (e.g. interval-evaluated fixed stations) or it is the bisect cue / typed refusal — never one point. Class note: the E7 sweep was built for a universal lower bound; adding the upper bound flipped which arm carries a universal claim, and the existing comment ("nothing universal rests on the exhibit arm") hid it. Premises in test headers (m10_5:156) and a box-independent fixture (row 6) let it pass.
+- Fix pass sent to the implementer's cloud session with the style items; m2/m5/S-m2/S-m6/S-m7/S-m11 filed as rows.
