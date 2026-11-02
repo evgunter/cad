@@ -833,12 +833,10 @@ fn faces_at<T: Decide>(body: &Body<T>, v: VertexKey) -> Result<Vec<FaceKey>, Ble
 fn foot_on<T: Real>(curve: &Curve3<T>, p: Point3<T>) -> Option<Point3<T>> {
     match *curve {
         Curve3::Line(line) => Some(line.foot(p)),
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
             radius,
-            ..
-        } => {
+        }) => {
             let a = axis.normalize();
             let v = p - center;
             Some(center + (v - a * v.dot(a)).normalize() * radius)
@@ -992,16 +990,8 @@ fn station<T: Decide>(body: &Body<T>, link: &Link<T>) -> Result<Station<T>, Blen
             major_radius,
             minor_radius,
             u_ref,
-        } => foot_on(
-            &Curve3::Circle {
-                center,
-                axis,
-                radius: major_radius,
-                u_ref,
-            },
-            p,
-        )
-        .map(|c| (c, minor_radius)),
+        } => foot_on(&Curve3::circle(center, axis, major_radius, u_ref), p)
+            .map(|c| (c, minor_radius)),
         _ => None,
     };
     Ok(Station { p, fa, fb, c })
@@ -1802,11 +1792,11 @@ fn sheet_clip<T: Decide + Bounds>(
                         [hi(|p| p.x).hi(), hi(|p| p.y).hi(), hi(|p| p.z).hi()],
                     ]
                 }
-                Curve3::Circle { .. } => {
+                Curve3::Circle(..) => {
                     let b = geom::curves::boxes::circle_arc_aabb(carrier, t0, t1, p0, p1)?;
                     [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
                 }
-                Curve3::Ellipse { .. } => {
+                Curve3::Ellipse(..) => {
                     let b = geom::curves::boxes::ellipse_arc_aabb(carrier, t0, t1, p0, p1)?;
                     [[b.min_x, b.min_y, b.min_z], [b.max_x, b.max_y, b.max_z]]
                 }
@@ -1832,12 +1822,10 @@ fn sheet_clip<T: Decide + Bounds>(
                 .max((z0 - zc).abs())
                 .max((z1 - zc).abs());
             let (d_theta, e_theta, e_j, z_e) = match *carrier {
-                Curve3::Circle {
-                    center,
-                    axis,
+                Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
                     radius,
-                    ..
-                } => {
+                }) => {
                     let ax = axis.normalize();
                     let dot = ax.dot(a);
                     let d_lat = off(center) + tilt(ax) * radius;
@@ -3078,13 +3066,11 @@ pub fn band_reach_for_tests<T: Decide + Bounds>(
 ) -> Result<(), BlendError> {
     let mut links = Vec::with_capacity(req.edges.len());
     for edge in &req.edges {
-        links.push(super::battery::resolve_link(
-            req.body,
-            *edge,
-            req.size,
-            band,
-            BlendKind::Fillet,
-        )?);
+        if let super::battery::Resolved::Link(link) =
+            super::battery::resolve_link(req.body, *edge, req.size, band, BlendKind::Fillet)?
+        {
+            links.push(link);
+        }
     }
     let (chains, _) =
         super::battery::broken_at_turns(req.body, super::battery::walk_chains(links), band)?;
@@ -3820,12 +3806,12 @@ mod tests {
     #[test]
     #[allow(clippy::expect_used)]
     fn a_curve_is_read_in_a_core_piecewise_and_tightened() {
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let core = |d: f64| {
             [Bound::Affine {
                 n: Vec3::new(1.0, 0.0, 0.0),

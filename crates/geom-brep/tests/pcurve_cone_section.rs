@@ -63,36 +63,38 @@ fn section_of(half_angle: f64, tilt: f64) -> Curve3<f64> {
 
 /// The same locus traversed backwards (the arc-side rule's cw arm).
 fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
-    let &Curve3::Ellipse {
-        center,
-        axis,
+    let &Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = e
+    }) = e
     else {
         unreachable!()
     };
-    Curve3::Ellipse {
-        center,
-        axis: -axis,
+    Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(center, -axis, u_ref),
         semi_u,
         semi_v,
-        u_ref,
-    }
+    ))
 }
 
 /// The same ellipse seamed `k` quarter turns on, at each of its four
 /// principal vertices in turn: `u_ref` turned about `axis` and, on an
 /// odd turn, the semi-axes swapped.
 fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
-    let &Curve3::Ellipse {
-        center,
-        axis,
+    let &Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = e
+    }) = e
     else {
         unreachable!()
     };
@@ -102,13 +104,15 @@ fn seamed(e: &Curve3<f64>, k: u32) -> Curve3<f64> {
         2 => (-u_ref, semi_u, semi_v),
         _ => (-axis.cross(u_ref), semi_v, semi_u),
     };
-    Curve3::Ellipse {
-        center,
-        axis,
+    Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    }
+    })
 }
 
 /// Every pairing of nappe and traversal, seamed at each principal
@@ -339,12 +343,13 @@ fn read_off_the_sum(
 ) -> Pcurve<f64> {
     let (
         &Pcurve::FocalSection(focal),
-        &Curve3::Ellipse {
-            center,
+        &Curve3::Ellipse(geom::Ellipse {
+            frame: geom::Frame {
+                center, u_ref: e_u, ..
+            },
             semi_u,
-            u_ref: e_u,
             ..
-        },
+        }),
         &Surface::Cone {
             apex, axis, u_ref, ..
         },
@@ -489,13 +494,15 @@ fn skew_near_circle(alpha: f64, h: f64, phi: f64, off: f64) -> (Curve3<f64>, Sur
     let center = p2 + (p1 - p2) * 0.5;
     let (cx, cz) = (center.x, center.z);
     let u_ref = (p1 - p2).normalize();
-    let carrier = Curve3::Ellipse {
-        center: m.transform_point(center + Vec3::unit_y() * off),
-        axis: m.transform_vec(u_ref.cross(Vec3::unit_y())),
-        semi_u: 0.5 * (p1 - p2).norm(),
-        semi_v: (ta * ta * cz * cz - cx * cx).sqrt(),
-        u_ref: m.transform_vec(u_ref),
-    };
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            m.transform_point(center + Vec3::unit_y() * off),
+            m.transform_vec(u_ref.cross(Vec3::unit_y())),
+            m.transform_vec(u_ref),
+        ),
+        0.5 * (p1 - p2).norm(),
+        (ta * ta * cz * cz - cx * cx).sqrt(),
+    ));
     let surface = Surface::Cone {
         apex: m.transform_point(Point3::new(0.0, 0.0, 0.0)),
         axis: m.transform_vec(Vec3::unit_z()),
@@ -734,23 +741,23 @@ fn an_off_section_carrier_is_imaged_to_its_own_distance_from_the_cone() {
         Ok(pose) => pose,
         Err(why) => return refused(why),
     };
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = exact
+    }) = exact
     else {
         unreachable!()
     };
-    let carrier = Curve3::Ellipse {
-        center: center + u_ref * (0.3 * eps()),
-        axis,
+    let carrier = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(center + u_ref * (0.3 * eps()), axis, u_ref),
         semi_u,
         semi_v,
-        u_ref,
-    };
+    ));
     let off = off_cone(&carrier, &surface);
     let image = match chart_pcurve(&carrier, &surface, band()) {
         Ok(image) => image,
@@ -796,19 +803,15 @@ fn a_flat_cones_section_images_and_certifies_at_its_own_resolution() {
     let mut wrong = Vec::new();
     for f in [0.5, 0.8, 0.9] {
         let (carrier, surface, _) = skew_section(1.55, 0.1, f).unwrap();
-        let Curve3::Ellipse {
-            center,
-            semi_u,
-            semi_v,
-            ..
-        } = carrier
-        else {
+        let Curve3::Ellipse(e) = carrier else {
             unreachable!("skew_section answers an ellipse")
         };
+        let center = e.frame.center;
         let Surface::Cone { apex, .. } = surface else {
             unreachable!("skew_section answers a cone")
         };
-        let size = Curve3::semi_axes_by_size(semi_u, semi_v)
+        let size = e
+            .semi_axes_by_size()
             .0
             .max(center.distance(Point3::origin()))
             .max(apex.distance(Point3::origin()));

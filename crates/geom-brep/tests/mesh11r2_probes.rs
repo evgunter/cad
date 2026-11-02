@@ -140,12 +140,12 @@ fn r2_the_cone_floor_is_the_escalation_threshold_from_both_sides() {
     };
     let cone_rim = |v: f64, u0: f64, u1: f64, a, b| {
         edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, v * s),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: (v * s).abs(),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.0, 0.0, v * s),
+                v3(0.0, 0.0, 1.0),
+                (v * s).abs(),
+                v3(1.0, 0.0, 0.0),
+            ),
             u0,
             u1,
             a,
@@ -328,7 +328,11 @@ fn r2_the_saturated_span_sign_is_a_rounding_residual() {
         let t0 = PI / 2.0 - delta;
         let t1 = t0 + 2.0 * PI + 2.0 * delta;
         let e = great(0.0, t0, t1, 0, 1);
-        let Curve3::Circle { axis: n_c, .. } = e.carrier else {
+        let Curve3::Circle(geom::Circle {
+            frame: geom::Frame { axis: n_c, .. },
+            ..
+        }) = e.carrier
+        else {
             unreachable!()
         };
         let w0 = e.carrier.eval(e.t0) - p3(0.0, 0.0, 0.0);

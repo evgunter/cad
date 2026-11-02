@@ -603,8 +603,8 @@ pub(super) fn orbit_corners<T: Decide>(
                     far: p_end,
                 },
             ),
-            geom::Curve3::Circle { .. }
-            | geom::Curve3::Ellipse { .. }
+            geom::Curve3::Circle(..)
+            | geom::Curve3::Ellipse(..)
             | geom::Curve3::Spiric { .. }
             | geom::Curve3::Nurbs(_) => {
                 let ConicDeparture { dir, extent, bend } =
@@ -635,6 +635,38 @@ pub(super) fn orbit_corners<T: Decide>(
             bend,
         })
     })
+}
+
+impl SectorFaceError {
+    /// The Boolean's refusal of a vertex of `operand` whose sector the
+    /// walk could not resolve.
+    pub(crate) fn boolean_refusal(self, operand: Operand, band: Band) -> BooleanError {
+        match self {
+            Self::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            },
+            Self::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
+                operand,
+                face,
+                band,
+            },
+            // A spline face whose rows are not owed (C4's exemption)
+            // stores no chart image of the edge, which the arm reads the
+            // vertex at.
+            Self::Unplaced { face, kind } => BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            },
+            Self::ApexUndecided { face, .. } => BooleanError::VertexNearConeAxis {
+                operand,
+                face,
+                band,
+            },
+        }
+    }
 }
 
 /// The sector's face, and what it is at the base vertex.
@@ -674,31 +706,8 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, BoolFace<T>), BooleanError> {
-    let near_axis = |face| BooleanError::VertexNearConeAxis {
-        operand,
-        face,
-        band,
-    };
-    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
-        SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        },
-        SectorFaceError::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
-            operand,
-            face,
-            band,
-        },
-        // A spline face whose rows are not owed (C4's exemption) stores
-        // no chart image of the edge, which the arm reads the vertex at.
-        SectorFaceError::Unplaced { face, kind } => BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        },
-        SectorFaceError::ApexUndecided { face, .. } => near_axis(face),
-    })?;
+    let resolved = crate::sector_face::resolve(body, vertex, he, band)
+        .map_err(|e| e.boolean_refusal(operand, band))?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
     // new carrier arm added to the shared walk must be a compile
     // error in BOTH lanes, not silently accepted by the one whose
@@ -712,7 +721,11 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Spline(_) => {}
     }
     match resolved.at_vertex {
-        VertexFace::NearAxis(_) => Err(near_axis(resolved.face)),
+        VertexFace::NearAxis(_) => Err(BooleanError::VertexNearConeAxis {
+            operand,
+            face: resolved.face,
+            band,
+        }),
         VertexFace::Tangent(normal) => Ok((resolved.face, BoolFace::Tangent(normal))),
         VertexFace::Apex(apex) => Ok((resolved.face, BoolFace::Apex(apex))),
     }
@@ -1763,7 +1776,7 @@ fn one_segment<T: Decide>(
     }
     for (side, e) in [(a, ea), (b, eb)] {
         match germ_curve(side.body, e.edge)?.carrier() {
-            geom::Curve3::Line(_) | geom::Curve3::Circle { .. } => {}
+            geom::Curve3::Line(_) | geom::Curve3::Circle(..) => {}
             _ => {
                 return Err(BooleanError::GermEdgeCarrierUnsupported {
                     operand: side.operand,
@@ -2591,7 +2604,7 @@ fn far_edge<T: Decide>(
     }
     match germ_curve(body, half.edge)?.carrier() {
         geom::Curve3::Line(_) => {}
-        geom::Curve3::Circle { .. } => {
+        geom::Curve3::Circle(..) => {
             let chord = body.resolve_vertex_point(far, Proven)
                 - body.resolve_vertex_point(half.start, Proven);
             if !within_half_turn(dir, chord, band)? {
@@ -3464,12 +3477,12 @@ mod tests {
     /// `+x`): its tangent, and its reach as `orbit_corners` mints it.
     fn quarter_arc(bend: Vec3<f64>) -> (Vec3<f64>, Reach<f64>) {
         let span = core::f64::consts::FRAC_PI_2;
-        let carrier = geom::Curve3::Circle {
-            center: geom_core::Point3::origin() + bend,
-            axis: Vec3::new(1.0, 0.0, 0.0).cross(bend),
-            radius: 1.0,
-            u_ref: -bend,
-        };
+        let carrier = geom::Curve3::circle(
+            geom_core::Point3::origin() + bend,
+            Vec3::new(1.0, 0.0, 0.0).cross(bend),
+            1.0,
+            -bend,
+        );
         let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
@@ -3646,20 +3659,13 @@ mod tests {
                             let big_n = Vec3::new(-beta.sin() * cg, sg, beta.cos() * cg);
                             let u = -big_n;
                             let carrier = if along_n == along_t {
-                                geom::Curve3::Circle {
-                                    center: base + big_n * along_n,
-                                    axis: u.cross(t),
-                                    radius: along_n,
-                                    u_ref: u,
-                                }
+                                geom::Curve3::circle(base + big_n * along_n, u.cross(t), along_n, u)
                             } else {
-                                geom::Curve3::Ellipse {
-                                    center: base + big_n * along_n,
-                                    axis: u.cross(t),
-                                    semi_u: along_n,
-                                    semi_v: along_t,
-                                    u_ref: u,
-                                }
+                                geom::Curve3::Ellipse(geom::Ellipse::new(
+                                    geom::Frame::new(base + big_n * along_n, u.cross(t), u),
+                                    along_n,
+                                    along_t,
+                                ))
                             };
                             (carrier, big_n)
                         };
@@ -3796,12 +3802,7 @@ mod tests {
         let span = (0.2 * b.zero() / r).sqrt();
         let z = Vec3::new(0.0, 0.0, 1.0);
         let x = Vec3::new(1.0, 0.0, 0.0);
-        let carrier = geom::Curve3::Circle {
-            center: geom_core::Point3::origin() + z * r,
-            axis: x.cross(z),
-            radius: r,
-            u_ref: -z,
-        };
+        let carrier = geom::Curve3::circle(geom_core::Point3::origin() + z * r, x.cross(z), r, -z);
         let chord = carrier.eval(span).distance(geom_core::Point3::origin());
         let far = (carrier.eval(span) - geom_core::Point3::origin()).z;
         assert!(

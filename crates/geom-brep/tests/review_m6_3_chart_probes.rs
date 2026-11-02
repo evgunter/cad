@@ -68,12 +68,7 @@ fn probe_pole_crossing_meridian_arc_certifies() {
     // Great circle in the xz-plane of the chart frame: v(t) = t,
     // azimuth 0. The window [pi/4, 3pi/4] crosses the north pole
     // (v = pi/2) in its INTERIOR.
-    let carrier = Curve3::Circle {
-        center,
-        axis: Vec3::unit_y() * -1.0,
-        radius: r,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(center, Vec3::unit_y() * -1.0, r, Vec3::unit_x());
     let p = chart_pcurve_over(&carrier, FRAC_PI_4, 3.0 * FRAC_PI_4, &s, band()).unwrap();
     let Some((p0, _, _, pl)) = p.harmonic_form() else {
         panic!("harmonic expected")
@@ -103,12 +98,12 @@ fn probe_mirror_nappe_cone_rim_certifies_at_azimuth_plus_pi() {
     };
     let h: f64 = -0.4;
     let rho = h.abs() * half_angle.tan();
-    let carrier = Curve3::Circle {
-        center: apex + Vec3::unit_z() * h,
-        axis: Vec3::unit_z(),
-        radius: rho,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(
+        apex + Vec3::unit_z() * h,
+        Vec3::unit_z(),
+        rho,
+        Vec3::unit_x(),
+    );
     let p = chart_pcurve_over(&carrier, 0.0, 2.0, &cone, band()).unwrap();
     let Some((p0, _, _, pl)) = p.harmonic_form() else {
         panic!("harmonic expected")
@@ -139,12 +134,7 @@ fn probe_apex_level_rim_refuses() {
         half_angle: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    let carrier = Curve3::Circle {
-        center: apex,
-        axis: Vec3::unit_z(),
-        radius: 1e-3,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(apex, Vec3::unit_z(), 1e-3, Vec3::unit_x());
     match chart_pcurve(&carrier, &cone, band()) {
         Err(PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Cone,
@@ -168,12 +158,7 @@ fn probe_torus_inner_equator_certifies_at_v_pi() {
         minor_radius: minor,
         u_ref: Vec3::unit_x(),
     };
-    let carrier = Curve3::Circle {
-        center,
-        axis: Vec3::unit_z(),
-        radius: major - minor,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(center, Vec3::unit_z(), major - minor, Vec3::unit_x());
     let p = chart_pcurve(&carrier, &torus, band()).unwrap();
     let Some((p0, _, _, _)) = p.harmonic_form() else {
         panic!("harmonic expected")
@@ -199,12 +184,7 @@ fn probe_sphere_envelope_dominates_a_corrupted_meridian() {
     let Surface::Sphere { center, .. } = s else {
         unreachable!()
     };
-    let carrier = Curve3::Circle {
-        center,
-        axis: Vec3::unit_y() * -1.0,
-        radius: r,
-        u_ref: Vec3::unit_x(),
-    };
+    let carrier = Curve3::circle(center, Vec3::unit_y() * -1.0, r, Vec3::unit_x());
     let image = chart_pcurve(&carrier, &s, band()).unwrap();
     let d = 1e-4;
     let (t0, t1) = (0.0, FRAC_PI_2);

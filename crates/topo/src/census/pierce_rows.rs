@@ -242,12 +242,12 @@ fn half_disc<T: Decide + crate::props::AtRestPolicy>(
     radius: f64,
     (ox, oy): (f64, f64),
 ) -> (Body<T>, FaceKey) {
-    let carrier = geom::Curve3::Circle {
-        center: Point3::new(cx, cy, 1.0).map(T::from_f64),
-        axis: Vec3::new(T::zero(), T::zero(), T::one()),
-        radius: T::from_f64(radius),
-        u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
-    };
+    let carrier = geom::Curve3::circle(
+        Point3::new(cx, cy, 1.0).map(T::from_f64),
+        Vec3::new(T::zero(), T::zero(), T::one()),
+        T::from_f64(radius),
+        Vec3::new(T::one(), T::zero(), T::zero()),
+    );
     let (mut body, cap) = crate::test_support_fixtures::arc_cap(
         carrier,
         (T::zero(), T::pi()),
@@ -417,12 +417,12 @@ fn a_curved_edge_clears_the_span_only_past_its_reach() {
         y = centre.1 + radius - (half + band.escalate() + reach / 2.0);
     }
     let (mid, half, reach) = at(y);
-    let carrier = geom::Curve3::Circle {
-        center: Point3::new(centre.0, centre.1, 1.0),
-        axis: Vec3::unit_z(),
+    let carrier = geom::Curve3::circle(
+        Point3::new(centre.0, centre.1, 1.0),
+        Vec3::unit_z(),
         radius,
-        u_ref: Vec3::unit_x(),
-    };
+        Vec3::unit_x(),
+    );
     let bound = carrier.clearance(Point3::new(mid, y, 1.0)).unwrap();
     let past = (bound - half - band.escalate()) / reach;
     assert!(

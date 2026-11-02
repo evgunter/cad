@@ -170,8 +170,11 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
             continue;
         };
         let conic = match c.carrier() {
-            Curve3::Ellipse { .. } => tilted,
-            Curve3::Circle { center, .. } => !tilted && center.y == 0.5,
+            Curve3::Ellipse(..) => tilted,
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, .. },
+                ..
+            }) => !tilted && center.y == 0.5,
             _ => false,
         };
         if !conic {
