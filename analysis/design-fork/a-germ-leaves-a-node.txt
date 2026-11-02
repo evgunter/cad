@@ -1,0 +1,6 @@
+fork: a-germ-leaves-a-node (SECTARMS, cylinder stage 3b F1: which arc a germ leaving a node rides, once the bisector lane retires)
+drawn: 2026-11-02T19:59:42Z, od -An -tu1 -N1 /dev/urandom (twice)
+bytes: 75 63
+arm: 3 designers
+mapping: A = Fable designer, B = Opus designer 1, C = Opus designer 2
+protocol: 2126b860b6
