@@ -2,12 +2,12 @@
 id: tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face
 kind: issue
 title: Tier 3′ reads no side where a solid touches itself at a point a curved face of it passes
-status: review
+status: closed
 priority: P1
 cost: H
 opened: 2026-10-21
 pr: 6350
-branch: restread/self-touch-curved-sector
+closed: 2026-11-02
 ---
 
 Found by `tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid`'s
@@ -92,3 +92,17 @@ Of the 124 triples:
   `SelfTouch::SecondOrder`, and are filed, with their classes and the
   13 rows that refusing them turns red, as
   `a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread`.
+
+## Closed
+
+2026-11-02, PR 6350 (`restread/self-touch-curved-sector`). A self-touch
+point on a curved face reads over its faces' tangent cones, held to the
+coincidences the faces keep to all orders (`rest::first_order`). The
+points first order cannot decide are not refused: they keep the skip as
+`SelfTouch::SecondOrder`, named in the census module doc and
+`crates/topo/README.md`, and carry on as
+`a-self-touch-point-its-tangent-cones-leave-to-second-order-passes-unread`
+(P1), with their classes and the 13 rows refusing them turns red. That
+is the fallback this row's lane was briefed with; whether to refuse
+instead is Ev's call, on that row. This row's own question, whether the
+cone can be read where the sheets part to first order, is answered.
