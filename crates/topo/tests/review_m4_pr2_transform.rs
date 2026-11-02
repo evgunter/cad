@@ -224,9 +224,9 @@ fn long_thin_feature_transform_is_honest_either_way() {
 
 /// R1a escalation: at 1e9 coordinates the rotation rounding (~1e-7)
 /// exceeds the escalate threshold (1e-8) — the door must FIRE typed
-/// (Certify or a decided refusal), or, if it passes, the result must
-/// still re-validate; silent degradation (Ok + tier-3 failure) is the
-/// falsifier.
+/// (Certify or a decided refusal), or, if it passes, the finished-body
+/// gate refuses the result by the session box, alone; silent
+/// degradation (Ok and any other finding) is the falsifier.
 #[test]
 fn extreme_scale_fires_the_certify_door_or_stays_valid() {
     let mut b = brick((1.0e9, 1.0e9 + 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
@@ -241,8 +241,14 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
         Tol::witness(),
     ) {
         Ok(t) => {
-            eprintln!("1e9 scale took the Ok path");
-            tiers_ok(&t);
+            let errors = validate_geometric(&t, Tol::witness()).unwrap_err();
+            assert!(
+                matches!(
+                    &errors[..],
+                    [topo::ValidationError::OutsideSessionBox { .. }]
+                ),
+                "a 1e9 m image is the box's to refuse, alone: {errors:?}"
+            );
         }
         Err(e) => {
             eprintln!("1e9 scale refused: {e:?}");

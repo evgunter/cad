@@ -651,6 +651,13 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
 
     // The slim corner arc, on the fixture its pin lives on.
     let scale = b.zero() / 1e-9;
+    if scale > 1e2 {
+        test_utils::vacuity::stood_down(
+            "eps above 1e-7",
+            "the skewed cavity scales with eps, and past 1e-7 it leaves the session box",
+        );
+        return;
+    }
     let r = 8.7e-5 * scale;
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
