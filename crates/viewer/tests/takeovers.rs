@@ -829,15 +829,17 @@ fn copied_at_the_identity(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) 
     (session, block, copy)
 }
 
-/// **The halves `copy` copies**: the reads of the `⊔` its source is,
-/// which `split`'s two halves must be, in output order.
-fn copies_the_halves(doc: &Doc<ProfileProgram>, copy: RecipeNodeId, split: RecipeNodeId) {
-    let Some(Node::Place { source, .. }) = doc.node(copy) else {
-        panic!("the copy is a placement")
-    };
-    let Some(Node::Assemble { members }) = doc.operation_of(source.read).and_then(|n| doc.node(n))
-    else {
-        panic!("the copy copies a `⊔`: {source:?}")
+/// **Assert `read` is `above ⊔ below` of `split`**: the output of a `⊔`
+/// whose reads are `split`'s two halves, in output order. `what` names
+/// the reader in the message.
+fn assert_reads_the_halves(
+    doc: &Doc<ProfileProgram>,
+    read: pncad::document::VarId,
+    split: RecipeNodeId,
+    what: &str,
+) {
+    let Some(Node::Assemble { members }) = doc.operation_of(read).and_then(|n| doc.node(n)) else {
+        panic!("{what} reads a `⊔`: {read:?}")
     };
     let reads: Vec<_> = members
         .rows()
@@ -851,7 +853,18 @@ fn copies_the_halves(doc: &Doc<ProfileProgram>, copy: RecipeNodeId, split: Recip
                 .expect("a split has two halves")
         })
         .collect();
-    assert_eq!(reads, halves, "the `⊔` reads the split's two halves");
+    assert_eq!(
+        reads, halves,
+        "{what}: the `⊔` reads the split's two halves"
+    );
+}
+
+/// What the placement `copy` copies.
+fn source_of(doc: &Doc<ProfileProgram>, copy: RecipeNodeId) -> pncad::document::VarId {
+    match doc.node(copy) {
+        Some(Node::Place { source, .. }) => source.read,
+        other => panic!("the copy is a placement: {other:?}"),
+    }
 }
 
 /// **A split of a world copy draws its halves where the copy stood**:
@@ -875,7 +888,8 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
         [copy],
         "the copy alone is drawn: neither the unsplit block nor the split's own halves"
     );
-    copies_the_halves(session.committed_doc(), copy, split);
+    let doc = session.committed_doc();
+    assert_reads_the_halves(doc, source_of(doc, copy), split, "the copy");
     assert_eq!(
         drawn::extent(&mut session, copy),
         stood,
@@ -914,7 +928,7 @@ fn a_split_of_a_world_copy_draws_its_halves_where_the_copy_stood() {
 /// product evaluates. Goes red if the copy keeps copying the unsplit
 /// block.
 #[test]
-fn a_split_of_a_copy_in_the_product_leaves_the_product_reading_the_halves() {
+fn a_split_of_a_copy_the_product_reads_leaves_the_product_reading_the_halves() {
     let tol = Tol::witness();
     let mut session = common::inline_without_door(Doc::empty_derived("split-product", tol), tol);
     let block = common::xy_box_in(&mut session, BLOCK);
@@ -935,12 +949,167 @@ fn a_split_of_a_copy_in_the_product_leaves_the_product_reading_the_halves() {
         Some(product),
         "the slot still reads the copy"
     );
-    copies_the_halves(doc, copy, split);
+    assert_reads_the_halves(doc, source_of(doc, copy), split, "the copy");
     let eval = session.evaluation().expect("landed");
     assert!(
         eval.node_error(copy).is_none(),
         "the product evaluates: {:?}",
         eval.node_error(copy)
+    );
+}
+
+/// **A split of the body the product slot reads re-points the slot**:
+/// two blocks' world copies, side by side, unioned in the world by hand
+/// (no gesture writes a body in the world but a placement, and the
+/// product door adds a world copy rather than the body), the union
+/// added to the product through its door, so the slot reads the union
+/// itself, then the union split. The slot reads `above ⊔ below` and the
+/// product evaluates; one undo puts the union back. Goes red if the
+/// slot is handed the split rather than the `⊔`, or not re-pointed.
+#[test]
+fn a_split_of_the_body_the_product_reads_re_points_the_slot() {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("split-slot", tol), tol);
+    let a = common::xy_box_in(&mut session, BLOCK);
+    let b = common::xy_box_in(&mut session, BLOCK);
+    let doc = session.committed_doc().clone();
+    let (doc, a_copy) = common::world_copy(&doc, a, tol);
+    let (doc, b_copy) = common::world_copy(&doc, b, tol);
+    let doc = drawn::pinned(doc, b_copy, &drawn::translated([BLOCK[0], 0.0, 0.0]));
+    let read = |node: RecipeNodeId| Operand::Var(doc.output(node, 0).expect("a copy's body"));
+    let (doc, union) = viewer::test_support::inserted(
+        &doc,
+        Node::Union {
+            members: pncad::document::Bodies::Spelled(vec![
+                read(a_copy).into(),
+                read(b_copy).into(),
+            ]),
+        },
+        tol,
+    );
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let added = session.perform(SessionOp::AddToProduct {
+        node: union,
+        body: None,
+    });
+    assert!(added.refusal.is_none(), "{:?}", added.refusal);
+    session.pump();
+    let before = session.committed_doc().clone();
+    let body = before.output(union, 0).expect("the union's body");
+    assert_eq!(before.product(), Some(body), "the slot reads the union");
+    let split = common::session_insert(&mut session, split_at_half_height(union));
+    session.pump();
+    let doc = session.committed_doc();
+    let slot = doc.product().expect("the slot reads a body");
+    assert_reads_the_halves(doc, slot, split, "the product slot");
+    let eval = session.evaluation().expect("landed");
+    let at = doc.operation_of(slot).expect("the slot's `⊔`");
+    assert!(
+        eval.node_error(at).is_none(),
+        "the product evaluates: {:?}",
+        eval.node_error(at)
+    );
+    let undone = session.perform(SessionOp::Undo);
+    assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
+    assert!(
+        *session.committed_doc() == before,
+        "one undo takes the split and the slot's re-point back"
+    );
+}
+
+/// **A split of a body a `⊔` reads re-points the operand**: a `⊔` in
+/// the block's space reading the block, its world copy drawn, then the
+/// block split. The operand reads `above ⊔ below`, the copy is the one
+/// body drawn and stands where it stood. Goes red if the operand is
+/// handed the split rather than the `⊔`, or not re-pointed.
+#[test]
+fn a_split_of_a_body_a_union_operand_reads_re_points_the_operand() {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("split-operand", tol), tol);
+    let block = common::xy_box_in(&mut session, BLOCK);
+    let doc = session.committed_doc().clone();
+    let body = doc.output(block, 0).expect("the block's body");
+    let (doc, assemble) = viewer::test_support::inserted(
+        &doc,
+        Node::Assemble {
+            members: pncad::document::Bodies::Spelled(vec![Operand::Var(body).into()]),
+        },
+        tol,
+    );
+    let (doc, copy) = common::world_copy(&doc, assemble, tol);
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let stood = drawn::extent(&mut session, copy);
+    let split = common::session_insert(&mut session, split_at_half_height(block));
+    session.pump();
+    let doc = session.committed_doc();
+    let Some(Node::Assemble { members }) = doc.node(assemble) else {
+        panic!("the `⊔` stays")
+    };
+    let [(_, operand)] = members.rows()[..] else {
+        panic!("one operand: {members:?}")
+    };
+    assert_reads_the_halves(doc, operand.read, split, "the operand");
+    assert_eq!(
+        viewer::world::drawn_nodes(doc),
+        [copy],
+        "the copy of the `⊔` is the one body drawn"
+    );
+    assert_eq!(drawn::extent(&mut session, copy), stood, "where it stood");
+}
+
+/// **A combine of the block with its own earlier half keeps the mate
+/// on the copy's top**: the block split while unplaced (that split takes
+/// nothing over), the block's copy placed by hand and the small block
+/// rested on the copy's top, then the block unioned with the earlier
+/// split's upper half. The union carries the top once from the block
+/// and once from the half, merged into one face; the takeover asks
+/// about the block alone (that half is not the action's), so the top
+/// has one carry and the mate is re-seated. Goes red if the takeover
+/// counts every split of the block's halves beside it: the top is
+/// counted twice and the mate goes stale.
+#[test]
+fn a_combine_with_its_own_earlier_half_keeps_the_mate() {
+    let tol = Tol::witness();
+    let mut session = common::inline_without_door(Doc::empty_derived("own-half", tol), tol);
+    let block = common::xy_box_in(&mut session, BLOCK);
+    let small = common::xy_box_in(&mut session, SMALL);
+    let earlier = common::session_insert(&mut session, split_at_half_height(block));
+    session.pump();
+    let doc = session.committed_doc().clone();
+    let (doc, copy) = common::world_copy(&doc, block, tol);
+    let (doc, small_copy) = common::world_copy(&doc, small, tol);
+    let doc = drawn::pinned(doc, copy, &drawn::translated(AT));
+    let doc = drawn::pinned(
+        doc,
+        small_copy,
+        &drawn::translated([AT[0] + BESIDE, AT[1], 0.0]),
+    );
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let index = plate_index(&session);
+    let underside = displayed_face_at(&session, &index, &common::up_at(AT[0] + BESIDE, AT[1]));
+    let to = top(&session);
+    assert_eq!(to.node, copy, "the block copy's top");
+    drawn::rest_on(&mut session, underside, to);
+    let seated_at = drawn::extent(&mut session, small_copy);
+    let above = Operand::output(earlier, pncad::select::SplitHalf::Above.port());
+    let outcome = session.perform(SessionOp::AddBoolean {
+        spec: viewer::session::BooleanSpec::Union(vec![block.into(), above]),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    assert_eq!(
+        rebinds(&outcome.committed).len(),
+        1,
+        "one rebind, the mate's face: {:?}",
+        outcome.committed
+    );
+    assert_eq!(
+        drawn::extent(&mut session, small_copy),
+        seated_at,
+        "the small block stands where it stood"
     );
 }
 

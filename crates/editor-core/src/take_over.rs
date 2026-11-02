@@ -167,6 +167,14 @@ impl Recording<'_, ProfileProgram> {
     /// the document holds names on. The staged document is evaluated
     /// under `opts` to read the result's table, `prior` its memo.
     ///
+    /// **A name's successor is read among the carries of each copy's old
+    /// source and of `intact`**: the reads the action wrote that hold the
+    /// old source's entities as themselves, under its names and where
+    /// they stood — the two halves of a split of it, which hold the
+    /// entities the split leaves intact. A carry from any other read is
+    /// another entity (a mirror's image, a copy elsewhere, an older
+    /// split's half the action did not write) and is not asked about.
+    ///
     /// Which copies a takeover reaches is the caller's: each is
     /// re-pointed as given, and one that is no placement refuses at the
     /// slot door ([`EditError::UnknownSlot`]: only a `Place` carries a
@@ -187,6 +195,7 @@ impl Recording<'_, ProfileProgram> {
         &mut self,
         copies: &[RecipeNodeId],
         result: &Operand,
+        intact: &[VarId],
         opts: &EvalOptions,
         prior: Option<&Evaluation<f64>>,
         held: &dyn Fn(RecipeNodeId) -> bool,
@@ -257,7 +266,7 @@ impl Recording<'_, ProfileProgram> {
         loop {
             let doc = self.doc();
             let ev = run.evaluation();
-            let mut round = rebinds_of(doc, ev, &taken, &chains, &bodies);
+            let mut round = rebinds_of(doc, ev, &taken, intact, &chains, &bodies);
             // A pick held outside the document on a chain node is a
             // reader too: where the node's body did not evaluate, where
             // its names went is unchecked as a site's would be.
@@ -301,6 +310,7 @@ fn rebinds_of(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     taken: &TakenOver,
+    intact: &[VarId],
     chains: &BTreeMap<RecipeNodeId, RecipeNodeId>,
     bodies: &BTreeMap<VarId, RecipeNodeId>,
 ) -> Round {
@@ -315,7 +325,12 @@ fn rebinds_of(
         .map(|(&copy, taken)| {
             let moved = ev
                 .table(taken.now)
-                .map(|table| crate::names::successors(table, &held_as_itself(doc, taken.was)))
+                .map(|table| {
+                    let reads: Vec<VarId> = core::iter::once(taken.was)
+                        .chain(intact.iter().copied())
+                        .collect();
+                    crate::names::successors(table, &reads)
+                })
                 .unwrap_or_default();
             (copy, moved)
         })
@@ -419,26 +434,6 @@ fn chains(doc: &Doc<ProfileProgram>, taken: &TakenOver) -> BTreeMap<RecipeNodeId
     chains
 }
 
-/// **The reads that hold the entities of `was` as themselves**, under
-/// its own names and where they stood: `was`, and each half of every
-/// split of it, which holds the entities the split leaves intact. A
-/// mirror's image holds their images, and a copy holds them elsewhere,
-/// so neither is the entity a reader of `was` held.
-fn held_as_itself(doc: &Doc<ProfileProgram>, was: VarId) -> Vec<VarId> {
-    use crate::names::VerbatimEdge;
-    let mut reads = vec![was];
-    for node in doc.ids() {
-        let intact = match doc.node(node).and_then(crate::names::verbatim_edge) {
-            Some(VerbatimEdge::Intact { target }) => target == was,
-            Some(VerbatimEdge::Reflected { .. } | VerbatimEdge::Copied { .. }) | None => false,
-        };
-        if intact {
-            reads.extend(doc.outputs(node));
-        }
-    }
-    reads
-}
-
 /// [`fn@take_over`]'s outcome: the action applied, and what it
 /// re-pointed.
 #[derive(Debug)]
@@ -468,7 +463,7 @@ pub fn take_over(
 ) -> Result<TakeOverOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
     // A caller of the action holds every name it may be handed back.
-    let taken = action.take_over(copies, result, opts, None, &|_| true)?;
+    let taken = action.take_over(copies, result, &[], opts, None, &|_| true)?;
     let Recorded {
         doc,
         edits,

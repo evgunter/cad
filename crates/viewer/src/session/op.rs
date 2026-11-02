@@ -744,11 +744,15 @@ pub enum SessionOp {
     /// `above` and `below` outputs, and a half is read by its port
     /// wherever a body seat takes one. What reads the target along a
     /// seen path (a placement's source, a `⊔` operand, the product
-    /// slot) reads `above ⊔ below` instead, in the same action — the
-    /// takeover a fillet makes (`Recording::take_over`) — so each copy
-    /// shows the two halves where it showed the body. A mate on a face
-    /// the split leaves intact is re-seated on it; one on a face the
-    /// split cuts goes stale, in the split's own words.
+    /// slot) reads `above ⊔ below` instead, in the same action, so each
+    /// copy shows the two halves where it showed the body. A copy is
+    /// re-pointed through the kernel's takeover (`Recording::take_over`,
+    /// asked about the two halves beside the body), which re-seats a
+    /// mate on a face of the copy the split leaves intact; a mate on a
+    /// face it cuts stays stale, the mated placement failing `Vanished`
+    /// on the face's name. A `⊔` operand and the product slot are
+    /// re-pointed alone, and nothing read through them is re-seated
+    /// (`work/doors/a-takeover-re-points-a-union-operand-but-rebinds-no-mate-through-it.md`).
     ///
     /// The plane is the one through `origin` with normal `normal` in
     /// the target's own coordinates, read off the target's geometry

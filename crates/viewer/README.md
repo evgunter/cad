@@ -2195,8 +2195,8 @@ where the pick was seen and takes the seen body over along the path it
 was seen through (a placement's source, a `⊔` operand, the product
 slot), member 0 standing where that body stood. A split takes the seen
 body over the same way, by `above ⊔ below`, its two halves standing
-where that body stood; a split of a body nothing reads along such a
-path is drawn itself. A duplicate of a copy
+where that body stood; where nothing reads the body along such a
+path, the split's halves are drawn in its place. A duplicate of a copy
 is one more copy in that copy's space, by values on every freedom at
 the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own

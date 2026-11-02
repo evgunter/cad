@@ -3532,8 +3532,9 @@ impl DocSession {
             })?;
             Ok(Wrote {
                 made: split,
-                copied: both,
+                replacement: both,
                 whole: None,
+                intact: run.doc().outputs(split),
             })
         }))
     }
@@ -3726,8 +3727,9 @@ impl DocSession {
                     };
                     Ok(Wrote {
                         made: row,
-                        copied: row,
+                        replacement: row,
                         whole,
+                        intact: Vec::new(),
                     })
                 }
                 PatternOutputChoice::Fused => {
@@ -4625,11 +4627,16 @@ struct Made {
 struct Wrote {
     /// The node the action made, answered as the creation.
     made: RecipeNodeId,
-    /// What a copy of the taken body copies in its place.
-    copied: RecipeNodeId,
-    /// What a reader of one body reads where `copied` is several (a
+    /// What replaces the taken body: what a copy of it copies, and what
+    /// every other reader reads where `whole` is `None`.
+    replacement: RecipeNodeId,
+    /// What a reader of one body reads where `replacement` is several (a
     /// pattern's family): a `⊔` over them.
     whole: Option<RecipeNodeId>,
+    /// The reads the action wrote that hold the taken body's entities
+    /// as themselves (a split's halves): where the kernel's takeover
+    /// looks for a successor beside the body (`Recording::take_over`).
+    intact: Vec<VarId>,
 }
 
 impl Wrote {
@@ -4637,8 +4644,9 @@ impl Wrote {
     fn one(node: RecipeNodeId) -> Self {
         Self {
             made: node,
-            copied: node,
+            replacement: node,
             whole: None,
+            intact: Vec::new(),
         }
     }
 }
@@ -4934,8 +4942,10 @@ impl Takeover {
     /// **Re-point every reader to what the action `wrote`** (A10, Ev's
     /// residue 1), in the action that authored it: a `⊔` reads it as its
     /// operand and the product slot reads it, through the slot door, the
-    /// `whole` where there is one; a copy of the body copies `copied` in
-    /// its place through the kernel's takeover (`Recording::take_over`),
+    /// `whole` where there is one; a copy of the body copies
+    /// `replacement` in its place through the kernel's takeover
+    /// (`Recording::take_over`), asked about the `intact` reads beside
+    /// the body,
     /// which rebinds what read the copy where the result carries its
     /// names, and answers where they moved for the picks `held` says are
     /// held outside the document.
@@ -4950,10 +4960,11 @@ impl Takeover {
     ) -> Result<Made, EditError> {
         let Wrote {
             made,
-            copied,
+            replacement,
             whole,
+            intact,
         } = wrote;
-        let one = whole.unwrap_or(copied);
+        let one = whole.unwrap_or(replacement);
         for (node, seat) in self.operands {
             run.apply(DocEdit::SetParam {
                 node,
@@ -4969,7 +4980,8 @@ impl Takeover {
         }
         let mut taken = run.take_over(
             &self.copies,
-            &copied.into(),
+            &replacement.into(),
+            &intact,
             &crate::evalseam::options(&self.reads.resolver),
             self.reads.prior.as_deref(),
             held,
