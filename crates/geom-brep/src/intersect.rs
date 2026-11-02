@@ -961,7 +961,7 @@ pub fn plane_cylinder_section_read<T: Decide>(
                     PlaneCylinderSection::ParallelLines { l1, l2 }
                 }
                 RuledSection::TangentLine { origin, dir, .. } => {
-                    PlaneCylinderSection::TangentLine(Curve3::Line { origin, dir })
+                    PlaneCylinderSection::TangentLine(Curve3::Line(geom::Line { origin, dir }))
                 }
                 RuledSection::Empty => PlaneCylinderSection::Empty,
             },
@@ -1088,14 +1088,8 @@ pub(crate) fn ruled_section<T: Decide>(
             let half = (r.powi(2) - gap_signed.powi(2)).sqrt();
             let w = a.cross(n).normalize();
             RuledSection::ParallelLines {
-                l1: Curve3::Line {
-                    origin: foot + w * half,
-                    dir: a,
-                },
-                l2: Curve3::Line {
-                    origin: foot - w * half,
-                    dir: a,
-                },
+                l1: Curve3::line(foot + w * half, a),
+                l2: Curve3::line(foot - w * half, a),
             }
         }
         (Sign::Zero, gap) => RuledSection::TangentLine {
@@ -1612,7 +1606,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
         },
     )??;
     let [a1, a2] = pose.axes();
-    let line = |origin| Curve3::Line { origin, dir: a1 };
+    let line = |origin| Curve3::Line(geom::Line { origin, dir: a1 });
     if let Some(parallel) = pose.parallel_section() {
         return Ok(match parallel {
             ParallelSection::Empty => EqualCylinderSection::Empty,
@@ -2268,12 +2262,7 @@ pub fn plane_cone_section<T: Decide>(
                 cos_a,
             };
             let phi = fan.azimuth(n);
-            let gen_at = |u: T| -> Curve3<T> {
-                Curve3::Line {
-                    origin: apex,
-                    dir: fan.ruling(u),
-                }
-            };
+            let gen_at = |u: T| -> Curve3<T> { Curve3::line(apex, fan.ruling(u)) };
             return Ok(if verdict == Sign::Zero {
                 // A graze's one root is the extremum of g·n over the
                 // azimuth: φ where the normal leans down the axis

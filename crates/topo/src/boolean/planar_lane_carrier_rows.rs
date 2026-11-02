@@ -116,10 +116,7 @@ pub(crate) fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
         },
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(plane),
-            carrier: Curve3::Line {
-                origin: p1,
-                dir: Vec3::new(-1.0, 0.0, 0.0),
-            },
+            carrier: Curve3::line(p1, Vec3::new(-1.0, 0.0, 0.0)),
             param_start: 0.0,
             param_end: 2.0,
         },

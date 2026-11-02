@@ -324,7 +324,7 @@ fn carrier(ev: &Evaluation<f64>, cell: &editor_core::NamedCell) -> Option<Carrie
             let straight = body
                 .get_curve_geom(edge.curve)
                 .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line(_)));
             if !straight {
                 return None;
             }

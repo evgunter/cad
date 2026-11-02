@@ -56,7 +56,7 @@ pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
             Some(InfSpeed::new(semi_u.abs().min(semi_v)))
         }
         crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(minor_radius)),
-        crate::Curve3::Line { .. } | crate::Curve3::Nurbs(_) => None,
+        crate::Curve3::Line(_) | crate::Curve3::Nurbs(_) => None,
     }
 }
 
@@ -254,7 +254,7 @@ enum Kind<'a, T: Real> {
 impl<'a, T: SpanLocate> Kind<'a, T> {
     fn of(carrier: &'a crate::Curve3<T>) -> Self {
         match carrier {
-            crate::Curve3::Line { dir, .. } => Self::Line(*dir),
+            crate::Curve3::Line(crate::Line { dir, .. }) => Self::Line(*dir),
             crate::Curve3::Circle { radius, .. } => Self::Conic(SemiAxes::new(*radius, *radius)),
             crate::Curve3::Ellipse { semi_u, semi_v, .. } => {
                 Self::Conic(SemiAxes::new(*semi_u, *semi_v))
