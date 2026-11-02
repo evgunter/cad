@@ -997,10 +997,11 @@ fn a_base_tilted_within_the_band_across_a_plates_top_refuses() {
 
 /// **A wedge footed a hair off a plate's edge, its underside over the
 /// top, refuses**: the rounded square `[0, 1]²` (corners 0.25) over
-/// `z ∈ [0, 1]`, and a wedge whose lowest edge runs at `x = 1 + 5e-8`
-/// within the band of the top's plane (5e-10 and 5e-9 above, 9e-10
-/// below), its underside rising over the top at slope 0.01 or 0.1, so
-/// within the band of the plane over the top's edge. Red where the
+/// `z ∈ [0, 1]`, and a wedge whose lowest edge runs at `x = 1 + 50z`
+/// (`z` the band's zero threshold) within the band of the top's plane
+/// (0.5z and 5z above, 0.9z below), its underside rising over the top
+/// at slope 0.01 or 0.1, so within the band of the plane over the top's
+/// edge. Red where the
 /// standing reading takes the foot for exactly on the plane.
 #[test]
 fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
@@ -1022,14 +1023,15 @@ fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
             .unwrap();
     }
     let outline: ProfileLoop<f64> = path.fillet(0.25, t).unwrap().to(Start, t).unwrap().into();
-    for (slope, lift) in [(0.01, 5e-10), (0.1, 5e-9), (0.01, -9e-10)] {
+    let z = band().zero();
+    for (slope, lift) in [(0.01, 0.5 * z), (0.1, 5.0 * z), (0.01, -0.9 * z)] {
         let plane = sketch_from_axes(
             geom_core::Point3::new(0.0, 1.5, 0.0),
             Vec3::new(1.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, 1.0),
             t,
         );
-        let (x0, xl) = (1.0 + 5e-8, -0.5);
+        let (x0, xl) = (1.0 + 50.0 * z, -0.5);
         let wedge = prism_on(
             plane,
             corners::<f64>(&[
