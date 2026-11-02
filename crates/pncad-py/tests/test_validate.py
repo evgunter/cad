@@ -48,7 +48,6 @@ otherwise take `test_a_glued_rest_passes_the_fourth_rung` for
 evidence it is not.
 """
 
-import math
 import unittest
 
 import pncad
@@ -608,18 +607,7 @@ def polygonal_loft():
 
 
 def oversized_round_loft():
-    """A tapered round tube 64 km long: RATIONAL walls, and a part big
-    enough that the certified quadrature cannot reach its target.
-
-    The size is the point rather than an accident. The reporting
-    target is `1024 * eps`, a LENGTH that shrinks with the run's
-    tolerance, while the width a rational wall reaches by the face
-    work wall (`FACE_WORK_WALL`) is a length that grows with the
-    PART — so at the suite's own eps the two cross only on a part
-    this large. Measured on this tube at the default eps (the sweep
-    suite's `round_tube`, the same loft): at 8 km (64x) it certifies,
-    and at 64 km (512x) each wall stops at the work wall.
-    """
+    """A tapered round tube 64 km long, past the 1 km session box."""
     return stacked_loft(
         Doc(),
         2,
@@ -703,59 +691,19 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         measured = pinned(gathered)
         self.assertEqual(measured.volume, pinned(gathered).volume)
 
-    def test_a_body_tier_3_admits_at_an_unmet_resolution_answers_its_bracket(self):
-        """An unmet resolution is the bracket, not a refusal.
+    def test_a_body_past_the_session_box_is_refused_by_the_box(self):
+        """A body past the session box is refused at the gate, by the box.
 
-        A body can be tier-3 VALID — its volume's SIGN is definite,
-        which is all check 7 reads — and still stop short of a
-        resolution at this eps: a rational wall at any reachable size
-        stops at the work wall, its removable width still dominant
-        there. The door answers the bracket it reached, with the stop
-        that says why, and the bracket is this body's.
-
-        TWO certified quadratures are run here, on one body, and that is
-        deliberate: this row is the suite's most expensive. The first is
-        the resolution's; the second is a deciding predicate run out on
-        the same walls, the refusal half of the same door. Measured in
-        the dev-profile module this suite's CI job builds: about 47 s
-        for the first (the 125 m version of the tube, which meets the
-        resolution, takes 17 s).
+        The 64 km tube's measurement is refused before any check reads a
+        margin on it, its one finding the box's, and the message says
+        so.
         """
         body = oversized_round_loft()
-        measured = body.mass_properties(PINNED)
-        self.assertIn(measured.stop, ("wall", "floor"), measured)
-        self.assertIsNone(measured.verdict, "a resolution decides nothing")
-        e = measured.enclosure
-        lo, hi = e.volume - e.volume_pad, e.volume + e.volume_pad
-        self.assertLess(lo, hi)
-        self.assertGreater(lo, 0.0, "the bracket is definitely positive")
-        self.assertGreater(e.surface_area, 0.0)
-        # The bracket is THIS body's and not a placeholder: a tapered
-        # tube of radii 11980.8 m and 5990.4 m over a 64 km spine
-        # encloses the frustum on those radii, and the rational walls
-        # the loft fits sit around it.
-        frustum = math.pi * 64000.0 * (11980.8**2 + 11980.8 * 5990.4 + 5990.4**2) / 3.0
-        self.assertLess(lo, frustum)
-        self.assertGreater(hi, frustum)
-        # A deciding predicate the walk runs out on is THE quadrature
-        # refusal (`[tolerance.measure]`): asked whether the volume is at
-        # most the bracket's own midpoint, every wall runs to its stop
-        # with the enclosure still straddling it, so the door raises
-        # `undecided` carrying its bracket and its stop, rather than
-        # answering a stop with no verdict that `if m.verdict:` would
-        # read as a decision.
         with self.assertRaises(ValidationError) as refused:
-            body.mass_properties(Settle.at_most(e.volume))
+            body.mass_properties(PINNED)
         r = refused.exception
-        self.assertEqual(r.measure_refusal, "undecided")
-        self.assertIn(r.stop, ("wall", "floor"))
-        # The refusal's bracket is the body's, held to the same frustum
-        # oracle as the measurement's above.
-        rlo, rhi = r.volume
-        self.assertLess(rlo, rhi)
-        self.assertGreater(rlo, 0.0, "the refusal's bracket is definitely positive")
-        self.assertLess(rlo, frustum)
-        self.assertGreater(rhi, frustum)
+        self.assertEqual([f.variant for f in r.findings], ["outside_session_box"])
+        self.assertIn("session box", str(r))
 
 
 class TestSettle(unittest.TestCase):
@@ -806,6 +754,7 @@ class TestSettle(unittest.TestCase):
             self.cube().mass_properties(Settle.resolution(1e-10 * m))
         self.assertEqual(refused.exception.reason, "mass_properties_failed")
         self.assertEqual(refused.exception.measure_refusal, "resolution_finer_than_eps")
+
 
 if __name__ == "__main__":
     unittest.main()
