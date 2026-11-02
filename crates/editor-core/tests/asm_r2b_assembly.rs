@@ -1292,19 +1292,15 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     use editor_core::ProductError;
 
     let cases = vec![
-        ProductError::PieceInvalid {
-            findings: vec![editor_core::SourceFinding {
-                node: RecipeNodeId::new(0, tagged(3)),
-                output: 1,
-                errors: vec![
-                    topo::ValidationError::NegativeVolume {
-                        solid: topo::SolidKey::default(),
-                    },
-                    topo::ValidationError::NegativeVolume {
-                        solid: topo::SolidKey::default(),
-                    },
-                ],
-            }],
+        ProductError::ProductInvalid {
+            findings: topo::NotFinished::for_tests(vec![
+                topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                },
+                topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                },
+            ]),
         },
         ProductError::StrandedProduct {
             read: editor_core::VarId::new(0, tagged(2)),
@@ -1319,9 +1315,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "product: 1 piece not valid at rest:",
-            "\n  piece 000000000003 output 1: a solid encloses negative volume, so it is \
-             inside-out",
+            "product: the gathered product is not a finished body",
+            "a solid encloses negative volume, so it is inside-out",
         ],
         &["the product reads", "a body that is gone"],
         &["the kernel could not graft piece 000000000005's body: the band's "],
@@ -1334,8 +1329,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
         }
         for guts in [
             "{",
-            "PieceInvalid",
-            "SourceFinding",
+            "ProductInvalid",
+            "NotFinished",
             "NegativeVolume",
             "ProductError",
             "ValidationError",

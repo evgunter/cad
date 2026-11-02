@@ -242,7 +242,7 @@ fn kernel_ops(c: &mut Criterion) {
     let post = slab((0.5, 1.5), (0.5, 1.5), (0.5, 2.0));
     // The boolean's operands, finished once outside the timed loop.
     let finished = |body| {
-        pncad::topo::AtRestBody::validate(body, Tol::witness()).expect("a brick is a finished body")
+        pncad::topo::finish(body, Tol::witness()).expect("a brick is a finished body")
     };
     let (base, post) = (finished(base), finished(post));
 
@@ -293,7 +293,7 @@ fn kernel_ops(c: &mut Criterion) {
         });
         // The door measures a finished body; it is validated once, outside
         // the timed loop.
-        let at_rest = pncad::topo::AtRestBody::validate(body.clone(), Tol::witness())
+        let at_rest = pncad::topo::finish(body.clone(), Tol::witness())
             .expect("the washer certifies");
         // The series is timed at the resolution it was taken at: 1.024 µm
         // of mean boundary displacement, 1024·ε at the witness ε.

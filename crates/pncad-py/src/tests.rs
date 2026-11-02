@@ -2086,7 +2086,7 @@ fn node_error_tags_are_the_published_words() {
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
         EmptyOperand => "empty_operand",
-        UnfinishedOperand => "unfinished_operand",
+        NotFinished => "not_finished",
         EmptyHalf => "empty_half",
         MemberOutOfRange => "member_out_of_range",
         MemberRefused => "member_refused",
@@ -3405,7 +3405,11 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::AtRest {
-            evidence: pncad::document::AtRestEvidence::NotRun
+            evidence: pncad::document::AtRestEvidence::Malformed(
+                pncad::topo::ValidationError::UncertifiableSurface {
+                    face: pncad::topo::FaceKey::default(),
+                }
+            )
         }),
         "at_rest"
     );
@@ -3620,9 +3624,6 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         Some("empty_product"),
         "the gather's own word"
     );
-    let not_run = at_rest(A::NotRun);
-    carries(&not_run, &["reason", "at_rest_variant"]);
-    assert_eq!(check_payload(&not_run).at_rest_variant, Some("not_run"));
 }
 
 /// **The tier-3′ census findings read as prose, and that is a KERNEL
@@ -4374,7 +4375,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "malformed",
             "no_lane",
             "not_gathered",
-            "not_run",
         ],
         delegates: &[],
     },
@@ -5258,7 +5258,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transform",
             "tube",
             "underflowed_direction",
-            "unfinished_operand",
+            "not_finished",
             "union_fold_step",
             "unresolved_read",
             "unschedulable_cycle",
@@ -6094,14 +6094,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unlocalized_tag",
-        values: &[
-            "containment",
-            "empty",
-            "invalid",
-            "lane",
-            "refused",
-            "unnamed",
-        ],
+        values: &["containment", "empty", "lane", "refused", "unnamed"],
         delegates: &[],
     },
     TagEntry {

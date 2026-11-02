@@ -17,11 +17,10 @@
 //! pcurve row would vanish under the closing mint below. Neither
 //! reaches the verb, because neither is an [`AtRestBody`].
 //!
-//! The door reads no second gate where the Boolean and the split read
-//! [`AtRestBody::gate_unverdicted`]: that read is for an operand
-//! carrying no verdict, which only a dual's
-//! [`crate::AtRestPolicy::gate_at_rest_kept`] keeps, and this door is
-//! bounded on the certification right a dual does not hold.
+//! The door reads no second gate: what it takes is the scalar's finished
+//! body ([`crate::AtRestPolicy::Finished`]), and it is bounded on the
+//! certification right a dual, whose finished body is a [`crate::Replay`]
+//! carrying no verdict, does not hold.
 //!
 //! **The offset doors this verb steps through take construction state.**
 //! A door whose argument means something about material — this verb's

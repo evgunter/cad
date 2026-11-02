@@ -267,9 +267,8 @@ fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_th
 /// owner's table reds [`every_predicate_a_subtract_logs_has_words_or_a_reason`].
 const WORDLESS: &[(&str, &[&str])] = &[
     (
-        // Tier 3 at the boolean door: the at-rest gate the door runs on
-        // its result and the boolean seat runs on each operand it
-        // finishes (`AtRestPolicy::gate_at_rest_kept`), and its +V
+        // Tier 3 at the boolean door: the finish the door runs on its
+        // result (`AtRestPolicy::finish`), and its +V
         // reading (check 7) with its interval re-derivation. The kernel
         // checking its own bodies through tier 3's rules, so no model
         // question to put in words.

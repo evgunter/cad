@@ -929,7 +929,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // A selection a node reads: a name the ladder refused.
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
-        C::UnfinishedOperand => "unfinished_operand",
+        C::NotFinished => "not_finished",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
         C::UnderflowedDirection => "underflowed_direction",
@@ -1070,7 +1070,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnresolvedRead { .. } => None,
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
-        NodeErrorKind::UnfinishedOperand { .. } => None,
+        NodeErrorKind::NotFinished { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,
@@ -2511,7 +2511,6 @@ pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
         AtRestEvidence::Malformed(_) => "malformed",
         AtRestEvidence::InsideArrival(_) => "inside_arrival",
         AtRestEvidence::NotGathered(_) => "not_gathered",
-        AtRestEvidence::NotRun => "not_run",
         AtRestEvidence::Carried(_) => "carried",
     }
 }
@@ -2520,7 +2519,6 @@ pub fn at_rest_evidence_tag(evidence: &AtRestEvidence) -> &'static str {
 pub fn unlocalized_tag(why: &Unlocalized) -> &'static str {
     match why {
         Unlocalized::Refused { .. } => "refused",
-        Unlocalized::Invalid { .. } => "invalid",
         Unlocalized::Empty => "empty",
         Unlocalized::Unnamed => "unnamed",
         Unlocalized::Lane => "lane",
@@ -2941,7 +2939,6 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::Connectedness { .. } => "connectedness",
         CheckEvidence::Escalated { .. } => "escalated",
         CheckEvidence::Unsupported { .. } => "unsupported",
-        CheckEvidence::NotAtRest { .. } => "not_at_rest",
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
         CheckEvidence::ChartCoherence { .. } => "chart_coherence",
         CheckEvidence::ChartCoherenceUnexamined { .. } => "chart_coherence_unexamined",

@@ -410,8 +410,8 @@ const SPLIT_FINS: i64 = 160;
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
 /// - `census_ms` — one pass of the tier-3' census over the SAME
-///   aggregate and its records (`gate_at_rest_declared` over the
-///   product's kept tier-3 verdict, which is the census alone): the
+///   aggregate and its records (`census_at_rest` over the product's
+///   finished body, which is the census alone): the
 ///   term this resident exists instead of, and the unit of what the
 ///   gather now pays. Entries before the change that kept the verdict
 ///   (`gather/assemble-single-local-battery`) timed the local battery
@@ -483,13 +483,10 @@ fn measure_split() -> Split {
 
     for _ in 0..CENSUS_REPS {
         let t0 = Instant::now();
-        let verdict = <f64 as topo::AtRestPolicy>::gate_at_rest_declared(
-            &subject.body,
-            &subject.contacts,
-            tol,
-        );
+        let verdict =
+            <f64 as topo::AtRestPolicy>::census_at_rest(&subject.body, &subject.contacts, tol);
         census.push(t0.elapsed());
-        census_findings = verdict.as_ref().err().map_or(0, Vec::len);
+        census_findings = verdict.len();
     }
 
     Split {

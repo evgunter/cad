@@ -39,7 +39,7 @@ pub(crate) struct Drawn<T: Decide> {
 ///
 /// The frame's or a face's read refusing, as any pose or selection read
 /// refuses; a carrier the face's body cannot read back.
-pub(crate) fn drawn<T: crate::mate::SolveScalar>(
+pub(crate) fn drawn<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     program: &ProfileProgram,

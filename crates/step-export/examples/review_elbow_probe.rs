@@ -67,8 +67,7 @@ fn main() {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    let elbow =
-        topo::AtRestBody::validate(duplicate_elbow(tol), tol).expect("the elbow is at rest");
+    let elbow = topo::finish(duplicate_elbow(tol), tol).expect("the elbow is at rest");
     let text = step_string(&elbow, &options, tol).expect("exports");
     let committed = std::fs::read_to_string(
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/swept_elbow.step"),

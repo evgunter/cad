@@ -145,7 +145,7 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
     };
     pncad::topo::test_support::pinned_volume(
         "mass properties",
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body.body()), tol)
+        &pncad::topo::finish(pncad::topo::Body::clone(body.body()), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -440,7 +440,7 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
         session.committed_doc().node(fillet),
         Some(Node::Fillet { selection, .. })
             if session.committed_doc().output(first, 0)
-                == session.committed_doc().selection(*selection).map(|s| s.body)
+                == session.committed_doc().selection(*selection).map(|s| s.body.into_body())
     ));
 }
 

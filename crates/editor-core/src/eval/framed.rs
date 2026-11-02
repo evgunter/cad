@@ -34,7 +34,7 @@
 
 use std::sync::Arc;
 
-use geom_core::{Decide, Real, RigidMotion, RigidMotionError, Tol};
+use geom_core::{Real, RigidMotion, RigidMotionError, Tol};
 use topo::Body;
 
 /// **The map from a body's coordinates into its space's.**
@@ -102,19 +102,21 @@ impl<T: Real> Frame<T> {
     }
 }
 
-/// **A body value** (the copies ruling): the body in its own
-/// coordinates and the map from them into its space's.
+/// **A body value** (the copies ruling): the finished body in its own
+/// coordinates ([`topo::AtRestPolicy::Finished`], as the door that built
+/// it returned it) and the map from them into its space's. No consumer
+/// gates it again (`[topology.tiers]`).
 #[derive(Debug, Clone)]
-pub struct Framed<T: Decide> {
-    body: Arc<Body<T>>,
+pub struct Framed<T: topo::AtRestPolicy> {
+    body: Arc<T::Finished>,
     frame: Frame<T>,
 }
 
-impl<T: Decide> Framed<T> {
+impl<T: topo::AtRestPolicy> Framed<T> {
     /// A body in its space's coordinates: a construction's, computed in
     /// its own.
     #[must_use]
-    pub fn own(body: Arc<Body<T>>) -> Self {
+    pub fn own(body: Arc<T::Finished>) -> Self {
         Self {
             body,
             frame: Frame::Own,
@@ -123,7 +125,7 @@ impl<T: Decide> Framed<T> {
 
     /// `body` in `frame`: an operation's result, computed in the frame
     /// of the operand it computed in.
-    pub(crate) fn in_frame(body: Arc<Body<T>>, frame: Frame<T>) -> Self {
+    pub(crate) fn in_frame(body: Arc<T::Finished>, frame: Frame<T>) -> Self {
         Self { body, frame }
     }
 
@@ -135,9 +137,16 @@ impl<T: Decide> Framed<T> {
         &self.body
     }
 
-    /// The body, shared.
+    /// **The finished body**, as a door that takes finished operands
+    /// takes it.
     #[must_use]
-    pub fn shared(&self) -> &Arc<Body<T>> {
+    pub fn finished(&self) -> &T::Finished {
+        &self.body
+    }
+
+    /// The finished body, shared.
+    #[must_use]
+    pub fn shared(&self) -> &Arc<T::Finished> {
         &self.body
     }
 
@@ -145,7 +154,7 @@ impl<T: Decide> Framed<T> {
     /// that write a value by hand where an evaluation put one.
     #[cfg(any(test, feature = "test-support"))]
     #[must_use]
-    pub fn with_body(&self, body: Arc<Body<T>>) -> Self {
+    pub fn with_body(&self, body: Arc<T::Finished>) -> Self {
         Self {
             body,
             frame: self.frame.clone(),
@@ -252,27 +261,31 @@ impl<T: Decide> Framed<T> {
     }
 }
 
-impl<T: Decide + topo::AtRestPolicy> Framed<T> {
+impl<T: topo::AtRestPolicy> Framed<T> {
     /// **`other`'s body in this one's coordinates**, mapped once
-    /// ([`Self::relative`]), or `other`'s own `Arc` where the two are in
-    /// one frame.
+    /// ([`Self::relative`]) and finished at this door, the placement's
+    /// ([`topo::AtRestPolicy::finish`]), or `other`'s own `Arc` where the
+    /// two are in one frame.
     ///
     /// # Errors
     ///
-    /// The relative map's overflow, or the kernel's own
-    /// [`topo::transform::TransformError`].
+    /// The relative map's overflow, the kernel's own
+    /// [`topo::transform::TransformError`], or the mapped body's finish
+    /// ([`super::NodeErrorKind::NotFinished`]).
     pub(crate) fn read_in(
         &self,
         other: &Self,
         tol: Tol,
-    ) -> Result<Arc<Body<T>>, super::NodeErrorKind> {
+    ) -> Result<Arc<T::Finished>, super::NodeErrorKind> {
         match self.relative(other).map_err(super::NodeErrorKind::Motion)? {
             None => Ok(Arc::clone(&other.body)),
             Some(map) => {
                 super::counters::rigid_map();
-                topo::transform::transform_rigid(&other.body, &map, tol)
+                let mapped = topo::transform::transform_rigid(&other.body, &map, tol)
+                    .map_err(super::NodeErrorKind::Transform)?;
+                T::finish(mapped, tol)
                     .map(Arc::new)
-                    .map_err(super::NodeErrorKind::Transform)
+                    .map_err(|findings| super::NodeErrorKind::NotFinished { findings })
             }
         }
     }

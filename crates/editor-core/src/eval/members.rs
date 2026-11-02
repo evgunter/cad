@@ -40,7 +40,7 @@ use crate::var::VarId;
 
 /// **A family's members**, in index order, outermost index first.
 #[derive(Debug, Clone)]
-pub struct Members<T: Decide> {
+pub struct Members<T: topo::AtRestPolicy + Decide> {
     /// The indices the family reaches, outermost first.
     pub over: Arc<[VarId]>,
     /// Each member: its index values, one per index of `over`, and its
@@ -49,7 +49,7 @@ pub struct Members<T: Decide> {
     pub members: Vec<(Vec<u32>, NodeValue<T>)>,
 }
 
-impl<T: Decide> Members<T> {
+impl<T: topo::AtRestPolicy + Decide> Members<T> {
     /// The member at `at`, the values of `over` in order.
     #[must_use]
     pub fn at(&self, at: &[u32]) -> Option<&NodeValue<T>> {
@@ -175,7 +175,7 @@ pub(crate) fn members<'a, P: crate::ProfilePayload, E: Clone + 'a, C: Decide + '
 /// **`results` at one member**: each family a member of whose stands
 /// at `bound` replaced by that member, which keeps the family for the
 /// seats that read it whole ([`super::NodeValue::whole`]).
-fn overlay<T: Decide>(
+fn overlay<T: topo::AtRestPolicy + Decide>(
     results: &BTreeMap<RecipeNodeId, NodeResult<T>>,
     bound: &BTreeMap<VarId, u32>,
 ) -> BTreeMap<RecipeNodeId, NodeResult<T>> {
@@ -219,7 +219,7 @@ fn overlay<T: Decide>(
 /// is as large as its counts admit, so it yields to cancelation member
 /// by member as the walk does node by node.
 #[allow(clippy::too_many_arguments)] // eval_node's inputs, and the chain
-pub(super) fn eval_family<T: Decide>(
+pub(super) fn eval_family<T: topo::AtRestPolicy + Decide>(
     doc: &Doc<ProfileProgram>,
     env: &crate::expr::VarEnv<T>,
     id: RecipeNodeId,
@@ -346,7 +346,7 @@ pub(super) fn member_key(key: ContentKey, at: &[(VarId, i64)]) -> ContentKey {
 /// **The family's value**: a family of bodies as their `Instances`,
 /// named member by member; any other as [`ValuePayload::Family`]. Its
 /// keys are its members', in order.
-fn family_value<T: Decide>(
+fn family_value<T: topo::AtRestPolicy + Decide>(
     id: RecipeNodeId,
     members: Members<T>,
 ) -> Result<NodeValue<T>, NodeErrorKind> {

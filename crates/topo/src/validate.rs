@@ -1773,10 +1773,8 @@ pub enum ValidationError {
         /// re-derivation, falling back to the walk's own enclosure stepped
         /// outward where no lane re-derives it. A
         /// body refused here never reaches a number door, so this is
-        /// where its bracket surfaces. `None` only from the gate of an
-        /// operand that carries no verdict
-        /// ([`crate::AtRestBody::gate_unverdicted`]), a door that reads no
-        /// bracket end (`geom_core::Bounds`' scope rule).
+        /// where its bracket surfaces. `None` only from a door that reads
+        /// no bracket end (`geom_core::Bounds`' scope rule).
         volume: Option<(f64, f64)>,
     },
     /// Tier 3, check 7 — **no reading decides which side of the solid's

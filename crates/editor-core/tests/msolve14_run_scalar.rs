@@ -881,7 +881,7 @@ fn a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus() {
 // ---- Reading a lane's answer, and the independent one ----
 
 /// Every vertex of `node`'s body, by name, at the lane's scalar.
-fn vertices<T: geom_core::Decide>(
+fn vertices<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
 ) -> Vec<(StableName, geom_core::Point3<T>)> {
@@ -1638,7 +1638,7 @@ fn a_box_on_a_tilted_standoff_widens_the_map_by_the_box_alone() {
 /// placement's own log. Answers whether it escalated.
 ///
 /// [`MateFault::Overconstrained`]: editor_core::MateFault::Overconstrained
-fn overconstrained_or_escalates<T: geom_core::Decide>(
+fn overconstrained_or_escalates<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     s: &Shaft,
     kind: geom_core::MarginKind,
@@ -1822,7 +1822,7 @@ fn structure<T: editor_core::EvalScalar>(
 
 /// A failed result's class: the error kind's variant, and for a mate
 /// fault the fault's — never its numbers, which are the lane's.
-fn fault_class<T: geom_core::Decide>(r: &NodeResult<T>) -> String {
+fn fault_class<T: topo::AtRestPolicy + geom_core::Decide>(r: &NodeResult<T>) -> String {
     let variant = |debug: String| {
         debug
             .split(|c: char| !c.is_alphanumeric())
@@ -1856,7 +1856,7 @@ const INTERVAL_ESCALATIONS: [(f64, &str, &str); 0] = [];
 /// first escalation its own log carries (certifying the placed copy's
 /// edges, downstream of the solve). No mate fault carries one of its
 /// own.
-fn escalation<T: geom_core::Decide>(
+fn escalation<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
 ) -> Option<geom_core::predicate::Indeterminate> {

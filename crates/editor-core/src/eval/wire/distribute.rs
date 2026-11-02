@@ -31,7 +31,7 @@ use crate::node::RecipeNodeId;
 /// **A boolean's operand, as a distribution reads it**: a body read
 /// through a seat, or one piece of one, with its names, records and
 /// pieces.
-pub(super) struct Operand<T: Decide> {
+pub(super) struct Operand<T: topo::AtRestPolicy + Decide> {
     /// The node it is read from (error context).
     pub node: RecipeNodeId,
     /// The read its entities are keyed by in what the boolean makes:
@@ -74,37 +74,15 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         })
     }
 
-    /// Its body, finished in its own frame: the gate every boolean
-    /// operand passes.
-    pub(super) fn finished(&self, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        self.gated(self.body.body().clone(), tol)
-    }
-
-    /// **Its body read into `into`'s frame, finished**: `own`, its
-    /// finished body in its own frame, where the two are one frame, so
-    /// an operand read twice is gated once.
+    /// **Its finished body read into `into`'s frame**: its own where the
+    /// two are one frame, else mapped and finished once at the
+    /// placement's door ([`crate::eval::Framed::read_in`]).
     pub(super) fn finished_in(
         &self,
         into: &crate::eval::Framed<T>,
-        own: &topo::AtRestBody<T>,
         tol: Tol,
-    ) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        if into
-            .relative(&self.body)
-            .map_err(NodeErrorKind::Motion)?
-            .is_none()
-        {
-            return Ok(own.clone());
-        }
-        let read = into.read_in(&self.body, tol)?;
-        self.gated((*read).clone(), tol)
-    }
-
-    fn gated(&self, body: Body<T>, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
-        T::gate_at_rest_kept(body, tol).map_err(|errors| NodeErrorKind::UnfinishedOperand {
-            input: self.node,
-            errors,
-        })
+    ) -> Result<Arc<T::Finished>, NodeErrorKind> {
+        into.read_in(&self.body, tol)
     }
 
     /// Its names as the seat's table spells them: each holder's
@@ -305,6 +283,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let fused =
+        T::finish(fused, tol).map_err(|findings| NodeErrorKind::NotFinished { findings })?;
     let frame = computing.map_or(crate::eval::Frame::Own, |first| first.frame().clone());
     let pieces = Arc::new(Pieces { by: id, pieces });
     // What it made is the `⊔` of what each piece's boolean made, so the

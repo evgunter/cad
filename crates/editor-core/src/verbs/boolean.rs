@@ -58,7 +58,7 @@ pub(crate) type PairEmitter<T> = fn(
 /// two-operand lowering needs to turn a `Node::Boolean` into a
 /// [`verbs::Boolean`] and its result into a name table. Adding a field here is
 /// how a pair verb declares something the lowering must know.
-pub(crate) struct PairVerb<T: Decide> {
+pub(crate) struct PairVerb<T: topo::AtRestPolicy + Decide> {
     /// **Op selector + kernel inputs → the kernel verb.** The one
     /// place a document's op selector and its lowered inputs become a
     /// [`verbs::Boolean`] payload, per instance.
@@ -113,7 +113,9 @@ fn build_members(op: NaryOp, members: Vec<MemberInputs>) -> Members {
 /// The boolean family's arm of the record channel. Exhaustive with no
 /// wildcard (D3): a family added to the channel breaks this at compile
 /// time and is routed here deliberately.
-fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRecord> {
+fn boolean_record<T: topo::AtRestPolicy + geom_core::Real>(
+    record: VerbRecord<T>,
+) -> Option<BooleanRecord> {
     match record {
         VerbRecord::Boolean {
             kind,
@@ -138,7 +140,7 @@ fn boolean_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<BooleanRe
 /// A function rather than a `const` for the same reason the blends'
 /// are: the struct is generic in the lane scalar and a module-level
 /// const cannot be; the call is monomorphized and inlined.
-pub(crate) fn boolean<T: Decide>() -> PairVerb<T> {
+pub(crate) fn boolean<T: topo::AtRestPolicy + Decide>() -> PairVerb<T> {
     PairVerb {
         build: build_boolean,
         members: build_members,

@@ -570,8 +570,8 @@ mod pierce_ring_engraving;
 mod pirad_wire;
 #[path = "place_mate_frame_offset.rs"]
 mod place_mate_frame_offset;
-#[path = "product_gate_attribution.rs"]
-mod product_gate_attribution;
+#[path = "product_finishes_once.rs"]
+mod product_finishes_once;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 

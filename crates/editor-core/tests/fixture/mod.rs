@@ -1670,7 +1670,7 @@ pub fn read_var(doc: &ProfileDoc, var: editor_core::VarId) -> Formula {
 
 /// **`var`'s value in `ev`** ([`editor_core::Evaluation::reading`]):
 /// `None` when it has none at this scalar or refuses.
-pub fn reading<T: geom_core::Decide>(
+pub fn reading<T: topo::AtRestPolicy + geom_core::Decide>(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<T>,
     var: editor_core::VarId,
@@ -3097,7 +3097,7 @@ pub fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
 /// for it (a split, whose halves are two): the row names its read.
 /// A node the document no longer holds has no read left, and reads in
 /// a variable no document defines.
-pub fn at_mint<T: geom_core::Decide>(
+pub fn at_mint<T: topo::AtRestPolicy + geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
 ) -> editor_core::VarId {
@@ -3122,7 +3122,7 @@ pub fn at_mint<T: geom_core::Decide>(
 /// # Panics
 ///
 /// If the door refuses the read: [`at_mint`] names a body output.
-pub fn resolve_at_mint<T: geom_core::Decide>(
+pub fn resolve_at_mint<T: topo::AtRestPolicy + geom_core::Decide>(
     ctx: editor_core::RunCtx<'_, T>,
     name: &StableName,
 ) -> editor_core::Resolution {
@@ -3139,7 +3139,10 @@ pub fn resolve_at_mint<T: geom_core::Decide>(
 /// # Panics
 ///
 /// [`resolve_at_mint`]'s.
-pub fn resolve_with_prior_at_mint<T: geom_core::Decide, U: geom_core::Decide>(
+pub fn resolve_with_prior_at_mint<
+    T: topo::AtRestPolicy + geom_core::Decide,
+    U: topo::AtRestPolicy + geom_core::Decide,
+>(
     new: editor_core::RunCtx<'_, T>,
     prior: editor_core::RunCtx<'_, U>,
     name: &StableName,
@@ -3216,7 +3219,10 @@ pub fn half(ev: &Evaluation<f64>, split: RecipeNodeId, half: editor_core::SplitH
 /// **Every name table `id`'s outputs carry**, in port order (NAMES N1:
 /// one per output variable, a split's two halves two) — empty for a
 /// node with no value.
-pub fn tables<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> Vec<&NameTable> {
+pub fn tables<T: topo::AtRestPolicy + geom_core::Decide>(
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) -> Vec<&NameTable> {
     ev.named_outputs(id)
         .into_iter()
         .filter_map(|var| ev.table(var))
@@ -3611,7 +3617,9 @@ pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f
 /// through its descent wrappers ([`is_merged_face`]), so a merged
 /// face carried through untouched booleans before being merged again
 /// is nesting exactly as a bare one is.
-pub fn assert_no_nested_merged<T: geom_core::Decide>(ev: &editor_core::Evaluation<T>) {
+pub fn assert_no_nested_merged<T: topo::AtRestPolicy + geom_core::Decide>(
+    ev: &editor_core::Evaluation<T>,
+) {
     for id in ev.nodes.keys() {
         for (name, _) in tables(ev, *id).into_iter().flat_map(NameTable::iter) {
             let nested = merged_sets(name)

@@ -1320,7 +1320,7 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         NodeErrorKind::MissingInput { .. } => None,
         // The input's door shipped a body that does not finish: a
         // kernel defect, and no author's slot refused.
-        NodeErrorKind::UnfinishedOperand { .. } => None,
+        NodeErrorKind::NotFinished { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // Names the two spaces the operands live in, as evidence: the

@@ -244,13 +244,17 @@ impl core::error::Error for PoseRefusal {}
 /// ([`crate::NodePick`]), each by the frame it holds.
 pub struct Composing<'a, T: geom_core::Real>(&'a crate::eval::Frame<T>);
 
-impl<'a, T: geom_core::Decide> From<&'a crate::eval::Framed<T>> for Composing<'a, T> {
+impl<'a, T: topo::AtRestPolicy + geom_core::Decide> From<&'a crate::eval::Framed<T>>
+    for Composing<'a, T>
+{
     fn from(value: &'a crate::eval::Framed<T>) -> Self {
         Self(value.frame())
     }
 }
 
-impl<'a, T: geom_core::Decide> From<&'a crate::Product<T>> for Composing<'a, T> {
+impl<'a, T: topo::AtRestPolicy + geom_core::Decide> From<&'a crate::Product<T>>
+    for Composing<'a, T>
+{
     fn from(product: &'a crate::Product<T>) -> Self {
         Self(&product.frame)
     }

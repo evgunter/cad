@@ -190,7 +190,7 @@ struct Neck<'v, T: geom_core::Decide> {
     faces: [topo::entity::FaceKey; 2],
 }
 
-impl<'v, T: geom_core::Decide> Neck<'v, T> {
+impl<'v, T: topo::AtRestPolicy + geom_core::Decide> Neck<'v, T> {
     fn of(ev: &'v editor_core::Evaluation<T>, f: &Dumbbell) -> Self {
         let Some(NodeResult::Ok(value)) = ev.result(f.placed) else {
             panic!("the placed body evaluated");

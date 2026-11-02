@@ -817,7 +817,7 @@ fn an_inside_out_ball_cannot_reach_the_writer() {
     let reverted = common::ball().revert().unwrap();
     let solid = reverted.solids().next().expect("one solid").0;
     assert_eq!(
-        topo::AtRestBody::validate(reverted, Tol::witness()).err(),
+        topo::finish(reverted, Tol::witness()).err(),
         Some(vec![topo::ValidationError::NegativeVolume { solid }]),
         "the gate's reason"
     );
@@ -936,7 +936,7 @@ fn hollow_ring_refuses_as_a_void() {
     .unwrap();
     assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
     let cavity = ring.body.shells().nth(1).expect("two shells").0;
-    let ring = topo::AtRestBody::validate(ring.body, tol).expect("the ring is at rest");
+    let ring = topo::finish(ring.body, tol).expect("the ring is at rest");
     match step_string(&ring, &StepOptions::default(), tol) {
         Err(StepExportError::VoidShellUnsupported {
             shell,

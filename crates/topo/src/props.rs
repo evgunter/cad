@@ -432,11 +432,14 @@ impl std::error::Error for MassPropsError {}
 /// resolves. A test whose subject is the walk on a body tier 3 refuses
 /// measures through `topo::test_support::measure_unvalidated`, and says
 /// why.
-pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
-    body: &crate::AtRestBody<T>,
+pub fn mass_properties<F: crate::FinishedBody>(
+    body: &F,
     tol: Tol,
-    settle: Settle<T>,
-) -> Result<MassMeasurement<T>, MassPropsError> {
+    settle: Settle<F::Scalar>,
+) -> Result<MassMeasurement<F::Scalar>, MassPropsError>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
     measure_body(body, tol, settle)
 }
 
@@ -5939,10 +5942,13 @@ impl std::error::Error for ShellClassifyError {}
 /// It classifies a finished body (`&AtRestBody`, Ev's decision on PR
 /// 4822), as [`mass_properties`] measures one;
 /// `topo::test_support::classify_unvalidated` is the raw door.
-pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
-    body: &crate::AtRestBody<T>,
+pub fn classify_shells<F: crate::FinishedBody>(
+    body: &F,
     tol: Tol,
-) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+) -> Result<Vec<ShellClassification<F::Scalar>>, ShellClassifyError>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
     classify_body(body, tol)
 }
 
@@ -5990,11 +5996,14 @@ pub fn classify_shells_structural<F: crate::FinishedBody>(
 ///
 /// [`ShellClassifyError`] — [`classify_shells`]'s, raised by the first
 /// NAMED shell that cannot be classified.
-pub fn classify_shells_of<T: Decide + geom_core::CertifiedBounds>(
-    body: &crate::AtRestBody<T>,
+pub fn classify_shells_of<F: crate::FinishedBody>(
+    body: &F,
     shells: &[ShellKey],
     tol: Tol,
-) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
+) -> Result<Vec<ShellClassification<F::Scalar>>, ShellClassifyError>
+where
+    F::Scalar: geom_core::CertifiedBounds,
+{
     classify_body_of(body, shells, tol)
 }
 

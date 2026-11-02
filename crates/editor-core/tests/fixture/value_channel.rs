@@ -183,7 +183,11 @@ impl Digest {
 /// One node's record: its id, its result arm, and its payload read
 /// through the scalar's value channel. The single feed both entry
 /// points below share.
-fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, id: RecipeNodeId) {
+fn feed_node<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
+    d: &mut Digest,
+    ev: &Evaluation<T>,
+    id: RecipeNodeId,
+) {
     d.u64(u64::from(id.0.ordinal()));
     d.u64(id.0.digest());
     match ev.result(id) {
@@ -329,7 +333,7 @@ pub fn fold_words(words: impl IntoIterator<Item = u64>) -> u64 {
 
 /// The whole evaluation's value channel as one word — what a row
 /// comparing two runs wholesale reads.
-pub fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
+pub fn value_digest<T: topo::AtRestPolicy + Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
     let mut d = Digest::new();
     for &id in &ev.order {
         feed_node(&mut d, ev, id);
@@ -344,7 +348,7 @@ pub fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
 /// at; one over [`value_digest`] can only report that two numbers
 /// differ, which for a corpus of thirty documents is a starting point
 /// and not a finding.
-pub fn value_digest_nodes<T: Decide + ValueChannelBits>(
+pub fn value_digest_nodes<T: topo::AtRestPolicy + Decide + ValueChannelBits>(
     ev: &Evaluation<T>,
 ) -> Vec<(RecipeNodeId, u64, usize)> {
     ev.order

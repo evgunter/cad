@@ -177,7 +177,7 @@ pub fn step_for_node(
         }
     };
     let body = body_in_space(body, tol).map_err(ExportError::Compose)?;
-    let body = AtRestBody::validate(Body::clone(&body), tol)
+    let body = topo::finish(Body::clone(&body), tol)
         .map_err(|errors| ExportError::BodyInvalid { node, errors })?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }
@@ -288,7 +288,7 @@ pub fn export_document_step(
             step_string(&product.body, options, tol).map_err(ExportError::Step)
         }
         std::borrow::Cow::Owned(body) => {
-            let body = AtRestBody::validate(body, tol).map_err(|errors| {
+            let body = topo::finish(body, tol).map_err(|errors| {
                 ExportError::Product(editor_core::ProductError::ProductInvalid { errors })
             })?;
             step_string(&body, options, tol).map_err(ExportError::Step)

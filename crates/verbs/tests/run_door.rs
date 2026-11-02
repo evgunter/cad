@@ -68,7 +68,7 @@ fn blend_record(record: VerbRecord<f64>) -> Option<sweep::blend::naming::BlendNa
 
 #[test]
 fn the_fillet_dispatch_is_the_fillet_door() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = sweep::test_support::cube::<f64>(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
     let door = fillet_edges(
@@ -95,7 +95,7 @@ fn the_fillet_dispatch_is_the_fillet_door() {
 
 #[test]
 fn the_chamfer_dispatch_is_the_chamfer_door() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = sweep::test_support::cube::<f64>(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
     let door = chamfer_edges(
@@ -125,7 +125,7 @@ fn the_chamfer_dispatch_is_the_chamfer_door() {
 /// refusal reachable without building a degenerate body.
 #[test]
 fn a_refusal_crosses_the_dispatch_unaltered() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = sweep::test_support::cube::<f64>(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
     let door = chamfer_edges(
@@ -154,7 +154,7 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
 fn unit_cube() -> AtRestBody<f64> {
     sweep::test_support::finished(
         "the unit cube",
-        sweep::test_support::cube(1.0, tol()),
+        sweep::test_support::cube::<f64>(1.0, tol()),
         tol(),
     )
 }
@@ -629,7 +629,7 @@ fn a_sweep_refusal_crosses_the_dispatch_unaltered() {
 /// of the birth record identical either way.
 #[test]
 fn the_shell_dispatch_is_the_shell_door() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = sweep::test_support::cube::<f64>(1.0, tol());
     let designated: Vec<topo::FaceKey> = cube.faces().map(|(k, _)| k).take(1).collect();
 
     for open in [Vec::new(), designated] {
@@ -687,7 +687,7 @@ fn the_shell_dispatch_is_the_shell_door() {
 /// unrendered.
 #[test]
 fn a_shell_refusal_crosses_the_dispatch_unaltered() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube = sweep::test_support::cube::<f64>(1.0, tol());
     let door = topo::shell(
         &finished("the operand", cube.clone(), tol()),
         0.0_f64,

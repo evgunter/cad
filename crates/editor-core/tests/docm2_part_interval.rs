@@ -103,7 +103,8 @@ fn assert_parts_are_their_bodies(ev: &Evaluation<Interval>, doc: &ProfileDoc, la
         let ValuePayload::Body(part) = &ev.value(id).expect("the copy").payload else {
             panic!("{label}: a body value");
         };
-        let read: &Arc<Body<Interval>> = match &ev.value(of).expect("the input").payload {
+        let read: &Arc<topo::AtRestBody<Interval>> = match &ev.value(of).expect("the input").payload
+        {
             ValuePayload::Instances(v) => v[1].shared(),
             other => panic!("{label}: {}", other.kind_name()),
         };

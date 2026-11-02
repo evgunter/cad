@@ -93,7 +93,7 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
 
 /// The `Body` value of a node — a member's, a placement's one copy — as
 /// the Arc it holds.
-fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
+fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<topo::AtRestBody<f64>> {
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Body(b) => b.shared(),
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
@@ -107,7 +107,10 @@ fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> Body<f64> {
 }
 
 /// Both halves read straight off the split's value.
-fn sides(ev: &Evaluation<f64>, split: RecipeNodeId) -> (Arc<Body<f64>>, Arc<Body<f64>>) {
+fn sides(
+    ev: &Evaluation<f64>,
+    split: RecipeNodeId,
+) -> (Arc<topo::AtRestBody<f64>>, Arc<topo::AtRestBody<f64>>) {
     let ValuePayload::Split { above, below } = &ev.value(split).expect("the split").payload else {
         panic!("a split value");
     };
@@ -119,7 +122,7 @@ fn sides(ev: &Evaluation<f64>, split: RecipeNodeId) -> (Arc<Body<f64>>, Arc<Body
 }
 
 /// The members read straight off the family's value.
-fn instances(ev: &Evaluation<f64>, pattern: RecipeNodeId) -> Vec<Arc<Body<f64>>> {
+fn instances(ev: &Evaluation<f64>, pattern: RecipeNodeId) -> Vec<Arc<topo::AtRestBody<f64>>> {
     let ValuePayload::Instances(v) = &ev.value(pattern).expect("the pattern").payload else {
         panic!("a family of bodies");
     };

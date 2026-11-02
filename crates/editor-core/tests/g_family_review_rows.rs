@@ -433,7 +433,7 @@ fn a_lump_of_one_copy_inside_a_lump_of_another_builds_what_the_slow_path_builds(
             panic!("{:?}", ev.result(u))
         };
         let props = topo::mass_properties(
-            &topo::AtRestBody::validate(body.body().clone(), Tol::witness()).expect("valid"),
+            &topo::finish(body.body().clone(), Tol::witness()).expect("valid"),
             Tol::witness(),
             topo::test_support::pinned_resolution(Tol::witness()),
         )

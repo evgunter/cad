@@ -1160,7 +1160,7 @@ pub enum Resolution {
 
 /// One run's context: the document and its evaluation.
 #[derive(Clone, Copy)]
-pub struct RunCtx<'a, T: Decide> {
+pub struct RunCtx<'a, T: topo::AtRestPolicy + Decide> {
     /// The document the evaluation ran on.
     pub doc: &'a Doc<ProfileProgram>,
     /// The evaluation.
@@ -1181,7 +1181,7 @@ pub struct RunCtx<'a, T: Decide> {
 ///
 /// [`ResolveRefusal::ReadNotAnOutput`] when `at` is a live variable
 /// that is no output holding a body: there is no table to ask.
-pub fn resolve<T: Decide>(
+pub fn resolve<T: topo::AtRestPolicy + Decide>(
     new: RunCtx<'_, T>,
     at: crate::VarId,
     name: &StableName,
@@ -1200,7 +1200,7 @@ pub fn resolve<T: Decide>(
 /// # Errors
 ///
 /// [`resolve`]'s.
-pub fn resolve_with_prior<T: Decide, U: Decide>(
+pub fn resolve_with_prior<T: topo::AtRestPolicy + Decide, U: Decide + topo::AtRestPolicy>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
     at: crate::VarId,
@@ -1262,14 +1262,20 @@ pub fn stranded_at(
 /// matches the evaluation (stale row against a different run) falls
 /// through to the full ladder rather than fabricating the recorded
 /// shape.
-pub fn enrich_appearance_loss<T: Decide>(new: RunCtx<'_, T>, loss: &AppearanceLoss) -> Resolution {
+pub fn enrich_appearance_loss<T: topo::AtRestPolicy + Decide>(
+    new: RunCtx<'_, T>,
+    loss: &AppearanceLoss,
+) -> Resolution {
     enrich_impl(new, NoPrior, loss)
 }
 
 /// [`enrich_appearance_loss`] with the last-good run as diagnosis
 /// context: `Vanished` gains the verdict-diff diagnosis and the
 /// tombstone (GQ7 ghost payload), exactly as [`resolve_with_prior`].
-pub fn enrich_appearance_loss_with_prior<T: Decide, U: Decide>(
+pub fn enrich_appearance_loss_with_prior<
+    T: topo::AtRestPolicy + Decide,
+    U: Decide + topo::AtRestPolicy,
+>(
     new: RunCtx<'_, T>,
     prior: RunCtx<'_, U>,
     loss: &AppearanceLoss,
@@ -1277,7 +1283,7 @@ pub fn enrich_appearance_loss_with_prior<T: Decide, U: Decide>(
     enrich_impl(new, Prior { ctx: prior }, loss)
 }
 
-fn enrich_impl<T: Decide, P: PriorCtx>(
+fn enrich_impl<T: topo::AtRestPolicy + Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
     loss: &AppearanceLoss,
@@ -1339,7 +1345,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
 /// key's read (an appearance key is a [`crate::SitedRef`], and a
 /// rebind repairs only the name). Nothing follows automatically (the
 /// ratified EMPTY policy menu).
-pub fn appearance_rebind_suggestions<T: Decide>(
+pub fn appearance_rebind_suggestions<T: topo::AtRestPolicy + Decide>(
     appearance: &AppearanceMap,
     eval: &Evaluation<T>,
 ) -> BTreeMap<crate::appearance::AppearanceKey, Vec<crate::appearance::AppearanceKey>> {
@@ -1365,14 +1371,14 @@ pub fn appearance_rebind_suggestions<T: Decide>(
 /// The prior-run capability, monomorphized away: `NoPrior` for the
 /// single-run entry, a [`RunCtx`] for the full ladder.
 trait PriorCtx {
-    fn diagnose<T: Decide>(
+    fn diagnose<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
     /// The upstream lanes ([`Diagnosis::Upstream`]; the scope rule is
     /// stated at [`upstream_nodes`]).
-    fn upstream<T: Decide>(
+    fn upstream<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         name: &StableName,
@@ -1380,7 +1386,7 @@ trait PriorCtx {
     ) -> Option<Diagnosis>;
     /// The last-good entry of `name` in the read `site` (none without
     /// a prior run).
-    fn tombstone<T: Decide>(
+    fn tombstone<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         site: crate::VarId,
@@ -1388,7 +1394,7 @@ trait PriorCtx {
     ) -> Option<Tombstone>;
     /// The group-size rung ([`group_resized`]): with-prior only, since
     /// a size CHANGE needs a size to change from.
-    fn group_resized<T: Decide>(
+    fn group_resized<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         site: crate::VarId,
@@ -1404,11 +1410,11 @@ struct NoPrior;
 /// The last-good run — what a with-history diagnosis needs and a
 /// single-run resolution does not.
 #[derive(Clone, Copy)]
-struct Prior<'a, U: Decide> {
+struct Prior<'a, U: Decide + topo::AtRestPolicy> {
     ctx: RunCtx<'a, U>,
 }
 
-impl<U: Decide> Prior<'_, U> {
+impl<U: Decide + topo::AtRestPolicy> Prior<'_, U> {
     /// The document the prior run is OF.
     fn doc(&self) -> &Doc<ProfileProgram> {
         self.ctx.doc
@@ -1420,7 +1426,7 @@ impl PriorCtx for NoPrior {
         false
     }
 
-    fn diagnose<T: Decide>(
+    fn diagnose<T: topo::AtRestPolicy + Decide>(
         &self,
         _new: RunCtx<'_, T>,
         _path: &BTreeSet<RecipeNodeId>,
@@ -1428,7 +1434,7 @@ impl PriorCtx for NoPrior {
         None
     }
 
-    fn upstream<T: Decide>(
+    fn upstream<T: topo::AtRestPolicy + Decide>(
         &self,
         _new: RunCtx<'_, T>,
         _name: &StableName,
@@ -1437,7 +1443,7 @@ impl PriorCtx for NoPrior {
         None
     }
 
-    fn tombstone<T: Decide>(
+    fn tombstone<T: topo::AtRestPolicy + Decide>(
         &self,
         _new: RunCtx<'_, T>,
         _site: crate::VarId,
@@ -1446,7 +1452,7 @@ impl PriorCtx for NoPrior {
         None
     }
 
-    fn group_resized<T: Decide>(
+    fn group_resized<T: topo::AtRestPolicy + Decide>(
         &self,
         _new: RunCtx<'_, T>,
         _site: crate::VarId,
@@ -1456,7 +1462,7 @@ impl PriorCtx for NoPrior {
     }
 }
 
-impl<U: Decide> Prior<'_, U> {
+impl<U: Decide + topo::AtRestPolicy> Prior<'_, U> {
     /// The LANE TABLE: the three with-history lanes over one node set,
     /// in their fixed order — a recorded flip, then a structural
     /// parameter, then a recipe edit — answering the first evidence
@@ -1466,7 +1472,7 @@ impl<U: Decide> Prior<'_, U> {
     /// qualifier vocabulary), which this table deliberately does not
     /// know about: a `name_frag_*` flip at an upstream node
     /// re-qualified some OTHER name.
-    fn lanes<T: Decide>(
+    fn lanes<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         flips: &FlipSet,
@@ -1524,7 +1530,7 @@ enum Evidence {
     Edit(RecipeEditRef),
 }
 
-impl<U: Decide> PriorCtx for Prior<'_, U> {
+impl<U: Decide + topo::AtRestPolicy> PriorCtx for Prior<'_, U> {
     fn carried(&self, site: crate::VarId, name: &StableName) -> bool {
         lookup_in(self.ctx.eval, site, name).is_some()
     }
@@ -1545,7 +1551,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     ///
     /// This is a consumer-side attribution choice — the diff engine
     /// itself stays cause-agnostic and unspecialized.
-    fn diagnose<T: Decide>(
+    fn diagnose<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         path: &BTreeSet<RecipeNodeId>,
@@ -1573,7 +1579,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     /// The UPSTREAM scope ([`upstream_nodes`]): the lane table over the
     /// minting node's ancestors that are not on the path, each find
     /// wrapped in [`Diagnosis::Upstream`] with the node it is at.
-    fn upstream<T: Decide>(
+    fn upstream<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         name: &StableName,
@@ -1598,7 +1604,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         })
     }
 
-    fn group_resized<T: Decide>(
+    fn group_resized<T: topo::AtRestPolicy + Decide>(
         &self,
         new: RunCtx<'_, T>,
         site: crate::VarId,
@@ -1607,7 +1613,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         group_resized(self.ctx.eval, new, site, name)
     }
 
-    fn tombstone<T: Decide>(
+    fn tombstone<T: topo::AtRestPolicy + Decide>(
         &self,
         _new: RunCtx<'_, T>,
         site: crate::VarId,
@@ -1654,7 +1660,7 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 }
 
-fn resolve_impl<T: Decide, P: PriorCtx>(
+fn resolve_impl<T: topo::AtRestPolicy + Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
     site: crate::VarId,
@@ -1683,7 +1689,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
 /// [`resolve_impl`]'s rungs from 1 on, for a site read the document
 /// defines as an output.
-fn resolve_rungs<T: Decide, P: PriorCtx>(
+fn resolve_rungs<T: topo::AtRestPolicy + Decide, P: PriorCtx>(
     new: RunCtx<'_, T>,
     prior: P,
     site: crate::VarId,
@@ -1849,7 +1855,10 @@ fn first_vanished<'a>(
 /// Whether a live merged row of `name`'s minting node covers it
 /// (`names::merged::row_covers`): the name retired into that merge
 /// (N3), so it is no row and did not vanish.
-fn retired_into_a_live_merge<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> bool {
+fn retired_into_a_live_merge<T: topo::AtRestPolicy + Decide>(
+    eval: &Evaluation<T>,
+    name: &StableName,
+) -> bool {
     eval.named_outputs(name.node)
         .into_iter()
         .filter_map(|var| eval.table(var))
@@ -1893,7 +1902,7 @@ fn piece_line(name: &StableName) -> Option<StableName> {
 /// line"): the edge rows of that read's table whose line it is, in key
 /// order. Empty where the read has no table in this run or no row lies
 /// on it.
-fn line_rows_in<'a, T: Decide>(
+fn line_rows_in<'a, T: topo::AtRestPolicy + Decide>(
     eval: &'a Evaluation<T>,
     site: crate::VarId,
     line: &StableName,
@@ -1905,7 +1914,7 @@ fn line_rows_in<'a, T: Decide>(
 /// `line`'s node: the cascade asks whether an embedded line still
 /// stands at all, not where a reference reads it. The first output
 /// with rows on it answers.
-fn line_rows<'a, T: Decide>(
+fn line_rows<'a, T: topo::AtRestPolicy + Decide>(
     eval: &'a Evaluation<T>,
     line: &StableName,
 ) -> &'a [crate::names::NameRef] {
@@ -1983,7 +1992,7 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
 /// not, and the reverse; no candidate, or two equally near, and the
 /// rung declines rather than pick. A group that stopped being divided
 /// has no `Borders` sibling left, and the group-size rung answers it.
-fn border_delta<T: Decide>(
+fn border_delta<T: topo::AtRestPolicy + Decide>(
     eval: &Evaluation<T>,
     site: crate::VarId,
     name: &StableName,
@@ -2116,7 +2125,7 @@ fn border_delta<T: Decide>(
 /// before the fallback, which states nothing at all. Diagnosis-time
 /// only; two record reads and, for the cutters ([`group_cutters`]),
 /// two table scans; nothing reaches any log.
-fn group_resized<U: Decide, T: Decide>(
+fn group_resized<U: Decide + topo::AtRestPolicy, T: Decide + topo::AtRestPolicy>(
     prior: &Evaluation<U>,
     RunCtx { eval: new, .. }: RunCtx<'_, T>,
     site: crate::VarId,
@@ -2407,7 +2416,9 @@ impl SeamParent {
 /// order and not four independent claims. Nodes that failed or were
 /// never evaluated carry no table and are skipped — a resolution
 /// reads what the run actually built.
-fn tables<T: Decide>(eval: &Evaluation<T>) -> impl Iterator<Item = Carrier<'_>> {
+fn tables<T: topo::AtRestPolicy + Decide>(
+    eval: &Evaluation<T>,
+) -> impl Iterator<Item = Carrier<'_>> {
     // Each node's outputs in port order: a name is scoped by the
     // variable that holds its body (N1), so a split is two tables.
     eval.order.iter().flat_map(move |&id| {
@@ -2444,7 +2455,7 @@ impl Carrier<'_> {
 }
 
 /// The first (evaluation-order) Ok table carrying `name`.
-fn lookup<'a, T: Decide>(
+fn lookup<'a, T: topo::AtRestPolicy + Decide>(
     eval: &'a Evaluation<T>,
     name: &StableName,
 ) -> Option<(Carrier<'a>, &'a Entry)> {
@@ -2452,7 +2463,7 @@ fn lookup<'a, T: Decide>(
 }
 
 /// [`lookup`] in the one table of the read `read`.
-fn lookup_in<'a, T: Decide>(
+fn lookup_in<'a, T: topo::AtRestPolicy + Decide>(
     eval: &'a Evaluation<T>,
     read: crate::VarId,
     name: &StableName,
@@ -2514,7 +2525,10 @@ fn lookup_in<'a, T: Decide>(
 /// derivation WRAPPING a name, so a paint can follow the entity
 /// forward — and every answer it gives is a whole table row, so
 /// depth costs it nothing.
-fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
+fn merge_offers<T: topo::AtRestPolicy + Decide>(
+    eval: &Evaluation<T>,
+    name: &StableName,
+) -> Vec<StableName> {
     let rows: Vec<&StableName> = tables(eval)
         .flat_map(|carrier| carrier.table.iter().map(|(candidate, _)| candidate))
         .collect();
@@ -2539,7 +2553,10 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// cross-kind candidates are excluded because `Rebind` itself
 /// refuses them ([`crate::edit::EditError::RebindKindMismatch`]) —
 /// offering un-rebindable names is not ergonomics.
-pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
+pub fn rebind_suggestions<T: topo::AtRestPolicy + Decide>(
+    eval: &Evaluation<T>,
+    name: &StableName,
+) -> Vec<StableName> {
     let mut out: Vec<StableName> = Vec::new();
     for Carrier { table, .. } in tables(eval) {
         for (candidate, _) in table.iter() {
@@ -2599,7 +2616,7 @@ pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) ->
 /// [`crate::edit::EditError::NameUnresolvedInEvaluation`] on a
 /// checkable-but-absent name; otherwise whatever [`crate::edit::apply`]
 /// returns.
-pub fn apply_with_names<T: Decide>(
+pub fn apply_with_names<T: topo::AtRestPolicy + Decide>(
     doc: &Doc<ProfileProgram>,
     edit: &crate::edit::DocEdit<ProfileProgram>,
     eval: &Evaluation<T>,

@@ -79,10 +79,6 @@ pub enum AtRestEvidence {
     InsideArrival(ValidationError),
     /// A `⊔` the product does not read whose operands did not gather.
     NotGathered(crate::product::ProductRefusal),
-    /// The evaluation's scalar runs no census at rest
-    /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]): nothing was
-    /// looked at, which is one finding rather than a clean report.
-    NotRun,
     /// A part's could-not-look finding, crossed with its route.
     Carried(Box<CarriedAtRestFinding>),
 }
@@ -103,9 +99,6 @@ impl crate::spoken::Say for AtRestEvidence {
                 f,
                 "its operands do not gather: {}",
                 crate::spoken::Said(refusal, by)
-            ),
-            Self::NotRun => f.write_str(
-                "this evaluation's scalar runs no census at rest, so nothing was looked at",
             ),
             Self::Carried(row) => write!(f, "{}", crate::spoken::Said(&**row, by)),
         }
@@ -183,16 +176,9 @@ pub(crate) fn whole_reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> 
 /// **The at-rest check's reading of one gather**: the census's verdicts
 /// as the gather kept them ([`Product::census`]), partitioned into the
 /// interference between arrivals ([`partition`]) and the rest, each of
-/// which is a could-not-look finding. A scalar that runs no census
-/// reads as one [`AtRestEvidence::NotRun`]. A contact between arrivals
+/// which is a could-not-look finding. A contact between arrivals
 /// is not among the verdicts: the gather recorded it as a row.
 pub(crate) fn reading<T: LocalizeLane>(product: &Product<T>, tol: Tol) -> Reading {
-    if product.body.outcome() == topo::AtRestOutcome::NotRunAtThisScalar {
-        return Reading {
-            interference: Vec::new(),
-            could_not_look: vec![AtRestEvidence::NotRun],
-        };
-    }
     let errors = product.census.clone();
     if errors.is_empty() {
         return Reading {
@@ -306,7 +292,10 @@ where
     let band = Band::linear(tol).ok()?;
     let kinds = if said.poses {
         let read = said.read(doc, evaluation, tol)?;
-        let kinds = [pose_kind(&read.cells[0])?, pose_kind(&read.cells[1])?];
+        let kinds = [
+            pose_kind::<T>(&read.cells[0])?,
+            pose_kind::<T>(&read.cells[1])?,
+        ];
         if said.coaxial && kinds == [crate::VarKind::Axis; 2] && !axes_parallel(&read, band)? {
             return None;
         }
@@ -380,8 +369,8 @@ impl RowCell {
 /// **A row's entity cells, read as a measure reads its references**: in
 /// one computing frame (`Framed::computing_among`), the other read into
 /// it through `relative`.
-struct ReadCells<'e, T: Decide> {
-    cells: Vec<(std::sync::Arc<Body<T>>, EntityRef)>,
+struct ReadCells<'e, T: topo::AtRestPolicy + Decide> {
+    cells: Vec<(std::sync::Arc<T::Finished>, EntityRef)>,
     computing: &'e crate::eval::Framed<T>,
 }
 
@@ -452,8 +441,8 @@ impl Saying {
 /// **The pose a cell's carrier has**, as a coincidence of poses reads
 /// it: an axis off a cylinder, a cone or a torus, a centre off a sphere;
 /// `None` for any other cell.
-fn pose_kind<T: Decide>(
-    (body, ent): &(std::sync::Arc<Body<T>>, EntityRef),
+fn pose_kind<T: Decide + topo::AtRestPolicy>(
+    (body, ent): &(std::sync::Arc<T::Finished>, EntityRef),
 ) -> Option<crate::VarKind> {
     use geom::SurfaceKind as S;
     let EntityKey::Face(face) = ent.key else {
@@ -470,7 +459,10 @@ fn pose_kind<T: Decide>(
 /// measure's own two-axes arm decides them (`carrier_cyl_axis_parallel`):
 /// the reading a coaxial row is said by. `None` where an axis does not
 /// read or the decision escalates.
-fn axes_parallel<T: crate::mate::SolveScalar>(read: &ReadCells<'_, T>, band: Band) -> Option<bool> {
+fn axes_parallel<T: topo::AtRestPolicy + crate::mate::SolveScalar>(
+    read: &ReadCells<'_, T>,
+    band: Band,
+) -> Option<bool> {
     let axis = |i: usize| {
         let (body, ent) = &read.cells[i];
         crate::eval::read_off_cell(body, *ent, crate::VarKind::Axis, band).ok()
@@ -554,12 +546,12 @@ where
             if !said.poses {
                 return Some(crate::eval::measure::carrier_of(body, *ent));
             }
-            let kind = pose_kind(&read.cells[i])?;
+            let kind = pose_kind::<T>(&read.cells[i])?;
             crate::eval::read_off_cell(body, *ent, kind, band).ok()
         };
         let (a, b) = (carrier(0)?, carrier(1)?);
         let axes = said.poses
-            && [0, 1].map(|i| pose_kind(&read.cells[i])) == [Some(crate::VarKind::Axis); 2];
+            && [0, 1].map(|i| pose_kind::<T>(&read.cells[i])) == [Some(crate::VarKind::Axis); 2];
         if said.coaxial && axes && !axes_parallel(&read, band)? {
             return Some(false);
         }
@@ -701,7 +693,7 @@ struct HoldingMeasure<'a, T> {
 /// order, an assertion whose reads reach an index once per member, each
 /// member by its own verdict. It reads verdicts only: an assertion that
 /// did not evaluate, or does not hold, is none of them.
-fn holding_measures<'a, P, T: Decide>(
+fn holding_measures<'a, P, T: Decide + topo::AtRestPolicy>(
     doc: &'a Doc<P>,
     evaluation: &'a Evaluation<T>,
 ) -> impl Iterator<Item = HoldingMeasure<'a, T>> + 'a {
@@ -840,12 +832,6 @@ pub enum Unlocalized {
         /// The refusal's `Display`.
         refusal: String,
     },
-    /// A copy did not validate as a body of its own, so it could not
-    /// be intersected.
-    Invalid {
-        /// That copy's findings.
-        errors: Vec<ValidationError>,
-    },
     /// The intersection is empty although the census decided an
     /// overlap: the overlap is thinner than the boolean's tolerance.
     Empty,
@@ -952,7 +938,7 @@ pub(crate) const AT_REST_QUIET_CENTRED: &str = "at_rest_quiet_centred";
 /// It reads the assertion's verdict in `evaluation` and never its
 /// measure's value, and evaluates nothing: an assertion that did not
 /// evaluate, or does not hold, is simply not a candidate.
-pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide>(
+pub(crate) fn gap_assertions<P: crate::ProfilePayload, T: Decide + topo::AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     aggregate: &Body<T>,
@@ -1161,7 +1147,7 @@ pub trait LocalizeLane: Decide + AtRestPolicy + crate::mate::SolveScalar {
 }
 
 /// A gathered copy, as a finding names it.
-fn copy_ref<T: Decide>(copy: &GatheredCopy<T>) -> CopyRef {
+fn copy_ref<T: Decide + topo::AtRestPolicy>(copy: &GatheredCopy<T>) -> CopyRef {
     CopyRef {
         var: copy.var,
         member: copy.output,
@@ -1170,7 +1156,7 @@ fn copy_ref<T: Decide>(copy: &GatheredCopy<T>) -> CopyRef {
 
 /// The finding a scalar with no localizing lane reports for a pair:
 /// the overlap is decided, and its site is not bounded.
-fn unlocalized_at_lane<T: Decide>(
+fn unlocalized_at_lane<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
     b: usize,
@@ -1490,7 +1476,9 @@ pub(crate) fn finding_group<T: Decide>(
 
 /// **Which copy each of the product's solids is**: the census's groups
 /// at rest ([`topo::record_at_rest`]), each copy its own.
-pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<SolidKey, u32> {
+pub(crate) fn copy_groups<T: Decide + topo::AtRestPolicy>(
+    copies: &[GatheredCopy<T>],
+) -> BTreeMap<SolidKey, u32> {
     copies
         .iter()
         .enumerate()
@@ -1504,7 +1492,7 @@ pub(crate) fn copy_groups<T: Decide>(copies: &[GatheredCopy<T>]) -> BTreeMap<Sol
 /// **A cell of the gathered product, named as its copy reads it**:
 /// which copy holds it (by its index in `copies`) and the cell as that
 /// copy's placement output names it, `None` for a cell of no copy.
-pub(crate) fn copy_cell<T: Decide>(
+pub(crate) fn copy_cell<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     names: &NameTable,
     copies: &[GatheredCopy<T>],
@@ -1532,7 +1520,7 @@ pub(crate) fn copy_cell<T: Decide>(
 /// cells named as each copy's placement reads them, and the two copies
 /// it is about. The `unproven-coincidence` check reports each the door
 /// does not prove.
-pub(crate) fn copy_rows<T: Decide>(
+pub(crate) fn copy_rows<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     names: &NameTable,
     copies: &[GatheredCopy<T>],
@@ -1578,12 +1566,7 @@ fn intersection(
     b: usize,
     tol: Tol,
 ) -> Result<Option<topo::BooleanBody<f64>>, Unlocalized> {
-    let operand = |i: usize| f64::gate_at_rest_kept((*product.copies[i].body).clone(), tol);
-    let (body_a, body_b) = match (operand(a), operand(b)) {
-        (Ok(x), Ok(y)) => (x, y),
-        (Err(errors), _) | (_, Err(errors)) => return Err(Unlocalized::Invalid { errors }),
-    };
-    match topo::intersect(&body_a, &body_b, tol) {
+    match topo::intersect(&*product.copies[a].body, &*product.copies[b].body, tol) {
         Ok(topo::BooleanResult::Body(result)) => Ok(Some(result)),
         Ok(topo::BooleanResult::Empty) => Ok(None),
         Err(refusal) => Err(Unlocalized::Refused {
@@ -1767,7 +1750,7 @@ fn could_quiet(
 /// The connected solids of `result`, each with the aggregate faces its
 /// faces descend from; `None` when a face's lineage does not reach a
 /// face of either copy.
-fn components<T: Decide>(
+fn components<T: topo::AtRestPolicy + Decide>(
     product: &Product<T>,
     a: usize,
     b: usize,
@@ -2037,5 +2020,5 @@ fn beyond(
         tol,
     )
     .map_err(|e| e.to_string())?;
-    f64::gate_at_rest_kept(swept.body, tol).map_err(|errors| format!("{errors:?}"))
+    Ok(swept.body)
 }

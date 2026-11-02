@@ -505,7 +505,7 @@ impl Default for DriveConfig {
 /// [`DriveRefusal::WitnessDoesNotBuild`] unless every node of the
 /// witness's `order` is `Ok`. A consumer that takes
 /// [`VerdictVector::of`] over some other evaluation can see `Absent`.
-pub fn certifying_vector<T: geom_core::Decide, P>(
+pub fn certifying_vector<T: topo::AtRestPolicy + geom_core::Decide, P>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
 ) -> VerdictVector {
@@ -1628,7 +1628,7 @@ fn classify(
 /// in the lane scalar at `Decide`, the weakest bound its reads need,
 /// because the two lanes above differ only in which scalar produced the
 /// evaluation and in nothing this function looks at.
-fn classify_replay<T: geom_core::Decide>(
+fn classify_replay<T: topo::AtRestPolicy + geom_core::Decide>(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     leaf: &Evaluation<T>,

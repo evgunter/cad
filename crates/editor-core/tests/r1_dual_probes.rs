@@ -160,7 +160,7 @@ where
 }
 
 /// Every node of the evaluation, in order, with its full `T` payload.
-fn eval_deep<T>(ev: &Evaluation<T>) -> u64
+fn eval_deep<T: topo::AtRestPolicy>(ev: &Evaluation<T>) -> u64
 where
     T: Decide + Bounds + geom_core::SpanLocate,
 {

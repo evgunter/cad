@@ -3552,7 +3552,6 @@ MEMBERS_BOUND_AS = {
     "AtRestEvidence::Malformed": "AtRestEvidence.variant",
     "AtRestEvidence::InsideArrival": "AtRestEvidence.variant",
     "AtRestEvidence::NotGathered": "AtRestEvidence.variant",
-    "AtRestEvidence::NotRun": "AtRestEvidence.variant",
     # A part's own census findings, carried: a route is three facts and
     # Python reads all three without holding the type, and the
     # finding's nodes are said from the part's (`str(row.finding)`), a

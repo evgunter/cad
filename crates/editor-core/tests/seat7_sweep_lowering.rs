@@ -987,6 +987,7 @@ fn raw_cylinder(r: f64, h: f64) -> Body<f64> {
     )
     .unwrap()
     .body
+    .into_body()
 }
 
 /// A kernel-direct rigid spin, for the twin.

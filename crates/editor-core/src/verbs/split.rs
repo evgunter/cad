@@ -93,7 +93,7 @@ pub(crate) type SplitEmitter<T> = fn(
 /// lowering needs to turn a `Node::Split` into a [`verbs::Split`] and its two
 /// sides into a name table. Adding a field here is how the verb
 /// declares something the lowering must know.
-pub(crate) struct SplitVerb<T: Decide> {
+pub(crate) struct SplitVerb<T: topo::AtRestPolicy + Decide> {
     /// **The tool pose → the verb's plane.** The reading of a pose
     /// value as a parting plane, per instance: a plane pose is one, an
     /// axis or a point is not. `None` is the document-layer refusal's
@@ -129,7 +129,7 @@ fn build_split<T: Decide>(plane: SplitPlane<T>) -> Split<T> {
 /// The split family's arm of the record channel. Exhaustive with no
 /// wildcard (D3): a family added to the channel breaks this at compile
 /// time and is routed here deliberately.
-fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
+fn split_record<T: topo::AtRestPolicy + Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
     match record {
         VerbRecord::Split(naming) => Some(naming),
         VerbRecord::Blend(_)
@@ -164,7 +164,7 @@ fn plane_of<T: Decide>(pose: &PoseValue<T>) -> Option<SplitPlane<T>> {
 /// A function rather than a `const` for the same reason the siblings'
 /// are: the struct is generic in the lane scalar and a module-level
 /// const cannot be; the call is monomorphized and inlined.
-pub(crate) fn split<T: Decide>() -> SplitVerb<T> {
+pub(crate) fn split<T: topo::AtRestPolicy + Decide>() -> SplitVerb<T> {
     SplitVerb {
         tool: plane_of,
         tool_expected: crate::eval::phrase::PLANE_POSE,

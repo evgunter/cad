@@ -211,8 +211,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
-    assemble_gathers, product, product_named, product_recorded,
+    AssembleGather, Product, ProductError, ProductErrorKind, ProductRefusal, assemble_gathers,
+    product, product_named, product_recorded,
 };
 pub use program::{
     DrawnOn, LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData,

@@ -168,12 +168,11 @@ pub enum BooleanResultKind {
 /// # Validity-class carriage (D2 — the F1 contract)
 ///
 /// The validity class rides THIS wrapper, never a mutable field on
-/// [`Body`]: `body` is a finished body ([`AtRestBody`]), whose tier-3
-/// verdict the door took on these bits ([`AtRestPolicy::gate_at_rest_kept`]:
-/// [`AtRestOutcome::Validated`](crate::AtRestOutcome::Validated) at a
-/// certifying scalar, [`AtRestOutcome::NotRunAtThisScalar`](crate::AtRestOutcome::NotRunAtThisScalar)
-/// at a dual, where the door runs tiers 1 and 2 and the scaffold
-/// fence in its place). `contacts` are the machine-checkable record of every
+/// [`Body`]: `body` is the scalar's finished body
+/// ([`AtRestPolicy::Finished`]), which the door's finish made of these
+/// bits ([`AtRestPolicy::finish`]: an [`AtRestBody`] carrying the tier-3
+/// verdict at a certifying scalar, a [`crate::Replay`] that passed tier 2
+/// alone and carries no verdict at a dual). `contacts` are the machine-checkable record of every
 /// intentional touching the pipeline propagated (F2's explicit-intent
 /// condition), and `body.validate_pseudomanifold(&contacts, tol)` is
 /// the tier-3′ pass over them, empty or not. The door does not run

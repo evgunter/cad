@@ -52,7 +52,7 @@ use crate::names::NamingError;
 /// too. Every lowering reads its record through here and nowhere
 /// else; the rule was once written inline at each consumer and the
 /// copies had begun to drift in their comments before their code.
-pub(crate) fn read_record<T: Real, R>(
+pub(crate) fn read_record<T: topo::AtRestPolicy + Real, R>(
     record: VerbRecord<T>,
     family: fn(VerbRecord<T>) -> Option<R>,
     foreign_record: &'static str,

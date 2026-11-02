@@ -106,7 +106,7 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// ITS parts, each as a [`PartRow`] that already holds the document's
 /// nodes it names. Instantiation adds its own instance to the route;
 /// nothing below is re-read.
-pub(crate) struct PartValue<T: Decide> {
+pub(crate) struct PartValue<T: topo::AtRestPolicy + Decide> {
     /// The product body, in the frame the part's product computed in.
     pub body: super::Framed<T>,
     pub names: Arc<NameTable>,
@@ -132,7 +132,7 @@ pub(crate) struct PartValue<T: Decide> {
         Arc<Vec<PartRow<crate::checks::at_rest::Pinned<crate::checks::at_rest::DocRows>>>>,
 }
 
-impl<T: Decide> PartValue<T> {
+impl<T: topo::AtRestPolicy + Decide> PartValue<T> {
     /// **What the copy instance `through` defines carries**: the
     /// product body's carry, and the part's rows, each the part's,
     /// routed through `through` ([`PartRow::through`]). The door rows
@@ -182,7 +182,7 @@ impl<T: Decide> PartValue<T> {
     }
 }
 
-impl<T: Decide> Clone for PartValue<T> {
+impl<T: topo::AtRestPolicy + Decide> Clone for PartValue<T> {
     fn clone(&self) -> Self {
         Self {
             body: self.body.clone(),
@@ -539,7 +539,6 @@ fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
         | K::StrandedProduct
         | K::ProductOutsideWorld
         | K::Graft
-        | K::PieceInvalid
         | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::Frame
@@ -558,7 +557,7 @@ type Rows<T> = BTreeMap<(DocRef, u64), Result<PartValue<T>, PartFault>>;
 /// outside any node map — the top evaluation's census pass
 /// ([`Self::enter_census`]). A running evaluation reads the [`Reached`]
 /// table the pass hands over, never this.
-pub(crate) struct PartStore<'a, T: Decide> {
+pub(crate) struct PartStore<'a, T: topo::AtRestPolicy + Decide> {
     resolver: Option<&'a Arc<dyn PartResolver>>,
     /// The ambient ε these rows were produced at, by bits — half the
     /// key, hoisted because it is constant within one store.
@@ -584,7 +583,7 @@ pub(crate) struct PartStore<'a, T: Decide> {
     evaluations: usize,
 }
 
-impl<'a, T: Decide> PartStore<'a, T> {
+impl<'a, T: topo::AtRestPolicy + Decide> PartStore<'a, T> {
     pub(crate) fn new(
         resolver: Option<&'a Arc<dyn PartResolver>>,
         boolean_sweep: topo::SweepStrategy,
@@ -615,7 +614,7 @@ impl<'a, T: Decide> PartStore<'a, T> {
 }
 
 /// **The top's parts, entered** ([`PartStore::enter_census`]).
-pub(crate) struct Entry<T: Decide> {
+pub(crate) struct Entry<T: topo::AtRestPolicy + Decide> {
     /// What the evaluation's mate solve and node map read.
     pub reached: Reached<T>,
     /// What the evaluation carries for the run after it.
@@ -924,7 +923,7 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     .collect(),
             ),
             door_rows: Arc::new(door_rows),
-            body: super::Framed::in_frame(Arc::new(product.body.into_body()), product.frame),
+            body: super::Framed::in_frame(Arc::new(product.body), product.frame),
             names: Arc::new(product.names),
             carry: super::Carry {
                 contacts: Arc::new(product.contacts),
@@ -939,9 +938,9 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
 
 /// **The parts an evaluation instantiates, already evaluated**: what
 /// its mate solve and node map read, by `&`, from any thread.
-pub(crate) struct Reached<T: Decide>(Rows<T>);
+pub(crate) struct Reached<T: topo::AtRestPolicy + Decide>(Rows<T>);
 
-impl<T: Decide> Reached<T> {
+impl<T: topo::AtRestPolicy + Decide> Reached<T> {
     /// The row `doc_ref` has at `tol`'s ε. A reference with none was
     /// not entered: [`PartFault::NotEntered`].
     pub(crate) fn get(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
@@ -956,9 +955,9 @@ impl<T: Decide> Reached<T> {
 /// ([`PartStore::enter_census`]): the next run that names it as its
 /// prior takes each row its own census names from here instead of
 /// evaluating the part again.
-pub(crate) struct Carried<T: Decide>(BTreeMap<(DocRef, u64), PartValue<T>>);
+pub(crate) struct Carried<T: topo::AtRestPolicy + Decide>(BTreeMap<(DocRef, u64), PartValue<T>>);
 
-impl<T: Decide> Carried<T> {
+impl<T: topo::AtRestPolicy + Decide> Carried<T> {
     /// No row carried: a nested evaluation, or one that entered none.
     pub(crate) fn none() -> Self {
         Self(BTreeMap::new())
@@ -970,7 +969,7 @@ impl<T: Decide> Carried<T> {
     }
 }
 
-impl<T: Decide> core::fmt::Debug for Carried<T> {
+impl<T: topo::AtRestPolicy + Decide> core::fmt::Debug for Carried<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_set()
             .entries(self.0.keys().map(|(r, _)| r))
@@ -995,7 +994,7 @@ pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<D
 
 /// A document on the descent stack: resolved, and waiting for the
 /// parts it instantiates.
-struct Entered<T: Decide> {
+struct Entered<T: topo::AtRestPolicy + Decide> {
     doc_ref: DocRef,
     doc: Arc<ProfileDoc>,
     /// Its `InstantiatePart` references in document order, repeats
@@ -1005,7 +1004,7 @@ struct Entered<T: Decide> {
     reached: Rows<T>,
 }
 
-impl<T: Decide> Entered<T> {
+impl<T: topo::AtRestPolicy + Decide> Entered<T> {
     /// Enters `doc_ref` from the document at the end of `path`, or says
     /// why it cannot be entered.
     fn enter(
@@ -1075,7 +1074,7 @@ impl<T: Decide> Entered<T> {
 /// `part` is the document evaluated, at the version its reference pins:
 /// the fault keeps the nodes it names as `part` holds them
 /// ([`PartFault::held`]), the one place the pinned part is in hand.
-fn product_fault<T: Decide>(
+fn product_fault<T: topo::AtRestPolicy + Decide>(
     error: crate::product::ProductError,
     mut evaluation: super::Evaluation<T>,
     part: &ProfileDoc,

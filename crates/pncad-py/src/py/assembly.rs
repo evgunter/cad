@@ -263,8 +263,7 @@ impl AtRestEvidence {
     /// check of its own structure or geometry), `inside_arrival` (a
     /// touch or overlap inside one arrival nothing backs),
     /// `not_gathered` (a `⊔` the product does not read whose operands
-    /// did not gather), `not_run` (this evaluation's scalar runs no
-    /// census) or `carried` (a part's own, with its route).
+    /// did not gather) or `carried` (a part's own, with its route).
     #[getter]
     fn variant(&self) -> &'static str {
         self.payload().variant
@@ -273,7 +272,7 @@ impl AtRestEvidence {
     /// The inner refusal's word: the validator's finding on `no_lane`,
     /// `malformed` and `inside_arrival` (`ValidationError`'s
     /// vocabulary), the gather's refusal on `not_gathered`
-    /// (`ProductError`'s); `None` on `not_run` and `carried`.
+    /// (`ProductError`'s); `None` on `carried`.
     #[getter]
     fn inner_variant(&self) -> Option<&'static str> {
         self.payload().inner_variant
@@ -571,7 +570,7 @@ impl InterferenceFinding {
         self.faces.clone()
     }
 
-    /// Why the overlap has no site — `refused`, `invalid`, `empty`,
+    /// Why the overlap has no site — `refused`, `empty`,
     /// `unnamed`, `containment` or `lane` — or `None` when `faces` names it. An
     /// unlocalized overlap is loud and nothing quiets it.
     #[getter]

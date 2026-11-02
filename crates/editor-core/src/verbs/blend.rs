@@ -77,7 +77,7 @@ pub(crate) type Emitter<T> = fn(
 /// per instance. Nothing in this module matches on the kernel's verb vocabulary
 /// any more, which is what makes it true that a future verb never has
 /// to open this file.
-pub(crate) struct BlendVerb<T: geom_core::Real> {
+pub(crate) struct BlendVerb<T: topo::AtRestPolicy + geom_core::Real> {
     /// **Slot value + resolved selection → the kernel verb.** The one
     /// place a document's evaluated size and canonical edge keys become
     /// a [`verbs::Blend`] payload, per instance.
@@ -134,7 +134,9 @@ fn build_chamfer<T: geom_core::Real>(edges: Vec<EdgeKey>, distance: T) -> Blend<
 /// The blend family's arm of the record channel. Exhaustive with no
 /// wildcard (D3): a family added to the channel breaks this at compile
 /// time and is routed here deliberately.
-fn blend_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<Option<BlendNaming>> {
+fn blend_record<T: topo::AtRestPolicy + geom_core::Real>(
+    record: VerbRecord<T>,
+) -> Option<Option<BlendNaming>> {
     match record {
         VerbRecord::Blend(naming) => Some(naming),
         VerbRecord::Boolean { .. }
@@ -150,7 +152,7 @@ fn blend_record<T: geom_core::Real>(record: VerbRecord<T>) -> Option<Option<Blen
 /// A function rather than a `const` because the struct is generic in
 /// the lane scalar and a module-level const cannot be: the call is
 /// monomorphized and inlined, so this costs nothing at run time.
-pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
+pub(crate) fn fillet<T: topo::AtRestPolicy + geom_core::Real>() -> BlendVerb<T> {
     BlendVerb {
         build: build_fillet,
         emitter: names::name_fillet,
@@ -162,7 +164,7 @@ pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
 }
 
 /// The chamfer's correspondence.
-pub(crate) fn chamfer<T: geom_core::Real>() -> BlendVerb<T> {
+pub(crate) fn chamfer<T: topo::AtRestPolicy + geom_core::Real>() -> BlendVerb<T> {
     BlendVerb {
         build: build_chamfer,
         emitter: names::name_chamfer,

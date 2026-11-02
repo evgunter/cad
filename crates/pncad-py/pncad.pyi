@@ -6348,8 +6348,7 @@ class AtRestEvidence:
         `malformed` (the gathered body fails a check of its own
         structure or geometry), `inside_arrival` (a touch or overlap
         inside one arrival that nothing backs), `not_gathered` (a `⊔`
-        the product does not read whose operands did not gather),
-        `not_run` (this evaluation's scalar runs no census at rest) or
+        the product does not read whose operands did not gather) or
         `carried` (a part's own, with its route)."""
 
     @property
@@ -6357,7 +6356,7 @@ class AtRestEvidence:
         """The validator finding's word on `no_lane`, `malformed` and
         `inside_arrival` (`ValidationError`'s vocabulary), the gather
         refusal's on `not_gathered` (`ProductError`'s); `None` on
-        `not_run` and `carried`."""
+        `carried`."""
 
     @property
     def carried(self) -> Optional[CarriedAtRestFinding]:
@@ -6474,7 +6473,7 @@ class InterferenceFinding:
 
     @property
     def unlocalized(self) -> Optional[str]:
-        """Why the overlap has no site — `refused`, `invalid`,
+        """Why the overlap has no site — `refused`,
         `empty`, `unnamed`, `containment` or `lane` — or `None`. An unlocalized overlap is
         loud and nothing quiets it."""
 

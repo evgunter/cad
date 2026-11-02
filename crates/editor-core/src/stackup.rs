@@ -673,7 +673,10 @@ fn driver(
 
 /// `ev`, which the driver evaluated from the document `pin` is of,
 /// stamped with that pin.
-fn stamped<T: geom_core::Decide>(mut ev: Evaluation<T>, pin: crate::ContentPin) -> Evaluation<T> {
+fn stamped<T: topo::AtRestPolicy + geom_core::Decide>(
+    mut ev: Evaluation<T>,
+    pin: crate::ContentPin,
+) -> Evaluation<T> {
     ev.pin = Some(Ok(pin));
     ev
 }
@@ -734,7 +737,7 @@ fn nominal_of(
 /// measure is the per-leaf enclosure table
 /// ([`crate::report::LeafHistogram`]) rather than a nominal with
 /// contributions around it.
-fn measure_of<T: geom_core::Decide + Copy>(
+fn measure_of<T: topo::AtRestPolicy + geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     value: VarId,
@@ -790,7 +793,7 @@ impl ValueBits for Dual64 {
 
 impl BuildIdentity {
     /// `ev`'s identity, or why it has none to bind by.
-    fn of<T: ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
+    fn of<T: topo::AtRestPolicy + ValueBits>(ev: &Evaluation<T>) -> Result<Self, BindingViolation> {
         if ev.outcome != EvalOutcome::Completed {
             return Err(BindingViolation::Incomplete);
         }

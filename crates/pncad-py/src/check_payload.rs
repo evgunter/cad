@@ -207,13 +207,6 @@ pub fn check_payload(evidence: &CheckEvidence) -> CheckEvidencePayload<'_> {
                 ..none
             }
         }
-        // The validator's first finding crosses as its own word and
-        // sentence, the way the shell door's refusal does.
-        CheckEvidence::NotAtRest { errors } => CheckEvidencePayload {
-            reason: errors.first().map(|e| Cow::Owned(e.to_string())),
-            inner_variant: errors.first().map(validation_error_tag),
-            ..none
-        },
         // The measurement, whole: the length it is judged as, the two
         // factors it is the product of, and the band it was judged
         // against. Four numbers rather than one because the finding
@@ -286,8 +279,8 @@ pub struct AtRestPayload {
     pub reason: String,
     /// The validator finding's word on `no_lane`, `malformed` and
     /// `inside_arrival`, and the gather refusal's on `not_gathered`;
-    /// `None` on `not_run` and `carried`, which hold no refusal of
-    /// their own (a carried row's own evidence crosses whole).
+    /// `None` on `carried`, which holds no refusal of its own (a
+    /// carried row's own evidence crosses whole).
     pub inner_variant: Option<&'static str>,
 }
 
@@ -299,7 +292,7 @@ pub fn at_rest_payload(evidence: &AtRestEvidence) -> AtRestPayload {
         | AtRestEvidence::Malformed(error)
         | AtRestEvidence::InsideArrival(error) => Some(validation_error_tag(error)),
         AtRestEvidence::NotGathered(refusal) => Some(product_error_tag(refusal.error())),
-        AtRestEvidence::NotRun | AtRestEvidence::Carried(_) => None,
+        AtRestEvidence::Carried(_) => None,
     };
     AtRestPayload {
         variant: at_rest_evidence_tag(evidence),

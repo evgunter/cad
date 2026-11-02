@@ -197,7 +197,7 @@ impl ValueChannelBits for Probe {
 /// A result's arm, as a scalar-free token: the coarsest channel the
 /// differential compares, and the one that catches an arm which went
 /// red at one scalar and green at the other.
-fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
+fn arm<T: topo::AtRestPolicy + geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
     match r {
         None => "absent",
         Some(NodeResult::Ok(_)) => "ok",

@@ -108,7 +108,7 @@ fn on_lane(
     .expect("an assertion node has a verdict over a certified leaf")
 }
 
-fn assertion_verdict<T: geom_core::Decide>(
+fn assertion_verdict<T: topo::AtRestPolicy + geom_core::Decide>(
     ev: &editor_core::Evaluation<T>,
     node: RecipeNodeId,
 ) -> AssertionVerdict<T> {

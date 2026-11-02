@@ -1158,6 +1158,7 @@ fn gathers_placing(
     );
     editor_core::product(doc, &ev, Tol::witness())
         .unwrap_or_else(|e| panic!("the product gathers: {e:?}"))
+        .into_body()
 }
 
 /// The edges tier 3's check 4 marks `Tangent` in `body` — a
@@ -1204,7 +1205,7 @@ fn on_the_kiss(p: &Point3<f64>) -> bool {
 /// the body (D1's second-order arm, ratified on PR 3317). The red-first
 /// row of
 /// `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`,
-/// which refused `PieceInvalid` / `UndeclaredCusp` before.
+/// which refused the product's at-rest gate (`UndeclaredCusp`) before.
 #[test]
 fn a_cusp_extrude_document_gathers_at_the_product_gate() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-lune");

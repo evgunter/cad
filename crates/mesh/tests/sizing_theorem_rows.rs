@@ -49,7 +49,7 @@ fn probe(body: &Body<f64>, delta: f64, order: u32) -> Result<(f64, usize), Strin
 fn revolve(lp: ProfileLoop<f64>, rev: Revolution<f64>) -> Option<Body<f64>> {
     sweep::revolve(&validated(vec![lp]), axis_y(), rev, Tol::witness())
         .ok()
-        .map(|r| r.body)
+        .map(|r| r.body.into_body())
 }
 
 /// A unit-sphere zone between latitudes `a < b` (radians).

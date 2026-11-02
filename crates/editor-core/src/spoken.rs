@@ -616,7 +616,7 @@ pub trait NameTables {
     fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable>;
 }
 
-impl<T: geom_core::Decide> NameTables for crate::Evaluation<T> {
+impl<T: topo::AtRestPolicy + geom_core::Decide> NameTables for crate::Evaluation<T> {
     fn tables(&self, node: RecipeNodeId) -> Vec<&NameTable> {
         self.named_outputs(node)
             .into_iter()
