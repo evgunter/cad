@@ -1212,7 +1212,8 @@ fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// the one construction, which the spiric's cover reads too:
 /// `curves::boxes`' `spiric_arc_aabb` runs it in its scalar's own
 /// arithmetic and brackets the result, and `topo`'s two box lanes run it
-/// at their scalars, in the frame they box in.
+/// at their scalars on the description's components along their frame's
+/// rows, so its box is the box in that frame.
 ///
 /// **It encloses by itself, because a reader's pad cannot.** `f_min` is
 /// the root of a cancelling difference: a radicand rounded by `u·W` at
@@ -1278,7 +1279,7 @@ pub fn spiric_period_box<T: Real>(
 
 /// **The spiric's period rectangle as a cover**, the one construction
 /// [`spiric_period_box`] and `Curve3::cover_over`'s spiric arm read:
-/// the four corners `c + n·d + m·f ± a·|r|` at the two ends of `f`'s
+/// the four corners `c + n·d + m·f ± a·r` at the two ends of `f`'s
 /// range, widened on every coordinate by `slack`. The cover reads
 /// [`spiric_f_range`] with no slack (`[simple.conditioned]`); the box
 /// reads [`spiric_f_enclosed`] and its charge, which its callers in
@@ -1295,7 +1296,8 @@ pub(crate) fn spiric_rectangle<T: Real>(
 ) -> Option<crate::cover::Cover<T>> {
     let m = axis.cross(u_ref);
     let base = center + u_ref * offset;
-    let tip = axis * minor.abs();
+    // The corners come in `±tip` pairs, so `r`'s sign names the same set.
+    let tip = axis * minor;
     let corners = vec![
         base + m * f_lo + tip,
         base + m * f_lo - tip,

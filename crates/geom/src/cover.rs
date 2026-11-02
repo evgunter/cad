@@ -252,14 +252,13 @@ enum Piece<T: Real> {
     /// A ring torus's chart rectangle or latitude zone, or a sphere's
     /// (`major = 0`).
     Patch(Patch<T>),
-    /// The solid ball `|x − center| ≤ radius`.
-    Ball { center: Point3<T>, radius: T },
     /// The solid tube of radius `minor` about the circle of radius
     /// `major` round `axis` through `center`.
     Tube(Tube<T>),
     /// The convex hull of the points, at least one, widened by `slack`
-    /// on every coordinate of every frame: a point of the region lies
-    /// within `slack` of the hull along each unit row.
+    /// along each world coordinate: a point of the region lies within
+    /// `slack` of a hull point in every world coordinate, so along `e`
+    /// the support grows by `slack·‖e‖₁`.
     Net { points: Vec<Point3<T>>, slack: T },
 }
 
@@ -289,13 +288,20 @@ struct Frustum<T: Real> {
     window: ParamWindow<T>,
 }
 
+/// A patch holds its torus's tube, whose radii are magnitudes, for the
+/// bounds the whole tube serves, and its own signed radii for the closed
+/// form, whose rectangle the signs place.
 #[derive(Clone, Copy, Debug)]
 struct Patch<T: Real> {
     tube: Tube<T>,
+    major: T,
+    minor: T,
     u: Option<ParamWindow<T>>,
     v: ParamWindow<T>,
 }
 
+/// The whole tube: its radii are magnitudes, taken once in
+/// [`Tube::new`], because the region does not depend on their signs.
 #[derive(Clone, Copy, Debug)]
 struct Tube<T: Real> {
     center: Point3<T>,
@@ -526,18 +532,14 @@ impl<T: Real> Cover<T> {
         v: ParamWindow<T>,
     ) -> Option<Self> {
         let tube = Tube::new(center, axis, u_ref, major, minor)?;
-        (u.is_none_or(ParamWindow::finite) && v.finite())
-            .then(|| Self::piece(Piece::Patch(Patch { tube, u, v })))
-    }
-
-    /// The whole solid ball about `center` of radius `|radius|`. `None`
-    /// for a datum that is not a finite number.
-    pub fn whole_ball(center: Point3<T>, radius: T) -> Option<Self> {
-        (finite_point(center) && finite(&[radius])).then(|| {
-            Self::piece(Piece::Ball {
-                center,
-                radius: radius.abs(),
-            })
+        (u.is_none_or(ParamWindow::finite) && v.finite()).then(|| {
+            Self::piece(Piece::Patch(Patch {
+                tube,
+                major,
+                minor,
+                u,
+                v,
+            }))
         })
     }
 
@@ -672,8 +674,8 @@ impl<T: Real> Tube<T> {
                 axis,
                 u_ref,
                 v_ref: axis.cross(u_ref),
-                major,
-                minor,
+                major: major.abs(),
+                minor: minor.abs(),
             })
     }
 
@@ -687,12 +689,11 @@ impl<T: Real> Tube<T> {
     /// the torus is `c + R·ρ + r·(cos v·ρ + sin v·axis)` and `ρ·e`
     /// reaches `±M` round the turn, so the bound is attained for any
     /// frame and either sign: `R·|e⊥| + r` along a unit `e` in a unit
-    /// orthogonal frame. The radii's signs are read here and in the
-    /// tube's other two methods, nowhere else.
+    /// orthogonal frame.
     fn support(&self, e: Vec3<T>) -> T {
         let (p, q, a) = self.components(e);
         let m = (p.powi(2) + q.powi(2)).sqrt();
-        let reach = self.major.abs() * m + self.minor.abs() * (m.powi(2) + a.powi(2)).sqrt();
+        let reach = self.major * m + self.minor * (m.powi(2) + a.powi(2)).sqrt();
         vec_of(self.center).dot(e) + reach
     }
 
@@ -710,7 +711,7 @@ impl<T: Real> Tube<T> {
 
     fn ball(&self) -> Ball<T> {
         let (rho, off) = self.reaches();
-        let r = self.major.abs() * rho + self.minor.abs() * off;
+        let r = self.major * rho + self.minor * off;
         (self.center, r)
     }
 
@@ -726,7 +727,7 @@ impl<T: Real> Tube<T> {
             window: ParamWindow::new(T::zero(), T::tau()),
         };
         let (near, far) = spine.range(site);
-        let tube = self.minor.abs() * self.reaches().1;
+        let tube = self.minor * self.reaches().1;
         ((near - tube).max(T::zero()), far + tube)
     }
 }
@@ -746,9 +747,9 @@ impl<T: Real> Patch<T> {
             None => (p.powi(2) + q.powi(2)).sqrt(),
         };
         let b = ArcWindow::new(self.v.lo, self.v.hi)
-            .extent(T::zero(), t.minor * m, t.minor * a)
+            .extent(T::zero(), self.minor * m, self.minor * a)
             .1;
-        vec_of(t.center).dot(e) + t.major * m + b
+        vec_of(t.center).dot(e) + self.major * m + b
     }
 }
 
@@ -814,14 +815,19 @@ impl<T: Real> Arc<T> {
         hi
     }
 
-    /// **The squared distance, bounded by its harmonics.** With `w` the
-    /// centre from the site and `P`, `Q` the semi-axis vectors, all read
-    /// as the site reads them, `|x − site|²` is
-    /// `|w|² + (|P|² + |Q|²)/2` plus a first harmonic
-    /// `2w·P cos t + 2w·Q sin t` plus a second
-    /// `(|P|² − |Q|²)/2·cos 2t + P·Q·sin 2t`; each is bounded over the
-    /// window by [`ArcWindow`], and their sum by the sum of the bounds,
-    /// which is exact for a circle seen from a point.
+    /// **The distance range from a site.** The farthest is the squared
+    /// distance bounded by its harmonics: with `w` the centre from the
+    /// site and `P`, `Q` the semi-axis vectors, all read as the site
+    /// reads them, `|x − site|²` is `|w|² + (|P|² + |Q|²)/2` plus a first
+    /// harmonic `2w·P cos t + 2w·Q sin t` plus a second
+    /// `(|P|² − |Q|²)/2·cos 2t + P·Q·sin 2t`, each bounded over the window
+    /// by [`ArcWindow`] and their sum by the sum of the bounds.
+    ///
+    /// The nearest from a point is posed as a distance
+    /// ([`Arc::point_near`]): the squared form cancels where the point
+    /// is near the arc. From a line the squared form stands, since a
+    /// line's distance to a circle is a quartic's root with no closed
+    /// form to pose it as.
     fn range(&self, site: &Site<T>) -> (T, T) {
         let w = site.relative(vec_of(self.center));
         let p = site.direction(self.u_ref * self.semi_u);
@@ -839,9 +845,47 @@ impl<T: Real> Arc<T> {
             (p.dot(p) - q.dot(q)) * half,
             p.dot(q),
         );
-        let near = (k + one.0 + two_t.0).max(T::zero()).sqrt();
         let far = (k + one.1 + two_t.1).max(T::zero()).sqrt();
+        let near = match site {
+            Site::Point(at) => self.point_near(*at),
+            Site::Line(_) => (k + one.0 + two_t.0).max(T::zero()).sqrt(),
+        };
         (near, far)
+    }
+
+    /// **The nearest distance from `at`, as a distance.** The arc lies
+    /// within `dev` of the circular arc of radius `ρ̄` over the same window
+    /// in the orthonormalized frame `(û, v̂)`: `ρ̄` the mean of the two
+    /// semi-axes as that frame reads them, `dev` the Gram bound of the
+    /// two semi-axis vectors' departures from it (zero for a circle in an
+    /// orthonormal frame, half the axes' difference for an ellipse). The
+    /// circular arc's nearest point is the one in `at`'s azimuth where
+    /// the window holds that azimuth, `√(h² + (ρ_at − |ρ̄|)²)`, and the
+    /// nearer end where it does not; every term is a distance, so none
+    /// cancels near the arc.
+    fn point_near(&self, at: Point3<T>) -> T {
+        let half = T::from_f64(0.5);
+        let u_len = self.u_ref.norm();
+        let u_hat = self.u_ref / u_len;
+        let v_off = self.v_ref - u_hat * self.v_ref.dot(u_hat);
+        let v_hat = v_off / v_off.norm();
+        let rho = (self.semi_u * u_len + self.semi_v * self.v_ref.dot(v_hat)) * half;
+        let dp = self.u_ref * self.semi_u - u_hat * rho;
+        let dq = self.v_ref * self.semi_v - v_hat * rho;
+        let dev = gram_top(dp.dot(dp), dq.dot(dq), dp.dot(dq));
+        let w = at - self.center;
+        let (x, y, h) = (w.dot(u_hat), w.dot(v_hat), w.dot(u_hat.cross(v_hat)));
+        let off_axis = (x.powi(2) + y.powi(2)).sqrt();
+        let in_azimuth = (h.powi(2) + (off_axis - rho.abs()).powi(2)).sqrt();
+        let end = |t: T| {
+            let (s, c) = t.sin_cos();
+            (w - (u_hat * c + v_hat * s) * rho).norm()
+        };
+        let ends = end(self.window.lo).min(end(self.window.hi));
+        let near = ArcWindow::new(self.window.lo, self.window.hi)
+            .crest_outside(rho * x, rho * y)
+            .select_le_zero(in_azimuth, ends);
+        (near - dev).max(T::zero())
     }
 
     fn ball(&self, world: (Point3<T>, Point3<T>)) -> Ball<T> {
@@ -862,10 +906,6 @@ impl<T: Real> Piece<T> {
             Piece::Slab(slab) => slab.support(e),
             Piece::Frustum(f) => f.support(e),
             Piece::Patch(patch) => patch.support(e),
-            Piece::Ball { center, radius } => {
-                let n = e.norm();
-                vec_of(*center).dot(e) + *radius * n
-            }
             Piece::Tube(tube) => tube.support(e),
         }
     }
@@ -899,7 +939,6 @@ impl<T: Real> Piece<T> {
                 }
                 Site::Line(_) => patch.tube.range(site),
             },
-            Piece::Ball { center, radius } => ball_range((*center, *radius), site),
             Piece::Tube(tube) => tube.range(site),
             Piece::Net { points, slack } => {
                 let (_, far) = points_range(points, site, *slack * root3());
@@ -921,7 +960,6 @@ impl<T: Real> Piece<T> {
             Piece::Slab(slab) => slab.ball(),
             Piece::Frustum(f) => smaller(f.slab().ball(), box_ball(self.world_box())),
             Piece::Patch(patch) => smaller(patch.tube.ball(), box_ball(self.world_box())),
-            Piece::Ball { center, radius } => (*center, *radius),
             Piece::Tube(tube) => tube.ball(),
         }
     }

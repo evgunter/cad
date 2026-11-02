@@ -239,7 +239,10 @@ pub struct Ring<T: Real> {
 
 impl<T: Decide> Ring<T> {
     /// The torus `s` shown inside its ring convention; `None` for another
-    /// kind.
+    /// kind. A centre, axis or `u_ref` that is not a finite number reaches
+    /// the convention's margins as poison, so the torus is not shown a
+    /// ring and refuses typed there: every ring this mints has finite
+    /// data.
     fn of(s: &Surface<T>, band: Band) -> Option<Result<Self, TorusPoseRefusal>> {
         let Surface::Torus {
             center,
@@ -251,12 +254,23 @@ impl<T: Decide> Ring<T> {
         else {
             return None;
         };
+        let axis = axis / axis.norm();
+        let finite = [
+            center.x, center.y, center.z, axis.x, axis.y, axis.z, u_ref.x, u_ref.y, u_ref.z,
+        ]
+        .into_iter()
+        .all(geom_core::is_finite_length);
+        let defect = if finite {
+            T::zero()
+        } else {
+            (T::zero() - T::one()).sqrt()
+        };
         Some(
-            TorusRefusal::require(major_radius, minor_radius, band)
+            TorusRefusal::require(major_radius + defect, minor_radius + defect, band)
                 .map_err(TorusPoseRefusal::Torus)
                 .map(|()| Self {
                     center,
-                    axis: axis / axis.norm(),
+                    axis,
                     u_ref,
                     big_r: major_radius,
                     r: minor_radius,
@@ -295,14 +309,13 @@ impl<T: Real> Ring<T> {
     }
 
     /// The ball holding the torus, and so every section of it: its
-    /// tube's ([`Cover::tube`]). A torus with data that is not a finite
-    /// number has no tube, and its ball is poison, which no reading
-    /// levered at it decides on.
+    /// tube's ([`Cover::tube`]). A ring's data is finite ([`Ring::of`]),
+    /// so it has one.
     pub fn ball(self) -> ExtentBall<T> {
-        Cover::tube(self.center, self.axis, self.u_ref, self.big_r, self.r).map_or_else(
-            || ExtentBall::new(self.center, (T::zero() - T::one()).sqrt()),
-            |tube| ExtentBall::of_cover(&tube),
-        )
+        match Cover::tube(self.center, self.axis, self.u_ref, self.big_r, self.r) {
+            Some(tube) => ExtentBall::of_cover(&tube),
+            None => unreachable!("Ring::of mints a ring of finite data only"),
+        }
     }
 
     /// The size of the torus's coordinates: its centre's distance from

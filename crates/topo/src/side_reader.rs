@@ -1079,6 +1079,28 @@ mod pre_filter_tests {
         );
     }
 
+    /// **A face whose carrier bounds no region refuses the reach**: a
+    /// placeholder spline's net is poison, so no start is shown beyond
+    /// it, and `beyond` refuses naming the face rather than reading the
+    /// face as adding nothing. The brick's planar faces alone read.
+    #[test]
+    fn a_face_whose_carrier_bounds_no_region_refuses_the_reach() {
+        let (mut body, faces) = brick_and_faces(Tol::witness());
+        let aim = Point3::new(0.5, 0.5, 0.5);
+        assert!(
+            beyond(&body, &faces, aim).is_ok(),
+            "the planar brick has a reach"
+        );
+        let spline = *faces.last().expect("a brick has faces");
+        let key = body.get_face(spline).expect("the face resolves").surface;
+        *body.surfaces.get_mut(key).expect("its surface resolves") = Surface::nurbs_placeholder();
+        assert_eq!(
+            beyond(&body, &faces, aim),
+            Err(PointInSolidError::CorruptFace { face: spline }),
+            "the poisoned net's face refuses"
+        );
+    }
+
     /// The brick with a point of `faces[0]` removed: that planar face's
     /// in-face walk refuses (`Desync`), and its plane still reads.
     fn with_unwalkable_first_face(body: &mut Body<f64>, faces: &[FaceKey]) {

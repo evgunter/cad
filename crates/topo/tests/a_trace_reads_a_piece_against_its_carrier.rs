@@ -167,4 +167,27 @@ fn a_plane_misses_a_carrier_beyond_its_extent() {
         .expect("a bounded carrier")
         .support(Vec3::new(0.0, 0.0, 1.0));
     near(along_axis, 0.5, "the tube alone along the axis");
+
+    // A sphere whose radius is not a finite number bounds no region:
+    // the refusal says so, rather than calling it a carrier with no
+    // closed form.
+    let unbounded = Surface::Sphere {
+        center: Point3::origin(),
+        radius: f64::INFINITY,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    assert_eq!(
+        plane_misses(
+            &unbounded,
+            Point3::new(0.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            band()
+        ),
+        Err(TraceFault::Unbounded {
+            carrier: geom::SurfaceKind::Sphere,
+            what: geom::cover::Unknown::NonFinite,
+        }),
+        "a non-finite sphere"
+    );
 }

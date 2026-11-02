@@ -66,6 +66,12 @@ fn across(axis: Vec3<f64>, rng: &mut Rng) -> Vec3<f64> {
     }
 }
 
+/// The solid ball about `c` of radius `|r|`: a sphere's whole cover, the
+/// tube with no spine.
+fn ball<T: Real>(c: Point3<T>, r: T) -> Cover<T> {
+    Cover::tube(c, Vec3::unit_z(), Vec3::unit_x(), T::zero(), r).unwrap()
+}
+
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
 }
@@ -256,6 +262,7 @@ fn check(case: &Case) {
             what("a negative nearest distance")
         );
         same(ff, fi, "farthest");
+        same(nf, ni, "nearest");
         for s in &case.samples {
             let d = distance(*s, site);
             assert!(
@@ -867,15 +874,12 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
             .collect();
         check(&Case {
             name: format!("tube ∧ ball #{case}"),
-            at_f64: torus
-                .cover()
-                .unwrap()
-                .meet(Cover::whole_ball(b, rho).unwrap()),
+            at_f64: torus.cover().unwrap().meet(ball(b, rho)),
             at_iv: torus
                 .map_scalar(iv)
                 .cover()
                 .unwrap()
-                .meet(Cover::whole_ball(ipt(b), iv(rho)).unwrap()),
+                .meet(ball(ipt(b), iv(rho))),
             samples: inside,
             dirs: dirs.clone(),
             sites: sites.clone(),
@@ -921,7 +925,7 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let ball: Covered<f64> = Ok(Cover::whole_ball(Point3::new(1.0, 2.0, 3.0), 0.5).unwrap());
+    let proved: Covered<f64> = Ok(ball(Point3::new(1.0, 2.0, 3.0), 0.5));
     let refused = plane.cover();
     let unbounded = Uncovered::new(Entity::Surface(SurfaceKind::Plane), Unknown::Unbounded);
     assert_eq!(
@@ -929,22 +933,26 @@ fn the_lattice_keeps_what_was_proved_and_what_was_not_known() {
         Some(&unbounded),
         "a plane is unbounded"
     );
-    let met = ball.clone().meet(refused.clone()).expect("Ok ∧ Err is Ok");
+    let met = proved
+        .clone()
+        .meet(refused.clone())
+        .expect("Ok ∧ Err is Ok");
     assert_eq!(
         met.support(Vec3::unit_x()),
-        Cover::whole_ball(Point3::new(1.0, 2.0, 3.0), 0.5)
-            .unwrap()
-            .support(Vec3::unit_x()),
+        ball(Point3::new(1.0, 2.0, 3.0), 0.5).support(Vec3::unit_x()),
         "the meet keeps the proved cover"
     );
-    assert!(refused.clone().meet(ball.clone()).is_ok(), "Err ∧ Ok is Ok");
+    assert!(
+        refused.clone().meet(proved.clone()).is_ok(),
+        "Err ∧ Ok is Ok"
+    );
     assert_eq!(
-        ball.clone().hull(refused.clone()).err(),
+        proved.clone().hull(refused.clone()).err(),
         Some(unbounded.clone()),
         "Ok ∨ Err is the Err"
     );
     assert_eq!(
-        refused.clone().hull(ball).err(),
+        refused.clone().hull(proved).err(),
         Some(unbounded.clone()),
         "Err ∨ Ok is the Err"
     );
@@ -1135,11 +1143,7 @@ fn a_negative_radius_occupies_what_its_magnitude_or_its_locus_names() {
     near(tube.support(z), 0.5, "the tube along its axis");
     near(tube.support(x), 2.5, "the tube across its axis");
     near(tube.ball().1, 2.5, "the tube's ball");
-    near(
-        Cover::whole_ball(o, -1.0).unwrap().support(x),
-        1.0,
-        "a ball",
-    );
+    near(ball(o, -1.0).support(x), 1.0, "a ball");
     let window = ParamWindow::new(-1.0, 2.0);
     near(
         Cover::slab(o, unit_at(z), -0.5, window).unwrap().support(x),
@@ -1176,8 +1180,8 @@ fn a_negative_radius_occupies_what_its_magnitude_or_its_locus_names() {
 /// other, so each of the two reaches it takes the greater of is read.
 #[test]
 fn a_hulls_ball_reaches_each_parts_far_side_in_either_order() {
-    let large = || Cover::whole_ball(Point3::origin(), 5.0).unwrap();
-    let small = || Cover::whole_ball(Point3::new(10.0, 0.0, 0.0), 0.1).unwrap();
+    let large = || ball(Point3::origin(), 5.0);
+    let small = || ball(Point3::new(10.0, 0.0, 0.0), 0.1);
     for (what, hull) in [
         ("large then small", large().hull(small())),
         ("small then large", small().hull(large())),
@@ -1199,10 +1203,52 @@ fn a_hulls_ball_reaches_each_parts_far_side_in_either_order() {
 fn a_non_finite_datum_builds_no_cover() {
     let o = Point3::origin();
     let (z, x) = (Vec3::unit_z(), Vec3::unit_x());
+    let (nan, inf) = (f64::NAN, f64::INFINITY);
+    let window = ParamWindow::new(0.0, 1.0);
+    assert!(Cover::tube(o, z, x, 0.0, inf).is_none(), "an infinite ball");
     assert!(
-        Cover::whole_ball(o, f64::INFINITY).is_none(),
-        "an infinite ball"
+        Cover::points(vec![o, Point3::new(0.0, 0.0, inf)]).is_none(),
+        "an infinite vertex"
     );
+    assert!(
+        Cover::arc(o, (x, Vec3::unit_y()), (1.0, nan), window).is_none(),
+        "a NaN semi-axis"
+    );
+    assert!(
+        Cover::slab(o, unit_at(z), inf, window).is_none(),
+        "an infinite slab radius"
+    );
+    assert!(
+        Cover::frustum(o, unit_at(z), nan, window).is_none(),
+        "a NaN cone half-angle"
+    );
+    for (curve, kind) in [
+        (
+            Curve3::Circle {
+                center: o,
+                axis: z,
+                radius: nan,
+                u_ref: x,
+            },
+            crate::CurveKind::Circle,
+        ),
+        (
+            Curve3::Ellipse {
+                center: Point3::new(inf, 0.0, 0.0),
+                axis: z,
+                semi_u: 2.0,
+                semi_v: 1.0,
+                u_ref: x,
+            },
+            crate::CurveKind::Ellipse,
+        ),
+    ] {
+        assert_eq!(
+            curve.cover_over(window).err(),
+            Some(Uncovered::new(Entity::Curve(kind), Unknown::NonFinite)),
+            "a non-finite {kind:?}"
+        );
+    }
     assert!(
         Cover::tube(Point3::new(f64::NAN, 0.0, 0.0), z, x, 2.0, 0.5).is_none(),
         "a NaN centre"
@@ -1281,4 +1327,79 @@ fn a_cancelling_segment_end_is_enclosed_at_interval() {
         "the nearest distance {near:?} above the end's {:?}",
         (end - q.x).abs()
     );
+}
+
+/// **The nearest distance is posed as a distance**: from a point `δ`
+/// off a thin tube of a large ring, off a sphere, and off a circle arc,
+/// along the surface's own normal, both scalars read `δ` to the
+/// rounding of the point's coordinates. The squared form this replaced
+/// read `1.05e-6` for `δ = 1e-6` at `R = 1000`, `r = 1e-3`, and its
+/// enclosure fell to `[0, 1.1e-5]` at `R = 1e4`.
+#[test]
+fn the_nearest_distance_just_off_the_surface_is_the_offset() {
+    let (x, y, z) = (Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z());
+    let delta = 1e-6;
+    // (what, at f64, at Interval, the point, the carrier's size)
+    type Row = (String, Cover<f64>, Cover<Interval>, Point3<f64>, f64);
+    let mut cases: Vec<Row> = Vec::new();
+    for (big, small) in [(1e3, 1e-3), (1e4, 1e-3), (3.0, 1.0)] {
+        let torus = Surface::Torus {
+            center: Point3::new(5.0, -2.0, 1.0),
+            axis: z,
+            major_radius: big,
+            minor_radius: small,
+            u_ref: x,
+        };
+        let (u, v) = (0.7_f64, 0.3_f64);
+        let normal = (x * u.cos() + y * u.sin()) * v.cos() + z * v.sin();
+        let q = torus.eval(u, v) + normal * delta;
+        cases.push((
+            format!("torus R = {big}, r = {small}"),
+            torus.cover().unwrap(),
+            torus.map_scalar(iv).cover().unwrap(),
+            q,
+            big + small,
+        ));
+    }
+    let c = Point3::new(1.0, 2.0, 3.0);
+    let r = 1e3;
+    cases.push((
+        "sphere".to_string(),
+        ball(c, r),
+        ball(ipt(c), iv(r)),
+        c + y * (r + delta),
+        r,
+    ));
+    let circle = Curve3::Circle {
+        center: c,
+        axis: z,
+        radius: r,
+        u_ref: x,
+    };
+    let t = 0.4_f64;
+    let q = circle.eval(t) + (x * t.cos() + y * t.sin()) * delta;
+    cases.push((
+        "circle arc".to_string(),
+        circle.cover_over(ParamWindow::new(0.0, 1.0)).unwrap(),
+        circle
+            .map_scalar(iv)
+            .cover_over(ParamWindow::new(iv(0.0), iv(1.0)))
+            .unwrap(),
+        q,
+        r,
+    ));
+    for (what, f, i, q, size) in cases {
+        let scale = (q - Point3::origin()).norm() + size;
+        let tol = 64.0 * f64::EPSILON * scale;
+        let (nf, _) = f.distance_range(&Site::Point(q));
+        let (ni, _) = i.distance_range(&Site::Point(ipt(q)));
+        assert!(
+            (nf - delta).abs() <= tol,
+            "{what}: the f64 nearest {nf} against the offset {delta}"
+        );
+        assert!(
+            ni.lo() <= delta + tol && ni.lo() >= delta - tol,
+            "{what}: the interval nearest {ni:?} against the offset {delta}"
+        );
+    }
 }

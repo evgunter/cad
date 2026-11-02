@@ -218,6 +218,10 @@ impl core::fmt::Display for TraceStepFault {
                     carrier.name()
                 );
             }
+            TraceStepFault::Carrier(fault @ TraceFault::Unbounded { .. }) => {
+                write!(f, "{fault}")?;
+                "rebuild the face whose carrier this is, from finite data"
+            }
             // The escalation states its own recourse.
             TraceStepFault::Carrier(fault @ TraceFault::Escalated(_)) => {
                 return write!(f, "{fault}");

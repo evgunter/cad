@@ -80,6 +80,15 @@ pub enum TraceFault {
         /// The carrier's kind.
         carrier: SurfaceKind,
     },
+    /// A closed-form carrier whose data bounds no region
+    /// ([`Surface::cover`]'s refusal): a datum that is not a finite
+    /// number.
+    Unbounded {
+        /// The carrier's kind.
+        carrier: SurfaceKind,
+        /// What its cover did not know.
+        what: geom::cover::Unknown,
+    },
     /// The piece grazes the carrier: a tangency, or a double root.
     Grazing,
     /// The piece crosses the carrier at a cone's apex, where it has no
@@ -105,6 +114,16 @@ impl core::fmt::Display for TraceFault {
             Self::Unsupported { carrier } => {
                 write!(f, "a {} carrier has no closed-form trace", carrier.name())
             }
+            Self::Unbounded { carrier, what } => write!(
+                f,
+                "the {} carrier bounds no region ({})",
+                carrier.name(),
+                match what {
+                    geom::cover::Unknown::Unbounded => "its locus is unbounded",
+                    geom::cover::Unknown::PoisonedNet => "its control net carries poison",
+                    geom::cover::Unknown::NonFinite => "a datum of it is not a finite number",
+                }
+            ),
             Self::Grazing => f.write_str("the piece grazes the carrier"),
             Self::Apex => f.write_str("the piece crosses the cone at its apex"),
             Self::OnCarrier => f.write_str("the piece lies on the carrier"),
@@ -440,7 +459,8 @@ pub fn carrier_extent<T: Real>(surface: &Surface<T>) -> Option<(Point3<T>, T)> {
 /// # Errors
 ///
 /// [`TraceFault::Unsupported`] for a carrier with no closed form;
-/// [`TraceFault::Escalated`] where the band cannot call the miss.
+/// [`TraceFault::Unbounded`] for a sphere or a torus whose data bounds no
+/// region; [`TraceFault::Escalated`] where the band cannot call the miss.
 pub fn plane_misses<T: Decide>(
     surface: &Surface<T>,
     point: Point3<T>,
@@ -471,7 +491,13 @@ pub fn plane_misses<T: Decide>(
             }
         }
         Surface::Sphere { .. } | Surface::Torus { .. } => {
-            let cover = surface.cover().map_err(|_| unsupported())?;
+            let cover = surface.cover().map_err(|refusal| {
+                let (_, what) = refusal.unknowns()[0];
+                TraceFault::Unbounded {
+                    carrier: surface.kind(),
+                    what,
+                }
+            })?;
             let level = (point - Point3::origin()).dot(normal);
             let above = level - cover.support(normal);
             let below = (T::zero() - cover.support(-normal)) - level;
