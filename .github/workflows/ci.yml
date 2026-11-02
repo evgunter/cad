@@ -279,11 +279,6 @@ jobs:
           scripts/run-gates.sh || rc=1
           python3 scripts/payload-rung-sweep.py --check || rc=1
           exit $rc
-      - name: "MEASUREMENT ONLY, removed before merge: the gates serially on this runner"
-        run: |
-          lscpu | grep -m1 'Model name'
-          start=$SECONDS; scripts/run-gates.sh >/dev/null 2>&1; echo "MEASURE gates_parallel_s=$((SECONDS - start))"
-          start=$SECONDS; GATE_JOBS=1 scripts/run-gates.sh >/dev/null 2>&1; echo "MEASURE gates_serial_s=$((SECONDS - start))"
       - uses: dtolnay/rust-toolchain@stable
         if: needs.filter.outputs.run_build == 'true'
       - uses: Swatinem/rust-cache@v2
@@ -306,12 +301,7 @@ jobs:
           if [ "$TIER" = all ]; then
             cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
           else
-            if [ "$TOOLKIT" != true ] && [[ " $SCOPE " == *" -p viewer "* ]]; then
-              SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
-              # The test shards build no examples, so viewer's featureless
-              # ones are checked here; the viewer job checks the rest.
-              cargo clippy -p viewer --examples -- -D warnings
-            fi
+            [ "$TOOLKIT" = true ] || SCOPE="$(echo " $SCOPE " | sed 's/ -p viewer / /')"
             # shellcheck disable=SC2086 # SCOPE is a list of -p flags
             cargo clippy $SCOPE --all-targets --all-features -- -D warnings
           fi
@@ -361,44 +351,15 @@ jobs:
             scripts/check-fast-set-times.py --new-since "$BASE" > "$RUNNER_TEMP/new-tests.txt"
           fi
           echo "$(wc -w < "$RUNNER_TEMP/new-tests.txt") identifiers on the diff's added Rust lines"
-      # `--tests` on every nextest call here: cargo's default selection
-      # also links each package's examples, which nextest never runs, and
-      # the lint job's `clippy --all-targets` already checks them. Every
-      # call must select alike, or a later one builds what this one left.
       - name: build
         id: build
-        run: cargo nextest run --no-run --timings --profile ci --tests ${{ matrix.scope }}
-      - name: "MEASUREMENT ONLY, removed before merge: unit timings"
-        if: '!cancelled()'
-        run: |
-          python3 - <<'PY'
-          import glob, json, re, collections
-          f = sorted(glob.glob("target/cargo-timings/cargo-timing-*.html"))[-1]
-          u = json.loads(re.search(r"const UNIT_DATA = (\[.*?\n\]);", open(f).read(), re.S).group(1))
-          kind = lambda x: ("example" if "example" in x["target"] else "test" if "test" in x["target"] else "lib")
-          ws = lambda x: x["version"] == "0.0.0"
-          agg = collections.Counter()
-          for x in u:
-              agg[(("ws " if ws(x) else "dep ") + kind(x))] += x["duration"]
-          print("units", len(u), "end", max(x["start"] + x["duration"] for x in u))
-          for k, v in sorted(agg.items()):
-              print(f"unit-s {k}: {v:.0f}")
-          for x in sorted(u, key=lambda x: -x["duration"])[:25]:
-              print(f"{x['start']:7.1f} {x['duration']:7.1f} {x['name']}{x['target']}")
-          PY
-      - name: "MEASUREMENT ONLY, removed before merge: the examples' marginal build on this runner"
-        if: '!cancelled()'
-        run: |
-          lscpu | grep -m1 'Model name'; nproc
-          start=$SECONDS
-          cargo nextest run --no-run --profile ci ${{ matrix.scope }} 2>&1 | tail -2
-          echo "MEASURE examples_wall_s=$((SECONDS - start))"
+        run: cargo nextest run --no-run --profile ci ${{ matrix.scope }}
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           rc=0
-          cargo nextest run --profile ci --tests ${{ matrix.scope }} \
+          cargo nextest run --profile ci ${{ matrix.scope }} \
             ${TEST_FILTER:+-E "$TEST_FILTER"} --no-fail-fast || rc=$?
           # Before nextest-failures.py, which deletes the junit report.
           slow=0
@@ -417,7 +378,7 @@ jobs:
           for eps in 1e-6 1e-12; do
             echo "::group::eps=$eps: $EPS_EXTRA"
             r=0
-            CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci --tests \
+            CAD_TOLERANCE_EPS=$eps cargo nextest run --profile ci \
               ${{ matrix.scope }} -E "$expr" --no-fail-fast --no-tests=warn || r=$?
             scripts/nextest-failures.py "eps $eps" "$r"
             [ "$r" = 0 ] || rc=1
@@ -445,7 +406,7 @@ jobs:
           pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           echo "slow set over: $pkgs"
           rc=0
-          cargo nextest run --profile ci --tests --ignore-default-filter ${{ matrix.scope }} \
+          cargo nextest run --profile ci --ignore-default-filter ${{ matrix.scope }} \
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass || rc=$?
           scripts/nextest-failures.py "slow set" "$rc"
           exit $rc
@@ -462,7 +423,7 @@ jobs:
           # naming no workspace member is dead in either.
           members="$(cargo metadata --no-deps --format-version 1 | jq -r '[.packages[].name] | join(",")')"
           # shellcheck disable=SC2086 # SCOPE is a list of -p flags
-          cargo nextest list --tests --ignore-default-filter $SCOPE --message-format json \
+          cargo nextest list --ignore-default-filter $SCOPE --message-format json \
             | python3 scripts/check-slow-set-names.py --members "$members"
       # Last, so the failing rows close the log whatever ran after them.
       - name: failing tests (name, panic, seed) and slow fast-set tests
@@ -495,14 +456,7 @@ jobs:
         with:
           version: ${{ env.NEXTEST_VERSION }}
       - name: viewer app-feature rows (chrome + gpu pipeline smoke)
-        # `--tests`: the clippy step above already checks the examples.
-        run: cargo nextest run --profile ci --tests -p viewer --features app
-      - name: "MEASUREMENT ONLY, removed before merge: viewer examples' marginal build"
-        run: |
-          lscpu | grep -m1 'Model name'
-          start=$SECONDS
-          cargo nextest run --no-run --profile ci -p viewer --features app 2>&1 | tail -2
-          echo "MEASURE viewer_examples_wall_s=$((SECONDS - start))"
+        run: cargo nextest run --profile ci -p viewer --features app
       - name: wasm32 clippy (the browser entry point)
         run: |
           rustup target add wasm32-unknown-unknown
