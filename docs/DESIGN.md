@@ -2165,7 +2165,12 @@ these. All are shipped in `editor-core` except where noted:
 - **Cancelation** (`CancelToken`, yielding between nodes/levels and
   before each member of a family; a canceled run returns the completed
   prefix as a typed outcome, a family canceled part-way holding no
-  result). Remaining: progress reporting (nothing exists) and in-op
+  result). A run stops by cancelation or by exhausting the member
+  budget its caller states, and either returns the completed prefix as
+  a typed outcome. The budget counts the index values bound while
+  families are listed, across the whole evaluation, charged at
+  admission in the schedule's order before anything is built; no
+  document caps a family. Remaining: progress reporting (nothing exists) and in-op
   yield points — a long single boolean or fillet, a union folding a
   family's members among them, is still uninterruptible.
 - **Selection stability across edits** — the user face of [identity]'s
