@@ -687,3 +687,20 @@ it by doing exactly that.
 The sweep frame is now the rotation-minimizing frame, built by double reflection and pivoting at the path's start point. A sweep's v is its path parameter. The rows have the detail. The review found six slow rows that the change reached and nobody ran; that is the class logged above. Eighteen sweep slow rows are red on main independently of this change (cylinder–sphere, torus joins, rulings, pierces, conics, a germ), and seven of them fail on `QuadratureUnsupported`. They are filed on TINT as `eighteen-sweep-slow-rows-are-red-on-main`, with a first bisect suggestion.
 
 Signed: (CARVE orchestrator)
+
+## 2026-11-02 — PR 6141's delta review: an unsettled arc pair stops refusing
+
+The first fix pass made the arc clearance independent of spelling. But
+the curve-pair reader poses whole carrier circles, so a near-tangency
+off both arcs still refused embedded elbows that main builds, at
+section gaps up to 1.1. Ruled: only a verified meeting refuses at the
+loft door. An arc pair the reader cannot settle decides nothing there
+and is left to the embedding certificate, which is what main does
+today. Line pairs keep their banded decide.
+
+Also from that review, a class: the fix pass restored two census
+helpers that main had retired, a fresh copy minted by the fix of a
+structural finding. That is the trap the style brief names. The
+second fix pass reads through main's settled reading instead.
+
+Signed: (CARVE orchestrator)
