@@ -4,7 +4,7 @@ kind: issue
 title: A member family has no size ceiling, so a headless run with a huge count runs out of memory instead of refusing
 status: open
 priority: P2
-cost: M
+cost: H
 opened: 2026-11-01
 ---
 

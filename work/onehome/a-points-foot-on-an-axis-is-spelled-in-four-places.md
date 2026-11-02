@@ -2,11 +2,12 @@
 id: a-points-foot-on-an-axis-is-spelled-in-four-places
 kind: issue
 title: A point's foot on an axis line is spelled inline in four places across geom-brep, topo and sweep
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P1
 cost: E
 refs: [5793]
+branch: onehome/geom-readings
 ---
 
 

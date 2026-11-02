@@ -1001,8 +1001,10 @@ impl std::error::Error for StructureRefusal {}
 /// that recorded nothing.
 #[derive(Clone, Debug)]
 pub(crate) enum Guide<T: Real> {
-    /// Selecting freely and recording what was selected.
-    Recording(ReplayStructure),
+    /// Selecting freely and recording what was selected — and, where
+    /// the pass draws its construction, what each arc fillet's fit was
+    /// handed.
+    Recording(ReplayStructure, Option<crate::path::program::Drawing<T>>),
     /// Consuming a prior pass's selections and re-verifying each.
     Guided {
         /// The decisions to consume, in resolution order.
@@ -1017,7 +1019,20 @@ pub(crate) enum Guide<T: Real> {
 impl<T: Real> Guide<T> {
     /// A fresh recording guide.
     pub(crate) fn recording() -> Self {
-        Self::Recording(ReplayStructure::default())
+        Self::Recording(ReplayStructure::default(), None)
+    }
+
+    /// A fresh recording guide that also draws into `drawing`.
+    pub(crate) fn drawing(drawing: crate::path::program::Drawing<T>) -> Self {
+        Self::Recording(ReplayStructure::default(), Some(drawing))
+    }
+
+    /// Where this pass draws its construction, if it does.
+    pub(crate) fn drawn(&self) -> Option<&crate::path::program::Drawing<T>> {
+        match self {
+            Self::Recording(_, drawing) => drawing.as_ref(),
+            Self::Guided { .. } => None,
+        }
     }
 
     /// Whether this guide is still consuming a record.
@@ -1049,7 +1064,7 @@ impl<T: Real> Guide<T> {
     /// state in which a lane would start choosing structure for itself.
     pub(crate) fn consume(&mut self) -> Result<Option<(usize, FilletDecision)>, StructureRefusal> {
         match self {
-            Self::Recording(_) => Ok(None),
+            Self::Recording(..) => Ok(None),
             Self::Guided { record, next, .. } => {
                 let i = *next;
                 *next += 1;
@@ -1107,7 +1122,7 @@ impl<T: Real> Guide<T> {
     /// Records one resolution's decisions (a no-op under guidance,
     /// where the decisions came from the record).
     pub(crate) fn record(&mut self, decision: FilletDecision) {
-        if let Self::Recording(s) = self {
+        if let Self::Recording(s, _) = self {
             s.fillets.push(decision);
         }
     }
@@ -1129,7 +1144,7 @@ impl<T: Real> Guide<T> {
         pieces: Vec<Piece>,
     ) -> ReplayStructure {
         match self {
-            Self::Recording(mut s) => {
+            Self::Recording(mut s, _) => {
                 s.steps = spans;
                 s.radii = radii;
                 s.pieces = pieces;

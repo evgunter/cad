@@ -2,12 +2,13 @@
 id: a-wall-pinned-between-two-loft-sections-refuses-at-the-wrong-door
 kind: issue
 title: a loft section hinged on one of its own edges collapses that wall, and refuses at the attach gate (or as NoParameterStep on strip 0) rather than naming the pinned wall
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body]
-branch: carve/pinned-corners
+closed: 2026-11-02
+pr: 6141
 ---
 
 
@@ -125,3 +126,23 @@ the other's point. Nothing went to Ev. The record is on
 
 This row no longer waits on the certificate. It reads inputs, not
 built walls.
+
+## Closed (2026-11-02, PR 6141)
+
+The loft door (`crates/sweep/src/loft/stacking.rs`, `stacking_door`) reads each slab in order, before the skin:
+
+- **Corner classes** (`loft_corner_pinned`, per corner per slab per loop).
+- **Coincidence.**
+- **The class-2 retrace**: `PinnedCorner`, naming the corner or the hinged segment, the slab and the moving slab.
+- **Clearance.**
+  - Line pairs read through the census (`topo::line_segments_meet`, and `line_segments_overlap` over main's `parallel_overlap`), banded.
+  - An arc pair refuses only on a meeting the curve-pair reader decided on both spans. An arc pair it cannot settle decides nothing here; it is the embedding certificate's, as on main.
+  - A verified meeting refuses `SectionsTouch { slab, segments, shared }`.
+  - A reader contradiction refuses as a kernel fault, `ClearanceFault`.
+- **The step** reads the vertex centroid of the corners that move, so a slab where no corner moves gets no step.
+
+Class 1, the wedge, refuses `PinnedCornerUnsupported` as a kernel limit, once every slab has passed. Its build waits on `work/charttail/a-nurbs-wall-with-a-collapsed-boundary-column-has-no-loop-joint.md`.
+
+On a 3458-case grid of arc lofts and sweeps with tilted, non-parallel sections, nothing that main refuses builds. 51 stadium bodies that main builds now refuse `SectionsTouch`, and each was checked as not embedded. The off-span carrier tangency that made the first fix pass refuse embedded elbows is evidence on CPAIR's `the-curve-pair-pose-reads-a-conics-whole-carrier-before-its-arc`.
+
+**Review.** Single FULL, verdict NOT-MERGEABLE: the plane-only arc separation and the control-row step each refused embedded bodies that main builds. A focused delta review of the fix pass was also NOT-MERGEABLE. The off-carrier tangency still refused, and two census helpers that main had retired came back. The second fix pass closed both, per the orchestrator's rulings in `work/carve/log.md`. The orchestrator read the census diff, which is two thin doors over main's readings, and the grid diff.

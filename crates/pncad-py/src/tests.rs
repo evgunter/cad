@@ -2388,6 +2388,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
+    carries(&E::TakeOverRepeatsCopy { node: sp(1) }, &["node"]);
     carries(&E::WorldIsUndeletable { node: sp(1) }, &["node"]);
     carries(&E::ConstraintOnNonPlacement { node: sp(1) }, &["node"]);
     // A constraint's address: the placement and the constraint's id.
@@ -4471,6 +4472,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "join_carrier_unsupported",
             "join_desync",
             "join_undecided",
+            "line_material_unread",
             "line_wedges",
             "lineage_row",
             "merge",
@@ -4771,6 +4773,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
+            "take_over_repeats_copy",
             "unknown_constraint",
             "unknown_node",
             "unknown_slot",
@@ -5032,17 +5035,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "cap_plane",
+            "clearance_fault",
+            "clearance_undecided",
+            "corner_escalated",
             "degenerate_stacking",
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
             "pcurve",
+            "pinned_corner",
+            "pinned_corner_unsupported",
             "placement_not_finite",
             "reversed_stacking",
             "seam_structure",
             "section_not_finite",
             "section_rim",
             "section_structure",
+            "sections_touch",
             "skin",
             "stacking_escalated",
         ],
@@ -5148,6 +5157,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "member_edge_tied",
             "missing_upstream",
             "partner_unread",
+            "past_width",
             "seam_vertex_partners",
             "short_tie",
             "split_lineage_cycle",
@@ -5833,6 +5843,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_invalid",
             "input_list",
             "label_on_missing_node",
+            "loft_shape",
             "mate_refused",
             "metadata_unversioned",
             "mint_log_order",
@@ -6373,6 +6384,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`pose_fault_tag`) and a product read of a variable that is no
     // body (`product_read_fault_tag`).
     ("kind", 2),
+    // One fact at the edit and load doors: a loft written as no loft
+    // can be. The edit door publishes its fault on `inner_variant`;
+    // the load door says it in the message alone.
+    ("loft_shape", 2),
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
