@@ -74,11 +74,9 @@ pub(super) fn factored_crossing<T: Decide + crate::props::AtRestPolicy>(
     tol: geom_core::Tol,
 ) -> Result<Option<CurvedEvent<T>>, BooleanError> {
     let walls = [edge.he_plus, edge.he_minus].map(|he| x.face_of_half_edge(he));
-    let Some((wall, planes)) = walls
-        .into_iter()
-        .flatten()
-        .find_map(|wall| node::bisectors(&declared.sections, (x, x_is, wall), (y, face)).map(|p| (wall, p)))
-    else {
+    let Some((wall, planes)) = walls.into_iter().flatten().find_map(|wall| {
+        node::bisectors(&declared.sections, (x, x_is, wall), (y, face)).map(|p| (wall, p))
+    }) else {
         return Ok(None);
     };
     let read = |which| edge_face_read(x, x_is, edge, face, declared, which);

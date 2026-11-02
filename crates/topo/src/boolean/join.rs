@@ -1959,9 +1959,10 @@ fn bisector_planes<T: Decide>(
         let (fa, fb) = (seg.germ.a_face, seg.germ.b_face);
         let key = (pair.a.0, pair.b.0);
         if let std::collections::btree_map::Entry::Vacant(slot) = planes.entry(key) {
-            let loops = face_pair_section_loops(&red.sections, (&red.a, fa), (&red.b, fb), band)?.ok_or(
-                desync("a bisector segment's face pair has no section loops"),
-            )?;
+            let loops = face_pair_section_loops(&red.sections, (&red.a, fa), (&red.b, fb), band)?
+                .ok_or(desync(
+                "a bisector segment's face pair has no section loops",
+            ))?;
             slot.insert(loops);
         }
     }
@@ -3358,8 +3359,7 @@ pub(super) fn germ_branch<T: Decide>(
         (Some(Plane), Some(Torus)) | (Some(Torus), Some(Plane)) => {}
         _ => return Ok(super::Branch::Only),
     }
-    let Some(loops) =
-        face_pair_section_loops(sections, (body_a, face_a), (body_b, face_b), band)?
+    let Some(loops) = face_pair_section_loops(sections, (body_a, face_a), (body_b, face_b), band)?
     else {
         return Ok(super::Branch::Only);
     };
@@ -7142,8 +7142,8 @@ mod radical_plane_rows {
             let across = axis.cross(toward);
             let rulings = [o1 + toward * x + across * h, o1 + toward * x - across * h];
             for (label, own, partner) in [("ab", &c1, &c2), ("ba", &c2, &c1)] {
-                let (p, n) = rulings_plane(own, partner, &at(o1))
-                    .expect("offset axes name a plane");
+                let (p, n) =
+                    rulings_plane(own, partner, &at(o1)).expect("offset axes name a plane");
                 let tag = format!("r {r1}/{r2} d {d} {label}");
                 assert!(n.dot(axis).abs() < 1e-12, "{tag}: parallel to the axes");
                 for q in rulings {

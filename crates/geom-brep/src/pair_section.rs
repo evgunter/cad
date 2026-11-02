@@ -2243,7 +2243,12 @@ fn held_per_set<T: Real>(
             let w = carried[i].winds;
             [acc[0] || w[0], acc[1] || w[1]]
         });
-        if set.winds.iter().zip(held).any(|(&claim, held)| claim && !held) {
+        if set
+            .winds
+            .iter()
+            .zip(held)
+            .any(|(&claim, held)| claim && !held)
+        {
             return Err(CarryError::Desync(
                 "a node-joined set's arcs do not wind as the set claims",
             ));
@@ -2759,7 +2764,9 @@ mod wiring {
             ..section.clone()
         };
         assert!(
-            with([true, false]).carry(Some(SsiLane::marched()), band()).is_ok(),
+            with([true, false])
+                .carry(Some(SsiLane::marched()), band())
+                .is_ok(),
             "the rings wind about the wall"
         );
         assert!(

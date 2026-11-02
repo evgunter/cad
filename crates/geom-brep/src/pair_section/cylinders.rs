@@ -21,9 +21,8 @@ use geom_core::{Band, Decide, Decided, Margin, MarginDiag, Point3, Real, Sign, V
 
 use super::ruling::{self, RuledCylinders, SweepRefusal};
 use super::{
-    NodeSet,
-    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, PairPose, PairSection,
-    SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
+    ClassCarrier, Coincident, ComponentEnds, ComponentShape, Components, NodeSet, PairPose,
+    PairSection, SectionComponent, SectionDecision, TANGENT_COMPONENT, ZeroVerdict,
 };
 use crate::ExtentBall;
 use crate::extent::Reach;
@@ -706,7 +705,10 @@ fn bisector_normals<T: Real>((a1, a2): (Vec3<T>, Vec3<T>)) -> ([Vec3<T>; 2], [T;
         )
     };
     let (d, s) = (pick(off_unit(d, sn), d), pick(s, off_unit(s, dn)));
-    ([d.normalize(), s.normalize()], [d.norm() / two, s.norm() / two])
+    (
+        [d.normalize(), s.normalize()],
+        [d.norm() / two, s.norm() / two],
+    )
 }
 
 /// The two bisector-plane ellipses through the axes' meeting point `p`,
