@@ -21,6 +21,11 @@
 //!   once per germ ([`SectionTable::germ_foot`]), keyed by the germ's
 //!   operand, its half-edge and the pair it was read on.
 //!
+//! It also holds, beside the sections it reads, each plane×cone pair's
+//! apex line pair, read once per operation by the first germ minted on
+//! the pair and taken by every later mint and by the join
+//! ([`SectionTable::apex_lines`]).
+//!
 //! The table is classified when it is built, and a pair is carried on
 //! its first read that needs a carrier or a list no closed form counts,
 //! through the scalar's march door ([`crate::AtRestPolicy::ssi_lane`])
@@ -79,6 +84,17 @@ pub(crate) struct GermFoot<T: Real> {
     pub(crate) up: bool,
 }
 
+/// **A plane×cone pair's two lines through the cone's apex**
+/// ([`SectionTable::apex_lines`]): the apex, the lines' directions in
+/// the order `geom_brep::plane_cone_section` returns them, and the
+/// lever its decisions were read at.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ApexLines<T: Real> {
+    pub(crate) apex: geom_core::Point3<T>,
+    pub(crate) dirs: [geom_core::Vec3<T>; 2],
+    pub(crate) lever: T,
+}
+
 /// Why a germ has no place on its section.
 #[derive(Clone, Debug)]
 pub(crate) enum FootRefusal {
@@ -108,6 +124,7 @@ pub(crate) struct SectionTable<T: Real> {
     lane: Option<SsiLane<T>>,
     region: Option<ExtentBall<T>>,
     feet: RefCell<BTreeMap<FootKey, Result<GermFoot<T>, FootRefusal>>>,
+    apex: RefCell<BTreeMap<PairKey, Option<ApexLines<T>>>>,
 }
 
 /// **The table's one reader**: it reads pairs into a table at the band
@@ -126,6 +143,7 @@ impl<T: Real> Default for SectionTable<T> {
             lane: None,
             region: None,
             feet: RefCell::new(BTreeMap::new()),
+            apex: RefCell::new(BTreeMap::new()),
         }
     }
 }
@@ -344,6 +362,42 @@ impl<T: geom_core::Decide> SectionTable<T> {
         let answer = read();
         self.feet.borrow_mut().insert(key, answer.clone());
         answer
+    }
+
+    /// **A plane×cone pair's apex line pair, read once per operation**:
+    /// `Some` where the pair's section is the two lines through the
+    /// cone's apex, `None` where it is not, read by `read` on the first
+    /// ask for the pair (A's face `a`'s surface against B's `b`'s) and
+    /// held for every later one. Every germ the operation mints on the
+    /// pair and the join's reading of it take the one answer, read at
+    /// the reach the first mint saw, so no two readers of the pair can
+    /// disagree on the section's shape or its lines' order. A refusal is
+    /// not held: it is the operation's.
+    pub(crate) fn apex_lines<E>(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+        read: impl FnOnce() -> Result<Option<ApexLines<T>>, E>,
+    ) -> Result<Option<ApexLines<T>>, E> {
+        let key = Self::key(a, b);
+        if let Some(held) = key.and_then(|k| self.apex.borrow().get(&k).copied()) {
+            return Ok(held);
+        }
+        let answer = read()?;
+        if let Some(key) = key {
+            self.apex.borrow_mut().insert(key, answer);
+        }
+        Ok(answer)
+    }
+
+    /// The pair's apex line pair as a mint read it
+    /// ([`Self::apex_lines`]), or `None` where no mint read the pair.
+    pub(crate) fn apex_lines_read(
+        &self,
+        a: (&Body<T>, FaceKey),
+        b: (&Body<T>, FaceKey),
+    ) -> Option<Option<ApexLines<T>>> {
+        self.apex.borrow().get(&Self::key(a, b)?).copied()
     }
 
     fn entry(&self, a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> Option<&Held<T>> {

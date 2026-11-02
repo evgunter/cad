@@ -2131,7 +2131,7 @@ pub enum Branch {
     Component(usize),
     /// The line with this index of a straight section of two lines
     /// through one point: a plane through a cone's apex, in the order
-    /// `join::germ_branch` states.
+    /// the pair's one reading returns them (`join::apex_line`).
     Line(usize),
 }
 

@@ -1496,16 +1496,11 @@ fn section_loop<T: Decide>(
         Some(crate::boolean::Branch::Positive) => return Ok(positive),
         Some(crate::boolean::Branch::Negative) => return Ok(negative),
         Some(crate::boolean::Branch::Only) | None => {}
-        Some(crate::boolean::Branch::Component(_)) => {
+        Some(crate::boolean::Branch::Component(_) | crate::boolean::Branch::Line(_)) => {
             return Err(SplitJoinError::SectionInvariant {
                 face,
-                what: "a germ riding a carried section's component reached a two-loop frame",
-            });
-        }
-        Some(crate::boolean::Branch::Line(_)) => {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a germ riding a line of a straight section reached a two-loop frame",
+                what: "a germ riding a carried section's component or a straight section's line \
+                       reached a two-loop frame",
             });
         }
     }

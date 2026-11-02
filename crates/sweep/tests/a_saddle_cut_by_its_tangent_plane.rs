@@ -2,7 +2,7 @@
 //! block `x, z ∈ [−1, 1]`, `−2 ≤ y ≤ x·z`, lofted along `z`, has the
 //! hyperbolic paraboloid `y = x·z` for its top wall; the half-space
 //! `y ≥ 0` is tangent to it at the origin and cuts it along the lines
-//! `x = 0` and `y = 0`, a straight section of two lines crossing at a
+//! `x = 0` and `z = 0`, a straight section of two lines crossing at a
 //! point. Two smooth carriers meet in two crossing lines only at a
 //! tangency, so the pair is a spline × plane tangent section, which no
 //! lane builds yet: each op refuses typed at the spline × plane pair,
