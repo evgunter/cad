@@ -2900,6 +2900,10 @@ NOT_BOUND = {
     # the composing door export and the viewer's picture call, which
     # Python reaches through `export_step`.
     "Framed": INTERIOR,
+    # What a body value holds, a finished body or the box scalars' sweep
+    # leaf (the switch at `topo::AtRestPolicy::leaf`): Python reads it as
+    # the `Body` it derefs to, never as the enum.
+    "Held": INTERIOR,
     "in_space": INTERIOR,
     "Composing": INTERIOR,
     # What an evaluation built, counted (debug builds only): a row's
