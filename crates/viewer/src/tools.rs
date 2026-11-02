@@ -56,7 +56,7 @@ vocabulary! {
     /// notice are addressed in.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum ToolKind {
-        /// The mate tool: two face picks.
+        /// The mate tool: two picks, a face, an edge or a vertex each.
         Mate,
         /// The revolve tool: a profile and an axis.
         Revolve,
@@ -131,9 +131,7 @@ impl ToolKind {
     /// capitalised, as a tool, with the ellipsis of a button that opens
     /// a panel rather than acting.
     pub fn button(self) -> String {
-        let name = self.label();
-        let (first, rest) = name.split_at(name.chars().next().map_or(0, char::len_utf8));
-        format!("{}{rest} tool…", first.to_uppercase())
+        format!("{} tool…", capitalised(self.label()))
     }
 
     /// The words on the button that commits this tool's edit.
@@ -144,7 +142,9 @@ impl ToolKind {
     /// **What the cursor may pick while this tool is open** — an open
     /// tool narrows the priority rule, it does not re-decide it.
     ///
-    /// The mate tool takes faces, and on a real part whole faces sit
+    /// The mate tool's rule is its panel's chosen kind's
+    /// ([`Tools::pick_kinds_choosing`]); its own is a plane's, the kind
+    /// the panel opens on. A plane takes faces, and on a real part whole faces sit
     /// within the edge radius of their own boundary — a narrow shelf, a
     /// small hole's wall — so with edges always winning those faces
     /// were unpickable for as long as the tool was open. The blend tool
@@ -152,21 +152,26 @@ impl ToolKind {
     /// no edge wins answers NOTHING rather than re-selecting the wall
     /// behind the edge the user was aiming at. Every other tool holds
     /// NODE picks, which a face and an edge answer equally well
-    /// ([`Selection::seat_node`] reaches the drawn body either way), so
-    /// none of them narrows anything.
+    /// ([`Selection::seat_node`] reaches the drawn body either way); a
+    /// profile's outline answers only a tool whose seat reads a profile,
+    /// so a body tool is never handed a node it cannot seat.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
             // The mirror tool's plane is a face, and its body is picked
             // by a face or in the tree.
             Self::Mate | Self::Mirror => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
-            Self::Revolve
-            | Self::Boolean
+            // Its one seat reads a profile, which a click on the
+            // profile's outline picks.
+            Self::Revolve => PickKinds::Any,
+            // Their seats read bodies, picked through a face or an
+            // edge; none reads a profile, so none is offered one.
+            Self::Boolean
             | Self::Split
             | Self::Transform
             | Self::Pattern
             | Self::Part
-            | Self::Duplicate => PickKinds::Any,
+            | Self::Duplicate => PickKinds::FacesAndEdges,
         }
     }
 
@@ -217,6 +222,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
         SessionOp::SetLabel { .. }
         | SessionOp::SetProduct { .. }
+        | SessionOp::AddToProduct { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::Select(_)
         | SessionOp::Hover(_)
@@ -250,7 +256,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Open(_)
         | SessionOp::Save(_)
         | SessionOp::SaveAsNewDocument(_)
-        | SessionOp::SetBodyHidden { .. }
+        | SessionOp::SetBodyOn { .. }
         | SessionOp::SetSpaceHidden { .. }
         | SessionOp::BeginFreeMove { .. }
         | SessionOp::PreviewFreeMove { .. }
@@ -296,9 +302,15 @@ pub enum ToolNotice {
         /// What it lost.
         event: SeatEvent,
     },
-    /// A viewport click aimed at the open tool met nothing of the kind
-    /// it picks ([`ToolKind::pick_kinds`]), so the tool took no pick.
-    Missed(ToolKind),
+    /// A viewport click aimed at the open tool met nothing of the kinds
+    /// it picks ([`Tools::pick_kinds_choosing`]), so the tool took no
+    /// pick.
+    Missed {
+        /// The open tool.
+        tool: ToolKind,
+        /// The kinds the cursor could pick.
+        kinds: PickKinds,
+    },
 }
 
 /// The seated arm says the node its event carries (`SpokenNode`, kept
@@ -312,9 +324,9 @@ impl Say for ToolNotice {
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
-            Self::Missed(tool) => tool.says(&format_args!(
+            Self::Missed { tool, kinds } => tool.says(&format_args!(
                 "{} under the cursor — no pick taken",
-                tool.pick_kinds().nothing()
+                kinds.nothing()
             )),
         };
         f.write_str(&said)
@@ -322,6 +334,13 @@ impl Say for ToolNotice {
 }
 
 /// The sentence a panel speaks: its name, then what it has to say.
+/// **`text` with its first letter capitalised**, as a label that opens
+/// a line reads.
+pub(crate) fn capitalised(text: &str) -> String {
+    let (first, rest) = text.split_at(text.chars().next().map_or(0, char::len_utf8));
+    format!("{}{rest}", first.to_uppercase())
+}
+
 fn compose(name: &str, what: &impl core::fmt::Display) -> String {
     format!("{name}: {what}")
 }
@@ -330,7 +349,7 @@ vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
     /// pane's add-profile and extrude forms, the profile
-    /// editor's apply and revert, and the label field a create form and
+    /// editor's apply, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
@@ -340,8 +359,6 @@ vocabulary! {
         Extrude,
         /// The profile editor's apply.
         EditProfile,
-        /// The profile editor's revert.
-        RevertProfile,
         /// A node's label field, on a create form or in the properties
         /// pane.
         Label,
@@ -358,7 +375,6 @@ impl FormKind {
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
             Self::EditProfile => "edit profile",
-            Self::RevertProfile => "revert profile",
             Self::Label => "label",
         }
     }
@@ -676,6 +692,16 @@ impl Tools {
             .map_or(PickKinds::Any, ToolKind::pick_kinds)
     }
 
+    /// [`Tools::pick_kinds`] with the mate panel's chosen kind `mate`
+    /// narrowing the mate tool's rule ([`crate::matetool::pick_kinds`]):
+    /// what the viewport's cursor picks with.
+    pub fn pick_kinds_choosing(&self, mate: pncad::document::VarKind) -> PickKinds {
+        match self.open_kind() {
+            Some(ToolKind::Mate) => crate::matetool::pick_kinds(mate),
+            _ => self.pick_kinds(),
+        }
+    }
+
     /// **Whether an operation is the open tool's one committed edit**,
     /// which is what closes it. Answered against the OPEN tool rather
     /// than against the op alone, so an op that no tool authored — or
@@ -744,11 +770,12 @@ impl Tools {
             };
             match &mut self.open {
                 None => {}
-                Some(OpenTool::Mate(tool)) => {
-                    if let Some(face) = selection.face() {
-                        tool.pick(doc, face.clone());
-                    }
-                }
+                Some(OpenTool::Mate(tool)) => match selection {
+                    Selection::Face(face) => tool.pick(doc, face.clone()),
+                    Selection::Edge(edge) => tool.pick(doc, edge.clone()),
+                    Selection::Vertex(vertex) => tool.pick(doc, vertex.clone()),
+                    Selection::None | Selection::Node(_) | Selection::Variable(_) => {}
+                },
                 Some(OpenTool::Blend(tool)) => {
                     if let Some(edge) = selection.edge() {
                         notices.extend(tool.pick(doc, edge, index).map(ToolNotice::Blend));

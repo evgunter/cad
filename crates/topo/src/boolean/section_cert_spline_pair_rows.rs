@@ -26,6 +26,7 @@ fn read(f: &Surface<f64>, g: &Surface<f64>, known: KnownPair<f64>) -> Section<f6
             centre: p(0.0, 0.0, 0.0),
             radius: 1.0,
         },
+        None,
         Some(geom_brep::SsiLane::marched()),
         band(),
         known,

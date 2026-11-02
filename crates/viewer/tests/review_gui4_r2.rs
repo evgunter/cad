@@ -430,9 +430,9 @@ fn hide_survives_the_mate_that_discards_the_probe() {
         frame: asm::where_b_stood(Frame::translation([0.02, 0.0, 0.0])),
     });
     session.perform(SessionOp::CommitFreeMove { node: bench.post_b });
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: true,
+        on: false,
     });
     // Hidden AND probed: the pick index offers it nowhere.
     let index = asm::index_of(&session);
@@ -476,10 +476,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
          the right fault with the wrong instance: {}",
         superseded.cause
     );
-    assert!(
-        session.display().is_body_hidden(bench.post_b),
-        "hide stands"
-    );
+    assert!(!session.toggles().body_on(bench.post_b), "hide stands");
     let index = asm::index_of(&session);
     let scene = index
         .scene_for(&session.display_view())

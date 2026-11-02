@@ -722,7 +722,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
     // The revolve door's one seat: a feature or a placement is not a
     // profile. The axis is no pick — two coordinate pairs in the
     // profile's own plane — so there is no second seat to refuse.
-    // A copy placed into the world by hand: a new body lands unplaced.
+    // A copy in the world, added to the product: a new body lands unplaced.
     let (mut session, copy) = common::world_copy_in(&session, extrude, tol);
     for wrong in [extrude, copy] {
         let refused = session.perform(SessionOp::AddRevolve {
@@ -1151,12 +1151,11 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 
-/// **A document made in the viewer says what it makes**: two boxes,
-/// each placed in the world by hand, are no product
-/// until the author adds them, one by one, through the properties
-/// pane's door; the product is then their `⊔`, and taking one out
-/// leaves the other alone. The `⊔` the product read before goes with
-/// the old answer.
+/// **A document made in the viewer says what it makes**: two fresh
+/// boxes land unplaced and are no product until the author adds them,
+/// one by one, through the one door; the product is then their copies'
+/// `⊔`, and taking one out leaves the other alone. The `⊔` the product
+/// read before goes with the old answer.
 #[test]
 fn the_product_is_what_the_author_adds_to_it() {
     let tol = Tol::witness();
@@ -1166,21 +1165,21 @@ fn the_product_is_what_the_author_adds_to_it() {
     );
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
-    let (session, _) = common::world_copy_in(&session, big, tol);
-    let (mut session, _) = common::world_copy_in(&session, small, tol);
+    assert!(
+        viewer::world::product_reads(session.committed_doc()).is_empty(),
+        "nothing joins the product by being made"
+    );
+    for body in [big, small] {
+        let outcome = session.perform(SessionOp::AddToProduct {
+            node: body,
+            body: None,
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
     let [big, small] = [big, small].map(|body| {
         let doc = session.committed_doc();
         viewer::world::world_copy(doc, common::copy_of(doc, body)).expect("a world copy")
     });
-    assert!(
-        viewer::world::product_reads(session.committed_doc()).is_empty(),
-        "nothing joins the product by being placed"
-    );
-    for copy in [big, small] {
-        let bodies = viewer::world::product_with(session.committed_doc(), copy);
-        let outcome = session.perform(SessionOp::SetProduct { bodies });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    }
     let doc = session.committed_doc();
     assert_eq!(viewer::world::product_reads(doc), vec![big, small]);
     let assembles = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>| {

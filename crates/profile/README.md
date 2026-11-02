@@ -223,7 +223,8 @@ independent closed-form oracles.
 - **VQ4 — Exact directors.** `toward(dx, dy)` stores the normalized ray
   verbatim; `angle(θ)` stays for genuinely angular authoring.
 - **VQ5 — A step keeps what was written.** A step's arguments are the
-  numbers its author wrote; the document's program stores them as such,
+  variables its author wrote, numbers or 2-D poses (PATHS-DESIGN §1b);
+  the document's program stores them as such,
   each step lowering to the table's core verbs at replay, and no stored
   number is computed from them (`[recipe.forms]`). A builder whose
   numbers already are some table step's arguments (`polygon`: its

@@ -62,7 +62,7 @@ fn an_interior_slab_at_the_band_edges_decides_the_same_at_interval() {
             (Ok(Sign::Positive), Ok(())) => {}
             (Ok(Sign::Zero), Err(LoftError::DegenerateStacking { slab: 1 })) => {}
             (Ok(Sign::Negative), Err(LoftError::ReversedStacking { slab: 1 })) => {}
-            (Err(_), Err(LoftError::StackingEscalated { slab: 1, .. })) => {}
+            (Err(_), Err(LoftError::CornerEscalated { slab: 1, .. })) => {}
             _ => panic!("interval interior step {step:e}: decide said {want:?}, loft said {got:?}"),
         }
     }

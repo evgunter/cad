@@ -947,9 +947,9 @@ fn matched_records<T: Decide>(
 /// used, both name one locus on both operands, and that locus pair's
 /// section is curved, so the record's germs, at one site of one loop of
 /// it, can only match each other. Its A germ and the loop its branch
-/// names, `None` for a pair the section table holds, whose section is
-/// read by its components and not by a frame
-/// ([`super::section_table`]).
+/// names, `None` for a pair the join reads from the section table, whose
+/// section is read by its components and not by a frame
+/// ([`super::section_table::SectionTable::held_at_the_join`]).
 #[allow(clippy::type_complexity)] // (germ, its loop)
 fn one_site<T: Decide>(
     red: &BooleanReduction<T>,
@@ -964,7 +964,7 @@ fn one_site<T: Decide>(
         && g0.b_locus.edge().is_none()
         && red
             .sections
-            .held((&red.a, g0.a_face), (&red.b, g0.b_face))
+            .held_at_the_join((&red.a, g0.a_face), (&red.b, g0.b_face))
             .is_some()
     {
         return Ok(Some((g0, None)));
@@ -1034,9 +1034,10 @@ fn one_site_segments<T: Decide>(
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        // A pair the section table holds closes at no one site this join
-        // builds: every closing [`closes_at_its_site`] admits has a planar
-        // partner or a closed edge. Its record is left to the refusal.
+        // A pair the join reads from the section table closes at no one
+        // site this join builds: every closing [`closes_at_its_site`]
+        // admits has a planar partner or a closed edge. Its record is
+        // left to the refusal.
         let Some((g0, Some(frame))) = one_site(red, rec, band)? else {
             continue;
         };
@@ -2651,7 +2652,10 @@ fn partners<T: Decide>(
         )?,
         None => {
             let loops = germ_section_loops((&red.a, &red.b), &rga, band)?;
-            facing(loops.as_ref(), &rga, &ega, p_c, p_e, band)?
+            let rulings = rga.a_locus.edge().is_none()
+                && rga.b_locus.edge().is_none()
+                && (is_cone(&red.a, rga.a_face)? || is_cone(&red.b, rga.b_face)?);
+            facing(loops.as_ref(), rulings, &rga, &ega, p_c, p_e, band)?
         }
     };
     if let Faced::Apart = faced {
@@ -3492,7 +3496,7 @@ pub(super) fn germ_branch<T: Decide>(
     if locus_a.edge().is_some() || locus_b.edge().is_some() {
         return Ok(super::Branch::Only);
     }
-    if let Some(carried) = sections.carried((body_a, face_a), (body_b, face_b)) {
+    if let Some(carried) = sections.carried_at_the_join((body_a, face_a), (body_b, face_b)) {
         return carried
             .map_err(|why| faces_section_unbuilt(why, (body_a, face_a), (body_b, face_b)))?
             .foot(site, band)
@@ -3537,7 +3541,7 @@ fn germ_section<'r, T: Decide>(
         return Ok(None);
     }
     let faces = ((&red.a, germ.a_face), (&red.b, germ.b_face));
-    match red.sections.carried(faces.0, faces.1) {
+    match red.sections.carried_at_the_join(faces.0, faces.1) {
         None => Ok(None),
         Some(Ok(section)) => Ok(Some(section)),
         Some(Err(why)) => Err(faces_section_unbuilt(why, faces.0, faces.1)),
@@ -4248,12 +4252,10 @@ fn pt_germ_frame<T: Decide>(
 const PT_TOUCHING_UNDER_A_GERM: &str = "bool_join_torus_section_touching_under_a_germ";
 
 /// **An equal cylinder pair with meeting axes, as its section table
-/// classifies it**: the two Zero margins its two bisector-plane
-/// ellipses are decided from and the nodes where they cross
-/// ([`geom_brep::EqualCylinderSection::TwoEllipses`]), with the two
-/// walls' axes, A's first.
+/// classifies it**: the nodes where its two bisector-plane ellipses
+/// cross ([`geom_brep::EqualCylinderSection::TwoEllipses`]), with the
+/// two walls' axes, A's first.
 pub(super) struct CrossingSection<T: geom_core::Real> {
-    pub(super) margins: [geom_core::MarginDiag; 2],
     pub(super) nodes: [Point3<T>; 2],
     pub(super) axes: [Vec3<T>; 2],
     /// Each ellipse's plane, its centre (the axes' meeting point) and
@@ -4305,12 +4307,7 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
         Err(e) => return Err(refused(e)),
     };
     match geom_brep::cylinder_cylinder_section(sa, sb, &reach.ball(), band) {
-        Ok(geom_brep::EqualCylinderSection::TwoEllipses {
-            e1,
-            e2,
-            margins,
-            nodes,
-        }) => {
+        Ok(geom_brep::EqualCylinderSection::TwoEllipses { e1, e2, nodes, .. }) => {
             let plane = |e: &geom::Curve3<T>| match *e {
                 geom::Curve3::Ellipse { center, axis, .. } => Ok((center, axis)),
                 _ => Err(BooleanError::JoinDesync {
@@ -4318,7 +4315,6 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
                 }),
             };
             Ok(Some(CrossingSection {
-                margins,
                 nodes,
                 axes: [a1, a2],
                 planes: [plane(&e1)?, plane(&e2)?],
@@ -4370,29 +4366,6 @@ pub(super) fn crossing_cylinder_reading<T: Decide>(
             what: "two cylinder walls read apart refused as no cylinder pair can",
         }),
     }
-}
-
-/// [`crossing_cylinder_reading`], a refused reading taken as no crossing
-/// pair: for the coincidence rows (`glue::section_door`), which record no
-/// row where a reading refuses, a later decision refusing where the
-/// faces meet (the node's mint, [`crossing_germs_have_their_reading`]).
-pub(super) fn crossing_cylinder_section<T: Decide>(
-    a: (&Body<T>, FaceKey),
-    b: (&Body<T>, FaceKey),
-    band: Band,
-) -> Option<CrossingSection<T>> {
-    crossing_cylinder_reading(a, b, band).ok().flatten()
-}
-
-/// **The two coincidences an equal cylinder pair with meeting axes is
-/// decided from** ([`crossing_cylinder_section`]): the radii equal and
-/// the axes meeting, each margin decided Zero by the section table.
-pub(super) fn crossing_cylinder_margins<T: Decide>(
-    a: (&Body<T>, FaceKey),
-    b: (&Body<T>, FaceKey),
-    band: Band,
-) -> Option<[geom_core::MarginDiag; 2]> {
-    crossing_cylinder_section(a, b, band).map(|s| s.margins)
 }
 
 /// **The intersecting-axes cylinder pair, routed by the pose's node
@@ -4514,7 +4487,7 @@ pub(super) fn germs_face_each_other<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     Ok(!matches!(
-        facing(loops, g1, g2, p1, p2, band)?,
+        facing(loops, false, g1, g2, p1, p2, band)?,
         Faced::Apart
     ))
 }
@@ -4623,9 +4596,39 @@ fn along_facing<T: Decide>(
     }))
 }
 
+/// **Whether a germ's straight section may be two crossing lines**, the
+/// gate on [`facing`]'s on-line test: `face`, inside which the germ
+/// lies, carries a cone, whose straight section is rulings through its
+/// apex, two of them where a plane or a cone through the apex cuts it.
+///
+/// The gate is the surface kind, not the section's shape: the trigger
+/// is a straight section of two lines meeting at a point, and a germ
+/// carries no identity of the line it rides (as a conic germ carries
+/// its [`super::Branch`]). A saddle of a spline cut by its tangent plane
+/// would meet the same mismatch outside the gate
+/// (`work/splitdoor/a-straight-section-of-two-crossing-lines-off-a-cone-pairs-germs-across-the-crossing.md`).
+/// The on-line test is not applied to every straight section: a germ
+/// near a tangency, read only to the band, need not place its partner
+/// on its line.
+///
+/// # Errors
+///
+/// [`face_surface`]'s, a face the join reads that no longer resolves.
+fn is_cone<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Result<bool, BooleanError> {
+    face_surface(body, face).map(|(_, s)| s.kind() == geom::SurfaceKind::Cone)
+}
+
 /// Mutual germ facing along the germ LOCUS. Straight germ lines take
 /// the chord test: both dirs definitely point at each other along the
 /// chord (Zero = definite non-facing; in-band escalates in `decide`).
+/// Where the section is a cone face's `rulings` through its apex, which
+/// may be two lines, the partner's site must also lie on the germ's own
+/// line, its distance off it decided Zero (`bool_join_on_line`): a site
+/// on the other ruling faces the germ across the apex, but is no
+/// partner of it. Every other straight section is read as one line
+/// ([`is_cone`] says why the gate is the surface kind), whose germs,
+/// near a tangency read only to the band, need not place their partners
+/// on it.
 /// On a CONIC germ locus the chord test is structurally degenerate — a
 /// semicircle arc leaves BOTH sites exactly perpendicular to the chord
 /// — so the arc-aware test asks whether the two germs bound ONE
@@ -4635,6 +4638,7 @@ fn along_facing<T: Decide>(
 /// section never face: each loop is its own traversal.
 fn facing<T: Decide>(
     loops: Option<&SectionLoops<T>>,
+    rulings: bool,
     g1: &HalfGerm<T>,
     g2: &HalfGerm<T>,
     p1: geom_core::Point3<T>,
@@ -4648,6 +4652,14 @@ fn facing<T: Decide>(
             // separation (rim-dimensional audit: the former `/ dist`
             // stripped the metres and compared a bare cosine against
             // the length band — class (c)).
+            if rulings {
+                let off = g1.dir.normalize().cross(chord).norm();
+                if decide("bool_join_on_line", Margin::of(off), band).map_err(join_escalate)?
+                    != Sign::Zero
+                {
+                    return Ok(Faced::Apart);
+                }
+            }
             let f1 = g1.dir.dot(chord);
             let f2 = g2.dir.dot(-chord);
             let faces = decide("bool_join_facing", Margin::of(f1), band).map_err(join_escalate)?
@@ -8140,6 +8152,63 @@ mod tests {
         assert!(
             matches!(sides.starts_up(neither), Err(BooleanError::JoinDesync { what }) if what.contains("neither")),
             "neither end"
+        );
+    }
+
+    /// **On rulings through a cone's apex, a partner off the germ's own
+    /// line faces it across the apex but is no partner**: two germs
+    /// pointing at each other's sites face along one line, rulings or
+    /// not; a site on the other ruling, its chord at a right angle off
+    /// the germ's line yet ahead of it, faces the germ by the chord test
+    /// alone, and the on-line test (`bool_join_on_line`) parts them.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn facing_on_rulings_pairs_only_along_the_germs_own_line() {
+        use geom_core::{Point3, Tol, Vec3};
+        let band = Band::linear(Tol::witness()).expect("a linear band");
+        let germ = |dir: Vec3<f64>| HalfGerm {
+            he: HalfEdgeKey::default(),
+            a_face: FaceKey::default(),
+            b_face: FaceKey::default(),
+            a_locus: super::super::Locus::InFace(FaceKey::default()),
+            b_locus: super::super::Locus::InFace(FaceKey::default()),
+            dir,
+            branch: super::super::Branch::Only,
+        };
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        // The rulings `(1, 1, 0)` and `(1, −1, 0)` through the apex. The germ
+        // at `(−1, −1, 0)` runs up its ruling toward the apex.
+        let p1 = apex + Vec3::new(-1.0, -1.0, 0.0);
+        let g1 = germ(Vec3::new(1.0, 1.0, 0.0).normalize());
+        // On its own line, beyond the apex, facing back down it.
+        let along = apex + Vec3::new(1.0, 1.0, 0.0);
+        let g_along = germ(Vec3::new(-1.0, -1.0, 0.0).normalize());
+        // On the other ruling, beyond the apex, running up it: the chord
+        // `(2, 0, 0)` is ahead of both germs, and off `g1`'s line.
+        let across = apex + Vec3::new(1.0, -1.0, 0.0);
+        let g_across = germ(Vec3::new(-1.0, 1.0, 0.0).normalize());
+        for rulings in [false, true] {
+            assert!(
+                matches!(
+                    facing(None, rulings, &g1, &g_along, p1, along, band),
+                    Ok(Faced::Straight)
+                ),
+                "rulings {rulings}: along the germ's line"
+            );
+        }
+        assert!(
+            matches!(
+                facing(None, false, &g1, &g_across, p1, across, band),
+                Ok(Faced::Straight)
+            ),
+            "one line: the chord test alone faces the site across the apex"
+        );
+        assert!(
+            matches!(
+                facing(None, true, &g1, &g_across, p1, across, band),
+                Ok(Faced::Apart)
+            ),
+            "rulings: the site on the other ruling is no partner"
         );
     }
 }

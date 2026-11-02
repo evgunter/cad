@@ -110,11 +110,12 @@
 //! a queue it does not control, so the two runs are concurrent and the
 //! superseded one is discarded by its key rather than stopped.
 //!
-//! **Its key is a PAIR**, `(generation, δ)`, because δ is an input to
-//! the tessellation and not to the evaluation: an index answered for
-//! the generation on screen at a δ nobody asked for any more is as
-//! wrong as one answered for the wrong document, and only the pair
-//! separates them.
+//! **Its key is the picture** ([`PictureKey`]: generation, δ and the
+//! bodies the author shows), because δ and the shows are inputs to the
+//! index and not to the evaluation: an index answered for the
+//! generation on screen at a δ nobody asked for any more, or drawing a
+//! show turned off since, is as wrong as one answered for the wrong
+//! document, and only the whole key separates them.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -500,12 +501,12 @@ fn build_index(request: &IndexRequest, memo: &mut PickMemo) -> IndexDone {
     let index = PickIndex::build_with(
         &request.doc,
         &request.evaluation,
-        request.key,
+        request.key.clone(),
         request.tol,
         memo,
     );
     IndexDone {
-        key: request.key,
+        key: request.key.clone(),
         memo: MemoReport::of(memo),
         index,
     }

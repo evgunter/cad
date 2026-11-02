@@ -127,3 +127,14 @@ That test holds the refusal, and goes red into its full checks (tiers
 one order down.
 
 **2026-11-01 (ONEREAD, PR 6247):** `wedge_classes`, `cone_side` and `arc_side` (`bool_cone_arc`) are deleted. The vertex-vertex rows read each own edge through one gathered `link::Cone` (`boolean::vtxfac::cone_classes`), its signs a point's distance from a plane (`link_plane`, `link_wedge`, `link_ahead`, `link_arc`). Item 1's list keeps `pair_codes` and recl's flank readings; the direction-only arc reading is gone.
+
+## Note (2026-11-01, ONEREAD `oneread/recl-line-cone`)
+
+`resolve_edge_edge`'s membership now reads the other solid's line cone
+(`boolean::sectors::line_fans`, `link::Cone::reads_tied`): items 1's
+`wedge_is_reflex` and 4's `flank_rep` are deleted. A flank bound is read
+at its point at its reach (`Reach::point`) against the other's flank
+half-planes, first order as `side_code` was; a held face's side stays
+`PierceDatum::side`, given to the cone. Item 4's conic, its tangent
+along the line, now reads on every sheet's bound and refuses as
+`LineMaterialUnread { why: Along }` rather than `bool_flank_offset`.

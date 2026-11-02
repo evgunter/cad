@@ -48,3 +48,7 @@ Ev decided the NURBS × implicit arm on PR 6121
 (`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, `## Decided`),
 and the torus is in its first roster. This row stays open as lily wall 8's
 consumer pin, closed by the unit that builds the curved partners.
+
+## Correction (2026-11-02, the NURBS arm's phase 0)
+
+On main `72c637c`, lily wall 8 no longer stops at SPLICE's spline-span dispatch. It now stops at `GermSectionSpiric`, a plane × torus frame (SECTSITE's `c5-plane-torus-cone-cylinder-arms`). That is the next gate before this row's arm is reached.

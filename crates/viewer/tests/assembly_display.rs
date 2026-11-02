@@ -174,9 +174,9 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(hit.node, bench.post_b);
 
     // Hide it.
-    let outcome = session.perform(SessionOp::SetBodyHidden {
+    let outcome = session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: true,
+        on: false,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let view = session.display_view();
@@ -210,9 +210,9 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     );
 
     // Show it again: the picture is restored.
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: false,
+        on: true,
     });
     let restored = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(restored.stats().triangles, full.stats().triangles);
@@ -234,6 +234,7 @@ fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let held = marks::Held {
         faces: [Some(&face), None, None],
         edges: None,
+        entities: [None, None],
     };
     let read = |session: &DocSession| {
         let view = session.display_view();
@@ -243,9 +244,9 @@ fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let mark = read(&session);
     assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
 
-    let outcome = session.perform(SessionOp::SetBodyHidden {
+    let outcome = session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: true,
+        on: false,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let mark = read(&session);
@@ -314,9 +315,9 @@ fn a_fused_instance_is_drawn_through_the_body_that_reads_it() {
     let full = index.scene_for(&session.display_view()).expect("a scene");
     assert!(full.stats().triangles > 0, "the copy draws");
     for instance in [a, b] {
-        let outcome = session.perform(SessionOp::SetBodyHidden {
+        let outcome = session.perform(SessionOp::SetBodyOn {
             node: instance,
-            hidden: true,
+            on: false,
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
@@ -329,9 +330,9 @@ fn a_fused_instance_is_drawn_through_the_body_that_reads_it() {
         full.stats().triangles,
         "hiding a body the picture does not draw takes nothing off it"
     );
-    let outcome = session.perform(SessionOp::SetBodyHidden {
+    let outcome = session.perform(SessionOp::SetBodyOn {
         node: place,
-        hidden: true,
+        on: false,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
@@ -386,9 +387,9 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     let tol = Tol::witness();
     let bench = asm::bench("hidewrong", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let outcome = session.perform(SessionOp::SetBodyHidden {
+    let outcome = session.perform(SessionOp::SetBodyOn {
         node: RecipeNodeId::new(0, 9_999),
-        hidden: true,
+        on: false,
     });
     assert!(
         matches!(
@@ -463,16 +464,16 @@ fn hide_is_never_persisted() {
     let tol = Tol::witness();
     let bench = asm::bench("hidesave", tol);
     let mut session = asm::open_bench(&bench, tol);
-    session.perform(SessionOp::SetBodyHidden {
+    session.perform(SessionOp::SetBodyOn {
         node: bench.post_b,
-        hidden: true,
+        on: false,
     });
     // Save the document OVER its own file and reopen it: the hidden
     // set is display state of the closed session, not of the file.
     let outcome = session.perform(SessionOp::Save(bench.asm_path.clone()));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let reopened = asm::open_bench(&bench, tol);
-    assert!(reopened.display().hidden_bodies().is_empty());
+    assert!(reopened.display().toggled().is_empty());
 }
 
 // --- free-move (deliverable 3) ------------------------------------
@@ -1216,10 +1217,16 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])).translation
     );
 
-    // Never persisted: save over the file, reopen, probe gone.
+    // Kept beside the document (IDENTITY DI5, `viewer::layout`): save
+    // over the file, reopen, the committed probe is drawn where it was.
+    let committed = *crate::common::asm::frame_of(&session, bench.post_b).expect("committed");
     session.perform(SessionOp::Save(bench.asm_path.clone()));
     let reopened = asm::open_bench(&bench, tol);
-    assert!(crate::common::asm::frame_of(&reopened, bench.post_b).is_none());
+    assert_eq!(
+        crate::common::asm::frame_of(&reopened, bench.post_b).copied(),
+        Some(committed),
+        "the committed probe reopens"
+    );
 }
 
 #[test]
@@ -1362,9 +1369,9 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
     let mut session = asm::open_bench(&bench, tol);
     assert!(
         session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: bench.post_b,
-                hidden: true,
+                on: false,
             })
             .refusal
             .is_none()
@@ -1384,7 +1391,7 @@ fn a_hide_the_picture_can_no_longer_honour_is_dropped_and_reported() {
          the sentence the user reads is the difference: {}",
         dropped.cause
     );
-    assert!(session.display().hidden_bodies().is_empty());
+    assert!(session.display().toggled().is_empty());
 }
 
 /// **A document REPLACEMENT takes every hide and every placement and
@@ -1430,9 +1437,9 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     // COMMITTED free-move placement, and a drag still in flight.
     assert!(
         session
-            .perform(SessionOp::SetBodyHidden {
+            .perform(SessionOp::SetBodyOn {
                 node: bench.post_a,
-                hidden: true,
+                on: false,
             })
             .refusal
             .is_none()
@@ -1455,7 +1462,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
-    assert_eq!(session.display().hidden_bodies().len(), 1);
+    assert_eq!(session.display().toggled().len(), 1);
     assert!(crate::common::asm::frame_of(&session, bench.post_b).is_some());
     assert_eq!(session.display().probing(), Some(bench.shelf_i));
 
@@ -1475,7 +1482,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
         refused.refusal
     );
     assert!(
-        session.display().hidden_bodies().len() == 1
+        session.display().toggled().len() == 1
             && crate::common::asm::frame_of(&session, bench.post_b).is_some()
             && session.display().probing() == Some(bench.shelf_i)
             && session.display().revision() == held,
@@ -1503,7 +1510,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
         outcome.withdrawn
     );
     assert!(
-        session.display().hidden_bodies().is_empty()
+        session.display().toggled().is_empty()
             && crate::common::asm::frame_of(&session, bench.post_b).is_none(),
         "…and it took the hide and the committed placement anyway, which \
          is the asymmetry this row records as decided"

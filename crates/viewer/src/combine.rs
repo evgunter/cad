@@ -541,7 +541,7 @@ impl Say for MirrorEvent {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::PlaneLost { plane, .. } => {
-                crate::matetool::face_lost(f, FaceRole::MirrorPlane.name(), plane, by)
+                crate::matetool::pick_lost(f, FaceRole::MirrorPlane.name(), plane, by)
             }
         }
     }

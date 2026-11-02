@@ -358,8 +358,9 @@ components of the recipe under its reads (`Doc::upstream`;
 stays deterministic, and every copy pinned against the world has a world
 pose, so the world is one body. A copy in another space (A11 (2)), a
 `new_space()` or a construction's own, is compared with nothing outside
-it, and is not part of that body. The viewer's free-move probe is display state, never persisted
-(`crates/viewer/src/display.rs`).
+it, and is not part of that body. The viewer's free-move probe is display state, never in the
+document: a save keeps it beside the document as viewer data (IDENTITY
+DI5; `crates/viewer/src/layout.rs`).
 
 **A10 — The product is a slot.** A document's product is the body its
 product slot reads (`Doc::product`, set by `DocEdit::SetProduct`), a
