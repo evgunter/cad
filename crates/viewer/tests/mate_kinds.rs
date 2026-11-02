@@ -190,12 +190,11 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
         panic!("a cursor on each edge's middle picks the edge: {picks:?}")
     };
     assert_eq!((b_edge.node, a_edge.node), (bench.post_b, bench.post_a));
-    let tools = mate_fed(&session, &index, &picks);
     asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
+    let tools = mate_fed(&session, &index, &picks);
     let tool = tools.mate().expect("the mate tool is open");
-    match tool.proposal(doc, choice(VarKind::Plane, true)) {
-        Err(MateToolError::KindDoesNotRead { side, kind, entity }) => {
+    match common::proposed(&session, tool, choice(VarKind::Plane, true)) {
+        Err(MateToolError::KindDoesNotRead { side, kind, entity, .. }) => {
             assert_eq!(
                 (side, kind, entity),
                 (MateSide::On, VarKind::Plane, EntityKind::Edge)
@@ -203,10 +202,9 @@ fn two_straight_edges_mated_as_axes_are_collinear() {
         }
         other => panic!("a plane reads no edge: {other:?}"),
     }
-    let proposal = tool
-        .proposal(doc, choice(VarKind::Axis, false))
+    let proposal = common::proposed(&session, tool, choice(VarKind::Axis, false))
         .expect("two edges mate as axes");
-    assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
+    assert_eq!(proposal.placement, Some(bench.post_b), "the on pick's copy");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(b_edge);
@@ -268,21 +266,19 @@ fn a_vertex_mated_on_a_vertex_coincides() {
         near(was.x, corner_b.x) && near(was.y, 0.0) && near(was.z, top),
         "post_b's corner is marked where it is drawn: {was:?}"
     );
-    let tools = mate_fed(&session, &index, &picks);
     asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
+    let tools = mate_fed(&session, &index, &picks);
     let tool = tools.mate().expect("the mate tool is open");
     assert!(
         matches!(
-            tool.proposal(doc, choice(VarKind::Point, true)),
+            common::proposed(&session, tool, choice(VarKind::Point, true)),
             Err(MateToolError::NoSense {
                 kind: VarKind::Point
             })
         ),
         "a point has no sense to turn round"
     );
-    let proposal = tool
-        .proposal(doc, choice(VarKind::Point, false))
+    let proposal = common::proposed(&session, tool, choice(VarKind::Point, false))
         .expect("two vertices mate as points");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
@@ -322,13 +318,12 @@ fn an_edge_mated_as_a_direction_runs_parallel() {
     };
     assert_eq!(shelf_edge.node, bench.shelf_i);
     assert!(along.len() >= 2, "the shelf's edge is drawn");
-    let tools = mate_fed(&session, &index, &picks);
     asm::unpin(&mut session, bench.post_b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tools
-        .mate()
-        .expect("the mate tool is open")
-        .proposal(doc, choice(VarKind::Direction, false))
+    let tools = mate_fed(&session, &index, &picks);
+    let proposal = common::proposed(
+        &session,
+        tools.mate().expect("the mate tool is open"),
+        choice(VarKind::Direction, false))
         .expect("two edges mate as directions");
     common::commit_mate(&mut session, proposal.op_into_target_space());
     let index = asm::index_of(&session);
@@ -393,13 +388,12 @@ fn a_circular_edge_is_coaxial_with_a_cylinder_face() {
     };
     assert_eq!((rim.node, side.node), (small_copy, big_copy));
     let tools = mate_fed(&session, &index, &picks);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tools
-        .mate()
-        .expect("the mate tool is open")
-        .proposal(doc, choice(VarKind::Axis, false))
+    let proposal = common::proposed(
+        &session,
+        tools.mate().expect("the mate tool is open"),
+        choice(VarKind::Axis, false))
         .expect("a rim and a cylinder mate as axes");
-    assert_eq!(proposal.placement, small_copy, "the rim's copy is placed");
+    assert_eq!(proposal.placement, Some(small_copy), "the rim's copy is placed");
     common::commit_mate(&mut session, proposal.op());
     let index = asm::index_of(&session);
     let ids = index.edges_of_target(rim);

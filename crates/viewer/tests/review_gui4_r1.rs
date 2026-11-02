@@ -133,8 +133,7 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     tool.pick(session.doc(), post_a_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
+    let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("the tool proposes");
 
     // The rotated placement enters nothing: each side names the
@@ -142,12 +141,12 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     // instance's placement is — and no number read at the world spot
     // enters the mate.
     assert_eq!(
-        asm::side_face(doc, &proposal.on),
+        asm::side_face(doc, &proposal.mates[0].on[0]),
         Some(bench.post_top.clone()),
         "the on side is the post's own top cap"
     );
     assert_eq!(
-        asm::side_face(doc, &proposal.to),
+        asm::side_face(doc, &proposal.mates[0].to[0]),
         Some(bench.shelf_bottom.clone()),
         "the to side is the shelf's own underside"
     );
@@ -728,11 +727,13 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), top);
     tool.pick(session.doc(), bottom);
-    let (doc, _) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, asm::seat_choice()) {
-        Err(viewer::matetool::MateToolError::SamePick { head }) => {
-            assert_eq!(head.id(), bench.post_b, "said as the picked copy");
-        }
+    // A pick on the copy is its on pick, so the second replaces the
+    // first and the to seat stays empty.
+    match common::proposed(&session, &tool, asm::seat_choice()) {
+        Err(viewer::matetool::MateToolError::SeatEmpty {
+            side: pncad::document::MateSide::To,
+            ..
+        }) => {}
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }
     // Nothing entered the document.

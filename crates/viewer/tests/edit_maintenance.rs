@@ -646,9 +646,7 @@ fn a_mates_dropped_values_are_one_notice() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), a);
     tool.pick(session.doc(), b);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
+    let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("the seat proposes");
     let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

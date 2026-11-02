@@ -375,6 +375,17 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
+        SessionOp::Place {
+            body: node.into(),
+            target: pncad::document::VarId::WORLD,
+            constraints: pncad::document::stand().bundle(),
+        },
+        SessionOp::SetBundle {
+            placement: node,
+            base: Vec::new(),
+            constraints: pncad::document::stand().bundle(),
+            into_target_space: false,
+        },
         SessionOp::AddDrawnProfile {
             plane: FaceSelection {
                 name: face(node),
@@ -500,6 +511,10 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // A re-target and a bundle written: a document edit, fenced
         // with every other one.
         SessionOp::IntoOwnSpace { .. } => (54, false),
+        // The placement editor's two Applies: an insert door and a
+        // bundle written, each fenced with every other document edit.
+        SessionOp::Place { .. } => (61, false),
+        SessionOp::SetBundle { .. } => (62, false),
         // An insert door, fenced with every other one.
         SessionOp::AddMirror { .. } => (55, false),
         // What the document makes: a document edit, fenced with every
@@ -980,6 +995,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::Place { .. }
+        | SessionOp::SetBundle { .. }
         | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }

@@ -3841,7 +3841,9 @@ fn every_tool_event_says_whether_anything_will_say_it_again() {
         (
             "mate: a held pick lost",
             ToolNotice::Mate(MateToolEvent::PickLost {
+                row: 0,
                 side: MateSide::To,
+                seat: viewer::matetool::MateSeat::One,
                 pick: viewer::tree::HeldPick::new(
                     &pncad::document::Doc::empty_derived("cases", Tol::witness()),
                     viewer::matetool::MatePick::Face(FaceSelection {

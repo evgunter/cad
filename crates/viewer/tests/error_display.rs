@@ -281,17 +281,15 @@ fn scene_error_forwards_its_tessellation_arm() {
     prose(&outer, "InvalidChordalTolerance");
 }
 
-/// A value on a freedom the mate's kind fixes names the kind and the
-/// freedom, in the kernel's own words for each — never a variant name.
+/// A value on a freedom the mates fix names the freedom, in the
+/// kernel's own words — never a variant name.
 #[test]
 fn mate_tool_error_names_the_freedom_a_kind_fixes() {
-    use pncad::document::{Coord, TargetAxis, VarKind};
+    use pncad::document::{Coord, TargetAxis};
     let outer = MateToolError::NotAFreedom {
         coord: Coord::Slide(TargetAxis::X),
-        kind: VarKind::Axis,
     }
     .to_string();
-    assert!(outer.contains(&VarKind::Axis.to_string()), "{outer}");
     assert!(
         outer.contains(Coord::Slide(TargetAxis::X).name()),
         "{outer}"

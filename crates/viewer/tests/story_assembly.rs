@@ -40,7 +40,7 @@ use pncad::select::{Resolution, RunCtx, face_frame};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
-use viewer::matetool::{MateTool, MateToolState};
+use viewer::matetool::{MateSeat, MateTool};
 use viewer::session::{
     AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
 };
@@ -546,12 +546,12 @@ fn the_windmill_story() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), hub_bottom.clone());
     tool.pick(session.doc(), tower_top);
-    assert!(matches!(tool.state(), MateToolState::Two { .. }));
+    assert!(
+        tool.rows()[0].side(pncad::document::MateSide::To).pick(MateSeat::One).is_some(),
+        "both seats are held"
+    );
     let seat_proposal = {
-        let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(
-            doc,
-            rest_choice(
+        common::proposed(&session, &tool, rest_choice(
                 [
                     (pncad::document::TargetAxis::X, 0.0),
                     (pncad::document::TargetAxis::Y, 0.0),
@@ -735,8 +735,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), sail_a_bottom.clone());
     tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
-        let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(0.0))
+        common::proposed(&session, &tool, sail_choice(0.0))
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op_into_target_space());
@@ -784,8 +783,7 @@ fn the_windmill_story() {
     tool.pick(session.doc(), sail_b_bottom.clone());
     tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
-        let (doc, _) = session.landed_pair().expect("landed");
-        tool.proposal(doc, sail_choice(core::f64::consts::FRAC_PI_2))
+        common::proposed(&session, &tool, sail_choice(core::f64::consts::FRAC_PI_2))
             .expect("the second sail proposes")
     };
     let outcome = session.perform(sail_b_proposal.op_into_target_space());

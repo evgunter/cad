@@ -43,7 +43,7 @@ use pncad::document::Frame;
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::face_frame;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateTool, MateToolState};
+use viewer::matetool::{MateSeat, MateTool};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
 use viewer::tree::RowStatus;
@@ -160,7 +160,10 @@ fn the_exit_demo_walk() {
     let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
     assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(session.doc(), shelf_bottom.clone());
-    assert!(matches!(tool.state(), MateToolState::Two { .. }));
+    assert!(
+        tool.rows()[0].side(pncad::document::MateSide::To).pick(MateSeat::One).is_some(),
+        "both seats are held"
+    );
 
     // ── 7. ONE COMMITTED MATE ACTION. The proposal reads each picked
     // face as a plane — post_b's top cap `on`, the shelf's underside
@@ -174,9 +177,7 @@ fn the_exit_demo_walk() {
         .node_space(bench.post_b)
         .expect("post_b is placed");
     assert!(session.display().free_move_of(own).is_some());
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
+    let proposal = common::proposed(&session, &tool, asm::seat_choice())
         .expect("the seat proposes");
     let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

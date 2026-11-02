@@ -14,7 +14,7 @@ use common::{ang, len, scl};
 use pncad::document::{MateSide, RecipeNodeId, Said};
 use pncad::geom_core::Tol;
 use pncad::select::{RoleSeg, face_frame};
-use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState};
+use viewer::matetool::{MateSeat, MateTool, MateToolError, MateToolEvent, PlaceDoor, ValueFrom};
 use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
 
 #[test]
@@ -24,40 +24,65 @@ fn two_picks_one_choice_one_committed_edit() {
     let mut session = asm::open_bench(&bench, tol);
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
 
-    // The two sequential picks, held in tool state.
-    let mut tool = MateTool::new();
-    assert_eq!(tool.state(), &MateToolState::Idle);
-    tool.pick(session.doc(), post_top.clone());
-    assert!(matches!(tool.state(), MateToolState::One(_)));
-    tool.pick(session.doc(), shelf_bottom.clone());
-    assert!(matches!(tool.state(), MateToolState::Two { .. }));
     // post_b's world mate off, so the mate places it: its bundle is the
     // empty one.
     asm::unpin(&mut session, bench.post_b);
 
+    // The first pick, on post_b's copy, opens the Edit door on it and
+    // fills a fresh row's on seat; the second, elsewhere, its to seat.
+    let mut tool = MateTool::new();
+    assert!(tool.door().is_none(), "no pick, no door");
+    assert!(tool.pick(session.doc(), post_top.clone()).is_none());
+    assert!(
+        matches!(tool.door(), Some(PlaceDoor::Edit { placement, .. }) if *placement == bench.post_b),
+        "a pick on a copy opens its placement's Edit door"
+    );
+    assert!(tool.pick(session.doc(), shelf_bottom.clone()).is_none());
+    let row = &tool.rows()[tool.active()];
+    assert_eq!(
+        row.side(MateSide::On).pick(MateSeat::One).and_then(|p| p.pick().face()),
+        Some(&post_top)
+    );
+    assert_eq!(
+        row.side(MateSide::To).pick(MateSeat::One).and_then(|p| p.pick().face()),
+        Some(&shelf_bottom)
+    );
+
     // The proposal: each side IS the picked face read as a plane, by the
     // part's own name, resolved at every evaluation.
+    let proposal =
+        common::proposed(&session, &tool, asm::seat_choice()).expect("the seat proposes");
     let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(doc, asm::seat_choice())
-        .expect("the seat proposes");
-    assert_eq!(proposal.placement, bench.post_b, "the on pick's copy");
-    assert_eq!(proposal.values, asm::middle_seat_values());
+    assert_eq!(proposal.placement, Some(bench.post_b), "the on pick's copy");
+    for (coord, by) in asm::middle_seat_values() {
+        assert!(
+            proposal
+                .values
+                .iter()
+                .any(|row| row.coord == coord && row.by == by && row.from == ValueFrom::Typed),
+            "the typed {coord:?} is a value row: {:?}",
+            proposal.values
+        );
+    }
+    let [mate] = &proposal.mates[..] else {
+        panic!("one live mate: {:?}", proposal.mates)
+    };
     // The on pick is post_b's top cap: the side names the POST's own
     // cap row, not numbers read at the instance's world spot.
     assert_eq!(
-        asm::side_face(doc, &proposal.on),
+        asm::side_face(doc, &mate.on[0]),
         Some(bench.post_top.clone()),
         "the on side is the post's own cap face"
     );
     assert_eq!(
-        asm::side_face(doc, &proposal.to),
+        asm::side_face(doc, &mate.to[0]),
         Some(bench.shelf_bottom.clone()),
         "the to side is the shelf's own underside"
     );
+    let rest = crate::fixture::rest(mate.on[0].clone(), mate.to[0].clone());
     assert_eq!(
-        proposal.mate,
-        crate::fixture::rest(proposal.on.clone(), proposal.to.clone()),
+        (&mate.mate.on, &mate.mate.to),
+        (&rest.on, &rest.to),
         "two planes, the target flipped: the faces rest against each other"
     );
 
@@ -115,24 +140,28 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     let tol = Tol::witness();
     let bench = asm::bench("materefuse", tol);
     let session = asm::open_bench(&bench, tol);
-    let (doc, _) = session.landed_pair().expect("landed");
     let (post_top, shelf_bottom) = asm::seat_picks(&session, &bench);
 
-    // No picks yet: NotTwoPicks.
+    // No picks yet: no door.
     let tool = MateTool::new();
     assert!(matches!(
-        tool.proposal(doc, asm::seat_choice()),
-        Err(MateToolError::NotTwoPicks)
+        common::proposed(&session, &tool, asm::seat_choice()),
+        Err(MateToolError::NoDoor)
     ));
 
-    // Both picks on ONE instance: SamePick, refused at the tool
-    // rather than authored into a mate of the copy on itself.
+    // Both picks on ONE instance: a pick on the copy is its on pick,
+    // whatever its order, so the second replaces the first and the to
+    // seat stays empty — no mate of the copy on itself is authored.
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), post_top.clone());
     assert!(matches!(
-        tool.proposal(doc, asm::seat_choice()),
-        Err(MateToolError::SamePick { head }) if head.id() == bench.post_b
+        common::proposed(&session, &tool, asm::seat_choice()),
+        Err(MateToolError::SeatEmpty {
+            side: MateSide::To,
+            seat: MateSeat::One,
+            ..
+        })
     ));
 
     // A vanished pick refuses typed when asked WITHOUT a reconcile
@@ -146,9 +175,8 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
         node: bench.shelf_i,
     });
     session2.pump();
-    let (doc2, _) = session2.landed_pair().expect("landed");
     assert!(matches!(
-        tool.proposal(doc2, asm::seat_choice()),
+        common::proposed(&session2, &tool, asm::seat_choice()),
         Err(MateToolError::PickGone {
             side: MateSide::To,
             ..
@@ -157,12 +185,12 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
 }
 
 /// **The choice's own refusals come before any pick is read**: a kind
-/// no face pick reads and a value on a freedom the kind fixes are facts
-/// about the CHOICE alone, so the tool refuses them the way it refuses
-/// a class outside the vocabulary — here with the picks' instance
+/// the editor reads off no pick and a sense on a kind that has none are
+/// facts about the CHOICE alone, refused here with the picks' instance
 /// deleted out from under the tool, which the pick door would refuse
-/// were it reached. Which freedoms a kind leaves is the panel's
-/// reading (`MateFreedom::left_by`).
+/// were it reached. A number on a freedom the mates do not leave is
+/// refused once the mates are read: the freedoms are the kernel's
+/// (`Placed::freedoms`).
 #[test]
 fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
     use pncad::document::{Coord, TargetAxis, VarKind};
@@ -178,33 +206,48 @@ fn the_tool_refuses_the_choices_own_faults_before_any_pick() {
         node: bench.shelf_i,
     });
     gone.pump();
-    let (doc, _) = gone.landed_pair().expect("landed");
     let mut choice = asm::seat_choice();
-    choice.kind = VarKind::Frame;
+    choice.kind = VarKind::Length;
     assert!(
         matches!(
-            tool.proposal(doc, choice),
+            common::proposed(&gone, &tool, choice),
             Err(MateToolError::KindNotOffered {
-                kind: VarKind::Frame
+                kind: VarKind::Length
             })
         ),
-        "a frame is no pose one face pick reads"
+        "a length is no pose"
     );
     let mut choice = asm::seat_choice();
-    choice.kind = VarKind::Axis;
-    let Err(MateToolError::NotAFreedom { coord, kind }) = tool.proposal(doc, choice) else {
-        panic!("an axis mate leaves one slide, not the seat's two");
-    };
-    assert_eq!((coord, kind), (Coord::Slide(TargetAxis::Y), VarKind::Axis));
-    // And a choice whose every part is admitted reaches the pick door,
+    choice.kind = VarKind::Point;
+    assert!(
+        matches!(
+            common::proposed(&gone, &tool, choice),
+            Err(MateToolError::NoSense {
+                kind: VarKind::Point
+            })
+        ),
+        "a point has no sense to turn round"
+    );
+    // A choice whose every part is admitted reaches the pick door,
     // which is what "before any pick" means here.
     assert!(matches!(
-        tool.proposal(doc, asm::seat_choice()),
+        common::proposed(&gone, &tool, asm::seat_choice()),
         Err(MateToolError::PickGone {
             side: MateSide::To,
             ..
         })
     ));
+    // A spin about the target's x is a link of a chain, which a plane
+    // mate does not leave.
+    let mut choice = asm::seat_choice();
+    choice
+        .values
+        .push((Coord::Spin(Some(TargetAxis::X)), ang(0.1)));
+    let Err(MateToolError::NotAFreedom { coord }) = common::proposed(&session, &tool, choice)
+    else {
+        panic!("a plane mate leaves no chain of spins");
+    };
+    assert_eq!(coord, Coord::Spin(Some(TargetAxis::X)));
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 
@@ -217,7 +260,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
-    let held_line = tool.line(viewer::frame::landed_speaker(session.landed_pair()));
+    let held_line = tool.line(0, viewer::frame::landed_speaker(session.landed_pair()));
 
     // The SECOND pick's instance is deleted out from under the tool.
     session.perform(SessionOp::DeleteNode {
@@ -226,13 +269,15 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
     let events = tool.reconcile(doc, eval);
-    // Degraded ONE step: back to the one-pick state, the first pick
-    // held, the drop typed with the side and the resolution verdict.
+    // The lost pick's seat is empty, the other held, the drop typed
+    // with its row, side and seat and the resolution verdict.
     assert_eq!(events.len(), 1);
     assert!(matches!(
         &events[0],
         MateToolEvent::PickLost {
+            row: 0,
             side: MateSide::To,
+            seat: MateSeat::One,
             ..
         }
     ));
@@ -250,18 +295,21 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     assert!(held_line.ends_with(&format!("to: {said}")), "{held_line:?}");
     assert_eq!(
         Said(&events[0], viewer::frame::landed_speaker(Some((doc, eval)))).to_string(),
-        format!("the to pick ({said}) no longer resolves; the tool dropped it")
+        format!("the mate 1 to pick ({said}) no longer resolves; the tool dropped it")
     );
-    match tool.state() {
-        MateToolState::One(held) => assert_eq!(held.pick().face(), Some(&post_top)),
-        other => panic!("the tool degrades to its previous step, got {other:?}"),
-    }
+    let row = &tool.rows()[0];
+    assert_eq!(
+        row.side(MateSide::On).pick(MateSeat::One).and_then(|p| p.pick().face()),
+        Some(&post_top),
+        "the on pick is held"
+    );
+    assert!(row.side(MateSide::To).pick(MateSeat::One).is_none(), "its seat is empty");
 
     // A reconcile against an unchanged pair is quiet.
     assert!(tool.reconcile(doc, eval).is_empty());
-    assert!(matches!(tool.state(), MateToolState::One(_)));
 
-    // The FIRST pick's instance goes too: Idle, typed again.
+    // The copy the Edit door is on goes too: the editor holds nothing,
+    // said.
     session.perform(SessionOp::DeleteNode { node: bench.post_b });
     session.pump();
     let (doc, eval) = session.landed_pair().expect("landed");
@@ -269,12 +317,9 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     assert_eq!(events.len(), 1);
     assert!(matches!(
         &events[0],
-        MateToolEvent::PickLost {
-            side: MateSide::On,
-            ..
-        }
+        MateToolEvent::PlacementGone { placement } if placement.id() == bench.post_b
     ));
-    assert_eq!(tool.state(), &MateToolState::Idle);
+    assert!(tool.door().is_none());
 }
 
 /// The linear spacing the pattern rows step post_b by — wide enough
@@ -351,10 +396,9 @@ fn shelf_on(
     let mut tool = MateTool::new();
     tool.pick(session.doc(), shelf_bottom.clone());
     tool.pick(session.doc(), target.clone());
-    let (doc, _) = session.landed_pair().expect("landed");
     let mut choice = asm::seat_choice();
     choice.values = Vec::new();
-    tool.proposal(doc, choice)
+    common::proposed(&session, &tool, choice)
         .expect("the shelf's rest proposes")
 }
 
@@ -384,14 +428,15 @@ fn a_pattern_placed_pick_is_a_target_the_shelf_rests_on() {
     let shelf_bottom = asm::shelf_underside(&session);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
     assert_eq!(
-        proposal.placement, bench.shelf_i,
+        proposal.placement,
+        Some(bench.shelf_i),
         "the mate places the shelf"
     );
 
     // The target is read where the ray met it, `Member`-headed on the
     // family's placement.
-    assert_eq!(proposal.to.at, copy_one.node);
-    let own = own_name(&proposal.to);
+    assert_eq!(proposal.mates[0].to[0].at, copy_one.node);
+    let own = own_name(&proposal.mates[0].to[0]);
     assert_eq!(own.node, pattern);
     assert!(
         member_at(own.path.first()) == Some(vec![1]),
@@ -474,10 +519,10 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     let shelf_bottom = asm::shelf_underside(&session);
     let proposal = shelf_on(&session, &shelf_bottom, &copy_one);
     assert_eq!(
-        proposal.to.at, copy_one.node,
+        proposal.mates[0].to[0].at, copy_one.node,
         "the target is read at the copy the ray met"
     );
-    let own = own_name(&proposal.to);
+    let own = own_name(&proposal.mates[0].to[0]);
     assert_eq!(own.node, pattern, "and names that copy");
     assert!(
         member_at(own.path.first()) == Some(vec![1]),
@@ -485,7 +530,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         own.path.first()
     );
     assert_eq!(
-        proposal.on.at, bench.shelf_i,
+        proposal.mates[0].on[0].at, bench.shelf_i,
         "an untransformed pick is read at its own instance"
     );
     let _ = moved;
@@ -555,11 +600,11 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     let shelf_bottom = asm::shelf_underside(&session);
     let proposal = shelf_on(&session, &shelf_bottom, &post_top);
     assert_eq!(
-        proposal.to.at, union_copy,
+        proposal.mates[0].to[0].at, union_copy,
         "the target is read at the union's copy"
     );
     assert_eq!(
-        proposal.to.name.clone(),
+        proposal.mates[0].to[0].name.clone(),
         post_top.name,
         "by the name the union carries for post_b's face"
     );
@@ -819,8 +864,8 @@ fn a_nested_copy_pick_is_a_target_and_seats() {
 
     // The target wears one `Member` per level, outermost first, and is
     // read at the copy the ray met.
-    assert_eq!(proposal.to.at, nested.node);
-    let own = own_name(&proposal.to);
+    assert_eq!(proposal.mates[0].to[0].at, nested.node);
+    let own = own_name(&proposal.mates[0].to[0]);
     assert_eq!(own.node, outer);
     assert_eq!(
         member_at(own.path.first()),
@@ -885,8 +930,8 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
     // Read at the read's copy, under the FAMILY's own name: the read
     // carries every name verbatim, so the target's head is the family's
     // placement the member was minted by.
-    assert_eq!(proposal.to.at, picked.node, "the copy the ray met");
-    let own = own_name(&proposal.to);
+    assert_eq!(proposal.mates[0].to[0].at, picked.node, "the copy the ray met");
+    let own = own_name(&proposal.mates[0].to[0]);
     assert_eq!(own.node, inner);
     assert!(
         member_at(own.path.first()) == Some(vec![1]),
@@ -912,14 +957,12 @@ fn a_part_over_a_pattern_pick_is_a_target_and_seats() {
     }
 }
 
-/// **A refusal about a pick names its node as the panel does**, after
-/// a rename that has not landed. The chrome speaks the landed document:
-/// the mate panel says a held pick's node as it holds it, and the tool's
-/// refusal is spoken again from that same document where the panel
-/// draws it (`MateToolError::respoken`), so the two say one label — the
-/// landed one, which the rename has not reached. Driven through
-/// `MateTool::proposal`: both picks on one instance refuse `SamePick`.
-/// Red if either says the rename before it lands.
+/// **The panel names a held pick's node by the landed label**, after a
+/// rename that has not landed. The chrome speaks the landed document:
+/// the panel says a held pick's node as it holds it. Both picks on one
+/// instance are both its `on` pick, so the second replaces the first and
+/// the refusal says the empty `to` seat. Red if the panel says the
+/// rename before it lands.
 #[test]
 fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let tol = Tol::witness();
@@ -929,8 +972,6 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), post_top);
-    // A pick is on the drawn copy, so the panel and the refusal say
-    // the copy's placement.
     let renamed = session.perform(SessionOp::SetLabel {
         node: bench.post_b,
         label: Some(pncad::document::Label::new("post").expect("a label")),
@@ -944,27 +985,20 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
         None,
         "the premise: the landed pair predates it"
     );
-    let refused = tool
-        .proposal(doc, asm::seat_choice())
+    let refused = common::proposed(&session, &tool, asm::seat_choice())
         .expect_err("one instance is no pair");
-    // The chrome speaks the landed document, so both say the label it
-    // holds — none yet — and neither says the rename before it lands.
-    let said = refused.respoken(doc).to_string();
+    assert_eq!(
+        refused.respoken(doc).to_string(),
+        "mate 1's to seat is empty"
+    );
     let spoken = format!(
         "InstantiatePart {}",
         test_utils::refusal::tag(bench.post_b.0.digest())
     );
-    assert_eq!(
-        said,
-        format!(
-            "both picks are on {spoken}, the copy the mate places; a mate relates it to \
-             something else"
-        )
-    );
-    let panel = tool.line(viewer::frame::landed_speaker(session.landed_pair()));
+    let panel = tool.line(0, viewer::frame::landed_speaker(session.landed_pair()));
     assert!(
         panel.contains(&spoken) && !panel.contains("\"post\""),
-        "the panel says the same node, by the landed label: {panel}"
+        "the panel says the node by the landed label: {panel}"
     );
 }
 
@@ -1021,11 +1055,7 @@ fn a_freshly_mated_copy_moves_only_by_the_snap() {
     let mut tool = MateTool::new();
     tool.pick(session.doc(), post_top.clone());
     tool.pick(session.doc(), shelf_bottom.clone());
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = tool
-        .proposal(
-            doc,
-            viewer::matetool::MateChoice {
+    let proposal = common::proposed(&session, &tool, viewer::matetool::MateChoice {
                 kind: pncad::document::VarKind::Plane,
                 flip: true,
                 values: Vec::new(),
@@ -1086,10 +1116,7 @@ fn a_face_on_a_splits_lower_half_is_mated_on_that_half() {
     mate.pick(session.doc(), underside);
     mate.pick(session.doc(), top);
     let proposal = {
-        let (doc, _) = session.landed_pair().expect("landed");
-        mate.proposal(
-            doc,
-            viewer::matetool::MateChoice {
+        common::proposed(&session, &mate, viewer::matetool::MateChoice {
                 kind: pncad::document::VarKind::Plane,
                 flip: true,
                 values: Vec::new(),
@@ -1186,11 +1213,7 @@ fn the_snap_moves_a_turned_copy_only_by_the_snap() {
         let mut tool = MateTool::new();
         tool.pick(session.doc(), post_top.clone());
         tool.pick(session.doc(), shelf_bottom.clone());
-        let (doc, _) = session.landed_pair().expect("landed");
-        let proposal = tool
-            .proposal(
-                doc,
-                viewer::matetool::MateChoice {
+        let proposal = common::proposed(&session, &tool, viewer::matetool::MateChoice {
                     kind: pncad::document::VarKind::Plane,
                     flip: true,
                     values: Vec::new(),

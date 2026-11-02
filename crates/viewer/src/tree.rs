@@ -1677,7 +1677,7 @@ mod picked_name {
             "the mirror says the cap on the copy clicked: {plane}"
         );
         assert_eq!(
-            mate.line(by),
+            mate.line(mate.active(), by),
             format!("on: {}; to: {}", cap(place), cap(second)),
             "the mate says it alike, and the two copies apart"
         );
