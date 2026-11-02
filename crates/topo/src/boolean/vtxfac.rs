@@ -569,7 +569,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     &declared.sections,
                     (&*piercing_body, piercing, s.face),
                     (pierced_body, contact.face),
-                ) else {
+                )?
+                else {
                     return Ok(None);
                 };
                 let faces = match piercing {
@@ -1430,9 +1431,9 @@ fn ring_struts<T: Decide>(
 /// vertex there, so each wall takes a ring vertex at the node
 /// ([`ring_vertex_in`]) and the section's four arcs leave it.
 ///
-/// The arcs' tangents are `tangents` (`e₁`'s, then `e₂`'s, either way
-/// along each), `axes` the walls' axes, A's first, and `radial` the
-/// node less the axes' meeting point. Round the node each wall's four
+/// The arcs' tangents are `tangents`, the pose's bisector normals
+/// (`e₁`'s along `â₁ + â₂`, then `e₂`'s along `â₁ − â₂`, with `â₁` A's
+/// wall's axis), and `radial` the node less the axes' meeting point. Round the node each wall's four
 /// sectors between the arcs alternate sides of the other cylinder (the
 /// section table's `nodes`): on A's wall the sectors about `±â₁` lie
 /// outside B's cylinder and those about `±â₂` inside; on B's wall the
@@ -1456,9 +1457,7 @@ fn ring_struts<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::NodeUnbuilt`] for arcs whose turn toward the axis
-/// reads Zero at the walls' radius; either
-/// face's normal refusing at the node; [`germ_order`]'s and
+/// Either face's normal refusing at the node; [`germ_order`]'s and
 /// [`mint_ring`]'s refusals; the Euler operators'.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
@@ -1466,7 +1465,6 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
     faces: (crate::entity::FaceKey, crate::entity::FaceKey),
     (node, radial): (geom_core::Point3<T>, Vec3<T>),
     tangents: [Vec3<T>; 2],
-    axes: [Vec3<T>; 2],
     arm: T,
     band: Band,
     tol: Tol,
@@ -1502,37 +1500,20 @@ pub(super) fn mint_node<T: Decide + crate::props::AtRestPolicy>(
         sense(Operand::A, a, faces.0)?,
         sense(Operand::B, b, faces.1)?,
     );
-    let run_axis = if a_rod { axes[0] } else { axes[1] };
     // The walls' outward normals at the node are both `±radial`, so
     // they agree where the senses do and are opposed where they differ.
     let normals_agree = a_rod == b_rod;
     // Each tangent turned toward that axis, so a run's two germs bound
     // the sector about it and their opposites the one about its
-    // opposite. `t·â` is `cos(θ/2)` or `sin(θ/2)` for the angle `θ`
-    // between the axes: the pair's parallel gate decided `θ` apart at
-    // the walls' span, and a turn too small to read at their radius is a
-    // node this pass cannot build.
-    let toward = |t: Vec3<T>| -> Result<Vec3<T>, BooleanError> {
-        match decide(
-            "bool_node_tangent_toward_axis",
-            Margin::levered(t.dot(run_axis), arm),
-            band,
-        ) {
-            Ok(Sign::Positive) => Ok(t),
-            Ok(Sign::Negative) => Ok(-t),
-            Ok(Sign::Zero) => Err(BooleanError::NodeUnbuilt {
-                a_face: faces.0,
-                b_face: faces.1,
-                why: super::NodeWhy::NearlyParallel,
-            }),
-            Err(diag) => Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
-                diag,
-            )),
-        }
-    };
-    let (g1, g2) = (toward(tangents[0])?, toward(tangents[1])?);
+    // opposite. The tangents are the pose's bisector normals, `e₁`'s
+    // along `â₁ + â₂` and `e₂`'s along `â₁ − â₂` (the pose's own
+    // `bisector_planes`), whose sides of each axis are fixed by their
+    // construction once the pose decided the axes crossing: `â₁ + â₂`
+    // leans toward both axes, `â₁ − â₂` toward `â₁` and away from `â₂`,
+    // each by `cos(θ/2)` or `sin(θ/2)`. No margin is read here: a turn
+    // too small to tell is the pose's parallelism, decided before any
+    // node exists.
+    let (g1, g2) = (tangents[0], if a_rod { tangents[1] } else { -tangents[1] });
     let germ = |d: Vec3<T>, branch| -> Germ<T> { (cells, Leaned::upright(d), branch) };
     let (on_e1, on_e2) = (super::Branch::Positive, super::Branch::Negative);
     // A run's start is the germ its sector is entered by, turning

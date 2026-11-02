@@ -398,8 +398,8 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
         } else {
             (on.clone(), Vec::new())
         };
-        let (at, span) = frame_reading(a, c, on_a, on_b).unwrap();
-        let extent = frame_extent((a, &body, face), (c, &body, face), at, span, b).unwrap();
+        let at = frame_reading(a, on_a, on_b).unwrap();
+        let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
         (at, extent)
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
@@ -490,13 +490,13 @@ fn a_near_circular_tilt_is_the_ellipses_frame_and_only_the_pose_escalates() {
         plane([q.x, q.y, q.z], tilted(in_band, 1.0)),
     );
     for (label, x, y) in [("plane, wall", &p, &wall), ("wall, plane", &wall, &p)] {
-        assert_conic_frame(&pair_section_frame(x, y, at, None, b), q, n, label);
+        assert_conic_frame(&pair_section_frame(x, y, at, b), q, n, label);
     }
     for (label, x, y) in [
         ("plane, wall", &banded, &wall),
         ("wall, plane", &wall, &banded),
     ] {
-        let got = pair_section_frame(x, y, at, None, b);
+        let got = pair_section_frame(x, y, at, b);
         assert_eq!(
             escalated(&got),
             "pc_rim_alignment",
@@ -517,7 +517,6 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
     let p = plane([0.0, 0.3, 0.0], Vec3::new(0.0, 1.0, 0.0));
     for extent in [
         FrameExtent::Radii,
-        FrameExtent::Span(1.0),
         FrameExtent::Wall {
             below: 1.0,
             above: 1.0,
@@ -593,9 +592,12 @@ fn declared_equal_walls_meeting_at_a_sliver_are_the_bisector_loops() {
     // `1 − cos φ`, to `u/φ²`.
     let (sh, ch) = (phi / 2.0).sin_cos();
     let (across, along) = (Vec3::new(-sh, ch, 0.0), Vec3::new(ch, sh, 0.0));
-    // The region a radius about the meeting point, the lever the frame
-    // read these walls at.
-    let region = geom_brep::Reach::Ball(geom_brep::ExtentBall::new(Point3::origin(), 1.0));
+    // The operation's region for two such walls two long about the
+    // origin: the ball about their boxes' overlap, `[−1, 1]³`, radius
+    // `√3`, which levers the tilt by `√3` (four band-widths at the radius
+    // read about seven across it, still definite; the in-band tilt below
+    // reads `0.95·escalate`, still in band).
+    let region = geom_brep::Reach::Ball(geom_brep::ExtentBall::new(Point3::origin(), 3f64.sqrt()));
     let pose = |x: &geom::Surface<f64>, y: &geom::Surface<f64>| {
         geom_brep::CylinderCylinderPose::decide(x, y, &region, b).expect("two cylinders")
     };
@@ -655,7 +657,7 @@ fn the_frames_cone_window_holds_its_face() {
         let at = body.vertex_points().next().map(|(_, q)| q).unwrap();
         for (label, a, c) in [("plane, cone", &p, &cone), ("cone, plane", &cone, &p)] {
             let label = format!("u ∈ [0, {u1}], z ∈ [{z0}, {z1}], {label}");
-            let extent = frame_extent((a, &body, face), (c, &body, face), at, None, b).unwrap();
+            let extent = frame_extent((a, &body, face), (c, &body, face), at, b).unwrap();
             let FrameExtent::Cone(reach) = extent else {
                 panic!("{label}: a plane×cone pair reads the cone face, got {extent:?}");
             };

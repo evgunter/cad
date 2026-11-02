@@ -2147,7 +2147,10 @@ pub struct CarriedComponent<T: Real> {
     /// Whether it winds about each surface's carrier, in the order the
     /// section was asked of: a closed form's as classified, a fitted
     /// loop's turns about each surface's axis and core read over its
-    /// uniqueness tube ([`winds`]).
+    /// uniqueness tube ([`winds`]). An arc of a node-joined set claims
+    /// nothing here (`[false, false]`): its set does
+    /// ([`PairSection::node_sets`]), so a reader of a carried arc asks the
+    /// set.
     pub winds: [bool; 2],
     /// **How far from its carrier a point of this component is read**,
     /// in metres; zero for a closed form. Every reading of a point

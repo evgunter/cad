@@ -12,11 +12,13 @@
 //! The section frame a curved germ turns about is read here too, keyed
 //! by the germ's two surface kinds ([`germ_section_loops`],
 //! [`pair_section_frame_at`]): a straight pair has none, each conic pair
-//! names its centre and axis, and the plane×torus pair and the equal
-//! cylinder pair with meeting axes name two loops with a frame each
-//! ([`SectionLoops`]), of which a germ takes the one its branch names
-//! ([`germ_section_frame`]; the branch is decided where the germ is
-//! minted, [`germ_branch`]).
+//! names its centre and axis, and the plane×torus pair names two loops
+//! with a frame each ([`SectionLoops`]), of which a germ takes the one
+//! its branch names ([`germ_section_frame`]; the branch is decided where
+//! the germ is minted, [`germ_branch`]). Two cylinders are read on their
+//! section value instead ([`cylinder_read`]): the parallel pose's rulings
+//! plane, the bisector pose's two planes as two loops (the same
+//! [`SectionLoops`] split), and every other pose's carried components.
 //!
 //! # Matching is germ identity, not slots or senses (the below-copy
 //! # audit)
@@ -2789,10 +2791,10 @@ fn frame_lever<T: Decide>(
             )
         })
     };
-    let (at, span) = frame_reading(sa, sb, witnesses(body_a, face_a), witnesses(body_b, face_b))
-        .map_err(desync)?;
+    let at =
+        frame_reading(sa, witnesses(body_a, face_a), witnesses(body_b, face_b)).map_err(desync)?;
     let extent =
-        frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, span, band).map_err(desync)?;
+        frame_extent((sa, body_a, face_a), (sb, body_b, face_b), at, band).map_err(desync)?;
     Ok((at, extent))
 }
 
@@ -2809,48 +2811,33 @@ fn germ_section_frame<T: Decide>(
     Ok(Some(loops.pick(germ.branch)?))
 }
 
-/// **Where the germ frame reads its axis rows, and its span**: the
-/// centre of the curved face's boundary vertices (the first face's
-/// where both are curved), a point among those the section is consumed
-/// at, so the gap is read where the section is and not where a
-/// carrier's origin is stored; and, for the cylinder pair, the span of
-/// both walls' boundary vertices (the diameter of their ball), which a
-/// wall's axial extent ends at. [`pair_section_frame_at`] levers the
-/// cylinder pair at the longer of the larger radius and this span, and
-/// the plane×cylinder pair at its wall's axial extent from the reading
-/// point ([`frame_extent`]). No lever is a ball chosen around the faces
-/// (`geom_brep::Reach`'s module docs).
+/// **Where the germ frame reads its axis rows**: the centre of the
+/// curved face's boundary vertices (the first face's where both are
+/// curved), a point among those the section is consumed at, so the gap is
+/// read where the section is and not where a carrier's origin is stored.
+/// [`pair_section_frame_at`] levers the plane×cylinder pair at its wall's
+/// axial extent from this point ([`frame_extent`]). No lever is a ball
+/// chosen around the faces (`geom_brep::Reach`'s module docs).
 ///
 /// # Errors
 ///
 /// A face pair with no boundary vertices.
-#[allow(clippy::type_complexity)] // (reading point, span) — one reading
 pub(super) fn frame_reading<T: Decide>(
     sa: &geom::Surface<T>,
-    sb: &geom::Surface<T>,
     on_a: Vec<geom_core::Point3<T>>,
     on_b: Vec<geom_core::Point3<T>>,
-) -> Result<(geom_core::Point3<T>, Option<T>), &'static str> {
-    let ball_of = |points: Vec<geom_core::Point3<T>>| {
-        let points: Vec<geom_brep::ExtentBall<T>> = points
-            .into_iter()
-            .map(geom_brep::ExtentBall::point)
-            .collect();
-        geom_brep::ExtentBall::enclosing(&points).ok_or("a germ face pair has no boundary vertices")
-    };
+) -> Result<geom_core::Point3<T>, &'static str> {
     let curved = match sa {
-        geom::Surface::Plane { .. } => on_b.clone(),
-        _ => on_a.clone(),
+        geom::Surface::Plane { .. } => on_b,
+        _ => on_a,
     };
-    let at = ball_of(curved)?.center();
-    let span = match (sa, sb) {
-        (geom::Surface::Cylinder { .. }, geom::Surface::Cylinder { .. }) => {
-            let both = ball_of(on_a.into_iter().chain(on_b).collect())?;
-            Some(both.radius() + both.radius())
-        }
-        _ => None,
-    };
-    Ok((at, span))
+    let points: Vec<geom_brep::ExtentBall<T>> = curved
+        .into_iter()
+        .map(geom_brep::ExtentBall::point)
+        .collect();
+    geom_brep::ExtentBall::enclosing(&points)
+        .map(|ball| ball.center())
+        .ok_or("a germ face pair has no boundary vertices")
 }
 
 /// **What [`pair_section_frame_at`] levers a pair at**: the consumed
@@ -2859,8 +2846,6 @@ pub(super) fn frame_reading<T: Decide>(
 pub(super) enum FrameExtent<T: geom_core::Real> {
     /// Nothing measured: the pair is levered by its radii.
     Radii,
-    /// A cylinder pair's walls' span ([`frame_reading`]).
-    Span(T),
     /// A plane×cylinder pair's wall face: how far it reaches either way
     /// along its axis from `at`, and its farthest distance from `at`.
     Wall {
@@ -2901,8 +2886,8 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
 /// farthest distance from `at`: the measures the cone's split lane
 /// reads the same section at. A plane×torus pair's lies on the torus
 /// face, which hands its farthest distance from `at`, the one measure
-/// the torus's split lane levers it at. Every other pair takes the
-/// walls' `span`.
+/// the torus's split lane levers it at. Every other pair is levered by
+/// its radii.
 ///
 /// # Errors
 ///
@@ -2911,7 +2896,6 @@ pub(super) fn frame_extent<T: Decide>(
     (sa, body_a, face_a): (&geom::Surface<T>, &Body<T>, FaceKey),
     (sb, body_b, face_b): (&geom::Surface<T>, &Body<T>, FaceKey),
     at: geom_core::Point3<T>,
-    span: Option<T>,
     band: Band,
 ) -> Result<FrameExtent<T>, &'static str> {
     let (body, face, axis) = match (sa, sb) {
@@ -2933,7 +2917,7 @@ pub(super) fn frame_extent<T: Decide>(
         (geom::Surface::Torus { .. }, geom::Surface::Plane { .. }) => {
             return face_reach(body_a, face_a, at);
         }
-        _ => return Ok(span.map_or(FrameExtent::Radii, FrameExtent::Span)),
+        _ => return Ok(FrameExtent::Radii),
     };
     let lone = |_| LONE_WALL;
     let (below, above) =
@@ -3160,20 +3144,17 @@ impl FrameError {
     }
 }
 
-/// [`pair_section_frame_at`] for a pair handed without its faces: the
-/// cylinder pair levered at `span` where it is given, every pair
-/// otherwise at its radii.
+/// [`pair_section_frame_at`] for a pair handed without its faces, levered
+/// at its radii.
 #[cfg(test)]
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
     sb: &geom::Surface<T>,
     at: geom_core::Point3<T>,
-    span: Option<T>,
     band: Band,
 ) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
-    let extent = span.map_or(FrameExtent::Radii, FrameExtent::Span);
-    one_loop(pair_section_frame_at(sa, sb, at, extent, band))
+    one_loop(pair_section_frame_at(sa, sb, at, FrameExtent::Radii, band))
 }
 
 /// A one-loop section's frame as its `(centre, axis)`, for the rows of
@@ -3578,7 +3559,7 @@ pub(super) fn cylinder_read<T: Decide>(
     b: (&Body<T>, FaceKey),
 ) -> Result<Option<CylinderRead<T>>, BooleanError> {
     let wall = |(body, f): (&Body<T>, FaceKey)| {
-        face_surface(body, f).is_ok_and(|(_, s)| matches!(s, geom::Surface::Cylinder { .. }))
+        matches!(body.proven_face_surface(f), geom::Surface::Cylinder { .. })
     };
     if !(wall(a) && wall(b)) {
         return Ok(None);
@@ -3616,7 +3597,7 @@ pub(super) fn cylinder_read<T: Decide>(
 /// `â₁ − â₂` plane's on the split's positive side, told apart by the
 /// planes ([`LoopSplit::Bisector`]).
 pub(super) fn bisector_loops<T: geom_core::Real>(
-    [(center, n1), (_, n2)]: [(Point3<T>, Vec3<T>); 2],
+    (center, [n1, n2]): (Point3<T>, [Vec3<T>; 2]),
 ) -> SectionLoops<T> {
     let lp = |axis| SectionLoop {
         center,
@@ -3837,7 +3818,7 @@ fn conic_section_frame_at<T: Decide>(
             };
             crate::chord_join::agreed_section(plane_s, cyl_s, reach, band)
         }
-        FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
+        FrameExtent::Radii => geom_brep::plane_cylinder_section(
             plane_s,
             cyl_s,
             &geom_brep::Reach::Measured { at, lever: radius },
@@ -5998,8 +5979,8 @@ mod frame_dispatch_tests {
             ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
             ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
         ] {
-            let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-            let got = pair_section_frame(a, b, at, span, band());
+            let at = super::frame_reading(a, on_a, on_b).expect("a reading");
+            let got = pair_section_frame(a, b, at, band());
             assert!(
                 matches!(got, Ok(None)),
                 "({label}): the tangent ruling's frame, got {:?}",
@@ -6049,8 +6030,8 @@ mod frame_dispatch_tests {
                 ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
                 ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
             ] {
-                let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-                let got = pair_section_frame(a, b, at, span, band());
+                let at = super::frame_reading(a, on_a, on_b).expect("a reading");
+                let got = pair_section_frame(a, b, at, band());
                 assert!(
                     matches!(got, Ok(None)),
                     "stored {along} m along ({label}): the tangent ruling's frame, got {:?}",
@@ -6114,9 +6095,8 @@ mod frame_dispatch_tests {
             } else {
                 (on.clone(), Vec::new())
             };
-            let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-            let extent =
-                super::frame_extent((a, body, face), (b, body, face), at, span, band()).unwrap();
+            let at = super::frame_reading(a, on_a, on_b).expect("a reading");
+            let extent = super::frame_extent((a, body, face), (b, body, face), at, band()).unwrap();
             let got = super::one_loop(super::pair_section_frame_at(a, b, at, extent, band()));
             (label, got)
         })
@@ -6462,7 +6442,7 @@ mod frame_dispatch_tests {
             // The germ frame, read at the corners' centre.
             for (label, got) in plane_frames(&body, face, through, normal) {
                 let on = super::super::carrier_pair::face_witnesses(&body, face).unwrap();
-                let (at, _) = super::frame_reading(&plane, &wall, Vec::new(), on).unwrap();
+                let at = super::frame_reading(&plane, Vec::new(), on).unwrap();
                 let main = main_at(at);
                 let served = match got {
                     Ok(Some(_)) => Some(main == "conic"),
@@ -6630,7 +6610,7 @@ mod frame_dispatch_tests {
                 ("plane, coin", &plane, &coin),
                 ("coin, plane", &coin, &plane),
             ] {
-                let got = pair_section_frame(a, b, coin_face, None, band());
+                let got = pair_section_frame(a, b, coin_face, band());
                 assert!(
                     matches!(
                         got,
@@ -6795,14 +6775,14 @@ mod frame_dispatch_tests {
                 // desync, never the straight chord.
                 assert!(
                     matches!(
-                        pair_section_frame(&a, &b, at(), None, band()),
+                        pair_section_frame(&a, &b, at(), band()),
                         Err(FrameError::Desync(_))
                     ),
                     "a cylinder pair has no frame and must refuse rather than default to the \
                      straight chord"
                 );
             } else {
-                let got = pair_section_frame(&a, &b, at(), None, band());
+                let got = pair_section_frame(&a, &b, at(), band());
                 assert!(
                     matches!(got, Err(FrameError::NoArm)),
                     "a non-cylinder pair with no arm must refuse with NoArm exactly — \
@@ -6821,7 +6801,7 @@ mod frame_dispatch_tests {
         ] {
             assert!(
                 matches!(
-                    pair_section_frame(&a, &b, at(), None, band()),
+                    pair_section_frame(&a, &b, at(), band()),
                     Err(FrameError::Desync(_))
                 ),
                 "a cylinder × sphere pair has no frame"
@@ -6969,7 +6949,7 @@ mod frame_dispatch_tests {
     fn the_wired_pairs_keep_their_verdicts() {
         assert!(
             matches!(
-                pair_section_frame(&plane(), &plane(), at(), None, band()),
+                pair_section_frame(&plane(), &plane(), at(), band()),
                 Ok(None)
             ),
             "plane×plane is straight by construction"
@@ -6978,13 +6958,7 @@ mod frame_dispatch_tests {
         // circle, whose frame is the section's own centre and axis.
         assert!(
             matches!(
-                pair_section_frame(
-                    &plane(),
-                    &cylinder(Vec3::new(0.0, 0.0, 1.0)),
-                    at(),
-                    None,
-                    band()
-                ),
+                pair_section_frame(&plane(), &cylinder(Vec3::new(0.0, 0.0, 1.0)), at(), band()),
                 Ok(Some(_))
             ),
             "plane×cylinder names its conic frame"
@@ -6993,20 +6967,14 @@ mod frame_dispatch_tests {
         // STRAIGHT locus that the arm proved rather than defaulted to.
         assert!(
             matches!(
-                pair_section_frame(
-                    &plane(),
-                    &cylinder(Vec3::new(1.0, 0.0, 0.0)),
-                    at(),
-                    None,
-                    band()
-                ),
+                pair_section_frame(&plane(), &cylinder(Vec3::new(1.0, 0.0, 0.0)), at(), band()),
                 Ok(None)
             ),
             "the parallel-lines outcome is a proven straight locus"
         );
         assert!(
             matches!(
-                pair_section_frame(&plane(), &sphere(), at(), None, band()),
+                pair_section_frame(&plane(), &sphere(), at(), band()),
                 Ok(Some(_))
             ),
             "plane×sphere names its circle frame"
@@ -7019,7 +6987,6 @@ mod frame_dispatch_tests {
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
                     &cylinder(Vec3::new(0.0, 0.0, 1.0)),
                     at(),
-                    None,
                     band()
                 ),
                 Err(FrameError::Desync(_))
@@ -7050,7 +7017,6 @@ mod frame_dispatch_tests {
                 &ball(Point3::new(0.0, 0.0, 0.0), 2.0, a_axis),
                 &ball(Point3::new(2.5, 0.0, 0.0), 2.0, b_axis),
                 at(),
-                None,
                 band(),
             );
             let Ok(Some((center, axis))) = got else {
@@ -7067,13 +7033,8 @@ mod frame_dispatch_tests {
             (ball(Point3::new(4.0, 0.0, 0.0), 2.0, z), "tangent"),
             (ball(Point3::new(0.0, 0.0, 0.0), 2.0, z), "coincident"),
         ] {
-            let got = pair_section_frame(
-                &ball(Point3::new(0.0, 0.0, 0.0), 2.0, z),
-                &b,
-                at(),
-                None,
-                band(),
-            );
+            let got =
+                pair_section_frame(&ball(Point3::new(0.0, 0.0, 0.0), 2.0, z), &b, at(), band());
             assert!(
                 matches!(got, Err(FrameError::Desync(_))),
                 "{what}: a non-locus sphere pair is a desync, not a frame and not straight"

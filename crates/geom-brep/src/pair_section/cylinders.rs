@@ -423,7 +423,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.radii
     }
 
-    /// The axes' unit directions, in that order.
+    /// The axes as the operands store them (unit only to their
+    /// rounding), in that order.
     pub fn axes(&self) -> [Vec3<T>; 2] {
         self.lines.map(|(_, a)| a)
     }
@@ -558,12 +559,13 @@ impl<T: Decide> CylinderCylinderPose<T> {
         }
     }
 
-    /// **The bisector planes of the node pose**: through the axes'
-    /// meeting point, normal to `a₁ − a₂` (the first ellipse's) and to
-    /// `a₁ + a₂` (the second's), where the pose is the bisector one;
-    /// `None` otherwise. The planes the counted ellipses lie in, and the
-    /// one reading of them every consumer of the pair takes.
-    pub fn bisector_planes(&self) -> Option<[(Point3<T>, Vec3<T>); 2]> {
+    /// **The bisector planes of the node pose**: the axes' meeting point,
+    /// which both pass through, and their unit normals, along `a₁ − a₂`
+    /// (the first ellipse's) and `a₁ + a₂` (the second's), where the pose
+    /// is the bisector one; `None` otherwise. The planes the counted
+    /// ellipses lie in, and the one reading of them every consumer of the
+    /// pair takes.
+    pub fn bisector_planes(&self) -> Option<(Point3<T>, [Vec3<T>; 2])> {
         let CcStance::Crossing {
             foot,
             node: Some(CcNode::Bisector { .. }),
@@ -572,8 +574,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
         else {
             return None;
         };
-        let ([n1, n2], _) = bisector_normals((self.lines[0].1, self.lines[1].1));
-        Some([(foot, n1), (foot, n2)])
+        let (normals, _) = bisector_normals((self.lines[0].1, self.lines[1].1));
+        Some((foot, normals))
     }
 
     /// **The plane the parallel pose's rulings lie in** (their radical

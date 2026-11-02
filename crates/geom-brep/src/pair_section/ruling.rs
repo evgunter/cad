@@ -62,6 +62,17 @@ const SETTLE: u32 = 48;
 /// turning point on a cut is held by both its cells.
 const TURN_HAIR: f64 = 1e-12;
 
+/// **The cuts tried near `at` in a cell of `width`**, in order: `at`, then
+/// an eighth and a quarter of the width either side. A cut whose reading
+/// stands within the band of a zero holds the cells it ends undecided at
+/// any width; one of these stands off it wherever the zero is simple.
+/// The one ladder every cut the sweep places takes.
+fn off_a_zero(at: f64, width: f64) -> impl Iterator<Item = f64> {
+    [0.0, 0.125, -0.125, 0.25, -0.25]
+        .into_iter()
+        .map(move |f| at + f * width)
+}
+
 /// **The rows the sweep decides on.**
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Row {
@@ -292,8 +303,11 @@ impl<T: Real> V3<T> {
     }
 }
 
-/// **A cell of the ruling angle**, `[lo, hi]` radians within `[0, 2π]`,
-/// with enclosures of its cosine and sine.
+/// **A cell of the ruling angle**, `[lo, hi]` radians, with enclosures
+/// of its cosine and sine. The sweep's turn starts at a first cut a
+/// quarter of a first cell or less off zero ([`off_a_zero`]), so its
+/// cells lie within `[−π/64, 2π + π/64]`, each turning point of the
+/// cosine and sine in it one of `0, π/2, π, 3π/2, 2π`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Cell<T> {
     pub(crate) lo: f64,
@@ -709,16 +723,13 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             .is_some()
     }
 
-    /// **A cut near `at`, within a cell of `width`, where `decides`**: at
-    /// `at` itself, or an eighth or a quarter of the width off it, the
-    /// first where the reading decides, else `at`. A cell's end is a
+    /// **A cut near `at`, within a cell of `width`, where `decides`**: the
+    /// first of [`off_a_zero`]'s where the reading decides, else `at`. A cell's end is a
     /// reading every test of the cell shares, so an end within the band
     /// of a zero would hold the cell undecided to the floor at any
     /// width; off the zero, it decides.
     fn decided_at(&self, at: f64, width: f64, decides: impl Fn(f64) -> bool) -> f64 {
-        [0.0, 0.125, -0.125, 0.25]
-            .into_iter()
-            .map(|f| at + f * width)
+        off_a_zero(at, width)
             .find(|&phi| decides(phi))
             .unwrap_or(at)
     }
@@ -842,8 +853,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             }
             // Cut where `Δ`'s side decides, off the middle where the zero
             // stands within the band of it.
-            let cut = [0.5, 0.375, 0.625].into_iter().find_map(|f| {
-                let at = cell.lo + f * cell.width();
+            let cut = off_a_zero(cell.mid(), cell.width()).find_map(|at| {
                 self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(at)))
                     .map(|reads| (at, reads == Reads::Above))
             });
