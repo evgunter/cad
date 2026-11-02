@@ -2755,10 +2755,12 @@ fn the_empty_region_and_its_extrude(
         ),
         "{what}: the extrude refuses at its own door: {refused:?}"
     );
-    assert_eq!(
-        ev.node_error(extrude).map(|e| e.kind.to_string()),
-        Some("profile has no loops — nothing to sweep".to_owned()),
-        "{what}: in EmptyProfile's words"
+    let words = ev.node_error(extrude).map(|e| e.kind.to_string());
+    assert!(
+        words
+            .as_deref()
+            .is_some_and(|w| w.ends_with("profile has no loops — nothing to sweep")),
+        "{what}: in EmptyProfile's words: {words:?}"
     );
 }
 

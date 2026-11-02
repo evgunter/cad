@@ -6282,8 +6282,8 @@ mod tests {
     use pncad::geom_core::Tol;
 
     /// **An action that swallows a refusal commits nothing.** The
-    /// action lands a square profile, has an empty one refused (an
-    /// empty loop list), ignores the refusal, lands a second square and
+    /// action lands a square profile, has a degenerate one refused (a
+    /// zero-radius circle), ignores the refusal, lands a second square and
     /// answers success; the door still refuses the whole action, so
     /// neither square is committed. This reds if the run goes on past a
     /// refusal, which would commit the two squares around it.
@@ -6295,8 +6295,16 @@ mod tests {
         let before = session.history().len();
         let outcome = session.commit_run(|run| {
             run.insert(square())?;
+            let degenerate = crate::sketch::loop_program(
+                &crate::session::ProfileShape::Circle {
+                    centre: [0.0, 0.0],
+                    radius: 0.0,
+                },
+                crate::props::Notation::CANONICAL,
+            )
+            .expect("a zero radius lowers");
             let _ = run.insert(Node::Profile(ProfileProgram {
-                loops: Vec::new(),
+                loops: vec![degenerate],
                 ids: Vec::new(),
                 on: None,
             }));

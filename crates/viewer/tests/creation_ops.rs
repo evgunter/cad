@@ -602,7 +602,7 @@ fn a_profile_with_no_loops_inserts_and_what_sweeps_it_refuses() {
         "the profile evaluates to no loops: {:?}",
         eval.node_error(profile)
     );
-    let refused = |node| eval.node_error(node).map(|e| e.kind.clone());
+    let refused = |node| eval.node_error(node).map(|e| &e.kind);
     assert!(
         matches!(
             refused(extrude),
@@ -705,7 +705,12 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
         SessionOp::NewDocument {
             name: String::new(),
         },
-        SessionOp::AddProfile { loops: vec![] },
+        SessionOp::AddProfile {
+            loops: vec![shape(&ProfileShape::Circle {
+                centre: [0.0, 0.0],
+                radius: 0.0,
+            })],
+        },
         SessionOp::AddExtrude {
             profile: block,
             distance: len(0.01),

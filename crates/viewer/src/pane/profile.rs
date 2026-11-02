@@ -2376,6 +2376,43 @@ mod tests {
         assert!(session.committed_doc().bit_eq(&before), "the plate is back");
     }
 
+    /// **The last loop is removed like any other**: the one-loop
+    /// square's header offers `Remove loop`, and Apply lands the
+    /// profile with no loops as one `SetProgram`, one undo from the
+    /// square.
+    #[test]
+    fn the_last_loop_is_removed_and_lands_the_empty_region() {
+        use crate::session::SessionOp;
+        use pncad::document::DocEdit;
+
+        let (mut session, profile) = square_session();
+        let before = session.committed_doc().clone();
+        let mut drafts = Drafts::default();
+        let (_, formed) = click_door(&session, &mut drafts, profile, super::REMOVE_LOOP, 0);
+        assert!(formed.is_none(), "removing a loop forms no op");
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        assert!(edit.loops().is_empty(), "the click removed the only loop");
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { loops, .. }] if loops.is_empty()),
+            "one whole-program edit to no loops: {:?}",
+            out.committed
+        );
+        assert!(loop_ids(&session, profile).is_empty(), "no loop is left");
+        assert!(
+            session.perform(SessionOp::Undo).refusal.is_none(),
+            "the removal undoes"
+        );
+        assert!(
+            session.committed_doc().bit_eq(&before),
+            "the square is back"
+        );
+    }
+
     /// A session over the form's default 10 mm square as a committed
     /// profile, and the profile.
     fn square_session() -> (crate::session::DocSession, pncad::document::RecipeNodeId) {

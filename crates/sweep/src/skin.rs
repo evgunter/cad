@@ -395,7 +395,10 @@ impl core::fmt::Display for SkinError {
                 write!(f, "section {section} is not a valid profile: {source}")
             }
             Self::EmptySection { section } => {
-                write!(f, "section {section}: {}", crate::EMPTY_PROFILE)
+                write!(
+                    f,
+                    "section {section} is a profile with no loops — nothing to sweep"
+                )
             }
             Self::DomainNotUnit { section, domain } => write!(
                 f,

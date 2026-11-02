@@ -6303,6 +6303,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // refused at validation, and a body face's empty (scaffolding) loop,
     // refused by the tessellator.
     ("empty_loop", 2),
+    // One fact: the extrude and the revolve each refuse a profile with
+    // no loops at their own door;
+    // `an_empty_profile_is_one_word_at_both_sweeps` pins them.
+    ("empty_profile", 2),
     ("escalated", 11),
     ("euler", 2),
     ("evaluation_of_another_document", 5),
@@ -6521,6 +6525,18 @@ fn a_space_mismatch_has_one_word_at_the_door_and_at_evaluation() {
     assert_eq!(
         edit_error_tag(&refused),
         node_error_tag(NodeErrorClass::SpaceMismatch)
+    );
+}
+
+/// `empty_profile` is one fact at both sweeps: a profile with no loops,
+/// refused at the extrude's door and at the revolve's.
+#[test]
+fn an_empty_profile_is_one_word_at_both_sweeps() {
+    use crate::tags::{extrude_error_tag, revolve_error_tag};
+    use pncad::sweep::{ExtrudeError, RevolveError};
+    assert_eq!(
+        extrude_error_tag(&ExtrudeError::EmptyProfile),
+        revolve_error_tag(&RevolveError::EmptyProfile)
     );
 }
 
