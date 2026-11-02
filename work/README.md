@@ -281,9 +281,17 @@ P0 on a quiet track raises it. To move a program, re-band its rows.
 ## Track size
 
 **A track is sized to about one orchestrator session** (Ev, in chat,
-2026-09-20). The measure is a weighted count of the dispatchable rows
-(`open` or `spec`) — a row in flight, not-now or closed is not a claim
-on the next sitting's attention:
+2026-09-20). The measure is a weighted count of the rows a sitting
+will actually dispatch: the dispatchable rows (`open` or `spec`) at P0
+or P1. A row in flight, not-now or closed is not a claim on the next
+sitting's attention, and while a sitting in general dispatches only P0
+and P1 rows (a sitting ends when they are done,
+`memories/orchestration-model.md`), neither is a row at P2 or below
+(Ev, in chat, 2026-11-02). So a track may carry any tail behind a
+P0 and P1 slate within budget; if the sitting rule changes, the
+measure changes with it (`SITTING_BANDS` in `scripts/work.py`). An
+unbanded row is counted, for the reason an unpriced one is charged
+as medium:
 
 | cost | points |
 |---|---|
@@ -505,8 +513,9 @@ each check-in and before bringing main into its branch.
 `work/STATUS.md`, top to bottom:
 
 - **Programs** — one row per program, in board order (Priority). The
-  band columns count live rows; `load` is the track's weight against
-  its budget, bold when over (Track size); the status columns count
+  band columns count live rows; `load` is the weight of the track's
+  dispatchable P0, P1 and unbanded rows against its budget, bold when over
+  (Track size); the status columns count
   rows per item status; `status` is the program's own.
 - **One section per program** — its live rows, by band.
 - **Issues no program owns** — the live rows in `work/issues/`.

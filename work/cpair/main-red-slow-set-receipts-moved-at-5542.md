@@ -32,7 +32,7 @@ as the others.
 
 What moved after #5542 is unbisected. The two-hole plate's counts in the
 same studies moved with PR 5728 and PR 5811 as well
-(`work/offset/main-red-three-m10-interval-pins-moved-at-5728.md`), so the
+(`work/shell/main-red-three-m10-interval-pins-moved-at-5728.md`), so the
 plate's and the ladder's later moves are probably partly theirs.
 
 **A fix in flight.** PR 5952 (`green/slow-set-reds`, held by the GREEN

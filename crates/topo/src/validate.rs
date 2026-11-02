@@ -5858,7 +5858,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     past a turn, or an edge whose carrier's reading cannot cross it;
 ///     a face check 6 refused for its orientation is reported there and not
 ///     read again)
-///     (`work/restcurve/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
+///     (`work/restfront/the-region-arm-is-silent-on-spline-faces-and-off-admits-edges.md`);
 ///   - a ring inside another ring on a plane
 ///     (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`);
 ///   - on a plane, the loops that walk cannot read at a point — a NURBS
@@ -5885,7 +5885,7 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///   against its speed bound settles neither on nor off within its
 ///   budget, or one with no speed bound that holds at every scalar (a
 ///   rational spline among them)
-///   (`work/restcurve/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
+///   (`work/restfront/a-sampled-edge-the-chart-singularity-reading-cannot-settle-is-exempt.md`),
 ///   and a face its door does not read or reads with no path settled (the
 ///   region arm's residue above).
 /// - **Shell winding where the witness cannot be read** (check 10's
@@ -13601,7 +13601,7 @@ mod tests {
     /// composing the const passes it; that copy goes unseen until the
     /// clause changes. The SSI march's question is
     /// worded apart, held below until
-    /// `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
+    /// `work/ssiarith/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`
     /// lands it.
     #[test]
     fn the_dihedral_arm_is_told_in_one_shape() {

@@ -36,7 +36,7 @@ and returns a bare `Vec3` rather than a `UnitVec3`:
 Two filed rows prescribe `UnitVec3::levered` and will meet the same
 gap once their decided zero must refuse with a margin:
 `work/cleave/sector-face-cylinder-normal-normalizes-an-undecided-radial.md`
-and `work/shelf/replace-face-cylinder-radial-normalizes-an-undecided-rejection.md`.
+and `work/shell/replace-face-cylinder-radial-normalizes-an-undecided-rejection.md`.
 
 ## Shape
 
