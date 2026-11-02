@@ -362,3 +362,38 @@ fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
         }
     }
 }
+
+/// **A box whose side holds the 80° cone's wrap seam refuses typed**, in
+/// every op either way round (the R2 review's `x90` pose): the box
+/// `[0, 5] × [−5, 0] × [0, 5]` turned a quarter about `x` and cornered
+/// at the apex, its side holding the axis and the wrap edge's ruling. The
+/// vertex pair records the wrap edge's bound `On` the box's side, which
+/// the edge rules settle only for a planar sector: `VertexPairAtConeApex`
+/// on the cone's face, never the kernel's own fault. The other ops reach
+/// the 80° cone's hyperbolic section at the box's far faces first
+/// (`GermSectionOpenConic`, the join's open-conic limit).
+#[test]
+fn a_box_whose_side_holds_the_80_degree_wrap_seam_refuses_typed() {
+    let block = topo::test_support::brick((0.0, 5.0), (-5.0, 0.0), (0.0, 5.0), tol());
+    let m = Affine3::translation(Vec3::new(0.0, 1.0, 0.0))
+        * Affine3::rotation_about_axis(Point3::origin(), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
+    let b = moved(&block, m);
+    let c = finished("c", one_wrap_edge(cone(80.0), true).0, tol());
+    for (order, x, y) in [("cone first", &c, &b), ("box first", &b, &c)] {
+        for (op, r) in [
+            ("∪", union(x, y, tol())),
+            ("∩", intersect(x, y, tol())),
+            ("∖", subtract(x, y, tol())),
+            ("∖ back", subtract(y, x, tol())),
+        ] {
+            assert!(
+                matches!(
+                    r,
+                    Err(topo::BooleanError::VertexPairAtConeApex { .. }
+                        | topo::BooleanError::GermSectionOpenConic { .. })
+                ),
+                "{order} {op}: {r:?}"
+            );
+        }
+    }
+}

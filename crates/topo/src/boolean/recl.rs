@@ -1082,6 +1082,20 @@ pub(super) fn recl_edges<T: Decide>(
                 || r.sb.0 == SideCode::On
                 || r.sb.1 == SideCode::On)
         {
+            // A fan of a cone's rulings with a bound on the partner's
+            // face is a reading the edge rules above have no arm for:
+            // they settle a planar sector's On bound by its plane. It
+            // refuses by name, as the readers with no fan arm do
+            // (`BoolSector::plane`), rather than read as the kernel's
+            // own fault.
+            for (operand, s) in [(Operand::A, &a_sectors[r.a]), (Operand::B, &b_sectors[r.b])] {
+                if s.apex().is_some() {
+                    return Err(BooleanError::VertexPairAtConeApex {
+                        operand,
+                        face: s.face,
+                    });
+                }
+            }
             return Err(BooleanError::ClassificationInvariant {
                 what: "surviving record with an On code after srecledges",
             });
