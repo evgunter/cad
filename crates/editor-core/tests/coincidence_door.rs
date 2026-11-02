@@ -4166,3 +4166,72 @@ fn a_stated_axis_proves_a_wall_pair_the_fold_does_not() {
         "the bore and the shaft: one axis by the mate, one bore, one sense"
     );
 }
+
+/// **A circle's walls are one carrier and a rectangle's four are four**
+/// (`coincide::axis_of`, which reads a wall's carrier): every lateral
+/// wall an extrude sweeps over a `circle`'s pieces reads as the loop's
+/// first, and each wall over a `rectangle`'s pieces as itself, though
+/// both forms name their sides `Piece(k)`.
+///
+/// *Breaks if* the carrier is read off the role alone, so that two
+/// sides of a rectangle read as one wall.
+#[test]
+fn a_rectangles_walls_are_four_carriers_and_a_circles_two_are_one() {
+    use coincide::{Construction, Origin};
+    use editor_core::{EntityKind, PieceRole, ProfileEdgeRef};
+    let walls = |loop_: LoopProgram<Formula>, pieces: u32| {
+        let doc = ProfileDoc::empty_derived("coincide-carriers", Tol::witness());
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![loop_],
+                ids: Vec::new(),
+                on: None,
+            }),
+        );
+        let (doc, extrude) = insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        );
+        let Some(Node::Profile(program)) = doc.node(profile) else {
+            panic!("a profile")
+        };
+        let step = program.ids[0][0];
+        (0..pieces)
+            .map(|k| {
+                let wall = Construction {
+                    origin: Origin::Minted(StableName {
+                        kind: EntityKind::Face,
+                        node: extrude,
+                        path: vec![RoleSeg::Lateral(
+                            ProfileEdgeRef::Piece {
+                                step,
+                                role: PieceRole::Piece(k),
+                            }
+                            .into(),
+                        )],
+                    }),
+                    maps: Vec::new(),
+                };
+                coincide::axis_of(&doc, &wall)
+            })
+            .collect::<Vec<_>>()
+    };
+    let circle = walls(LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle"), 2);
+    assert_eq!(circle[0], circle[1], "a circle's two walls are one carrier");
+    let rectangle = walls(
+        LoopProgram::rectangle(0.0, 0.0, 2.0, 1.0).expect("a rectangle"),
+        4,
+    );
+    for a in 0..4 {
+        for b in a + 1..4 {
+            assert_ne!(
+                rectangle[a], rectangle[b],
+                "a rectangle's walls {a} and {b} are two carriers"
+            );
+        }
+    }
+}

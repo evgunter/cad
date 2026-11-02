@@ -233,6 +233,8 @@ this rule, and so do profile pieces:
   - a `circle` has `Piece(0)` and `Piece(1)`. It is drawn as the
     `circle_split` with `n = 2` and phase 0: two semicircles, split at the
     circle's `±x` points.
+  - a `rectangle` has `Piece(0)` to `Piece(3)`: its bottom, right, top and
+    left sides, in that order from its lower-left corner (PATHS-DESIGN §1a).
 
   A fillet's pieces belong to the step that authors its radius (the replay's
   `RadiusEmission.step`), not to the later step whose arrival resolves the

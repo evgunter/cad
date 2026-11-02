@@ -68,9 +68,9 @@ use crate::session::refuse::{NodeKindWanted, admits};
 /// authored verb by verb.
 ///
 /// **The templates are not the vocabulary; they are shortcuts into
-/// it.** A circle is the one-step path `circle(centre, r)`, and it
-/// lowers as exactly that; a rectangle is four `line_to`s somebody
-/// would otherwise type. Everything else a profile can be is
+/// it.** A circle is the one-step path `circle(centre, r)` and a
+/// rectangle the one-step path `rectangle(centre, w, h)`, and each
+/// lowers as exactly that. Everything else a profile can be is
 /// [`ProfileShape::Path`], which carries the algebra's whole verb set.
 ///
 /// [`loop_program`] lowers each arm to its [`LoopProgram`] form and
@@ -88,9 +88,10 @@ pub enum ProfileShape {
         /// The radius, metres.
         radius: f64,
     },
-    /// An axis-aligned rectangle centred on the sketch origin: a
-    /// `LoopProgram::Chain` with corners at `(±w/2, ±h/2)`.
+    /// An axis-aligned rectangle (`LoopProgram::Rectangle`).
     Rectangle {
+        /// The centre, in sketch coordinates (metres).
+        centre: [f64; 2],
         /// The width (x extent), metres.
         width: f64,
         /// The height (y extent), metres.
@@ -173,6 +174,11 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
             radius: 0.01,
             n: 4,
             phase: 0.0,
+        },
+        Verb::Rectangle => Step::Rectangle {
+            centre: Point2::origin(),
+            width: 0.02,
+            height: 0.01,
         },
     }
 }
@@ -261,19 +267,14 @@ fn recorded_notation(
 /// [`LoopProgram::from_recorded_with_notation`] — the door that takes
 /// a PATHS recording to its document form for every other authoring
 /// surface — so there is no second verb-by-verb lowering here to fall
-/// behind the vocabulary. The circle template IS a path (one `circle`
-/// step) and lowers as one.
-///
-/// The rectangle routes through [`LoopProgram::polygon_expr`] instead,
-/// which takes corners that are already `Expr` and mints nothing, so
-/// the notation rides through it untouched and the polygon expansion
-/// is written once for the workspace.
+/// behind the vocabulary. Each template IS a path — one `circle` or
+/// one `rectangle` step — and lowers as one.
 ///
 /// # Errors
 ///
 /// A non-finite field (the literal door's refusal), or a path that is
 /// not a program's shape — a complete-loop verb (`circle`,
-/// `circle_split`) inside a chain. Degeneracy — a zero radius, a zero
+/// `circle_split`, `rectangle`) inside a chain. Degeneracy — a zero radius, a zero
 /// width — is NOT judged here: the edit door's authoring-time check
 /// replays the program and refuses it typed, which is one rule for
 /// authored and hand-written programs alike.
@@ -281,35 +282,7 @@ pub fn loop_program(
     shape: &ProfileShape,
     notation: Notation,
 ) -> Result<LoopProgram<Formula>, RecordedProgramError> {
-    match shape {
-        ProfileShape::Circle { centre, radius } => loop_program(
-            &ProfileShape::Path {
-                steps: vec![Step::Circle {
-                    centre: Point2::from_array(*centre),
-                    radius: *radius,
-                }],
-            },
-            notation,
-        ),
-        ProfileShape::Rectangle { width, height } => {
-            // Counter-clockwise from the lower-left corner — the same
-            // winding every literal outer loop in this workspace uses.
-            //
-            // The halving is the FORM's arithmetic, in f64, exactly as
-            // it always was: a template rectangle is authored by its
-            // extents and recorded as its corners. A corner expressed
-            // as `width/2` would be a different recipe, and it wants
-            // the width to be a named thing first — which is the
-            // expression-driven form this op vocabulary now admits but
-            // no chrome yet offers.
-            let corners = rectangle_corners(*width, *height)
-                .into_iter()
-                .map(|corner| notation.point_literals(corner))
-                .collect::<Result<Vec<_>, DimensionError>>()?;
-            Ok(LoopProgram::polygon_expr(corners))
-        }
-        ProfileShape::Path { steps } => path_program(steps, notation, &|_, _| None),
-    }
+    path_program(&shape_steps(shape), notation, &|_, _| None)
 }
 
 /// **A path lowered with some arguments written in units of their
@@ -377,34 +350,25 @@ pub fn path_shapes(loops: &[Vec<Step<f64>>]) -> Vec<ProfileShape> {
         .collect()
 }
 
-/// A template rectangle's corners: centred on the sketch origin,
-/// counter-clockwise from the lower-left.
-fn rectangle_corners(width: f64, height: f64) -> [[f64; 2]; 4] {
-    let (hw, hh) = (width / 2.0, height / 2.0);
-    [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]
-}
-
 /// **A shape as the path steps it is a shortcut for** — what the edit
 /// door, which holds every loop as a path, adds when a template loop
-/// is added to it: a circle is its one `circle` step, and a rectangle
-/// is `at` its lower-left corner and four `line_to`s round it, counter-
-/// clockwise, the last back to the start.
+/// is added to it: a circle is its one `circle` step and a rectangle
+/// its one `rectangle` step.
 pub fn shape_steps(shape: &ProfileShape) -> Vec<Step<f64>> {
     match shape {
         ProfileShape::Circle { centre, radius } => vec![Step::Circle {
             centre: Point2::from_array(*centre),
             radius: *radius,
         }],
-        ProfileShape::Rectangle { width, height } => {
-            let [first, rest @ ..] = rectangle_corners(*width, *height);
-            std::iter::once(Step::At(Point2::from_array(first)))
-                .chain(
-                    rest.into_iter()
-                        .map(|corner| Step::LineTo(Target::Point(Point2::from_array(corner)))),
-                )
-                .chain([Step::LineTo(Target::Start)])
-                .collect()
-        }
+        ProfileShape::Rectangle {
+            centre,
+            width,
+            height,
+        } => vec![Step::Rectangle {
+            centre: Point2::from_array(*centre),
+            width: *width,
+            height: *height,
+        }],
         ProfileShape::Path { steps } => steps.clone(),
     }
 }
@@ -1591,7 +1555,8 @@ fn closed_on_start(prefix: &[Step<f64>], start: Point2<f64>) -> Option<Vec<Step<
         | Step::FarEndTo(_)
         | Step::CloseTo
         | Step::Circle { .. }
-        | Step::CircleSplit { .. } => return None,
+        | Step::CircleSplit { .. }
+        | Step::Rectangle { .. } => return None,
     };
     let Target::Point(at) = *target else {
         return None;
@@ -1883,7 +1848,8 @@ pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
         | Step::FarEndTo(_)
         | Step::CloseTo
         | Step::Circle { .. }
-        | Step::CircleSplit { .. } => {}
+        | Step::CircleSplit { .. }
+        | Step::Rectangle { .. } => {}
     }
     step
 }
@@ -2166,6 +2132,7 @@ mod tests {
         let square = |side| {
             super::loop_program(
                 &ProfileShape::Rectangle {
+                    centre: [0.0, 0.0],
                     width: side,
                     height: side,
                 },

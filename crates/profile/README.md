@@ -148,8 +148,9 @@ than canonical positions on #3193, with the role lists on #3202.*
 **V4 — The stored form, chain-only.** `Node::Profile` carries
 `ProfileProgram { loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>>, on: Option<DrawnOn> }`,
 `on` the frame and faces a drawn profile reads (none for a free one).
-`LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
-or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
+`LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`,
+`CircleSplit { centre, radius, n, phase }` or
+`Rectangle { centre, width, height }`, the complete-loop forms being
 one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1).
 

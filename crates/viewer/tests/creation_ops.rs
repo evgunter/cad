@@ -351,6 +351,7 @@ fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
         SessionOp::AddProfile {
             loops: vec![
                 shape(&ProfileShape::Rectangle {
+                    centre: [0.0, 0.0],
                     width: 0.06,
                     height: 0.03,
                 }),
@@ -518,20 +519,21 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
 }
 
 #[test]
-fn the_rectangle_template_is_the_centred_polygon() {
+fn the_rectangle_template_is_the_rectangle_as_written() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             loops: vec![shape(&ProfileShape::Rectangle {
+                centre: [0.005, -0.002],
                 width: 0.04,
                 height: 0.02,
             })],
         },
     );
-    // The session's only profile: its five steps (the start and four
-    // legs) are every id the document has minted.
+    // The session's only profile: its one `rectangle` step is every id
+    // the document has minted.
     let doc = session.committed_doc();
     let Some(Node::Profile(minted)) = doc.node(profile) else {
         panic!("the profile is live");
@@ -546,12 +548,9 @@ fn the_rectangle_template_is_the_centred_polygon() {
         doc.mint().steps().collect(),
         "the profile's steps are the document's only mints"
     );
-    assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
+    assert_eq!(minted.ids.iter().flatten().count(), 1, "one step");
     let want = Node::Profile(ProfileProgram {
-        loops: vec![
-            LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
-                .expect("finite corners"),
-        ],
+        loops: vec![LoopProgram::rectangle(0.005, -0.002, 0.04, 0.02).expect("finite fields")],
         ids: minted.ids.clone(),
         on: None,
     });
@@ -559,7 +558,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
     assert_eq!(
         doc.node(profile).expect("the profile is live").written(doc),
         want,
-        "corners at (±w/2, ±h/2), counter-clockwise from lower-left"
+        "the centre, width and height as written"
     );
 }
 
@@ -606,6 +605,7 @@ fn profile_refusals_are_typed_at_the_door() {
     // refusal on the status line.
     let non_finite = viewer::sketch::loop_program(
         &ProfileShape::Rectangle {
+            centre: [0.0, 0.0],
             width: f64::INFINITY,
             height: 0.01,
         },

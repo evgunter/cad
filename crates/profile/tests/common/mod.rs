@@ -1090,8 +1090,7 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
     // 10/11/12. The complete-loop program forms.
     let circle = profile::circle(Point2::new(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(Point2::new(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
-    let rectangle =
-        profile::rectangle(Point2::new(-0.5, 1.25), 3.0, 0.75, Tol::witness()).unwrap();
+    let rectangle = profile::rectangle(Point2::new(-0.5, 1.25), 3.0, 0.75, Tol::witness()).unwrap();
 
     vec![
         fused,

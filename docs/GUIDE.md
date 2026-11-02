@@ -1625,9 +1625,9 @@ piece that step drew in the loop you state — 0 the outer one, then the
 holes in the order the profile describes them — so a hole's band is
 spelled exactly like the outer one. A handle's role accessors are its
 verb's roles: `.leg` on a leg, `.run_in`, `.arc` and `.run_out` on a
-fillet, `.piece(k)` on a `circle` or `circle_split`. A piece stays the
-name of what its step draws whatever later moves the segment, which is
-why the doors take it rather than a position. And the text is still
+fillet, `.piece(k)` on a `circle`, `circle_split` or `rectangle`. A
+piece stays the name of what its step draws whatever later moves the
+segment, which is why the doors take it rather than a position. And the text is still
 never read or assembled — you name a ROLE, and the door does the rest.
 
 ```python

@@ -1557,6 +1557,136 @@ mod tests {
         );
     }
 
+    /// **A rectangle authored in the add-profile form reopens in the
+    /// edit door as the centre, width and height it was written as, and
+    /// a width edit lands as that one value.** The form's rectangle,
+    /// committed, is one `rectangle` step; the door draws that step's
+    /// centre, width and height, and no corner; its width moved and
+    /// applied is one `SetProgram` whose width slot holds the new value
+    /// while the height and centre keep theirs.
+    #[test]
+    fn a_form_rectangle_reopens_as_its_centre_width_and_height() {
+        use crate::forms::ShapeKind;
+        use pncad::document::{DocEdit, LoopProgram, SlotId, StepArg};
+
+        let tol = Tol::witness();
+        let mut session =
+            crate::session::DocSession::inline(Doc::empty_derived("rectangle", tol), tol);
+        let form = Drafts {
+            profile_shape: Some(ShapeKind::Rectangle),
+            profile_centre: [0.002, -0.001],
+            profile_extent: [0.03, 0.01],
+            ..Drafts::default()
+        };
+        let op = form
+            .profile_op(Notation::CANONICAL)
+            .expect("the form lowers")
+            .expect("an op off any face");
+        let out = session.perform(op);
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        let profile = out.made.expect("the form made a profile");
+        let Some(Node::Profile(program)) = session.committed_doc().node(profile) else {
+            panic!("a profile")
+        };
+        assert!(
+            matches!(program.loops[..], [LoopProgram::Rectangle { .. }]),
+            "the form stores the rectangle as written: {:?}",
+            program.loops
+        );
+
+        let mut drafts = Drafts::default();
+        let painted = crate::pane::headless::painted(|ui| {
+            let edit = drafts
+                .profile_edit(session.committed_doc(), profile)
+                .expect("the editor holds the profile");
+            let _no_click = super::edit_door_ui(
+                ui,
+                &session,
+                Theme::DEFAULT,
+                Notation::CANONICAL,
+                edit,
+                None,
+                None,
+            );
+        });
+        assert!(
+            painted.iter().any(|text| text == "centre"),
+            "the door draws the rectangle's centre: {painted:?}"
+        );
+        // Each field is the run painted next after its label.
+        for field in [
+            ["x ", "0.0020"],
+            ["y ", "-0.0010"],
+            ["width ", "0.0300"],
+            ["height ", "0.0100"],
+        ] {
+            assert!(
+                painted.windows(2).any(|pair| pair == field),
+                "the door draws {field:?}: {painted:?}"
+            );
+        }
+        assert!(
+            !painted.iter().any(|text| text.contains("line_to")),
+            "the door draws no corner leg: {painted:?}"
+        );
+        let edit = drafts
+            .profile_edit(session.committed_doc(), profile)
+            .expect("held");
+        let [held] = edit.loops() else {
+            panic!("one loop: {:?}", edit.loops())
+        };
+        match held[..] {
+            [
+                Step::Rectangle {
+                    centre,
+                    width,
+                    height,
+                },
+            ] => assert_eq!(
+                (centre.x, centre.y, width, height),
+                (0.002, -0.001, 0.03, 0.01),
+                "held as written"
+            ),
+            ref other => panic!("one rectangle step: {other:?}"),
+        }
+        let Step::Rectangle { width, .. } = &mut edit.steps_mut(0)[0] else {
+            unreachable!("matched above")
+        };
+        *width = 0.04;
+        let (_, formed) = click_door(&session, &mut drafts, profile, "Apply", 0);
+        let out = session.perform(formed.expect("Apply formed the op"));
+        assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        assert!(
+            matches!(out.committed.as_slice(), [DocEdit::SetProgram { .. }]),
+            "one whole-program edit: {:?}",
+            out.committed
+        );
+        let read = |arg| {
+            session
+                .committed_doc()
+                .slot_expansion(
+                    profile,
+                    SlotId::Profile {
+                        loop_: 0,
+                        step: 0,
+                        arg,
+                    },
+                )
+                .and_then(|expr| expr.literal_value())
+        };
+        assert_eq!(
+            [
+                StepArg::Width,
+                StepArg::Height,
+                StepArg::CenterX,
+                StepArg::CenterY
+            ]
+            .map(read),
+            [Some(0.04), Some(0.01), Some(0.002), Some(-0.001)],
+            "the width moved as one value and nothing else did"
+        );
+    }
+
     /// **A step removed in the panel strands the names on it, and the
     /// author is told before and after.** The door's `×` on the right
     /// wall's row drops that step; Apply then counts the name it will
@@ -1692,6 +1822,7 @@ mod tests {
             radius: r,
         };
         let rect = |w: f64, h: f64| ProfileShape::Rectangle {
+            centre: [0.0, 0.0],
             width: w,
             height: h,
         };
@@ -1762,11 +1893,11 @@ mod tests {
                 vec![circle(0.0025, 0.0, 0.0025)],
             ),
             (
-                "with bore plus added hole",
+                "a bore plus an added hole",
                 Some(ShapeKind::Circle),
                 [0.0, 0.0],
                 0.01,
-                vec![circle(0.006, 0.0, 0.001)],
+                vec![circle(0.0, 0.0, 0.002), circle(0.006, 0.0, 0.001)],
             ),
         ];
         let mut disagree = Vec::new();
@@ -1783,10 +1914,6 @@ mod tests {
             };
             if radius > 0.0 {
                 drafts.profile_radius = radius;
-            }
-            if name.starts_with("with bore") {
-                drafts.profile_bored = true;
-                drafts.profile_bore = 0.002;
             }
             let preview =
                 sketch::preview(sketch::profile_plane(), &drafts.profile_loops(), tol, chord);
@@ -1853,6 +1980,7 @@ mod tests {
         };
         let loops = [
             sketch::shape_steps(&ProfileShape::Rectangle {
+                centre: [0.0, 0.0],
                 width: 0.02,
                 height: 0.02,
             }),

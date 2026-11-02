@@ -63,7 +63,7 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
             }],
         ),
         (
-            "bored circle",
+            "circle with a bore loop",
             vec![
                 ProfileShape::Circle {
                     centre: [0.0; 2],
@@ -78,6 +78,7 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
         (
             "rectangle",
             vec![ProfileShape::Rectangle {
+                centre: [0.002, -0.001],
                 width: 0.03,
                 height: 0.01,
             }],

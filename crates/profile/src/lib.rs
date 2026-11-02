@@ -183,9 +183,10 @@ pub use path::{
 #[cfg(any(test, feature = "test-support"))]
 pub use seg::{LANDING_ULPS as READ_BACK_LANDING_ULPS, READ_BACK_RIM_ULPS, resolution_headroom};
 pub use structure::{
-    CIRCLE_PIECES, CanonicalStructure, RECTANGLE_PIECES, CornerGate, Decision, DecisionValue, FilletDecision,
-    LoopCanonical, Piece, PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure,
-    RoleList, SegmentShape, StepSpan, StructureRefusal, StructureRefusalKind, carrier_pieces,
+    CIRCLE_PIECES, CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision,
+    LoopCanonical, Piece, PieceRole, ProfileStructure, RECTANGLE_PIECES, RadiusEmission,
+    RadiusRole, ReplayStructure, RoleList, SegmentShape, StepSpan, StructureRefusal,
+    StructureRefusalKind, carrier_pieces,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 /// The fillet recourse sentences and the map that selects one, under

@@ -40,7 +40,10 @@ impl Key {
     }
 
     /// The axis of a cell whose construction is `at` ([`axis_of`]).
-    pub(crate) fn axis<P>(doc: &crate::doc::Doc<P>, at: &Construction) -> Self {
+    pub(crate) fn axis<P: crate::ProfilePayload>(
+        doc: &crate::doc::Doc<P>,
+        at: &Construction,
+    ) -> Self {
         Self {
             kind: crate::VarKind::Axis,
             at: axis_of(doc, at),
@@ -246,8 +249,11 @@ impl Stated {
 /// in the part's ids, which this document does not hold, so a band
 /// the walk stopped at an instance for is its own wall's: a curved
 /// wall's faces are one carrier ([`carrier`]).
-pub(crate) fn axis_of<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> Construction {
-    let cell = carrier(cell);
+pub(crate) fn axis_of<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    cell: &Construction,
+) -> Construction {
+    let cell = carrier(doc, cell);
     let Origin::Minted(name) = &cell.origin else {
         return cell;
     };
@@ -265,16 +271,26 @@ pub(crate) fn axis_of<P>(doc: &crate::doc::Doc<P>, cell: &Construction) -> Const
 
 /// **The carrier a swept face is on, named once**: a revolve's band's
 /// two halves ([`RoleSeg::BandPi`] beside [`RoleSeg::Band`]) are one
-/// carrier, and so are the faces an extrude or a revolve sweeps over the
-/// pieces of one carrier-form loop (a circle's, every one an arc of one
-/// carrier), named by the loop's first piece. Any other cell is its own.
-pub(crate) fn carrier(cell: &Construction) -> Construction {
+/// carrier, and so are the faces an extrude or a revolve of `doc`
+/// sweeps over the pieces of one circle-form loop (`circle`,
+/// `circle_split`: every piece an arc of one carrier), named by the
+/// loop's first piece. A `rectangle`'s pieces are four lines, so each
+/// is its own, and so is a piece whose loop this document cannot read
+/// (a part's). Any other cell is its own.
+pub(crate) fn carrier<P: crate::ProfilePayload>(
+    doc: &crate::doc::Doc<P>,
+    cell: &Construction,
+) -> Construction {
     use crate::names::ProfileEdgeRef;
     use profile::PieceRole;
     let Origin::Minted(name) = &cell.origin else {
         return cell.clone();
     };
-    // A carrier form's piece is its loop's first.
+    let one_carrier = |step: &crate::StepId| {
+        !in_a_part(doc, cell)
+            && P::evaluable(doc).is_some_and(|doc| on_one_carrier(doc, name.node, step))
+    };
+    // A circle form's piece is its loop's first.
     let first = |run: &crate::names::PieceRun| {
         crate::names::PieceRun::new(
             run.pieces()
@@ -283,7 +299,7 @@ pub(crate) fn carrier(cell: &Construction) -> Construction {
                     ProfileEdgeRef::Piece {
                         step,
                         role: PieceRole::Piece(_),
-                    } => ProfileEdgeRef::Piece {
+                    } if one_carrier(step) => ProfileEdgeRef::Piece {
                         step: *step,
                         role: PieceRole::Piece(0),
                     },
@@ -305,6 +321,26 @@ pub(crate) fn carrier(cell: &Construction) -> Construction {
         }),
         maps: cell.maps.clone(),
     }
+}
+
+/// **Whether `step` of the profile `sweep` sweeps is a circle form**,
+/// whose pieces are arcs of one carrier.
+fn on_one_carrier(doc: &crate::ProfileDoc, sweep: RecipeNodeId, step: &crate::StepId) -> bool {
+    let (Some(Node::Extrude { profile, .. }) | Some(Node::Revolve { profile, .. })) =
+        doc.node(sweep)
+    else {
+        return false;
+    };
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
+        return false;
+    };
+    program.ids.iter().zip(&program.loops).any(|(ids, loop_)| {
+        ids.contains(step)
+            && matches!(
+                loop_,
+                crate::LoopProgram::Circle { .. } | crate::LoopProgram::CircleSplit { .. }
+            )
+    })
 }
 
 /// **Whether the walk to `cell` stopped at a part's instance**, so its
