@@ -151,3 +151,9 @@ AUTHOR's narrative is recoverable from
 - PR 6292 (`a-clearance-assertion-is-decided-by-the-sweep`) reported at head `2e490135dc`, CI green. Tier per plan's posture: a style review plus a correctness reviewer — a wrong clearance verdict is a confident wrong picture. The correctness reviewer runs as its own cloud session (this container's disk is shared with 6264's lane) and posts on the PR; the style reviewer runs locally, read-only.
 - Class finding filed: `node-standing-census-goes-red-on-main-between-nightlies` — main broke the read census twice today and both fixes rode unrelated PRs (6264, 6292).
 - Lane note worth keeping: the clearance lane's local subset missed 10 fixture failures that CI caught; "the CI log tail hides failures" — read the jobs, not the tail.
+
+## 2026-11-02 04:10 — 6264 fix pass 4 in; re-verify 4 dispatched
+
+- Head `1eef5d4ffa`, CI green. `name_run` now chooses by identity (landed / seeded / abstain, decided once per request); extra rebind rounds only where a chain link could not evaluate; timing table re-measured (door 25 ms when nothing reads the copy; ~100 ms fillet / ~360 ms union on the die, debug, when something does).
+- Merged main's generic `HeldPick<P>` and `VertexSelection`; `Holds` adapted.
+- Filed by the lane: `name-carrying-chain-walks-restate-verbatim-edge-by-hand` (P3). Re-verify 4 aims at the round condition's proxy ("no table") and the verdict cache.
