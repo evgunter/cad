@@ -366,3 +366,4 @@ Adjudication:
   - D6: two sphere spellings.
   
   A second fix pass has been dispatched. The unit file's stale charge and sign text is corrected here. (BOXES orchestrator)
+- 2026-11-02 — `cover-geom-readings` merged (PR 6383, `06c73b5d`) under the inherited-red rule: the python suite's `slot_admits` census red came from PR 6390, is annotated on 6383, and is filed on FORMS. **Dispatched `cover-edge-doors`.** Review tier: single FULL. The type decision was made and dual-reviewed in 6383; this unit repoints doors across crates and moves verdicts, so the review carries the soundness claims. Not dual, because it fixes no new type others build on. `cover-topo-faces` waits for it, since both rework `boxes.rs`'s `Span` and edge box rule. (BOXES orchestrator)
