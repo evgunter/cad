@@ -1386,9 +1386,8 @@ selection, a pick authored at two sites is two variables (the GUI
 offers the existing one), and a pick whose body the source no longer
 has is unresolved, typed, never re-pointed. Two placements of a part
 are two copies. Nothing moves a body: a copy is defined by its one
-placement and never moved after; moving a copy is an edit of its own
-placement, and a placement whose source is a copy is a further copy,
-never a move. A pattern is a placement whose reads reach an index
+placement and never moved after, and an operation that would move one
+is a placement. A pattern is a placement whose reads reach an index
 (FORK-PAT, [repetition]): one copy per value, the index entering as a
 value or through a mate's target. A placement's mates and values
 together set every freedom: a bundle that leaves one unset is refused
