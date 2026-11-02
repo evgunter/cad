@@ -2442,6 +2442,209 @@ fn corner_fan<T: Decide>(
     Ok(rays.windows(2).map(|w| (w[0], w[1])).collect())
 }
 
+/// **A cylinder or cone face along a line edge of it, at `p` inside
+/// the edge**: what [`FaceSector::chord`] reads it by.
+pub(crate) struct Ruled<T: Real> {
+    /// The face's carrier.
+    pub(crate) surface: geom::Surface<T>,
+    /// `Face::sense`.
+    pub(crate) sense: bool,
+    /// The face's outward unit normal at `p`.
+    pub(crate) outward: Vec3<T>,
+    /// The unit direction of the face's half-edge along the edge.
+    pub(crate) along: Vec3<T>,
+    /// The edge's two ends.
+    pub(crate) ends: [Point3<T>; 2],
+    /// A radius about `p` that the face's other edges, and the edge's
+    /// ends, stand outside.
+    pub(crate) clear: T,
+}
+
+/// **A ruled face's chord** ([`FaceSector::chord`]): the sector that
+/// stands in for the face, and the lens between the face and the chord,
+/// as the unit directions square to the edge that bound it (the face's
+/// tangent and the chord) and the unit normals of its two planes toward
+/// it, read at `lever` from `p`.
+pub(crate) struct Chord<T: Real> {
+    /// The stand-in.
+    pub(crate) sector: FaceSector<T>,
+    bounds: [Vec3<T>; 2],
+    inward: [Vec3<T>; 2],
+    lever: T,
+}
+
+impl<T: Decide> FaceSector<T> {
+    /// **A cylinder or cone face whose ruling is a line edge, read across
+    /// the edge by its chord**, at `p` inside the edge, against the plane
+    /// through `p` of unit normal `plane` (the face the edge lies in).
+    ///
+    /// The face's parallel circle through `p` (its section square to the
+    /// carrier's axis) leaves `p` along the face's tangent `h` square to
+    /// the edge, toward the axis, and reaches the real point `q` of the
+    /// face at the lever `ℓ`, half the lesser of the face's clearance and
+    /// the circle's radius `ρ`: the arc lies within `ℓ` of `p` and meets
+    /// no edge of the face but at `p`. Its side of the plane is read at
+    /// `q` and at the tangent point `p + h·ℓ`: both decided alike, or the
+    /// tangent Zero and `q` decided, put the arc from `p` to `q` on `q`'s
+    /// side, and the face is read as the half-plane from the edge through
+    /// `q`, its chord, oriented as the face.
+    ///
+    /// **Sound.** A circle meets a line through `p` once more at most, so
+    /// an arc that leaves `p` on one side and ends on it never crosses,
+    /// and one that leaves along the line lies on the side it bends to.
+    /// Where the tangent reads Zero its slope off the plane is at most
+    /// `z/ℓ` (`z` the Zero band), and `q` decided at `K·z` gives
+    /// `ℓ²/2ρ ≥ (K − 1)·z`: an arc tilted the other way dips no further
+    /// than `ρ·(z/ℓ)² ≤ z/(2(K − 1))` off the plane before it crosses
+    /// back, inside the band. So the lens between the arc and its chord
+    /// lies on `q`'s side of the plane, and the wedge the chord bounds
+    /// meets the plane's far side exactly where the face's wedge does
+    /// (the lens lies wholly on one side; [`chords_clear`] holds every
+    /// other sheet of the edge out of it). A cylinder is the same along
+    /// its ruling; a cone's sections along the edge are one another
+    /// scaled about its apex, which the plane holding the edge holds,
+    /// and the cell read at its middle stands within twice the middle's
+    /// distance of the apex, so the band's dip at most doubles. The
+    /// stand-in's ball is the distance from `p` to the ruling through
+    /// `q`, inside which the face lies between the two rulings.
+    ///
+    /// A face on another carrier, or an edge off the carrier's ruling
+    /// through `p`, is [`TouchUnread::Unreadable`]; a reading in band, or
+    /// an arc decided to cross the plane short of `q`,
+    /// [`TouchUnread::InBand`]; the arc lying in the plane to `q`,
+    /// [`TouchUnread::Degenerate`]; a lever that is not a positive
+    /// number, [`TouchUnread::ChordScale`].
+    pub(crate) fn chord(
+        face: &Ruled<T>,
+        p: Point3<T>,
+        plane: Vec3<T>,
+        band: Band,
+    ) -> Result<Chord<T>, TouchUnread> {
+        use Sign::{Negative, Positive, Zero};
+        let (centre, axis, apex) = match face.surface {
+            geom::Surface::Cylinder { origin, axis, .. } => {
+                (origin + axis * axis.dot(p - origin), axis, None)
+            }
+            geom::Surface::Cone { apex, axis, .. } => {
+                (apex + axis * axis.dot(p - apex), axis, Some(apex))
+            }
+            _ => return Err(TouchUnread::Unreadable),
+        };
+        let (along, m0) = (face.along, face.outward);
+        let radial = p - centre;
+        let rho = radial.norm();
+        let lever = face.clear.min(rho) * T::from_f64(0.5);
+        if !geom_core::is_finite_length(lever) || geom_core::is_zero_length(lever, lever) {
+            return Err(TouchUnread::ChordScale);
+        }
+        let unit = |v: Vec3<T>| v.normalize();
+        let off = |v: Vec3<T>, w: Vec3<T>| v - w * w.dot(v);
+        // Into the face, square to the edge: the half-plane left of
+        // `along` about the outward normal ([`fan`]).
+        let h = unit(off(m0.cross(along), along));
+        // The parallel circle's tangent at `p`, turned as `h`: square to
+        // the axis and the radius, so to the carrier's ruling through `p`.
+        let around = unit(off(off(h, axis), unit(radial)));
+        for end in face.ends {
+            let on_plane = metric::sign(LINK_PLANE, Distance::of(end, p, m0), band);
+            let on_ruling = metric::sign(LINK_WEDGE, Distance::of(end, p, around), band);
+            match (on_plane, on_ruling) {
+                (Some(Zero), Some(Zero)) => {}
+                (None, _) | (_, None) => return Err(TouchUnread::InBand),
+                _ => return Err(TouchUnread::Unreadable),
+            }
+        }
+        // The parallel circle's point at chord `lever` from `p`.
+        let half = lever / (rho * T::from_f64(2.0));
+        let cos = T::one() - half * half * T::from_f64(2.0);
+        let sin = half * T::from_f64(2.0) * (T::one() - half * half).sqrt();
+        let q = centre + radial * cos + around * (rho * sin);
+        let side = |x: Point3<T>| metric::sign(LINK_PLANE, Distance::of(x, p, plane), band);
+        match (side(p + h * lever), side(q)) {
+            (Some(a @ (Positive | Negative)), Some(b)) if a == b => {}
+            (Some(Zero), Some(Positive | Negative)) => {}
+            (Some(Zero), Some(Zero)) => return Err(TouchUnread::Degenerate),
+            _ => return Err(TouchUnread::InBand),
+        }
+        let u = unit(off(q - p, along));
+        let outward = unit(off(off(m0, u), along));
+        let bend = centre - p;
+        let inward = [unit(off(off(bend, along), h)), unit(off(h, u))];
+        let next = match apex {
+            Some(apex) => unit(q - apex),
+            None => axis,
+        };
+        let ball = off(q - p, next).norm();
+        Ok(Chord {
+            sector: Self {
+                sector: Sector {
+                    outward,
+                    apex: p,
+                    wedges: fan(p, outward, along, lever, true),
+                    closed: false,
+                },
+                face: LinkFace {
+                    surface: face.surface.clone(),
+                    sense: face.sense,
+                    clear: Some(ball),
+                    tangent: None,
+                },
+            },
+            bounds: [h, u],
+            inward,
+            lever,
+        })
+    }
+}
+
+impl<T: Decide> Chord<T> {
+    /// Whether the unit direction `d`, square to the edge, lies
+    /// decidedly outside the lens: behind one of its two planes.
+    fn leaves(&self, p: Point3<T>, d: Vec3<T>, band: Band) -> Result<(), TouchUnread> {
+        let x = p + d * self.lever;
+        let mut in_band = false;
+        for n in self.inward {
+            match metric::sign(LINK_PLANE, Distance::of(x, p, n), band) {
+                Some(Sign::Negative) => return Ok(()),
+                Some(_) => {}
+                None => in_band = true,
+            }
+        }
+        Err(if in_band {
+            TouchUnread::InBand
+        } else {
+            TouchUnread::Unreadable
+        })
+    }
+}
+
+/// **Whether no other sheet of the edge enters a chord's lens**
+/// ([`FaceSector::chord`]): every unit direction in `others` (a planar
+/// face's, square to the edge, into it) and every other chord's two
+/// bounds read decidedly outside each chord's lens, so the lenses meet
+/// no other face of the edge, nor one another. A direction inside a lens
+/// or on its bound (a sheet that the chord would cross, or one tangent to
+/// the face) is [`TouchUnread::Unreadable`]; a reading in band,
+/// [`TouchUnread::InBand`].
+pub(crate) fn chords_clear<T: Decide>(
+    p: Point3<T>,
+    chords: &[Chord<T>],
+    others: &[Vec3<T>],
+    band: Band,
+) -> Result<(), TouchUnread> {
+    for (i, c) in chords.iter().enumerate() {
+        let theirs = chords
+            .iter()
+            .enumerate()
+            .filter(|&(j, _)| j != i)
+            .flat_map(|(_, o)| o.bounds);
+        for d in others.iter().copied().chain(theirs) {
+            c.leaves(p, d, band)?;
+        }
+    }
+    Ok(())
+}
+
 /// The fan about `p` normal to `outward` whose every chord stands past
 /// `reach`: eight wedges of an eighth of a turn counterclockwise about it
 /// from the in-plane unit `a`, or, for a `half`, the four left of `a`.

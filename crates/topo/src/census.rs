@@ -8423,6 +8423,12 @@ fn edge_in_own_face<T: Decide>(
         Link::touch_in_face(body, geo, face, p, band),
     ) {
         (Ok(a), Ok(b)) => rest::judge(&a, &b, band),
+        (Err(TouchUnread::Unreadable), Ok(b)) => {
+            match Link::chord_on_edge(body, geo, edge, face, p, band) {
+                Ok(a) => rest::judge(&a, &b, band),
+                Err(v) => v.into(),
+            }
+        }
         (Err(v), _) | (_, Err(v)) => v.into(),
     };
     match verdict {
@@ -9074,6 +9080,76 @@ impl<T: Decide> Link<T> {
                 band,
             )?);
         }
+        Self::of(p, sectors)
+    }
+
+    /// **The link at a point `p` inside a line edge with a face that is a
+    /// cylinder or cone the edge is a ruling of**, against the planar
+    /// face `floor` the edge lies in: each such face as its chord
+    /// ([`FaceSector::chord`]), a planar face as [`Link::touch_on_edge`]
+    /// reads it, and no face of the edge inside a chord's lens
+    /// ([`crate::link::chords_clear`]).
+    fn chord_on_edge(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        e: EdgeKey,
+        floor: FaceKey,
+        p: Point3<T>,
+        band: Band,
+    ) -> Result<Self, TouchUnread> {
+        use crate::link::Ruled;
+        let edge = geo.line_edge(e).ok_or(TouchUnread::Unreadable)?;
+        let outward = |f: FaceKey| {
+            crate::face_normal::face_outward_normal(body, f)
+                .map(|n| n.vec())
+                .ok_or(TouchUnread::Corrupt)
+        };
+        let plane = outward(floor)?;
+        let halves = body.get_edge(e).ok_or(TouchUnread::Corrupt)?;
+        let (mut planar, mut into, mut chords) = (Vec::new(), Vec::new(), Vec::new());
+        for he in [halves.he_plus, halves.he_minus] {
+            let f = body.face_of_half_edge(he).ok_or(TouchUnread::Corrupt)?;
+            let (along, _) = direction_at(body, he, p)?;
+            if planar_face(geo, f).is_some() {
+                into.push(outward(f)?.cross(along).normalize());
+                if !planar.contains(&f) {
+                    planar.push(f);
+                }
+                continue;
+            }
+            let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
+            let mut clear = (edge.p0 - p).norm().min((edge.p1 - p).norm());
+            for cycle in face_cycles(body, face) {
+                for other in cycle.map_err(|_| TouchUnread::Corrupt)? {
+                    let half = body.get_half_edge(other).ok_or(TouchUnread::Corrupt)?;
+                    if half.edge != e {
+                        clear = clear.min(crate::link::clearance(body, other, p)?);
+                    }
+                }
+            }
+            let ruled = Ruled {
+                surface: body.face_surface_linked(f, face).clone(),
+                sense: face.sense,
+                outward: foot_normal(body, f, p, band)?,
+                along,
+                ends: [edge.p0, edge.p1],
+                clear,
+            };
+            chords.push(FaceSector::chord(&ruled, p, plane, band)?);
+        }
+        crate::link::chords_clear(p, &chords, &into, band)?;
+        let mut sectors = Vec::new();
+        for f in planar {
+            sectors.extend(FaceSector::of(
+                body,
+                geo,
+                f,
+                p,
+                &[Hold::Edge(edge.v0, edge.v1)],
+                band,
+            )?);
+        }
+        sectors.extend(chords.into_iter().map(|c| c.sector));
         Self::of(p, sectors)
     }
 
