@@ -176,3 +176,39 @@ fn a_placement_that_does_not_finish_is_its_outputs_finding() {
         );
     }
 }
+
+/// **The reviewer's probe, asserting** (PR 6371 review r1, M1): a slab of
+/// depth `1 ± half` alone, under a one-member union, and under a union
+/// with a fixed cube. Main (merge base `8ae2b9bf`) certifies every case
+/// in one leaf; `6b946403` refused the union cases `FlipCrossing`.
+#[test]
+fn review_probe_6371_union_after_a_box_extrude() {
+    use editor_core::Operand;
+    let square = |x0: f64, s: f64| {
+        LoopProgram::polygon([(x0, 0.0), (x0 + s, 0.0), (x0 + s, s), (x0, s)]).expect("a square")
+    };
+    for (members, half) in [(0usize, 1e-6), (1, 1e-6), (0, 1e-9), (1, 1e-9), (2, 1e-6)] {
+        let mut r = Recorder::new();
+        depth(&mut r, half);
+        let slab = prism(&mut r, square(0.0, 1.0));
+        if members > 0 {
+            let mut ms = vec![Operand::output(slab, 0).into()];
+            if members == 2 {
+                let q = r.insert(Node::Profile(ProfileProgram {
+                    loops: vec![square(5.0, 1.0)],
+                    ids: Vec::new(),
+                    on: None,
+                }));
+                let cube = r.insert(Node::Extrude {
+                    profile: q.into(),
+                    distance: crate::fixture::len(1.0),
+                });
+                ms.push(Operand::output(cube, 0).into());
+            }
+            r.insert(Node::Union {
+                members: Bodies::Spelled(ms),
+            });
+        }
+        assert_eq!(certified(&r.doc), 1, "members {members}, half {half}");
+    }
+}
