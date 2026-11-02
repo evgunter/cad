@@ -2,11 +2,13 @@
 id: a-union-judgement-that-merges-two-faces-of-one-member-links-neither
 kind: issue
 title: A union whose judgement merges two faces of one member refuses as an emission bug
-status: spec
+status: closed
 opened: 2026-10-17
 priority: P1
 cost: M
 pr: 6342
+closed: 2026-11-02
+branch: reads/union-same-member-links
 ---
 
 ## What
@@ -88,3 +90,12 @@ A parent is `Merged` of its class. It is held as one face, or as `Borders` piece
 - plain `plate ∪ boss` still names piece 0 and piece 1.
 
 Review tier: **single, FULL** (a naming rule change with correctness at risk; the design is already weighed). The README change goes through an `[ev]` PR: it changes the N2 link rule Ev approved on PR 3734.
+
+## Closed (2026-11-02, PR 6342)
+
+A judgement's merge links every member face it holds, two faces of one member included. The witness names exactly as the subtract does. A fold-only glue refuses as the typed `UnsupportedUnjudgedGlue`. The review's panic, a seam merged in a later fold step, is fixed. Ev approved landing this as the interim. Ev's questions on the class reading led to a second fork, which recommends per-face exact parents. That is the parked unit `a-merged-face-is-named-for-exactly-the-member-faces-it-holds`, whose rule goes to Ev on its own `[ev]` PR. Follow-ups:
+
+- `a-union-whose-fold-glues-a-run-no-judgement-opened` (P1, exact descent);
+- `pair-boolean-keys-a-merged-parent-by-the-exact-face-set` (P3);
+- TOPO's `the-closed-run-skip-is-described-as-unfinished-and-as-the-design`;
+- a witness on BORDERS' order-dependent refusal row.
