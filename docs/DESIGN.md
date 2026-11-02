@@ -336,8 +336,10 @@ takes as its identity and a hull as its absorber, inside a reading and
 in a reader that meets two entities' covers alike. Every bound on where
 the entity is (a box in any frame, a support along a direction, a
 distance range from a point or a line, a ball) is a method on the
-cover, matches on no kind, and encloses at every scalar. No bound is a method on `Uncovered`, so a
-reader reaches it only by stating its own fail-loud direction: a
+cover and matches on no kind. Its values are computed as
+[simple.conditioned] computes every value: as real numbers at `f64`,
+with no rounding charged, and as an enclosure at `Interval`. No bound
+is a method on `Uncovered`, so a reader reaches it only by stating its own fail-loud direction: a
 pruning reader takes the box that overlaps everything, a granting
 reader refuses with that reason as its recourse. A reader grants on a
 cover only in the bound's conservative direction, and a tighter
