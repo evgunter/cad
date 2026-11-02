@@ -1234,10 +1234,7 @@ pub mod test_support {
         face: crate::FaceKey,
         band: geom_core::Band,
     ) -> bool {
-        let Some(surface) = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-        else {
+        let Some(surface) = body.face_surface(face) else {
             return false;
         };
         matches!(

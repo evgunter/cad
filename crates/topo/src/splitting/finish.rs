@@ -1889,12 +1889,7 @@ pub(crate) fn describe_section_boundary<T: Decide + crate::props::AtRestPolicy>(
                         // section to within the BAND: on a near-flush
                         // operand it is metered like any description
                         // (D4 ¶3).
-                        let mut description = demanded.spec(rest);
-                        if !intrinsic
-                            && let geom_brep::EdgeAuthority::Declared(mc) = curve.authority()
-                        {
-                            description = description.declared_by(mc);
-                        }
+                        let description = demanded.restated(curve, rest);
                         let carrier = spec.carrier.kind();
                         body.restate_edge(
                             crate::policy_lane::KernelSite::SectionSmooth,

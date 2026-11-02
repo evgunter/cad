@@ -537,15 +537,26 @@ pairwise judgements, never from the fold, so every member order spells it
 alike. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
-**A union's face is named for its PARENT.** Two member faces are linked when
-the pairwise judgement of their two members (DM4) merged or covered them:
-its two-member union merged the faces or held either face's region through
-the other (`BooleanNaming::merge_groups`, `BooleanNaming::substituted`). A pair
-the judgement never brought together links nothing. Linking is
-transitive. The member faces so linked are one parent, named `Merged` of all of
-them, and a member face nothing links is its own parent. A parent is a set of
+**A union's face is named for its PARENT.** Member faces are linked,
+transitively, when any of these holds:
+
+1. a pairwise judgement (DM4) merged them (`BooleanNaming::merge_groups`),
+   whether they are faces of its two members or two faces of one;
+2. a judgement held one face's region through the other
+   (`BooleanNaming::substituted`);
+3. the finished body holds area of both in one face, read exactly: by the
+   area each holds, never by the fold's lineage, which only grows and would
+   make the names depend on member order.
+
+The member faces so linked are one parent, named `Merged` of all of them, and
+a member face nothing links is its own parent. A parent is a set of
 member-face entities, never a name: the candidates of a tied row are separate
-parents that happen to be spelled alike.
+parents that happen to be spelled alike. A union covers material, so its
+members together can glue faces no two of them glue: a run of faces exposed
+only once several members are in. The union reads a finished face's descent
+off the fold's lineage, not exactly, so a face whose member faces only clause
+3 links refuses as that missing rule (`NamingError::UnsupportedUnjudgedGlue`),
+before any edge or vertex is named.
 
 A finished face takes the parent of the member faces it descends from; which
 faces a fold step merged, kept or discarded does not enter. So a member face

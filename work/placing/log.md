@@ -173,3 +173,34 @@ Newest entries at the bottom; the tail is the program's live status.
     - Ev's `[ev]` 6353 (takeover) is pending.
     - Open P1s: `a-duplicate-freezes-a-mated-copy-into-literal-values` (design) and `a-linear-patterns-direction-components-land-in-its-slides`.
     - The two takeover rows wait on 6353. (PLACING orchestrator)
+- 2026-11-02 — PR 6356 merged (`c02d4ba9`): Transform's retirement is on main.
+  - **The pattern-direction lane stopped at its brief's STOP.** The defect is real: `(1,1,0)` steps `s·√2`. But no spelling of "slide k·pitch along a chosen direction" fits the ratified design:
+    - a placement value slides on target axes;
+    - a slid pose built from an index is ruled out by `[repetition]`.
+  - The row is now `design: true`. With MSOLVE's circular twin (`a-ring-about-a-tilted-axis-slides-each-member-along-it`), it goes to three designers as one fork (draw 67/225 on `analysis/design-fork/a-pattern-slides-along-a-direction`).
+  - **PR 6364** (a disabled-red reproducer plus an axis-aligned gate row) is being brought up to main by its lane. It merges as tests-only, on the orchestrator's read, once green.
+  - **The lane's filed ring row** (`a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved`) was found before 6356 landed; it is being re-run on main. (PLACING orchestrator)
+- 2026-11-02 — PR 6364 merged: the disabled-red oblique-row reproducer and the axis-aligned gate.
+  - **Parked on Ev:**
+    - `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved` on `[ev]` 6369;
+    - the two takeover rows and `a-duplicate-freezes-a-mated-copy-into-literal-values` on `[ev]` 6353.
+  - **Process miss, logged as a class.** Ev's direction on Duplicate (PR 6313, "Duplicate retires into a second placement; a placed body shown and picked opens the Create door") reached main while 6356 was in review. This orchestrator adjudicated 6356's fix pass without running `work.py incoming`, which `memories/orchestration-model.md` requires at every check-in. So two behaviours that contradict the direction were approved and merged:
+    - `door_on` routing a once-placed body to its copy's Edit door;
+    - `BodyPlaced` refusing Create on a placed body.
+
+    They are recorded on the Duplicate row, which owes their undoing. Rule in practice: run `incoming` before adjudicating any fix pass, not only at check-ins.
+  - **Tail:** the three easy rows are bundled into one lane, `placing/easy-tail`. (PLACING orchestrator)
+- 2026-11-02 — PR 6372 closes the three easy tail rows (value rows name their axis through `Coord::value_label`; a direction picked on a curved face reads its axis; an unnamed drawn vertex is counted with its refusal kept). The lane filed `a-refusal-naming-a-value-slot-drops-its-axis` (P3 E). Orchestrator's read.
+  - **Track handed back: `ready`.** The sitting's P0 and P1 rows are done or parked on Ev:
+    - **On `[ev]` 6353** (what a feature on a body picked as itself does): `a-feature-gesture-re-points-every-copy-of-its-target`, `deleting-a-placed-feature-unplaces-its-target` and `a-duplicate-freezes-a-mated-copy-into-literal-values`. The Duplicate row also owes undoing 6356's `BodyPlaced` and its once-placed routing, under Ev's direction from PR 6313; see that row.
+    - **On `[ev]` 6369** (values name their direction; slides sum): `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved`. MSOLVE's ring twin closes with it.
+  - **For a successor:**
+    - When Ev answers, record the answer, the second fork-row commit (mapping from `analysis/design-fork/a-takeover-as-a-recorded-fact` and `.../a-pattern-slides-along-a-direction`) and the row updates on each `[ev]` PR. Then merge it and dispatch the build.
+    - The 6353 build closes three rows, and the 6369 build closes two, plus MSOLVE's.
+    - PR 6280 (draft) is superseded by 6353's design; close it when that build lands, and keep its review's probe rows.
+  - **Process findings this sitting:**
+    - The disk filled three times with three or more concurrent lane targets. Cap each lane at 10 GB and reclaim targets at every report.
+    - A viewer-side re-spelling of a kernel rule recurred within one PR (6300). The bundle editor fixed it with kernel doors.
+    - `incoming` was not run before adjudicating a fix pass (above).
+
+  (PLACING orchestrator)

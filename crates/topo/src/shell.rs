@@ -2568,9 +2568,7 @@ fn canonicalize_chart<T: Decide>(
             half_edge_points(body, &side1),
             half_edge_points(body, &side2),
         );
-        let chart = body
-            .face_surface_linked(anchor, proven(&body.faces, anchor, EntityId::Face))
-            .clone();
+        let chart = body.proven_face_surface(anchor).clone();
         let escalated = |source| ShellError::Escalated { source };
         let ring_first = if encloses(&chart, &p1, &p2, band).map_err(escalated)? {
             true
@@ -2704,7 +2702,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
-    let surface = body.face_surface_linked(faces[0], proven(&body.faces, faces[0], EntityId::Face));
+    let surface = body.proven_face_surface(faces[0]);
     let (Some(_), Some(chart)) = (
         crate::pcurves::chart_period(surface, band),
         crate::chart::Chart::of(surface),
@@ -3625,9 +3623,7 @@ fn pair_rings<T: Decide>(
     let source_rings = rings_of(source);
     let not_expressible =
         |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
-    let chart = body
-        .face_surface_linked(rim, proven(&body.faces, rim, EntityId::Face))
-        .clone();
+    let chart = body.proven_face_surface(rim).clone();
     let escalated = |source| ShellError::Escalated { source };
     match (&rim_rings[..], &source_rings[..]) {
         ([], []) => Ok(Vec::new()),
@@ -4322,11 +4318,7 @@ fn cavity_embedded<T: Decide + crate::props::AtRestPolicy>(
     let report = lane.sweep(&sweep, &windows, &windows, true, |candidate| {
         let (face, other) = candidate.faces();
         let ask = candidate.ask();
-        let chart = |f: FaceKey| {
-            cavity
-                .face_surface_linked(f, proven(&cavity.faces, f, EntityId::Face))
-                .map_scalar(lift)
-        };
+        let chart = |f: FaceKey| cavity.proven_face_surface(f).map_scalar(lift);
         let (sa, sb) = (chart(face), chart(other));
         let (la, lb) = lane.on_face_stations(candidate);
         let at = |s: &geom::Surface<Interval>, (u, v): (f64, f64)| {

@@ -319,7 +319,7 @@ pub struct ConstraintRow {
 pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
     match (constraint.mate(), constraint.value()) {
         (Some(_), _) => format!("constraint {at}: mate"),
-        (None, Some(value)) => format!("constraint {at}: {} value", value.coord.name()),
+        (None, Some(value)) => format!("constraint {at}: {}", value.coord.value_label()),
         (None, None) => unreachable!("a constraint is a mate or a value"),
     }
 }

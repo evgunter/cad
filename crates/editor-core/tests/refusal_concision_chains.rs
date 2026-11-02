@@ -4707,6 +4707,22 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "UnsupportedUnjudgedGlue",
+            NamingError::UnsupportedUnjudgedGlue {
+                face: topo::FaceKey::default(),
+                faces: vec![
+                    (
+                        editor_core::VarId::new(0, tagged(41)),
+                        stable(EntityKind::Face, 3),
+                    ),
+                    (
+                        editor_core::VarId::new(0, tagged(43)),
+                        stable(EntityKind::Face, 4),
+                    ),
+                ],
+            },
+        ),
+        (
             "UnsupportedTurnedCell",
             NamingError::UnsupportedTurnedCell {
                 read: editor_core::VarId::new(0, tagged(38)),

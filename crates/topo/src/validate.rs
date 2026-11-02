@@ -4152,7 +4152,7 @@ pub(crate) fn classify_point_in_solid(
             "a solid the check read holds the side at infinity in its material, so it is \
              inside-out"
                 .into(),
-            "Recourse: build it with its faces pointing outward, or revert it".into(),
+            format!("Recourse: {}", S::INSIDE_OUT_RECOURSE).into(),
         ),
         S::KindUnsupported { kind, .. } => (
             format!(
@@ -4641,9 +4641,11 @@ impl ValidationError {
                 f,
                 "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
-            Self::SliverInsideOut { .. } => f.write_str(
+            Self::SliverInsideOut { .. } => write!(
+                f,
                 "a solid is inside-out: a ray from outside it crosses into its material. \
-                 Recourse: build it with its faces pointing outward, or revert it",
+                 Recourse: {}",
+                crate::boolean::PointInSolidError::INSIDE_OUT_RECOURSE
             ),
             Self::VolumeUncomputable { source, .. } => {
                 let MassPropsReading { why, recourse, .. } = classify_mass_props(source);
@@ -10302,10 +10304,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
 /// A loop's half-edge cycle, or `None` for an empty loop (which bounds
 /// nothing and can meet nothing).
 fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
-        return None;
-    };
-    body.loop_cycle(first)
+    body.loop_halves(r#loop).filter(|cycle| !cycle.is_empty())
 }
 
 /// The point a vertex stands at.
@@ -10616,9 +10615,11 @@ pub const SCAFFOLDING_RECOURSE: &str = scaffolding_recourse!();
 /// operand: true of a solid check 7 decides negative, of a shell check 10
 /// finds bounding negative material, and of a solid a ray reads
 /// inside-out.
-pub const INSIDE_OUT_REFUSAL: &str = "is inside-out, as a whole or in one of its shells, so \
-    faces there point into its material and bound negative volume, and it is refused. \
-    Recourse: build it with its faces pointing outward, or revert it";
+pub const INSIDE_OUT_REFUSAL: &str = concat!(
+    "is inside-out, as a whole or in one of its shells, so faces there point into its \
+     material and bound negative volume, and it is refused. Recourse: ",
+    crate::boolean::solid_contain::inside_out_recourse!()
+);
 
 /// **Tier 2's findings on a door's operand.** A tier-1 finding panics
 /// naming `subject` and the first finding: every public door keeps a

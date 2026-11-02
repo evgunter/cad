@@ -66,8 +66,13 @@ fn ladder() -> [(&'static str, f64); 4] {
 /// The cylinder turned `φ`, and the plane's unit normal at its seam
 /// vertex for `ψ`.
 fn pose(phi: f64, psi: f64) -> (AtRestBody<f64>, Point3<f64>, Vec3<f64>) {
+    pose_of_height(phi, psi, 1.0)
+}
+
+/// [`pose`] for the cylinder `0 ≤ z ≤ h`.
+fn pose_of_height(phi: f64, psi: f64, h: f64) -> (AtRestBody<f64>, Point3<f64>, Vec3<f64>) {
     let circle = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
-    let cyl = finished(sweep::test_support::prism(circle, 1.0, tol()));
+    let cyl = finished(sweep::test_support::prism(circle, h, tol()));
     let z = Vec3::new(0.0, 0.0, 1.0);
     let cyl = moved(
         &cyl,
@@ -267,43 +272,43 @@ fn the_split_reads_a_grazing_vertex_against_its_section() {
     }
 }
 
+/// The slab `x ≥ 1` about the seam vertex of the unturned cylinder of
+/// height `h`, reaching `back` and `ahead` along the rim's tangent there
+/// and past both caps, its face's outward normal `−x` turned onto `−n`
+/// for the pose `(φ, ψ)`, then moved by `by`.
+fn seam_slab(
+    (phi, psi): (f64, f64),
+    (back, ahead): (f64, f64),
+    h: f64,
+    by: Vec3<f64>,
+) -> AtRestBody<f64> {
+    let slab = finished(sweep::test_support::prism_at(
+        [(1.0, -back), (4.0, -back), (4.0, ahead), (1.0, ahead)]
+            .iter()
+            .map(|&(x, y)| (Point2::new(x, y), 0.0))
+            .collect(),
+        -3.0,
+        h + 5.0,
+        tol(),
+    ));
+    let slab = moved(
+        &slab,
+        Affine3::rotation_about_axis(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), -psi),
+    );
+    let slab = moved(
+        &slab,
+        Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), phi),
+    );
+    moved(&slab, Affine3::translation(by))
+}
+
 #[test]
 fn the_boolean_reads_a_grazing_vertex_against_its_section() {
     let e = tol().eps();
     let phi = 2.2;
     for (name, psi) in ladder() {
         let (cyl, v, n) = pose(phi, psi);
-        // The slab x ≥ 1 about the seam vertex of the unturned cylinder,
-        // its face's outward normal −x turned onto −n, moved δ along n.
-        let slab = |d: f64| {
-            let slab = sweep::test_support::prism_at(
-                [(1.0, -3.0), (4.0, -3.0), (4.0, 3.0), (1.0, 3.0)]
-                    .iter()
-                    .map(|&(x, y)| (Point2::new(x, y), 0.0))
-                    .collect(),
-                -3.0,
-                6.0,
-                tol(),
-            );
-            let slab = finished(slab);
-            let slab = moved(
-                &slab,
-                Affine3::rotation_about_axis(
-                    Point3::new(1.0, 0.0, 0.0),
-                    Vec3::new(0.0, 1.0, 0.0),
-                    -psi,
-                ),
-            );
-            let slab = moved(
-                &slab,
-                Affine3::rotation_about_axis(
-                    Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(0.0, 0.0, 1.0),
-                    phi,
-                ),
-            );
-            moved(&slab, Affine3::translation(n * d))
-        };
+        let slab = |d: f64| seam_slab((phi, psi), (3.0, 3.0), 1.0, n * d);
         let cut = |d: f64| topo::subtract(&cyl, &slab(d), tol());
         let kept = |d: f64, label: &str| {
             let r = cut(d).unwrap_or_else(|err| panic!("{label}: refused: {err}"));
@@ -340,11 +345,11 @@ fn the_boolean_reads_a_grazing_vertex_against_its_section() {
                     offset_in_band: false,
                 } => {
                     let Err(BooleanError::Escalated {
-                        decision: BooleanDecision::Coincidence(Coincide::VertexOnFace, _),
+                        decision: BooleanDecision::Coincidence(Coincide::VertexOnSection, _),
                         diag,
                     }) = cut(d)
                     else {
-                        panic!("{label}: the vertex refuses typed on the face");
+                        panic!("{label}: the vertex refuses typed on its section");
                     };
                     let (predicate, got) = reported(&diag);
                     assert_eq!(predicate, "vertex_section_side", "{label}");
@@ -383,15 +388,13 @@ fn through_the_seam(psi: f64, l: f64) -> Result<topo::splitting::SplitResult<f64
     split(&cyl, &plane, tol())
 }
 
-/// Whether `r` refuses at the vertex on the section reading: the one
-/// ending this family must not reach, since its reading is the
-/// rounding's and not the input's.
-fn offers_the_section_lever(r: &Result<topo::splitting::SplitResult<f64>, SplitError>) -> bool {
-    matches!(
-        r,
-        Err(SplitError::Reduce(SplitReduceError::SliverVertex { diag, .. }))
-            if diag.predicate == Some("vertex_section_side")
-    )
+/// Whether `r` refuses on the section reading, at either door and in
+/// whatever shape the refusal takes: the one ending this family must not
+/// reach, since its reading is the rounding's and not the input's.
+fn offers_the_section_lever<B, E: core::fmt::Debug>(r: &Result<B, E>) -> bool {
+    r.as_ref()
+        .err()
+        .is_some_and(|e| format!("{e:?}").contains("\"vertex_section_side\""))
 }
 
 /// **A reading within the kernel's own resolution keeps the offset's
@@ -625,5 +628,136 @@ fn a_supporting_slab_at_a_rim_vertex_keeps_the_solid() {
                 "{label}: {got} against {whole}"
             );
         }
+    }
+}
+
+/// `work`'s result, and whether it read a vertex's section reading its
+/// rounding does not admit (decided `vertex_section_clear`).
+fn reading_unadmitted<R>(work: impl FnOnce() -> R) -> (R, bool) {
+    let bracket = geom_core::k_stats::Bracket::open();
+    let r = work();
+    let recorded = bracket.finish();
+    let clear = "vertex_section_clear";
+    let read = recorded.verdicts.iter().any(|v| v.predicate == clear)
+        || recorded.escalations.iter().any(|e| e.predicate() == clear);
+    (r, read)
+}
+
+/// **A reading its own rounding does not admit offers no lever, at
+/// every band and at both doors.** The plane meets the seam vertex at
+/// dihedral `ψ = 4uL/ε`, its stored origin `L` along the rim's tangent:
+/// the offset's rounding, about `1.9uL`, lands over `sin ψ` near `ε/2`,
+/// past the `ε/K` that admits the reading. The plane is set `√K·ε·sin ψ`
+/// off the vertex either way, so the reading itself lies mid-band, where
+/// an admitted one would refuse with the section's lever. The seam's
+/// ruling must leave the plane's band over the cylinder's height,
+/// `ψ·h ≥ 6Kε`, which at a coarse band takes a tall cylinder and a far
+/// origin (`h = L`). No row refuses on the section reading; what the
+/// join then does with the vertex the offset puts on the plane is its
+/// own gate's. Each row first reaches that reading: it decides
+/// `vertex_section_clear`, which only an unadmitted reading is read
+/// under, so an earlier refusal cannot pass it.
+#[test]
+fn an_unadmitted_section_reading_offers_no_lever_at_either_door() {
+    let (e, k) = (tol().eps(), tol().k());
+    let u = geom_core::UNIT_ROUNDOFF;
+    let phi = 2.2;
+    assert!(k >= 4.0, "the rows need the charge near ε/2 past ε/K");
+    let reach = (6.0 * k * e * e / (4.0 * u)).sqrt().max(1.0);
+    assert!(
+        reach <= 500.0,
+        "the fixture stays in the session box: {reach}"
+    );
+    let psi = (4.0 * u * reach / e).asin();
+    let (cyl, v, n) = pose_of_height(phi, psi, reach);
+    let along = Vec3::new(-phi.sin(), phi.cos(), 0.0);
+    for side in [1.0, -1.0] {
+        let d = side * k.sqrt() * e * psi.sin();
+        let label = format!("ψ {psi:e} L {reach} δ {d:+e}");
+        let plane = topo::test_support::split_plane(v + along * reach + n * d, n, tol());
+        let (r, unadmitted) = reading_unadmitted(|| split(&cyl, &plane, tol()));
+        assert!(
+            unadmitted,
+            "{label}: the split reads the section unadmitted"
+        );
+        assert!(
+            !offers_the_section_lever(&r),
+            "{label}: the split: {:?}",
+            r.err()
+        );
+        let slab = seam_slab((phi, psi), (3.0, reach), reach, n * d);
+        let (r, unadmitted) = reading_unadmitted(|| topo::subtract(&cyl, &slab, tol()));
+        assert!(
+            unadmitted,
+            "{label}: the Boolean reads the section unadmitted"
+        );
+        assert!(
+            !offers_the_section_lever(&r),
+            "{label}: the Boolean: {:?}",
+            r.err()
+        );
+    }
+}
+
+/// The torus of radii `(2, 1)` about `y`: its seam vertex on the inner
+/// equator, `(1, 0, 0)`, is a saddle of the wall.
+fn torus() -> AtRestBody<f64> {
+    let profile = profile::Profile::new(
+        profile::SketchPlane::<f64>::xy(),
+        vec![profile::test_support::bulge_loop(vec![
+            (Point2::new(1.0, 0.0), 1.0),
+            (Point2::new(3.0, 0.0), 1.0),
+        ])],
+    )
+    .validate(tol())
+    .unwrap();
+    finished(
+        revolve(&profile, axis_y(), Revolution::Full, tol())
+            .unwrap()
+            .body
+            .into_body(),
+    )
+}
+
+/// **A sine within its own rounding of zero reads no side.** The slab
+/// `x ≥ 1` is tangent to the torus at its saddle vertex `(1, 0, 0)`,
+/// where its plane cuts the wall in two branches crossing at the vertex
+/// and the section's sine reads `0 ± 8.9e-16`. Turned `θ` about the
+/// vertex and moved `δ` off it, both far below the band, the sine reads
+/// `θ` inside that bound, and a quotient by it has no bound to give:
+/// the vertex keeps its offset's verdict, and the Boolean ends where the
+/// untilted slab does, at the torus's frontier, not on a side the
+/// division made up (it read `±13 m` off).
+#[test]
+fn a_slab_tangent_at_a_torus_saddle_reads_no_side_off_its_sine() {
+    let torus = torus();
+    let v = Point3::new(1.0, 0.0, 0.0);
+    for (theta, d) in [(0.0, 0.0), (2e-16, 1e-15), (4e-16, -2e-15)] {
+        let slab = finished(sweep::test_support::prism_at(
+            [(1.0, -3.0), (4.0, -3.0), (4.0, 3.0), (1.0, 3.0)]
+                .iter()
+                .map(|&(x, y)| (Point2::new(x, y), 0.0))
+                .collect(),
+            -3.0,
+            6.0,
+            tol(),
+        ));
+        let slab = moved(
+            &slab,
+            Affine3::rotation_about_axis(v, Vec3::new(0.0, 0.0, 1.0), theta),
+        );
+        let slab = moved(&slab, Affine3::translation(Vec3::new(d, 0.0, 0.0)));
+        let r = topo::subtract(&torus, &slab, tol());
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::CurvedBooleanUnsupported {
+                    kind: geom::SurfaceKind::Torus,
+                    ..
+                })
+            ),
+            "θ {theta:e} δ {d:e}: {:?}",
+            r.err()
+        );
     }
 }
