@@ -653,26 +653,36 @@ impl Band {
 /// geometry it governs, the arm of [`Margin::levered`]
 /// (`crates/geom-core/README.md`, "Float rounding").
 ///
-/// It is built only from its sources, and the type is what says so:
+/// It is built from its sources, each named at construction:
 ///
 /// - a read of the consumed extent (`geom_brep::Reach` and its ball
 ///   payload `ExtentBall`, its `lever_from` and the two-sided
 ///   `LeverBounds`), the one place a length taken from consumed geometry
 ///   becomes an arm;
-/// - a curvature arm, [`Lever::curvature`];
+/// - a curvature arm, [`Lever::curvature`] or
+///   [`Lever::curvature_radius`];
 /// - the session box, [`Lever::session_box`], where no geometry is in
 ///   hand.
 ///
 /// A rate is not a lever: a parameter span crosses to metres through
 /// [`Margin::metered`] or [`Margin::metered_sup`], and a reciprocal arm
-/// through [`Margin::levered_inv`]. There is no door from a bare length:
+/// through [`Margin::levered_inv`].
+///
+/// **What holds this, and what does not.** The type has no constructor
+/// that takes a bare length without naming a source, and
+/// `scripts/gates/lever-sources.sh` holds the doors that do take one:
 /// the extent's own door ([`Lever::of_consumed_extent`]) is read only in
-/// the extent's home, which `scripts/gates/lever-sources.sh` holds.
+/// the extent's home, and the escape hatch for an arm that fits no
+/// source ([`Lever::unsourced`]) and a test's fixture length
+/// (`test_support::fixture_lever`) are counted per file with their
+/// reasons. A geometric constructor takes its geometry's numbers (a
+/// sphere's radius, a box's corners, a curvature), so the type cannot
+/// tell a caller's honest radius from a length it calls one: that a
+/// named source is the true source of the arm is review's to hold.
 ///
 /// Reading the arm back as a length ([`Lever::length`]) is the exit, not
-/// an entrance. [`Lever::max`] and [`Lever::min`] fold two reads of
-/// extents: the larger is a read of their union, the lesser a bound that
-/// each read already holds.
+/// an entrance. [`Lever::max`] folds two reads into a read of their
+/// union; [`Lever::min`] keeps the shorter of two arms.
 #[repr(transparent)]
 #[derive(Debug, Clone, Copy)]
 pub struct Lever<T>(pub(crate) T);
@@ -687,10 +697,12 @@ impl<T: crate::real::Real> Lever<T> {
         Self(T::one() / kappa_rel)
     }
 
-    /// **A curvature arm read as its radius**: a radius of curvature
-    /// `1/κ` the carrier states in closed form (a sphere's, a cylinder's
-    /// or a torus tube's radius, a cone's radial distance, `f64::MAX`
-    /// for a plane).
+    /// **A curvature arm read as its radius**: a principal radius of
+    /// curvature `1/κ` the carrier states in closed form (a sphere's or a
+    /// cylinder's radius, a torus tube's — its meridians' — radius, a
+    /// cone's radial distance, `f64::MAX` for a plane). It is the arm of a
+    /// turn along that principal section, not a bound on every curvature
+    /// (a fat torus bends harder along its inner equator).
     #[must_use]
     pub fn curvature_radius(radius: T) -> Self {
         Self(radius)
@@ -722,10 +734,10 @@ impl<T: crate::real::Real> Lever<T> {
         Self(length)
     }
 
-    /// **An arm no source is named for**: a length a call site levers at
-    /// that is not yet read from the consumed extent, a curvature or the
-    /// session box. Each reference is pinned with its reason by
-    /// `scripts/gates/lever-sources.sh`, a list that only shrinks.
+    /// **An arm that fits no source**: a length a call site levers at
+    /// that is not a read of the consumed extent, a curvature arm or the
+    /// session box. Each reference carries its reason and is counted per
+    /// file by `scripts/gates/lever-sources.sh`.
     #[doc(hidden)]
     #[must_use]
     pub fn unsourced(length: T) -> Self {
@@ -745,8 +757,10 @@ impl<T: crate::real::Real> Lever<T> {
         Self(crate::real::Real::max(self.0, other.0))
     }
 
-    /// The lesser of two arms read over one extent: each bounds it, so
-    /// the lesser does. Poison propagates.
+    /// The lesser of two arms: the shorter scale a reading is metered at
+    /// (an extent capped by a curvature arm, the nearer of two faces'
+    /// extents). It is a read of neither extent's union. Poison
+    /// propagates.
     #[must_use]
     pub fn min(self, other: Self) -> Self {
         Self(crate::real::Real::min(self.0, other.0))
@@ -3139,6 +3153,25 @@ mod tests {
     use crate::interval::certification::Certification;
     use crate::tolerance::Tol;
     use proptest::prelude::*;
+
+    /// **The session box's arm is the box's extent, and levers as one.**
+    /// A sine of 1e-12 levered at it reads the displacement at the box's
+    /// edge, `1e-12 · SESSION_BOX_EXTENT`; a box shrunk or the arm read
+    /// as anything else reds the row.
+    #[test]
+    fn the_session_box_lever_is_the_boxs_extent() {
+        let arm = Lever::<f64>::session_box();
+        assert_eq!(
+            arm.length().to_bits(),
+            crate::tolerance::SESSION_BOX_EXTENT.to_bits(),
+            "the arm"
+        );
+        assert_eq!(
+            Margin::levered(1e-12, arm).value().to_bits(),
+            (1e-12 * crate::tolerance::SESSION_BOX_EXTENT).to_bits(),
+            "the levered sine"
+        );
+    }
 
     // Global-state discipline (see `crate::tolerance`'s test module):
     // bands here are built with explicit thresholds via `Band::new` or

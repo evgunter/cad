@@ -11,7 +11,7 @@
 
 use crate::enters::{EntersMaterial, ReferenceNormal};
 use geom_core::k_stats::NonzeroSign;
-use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 /// **How a conic edge bends off its departure tangent** at the vertex
 /// it leaves: what [`conic_bend_side`] reads one order down where the
@@ -70,17 +70,17 @@ pub struct ConicDeparture<T: Real> {
 
 impl<T: Decide> ConicDeparture<T> {
     /// The departure of `curve`'s walk out of its vertex (`he_plus`
-    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]), `chord`
-    /// the distance between the edge's end vertices.
+    /// walks `t₀ → t₁`, [`crate::EdgeCurve::walk_tangents`]), `ends`
+    /// the edge's end vertices.
     ///
     /// # Panics
     ///
     /// On a line carrier ([`ConicBend::of`]).
     #[must_use]
-    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, chord: T) -> Self {
+    pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, ends: (Point3<T>, Point3<T>)) -> Self {
         let (t0, t1) = curve.params();
         let (tangent, _) = curve.walk_tangents(he_plus);
-        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1, chord);
+        let extent = crate::edge_extent_inf(curve.carrier(), t0, t1, ends);
         let bend = ConicBend::of(
             curve.carrier(),
             tangent,

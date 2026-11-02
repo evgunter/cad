@@ -193,7 +193,7 @@ fn encloses(what: &str, carrier: &NurbsCurve3<f64>, s1: &Surface<f64>, s2: &Surf
 
 /// The open conic of `plane(q, n)` and `cone(alpha)`.
 fn open(alpha: f64, q: Point3<f64>, n: Vec3<f64>, band: Band) -> geom_brep::OpenConicSection<f64> {
-    let reach = Reach::of_frame(p(0.0, 0.0, 1.0), (4.0, 4.0));
+    let reach = Reach::fixture(p(0.0, 0.0, 1.0), 4.0);
     match plane_cone_section(&plane(q, n), &cone(alpha), &reach, band) {
         Ok(PlaneConeSection::OpenConic(s)) => s,
         other => panic!("expected an open conic, got {other:?}"),

@@ -988,11 +988,10 @@ fn section_reach<T: Decide>(
     let p = body.resolve_vertex_point(at, Proven);
     Ok(match wall {
         geom::Surface::Cylinder { axis, .. } => {
-            let extent = face_extent(body, at, face).map_err(unbounded)?.length();
+            let extent = face_extent(body, at, face).map_err(unbounded)?;
             let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
-            let round = crate::splitting::rules::face_reach_round_from(body, face, p)
-                .map_err(unbounded)?
-                .length();
+            let round =
+                crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
             SectionReach::Cylinder(WallReach {
                 at: p,
                 below,
@@ -1316,8 +1315,13 @@ pub(crate) struct SectionConic<T: Real> {
 impl<T: Real> SectionConic<T> {
     /// The carrier read as a conic.
     pub(crate) fn conic(&self) -> &dyn Conic<T> {
-        self.carrier
-            .conic()
+        self.as_conic(geom::Curve3::conic)
+    }
+
+    /// The carrier read by `read`, a reading every circle and ellipse
+    /// answers.
+    fn as_conic<'a, R>(&'a self, read: impl FnOnce(&'a geom::Curve3<T>) -> Option<R>) -> R {
+        read(&self.carrier)
             .unwrap_or_else(|| unreachable!("a section conic is a circle or an ellipse"))
     }
 
@@ -1404,11 +1408,7 @@ impl<T: Real> SectionCurve<T> {
     /// semi-axis, whichever its seam lies along, an oval's own extent.
     fn lever(&self) -> geom_core::Lever<T> {
         match self {
-            Self::Conic(c) => geom_brep::ExtentBall::of_conic(&c.carrier)
-                .unwrap_or_else(|| {
-                    unreachable!("a section conic's carrier is a circle or an ellipse")
-                })
-                .lever(),
+            Self::Conic(c) => c.as_conic(geom_brep::ExtentBall::of_conic).lever(),
             Self::Oval(o) => o.extent,
         }
     }
@@ -1552,9 +1552,9 @@ pub(crate) struct WallReach<T: geom_core::Real> {
     /// How far the face reaches from `at` along the axis.
     pub(crate) above: T,
     /// The farthest distance, each edge over its span.
-    pub(crate) span: T,
+    pub(crate) span: geom_core::Lever<T>,
     /// The farthest distance, each edge round its whole carrier.
-    pub(crate) round: T,
+    pub(crate) round: geom_core::Lever<T>,
 }
 
 /// **A plane×cylinder section, served only where a wall face's two
@@ -1578,12 +1578,7 @@ pub(crate) fn agreed_section<T: Decide>(
 ) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
     use geom_brep::PlaneCylinderSection as S;
     let read = |across| {
-        let face = geom_brep::Reach::Face {
-            at: reach.at,
-            below: reach.below,
-            above: reach.above,
-            across,
-        };
+        let face = geom_brep::Reach::of_face(reach.at, (reach.below, reach.above), across);
         geom_brep::plane_cylinder_section_read(plane, wall, &face, band)
     };
     let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
@@ -6553,20 +6548,11 @@ mod tests {
         let (below, above) =
             crate::splitting::rules::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
         let read = |across| {
-            let reach = geom_brep::Reach::Face {
-                at: base,
-                below,
-                above,
-                across,
-            };
+            let reach = geom_brep::Reach::of_face(base, (below, above), across);
             geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
         };
-        let span = crate::splitting::rules::face_reach_from(&body, face, base)
-            .unwrap()
-            .length();
-        let round = crate::splitting::rules::face_reach_round_from(&body, face, base)
-            .unwrap()
-            .length();
+        let span = crate::splitting::rules::face_reach_from(&body, face, base).unwrap();
+        let round = crate::splitting::rules::face_reach_round_from(&body, face, base).unwrap();
         assert!(
             matches!(read(round), Err(geom_brep::SectionError::Escalated(_))),
             "main's whole-turn reading escalates"
@@ -7038,8 +7024,8 @@ mod section_case_pair_tests {
             at: Point3::origin(),
             below: 4.0,
             above: 4.0,
-            span: 4.0,
-            round: 4.0,
+            span: geom_core::test_support::fixture_lever(4.0),
+            round: geom_core::test_support::fixture_lever(4.0),
         };
         SectionReach::Cylinder(reach)
     }

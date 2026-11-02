@@ -44,3 +44,18 @@ a reciprocal arm), `geom_brep::half_angle` `root_reach`
 outside `Margin::levered`, so its arm names no source and the gate
 cannot see it. What the grep cannot match: a product computed into a
 variable first and handed to `Margin::of` by name.
+
+**Pivot not the centre** (PR 6391's review, 2026-11-02). `ExtentBall::lever()`
+is the ball's radius: its reach from its own centre. Where the reading it
+meters pivots on the rim or elsewhere, the reach is up to `2r`, and the
+arm under-states it (the values are main's; the type only names them).
+Sites: `props::curved` (`of_circle(c_c, r_c).lever()` and kin at the
+circle-axis class, the meridian rows and the rim levels: about 11
+sites), `pcurve_cache` spiric `chart_tilt` (`of_torus`), `intersect`
+`pt_axis_normal` (`of_torus`), `pair_section::gap` slope and
+`torus_coincidence` (core circles), and in topo `boolean::arcs`
+`arcs_along`, `boolean::trace` circle crossing, `boolean::boxes`
+`sphere_window`, `boolean::solid_contain` `sphere_chart_trim` (2),
+`chord_join` `holds_outer`. Each should read the lever from its own
+pivot (`lever_from(pivot)`), which moves its margin and wants the
+row's own differential.

@@ -2906,11 +2906,11 @@ pub(super) enum FrameExtent<T: geom_core::Real> {
         above: T,
         /// The face's farthest distance from `at`, each edge read over
         /// the span it holds.
-        across: T,
+        across: geom_core::Lever<T>,
         /// The same with each edge levered round its whole carrier, which
         /// the germ also reads
         /// ([`agreed_section`](crate::chord_join::agreed_section)).
-        round: T,
+        round: geom_core::Lever<T>,
     },
     /// A plane×torus pair's torus face: its farthest distance from `at`,
     /// each edge levered round its whole carrier
@@ -2973,12 +2973,8 @@ pub(super) fn frame_extent<T: Decide>(
     let lone = |_| LONE_WALL;
     let (below, above) =
         crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
-    let across = crate::splitting::rules::face_reach_from(body, face, at)
-        .map_err(lone)?
-        .length();
-    let round = crate::splitting::rules::face_reach_round_from(body, face, at)
-        .map_err(lone)?
-        .length();
+    let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
+    let round = crate::splitting::rules::face_reach_round_from(body, face, at).map_err(lone)?;
     Ok(FrameExtent::Wall {
         below,
         above,
@@ -3054,7 +3050,7 @@ pub(super) fn surface_pair_reach<T: Decide>(
     let at = geom_brep::ExtentBall::enclosing(&corners)
         .ok_or("a plane×cone surface pair's cone faces have no boundary vertices")?
         .center();
-    let mut most: Option<(T, T, T)> = None;
+    let mut most: Option<(T, T, geom_core::Lever<T>)> = None;
     for &(fc, fp) in pairs {
         let FrameExtent::Cone(geom_brep::Reach::Face {
             below,
@@ -3071,12 +3067,7 @@ pub(super) fn surface_pair_reach<T: Decide>(
         });
     }
     let (below, above, across) = most.ok_or("a plane×cone surface pair with no face pair")?;
-    Ok(geom_brep::Reach::Face {
-        at,
-        below,
-        above,
-        across,
-    })
+    Ok(geom_brep::Reach::of_face(at, (below, above), across))
 }
 
 /// [`frame_extent`]'s plane×torus arm: the torus face's reach from `at`.
@@ -6695,14 +6686,8 @@ mod frame_dispatch_tests {
                 let rules = crate::splitting::rules::face_axial_range(&body, face, at, axis);
                 let (below, above) = rules.expect("a bounded patch");
                 let across = crate::splitting::rules::face_reach_round_from(&body, face, at)
-                    .expect("a bounded patch")
-                    .length();
-                let reach = geom_brep::Reach::Face {
-                    at,
-                    below,
-                    above,
-                    across,
-                };
+                    .expect("a bounded patch");
+                let reach = geom_brep::Reach::of_face(at, (below, above), across);
                 class(&geom_brep::plane_cylinder_section(&plane, &wall, &reach, b))
             };
             // chord_join, read at the corner.

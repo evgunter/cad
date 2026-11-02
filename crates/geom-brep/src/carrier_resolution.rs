@@ -361,7 +361,7 @@ mod tests {
             plane(Point3::new(0.1, 0.2, -0.3), Vec3::unit_y()),
             plane(Point3::new(0.1, 0.5, -0.3), Vec3::unit_y()),
         ] {
-            let arm = crate::ExtentBall::of_sphere(Point3::origin(), 3.0).lever();
+            let arm = geom_core::test_support::fixture_lever(3.0);
             match plane_torus_section(&cut, &torus, arm, band()).unwrap() {
                 PlaneTorusSection::MeridianCircles { c1, c2 }
                 | PlaneTorusSection::ConcentricCircles { c1, c2 } => {

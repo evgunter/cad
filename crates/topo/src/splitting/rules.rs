@@ -400,9 +400,7 @@ fn apex_reading<T: Decide>(
             "split_sector_coplanar",
             plane.normal.get(),
             apex.normal_along(ray),
-            // Unsourced lever: the bound's norm, a unit tangent scaled to its edge's
-            // edge_extent_inf (or a line's chord); the edge's own read would round differently.
-            geom_core::Lever::unsourced(ray.norm()),
+            crate::boolean::sectors::departure_arm_lever(ray),
             band,
         )
     });
@@ -553,9 +551,7 @@ fn edge_wedge<T: Decide>(
     let sector_surface = |f| body.proven_face_surface(f);
     let (s_own, s_mate) = (sector_surface(own_face), sector_surface(mate_face));
     let (_, along, _) = chord(body, vertex, he)?;
-    // Unsourced lever: the edge's bound's norm, a unit tangent scaled to its
-    // edge_extent_inf (or a line's chord); the edge's own read would round differently.
-    let extent = geom_core::Lever::unsourced(along.norm());
+    let extent = crate::boolean::sectors::departure_arm_lever(along);
     // Both faces are read along the edge's ray: at the vertex where each
     // has a tangent plane, and out along the ray where either is a cone at
     // its apex, whose normal is constant along the ruling the ray lies on
@@ -879,12 +875,11 @@ pub(crate) fn cone_face_reach<T: Decide>(
     let (lo, hi) = cone_axial_window(body, face, cone, band)?;
     let (lo, hi) = within.map_or((lo, hi), |(from, to)| (lo.max(from), hi.min(to)));
     let at_axis = (at - apex).dot(axis);
-    Ok(geom_brep::Reach::Face {
+    Ok(geom_brep::Reach::of_face(
         at,
-        below: at_axis - lo,
-        above: hi - at_axis,
-        across: face_reach_from(body, face, at)?.length(),
-    })
+        (at_axis - lo, hi - at_axis),
+        face_reach_from(body, face, at)?,
+    ))
 }
 
 /// A certified edge as the reach of the span it holds.
@@ -1428,7 +1423,7 @@ mod tests {
         arm: f64,
         band: Band,
     ) -> WallReading<f64> {
-        let arm = geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever();
+        let arm = geom_core::test_support::fixture_lever(arm);
         match geom_brep::normal_alignment("split_sector_coplanar", plane.normal.get(), n, arm, band)
             .unwrap()
         {

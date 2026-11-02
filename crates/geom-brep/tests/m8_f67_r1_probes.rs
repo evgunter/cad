@@ -211,7 +211,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
         start,
         end,
         |k| arena.get(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),
     )

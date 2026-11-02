@@ -489,7 +489,6 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
     let curve = body.get_curve_geom(edge.curve)?.certified()?;
     let base = body.half_edge_start_point(he)?;
     let end = body.half_edge_start_point(body.mate(he)?)?;
-    let chord = (end - base).norm();
     let (t0, t1) = curve.params();
     let reach = match curve.carrier() {
         geom::Curve3::Line(_) => {
@@ -504,7 +503,7 @@ fn leaving<T: Decide>(body: &Body<T>, he: HalfEdgeKey, secant: bool) -> Option<L
         | geom::Curve3::Ellipse(..)
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
-            let departure = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, chord);
+            let departure = geom_brep::ConicDeparture::of(curve, he == edge.he_plus, (end, base));
             let bend = match departure.bend.bounds {
                 geom_brep::BendBounds::Planar { .. } => Some(departure.bend.curvature),
                 geom_brep::BendBounds::Unbounded => None,
@@ -2134,7 +2133,7 @@ mod tests {
         let (up, y) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0));
         let edge = |dir, k: f64| Leaving {
             dir,
-            reach: LeverBounds::Exact(crate::bound_side::lever(0.6)),
+            reach: LeverBounds::Exact(geom_core::test_support::fixture_lever(0.6)),
             bend: Some(Vec3::new(-k, 0.0, 0.0)),
         };
         let at = |k: f64, ((out, back), (ko, kb)): ((Vec3<f64>, Vec3<f64>), (f64, f64))| {
@@ -2197,7 +2196,7 @@ mod corner_bounds_rows {
     use super::{Holds, Leaving, Ray, corner_holds};
     use crate::boolean::{BooleanDecision, BooleanError};
 
-    use crate::bound_side::lever as extent;
+    use geom_core::test_support::fixture_lever;
 
     /// A straight bound leaving along `dir`, reaching `reach`.
     fn bound(dir: Vec3<f64>, reach: LeverBounds<f64>) -> Leaving<f64> {
@@ -2297,18 +2296,24 @@ mod corner_bounds_rows {
                 reach,
                 bend: Some(Vec3::new(0.0, 1.2e-9, 0.0)),
             };
-            let bounds = (bound(x, reach), bound(y, LeverBounds::Exact(extent(1.0))));
+            let bounds = (
+                bound(x, reach),
+                bound(y, LeverBounds::Exact(fixture_lever(1.0))),
+            );
             corner_holds(edge.ray(), bounds, || Ok(false), n, band)
         };
         assert!(matches!(
-            at(LeverBounds::Exact(extent(1.0))),
+            at(LeverBounds::Exact(fixture_lever(1.0))),
             Ok(Holds::Tied { along_out: true })
         ));
-        assert!(matches!(at(LeverBounds::Exact(extent(5.0))), Ok(Holds::In)));
+        assert!(matches!(
+            at(LeverBounds::Exact(fixture_lever(5.0))),
+            Ok(Holds::In)
+        ));
         straddles(
             at(LeverBounds::Between {
-                below: extent(1.0),
-                above: extent(5.0),
+                below: fixture_lever(1.0),
+                above: fixture_lever(5.0),
             }),
             "bool_fate_corner_bend_straddle",
         );
@@ -2324,8 +2329,8 @@ mod corner_bounds_rows {
     fn a_cut_beside_a_long_bound_is_read_at_the_shorter_of_their_reaches() {
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (long, short) = (
-            LeverBounds::Exact(extent(1.0)),
-            LeverBounds::Exact(extent(1e-6)),
+            LeverBounds::Exact(fixture_lever(1.0)),
+            LeverBounds::Exact(fixture_lever(1e-6)),
         );
         let theta = 1e-4_f64;
         let d = Vec3::new(theta.cos(), theta.sin(), 0.0);
@@ -2377,7 +2382,7 @@ mod tie_rows {
     use crate::boolean::Operand;
     use crate::lineage::{FaceDivisions, LineageRows};
 
-    use crate::bound_side::lever as extent;
+    use geom_core::test_support::fixture_lever;
 
     #[test]
     fn a_tangent_tied_with_either_bound_places_no_corner() {
@@ -2403,7 +2408,7 @@ mod tie_rows {
         let divisions = FaceDivisions::new(LineageRows::FaceDivisions);
         let diagonal = Vec3::new(1.0, 1.0, 0.0).normalize();
         let at = |dir: Vec3<f64>, bend: Vec3<f64>| {
-            let reach = Some(LeverBounds::Exact(extent(0.5)));
+            let reach = Some(LeverBounds::Exact(fixture_lever(0.5)));
             let tangent = Ray {
                 dir,
                 reach,

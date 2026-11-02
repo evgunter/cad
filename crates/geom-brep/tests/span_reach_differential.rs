@@ -321,12 +321,7 @@ fn span_reach_differential() {
                 "band"
             };
             let reading = |whole: bool| {
-                let reach = Reach::Face {
-                    at,
-                    below,
-                    above,
-                    across: face.across(at, whole).length(),
-                };
+                let reach = Reach::of_face(at, (below, above), face.across(at, whole));
                 (plane_cylinder_section(&plane, &cyl, &reach, b), reach)
             };
             let (main, _) = reading(true);

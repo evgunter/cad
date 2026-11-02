@@ -56,7 +56,7 @@ fn frame_at(p: &geom::Surface<f64>, lever: f64) -> Loops {
             a,
             b,
             Point3::new(BIG_R, 0.0, 0.0),
-            FrameExtent::Reach(crate::bound_side::lever(lever)),
+            FrameExtent::Reach(geom_core::test_support::fixture_lever(lever)),
             band(),
         )
     };
@@ -430,7 +430,7 @@ fn a_torus_off_its_ring_is_refused_as_the_pierce_refuses_it() {
             &torus,
             &p,
             Point3::new(big_r, 0.0, 0.0),
-            FrameExtent::Reach(crate::bound_side::lever(REACH)),
+            FrameExtent::Reach(geom_core::test_support::fixture_lever(REACH)),
             b,
         );
         let Err(e) = got else {

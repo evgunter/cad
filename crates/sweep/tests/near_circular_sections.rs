@@ -430,7 +430,7 @@ fn a_near_square_plane_cuts_a_cylinder_in_its_exact_ellipse() {
             let q = map.transform_point(Point3::new(0.0, 0.0, 0.5 * r));
             let reach = {
                 let lever = 5.0_f64.sqrt() * r;
-                Reach::of_frame(q, (lever, lever))
+                Reach::fixture(q, lever)
             };
             let section = |s: f64| {
                 let plane = moved(
@@ -631,10 +631,7 @@ fn a_near_square_plane_cuts_a_frustum_in_its_exact_ellipse() {
             let q = map.transform_point(q0);
             let rim = 0.5 * (f.r0 + f.r1);
             let lever = (2.0 * f.r0).max((scale * scale + (f.r0 + f.r1).powi(2)).sqrt());
-            let reach = Reach::of_frame(
-                map.transform_point(Point3::new(0.0, f.apex, 0.0)),
-                (lever, lever),
-            );
+            let reach = Reach::fixture(map.transform_point(Point3::new(0.0, f.apex, 0.0)), lever);
             let section = |s: f64| {
                 let plane = moved(
                     &map,

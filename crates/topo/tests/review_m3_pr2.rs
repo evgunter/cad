@@ -516,23 +516,11 @@ fn r7_enters_material_oblique_independent() {
     let into = Vec3::new(-1.0, 1.0, 0.5);
     assert!(into.dot(chart) < 0.0, "fixture sanity");
     assert_eq!(
-        enters_material(
-            into,
-            n,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 2.0).lever(),
-            band
-        )
-        .unwrap(),
+        enters_material(into, n, geom_core::test_support::fixture_lever(2.0), band).unwrap(),
         EntersMaterial::Enters
     );
     assert_eq!(
-        enters_material(
-            -into,
-            n,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 2.0).lever(),
-            band
-        )
-        .unwrap(),
+        enters_material(-into, n, geom_core::test_support::fixture_lever(2.0), band).unwrap(),
         EntersMaterial::Exits
     );
     // The rule-(a) reading: a coplanar face whose outward normal AGREES
@@ -541,20 +529,14 @@ fn r7_enters_material_oblique_independent() {
     // face senses through the same primitive:
     let n_sp = chart; // coplanar: the split plane's normal, no sense
     assert_eq!(
-        enters_material(
-            n_sp,
-            n,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
-            band
-        )
-        .unwrap(),
+        enters_material(n_sp, n, geom_core::test_support::fixture_lever(1.0), band).unwrap(),
         EntersMaterial::Exits, // agree ⇒ Exits ⇒ rule (a) BELOW
     );
     assert_eq!(
         enters_material(
             n_sp,
             n_rev,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band
         )
         .unwrap(),

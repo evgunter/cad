@@ -14,10 +14,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::lever::sphere_arm;
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom_brep::plane_nurbs_limbs;
 use geom_core::spline::KnotVector;
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point2, Point3};
 
 use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
@@ -123,7 +123,7 @@ fn plane_nurbs_limbs_image_lands_on_the_carriers_own_domain() {
         carrier.knot_values().domain(),
         &transverse_plane(),
         &quarter_cylinder_wall(),
-        sphere_arm(1.0),
+        fixture_lever(1.0),
         band(),
     )
     .expect("the door answers on a carrier whose domain is not [0, 1]");

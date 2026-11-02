@@ -535,7 +535,7 @@ fn both_orders(
     t1: f64,
     extent: f64,
 ) -> (MustCarryVerdict, MustCarryVerdict) {
-    let extent = geom_brep::ExtentBall::of_sphere(Point3::origin(), extent).lever();
+    let extent = geom_core::test_support::fixture_lever(extent);
     (
         must_carry_over_edge(s1, s2, carrier, 0.0, t1, extent, band()),
         must_carry_over_edge(s2, s1, carrier, 0.0, t1, extent, band()),
@@ -826,7 +826,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(MERIDIAN_R),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), pr(MERIDIAN_R)).lever(),
+        geom_core::test_support::fixture_lever(pr(MERIDIAN_R)),
         band(),
     );
     let spent = count(k_stats::take_samples());
@@ -850,7 +850,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(short),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), pr(short)).lever(),
+        geom_core::test_support::fixture_lever(pr(short)),
         band(),
     );
     let spent_under = count(k_stats::take_samples());
@@ -899,7 +899,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
             &carrier,
             Probe(0.0),
             Probe(1.0),
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), Probe(1.0)).lever(),
+            geom_core::test_support::fixture_lever(Probe(1.0)),
             band(),
         );
         let after = k_stats::take_samples();

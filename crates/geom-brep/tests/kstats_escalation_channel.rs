@@ -21,13 +21,13 @@
 //! one executed rather than imagined.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::lever::sphere_arm;
 use geom::Surface;
 use geom_brep::{
     OutwardNormal, ReferenceNormal, classify_dihedral, classify_material_pairing, enters_material,
     enters_material_order2,
 };
 use geom_core::k_stats::{Bracket, Recorded};
+use geom_core::test_support::fixture_lever;
 use geom_core::{Band, ErrorTextReading, Point3, Sign, Tol, Vec3};
 
 /// The one escalation `recorded` holds, as `(predicate, margin, the
@@ -73,7 +73,7 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
         Vec3::new(1.0f64, 0.0, 0.0),
         OutwardNormal::from_chart(Vec3::new(0.0f64, 0.0, 1.0), true),
         // A collapsed lever arm: the funnel decides Zero DEFINITELY.
-        sphere_arm(0.0f64),
+        fixture_lever(0.0f64),
         band,
     );
     let recorded = bracket.finish();
@@ -149,7 +149,7 @@ fn the_dihedral_arm_gate_records_its_escalation() {
     let s1 = plane(Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
     let s2 = plane(Vec3::new(0.0, 1.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
     let bracket = Bracket::open();
-    let out = classify_dihedral(&s1, &s2, Point3::origin(), sphere_arm(0.0f64), band);
+    let out = classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(0.0f64), band);
     let recorded = bracket.finish();
     assert_eq!(
         out.expect_err("a collapsed arm escalates").diag().predicate,
@@ -181,7 +181,7 @@ fn the_material_pairing_gate_records_its_escalation() {
         &s_minus,
         true,
         Point3::origin(),
-        sphere_arm(1.0f64),
+        fixture_lever(1.0f64),
         band,
     );
     let recorded = bracket.finish();

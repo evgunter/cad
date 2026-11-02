@@ -469,7 +469,7 @@ fn a_decided_zero_chain_arm_ends_as_its_in_band_sibling_does() {
     let mid = (b.zero() + b.escalate()) / 2.0;
     let short = b.zero() / 2.0;
     for (arm, what) in [(mid, "in band"), (short, "decided zero")] {
-        let lever = || geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever();
+        let lever = || geom_core::test_support::fixture_lever(arm);
         let err = chain_g1(x, x, lever(), v, b).unwrap_err();
         assert!(
             matches!(

@@ -214,7 +214,7 @@ pub(super) fn chord<T: Decide>(
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
             let departure =
-                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, p_final.distance(p_base));
+                geom_brep::ConicDeparture::of(curve, he == edge.he_plus, (p_final, p_base));
             Ok((final_vertex, departure.dir, Some(departure.bend)))
         }
     }
@@ -270,9 +270,7 @@ pub(crate) fn entry_side<T: Decide, E>(
             .map_err(EntryFault::Far);
     };
     let reach = BoundSupport::Conic {
-        // Unsourced lever: the departure's norm, the edge's extent read
-        // back through its unit tangent, which differs from it by rounding.
-        extent: geom_core::Lever::unsourced(dir.norm()),
+        extent: crate::boolean::sectors::departure_arm_lever(dir),
         bend,
     };
     let side = match crate::bound_side::read_plane_side(dir, reach, reference, band) {
@@ -340,13 +338,7 @@ pub(crate) fn wide_entries<T: Decide>(
         .map(|d: Vec3<T>| {
             let side = match decide(
                 "split_bisector_side",
-                Margin::levered(
-                    d.dot(normal),
-                    // Unsourced lever: the sector's arm (`sector_shape`), the norm of a unit
-                    // tangent scaled to its edge_extent_inf; the edges' Lever::min would round
-                    // differently.
-                    geom_core::Lever::unsourced(arm),
-                ),
+                Margin::levered(d.dot(normal), crate::boolean::sectors::metering_arm(arm)),
                 band,
             )
             .map_err(sliver)?

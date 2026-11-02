@@ -2324,7 +2324,7 @@ fn walk_faces_first<T: Decide>(
         },
     )?;
     strut_order(
-        (Leaned::upright(arrival.normalize()), reach.reach()),
+        (Leaned::upright(arrival.normalize()), reach.lever()),
         s.tangent().vec(),
         (first.line, second.line),
         s.arm,
@@ -2880,14 +2880,14 @@ mod tests {
                     start,
                     end,
                     start_reach: crate::boolean::sectors::BoundSupport::Extent(
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                     ),
                     end_reach: crate::boolean::sectors::BoundSupport::Extent(
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                     ),
                     face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                    arm: crate::bound_side::lever(1.0),
+                    arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
@@ -2895,7 +2895,7 @@ mod tests {
                 let last = secs[secs.len() - 1].clone();
                 secs.push(BoolSector {
                     end_reach: crate::boolean::sectors::BoundSupport::straight_bisector(
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                     ),
                     ..last
                 });
@@ -3003,22 +3003,28 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: x,
             end: y,
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             end_reach,
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
             ),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = vec![
-            sector(BoundSupport::Extent(crate::bound_side::lever(1.0))),
-            sector(BoundSupport::straight_bisector(crate::bound_side::lever(
-                1.0,
-            ))),
-            sector(BoundSupport::Extent(crate::bound_side::lever(1.0))),
-            sector(BoundSupport::Extent(crate::bound_side::lever(1.0))),
+            sector(BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
+            sector(BoundSupport::straight_bisector(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
+            sector(BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
+            sector(BoundSupport::Extent(
+                geom_core::test_support::fixture_lever(1.0),
+            )),
         ];
         let at = |k, d| Cut::apart(k, up(d));
         let before = |p, q| walks_before(&secs, p, q, band);
@@ -3361,14 +3367,14 @@ mod tests {
                     start,
                     end,
                     start_reach: crate::boolean::sectors::BoundSupport::Extent(
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                     ),
                     end_reach: crate::boolean::sectors::BoundSupport::Extent(
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                     ),
                     face: body.face_of_half_edge(he).unwrap(),
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                    arm: crate::bound_side::lever(1.0),
+                    arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 })
                 .collect();
@@ -3461,7 +3467,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let (sa, sb) = (
@@ -3512,10 +3518,10 @@ mod tests {
         ] {
             assert_eq!(
                 strut_order(
-                    (up(e), crate::bound_side::lever(1.0)),
+                    (up(e), geom_core::test_support::fixture_lever(1.0)),
                     n,
                     (up(at(g0)), up(at(g1))),
-                    crate::bound_side::lever(1.0),
+                    geom_core::test_support::fixture_lever(1.0),
                     || Ok(None),
                     band
                 )
@@ -3554,10 +3560,10 @@ mod tests {
         ] {
             let truth = g0 < g1;
             match strut_order(
-                (up(e), crate::bound_side::lever(1.0)),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(at(g0)), up(at(g1))),
-                crate::bound_side::lever(1.0),
+                geom_core::test_support::fixture_lever(1.0),
                 || Ok(None),
                 band,
             ) {
@@ -3602,10 +3608,10 @@ mod tests {
         let down = up(Vec3::new(0.0, 0.0, -1.0));
         let order = |g| {
             strut_order(
-                (down, crate::bound_side::lever(1.23)),
+                (down, geom_core::test_support::fixture_lever(1.23)),
                 at(30.0),
                 (g, up(at(120.0))),
-                crate::bound_side::lever(0.11),
+                geom_core::test_support::fixture_lever(0.11),
                 || Ok(None),
                 band,
             )
@@ -3658,10 +3664,10 @@ mod tests {
                         up((Vec3::new(theta.sin(), -theta.cos(), 0.0) + e.dir * 0.3).normalize());
                     let side = |g, n_b| {
                         strut_order(
-                            (e, crate::bound_side::lever(lever)),
+                            (e, geom_core::test_support::fixture_lever(lever)),
                             n_b,
                             (g, far),
-                            crate::bound_side::lever(lever),
+                            geom_core::test_support::fixture_lever(lever),
                             || Ok(None),
                             band,
                         )
@@ -3692,16 +3698,16 @@ mod tests {
                         start: Vec3::new(1.0, -1.0, 0.0),
                         end: Vec3::new(1.0, 1.0, 0.0),
                         start_reach: crate::boolean::sectors::BoundSupport::Extent(
-                            crate::bound_side::lever(lever),
+                            geom_core::test_support::fixture_lever(lever),
                         ),
                         end_reach: crate::boolean::sectors::BoundSupport::Extent(
-                            crate::bound_side::lever(lever),
+                            geom_core::test_support::fixture_lever(lever),
                         ),
                         face: FaceKey::default(),
                         at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                             geom_brep::OutwardNormal::from_chart(flat, true),
                         ),
-                        arm: crate::bound_side::lever(lever),
+                        arm: geom_core::test_support::fixture_lever(lever),
                         bend: crate::bound_side::FaceBend::Plane,
                     };
                     for psi in [0.0, s30.asin()].into_iter().filter(|_| s30 < 0.5) {
@@ -3765,13 +3771,13 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: at(1.0),
             end: e,
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
-            end_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             face: FaceKey::default(),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let mut pairs = 0;
@@ -3792,10 +3798,10 @@ mod tests {
                         let walk = walks_after(&entry, up(at(d0)), up(at(d1)), band).unwrap();
                         assert_ne!(walk, Sign::Zero, "{alpha}°: {d0}° then {d1}°");
                         let strut = strut_order(
-                            (up(e), crate::bound_side::lever(1.0)),
+                            (up(e), geom_core::test_support::fixture_lever(1.0)),
                             n,
                             (up(at(d0)), up(at(d1))),
-                            crate::bound_side::lever(1.0),
+                            geom_core::test_support::fixture_lever(1.0),
                             || Ok(None),
                             band,
                         )
@@ -3837,21 +3843,21 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                 geom_brep::OutwardNormal::from_chart(n, true),
             ),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let sectors = [
             sector(
                 0.0,
-                BoundSupport::Extent(crate::bound_side::lever(1.0)),
+                BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
                 90.0,
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
             ),
             sector(
                 90.0,
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 180.0,
-                BoundSupport::Extent(crate::bound_side::lever(1.0)),
+                BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             ),
         ];
         for inside in [10.0, 45.0, 80.0] {
@@ -3879,10 +3885,10 @@ mod tests {
         let n = Vec3::new(0.0, 0.0, 1.0);
         let germs = (up(Vec3::new(1.0, 0.0, 0.0)), up(Vec3::new(0.0, -1.0, 0.0)));
         let got = strut_order(
-            (up(n), crate::bound_side::lever(1.0)),
+            (up(n), geom_core::test_support::fixture_lever(1.0)),
             n,
             germs,
-            crate::bound_side::lever(1.0),
+            geom_core::test_support::fixture_lever(1.0),
             || Ok(None),
             band,
         );
@@ -3907,10 +3913,10 @@ mod tests {
         let tie = |sign: Option<Sign>| move || Ok(sign);
         assert_eq!(
             strut_order(
-                (up(e), crate::bound_side::lever(1.0)),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(y), up(y)),
-                crate::bound_side::lever(1.0),
+                geom_core::test_support::fixture_lever(1.0),
                 tie(Some(Sign::Negative)),
                 band
             )
@@ -3920,10 +3926,10 @@ mod tests {
         );
         assert_eq!(
             strut_order(
-                (up(e), crate::bound_side::lever(1.0)),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(y), up(y)),
-                crate::bound_side::lever(1.0),
+                geom_core::test_support::fixture_lever(1.0),
                 tie(Some(Sign::Positive)),
                 band
             )
@@ -3935,10 +3941,10 @@ mod tests {
             assert!(
                 matches!(
                     strut_order(
-                        (up(e), crate::bound_side::lever(1.0)),
+                        (up(e), geom_core::test_support::fixture_lever(1.0)),
                         n,
                         (up(y), up(y)),
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                         tie(sign),
                         band
                     ),
@@ -3954,10 +3960,10 @@ mod tests {
         let apart = Vec3::new(0.1, 1.0, 0.0).normalize();
         assert_eq!(
             strut_order(
-                (up(e), crate::bound_side::lever(1.0)),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(y), up(apart)),
-                crate::bound_side::lever(1.0),
+                geom_core::test_support::fixture_lever(1.0),
                 unread,
                 band
             )
@@ -3968,10 +3974,10 @@ mod tests {
         let near = Vec3::new(-2.0 * band.zero(), 1.0, 0.0).normalize();
         assert!(
             strut_order(
-                (up(e), crate::bound_side::lever(1.0)),
+                (up(e), geom_core::test_support::fixture_lever(1.0)),
                 n,
                 (up(y), up(near)),
-                crate::bound_side::lever(1.0),
+                geom_core::test_support::fixture_lever(1.0),
                 unread,
                 band
             )
@@ -4000,10 +4006,10 @@ mod tests {
             let g = Vec3::new(theta.cos(), side * theta.sin(), 0.0);
             assert_eq!(
                 strut_order(
-                    (up(e), crate::bound_side::lever(1.0)),
+                    (up(e), geom_core::test_support::fixture_lever(1.0)),
                     n,
                     (up(g), up(square)),
-                    crate::bound_side::lever(arm),
+                    geom_core::test_support::fixture_lever(arm),
                     unread,
                     band
                 )
@@ -4013,10 +4019,10 @@ mod tests {
             );
             assert_eq!(
                 strut_order(
-                    (up(e), crate::bound_side::lever(arm)),
+                    (up(e), geom_core::test_support::fixture_lever(arm)),
                     n,
                     (up(g), up(square)),
-                    crate::bound_side::lever(arm),
+                    geom_core::test_support::fixture_lever(arm),
                     unread,
                     band
                 )
@@ -4071,7 +4077,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let a = [

@@ -16,18 +16,18 @@ sources Ev ruled on (PR 6329, `crates/geom-core/README.md` "Float
 rounding"): a read of the consumed extent, a curvature arm, the session
 box; rates moved to the metric doors. These arms fit none. Each carries
 a `// Unsourced lever: …` line at its call and is pinned per crate by
-`scripts/gates/lever-sources.sh` (`lever-sources.counts`, 74 references
-at the unit's merge; the list only falls). A fourth source is Ev's
+`scripts/gates/lever-sources.sh` (`lever-sources.counts`, pinned per
+file: 63 references at the unit's merge). A fourth source is Ev's
 call; otherwise each family is re-posed.
 
 **1. A source exists, but reading it would move verdicts by rounding.**
 The arm is the norm of a vector scaled to an extent, or a sum of
 reads, where the honest read is the extent itself or their union:
-- the sector and germ arms: `topo::boolean::sectors` `metering_arm`
-  and `leaned_lever` (an arm times a lean's sine), `topo::sector_shape`
-  (4), `splitting::insert` (5), `splitting::neighborhood` (2),
-  `splitting::rules` `apex_reading` and the dihedral's `along.norm()`,
-  `census` wedge arm. The vector is a unit tangent times
+- the sector and germ arms, read through one home,
+  `topo::boolean::sectors::metering_arm` (and `departure_arm_lever`,
+  which `sector_shape`, `splitting::insert`, `splitting::neighborhood`
+  and `splitting::rules` call), and `leaned_lever` (an arm times a
+  lean's sine); `census` wedge arm. The vector is a unit tangent times
   `edge_extent_inf`; its norm differs from the extent in the last bits;
 - `boolean::vtxfac` `held_reads` (a ball about the runs' shortest arm,
   which can under-state the region) and `unglued_flat_sector`'s ball;
@@ -42,6 +42,10 @@ reads, where the honest read is the extent itself or their union:
   `line_conic`; `chord_join` `SectionOval.extent` (the larger half-width,
   short of the oval's ball); `chart_region` `hyp` (2,
   `√(reach² + r_max²)`).
+
+- lengths read off a line's parameter span where the edge extent reads
+  the end points' distance: `offset_axial` `corner_arms`' line,
+  `boolean::reduce` `line_cone_roots` (`dir.norm()·|Δt|`).
 
 **2. A tolerance or a rounding standing in for an arm** (re-pose, not
 a lever): `validate` `resolved`, `boolean::join` `off_conic_slack`,

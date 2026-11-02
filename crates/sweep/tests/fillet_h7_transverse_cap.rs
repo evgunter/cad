@@ -553,7 +553,7 @@ fn cap_transverse_picks_the_circle_the_ellipse_or_escalates() {
     let band = Band::linear(tol()).expect("a band");
     let v = VertexKey::default();
     let tau = Vec3::new(0.0, 0.0, 1.0);
-    let arm = |r: f64| geom_brep::ExtentBall::of_sphere(Point3::origin(), r).lever();
+    let arm = |r: f64| geom_core::test_support::fixture_lever(r);
     let circle = cap_transverse(v, Vec3::new(0.0, 0.0, -1.0), tau, R, arm(1.0), band)
         .expect("a perpendicular cap is Zero");
     assert!(matches!(circle, EndSection::Circle), "{circle:?}");

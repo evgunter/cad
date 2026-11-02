@@ -2639,7 +2639,7 @@ fn plan_edge<'s, T: Decide>(
             &old_carrier,
             t0,
             t1,
-            old_carrier.eval(t0).distance(old_carrier.eval(t1)),
+            (old_carrier.eval(t0), old_carrier.eval(t1)),
         );
         if !crate::offset_derive::holds_the_move(old_surface, held, None, d, band) {
             return derive_edge(
@@ -3066,7 +3066,7 @@ fn plan_between_moved<'w, 's, T: Decide>(
             apex_pair: None,
         });
     }
-    let extent = geom_brep::edge_extent_inf(old, t0, t1, old.eval(t0).distance(old.eval(t1)));
+    let extent = geom_brep::edge_extent_inf(old, t0, t1, (old.eval(t0), old.eval(t1)));
     derive_edge(
         (edge, start, end, sides),
         (curve, &description, (t0, t1)),
@@ -4002,7 +4002,7 @@ struct Incident<T: Real> {
 /// section's own domain ([`derive_edge`]), the whole curve its root is
 /// isolated over.
 fn corner_arm<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> geom_core::Lever<T> {
-    geom_brep::edge_extent_inf(carrier, t0, t1, carrier.eval(t0).distance(carrier.eval(t1)))
+    geom_brep::edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)))
 }
 
 /// **Whether the distance `gap`, in metres, is within ε**
@@ -5446,7 +5446,7 @@ mod pair_over_its_span_rows {
         let start = 0.4 * eps * 64.0;
         let old = {
             let lever = 0.5 - 2.0 * start;
-            geom_brep::Reach::of_frame(Point3::new(0.0, 0.0, 0.5), (lever, lever))
+            geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.5), lever)
         };
         let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
             geom_brep::plane_cone_section(&plane, &cone, &old, band)
@@ -5528,7 +5528,7 @@ mod pair_over_its_span_rows {
                 normal: n,
                 u_ref: Vec3::unit_y(),
             };
-            let old = geom_brep::Reach::of_frame(Point3::new(0.0, 0.0, 0.75), (0.25, 0.25));
+            let old = geom_brep::Reach::fixture(Point3::new(0.0, 0.0, 0.75), 0.25);
             let Ok(geom_brep::PlaneConeSection::ApexLinePair { l1, .. }) =
                 geom_brep::plane_cone_section(&plane, &cone, &old, band)
             else {
@@ -5618,10 +5618,7 @@ mod spline_corner {
             SectionLane::f64(),
             surface,
             &segment(),
-            (
-                1.0,
-                geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
-            ),
+            (1.0, geom_core::test_support::fixture_lever(1.0)),
             (VertexKey::default(), EdgeKey::default(), derived),
             0.1,
             Band::linear(tol).unwrap(),

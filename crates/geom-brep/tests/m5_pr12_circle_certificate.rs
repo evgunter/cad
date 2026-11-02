@@ -14,7 +14,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::lever::sphere_arm;
 use crate::shared::point::p3 as p;
 use crate::shared::tol::band;
 use geom::Curve3;
@@ -23,6 +22,7 @@ use geom_brep::{
     CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey,
     SurfacePair, tangent_certificate_lane, tangent_jet,
 };
+use geom_core::test_support::fixture_lever;
 use geom_core::{Bounds, Decide, Interval, Point3, Real, Vec3};
 use slotmap::SlotMap;
 
@@ -122,7 +122,7 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
         start,
         end,
         |k| surfaces.get(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -227,7 +227,7 @@ fn certify_cap_quarter<T: Decide + geom_core::CertifiedBounds>(
         circle.eval(t0),
         circle.eval(t1),
         |k| surfaces.get(k).cloned(),
-        sphere_arm(geom_core::Real::from_f64(1.0)),
+        fixture_lever(geom_core::Real::from_f64(1.0)),
         band(),
         geom_brep::NurbsLane::certified(),
     )

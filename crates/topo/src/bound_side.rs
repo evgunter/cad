@@ -93,7 +93,7 @@ impl<T: geom_core::Real> BoundSupport<T> {
     /// The length the bound reaches from its base vertex, in metres:
     /// a line edge's chord (its far vertex's distance), a curved edge's
     /// extent, a bisector's arm.
-    pub(crate) fn reach(self) -> geom_core::Lever<T> {
+    pub(crate) fn lever(self) -> geom_core::Lever<T> {
         match self {
             Self::Chord { base, far } => geom_brep::ExtentBall::point(far).lever_from(base),
             Self::Extent(l) | Self::Conic { extent: l, .. } | Self::Bisector { arm: l, .. } => l,
@@ -102,7 +102,7 @@ impl<T: geom_core::Real> BoundSupport<T> {
 
     /// The point that fixes a bound leaving `base` along `dir`: a line
     /// edge's far vertex, and any other bound's direction out to its
-    /// reach ([`Self::reach`]) — a curved edge's departure tangent at
+    /// reach ([`Self::lever`]) — a curved edge's departure tangent at
     /// its extent, a probe's or a bisector's direction at its arm. A
     /// gathered cone's rays and own edges are read at it
     /// ([`crate::link::Cone::gathered`]).
@@ -110,7 +110,7 @@ impl<T: geom_core::Real> BoundSupport<T> {
         match self {
             Self::Chord { far, .. } => far,
             Self::Extent(_) | Self::Conic { .. } | Self::Bisector { .. } => {
-                base + dir.normalize() * self.reach().length()
+                base + dir.normalize() * self.lever().length()
             }
         }
     }
@@ -505,7 +505,7 @@ fn first_order<T: Decide>(
     rd: Reading<T>,
 ) -> Result<Settled<T>, ReadFault<T>> {
     let n = face.reference.vec();
-    let lever = reach.reach();
+    let lever = reach.lever();
     let (predicate, d) = match reach {
         BoundSupport::Chord { base, far } => ("bool_chord_side", Distance::of(far, base, n)),
         BoundSupport::Extent(_) | BoundSupport::Conic { .. } | BoundSupport::Bisector { .. } => {
@@ -636,7 +636,7 @@ pub(crate) fn read<T: Decide>(
     rd: Reading<T>,
 ) -> Result<FirstOrder<T>, BoundSideFault<T>> {
     let band = rd.band;
-    let arm = reach.reach();
+    let arm = reach.lever();
     let length = arm.length();
     let (side, displacement, predicate, decided) = match first_order(dir, reach, face, rd) {
         Ok(Ok(off)) => off,
@@ -860,7 +860,7 @@ impl<T: Decide> Tie<T> {
             .into_iter()
             .flatten()
             .map(geom_core::Lever::curvature_radius)
-            .fold(reach.reach(), geom_core::Lever::min);
+            .fold(reach.lever(), geom_core::Lever::min);
         geom_brep::parting_arm(arm.length(), band).map_err(ReadFault::Parting)?;
         // A tie of the slack's departs by its first order too, which the
         // slack hid: its displacement at the arm is the rise and the
@@ -904,19 +904,13 @@ fn in_one_gap(diag: Indeterminate) -> bool {
     }
 }
 
-/// **A test's lever of `length`**: a sphere's radius, read as the
-/// extent home reads it.
-#[cfg(test)]
-pub(crate) fn lever(length: f64) -> geom_core::Lever<f64> {
-    geom_brep::ExtentBall::of_sphere(Point3::origin(), length).lever()
-}
-
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
     use geom_brep::ConicBend;
     use geom_core::Tol;
+    use geom_core::test_support::fixture_lever;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -935,7 +929,12 @@ mod tests {
             "the bend is square to the tangent"
         );
         let carrier = geom::Curve3::circle(Point3::origin() + bend, t.cross(bend), 1.0, -bend);
-        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
+        let extent = geom_brep::edge_extent_inf(
+            &carrier,
+            0.0,
+            span,
+            (carrier.eval(0.0), carrier.eval(span)),
+        );
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
@@ -1203,7 +1202,7 @@ mod tests {
         let k14 = Band::new(zero, 1.4 * zero).unwrap();
         let slope = 12.0 * zero;
         let dir = Vec3::new(1.0, 0.0, slope);
-        let reach = BoundSupport::Extent(lever(1.0));
+        let reach = BoundSupport::Extent(fixture_lever(1.0));
         let radius = 6.0 * zero / (slope * slope);
         let hollow = FaceDatum::of_face(
             OutwardNormal::from_chart(z, true),
@@ -1294,7 +1293,7 @@ mod tests {
         let band = Band::new(1e-9, 5e-9).unwrap();
         let z = Vec3::new(0.0, 0.0, 1.0);
         let dir = Vec3::new(1.0, 0.0, 5e-5);
-        let reach = BoundSupport::Extent(lever(1e-3));
+        let reach = BoundSupport::Extent(fixture_lever(1e-3));
         let hollow = FaceDatum::of_face(
             OutwardNormal::from_chart(z, true),
             FaceBend::ball(-z, 50.0),
@@ -1439,8 +1438,12 @@ mod tests {
                         let carrier =
                             geom::Curve3::circle(center, u_ref.cross(d).normalize(), radius, u_ref);
                         let span = 0.5 * k;
-                        let chord = 2.0 * radius * (span / 2.0).sin();
-                        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
+                        let extent = geom_brep::edge_extent_inf(
+                            &carrier,
+                            0.0,
+                            span,
+                            (carrier.eval(0.0), carrier.eval(span)),
+                        );
                         let tangent = carrier.deriv(0.0);
                         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
                         (
@@ -1463,7 +1466,12 @@ mod tests {
                         };
                         let own_n = (p - c).normalize();
                         (
-                            BoundSupport::bisector(lever(0.5), d, own_n, FaceBend::at(&own, p)),
+                            BoundSupport::bisector(
+                                fixture_lever(0.5),
+                                d,
+                                own_n,
+                                FaceBend::at(&own, p),
+                            ),
                             d,
                             Box::new(move |l| c + ((p + d * l) - c).normalize() * rad),
                         )
@@ -1531,8 +1539,12 @@ mod tests {
         let arc = |p: Point3<f64>, t: Vec3<f64>, c: Vec3<f64>, radius: f64, span: f64| {
             let u_ref = -c;
             let carrier = geom::Curve3::circle(p + c * radius, u_ref.cross(t), radius, u_ref);
-            let chord = 2.0 * radius * (span / 2.0).sin();
-            let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
+            let extent = geom_brep::edge_extent_inf(
+                &carrier,
+                0.0,
+                span,
+                (carrier.eval(0.0), carrier.eval(span)),
+            );
             let tangent = carrier.deriv(0.0);
             let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
             (
@@ -1697,7 +1709,8 @@ mod tests {
             OutwardNormal::from_chart(z, true),
         ));
         for own in [z, -z] {
-            let bisector = BoundSupport::bisector(lever(0.5), x, own, FaceBend::at(&sph, p));
+            let bisector =
+                BoundSupport::bisector(fixture_lever(0.5), x, own, FaceBend::at(&sph, p));
             let FirstOrder::Tied(tie) = read(x, bisector, face, Reading::plain(band())).unwrap()
             else {
                 panic!("a bisector in the tangent plane ties");

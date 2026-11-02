@@ -19,7 +19,6 @@
 
 #![allow(clippy::panic, clippy::too_many_lines, clippy::cast_precision_loss)]
 
-use crate::shared::lever::sphere_arm;
 use crate::shared::surf::at_apex;
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
@@ -29,6 +28,7 @@ use geom_brep::intersect::{
     plane_cylinder_section, plane_torus_section,
 };
 use geom_brep::{ExtentBall, Reach, SectionError, TangentLocus, tangent_locus};
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 
 struct Rng(u64);
@@ -187,7 +187,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_torus_section(&plane, &torus, sphere_arm(extent), b);
+            let got = plane_torus_section(&plane, &torus, fixture_lever(extent), b);
             let (label, truth) = match &got {
                 // A tangency's truth: the plane's stand-off from the
                 // tube's crest circle on its side, what flips it.
@@ -233,7 +233,7 @@ fn one_sum_differential() {
                 normal: nrm,
                 u_ref: perp(nrm, &mut rng),
             };
-            let got = plane_torus_section(&plane, &torus, sphere_arm(extent), b);
+            let got = plane_torus_section(&plane, &torus, fixture_lever(extent), b);
             let (label, truth) = match &got {
                 Ok(PlaneTorusSection::MeridianCircles { c1, c2 }) => {
                     let t = circle_pts(c1, 720)
@@ -498,7 +498,7 @@ fn one_sum_differential() {
                 radius: rr,
                 u_ref: y,
             };
-            let got = cone_cylinder_section(&cone, &wall, sphere_arm(extent), b);
+            let got = cone_cylinder_section(&cone, &wall, fixture_lever(extent), b);
             let (label, truth) = match &got {
                 Ok(ConeCylinderSection::CoaxialCircles { c1, c2 }) => {
                     let t = circle_pts(c1, 720)

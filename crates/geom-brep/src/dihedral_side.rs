@@ -477,10 +477,7 @@ mod tests {
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
 
-    /// An arm of length `x`: the radius of a sphere that long.
-    fn extent_lever<T: Real>(x: T) -> geom_core::Lever<T> {
-        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
-    }
+    use geom_core::test_support::fixture_lever;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -515,7 +512,7 @@ mod tests {
             against,
             p,
             walk,
-            extent_lever(reach),
+            fixture_lever(reach),
             lane(),
             band(),
         )
@@ -678,7 +675,7 @@ mod tests {
                 face(&floor, true),
                 ON_EDGE,
                 walk,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 lane(),
                 band(),
             )
@@ -833,7 +830,7 @@ mod tests {
                 face(&w, true),
                 ON_EDGE,
                 walk,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 None,
                 band()
             ),
@@ -846,7 +843,7 @@ mod tests {
                 face(&floor, true),
                 ON_EDGE,
                 walk,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 None,
                 band()
             )

@@ -1567,7 +1567,7 @@ mod polish_rows {
             start: (core::f64::consts::FRAC_PI_2 + off, 0.0),
             reach: 0.11,
             clear: 0.0,
-            lever: crate::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            lever: geom_core::test_support::fixture_lever(1.0),
         };
         let got = polish(0.0).closest(band).unwrap().unwrap();
         assert!(

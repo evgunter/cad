@@ -411,10 +411,7 @@ mod tests {
     use super::*;
     use geom_core::Tol;
 
-    /// The arm a sphere of `radius` about the origin reads.
-    fn sphere_arm<T: Decide>(radius: T) -> Lever<T> {
-        ExtentBall::of_sphere(Point3::origin(), radius).lever()
-    }
+    use geom_core::test_support::fixture_lever;
 
     /// **The frame's one refusal quotes the member nearest to passing**:
     /// the largest arm of the schedule's oblique members, not the first.
@@ -549,7 +546,7 @@ mod tests {
         let band = Band::linear(Tol::witness()).unwrap();
         let exact = exact_band().unwrap();
         let plane = plane_y1();
-        let frame = in_plane_frame(&plane, sphere_arm(1.0), band, exact).unwrap();
+        let frame = in_plane_frame(&plane, fixture_lever(1.0), band, exact).unwrap();
         let a = Point3::new(1.0, 1.0, 0.0);
         let b = Point3::new(f64::from_bits(1.0f64.to_bits() + 1), 1.0, 0.0);
         let cmp = |p, q| lex_cmp(&p, &q, &plane.origin, frame, exact).unwrap();
@@ -603,7 +600,7 @@ mod tests {
             Vec3::new(iv(1.0), Interval::from_bounds(-1e-300, 1e-300), iv(0.0)),
             tol,
         );
-        let err = in_plane_frame(&plane, sphere_arm(iv(1.0)), band, exact).unwrap_err();
+        let err = in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact).unwrap_err();
         assert_eq!(err.predicate, Some(FRAME_AXIS));
         let said = crate::chord_join::SplitJoinError::OrderEscalated { diag: err }.to_string();
         assert_eq!(
@@ -632,7 +629,7 @@ mod tests {
             Vec3::new(Interval::from_bounds(-1e-12, 1e-12), iv(0.3), iv(1.0)),
             tol,
         );
-        in_plane_frame(&plane, sphere_arm(iv(1.0)), band, exact)
+        in_plane_frame(&plane, fixture_lever(iv(1.0)), band, exact)
             .unwrap_or_else(|e| panic!("the frame refused: {e:?}"));
     }
 

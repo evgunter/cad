@@ -168,7 +168,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
                 point(&reverted, start_v),
                 point(&reverted, end_v),
                 |sk| reverted.get_surface(sk).cloned(),
-                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 geom_brep::NurbsLane::certified(),
             )

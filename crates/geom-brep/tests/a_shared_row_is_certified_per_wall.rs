@@ -151,7 +151,7 @@ impl Pair {
             carrier.eval(t0),
             carrier.eval(t1),
             |k| self.arena.get(k).cloned(),
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -194,7 +194,7 @@ impl Pair {
             p0,
             p1,
             |k| self.arena.get(k).cloned(),
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )

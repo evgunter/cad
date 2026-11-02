@@ -350,7 +350,7 @@ fn r1_in_band_convexity_sign_renders_the_tangential_sentence() {
         u_ref: Vec3::new(0.0, 0.0, 1.0).cross(normal).normalize(),
     };
     let out = |s: &geom::Surface<f64>| geom_brep::implicit_outward_normal(s, true, o);
-    let metre = || geom_brep::ExtentBall::of_sphere(o, 1.0).lever();
+    let metre = || geom_core::test_support::fixture_lever(1.0);
     let x = plane(Vec3::new(1.0, 0.0, 0.0));
     let tilted = plane(Vec3::new(1.0, in_band(), 0.0).normalize());
     let escalated = wedge_at(out(&x), out(&tilted), tau, metre(), e, band()).unwrap_err();

@@ -1909,10 +1909,7 @@ mod tests {
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
-    /// An arm of length `x`: the radius of a sphere that long.
-    fn extent_lever<T: Real>(x: T) -> geom_core::Lever<T> {
-        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
-    }
+    use geom_core::test_support::fixture_lever;
 
     use super::*;
     use crate::LeverRung;
@@ -1935,7 +1932,7 @@ mod tests {
         let floor = plane(Vec3::unit_z(), Vec3::unit_x());
         let wall = plane(Vec3::unit_x(), Vec3::unit_y());
         let err =
-            classify_dihedral(&floor, &wall, Point3::origin(), extent_lever(mid), b).unwrap_err();
+            classify_dihedral(&floor, &wall, Point3::origin(), fixture_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm_wedge"))
@@ -1960,8 +1957,9 @@ mod tests {
             Vec3::new(0.0, sin, (1.0 - sin * sin).sqrt()),
             Vec3::unit_x(),
         );
-        let undecided = classify_dihedral(&floor, &leaning, Point3::origin(), extent_lever(arm), b)
-            .unwrap_err();
+        let undecided =
+            classify_dihedral(&floor, &leaning, Point3::origin(), fixture_lever(arm), b)
+                .unwrap_err();
         assert_eq!(undecided.rung(), LeverRung::Arm);
         assert_eq!(
             undecided.diag().margin.rejected_sign(),
@@ -1974,7 +1972,7 @@ mod tests {
             &floor,
             &wall,
             Point3::origin(),
-            extent_lever(0.5 * b.zero()),
+            fixture_lever(0.5 * b.zero()),
             b,
         )
         .unwrap_err();
@@ -2150,7 +2148,7 @@ mod tests {
         let leaning = plane(Vec3::new(0.0, theta.sin(), theta.cos()), Vec3::unit_x());
         for extent in [mid, 0.5 * b.zero()] {
             let err =
-                classify_dihedral(&floor, &leaning, Point3::origin(), extent_lever(extent), b)
+                classify_dihedral(&floor, &leaning, Point3::origin(), fixture_lever(extent), b)
                     .unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
                 err.diag().margin.diagnostic_f64_for_error_text()
@@ -2169,7 +2167,7 @@ mod tests {
             assert!((m - theta.sin() * extent).abs() <= 1e-6 * m, "{m:e}");
         }
         let err =
-            classify_dihedral(&floor, &floor, Point3::origin(), extent_lever(mid), b).unwrap_err();
+            classify_dihedral(&floor, &floor, Point3::origin(), fixture_lever(mid), b).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Arm, Some("dihedral_arm"))
@@ -2201,7 +2199,7 @@ mod tests {
         let b = band();
         let extent = 7.0 * eps();
         let quoted = |s1: &Surface<f64>, s2: &Surface<f64>, p: Point3<f64>| {
-            let err = classify_dihedral(s1, s2, p, extent_lever(extent), b).unwrap_err();
+            let err = classify_dihedral(s1, s2, p, fixture_lever(extent), b).unwrap_err();
             let geom_core::ErrorTextReading::Value(m) =
                 err.diag().margin.diagnostic_f64_for_error_text()
             else {
@@ -2234,7 +2232,7 @@ mod tests {
                 &cyl,
                 &pl,
                 p,
-                extent_lever(extent),
+                fixture_lever(extent),
                 just_below_the_offer(b, extent)
             )
             .unwrap(),
@@ -2251,7 +2249,7 @@ mod tests {
             );
             let below = just_below_the_offer(b, extent);
             assert_eq!(
-                classify_dihedral(&floor, &at(theta), o, extent_lever(extent), below).unwrap(),
+                classify_dihedral(&floor, &at(theta), o, fixture_lever(extent), below).unwrap(),
                 DihedralClass::Smooth,
                 "{theta:e}"
             );
@@ -2268,7 +2266,7 @@ mod tests {
                 &floor,
                 &at(theta),
                 o,
-                extent_lever(extent),
+                fixture_lever(extent),
                 just_below_the_offer(b, extent)
             )
             .is_err()
@@ -2278,7 +2276,7 @@ mod tests {
                 &floor,
                 &at(theta),
                 o,
-                extent_lever(extent),
+                fixture_lever(extent),
                 just_below_the_offer(b, m)
             )
             .unwrap(),
@@ -2402,7 +2400,7 @@ mod tests {
                         carrier,
                         interval,
                         // Faces that reach no farther than the edge.
-                        reach: extent_lever(carrier.eval(t0).distance(carrier.eval(t1))),
+                        reach: fixture_lever(carrier.eval(t0).distance(carrier.eval(t1))),
                         witness: carrier.mid_point(t0, t1),
                     },
                     band(),
@@ -2549,7 +2547,7 @@ mod tests {
         let length_at = |sagitta: f64| (2.0 * sagitta / 0.01).sqrt();
         let verdicts = |len: f64| {
             [(&cone, &tangent), (&tangent, &cone)].map(|(a, z)| {
-                must_carry_over_edge(a, z, &carrier, 100.0, 100.0 + len, extent_lever(len), b)
+                must_carry_over_edge(a, z, &carrier, 100.0, 100.0 + len, fixture_lever(len), b)
             })
         };
         let mean = (b.zero() * b.escalate()).sqrt();
@@ -2630,7 +2628,7 @@ mod tests {
             &cylinder(1.0),
             &cylinder(r2),
             interior_stations(&axis, f(0.0), f(1.0)),
-            extent_lever(f(1.0)),
+            fixture_lever(f(1.0)),
             band(),
             script,
         )
@@ -2740,28 +2738,31 @@ mod tests {
         let n = Surface::nurbs_placeholder();
         let o = Point3::origin();
         assert!(
-            folded_lever_arm(&p, &n, o, extent_lever(1.0))
+            folded_lever_arm(&p, &n, o, fixture_lever(1.0))
                 .length()
                 .is_nan()
         );
         assert!(
-            folded_lever_arm(&n, &p, o, extent_lever(1.0))
+            folded_lever_arm(&n, &p, o, fixture_lever(1.0))
                 .length()
                 .is_nan()
         );
         assert!(
-            folded_lever_arm(&p, &p, o, extent_lever(f64::NAN))
+            folded_lever_arm(&p, &p, o, fixture_lever(f64::NAN))
                 .length()
                 .is_nan()
         );
-        assert_eq!(folded_lever_arm(&p, &p, o, extent_lever(1.0)).length(), 1.0);
+        assert_eq!(
+            folded_lever_arm(&p, &p, o, fixture_lever(1.0)).length(),
+            1.0
+        );
     }
 
     #[test]
     fn perpendicular_planes_are_transverse() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(Vec3::unit_x(), Vec3::unit_y());
-        let c = classify_dihedral(&s1, &s2, Point3::origin(), extent_lever(1.0), band()).unwrap();
+        let c = classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }
 
@@ -2769,12 +2770,12 @@ mod tests {
     fn identical_and_antiparallel_planes_are_smooth() {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
-        let c = classify_dihedral(&s1, &s2, Point3::origin(), extent_lever(1.0), band()).unwrap();
+        let c = classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
         // Tangent PLANES are compared: the sign of the normal is a
         // chart artifact, and the antiparallel pair is smooth too.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
-        let c = classify_dihedral(&s1, &s3, Point3::origin(), extent_lever(1.0), band()).unwrap();
+        let c = classify_dihedral(&s1, &s3, Point3::origin(), fixture_lever(1.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
     }
 
@@ -2788,7 +2789,7 @@ mod tests {
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let s2 = plane(n, Vec3::unit_y());
         let err =
-            classify_dihedral(&s1, &s2, Point3::origin(), extent_lever(1.0), band()).unwrap_err();
+            classify_dihedral(&s1, &s2, Point3::origin(), fixture_lever(1.0), band()).unwrap_err();
         assert_eq!(
             (err.rung(), err.diag().predicate),
             (LeverRung::Reading, Some("dihedral_wedge"))
@@ -2812,12 +2813,12 @@ mod tests {
         // the line through the origin parallel to y (lowest generator).
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
         let p = Point3::origin();
-        let c = classify_dihedral(&s1, &cyl, p, extent_lever(10.0), band()).unwrap();
+        let c = classify_dihedral(&s1, &cyl, p, fixture_lever(10.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Smooth);
         // A definitely-tilted plane through the same line: transverse.
         let tilt = std::f64::consts::FRAC_PI_4;
         let s2 = plane(Vec3::new(tilt.sin(), 0.0, tilt.cos()), Vec3::unit_y());
-        let c = classify_dihedral(&s2, &cyl, p, extent_lever(10.0), band()).unwrap();
+        let c = classify_dihedral(&s2, &cyl, p, fixture_lever(10.0), band()).unwrap();
         assert_eq!(c, DihedralClass::Transverse);
     }
 
@@ -2834,8 +2835,8 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err =
-            classify_dihedral(&cone, &s1, Point3::origin(), extent_lever(1.0), band()).unwrap_err();
+        let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
+            .unwrap_err();
         assert_eq!(
             (
                 err.rung(),
@@ -2872,8 +2873,8 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         let s1 = plane(Vec3::unit_z(), Vec3::unit_x());
-        let err =
-            classify_dihedral(&cone, &s1, Point3::origin(), extent_lever(1.0), band()).unwrap_err();
+        let err = classify_dihedral(&cone, &s1, Point3::origin(), fixture_lever(1.0), band())
+            .unwrap_err();
         let diag = err.diag();
         let geom_core::ErrorTextReading::Value(m) = diag.margin.diagnostic_f64_for_error_text()
         else {
@@ -2918,15 +2919,16 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_dihedral(&s1, &s2, p, extent_lever(1.0), band()).unwrap(),
+            classify_dihedral(&s1, &s2, p, fixture_lever(1.0), band()).unwrap(),
             DihedralClass::Smooth
         );
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, true, p, extent_lever(1.0), band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, true, p, fixture_lever(1.0), band()).unwrap(),
             MaterialPairing::Aligned
         );
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, false, p, extent_lever(1.0), band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, false, p, fixture_lever(1.0), band())
+                .unwrap(),
             MaterialPairing::Opposed
         );
         // Antiparallel STORED normals with agreeing senses are the
@@ -2935,7 +2937,8 @@ mod tests {
         // the sense bit, and the pairing sees only the product.
         let s3 = plane(-Vec3::unit_z(), Vec3::unit_x());
         assert_eq!(
-            classify_material_pairing(&s1, true, &s3, false, p, extent_lever(1.0), band()).unwrap(),
+            classify_material_pairing(&s1, true, &s3, false, p, fixture_lever(1.0), band())
+                .unwrap(),
             MaterialPairing::Aligned
         );
     }
@@ -2961,7 +2964,7 @@ mod tests {
         };
         let p = Point3::origin();
         assert_eq!(
-            classify_dihedral(&inner, &outer, p, extent_lever(1.0), band()).unwrap(),
+            classify_dihedral(&inner, &outer, p, fixture_lever(1.0), band()).unwrap(),
             DihedralClass::Smooth
         );
         // Material between them: the inner cylinder bounds it from
@@ -2969,7 +2972,7 @@ mod tests {
         // its sense bit is clear against the outward-pointing implicit
         // gradient), the outer from outside (sense bit set).
         assert_eq!(
-            classify_material_pairing(&inner, false, &outer, true, p, extent_lever(1.0), band())
+            classify_material_pairing(&inner, false, &outer, true, p, fixture_lever(1.0), band())
                 .unwrap(),
             MaterialPairing::Opposed
         );
@@ -2996,7 +2999,8 @@ mod tests {
         let s2 = plane(Vec3::unit_z(), Vec3::unit_y());
         let p = Point3::origin();
         assert_eq!(
-            classify_material_pairing(&s1, true, &s2, false, p, extent_lever(1.0), band()).unwrap(),
+            classify_material_pairing(&s1, true, &s2, false, p, fixture_lever(1.0), band())
+                .unwrap(),
             MaterialPairing::Opposed
         );
         let jet = crate::tangent_jet(&s1, &s2, p, Vec3::unit_y());
@@ -3037,7 +3041,7 @@ mod tests {
             &s1,
             true,
             Point3::origin(),
-            extent_lever(1.0),
+            fixture_lever(1.0),
             band(),
         )
         .unwrap_err();
@@ -3052,7 +3056,7 @@ mod tests {
             &s1,
             &Surface::nurbs_placeholder(),
             Point3::origin(),
-            extent_lever(1.0),
+            fixture_lever(1.0),
             band(),
         )
         .unwrap_err();
@@ -3098,7 +3102,7 @@ mod tests {
         let p = |delta: f64| pt(0.0, i(r - delta, r + delta));
         let extent = Interval::from_f64(2.0 * r);
         let wedge =
-            |delta: f64| wedge_decided(&cap, &cyl(delta), p(delta), extent_lever(extent), band());
+            |delta: f64| wedge_decided(&cap, &cyl(delta), p(delta), fixture_lever(extent), band());
         assert_eq!(
             wedge(0.49 * r).unwrap().0,
             DihedralClass::Transverse,
@@ -3117,7 +3121,7 @@ mod tests {
             &cap,
             &cyl(0.51 * r),
             p(0.51 * r),
-            extent_lever(extent),
+            fixture_lever(extent),
             band(),
         )
         .unwrap_err();
@@ -3135,7 +3139,7 @@ mod tests {
                 u_ref: Vec3::unit_x(),
             },
             Point3::new(f64::NAN, 1.0, 0.0),
-            extent_lever(1.0),
+            fixture_lever(1.0),
             band(),
         );
         assert!(
@@ -3184,7 +3188,7 @@ mod tests {
         ));
         let edge = geom::Curve3::line(Point3::origin(), Vec3::unit_x());
         let ask = |a: (crate::SurfaceKey, &Surface<f64>), b| {
-            reask_chart([a, b], &edge, (0.0, 1.0), extent_lever(1.0), band).unwrap()
+            reask_chart([a, b], &edge, (0.0, 1.0), fixture_lever(1.0), band).unwrap()
         };
         assert!(
             matches!(
@@ -3211,10 +3215,7 @@ mod seam_rows {
     use geom_core::Vec3;
     use geom_core::spline::KnotVector;
 
-    /// An arm of length `x`: the radius of a sphere that long.
-    fn extent_lever<T: Real>(x: T) -> geom_core::Lever<T> {
-        crate::ExtentBall::of_sphere(geom_core::Point3::origin(), x).lever()
-    }
+    use geom_core::test_support::fixture_lever;
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
@@ -3288,7 +3289,7 @@ mod seam_rows {
         b: SeamFace<'_, f64>,
         reach: f64,
     ) -> Result<DihedralClass, SeamEscalation> {
-        classify_seam([a, b], ORIGIN, extent_lever(reach), chart_arm, band())
+        classify_seam([a, b], ORIGIN, fixture_lever(reach), chart_arm, band())
     }
 
     /// A plane through the seam point with normal `n`.
@@ -3484,7 +3485,7 @@ mod seam_rows {
             &plane(Vec3::new(0.0, 0.0, 1.0)),
             &plane(Vec3::new(0.0, -sin, (1.0 - sin * sin).sqrt())),
             ORIGIN,
-            extent_lever(reach),
+            fixture_lever(reach),
             b,
         );
         assert_eq!(planes, Ok(DihedralClass::Transverse), "the two planes");
@@ -3525,7 +3526,7 @@ mod seam_rows {
                 &plane(Vec3::new(0.0, -s, c)),
                 &plane(Vec3::new(0.0, 0.0, 1.0)),
                 ORIGIN,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 band()
             ),
             Ok(DihedralClass::Transverse),
@@ -3602,7 +3603,7 @@ mod seam_rows {
                 &plane(Vec3::new(0.0, -s, c)),
                 &other,
                 ORIGIN,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 band()
             ),
             Ok(DihedralClass::Transverse),
@@ -3631,7 +3632,7 @@ mod seam_rows {
                 &plane(Vec3::new(0.0, 0.0, 1.0)),
                 &other,
                 ORIGIN,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 band()
             ),
             Ok(DihedralClass::Transverse),
@@ -3672,11 +3673,11 @@ mod seam_rows {
                     classify_seam(
                         [SeamFace::Analytic(a), SeamFace::Analytic(b)],
                         ORIGIN,
-                        extent_lever(1.0),
+                        fixture_lever(1.0),
                         chart_arm,
                         band()
                     ),
-                    classify_dihedral(a, b, ORIGIN, extent_lever(1.0), band())
+                    classify_dihedral(a, b, ORIGIN, fixture_lever(1.0), band())
                         .map_err(SeamEscalation::Lever),
                     "{what}, {a:?} against {b:?}"
                 );
@@ -3700,7 +3701,7 @@ mod seam_rows {
             classify_seam(
                 [SeamFace::Analytic(&wall), SeamFace::Analytic(&flat)],
                 ORIGIN,
-                extent_lever(1.0),
+                fixture_lever(1.0),
                 chart_arm,
                 band()
             ),

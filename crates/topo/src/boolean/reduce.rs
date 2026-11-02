@@ -904,21 +904,16 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             });
         let end =
             body.resolve_vertex_point(body.proven_half_edge_end(edge.he_plus), crate::live::Proven);
-        let arm = match curve.carrier() {
-            geom::Curve3::Line(_) => geom_brep::ExtentBall::point(end).lever_from(at),
-            geom::Curve3::Circle(geom::Circle { radius, .. }) => {
-                geom_brep::circle_arc_lever_from_start(*radius, curve.params())
-            }
-            geom::Curve3::Nurbs(n) => {
-                geom_brep::ExtentBall::of_control_net_from(n.control(), at).lever()
-            }
-            _ => crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World)
-                .map(|(lo, hi)| geom_brep::ExtentBall::of_box(lo, hi).lever_from(at))
-                .unwrap_or_else(|| {
-                    unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
-                }),
-        };
-        let extent = super::carrier_eq::ConsumedExtent::new(geom_brep::ExtentBall::about(at, arm));
+        let ball = geom_brep::ExtentBall::of_edge_start(
+            curve.carrier(),
+            curve.params(),
+            (at, end),
+            || crate::census::edge_reach_in(body, edge_key, &super::boxes::BoxFrame::World),
+        )
+        .unwrap_or_else(|| {
+            unreachable!("{operand:?}'s edge {edge_key:?}: a conic carrier has a box")
+        });
+        let extent = super::carrier_eq::ConsumedExtent::new(ball);
         // One plane, decided by its margin: a pair the producing op
         // should have merged (the merge glues what this decides).
         match super::oriented_plane_eq(&p1, &p2, &extent, band) {
@@ -5075,12 +5070,9 @@ fn line_cone_roots<T: Decide>(
         super::solid_contain::About::Start,
     )
     .coeffs;
-    let length = geom_brep::edge_extent_inf(
-        &geom::Curve3::Line(geom::Line { origin, dir }),
-        t0,
-        t1,
-        dir.norm() * (t1 - t0).abs(),
-    );
+    // Unsourced lever: a length read off the parameter span, not the
+    // edge's end points; the end points' distance rounds differently.
+    let length = geom_core::Lever::unsourced(dir.norm() * (t1 - t0).abs());
     match decide(
         "bool_line_cone_lead",
         Margin::levered(a2 / dd, length),

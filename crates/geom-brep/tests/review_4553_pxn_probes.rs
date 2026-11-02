@@ -11,12 +11,12 @@
 //! speed within a stated factor of the wall's sampled one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::lever::sphere_arm;
 use geom::{NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{PlaneNurbsLimbs, SsiTube};
 use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::{Knots, SpanLocate};
+use geom_core::test_support::fixture_lever;
 use geom_core::{Band, Bounds, Point3, Real, Tol, Vec3};
 
 /// A cross-section in z = 0: knots, degree, (x, y) control, weights.
@@ -212,7 +212,7 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
             (ruling(q.x, q.y)).knot_values().domain(),
             &vplane(q.x, q.y, t.x, t.y),
             &wall::<f64>(s),
-            sphere_arm(1.0),
+            fixture_lever(1.0),
             band,
         );
         match at_f64 {
@@ -224,7 +224,7 @@ fn run(label: &str, s: &Section, u0s: &[f64]) -> (Vec<String>, (f64, f64)) {
             (ruling(q.x, q.y)).knot_values().domain(),
             &vplane(q.x, q.y, t.x, t.y),
             &wall::<Interval>(s),
-            sphere_arm(Interval::one()),
+            fixture_lever(Interval::one()),
             band,
         );
         match at_itv {

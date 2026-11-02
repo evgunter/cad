@@ -106,7 +106,7 @@ mod certified {
         let tau_in = Vec3::new(one, z, z);
         let tau_out = Vec3::new(z, one, z);
         let arm = Interval::from_bounds(0.5, 1.0);
-        let lever = geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever();
+        let lever = geom_core::test_support::fixture_lever(arm);
         let err = chain_g1(tau_in, tau_out, lever, VertexKey::default(), band())
             .expect_err("a 90° kink refuses G1 definitely");
         let BlendError::ChainNotG1 { margin, .. } = &err else {

@@ -168,8 +168,8 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// vertex: what a per-bound reading levers at.
     pub(super) fn reached_bounds(&self) -> [(Vec3<T>, Lever<T>); 2] {
         [
-            (self.start, self.start_reach.reach()),
-            (self.end, self.end_reach.reach()),
+            (self.start, self.start_reach.lever()),
+            (self.end, self.end_reach.lever()),
         ]
     }
 
@@ -195,7 +195,7 @@ impl<T: geom_core::Real> BoolSector<T> {
     /// The farther of the sector's two bounds' reaches, in metres: how
     /// far from the base vertex the sector's own geometry is known.
     pub(super) fn span(&self) -> Lever<T> {
-        self.start_reach.reach().max(self.end_reach.reach())
+        self.start_reach.lever().max(self.end_reach.lever())
     }
     /// The face's outward normal at the base vertex, its tangent plane's.
     /// Only a pierce reads a sector at a cone's apex, through its own
@@ -447,11 +447,18 @@ pub(super) fn build_sectors<T: Decide>(
 
 /// **A corner's metering arm** ([`crate::sector_shape`]'s, the shorter of
 /// its bounds' departure vectors' norms) as the lever its sectors read at.
-fn metering_arm<T: geom_core::Real>(arm: T) -> Lever<T> {
+pub(crate) fn metering_arm<T: geom_core::Real>(arm: T) -> Lever<T> {
     // Unsourced lever: the norm of a departure vector, a curved bound's
-    // read back from its extent times a unit tangent, which differs from
-    // that extent by rounding.
+    // read back from its extent times a unit tangent (or a line's chord),
+    // which differs from that extent by rounding: the edges' `Lever::min`
+    // would round differently.
     Lever::unsourced(arm)
+}
+
+/// **A departure vector's norm as a lever**: the one bound's arm
+/// [`metering_arm`] reads, for a reading levered at a single departure.
+pub(crate) fn departure_arm_lever<T: geom_core::Real>(v: Vec3<T>) -> Lever<T> {
+    metering_arm(v.norm())
 }
 
 /// A sector rung's fault at `vertex`'s corner in `face`, as the
@@ -621,7 +628,7 @@ pub(super) fn orbit_corners<T: Decide>(
             | geom::Curve3::Spiric { .. }
             | geom::Curve3::Nurbs(_) => {
                 let ConicDeparture { dir, extent, bend } =
-                    ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
+                    ConicDeparture::of(curve, he == edge.he_plus, (p_end, p_base));
                 (dir, BoundSupport::Conic { extent, bend })
             }
         }
@@ -1470,7 +1477,7 @@ fn within_signs<T: Decide>(
     read: DeclarationRead,
     band: Band,
 ) -> Result<(Sign, Sign), BooleanError> {
-    let lever = |r: BoundSupport<T>| exact_lever(r.reach(), own);
+    let lever = |r: BoundSupport<T>| exact_lever(r.lever(), own);
     let c1 = Margin::levered(
         s.start.cross(dir).dot(s.tangent().vec()),
         lever(s.start_reach),
@@ -2253,14 +2260,14 @@ pub(super) fn runs_into<T: Decide>(
     band: Band,
 ) -> Result<bool, BooleanError> {
     let moot = DeclarationRead::Moot;
-    if !within_reaching(s, (dir, Some(reach.reach())), false, moot, band)? {
+    if !within_reaching(s, (dir, Some(reach.lever())), false, moot, band)? {
         return Ok(false);
     }
     for (bound, along, is_edge) in [
         (s.start, s.start_reach, s.start_edge()),
         (s.end, s.end_reach, s.end_edge()),
     ] {
-        let lever = exact_lever(along.reach(), Some(reach.reach()));
+        let lever = exact_lever(along.lever(), Some(reach.lever()));
         if !(is_edge && parallel_same(dir, bound, lever, BOUNDS_PARALLEL, band)?) {
             continue;
         }
@@ -2383,7 +2390,7 @@ fn first_order_overlap<T: Decide>(
     ] {
         if within_reaching(
             s,
-            (dir, Some(reach.reach())),
+            (dir, Some(reach.lever())),
             true,
             DeclarationRead::Moot,
             band,
@@ -2392,7 +2399,7 @@ fn first_order_overlap<T: Decide>(
         }
     }
     let along = |(u, ru): (Vec3<T>, BoundSupport<T>), (v, rv): (Vec3<T>, BoundSupport<T>)| {
-        let lever = exact_lever(rv.reach(), Some(ru.reach()));
+        let lever = exact_lever(rv.lever(), Some(ru.lever()));
         parallel_same(u, v, lever, BOUNDS_PARALLEL, band)
     };
     let (a_start, a_end) = ((a.start, a.start_reach), (a.end, a.end_reach));
@@ -2418,7 +2425,7 @@ fn bound_bend<T: Decide>(reach: BoundSupport<T>) -> Option<(Vec3<T>, Lever<T>)> 
         }
         BoundSupport::Conic { extent, bend } => Some((bend.curvature, extent)),
         BoundSupport::Chord { .. } => {
-            Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.reach()))
+            Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.lever()))
         }
         BoundSupport::Extent(_) | BoundSupport::Bisector { .. } => None,
     }
@@ -2621,7 +2628,7 @@ fn far_edge<T: Decide>(
     }
     Ok(Some(RunEdge {
         dir,
-        reach: reach.reach(),
+        reach: reach.lever(),
         far: site_of(body, far)?,
     }))
 }
@@ -2958,11 +2965,15 @@ mod tests {
                 he: HalfEdgeKey::from(key(1)),
                 start,
                 end,
-                start_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
-                end_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                start_reach: BoundSupport::straight_bisector(
+                    geom_core::test_support::fixture_lever(1.0),
+                ),
+                end_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                    1.0,
+                )),
                 face: FaceKey::from(key(2)),
                 at_vertex: BoolFace::Apex(apex),
-                arm: crate::bound_side::lever(1.0),
+                arm: geom_core::test_support::fixture_lever(1.0),
                 bend: crate::bound_side::FaceBend::Plane,
             };
             let m = s.middle();
@@ -3006,7 +3017,7 @@ mod tests {
             },
             face: FaceKey::default(),
             at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true)),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let err = within(
@@ -3061,7 +3072,7 @@ mod tests {
                     parallel_same(
                         u * norm,
                         v * norm,
-                        crate::bound_side::lever(1.0),
+                        geom_core::test_support::fixture_lever(1.0),
                         BOUNDS_PARALLEL,
                         b
                     )
@@ -3080,7 +3091,7 @@ mod tests {
                     parallel_same(
                         u * norm,
                         w * norm,
-                        crate::bound_side::lever(2.0 * e),
+                        geom_core::test_support::fixture_lever(2.0 * e),
                         BOUNDS_PARALLEL,
                         b
                     )
@@ -3098,8 +3109,14 @@ mod tests {
                 Coincide::EdgeOnEdge,
             ),
         ] {
-            let err = parallel_same(u * 1e3, v * 1e3, crate::bound_side::lever(1.0), reading, b)
-                .expect_err("in band");
+            let err = parallel_same(
+                u * 1e3,
+                v * 1e3,
+                geom_core::test_support::fixture_lever(1.0),
+                reading,
+                b,
+            )
+            .expect_err("in band");
             let BooleanError::Escalated { decision, diag } = &err else {
                 panic!("{which:?}: an escalation: {err:?}");
             };
@@ -3131,15 +3148,37 @@ mod tests {
             (Vec3::zero(), Vec3::zero()),
             (Vec3::new(f64::NAN, 0.0, 0.0), u),
         ] {
-            let got = parallel_same(p, q, crate::bound_side::lever(1.0), BOUNDS_PARALLEL, b);
+            let got = parallel_same(
+                p,
+                q,
+                geom_core::test_support::fixture_lever(1.0),
+                BOUNDS_PARALLEL,
+                b,
+            );
             assert!(got.is_err(), "{p:?} against {q:?} decided {got:?}");
         }
         // A direction far below the squares' underflow band is still a
         // direction: normalize prescales it.
         let tiny = Vec3::new(1e-300, 0.0, 0.0);
-        assert!(parallel_same(tiny, u, crate::bound_side::lever(1.0), BOUNDS_PARALLEL, b).unwrap());
         assert!(
-            !parallel_same(-tiny, u, crate::bound_side::lever(1.0), BOUNDS_PARALLEL, b).unwrap()
+            parallel_same(
+                tiny,
+                u,
+                geom_core::test_support::fixture_lever(1.0),
+                BOUNDS_PARALLEL,
+                b
+            )
+            .unwrap()
+        );
+        assert!(
+            !parallel_same(
+                -tiny,
+                u,
+                geom_core::test_support::fixture_lever(1.0),
+                BOUNDS_PARALLEL,
+                b
+            )
+            .unwrap()
         );
     }
 
@@ -3159,15 +3198,15 @@ mod tests {
         let (z, e) = (b.zero(), b.escalate());
         let u = Vec3::new(1.0, 0.0, 0.0);
         assert!(
-            direction_sense(u, u, crate::bound_side::lever(1.0), b)
+            direction_sense(u, u, geom_core::test_support::fixture_lever(1.0), b)
                 .expect("a clear arm reads the sense")
         );
         assert!(
-            !direction_sense(u, -u, crate::bound_side::lever(1.0), b)
+            !direction_sense(u, -u, geom_core::test_support::fixture_lever(1.0), b)
                 .expect("a clear arm reads the sense")
         );
         for arm in [(z + e) / 2.0, 0.5 * z] {
-            let err = direction_sense(u, u, crate::bound_side::lever(arm), b)
+            let err = direction_sense(u, u, geom_core::test_support::fixture_lever(arm), b)
                 .expect_err("a short arm refuses");
             let BooleanError::Escalated { decision, diag } = &err else {
                 panic!("{arm:e}: an escalation: {err:?}");
@@ -3217,7 +3256,7 @@ mod tests {
             ((b.zero() + b.escalate()) / 2.0, false),
         ] {
             let bracket = Bracket::open();
-            let err = direction_sense(u, u, crate::bound_side::lever(arm), b)
+            let err = direction_sense(u, u, geom_core::test_support::fixture_lever(arm), b)
                 .expect_err("a short arm refuses");
             let log = bracket.finish();
             let BooleanError::Escalated { diag, .. } = err else {
@@ -3255,7 +3294,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(0.3, 0.0, -1.0),
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -3266,7 +3305,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(0.3, 0.0, 1.0),
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -3277,7 +3316,7 @@ mod tests {
         assert_eq!(
             side_code(
                 Vec3::new(1.0, 2.0, 0.0),
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 n,
                 super::NO_CURVATURE(),
                 b
@@ -3292,11 +3331,11 @@ mod tests {
             he: HalfEdgeKey::default(),
             start: Vec3::from_array(start),
             end: Vec3::from_array(end),
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
-            end_reach: BoundSupport::Extent(crate::bound_side::lever(1.0)),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             face: FaceKey::default(),
             at_vertex: BoolFace::Tangent(OutwardNormal::from_chart(Vec3::from_array(normal), true)),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         }
     }
@@ -3317,17 +3356,17 @@ mod tests {
         let floor = BoolSector {
             start: Vec3::new(-theta.sin(), -theta.cos(), 0.0),
             end: Vec3::new(-1.0, 0.0, 0.0),
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(reach)),
-            end_reach: BoundSupport::straight_bisector(crate::bound_side::lever(arm)),
-            arm: crate::bound_side::lever(arm),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(reach)),
+            end_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(arm)),
+            arm: geom_core::test_support::fixture_lever(arm),
             ..sector([0.0; 3], [0.0; 3], [0.0, 0.0, -1.0])
         };
         let wall = BoolSector {
             start: Vec3::new(0.0, 0.0, -1.0),
             end: Vec3::new(0.0, -1.0, 0.0),
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(reach)),
-            end_reach: BoundSupport::Extent(crate::bound_side::lever(reach)),
-            arm: crate::bound_side::lever(reach),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(reach)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(reach)),
+            arm: geom_core::test_support::fixture_lever(reach),
             ..sector([0.0; 3], [0.0; 3], [-1.0, 0.0, 0.0])
         };
         let line = Vec3::new(0.0, -1.0, 0.0);
@@ -3337,7 +3376,7 @@ mod tests {
         );
         let at_the_arm = Margin::levered(
             floor.start.cross(line).dot(floor.tangent().vec()),
-            crate::bound_side::lever(arm),
+            geom_core::test_support::fixture_lever(arm),
         );
         assert_eq!(
             decide("arm", at_the_arm, b).unwrap(),
@@ -3364,17 +3403,17 @@ mod tests {
         let a = BoolSector {
             start: at(290.0),
             end: down,
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(0.11)),
-            end_reach: BoundSupport::Extent(crate::bound_side::lever(1.23)),
-            arm: crate::bound_side::lever(0.11),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(0.11)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.23)),
+            arm: geom_core::test_support::fixture_lever(0.11),
             ..sector([0.0; 3], [0.0; 3], n_a.normalize().to_array())
         };
         let b = BoolSector {
             start: down,
             end: at(120.0),
-            start_reach: BoundSupport::Extent(crate::bound_side::lever(1.23)),
-            end_reach: BoundSupport::Extent(crate::bound_side::lever(0.4)),
-            arm: crate::bound_side::lever(0.4),
+            start_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(1.23)),
+            end_reach: BoundSupport::Extent(geom_core::test_support::fixture_lever(0.4)),
+            arm: geom_core::test_support::fixture_lever(0.4),
             ..sector([0.0; 3], [0.0; 3], at(30.0).to_array())
         };
         (a, b)
@@ -3535,7 +3574,7 @@ mod tests {
         assert_eq!(
             side_code(
                 d,
-                BoundSupport::straight_bisector(crate::bound_side::lever(0.5)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(0.5)),
                 n,
                 1.0,
                 b
@@ -3560,7 +3599,12 @@ mod tests {
             1.0,
             -bend,
         );
-        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, 2.0 * (span / 2.0).sin());
+        let extent = geom_brep::edge_extent_inf(
+            &carrier,
+            0.0,
+            span,
+            (carrier.eval(0.0), carrier.eval(span)),
+        );
         let tangent = carrier.deriv(0.0);
         let bend = ConicBend::of(&carrier, tangent, carrier.deriv2(0.0), span);
         (
@@ -3662,7 +3706,7 @@ mod tests {
         ] {
             let (dir, reach) = quarter_arc(bend);
             assert_eq!(
-                enters_material(dir, n, reach.reach(), b).unwrap(),
+                enters_material(dir, n, reach.lever(), b).unwrap(),
                 EntersMaterial::Tangent,
                 "the first order ties: {bend:?}"
             );
@@ -3754,8 +3798,8 @@ mod tests {
                         assert!(flat.deriv(0.0).normalize().dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999);
                         let samples = 4000;
                         let param = |i: usize| span * i as f64 / samples as f64;
-                        let chord = flat.eval(span).distance(base);
-                        let extent_lever = geom_brep::edge_extent_inf(&flat, 0.0, span, chord);
+                        let extent_lever =
+                            geom_brep::edge_extent_inf(&flat, 0.0, span, (flat.eval(span), base));
                         let extent = extent_lever.length();
                         // The witness the derivation names, found
                         // independently: the sample at arc length
@@ -3893,7 +3937,12 @@ mod tests {
             chord > 1e4 * b.zero() && far < b.zero(),
             "the arc is long beside the band (chord {chord:e}) and its far end in it ({far:e})"
         );
-        let extent = geom_brep::edge_extent_inf(&carrier, 0.0, span, chord);
+        let extent = geom_brep::edge_extent_inf(
+            &carrier,
+            0.0,
+            span,
+            (carrier.eval(span), geom_core::Point3::origin()),
+        );
         let bend = ConicBend::of(&carrier, carrier.deriv(0.0), carrier.deriv2(0.0), span);
         let dir = carrier.deriv(0.0).normalize() * extent.length();
         assert_eq!(
@@ -3975,7 +4024,7 @@ mod tests {
         let got = pierce_side(
             dir,
             BoundSupport::Conic {
-                extent: crate::bound_side::lever(short),
+                extent: geom_core::test_support::fixture_lever(short),
                 bend: loose,
             },
             n,
@@ -4029,7 +4078,7 @@ mod tests {
                 let (d, peak) = at(q);
                 side_code(
                     d,
-                    BoundSupport::straight_bisector(crate::bound_side::lever(
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
                         peak * reach_over_peak,
                     )),
                     n,
@@ -4074,7 +4123,7 @@ mod tests {
         assert_eq!(
             side_code(
                 d,
-                BoundSupport::straight_bisector(crate::bound_side::lever(peak * 1e6)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(peak * 1e6)),
                 n,
                 NO_CURVATURE::<f64>(),
                 b
@@ -4117,7 +4166,7 @@ mod tests {
             n,
             p,
             d,
-            crate::bound_side::lever(arm),
+            geom_core::test_support::fixture_lever(arm),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4171,7 +4220,7 @@ mod tests {
         let departure = |extent: f64| Vec3::new(1.0, 0.0, 1.0).normalize().dot(n.vec()) * extent;
         let err = side_code(
             Vec3::new(1.0, 0.0, 1.0),
-            BoundSupport::Extent(crate::bound_side::lever(mid)),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(mid)),
             n,
             NO_CURVATURE(),
             b,
@@ -4204,7 +4253,7 @@ mod tests {
         let short = 0.5 * z;
         let err = side_code(
             Vec3::new(1.0, 0.0, 1.0),
-            BoundSupport::Extent(crate::bound_side::lever(short)),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(short)),
             n,
             NO_CURVATURE(),
             b,
@@ -4249,7 +4298,7 @@ mod tests {
         // (the coincfr4 review's in-plane pose).
         let err = side_code(
             Vec3::new(1.0, 0.0, 0.0),
-            BoundSupport::Extent(crate::bound_side::lever(mid)),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(mid)),
             n,
             NO_CURVATURE(),
             b,
@@ -4274,7 +4323,7 @@ mod tests {
         // in band off the face's plane is the coincidence it names.
         let err = side_code(
             Vec3::new(1.0, 0.0, mid),
-            BoundSupport::Extent(crate::bound_side::lever(1.0)),
+            BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0)),
             n,
             NO_CURVATURE(),
             b,
@@ -4322,13 +4371,13 @@ mod tests {
                 -va.cross(vb).normalize(),
                 true,
             )),
-            arm: crate::bound_side::lever(vb.norm()),
+            arm: geom_core::test_support::fixture_lever(vb.norm()),
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
         let top = BoolSector {
             start_reach: chord([10.0, 0.0, 0.0]),
             end_reach: chord([0.0, 10.0, 0.0]),
-            arm: crate::bound_side::lever(10.0),
+            arm: geom_core::test_support::fixture_lever(10.0),
             ..sector([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
         };
         let recs = search(&[tilted], &[top], band()).unwrap();
@@ -4404,8 +4453,14 @@ mod tests {
     /// `reach`: one along the shared ruling (y), one across it (x).
     fn fixture_bounds(reach: f64) -> [(Vec3<f64>, geom_core::Lever<f64>); 2] {
         [
-            (Vec3::new(0.0, 1.0, 0.0), crate::bound_side::lever(reach)),
-            (Vec3::new(1.0, 0.0, 0.0), crate::bound_side::lever(reach)),
+            (
+                Vec3::new(0.0, 1.0, 0.0),
+                geom_core::test_support::fixture_lever(reach),
+            ),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                geom_core::test_support::fixture_lever(reach),
+            ),
         ]
     }
 
@@ -4440,7 +4495,7 @@ mod tests {
             Operand::B,
             FaceKey::default(),
             fixture_bounds(0.5),
-            crate::bound_side::lever(0.5),
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4460,7 +4515,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.5),
-            crate::bound_side::lever(0.5),
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4490,7 +4545,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.25),
-            crate::bound_side::lever(0.25),
+            geom_core::test_support::fixture_lever(0.25),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4511,7 +4566,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(zero_arm),
-            crate::bound_side::lever(zero_arm),
+            geom_core::test_support::fixture_lever(zero_arm),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         )
@@ -4558,7 +4613,7 @@ mod tests {
                 Operand::A,
                 FaceKey::default(),
                 bounds,
-                crate::bound_side::lever(arm),
+                geom_core::test_support::fixture_lever(arm),
                 DeclarationRead::Spent(GlueClass::Tangent),
                 b,
             )
@@ -4581,16 +4636,25 @@ mod tests {
         // show still reads the side its long cross bound shows, not the
         // senses' lump: each bound is read over its own reach.
         let short_ruling = [
-            (Vec3::new(0.0, 1.0, 0.0), crate::bound_side::lever(zero_arm)),
-            (Vec3::new(1.0, 0.0, 0.0), crate::bound_side::lever(0.5)),
+            (
+                Vec3::new(0.0, 1.0, 0.0),
+                geom_core::test_support::fixture_lever(zero_arm),
+            ),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                geom_core::test_support::fixture_lever(0.5),
+            ),
         ];
         assert_eq!(lump(short_ruling, zero_arm).unwrap(), SideCode::Out);
         // A short cross bound in band beside a ruling escalates.
         let short_cross = [
-            (Vec3::new(0.0, 1.0, 0.0), crate::bound_side::lever(0.5)),
+            (
+                Vec3::new(0.0, 1.0, 0.0),
+                geom_core::test_support::fixture_lever(0.5),
+            ),
             (
                 Vec3::new(1.0, 0.0, 0.0),
-                crate::bound_side::lever(inband_arm),
+                geom_core::test_support::fixture_lever(inband_arm),
             ),
         ];
         assert!(
@@ -4619,7 +4683,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.5),
-            crate::bound_side::lever(0.5),
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {
@@ -4643,7 +4707,7 @@ mod tests {
             Operand::A,
             FaceKey::default(),
             fixture_bounds(0.5),
-            crate::bound_side::lever(0.5),
+            geom_core::test_support::fixture_lever(0.5),
             DeclarationRead::Spent(GlueClass::Tangent),
             b,
         ) {

@@ -2127,7 +2127,7 @@ mod tests {
             p0,
             p1,
             |k| arena.get(k).cloned(),
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), lift(1.0)).lever(),
+            geom_core::test_support::fixture_lever(lift(1.0)),
             band(),
             geom_brep::NurbsLane::certified(),
         )

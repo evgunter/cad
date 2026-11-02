@@ -1775,7 +1775,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // The tube's extent, from the object being certified, as limb 3
         // reads it everywhere: from below, since its transversality is
         // the definite verdict it acts on.
-        crate::edge_extent_inf(&carrier, p0, p1, piece.eval(p0).distance(piece.eval(p1))).length(),
+        crate::edge_extent_inf(&carrier, p0, p1, (piece.eval(p0), piece.eval(p1))).length(),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut crate::ssi::certify::Refused::default(),

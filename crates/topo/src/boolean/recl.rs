@@ -2204,7 +2204,7 @@ mod tests {
                 start.cross(end).normalize(),
                 true,
             )),
-            arm: crate::bound_side::lever(len),
+            arm: geom_core::test_support::fixture_lever(len),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let axis = v([0.0, 0.0, 1.0]);
@@ -2421,7 +2421,7 @@ mod tests {
             start_reach: chord(sr),
             end_reach: chord(er),
             face: Default::default(),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 start.cross(end).normalize(),
                 true,
@@ -2507,7 +2507,7 @@ mod tests {
                 start.cross(end).normalize(),
                 true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let secs = [sector(1, e1, e3), sector(2, e2, e1), sector(3, e3, e2)];
@@ -2564,7 +2564,7 @@ mod tests {
                 Vec3::new(0.0, 1.0, 0.0),
                 true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let bis = Vec3::new(0.0, 0.0, -1.0);
@@ -2572,7 +2572,7 @@ mod tests {
             [
                 twin(
                     bis,
-                    BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                     Vec3::from_array(far_end).normalize(),
                     chord(far_end),
                 ),
@@ -2580,7 +2580,7 @@ mod tests {
                     Vec3::from_array(far_start).normalize(),
                     chord(far_start),
                     bis,
-                    BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 ),
             ]
         };
@@ -2591,9 +2591,9 @@ mod tests {
             )),
             ..twin(
                 bis,
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 bis,
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
             )
         }];
         let one_sided = twins([1.0, 0.0, 0.5], [-1.0, 0.0, 0.5]);
@@ -2673,13 +2673,15 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let up = Vec3::new(0.0, 1.0, 0.0);
         let mut half_turn = [sector(z, ray(0.0), up), sector(ray(180.0), z, up)];
-        half_turn[0].start_reach = BoundSupport::straight_bisector(crate::bound_side::lever(1.0));
-        half_turn[1].end_reach = BoundSupport::straight_bisector(crate::bound_side::lever(1.0));
+        half_turn[0].start_reach =
+            BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0));
+        half_turn[1].end_reach =
+            BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0));
         let p = prism_z::<f64>(
             &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
             0.0,
@@ -2823,7 +2825,7 @@ mod tests {
                     start.cross(end),
                     true,
                 )),
-                arm: crate::bound_side::lever(arm),
+                arm: geom_core::test_support::fixture_lever(arm),
                 bend: crate::bound_side::FaceBend::Plane,
             };
         let run = |a: (&crate::body::Body<f64>, FaceKey),
@@ -3013,7 +3015,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 y, true,
             )),
-            arm: crate::bound_side::lever(arm),
+            arm: geom_core::test_support::fixture_lever(arm),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let corner = [sector(z, x), sector(x, z)];
@@ -3090,7 +3092,7 @@ mod tests {
                 at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                     normal, true,
                 )),
-                arm: crate::bound_side::lever(1.0),
+                arm: geom_core::test_support::fixture_lever(1.0),
                 bend: crate::bound_side::FaceBend::Plane,
             };
         let corner = |o, p: Vec3<f64>, q: Vec3<f64>, np: Vec3<f64>, nq: Vec3<f64>| {
@@ -3230,7 +3232,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         // Each corner's two faces through the line, each counterclockwise
@@ -3364,7 +3366,7 @@ mod tests {
         ));
         let half = |start: Vec3<f64>, end: Vec3<f64>, bisector_first: bool| BoolSector {
             start_reach: if bisector_first {
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0))
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0))
             } else {
                 BoundSupport::Chord {
                     base: o,
@@ -3377,7 +3379,7 @@ mod tests {
                     far: o + end,
                 }
             } else {
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0))
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0))
             },
             face: plane,
             ..sector(start, end, Vec3::new(0.0, 1.0, 0.0))
@@ -3546,7 +3548,7 @@ mod tests {
             at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                 normal, true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let at = |deg: f64| {
@@ -3561,11 +3563,15 @@ mod tests {
             sector(ha, z, at(lo), at(lo - 90.0), none),
             sector(ha, at(hi), z, at(hi + 90.0), none),
             BoolSector {
-                start_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                start_reach: BoundSupport::straight_bisector(
+                    geom_core::test_support::fixture_lever(1.0),
+                ),
                 ..sector(ha, z, x, y, top)
             },
             BoolSector {
-                end_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                end_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                    1.0,
+                )),
                 ..sector(ha, -x, z, y, top)
             },
         ];
@@ -3727,9 +3733,9 @@ mod tests {
         let sector = |start_bisector: bool, end_bisector: bool| {
             let reach = |bisector| {
                 if bisector {
-                    BoundSupport::straight_bisector(crate::bound_side::lever(1.0))
+                    BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0))
                 } else {
-                    BoundSupport::Extent(crate::bound_side::lever(1.0))
+                    BoundSupport::Extent(geom_core::test_support::fixture_lever(1.0))
                 }
             };
             BoolSector {
@@ -3742,7 +3748,7 @@ mod tests {
                 at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                     geom_brep::OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
                 ),
-                arm: crate::bound_side::lever(1.0),
+                arm: geom_core::test_support::fixture_lever(1.0),
                 bend: crate::bound_side::FaceBend::Plane,
             }
         };

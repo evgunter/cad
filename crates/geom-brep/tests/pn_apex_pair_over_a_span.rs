@@ -112,12 +112,11 @@ fn window(lo: f64, hi: f64, lever: f64) -> Reach<f64> {
 }
 
 fn window_at(apex: Point3<f64>, lo: f64, hi: f64, lever: f64) -> Reach<f64> {
-    Reach::Face {
-        at: apex,
-        below: -lo,
-        above: hi,
-        across: lever,
-    }
+    Reach::of_face(
+        apex,
+        (-lo, hi),
+        geom_core::test_support::fixture_lever(lever),
+    )
 }
 
 /// The lean that puts the discriminant `D = −cos(α + θ)` at `d`.

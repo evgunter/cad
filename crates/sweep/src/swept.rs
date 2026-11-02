@@ -1986,7 +1986,7 @@ pub(crate) mod must_carry_fixtures {
         line: &Curve3<f64>,
         extent: f64,
     ) -> MustCarryEscalation {
-        let reach = geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), extent).lever();
+        let reach = geom_core::test_support::fixture_lever(extent);
         match must_carry_over_edge(s1, s2, line, 0.0, extent, reach, band()) {
             MustCarryVerdict::InBand(escalation) => escalation,
             other => panic!("the fixture must read in band, not {other:?}"),

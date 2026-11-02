@@ -181,7 +181,7 @@ impl<T: Decide> PierceDatum<T> {
         reach: super::sectors::BoundSupport<T>,
         rd: crate::link::metric::Reading<T>,
     ) -> Result<SideCode, BooleanError> {
-        let lever = self.lever.within(reach.reach().length());
+        let lever = self.lever.within(reach.lever().length());
         super::sectors::pierce_side_reported(dir, reach, self.normal, self.bend, lever, rd)
             .map(|(read, _)| read.code)
     }
@@ -626,7 +626,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 s.end_reach,
                 n_pierced,
                 pierced_bend,
-                pierced_lever.within(s.end_reach.reach().length()),
+                pierced_lever.within(s.end_reach.lever().length()),
                 crate::link::metric::Reading::plain(band),
             ),
         };
@@ -3074,7 +3074,7 @@ mod tests {
             let dir = Vec3::new((1.0 - rise * rise).sqrt(), 0.0, rise);
             let (side, on) = pierce_side_reported(
                 dir,
-                BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+                BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
                 up,
                 crate::bound_side::FaceBend::Plane,
                 NO_CURVATURE(),
@@ -3164,7 +3164,7 @@ mod tests {
         let (x, z) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0));
         let arc = geom::Curve3::circle(o + z, x.cross(z), 1.0, -z);
         let span = core::f64::consts::FRAC_PI_2;
-        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, 2f64.sqrt());
+        let extent = geom_brep::edge_extent_inf(&arc, 0.0, span, (arc.eval(0.0), arc.eval(span)));
         let bend = ConicBend::of(&arc, arc.deriv(0.0), arc.deriv2(0.0), span);
         let partner = [BoolSector {
             he: HalfEdgeKey::default(),
@@ -3180,7 +3180,7 @@ mod tests {
                 Vec3::new(0.0, -1.0, 0.0),
                 true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         }];
         let datum = |bend| PierceDatum {
@@ -3239,7 +3239,7 @@ mod tests {
                 Vec3::new(0.0, 0.0, 1.0),
                 true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let err = pierce_germ_dir(
@@ -3304,7 +3304,7 @@ mod tests {
                     at_vertex: crate::boolean::sectors::BoolFace::Tangent(
                         OutwardNormal::from_chart(start.cross(end).normalize(), true),
                     ),
-                    arm: crate::bound_side::lever(1.0),
+                    arm: geom_core::test_support::fixture_lever(1.0),
                     bend: crate::bound_side::FaceBend::Plane,
                 }
             })
@@ -3331,7 +3331,9 @@ mod tests {
             he: HalfEdgeKey::from(key(n)),
             start: Vec3::new(0.0, 0.0, 1.0),
             end: d.normalize(),
-            start_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+            start_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(
+                1.0,
+            )),
             end_reach: BoundSupport::Chord {
                 base: o,
                 far: o + d,
@@ -3341,7 +3343,7 @@ mod tests {
                 Vec3::new(1.0, 0.0, 0.0),
                 true,
             )),
-            arm: crate::bound_side::lever(1.0),
+            arm: geom_core::test_support::fixture_lever(1.0),
             bend: crate::bound_side::FaceBend::Plane,
         };
         let partner = |n: u64, axis: f64| Partner {
@@ -3449,7 +3451,7 @@ mod tests {
                         },
                         face: crate::entity::FaceKey::default(),
                         at_vertex: crate::boolean::sectors::BoolFace::Tangent(normal),
-                        arm: crate::bound_side::lever(1.0),
+                        arm: geom_core::test_support::fixture_lever(1.0),
                         bend: crate::bound_side::FaceBend::Plane,
                     }
                 })
@@ -3635,7 +3637,7 @@ mod tests {
                 at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                     z, true,
                 )),
-                arm: crate::bound_side::lever(1.0),
+                arm: geom_core::test_support::fixture_lever(1.0),
                 bend: crate::bound_side::FaceBend::Plane,
             };
             // `(ψ, the tilt's cosine, a graze)`.
@@ -3782,7 +3784,7 @@ mod tests {
         let t = -deg.to_radians();
         (
             Leaned::upright(Vec3::new(t.cos(), t.sin(), 0.0)),
-            crate::bound_side::lever(1.0),
+            geom_core::test_support::fixture_lever(1.0),
         )
     }
 
@@ -3879,7 +3881,7 @@ mod tests {
         // A germ apart from the first at its own arm but in band at a
         // third germ's shorter one: both insertion orders refuse, and with
         // every arm long it is ordered.
-        let at = |deg: f64, arm: f64| (germ_at(deg).0, crate::bound_side::lever(arm));
+        let at = |deg: f64, arm: f64| (germ_at(deg).0, geom_core::test_support::fixture_lever(arm));
         // Twice the escalation threshold at an arm of 1, a fifth of the
         // zero band at an arm of 0.01.
         let d = (2.0 * band.escalate()).to_degrees();

@@ -159,7 +159,7 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     let s_post = plane(q, Vec3::new(-1.0, 0.0, 0.0));
     let s_shelf = plane(q, Vec3::new(0.0, 1.0, 0.0));
     // The shorter crossing edge, roughly.
-    let extent = geom_brep::ExtentBall::of_sphere(Point3::origin(), 0.22_f64).lever();
+    let extent = geom_core::test_support::fixture_lever(0.22_f64);
     let arm = geom_brep::folded_lever_arm(&s_post, &s_shelf, q, extent);
 
     // (a) The site is NOT smooth — the precondition both existing

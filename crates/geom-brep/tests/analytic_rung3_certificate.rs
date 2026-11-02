@@ -104,7 +104,7 @@ fn certify<T: geom_core::Decide + geom_core::CertifiedBounds>(
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), T::from_f64(1.0)).lever(),
+        geom_core::test_support::fixture_lever(T::from_f64(1.0)),
         band(),
         NurbsLane::certified(),
     )
@@ -253,7 +253,7 @@ fn a_schedule_defect_refuses_as_itself() {
             start,
             end,
             surfaces,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -295,7 +295,7 @@ fn rest_re_derives_an_analytic_rung3_edges_certificate() {
         start,
         end,
         surfaces,
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),
     )
@@ -305,7 +305,7 @@ fn rest_re_derives_an_analytic_rung3_edges_certificate() {
             start,
             end,
             surfaces,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -426,7 +426,7 @@ fn certify_over(
         c.eval(t0),
         c.eval(t1),
         |k| arena.get(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         NurbsLane::certified(),
     )

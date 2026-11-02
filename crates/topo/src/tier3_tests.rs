@@ -1394,7 +1394,7 @@ fn a_planted_arc_past_a_turn_is_typed_at_rest_and_a_kernel_bug_at_a_re_mint() {
         start,
         end,
         |_| None,
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         coarse,
         geom_brep::NurbsLane::certified(),
     )
@@ -1479,7 +1479,7 @@ fn pillow_with_an_arc_past_a_turn_in(
         start,
         end,
         |k| body.get_surface(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         coarse,
         geom_brep::NurbsLane::certified(),
     )
@@ -2439,7 +2439,7 @@ fn the_must_carry_rule_and_tier_3_answer_one_family_through_one_walk() {
             &carrier,
             0.0,
             1.0,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), reach).lever(),
+            geom_core::test_support::fixture_lever(reach),
             band,
         )
     };
@@ -2861,7 +2861,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
             sin_theta: 0.0,
             kappa_rel,
         },
-        arm: geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever(),
+        arm: geom_core::test_support::fixture_lever(arm),
     };
     // Check 4's one push of a stop.
     let finding = |stop: crate::validate::MaterialStop| ValidationError::SliverDihedral {
@@ -2885,7 +2885,7 @@ fn material_reads_stop_with_their_decided_margin_and_end_as_their_decision() {
                 &floor,
                 &wall,
                 origin,
-                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), arm).lever(),
+                geom_core::test_support::fixture_lever(arm),
                 band
             ),
             Ok(geom_brep::DihedralClass::Smooth),

@@ -3158,7 +3158,7 @@ pub(super) fn seam_class<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
 ) -> Result<geom_brep::DihedralClass, BooleanError> {
     let faces = [surf1, surf2].map(geom_brep::SeamFace::Analytic);
-    let reach = geom_brep::ExtentBall::of_sphere(witness, reach).lever();
+    let reach = geom_core::test_support::fixture_lever(reach);
     seam_reading(faces, witness, reach, band).map_err(|refusal| match refusal {
         geom_brep::SeamEscalation::Lever(e) => {
             let (reading, diag) = DihedralReading::of_lever(e);
@@ -3289,7 +3289,7 @@ pub(super) fn seam_must_carry<T: Decide>(
     reach: T,
     band: Band,
 ) -> Result<SeamReading, SeamRefusal> {
-    let reach = geom_brep::ExtentBall::of_sphere(carrier.eval(t0), reach).lever();
+    let reach = geom_core::test_support::fixture_lever(reach);
     must_carry_reading(surf1, surf2, carrier, t0, t1, reach, band)
 }
 
@@ -9981,7 +9981,7 @@ mod tests {
                     &arc,
                     span.0,
                     span.1,
-                    geom_brep::ExtentBall::of_sphere(arc.eval(span.0), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band()
                 ),
                 geom_brep::MustCarryVerdict::Mixed(geom_brep::MixedStations {
@@ -10020,7 +10020,7 @@ mod tests {
     #[test]
     fn an_in_band_wedge_behind_a_corner_refuses_as_the_seam_wedge() {
         let (torus, bitangent, arc) = villarceau();
-        let extent = geom_brep::ExtentBall::of_sphere(arc.eval(0.0), 1.0).lever();
+        let extent = geom_core::test_support::fixture_lever(1.0);
         // The wedge's margin, `sin θ` levered over the folded arm, at
         // the arc's `t`: linear in `t` beside the tangency.
         let wedge = |t: f64| {
@@ -11080,7 +11080,7 @@ mod spline_seam_rows {
         seam_reading(
             [face(sides.plus), face(sides.minus)],
             curve.mid_point(),
-            geom_brep::ExtentBall::of_sphere(curve.mid_point(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         )
     }
@@ -11103,8 +11103,7 @@ mod spline_seam_rows {
             surface(sides.plus),
             surface(sides.minus),
             body.stored_curve(edge).unwrap().mid_point(),
-            geom_brep::ExtentBall::of_sphere(body.stored_curve(edge).unwrap().mid_point(), 1.0)
-                .lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         );
         assert!(

@@ -1255,7 +1255,11 @@ fn corner_arms<T: Decide>(
             // a circle's is an angle levered by its own radius. Anything
             // else falls back to the endpoints' chord, which is what the
             // carrier can say.
-            line @ Curve3::Line(_) => geom_brep::edge_extent_inf(line, t0, t1, (t1 - t0).abs()),
+            Curve3::Line(_) => {
+                // Unsourced lever: a length read off the parameter span, not the edge's end
+                // points; the end points' distance rounds differently.
+                Lever::unsourced((t1 - t0).abs())
+            }
             Curve3::Circle(geom::Circle { radius, .. }) => {
                 // Unsourced lever: the arc's length, an angular span times its radius, is
                 // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.

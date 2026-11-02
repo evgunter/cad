@@ -312,7 +312,10 @@ pub fn implicit_outward_normal<T: Real>(
 /// over it for all four), which is how its readers use it: to meter a
 /// dimensionless residual or a relative curvature as a length at the
 /// chart's own scale (`face_normal`'s on-chart certificate, the
-/// dihedral fold, the contact and SSI jet checks).
+/// dihedral fold, the contact and SSI jet checks). Each value is a
+/// principal radius of curvature at `p` (the torus's along its
+/// meridian), so it is minted as a curvature arm
+/// ([`geom_core::Lever::curvature_radius`]).
 ///
 /// **It is NOT a bound on the curvature on a fat torus.** On a ring
 /// with `R < 2r` the inner equator bends at `1/(R − r)`, harder than

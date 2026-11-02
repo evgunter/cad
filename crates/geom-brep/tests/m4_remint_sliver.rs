@@ -58,7 +58,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band,
         geom_brep::NurbsLane::certified(),
     )

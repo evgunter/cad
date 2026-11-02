@@ -22,13 +22,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::lever::sphere_arm;
 use crate::shared::tol::{band, eps};
 use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
 use geom_brep::intersect::{
     PlaneConeSection, SectionError, plane_cone_section, plane_torus_section, route, route_pose,
 };
+use geom_core::test_support::fixture_lever;
 use geom_core::{Point3, Vec3};
 
 const PI_6: f64 = core::f64::consts::FRAC_PI_6;
@@ -220,7 +220,7 @@ fn a_refused_pose_carries_the_arms_own_grounds() {
     assert!(!posed.implemented);
     assert_ne!(posed.note, kind.note);
     let Err(SectionError::RoutesToGeneralRung { why, .. }) =
-        plane_torus_section(&tilted, &tor, sphere_arm(4.0), band())
+        plane_torus_section(&tilted, &tor, fixture_lever(4.0), band())
     else {
         panic!("the arm refuses this pose");
     };

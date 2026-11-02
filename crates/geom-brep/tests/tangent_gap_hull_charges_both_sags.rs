@@ -59,7 +59,7 @@ fn certify_half_circle(
             p0,
             p1,
             |k| map.get(k).cloned(),
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             geom_brep::NurbsLane::certified(),
         ),

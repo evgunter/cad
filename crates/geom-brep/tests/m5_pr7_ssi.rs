@@ -83,7 +83,6 @@
     clippy::unreachable
 )]
 
-use crate::shared::lever::sphere_arm;
 use crate::shared::surf;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
@@ -97,6 +96,7 @@ use geom_brep::ssi::{
     SsiLimb, SsiOperand, SsiTube,
 };
 use geom_core::spline::KnotVector;
+use geom_core::test_support::fixture_lever;
 use geom_core::test_support::upper;
 use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
@@ -2647,7 +2647,7 @@ fn a_degenerate_chart_refuses_by_axis_at_both_doors() {
             carrier.knot_values().domain(),
             &cutting_plane(),
             &wall,
-            sphere_arm(1.0),
+            fixture_lever(1.0),
             band(),
         ) {
             Err(geom_brep::PlaneNurbsRefusal::ChartSpeed(got)) => {

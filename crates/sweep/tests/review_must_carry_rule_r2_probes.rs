@@ -371,11 +371,8 @@ fn varying_triple() -> (
         Vec3::new(1.0, 0.0, 0.0),
     );
     let b = band();
-    let extent = geom_brep::ExtentBall::of_sphere(
-        Point3::origin(),
-        (2.0 * (b.zero() * b.escalate()).sqrt()).sqrt(),
-    )
-    .lever();
+    let extent =
+        geom_core::test_support::fixture_lever((2.0 * (b.zero() * b.escalate()).sqrt()).sqrt());
     // Walked from the pole end, so the big curvatures come first.
     (
         sphere,

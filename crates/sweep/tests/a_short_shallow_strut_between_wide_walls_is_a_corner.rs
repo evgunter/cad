@@ -100,7 +100,7 @@ fn a_short_shallow_strut_between_wide_walls_rests_as_their_intersection() {
             &sf,
             &sg,
             mid,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), h).lever(),
+            geom_core::test_support::fixture_lever(h),
             band
         ),
         Ok(DihedralClass::Smooth),

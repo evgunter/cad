@@ -164,8 +164,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         let s2 = body.get_surface(s2).expect("a described edge's surface");
         let carrier = c.carrier();
         let (t0, t1) = c.params();
-        let chord = carrier.eval(t0).distance(carrier.eval(t1));
-        let extent = edge_extent_inf(carrier, t0, t1, chord);
+        let extent = edge_extent_inf(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
         let in_lane = tangent_certificate_lane(carrier, s1, s2);
         let stations = (1..CERT_SAMPLES - 1)
             .map(|i| {
@@ -761,12 +760,15 @@ fn the_rule_reads_every_corpus_contact_the_same_in_both_orders_at_interval() {
             });
             let carrier = c.carrier().map_scalar(Interval::from_f64);
             let (t0, t1) = c.params();
-            let chord = c.carrier().eval(t0).distance(c.carrier().eval(t1));
-            let extent = geom_brep::ExtentBall::of_sphere(
-                geom_core::Point3::origin(),
-                Interval::from_f64(edge_extent_inf(c.carrier(), t0, t1, chord).length()),
-            )
-            .lever();
+            let extent = geom_core::test_support::fixture_lever(Interval::from_f64(
+                edge_extent_inf(
+                    c.carrier(),
+                    t0,
+                    t1,
+                    (c.carrier().eval(t0), c.carrier().eval(t1)),
+                )
+                .length(),
+            ));
             let (t0, t1) = (Interval::from_f64(t0), Interval::from_f64(t1));
             let ab = must_carry_over_edge(&a, &b, &carrier, t0, t1, extent, band);
             let ba = must_carry_over_edge(&b, &a, &carrier, t0, t1, extent, band);

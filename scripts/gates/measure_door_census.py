@@ -8,7 +8,7 @@ all spell the name once, so none of them is a way around the count. The
 names' own declarations (`topo::test_support`'s `pub use … as NAME;`)
 are not references.
 
-    measure_door_census.py BASELINE NAME... [--reasons] [--marker=TEXT]
+    measure_door_census.py BASELINE NAME... [--reasons] [--marker=TEXT] [--per-file]
 
 Prints `ROSE key: was -> now` / `FELL key: was -> now` per key that
 moved, then `TOTAL n`. With `--reasons`, also prints `UNREASONED
@@ -27,6 +27,7 @@ import sys
 
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
 reasons = '--reasons' in sys.argv
+per_file = '--per-file' in sys.argv
 marker = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--marker=')),
               '// Raw door:')
 baseline, names = args[0], args[1:]
@@ -43,6 +44,8 @@ with open(baseline, encoding='utf-8') as fh:
 
 
 def key_of(path):
+    if per_file:
+        return path
     parts = path.split('/')
     if parts[0] in ('crates', 'demos') and len(parts) > 2:
         return '/'.join(parts[:2])

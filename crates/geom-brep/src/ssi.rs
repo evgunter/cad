@@ -3950,7 +3950,7 @@ mod ending_tests {
             (0.5, 1.0, PointLever::Extent),
             (0.0, 1.0, PointLever::Extent),
         ] {
-            let metre = crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever();
+            let metre = geom_core::test_support::fixture_lever(1.0);
             let (got, reach) = point_arm(kappa, metre);
             assert_eq!(
                 (got.length(), PointLever::of(reach)),
@@ -4017,7 +4017,7 @@ mod ending_tests {
             rows.push(("sphere", sphere(r), 1.0 / r));
             rows.push(("cylinder", cylinder(r), 1.0 / r));
         }
-        let reach = |e: f64| crate::ExtentBall::of_sphere(o, e).lever();
+        let reach = |e: f64| geom_core::test_support::fixture_lever(e);
         for (kind, s, kappa) in rows {
             let (point, _) = point_arm(kappa, reach(e));
             let point = point.length();

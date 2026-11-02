@@ -762,7 +762,7 @@ pub fn rest_locus<T: Decide>(
     // The ball about the edge's middle at its reach from there encloses
     // it, and is no larger than the edge's own measure from that point.
     let mid = carrier.mid_point(t0, t1);
-    let edge = ExtentBall::about(mid, geom_brep::edge_reach_from(carrier, t0, t1, mid));
+    let edge = ExtentBall::of_edge_from(carrier, (t0, t1), mid);
     let parts: Vec<_> = core::iter::once(edge)
         .chain(on_a.iter().chain(&on_b).map(|&p| ExtentBall::point(p)))
         .collect();
@@ -873,8 +873,8 @@ mod extent_rows {
             .unwrap(),
         ));
         let mid = arc.mid_point(0.0, 1.0);
-        let chord = arc.eval(0.0).distance(arc.eval(1.0));
-        let below = geom_brep::edge_extent_inf(&arc, 0.0, 1.0, chord).length();
+        let below =
+            geom_brep::edge_extent_inf(&arc, 0.0, 1.0, (arc.eval(0.0), arc.eval(1.0))).length();
         let reach = geom_brep::edge_reach_from(&arc, 0.0, 1.0, mid).length();
         let theta = 0.45 * band.zero() / below;
         assert!(

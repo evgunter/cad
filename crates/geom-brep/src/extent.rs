@@ -74,8 +74,9 @@ use geom_core::{Lever, Point3, Real, Vec3, is_finite_length};
 /// **The farthest a spline carrier reaches from `from`**: the largest
 /// distance from `from` to a point of its control net. With positive
 /// weights the carrier lies in the net's convex hull, so no point of it
-/// is farther.
-pub fn control_net_reach<T: Real>(net: &[Point3<T>], from: Point3<T>) -> T {
+/// is farther. Read through [`ExtentBall::of_control_net_from`] and
+/// [`ExtentBall::of_control_net`].
+fn control_net_reach<T: Real>(net: &[Point3<T>], from: Point3<T>) -> T {
     net.iter()
         .fold(T::zero(), |far, &q| far.max((q - from).norm()))
 }
@@ -83,7 +84,9 @@ pub fn control_net_reach<T: Real>(net: &[Point3<T>], from: Point3<T>) -> T {
 /// **The farthest of the consumed `points` from `at`**: the largest
 /// `|p − at|`, read as the root of the largest square (`norm_squared`
 /// squares each coordinate, which an enclosure never reads below zero).
-/// Zero for no points.
+/// Zero for no points. The same supremum as [`control_net_reach`],
+/// rounded differently (the root of the largest square, not the largest
+/// root): each keeps the spelling its readers had, so neither moves.
 pub fn points_lever_from<T: Real>(
     at: Point3<T>,
     points: impl IntoIterator<Item = Point3<T>>,
@@ -108,14 +111,6 @@ pub fn polygon_half_perimeter<T: Real>(points: &[Point3<T>]) -> Lever<T> {
         sum + (points[(i + 1) % points.len()] - p).norm()
     });
     Lever::of_consumed_extent(perimeter * T::from_f64(0.5))
-}
-
-/// **How far a circle arc reaches from its start**: its farthest point
-/// from there, `2·r·sin(min(Δt/2, π/2))`: the far end, or past a half
-/// turn the point opposite, so a closed arc reads its diameter.
-pub fn circle_arc_lever_from_start<T: Real>(radius: T, (t0, t1): (T, T)) -> Lever<T> {
-    let half = ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
-    Lever::of_consumed_extent(radius * T::from_f64(2.0) * half.sin())
 }
 
 /// A closed ball `|x − center| ≤ radius` enclosing a consumed region
@@ -228,7 +223,9 @@ impl<T: Real> ExtentBall<T> {
     /// computed `f64` corners (a face walk's hulls): its centre, out to
     /// its half-diagonal, entering as computed values.
     #[must_use]
-    pub fn of_overlap(a: ([f64; 3], [f64; 3]), b: ([f64; 3], [f64; 3])) -> Self {
+    pub fn of_overlap(a: &bvh::Aabb, b: &bvh::Aabb) -> Self {
+        let corners = |x: &bvh::Aabb| ([x.min_x, x.min_y, x.min_z], [x.max_x, x.max_y, x.max_z]);
+        let (a, b) = (corners(a), corners(b));
         let lo: [f64; 3] = core::array::from_fn(|i| a.0[i].max(b.0[i]));
         let hi: [f64; 3] = core::array::from_fn(|i| a.1[i].min(b.1[i]));
         let mid: [f64; 3] = core::array::from_fn(|i| (lo[i] + hi[i]) * 0.5);
@@ -288,12 +285,44 @@ impl<T: Real> ExtentBall<T> {
         Lever::of_consumed_extent((hi - lo).norm())
     }
 
-    /// **The ball about `at` out to `lever`**, a read of the consumed
-    /// extent taken from `at` itself: every point that read covers lies
-    /// in it.
+    /// **The ball about an edge's start `at` holding all of it**, read
+    /// per carrier: a line's chord to its far end `end`; a circle arc's
+    /// farthest point from its start, its far end or the point opposite,
+    /// so a closed edge, whose ends are one vertex, reads its diameter; a
+    /// spline's control net from `at` (its hull holds a positive-weight
+    /// carrier); any other carrier's box `boxed()`, `None` where it has
+    /// none.
     #[must_use]
-    pub fn about(at: Point3<T>, lever: Lever<T>) -> Self {
-        Self::new(at, lever.length())
+    pub fn of_edge_start(
+        carrier: &Curve3<T>,
+        (t0, t1): (T, T),
+        (at, end): (Point3<T>, Point3<T>),
+        boxed: impl FnOnce() -> Option<(Point3<T>, Point3<T>)>,
+    ) -> Option<Self> {
+        let radius = match carrier {
+            Curve3::Line(_) => (end - at).norm(),
+            Curve3::Circle(geom::Circle { radius, .. }) => {
+                let half =
+                    ((t1 - t0) * T::from_f64(0.5)).min(T::from_f64(core::f64::consts::FRAC_PI_2));
+                *radius * T::from_f64(2.0) * half.sin()
+            }
+            Curve3::Nurbs(n) => control_net_reach(n.control(), at),
+            Curve3::Ellipse(_) | Curve3::Spiric { .. } => {
+                let (lo, hi) = boxed()?;
+                Self::of_box(lo, hi).reach_from(at)
+            }
+        };
+        Some(Self::new(at, radius))
+    }
+
+    /// **The ball about `at` holding an edge**: the edge's carrier over
+    /// `[t0, t1]`, out to its reach from `at` ([`edge_reach_from`]).
+    #[must_use]
+    pub fn of_edge_from(carrier: &Curve3<T>, (t0, t1): (T, T), at: Point3<T>) -> Self
+    where
+        T: SpanLocate,
+    {
+        Self::new(at, edge_reach(carrier, t0, t1, at))
     }
 
     /// **The ball holding a ring torus** `(center, R, r)`: every point of
@@ -306,17 +335,17 @@ impl<T: Real> ExtentBall<T> {
     }
 
     /// **The ball a sphere** `(center, radius)` **is**: its centre, out to
-    /// the radius's magnitude.
+    /// its radius, which a sphere's carrier stores positive.
     #[must_use]
     pub fn of_sphere(center: Point3<T>, radius: T) -> Self {
-        Self::new(center, radius.abs())
+        Self::new(center, radius)
     }
 
-    /// **The ball holding a circle** `(center, radius)`: its centre, out
-    /// to the radius's magnitude.
+    /// **The ball holding a circle** `(center, radius)`: the ball of the
+    /// sphere it is a great circle of.
     #[must_use]
     pub fn of_circle(center: Point3<T>, radius: T) -> Self {
-        Self::new(center, radius.abs())
+        Self::of_sphere(center, radius)
     }
 
     /// **The ball holding a spiric oval**: the torus `(center, axis, R,
@@ -587,8 +616,8 @@ const SPEED_MARGIN: f64 = 1e-6;
 /// every sign reads at both bounds and acts only where they agree
 /// ([`LeverBounds`]; from a point of the edge, [`edge_reach_bounds`]).
 ///
-/// Per carrier kind, the max of the chord `|end − start|` (a distance
-/// between two of the edge's points) and:
+/// Per carrier kind, the max of the chord `|end − start|` between the
+/// edge's two end points, which the caller hands as points, and:
 ///
 /// - **Line** — nothing more: the chord is `D`.
 /// - **Circle** (radius r, span Δt = t₁ − t₀): `|r|·(1 − cos(Δt/2))`,
@@ -620,8 +649,13 @@ const SPEED_MARGIN: f64 = 1e-6;
 /// the ends.
 ///
 /// Total and comparison-free (`max` is the [`Real`] lattice operation).
-pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> Lever<T> {
-    Lever::of_consumed_extent(extent_inf(carrier, t0, t1, chord))
+pub fn edge_extent_inf<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    (start, end): (Point3<T>, Point3<T>),
+) -> Lever<T> {
+    Lever::of_consumed_extent(extent_inf(carrier, t0, t1, start.distance(end)))
 }
 
 fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
@@ -690,8 +724,13 @@ fn extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
 /// operations, which propagate poison: a spline whose speed bound or
 /// control net is poison reads poison here, and the reading levered at
 /// it escalates).
-pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> Lever<T> {
-    Lever::of_consumed_extent(extent_sup(carrier, t0, t1, chord))
+pub fn edge_extent_sup<T: SpanLocate>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    (start, end): (Point3<T>, Point3<T>),
+) -> Lever<T> {
+    Lever::of_consumed_extent(extent_sup(carrier, t0, t1, start.distance(end)))
 }
 
 fn extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
@@ -915,7 +954,8 @@ pub enum Reach<T: Real> {
     /// callers hand it, read at the foot of `at`
     /// ([`Self::hinge_lever`], [`Self::turn_lever`]); the plane×cone
     /// callers hand it, read at the apex ([`Self::lever_from`],
-    /// [`Self::range_along`]).
+    /// [`Self::range_along`]). Built only by [`Self::of_face`].
+    #[non_exhaustive]
     Face {
         /// The point the caller measured from.
         at: Point3<T>,
@@ -924,7 +964,7 @@ pub enum Reach<T: Real> {
         /// How far the face reaches from `at` along the axis.
         above: T,
         /// The face's farthest distance from `at`.
-        across: T,
+        across: Lever<T>,
     },
     /// An edge's carrier over `[t0, t1]`, read at the axis point whose
     /// lever to it is least ([`Self::foot_on`]) and levered by the
@@ -950,6 +990,20 @@ impl<T: Real> Reach<T> {
         Self::Measured {
             at,
             lever: r1.max(r2),
+        }
+    }
+
+    /// **A face measured from `at`** ([`Self::Face`]): its window along
+    /// the surface's axis either way from `at`, `below` and `above` (the
+    /// axial positions of its boundary, as its reader reads them), and
+    /// its farthest distance from `at`, a read of its boundary.
+    #[must_use]
+    pub fn of_face(at: Point3<T>, (below, above): (T, T), across: Lever<T>) -> Self {
+        Self::Face {
+            at,
+            below,
+            above,
+            across,
         }
     }
 
@@ -1000,7 +1054,7 @@ impl<T: Real> Reach<T> {
         match self {
             Self::Ball(ball) => ball.reach_from(pivot),
             Self::Measured { lever, .. } => *lever,
-            Self::Face { across, .. } => *across,
+            Self::Face { across, .. } => across.length(),
             Self::Span { carrier, .. } => match carrier {
                 Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
                     Some(k) => (k.frame().center - pivot).norm() + k.speed_hi(),
@@ -1161,7 +1215,7 @@ impl<T: Real> Reach<T> {
                 let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
                 let along_normal =
                     (off_perp.dot(m).abs() + off_axis * T::from_f64(8.0 * f64::EPSILON)) / len;
-                (*across + off_axis.min(along_normal)) * c.abs() / (T::one() + cos)
+                (across.length() + off_axis.min(along_normal)) * c.abs() / (T::one() + cos)
             }
             Self::Ball(_) | Self::Measured { .. } | Self::Span { .. } => T::zero(),
         })
@@ -1751,12 +1805,7 @@ mod tests {
     #[test]
     fn a_faces_turn_lever_covers_its_reading_points_offset_from_the_hinge() {
         let at = Point3::new(1.0, 0.0, 0.0);
-        let face = Reach::Face {
-            at,
-            below: 0.0,
-            above: 0.0,
-            across: 0.0,
-        };
+        let face = Reach::of_face(at, (0.0, 0.0), ExtentBall::point(Point3::origin()).lever());
         let a = Vec3::new(0.0, 0.0, 1.0);
         let tilts = [1e-4_f64, 0.3, 1.0, core::f64::consts::FRAC_PI_2].map(f64::sin_cos);
         for (c, cos) in tilts.into_iter().chain([(1.0, 0.0)]) {
@@ -1780,12 +1829,11 @@ mod tests {
         let cos = (1.0 - c * c).max(0.0).sqrt();
         assert!(cos > 0.0, "the witness's `c` rounds under 1");
         let off = tilted.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
-        let leaning = Reach::Face {
-            at: Point3::origin() + off,
-            below: 0.0,
-            above: 0.0,
-            across: 0.0,
-        };
+        let leaning = Reach::of_face(
+            Point3::origin() + off,
+            (0.0, 0.0),
+            ExtentBall::point(Point3::origin()).lever(),
+        );
         let lever = leaning
             .turn_lever(Point3::origin(), (tilted, tilted), c, cos)
             .length();

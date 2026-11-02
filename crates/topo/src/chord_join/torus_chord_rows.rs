@@ -42,7 +42,7 @@ fn loops(
         band(),
         cut,
         wall,
-        SectionReach::Torus(geom_brep::ExtentBall::of_sphere(Point3::origin(), lever).lever()),
+        SectionReach::Torus(geom_core::test_support::fixture_lever(lever)),
     ) {
         Ok(SectionCase::Loops { loops, split }) => (loops, split),
         Ok(_) => panic!("a two-loop section"),
@@ -205,7 +205,7 @@ fn the_minted_circles_stand_within_the_band_at_the_thinnest_reach() {
             b,
             cut,
             wall,
-            SectionReach::Torus(geom_brep::ExtentBall::of_sphere(Point3::origin(), reach).lever()),
+            SectionReach::Torus(geom_core::test_support::fixture_lever(reach)),
         )
     };
     for (big_r, r) in [(1.1, 0.052), (2.0, 0.5)] {
@@ -283,7 +283,7 @@ fn a_chord_on_an_oval_is_an_arc_on_its_own_parameter() {
     let geom_brep::PlaneTorusSection::SpiricOvals { s1, s2 } = geom_brep::plane_torus_section(
         &cut,
         &d,
-        geom_brep::ExtentBall::of_sphere(Point3::origin(), 3.0).lever(),
+        geom_core::test_support::fixture_lever(3.0),
         band(),
     )
     .unwrap() else {

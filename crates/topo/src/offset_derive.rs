@@ -649,8 +649,7 @@ pub(crate) fn section_closed<T: Decide>(
     band: Band,
 ) -> Result<Result<Curve3<T>, SectionVerdict>, Indeterminate> {
     use geom_brep::intersect as c5;
-    let chord = old.eval(span.0).distance(old.eval(span.1));
-    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, chord);
+    let sup = geom_brep::edge_extent_sup(old, span.0, span.1, (old.eval(span.0), old.eval(span.1)));
     let closed = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(source)
         | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => Err(source),
@@ -1520,7 +1519,7 @@ mod square {
                 [(ka, &moved), (kb, &held)],
                 &carrier,
                 (t0, t1),
-                geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 None,
                 band,
             )
@@ -1590,7 +1589,7 @@ mod regions {
             },
             &old,
             span,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         ) {
             Ok(Ok(c)) => c,
@@ -1623,7 +1622,7 @@ mod regions {
             },
             &old,
             (-0.1, 0.1),
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         );
         assert!(
@@ -1682,7 +1681,7 @@ mod rational_carriers {
             },
             &old,
             (0.0, 1.0),
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         ) {
             Ok(Ok(c)) => c,
@@ -1720,7 +1719,7 @@ mod rational_carriers {
             &plane,
             &arc,
             0.6,
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
         ) {
             Ok(SplineRoot::At(t)) => {

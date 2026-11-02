@@ -183,8 +183,7 @@ pub(super) fn overlap_ball<T: geom_core::Real>(
     a: &bvh::Aabb,
     b: &bvh::Aabb,
 ) -> geom_brep::ExtentBall<T> {
-    let corners = |x: &bvh::Aabb| ([x.min_x, x.min_y, x.min_z], [x.max_x, x.max_y, x.max_z]);
-    geom_brep::ExtentBall::of_overlap(corners(a), corners(b))
+    geom_brep::ExtentBall::of_overlap(a, b)
 }
 
 /// **The cross pairs whose face boxes overlap**: each face of `a` against

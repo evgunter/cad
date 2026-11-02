@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::lever::sphere_arm;
+use geom_core::test_support::fixture_lever;
 use std::sync::Arc;
 
 use crate::shared::fixture::quarter_cylinder_wall;
@@ -244,12 +244,12 @@ type PlaneRow = (
 /// differ and only the verdict is compared.
 fn plane_rows_meet_their_twins(rows: Vec<PlaneRow>) {
     for (name, carrier, params, plane, wall, want) in rows {
-        let got = plane_nurbs_limbs(&carrier, params, &plane, &wall, sphere_arm(1.0), band());
+        let got = plane_nurbs_limbs(&carrier, params, &plane, &wall, fixture_lever(1.0), band());
         let (closed, bound) = verdict(name, &got);
         let spline = twin(&carrier, params);
         let (twinned, twin_bound) = verdict(
             name,
-            &plane_nurbs_limbs(&spline, params, &plane, &wall, sphere_arm(1.0), band()),
+            &plane_nurbs_limbs(&spline, params, &plane, &wall, fixture_lever(1.0), band()),
         );
         println!("{name}: {closed:?} on {bound:e} m; its twin {twinned:?} on {twin_bound:e} m");
         for (who, v, b) in [
@@ -365,7 +365,7 @@ fn the_certificate_reads_the_edges_whole_interval() {
         (0.0, 1.0),
         &diagonal_plane(),
         &wall,
-        sphere_arm(1.0),
+        fixture_lever(1.0),
         band(),
     );
     assert!(
@@ -377,7 +377,7 @@ fn the_certificate_reads_the_edges_whole_interval() {
         (0.0, 0.5),
         &diagonal_plane(),
         &wall,
-        sphere_arm(1.0),
+        fixture_lever(1.0),
         band(),
     );
     assert!(half.is_ok(), "its first half is on the wall: {half:?}");
@@ -425,12 +425,12 @@ fn a_closed_form_carrier_between_two_spline_charts_meets_its_twins_verdict() {
         ),
     ];
     for (name, carrier, params, a, b, want) in rows {
-        let got = nurbs_pair_limbs(&carrier, params, &a, &b, sphere_arm(1.0), band());
+        let got = nurbs_pair_limbs(&carrier, params, &a, &b, fixture_lever(1.0), band());
         let (closed, bound) = verdict(name, &got);
         let spline = twin(&carrier, params);
         let (twinned, twin_bound) = verdict(
             name,
-            &nurbs_pair_limbs(&spline, params, &a, &b, sphere_arm(1.0), band()),
+            &nurbs_pair_limbs(&spline, params, &a, &b, fixture_lever(1.0), band()),
         );
         println!("{name}: {closed:?} on {bound:e} m; its twin {twinned:?} on {twin_bound:e} m");
         assert_eq!(
@@ -509,7 +509,14 @@ fn a_carrier_two_epsilon_off_the_wall_between_samples_escalates_at_limb_two() {
     let wall = bumped_wall(2.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
         let (got, frame) = geom_core::k_stats::detached(|| {
-            plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, sphere_arm(1.0), band())
+            plane_nurbs_limbs(
+                &carrier,
+                (0.0, 1.0),
+                &plane,
+                &wall,
+                fixture_lever(1.0),
+                band(),
+            )
         });
         match got {
             Err(PlaneNurbsRefusal::Escalated { limb, cause }) => {
@@ -560,7 +567,14 @@ fn a_carrier_definitely_off_the_wall_at_a_break_refuses_on_its_own_miss() {
     };
     let wall = bumped_wall(100.0 * eps());
     for (name, carrier) in [("line", line.clone()), ("spline", twin(&line, (0.0, 1.0)))] {
-        match plane_nurbs_limbs(&carrier, (0.0, 1.0), &plane, &wall, sphere_arm(1.0), band()) {
+        match plane_nurbs_limbs(
+            &carrier,
+            (0.0, 1.0),
+            &plane,
+            &wall,
+            fixture_lever(1.0),
+            band(),
+        ) {
             Err(PlaneNurbsRefusal::Limb { limb, margin }) => {
                 assert_eq!(
                     limb,
@@ -637,7 +651,7 @@ fn a_plane_side_scallop_refuses_on_the_carriers_own_bound() {
         (0.0, 1.0),
         &plane,
         &slanted_wall(10.0),
-        sphere_arm(1.0),
+        fixture_lever(1.0),
         band(),
     );
     let Err(refusal @ PlaneNurbsRefusal::Limb { limb, .. }) = &got else {
@@ -678,7 +692,14 @@ fn a_carrier_the_door_cannot_enclose_is_refused_by_kind_and_span() {
     };
     let p = |x, y| Point3::new(x, y, 0.0);
     let wall = bilinear([p(1.0, -1.0), p(1.0, 1.0), p(2.0, -1.0), p(2.0, 1.0)]);
-    let got = plane_nurbs_limbs(&spiric, (3.0, 3.3), &plane, &wall, sphere_arm(1.0), band());
+    let got = plane_nurbs_limbs(
+        &spiric,
+        (3.0, 3.3),
+        &plane,
+        &wall,
+        fixture_lever(1.0),
+        band(),
+    );
     let Err(PlaneNurbsRefusal::CarrierEnclosure(CarrierEnclosureRefusal { kind, span })) = got
     else {
         panic!("the door's refusal, typed: {got:?}")
@@ -747,7 +768,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
             ends.0,
             ends.1,
             arena,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            fixture_lever(1.0),
             band(),
             lane,
         )
@@ -774,7 +795,7 @@ fn the_door_certifies_a_closed_form_carrier_on_a_spline_pair() {
         arc.eval(t0),
         arc.eval(t1),
         arena,
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        fixture_lever(1.0),
         band(),
         lane,
     );
@@ -819,7 +840,7 @@ fn a_promoted_line_certifies_where_its_spline_did_on_the_same_image() {
             ends.0,
             ends.1,
             arena,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            fixture_lever(1.0),
             band(),
             lane,
         )
@@ -886,7 +907,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 (0.0, 1.0),
                 &diagonal_plane(),
                 &flat_wall(),
-                sphere_arm(1.0),
+                fixture_lever(1.0),
                 band(),
             ),
             plane_nurbs_limbs(
@@ -894,7 +915,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 lifted((0.0, 1.0)),
                 &diagonal_plane().map_scalar(itv),
                 &flat_wall().map_scalar(itv),
-                sphere_arm(one),
+                fixture_lever(one),
                 band(),
             ),
         ),
@@ -905,7 +926,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 (0.0, 1.0),
                 &flat_wall(),
                 &diagonal_wall(),
-                sphere_arm(1.0),
+                fixture_lever(1.0),
                 band(),
             ),
             nurbs_pair_limbs(
@@ -913,7 +934,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 lifted((0.0, 1.0)),
                 &flat_wall().map_scalar(itv),
                 &diagonal_wall().map_scalar(itv),
-                sphere_arm(one),
+                fixture_lever(one),
                 band(),
             ),
         ),
@@ -924,7 +945,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 short_arc,
                 &horizontal(0.5),
                 &quarter_cylinder_wall(),
-                sphere_arm(1.0),
+                fixture_lever(1.0),
                 band(),
             ),
             plane_nurbs_limbs(
@@ -932,7 +953,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
                 lifted(short_arc),
                 &horizontal(0.5).map_scalar(itv),
                 &quarter_cylinder_wall().map_scalar(itv),
-                sphere_arm(one),
+                fixture_lever(one),
                 band(),
             ),
         ),
@@ -957,7 +978,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
         (0.1, 1.4),
         &horizontal(0.5),
         &quarter_cylinder_wall(),
-        sphere_arm(1.0),
+        fixture_lever(1.0),
         band(),
     );
     let at_itv = plane_nurbs_limbs(
@@ -965,7 +986,7 @@ fn the_closed_forms_reach_the_same_verdict_at_interval() {
         lifted((0.1, 1.4)),
         &horizontal(0.5).map_scalar(itv),
         &quarter_cylinder_wall().map_scalar(itv),
-        sphere_arm(one),
+        fixture_lever(one),
         band(),
     );
     // The tell's label, not only a refusal, is the scalar's to agree on:
@@ -1014,7 +1035,7 @@ fn a_short_arc_past_two_pi_certifies_on_the_same_bound() {
             params,
             &horizontal(0.5),
             &quarter_cylinder_wall(),
-            sphere_arm(1.0),
+            fixture_lever(1.0),
             band(),
         )
         .unwrap_or_else(|e| panic!("{params:?}: the short arc certifies: {e}"))

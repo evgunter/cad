@@ -311,10 +311,9 @@ fn each_kinds_bounds_bracket_the_diameter_and_stay_tight() {
         let (t0, t1) = row.window;
         let c = &row.carrier;
         let (start, end) = (c.eval(t0), c.eval(t1));
-        let chord = start.distance(end);
         let (d, slack, r) = dense(c, row.window);
-        let inf = edge_extent_inf(c, t0, t1, chord).length();
-        let sup = edge_extent_sup(c, t0, t1, chord).length();
+        let inf = edge_extent_inf(c, t0, t1, (start, end)).length();
+        let sup = edge_extent_sup(c, t0, t1, (start, end)).length();
         let reach = edge_reach_from(c, t0, t1, start).length();
         println!(
             "[measured] {}: D {d:.6} (+{slack:.1e}), inf/D {:.6}, sup/D {:.6}, R {r:.6}, reach/R {:.6}",
@@ -418,10 +417,9 @@ fn a_wild_parameterisation_is_bracketed_and_no_more() {
     ] {
         let (t0, t1) = window;
         let start = wild.eval(t0);
-        let chord = start.distance(wild.eval(t1));
         let (d, _, r) = dense(&wild, window);
-        let inf = edge_extent_inf(&wild, t0, t1, chord).length();
-        let sup = edge_extent_sup(&wild, t0, t1, chord).length();
+        let inf = edge_extent_inf(&wild, t0, t1, (start, wild.eval(t1))).length();
+        let sup = edge_extent_sup(&wild, t0, t1, (start, wild.eval(t1))).length();
         let reach = edge_reach_from(&wild, t0, t1, start).length();
         let LeverBounds::Between { below, above } = edge_reach_bounds(&wild, t0, t1, start) else {
             panic!("{window:?}: a spline's reach is known from both sides");

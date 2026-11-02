@@ -4502,7 +4502,7 @@ fn run_checks<T: Decide + geom_core::CertifiedBounds>(
     // The spline lanes lever their transversality and size their
     // uniqueness tube at the edge's own extent, beside the analytic
     // arms' faces' `reach`.
-    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, start.distance(end));
+    let extent = crate::edge_extent_inf(&spec.carrier, t0, t1, (start, end));
     // ---- Intersection, plane × NURBS only (M7-8), over a carrier of
     // any kind: the whole declare-and-check certificate (C2's three
     // limbs, limbs 1–2 reading the carrier through the
@@ -5700,7 +5700,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -5729,7 +5729,7 @@ mod tests {
             q0,
             q1,
             &plookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -5752,7 +5752,7 @@ mod tests {
             a,
             b,
             &empty,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -5775,7 +5775,7 @@ mod tests {
             a,
             b,
             &empty,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -5807,7 +5807,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -5851,7 +5851,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             d2_band(drift),
             NurbsLane::certified(),
         )
@@ -5871,7 +5871,7 @@ mod tests {
             a,
             b,
             &empty,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             d2_band(drift),
             NurbsLane::certified(),
         )
@@ -5962,7 +5962,7 @@ mod tests {
             q0 + off,
             q1 + off,
             &plookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             d2_band(2.5e-10),
             NurbsLane::certified(),
         )
@@ -6231,7 +6231,7 @@ mod tests {
             p,
             p,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6246,7 +6246,7 @@ mod tests {
                 p,
                 p,
                 |_| None,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6264,7 +6264,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6274,7 +6274,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6291,7 +6291,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6313,7 +6313,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6337,7 +6337,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6401,7 +6401,7 @@ mod tests {
             p0,
             p1,
             &src_lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6443,7 +6443,7 @@ mod tests {
                 p0,
                 p1,
                 &dst_lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified(),
             )
@@ -6460,7 +6460,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6506,7 +6506,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6524,7 +6524,7 @@ mod tests {
             Point3::new(0.0, 0.5, 0.0),
             Point3::new(1.0, 0.5, 0.0),
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6552,7 +6552,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6581,7 +6581,7 @@ mod tests {
                 p0,
                 p1,
                 &lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6601,7 +6601,7 @@ mod tests {
                 p0,
                 p1,
                 &lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6645,7 +6645,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6688,7 +6688,7 @@ mod tests {
                 p0,
                 p1,
                 &lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6730,7 +6730,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6745,7 +6745,7 @@ mod tests {
             q0,
             q1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6772,7 +6772,7 @@ mod tests {
                 o0,
                 o1,
                 &lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6794,7 +6794,7 @@ mod tests {
                 p0,
                 p1,
                 &plookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6837,7 +6837,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6855,7 +6855,7 @@ mod tests {
                     q0,
                     q1,
                     &lookup,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band(),
                     NurbsLane::certified()
                 )
@@ -6875,7 +6875,7 @@ mod tests {
                 p0,
                 p1,
                 &lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6890,7 +6890,7 @@ mod tests {
                 p0,
                 p1,
                 &lookup,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6912,7 +6912,7 @@ mod tests {
                 p0,
                 p1,
                 |_| None,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band(),
                 NurbsLane::certified()
             )
@@ -6927,7 +6927,7 @@ mod tests {
             nan,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -6962,7 +6962,7 @@ mod tests {
             p,
             p,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -7007,7 +7007,7 @@ mod tests {
             p0,
             p1,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -7489,7 +7489,7 @@ mod tests {
             start,
             end,
             |_| None,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             coarse,
             NurbsLane::certified(),
         )
@@ -7504,7 +7504,7 @@ mod tests {
                     start,
                     end,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     finer,
                     NurbsLane::certified(),
                 )
@@ -7532,7 +7532,7 @@ mod tests {
                     start,
                     end,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     finer,
                     NurbsLane::certified(),
                     None,
@@ -7579,7 +7579,7 @@ mod tests {
                     start,
                     end,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
                 )
@@ -7593,7 +7593,7 @@ mod tests {
                     start,
                     end,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     lane,
                     None,
@@ -7741,7 +7741,7 @@ mod tests {
                 a,
                 b,
                 |_| None,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 NurbsLane::certified(),
             )
@@ -7758,7 +7758,7 @@ mod tests {
                     a,
                     b,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
                 )
@@ -7775,7 +7775,7 @@ mod tests {
                     a,
                     b,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     lane,
                     None,
@@ -7797,7 +7797,7 @@ mod tests {
                     a,
                     b,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
                 )
@@ -7811,7 +7811,7 @@ mod tests {
                     a,
                     b,
                     |_| None,
-                    crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                    geom_core::test_support::fixture_lever(1.0),
                     band,
                     NurbsLane::certified(),
                     None,
@@ -7884,7 +7884,7 @@ mod tests {
                 p,
                 q,
                 |_| None,
-                crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+                geom_core::test_support::fixture_lever(1.0),
                 band,
                 NurbsLane::certified(),
             )
@@ -9098,7 +9098,7 @@ mod tests {
             p0,
             p1,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             band(),
             NurbsLane::certified(),
         )
@@ -9393,7 +9393,7 @@ mod tests {
             on,
             end,
             &lookup,
-            crate::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             b,
             NurbsLane::certified(),
         )

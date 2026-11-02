@@ -198,7 +198,7 @@ fn an_arc_rim_on_its_pair_mints_its_iso_arc_and_certifies_through_it() {
             start,
             end,
             surfaces,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol()).unwrap(),
             geom_brep::NurbsLane::certified(),
         )

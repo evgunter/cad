@@ -69,7 +69,7 @@ fn wall_reach() -> f64 {
 
 /// A cone face's reach as a length measured from `at`.
 fn measured(at: Point3<f64>, lever: f64) -> geom_brep::Reach<f64> {
-    geom_brep::Reach::of_frame(at, (lever, lever))
+    geom_brep::Reach::fixture(at, lever)
 }
 
 /// The frame both ways round, levered at the frustum face's reach
@@ -404,9 +404,10 @@ fn a_frustum_far_from_its_apex_is_levered_at_its_own_reach() {
     };
     let probe = plane([0.5, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0));
     let (at, extent) = reading(&probe, &cone);
-    let FrameExtent::Cone(geom_brep::Reach::Face { across: reach, .. }) = extent else {
+    let FrameExtent::Cone(geom_brep::Reach::Face { across, .. }) = extent else {
         panic!("a plane×cone pair is levered at the cone face's reach, got {extent:?}");
     };
+    let reach = across.length();
     let half = (Point3::new(1.01, 1.0, 0.0) - Point3::new(1.0, 0.0, 0.0)).norm() / 2.0;
     assert!(
         (reach - half).abs() < 1e-12,
@@ -520,8 +521,8 @@ fn a_frame_handed_another_pairs_extent_is_a_desync() {
         FrameExtent::Wall {
             below: 1.0,
             above: 1.0,
-            across: 1.0,
-            round: 1.0,
+            across: geom_core::test_support::fixture_lever(1.0),
+            round: geom_core::test_support::fixture_lever(1.0),
         },
     ] {
         let got = one_loop(pair_section_frame_at(

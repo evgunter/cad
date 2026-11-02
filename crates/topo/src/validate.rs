@@ -13555,7 +13555,7 @@ mod tests {
             ("a near-tangent wedge", &floor, &tilted, 1.0, Reads::Angle),
         ];
         for (row, s1, s2, extent, want) in rows {
-            let extent = geom_brep::ExtentBall::of_sphere(Point3::origin(), extent).lever();
+            let extent = geom_core::test_support::fixture_lever(extent);
             let escalation = geom_brep::classify_dihedral(s1, s2, Point3::origin(), extent, band)
                 .expect_err("each pose escalates");
             let finding = dihedral_finding(EdgeKey::default(), escalation);
@@ -14987,7 +14987,7 @@ mod tests {
             s,
             t,
             |_| None,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15024,7 +15024,7 @@ mod tests {
             s,
             t,
             |_| None,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -15771,7 +15771,7 @@ mod tests {
             start,
             end,
             surfaces,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )
@@ -16240,7 +16240,7 @@ mod tests {
             start,
             end,
             |_| None,
-            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             Band::linear(tol).unwrap(),
             geom_brep::NurbsLane::certified(),
         )

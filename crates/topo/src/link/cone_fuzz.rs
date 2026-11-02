@@ -429,7 +429,7 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     v(s.normal),
                     true,
                 )),
-                arm: crate::bound_side::lever(s.arm),
+                arm: geom_core::test_support::fixture_lever(s.arm),
                 bend: crate::bound_side::FaceBend::Plane,
             }
         })
@@ -662,7 +662,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: BoundSupport::straight_bisector(crate::bound_side::lever(1.0)),
+        start_reach: BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(1.0)),
         end_reach: BoundSupport::Chord {
             base: o,
             far: o + d,
@@ -672,7 +672,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             Vec3::new(1.0, 0.0, 0.0),
             true,
         )),
-        arm: crate::bound_side::lever(1.0),
+        arm: geom_core::test_support::fixture_lever(1.0),
         bend: crate::bound_side::FaceBend::Plane,
     }
 }
@@ -1472,10 +1472,10 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, BoundSupport<f64>
             far: o + v,
         },
         Some(Bounds::Conic) => BoundSupport::Conic {
-            extent: crate::bound_side::lever(v.norm()),
+            extent: geom_core::test_support::fixture_lever(v.norm()),
             bend: flat_bend(),
         },
-        None => BoundSupport::straight_bisector(crate::bound_side::lever(v.norm())),
+        None => BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(v.norm())),
     };
     (v.normalize(), reach)
 }
@@ -1521,7 +1521,7 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                 at_vertex: crate::boolean::sectors::BoolFace::Tangent(OutwardNormal::from_chart(
                     normal, true,
                 )),
-                arm: crate::bound_side::lever(s.arm),
+                arm: geom_core::test_support::fixture_lever(s.arm),
                 bend: crate::bound_side::FaceBend::Plane,
             });
             face.push(Sector {
@@ -2301,8 +2301,10 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = BoundSupport::straight_bisector(crate::bound_side::lever(len));
-        secs[k + 1].end_reach = BoundSupport::straight_bisector(crate::bound_side::lever(len));
+        secs[k].start_reach =
+            BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(len));
+        secs[k + 1].end_reach =
+            BoundSupport::straight_bisector(geom_core::test_support::fixture_lever(len));
     }
     Some(LineMaterial {
         secs,

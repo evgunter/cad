@@ -392,9 +392,7 @@ pub(crate) fn sector_shape<T: Decide>(
     let n = normal.vec();
     let reflex_margin = Margin::levered(
         unit_next.cross(unit_own).dot(n),
-        // Unsourced lever: the sector's arm, the shorter bound's norm, a unit tangent scaled to its
-        // edge_extent_inf (or a line's chord); the edges' Lever::min would round differently.
-        geom_core::Lever::unsourced(arm),
+        crate::boolean::sectors::metering_arm(arm),
     );
     let bisector = match decide(SECTOR_REFLEX, reflex_margin, band) {
         Ok(Sign::Positive) => None,
@@ -414,10 +412,7 @@ pub(crate) fn sector_shape<T: Decide>(
             // scope as above, not for every `T: Real` unconditionally.
             let straight_margin = Margin::levered(
                 unit_own.dot(unit_next),
-                // Unsourced lever: the sector's arm, the shorter bound's norm, a unit tangent
-                // scaled to its edge_extent_inf (or a line's chord); the edges' Lever::min would
-                // round differently.
-                geom_core::Lever::unsourced(arm),
+                crate::boolean::sectors::metering_arm(arm),
             );
             let rung = SectorRung::Straight { full_circle };
             if full_circle {
@@ -755,10 +750,7 @@ fn apex_shape<T: Decide>(
     let chord = |angle: T| {
         Margin::levered(
             (angle * T::from_f64(0.5)).sin() * sin_a * T::from_f64(2.0),
-            // Unsourced lever: the sector's arm, the shorter bound's norm, a unit tangent scaled to
-            // its edge_extent_inf (or a line's chord); the edges' Lever::min would round
-            // differently.
-            geom_core::Lever::unsourced(arm),
+            crate::boolean::sectors::metering_arm(arm),
         )
     };
     let window = if full_circle {
@@ -773,10 +765,7 @@ fn apex_shape<T: Decide>(
         SECTOR_APEX_TILT,
         Margin::levered(
             n_r.norm() * sin_a,
-            // Unsourced lever: the sector's arm, the shorter bound's norm, a unit tangent scaled to
-            // its edge_extent_inf (or a line's chord); the edges' Lever::min would round
-            // differently.
-            geom_core::Lever::unsourced(arm),
+            crate::boolean::sectors::metering_arm(arm),
         ),
         band,
     )

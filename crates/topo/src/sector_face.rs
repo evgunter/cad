@@ -1096,8 +1096,7 @@ mod review_5802 {
         );
         for uv in [(0.5, 0.0), (0.5, 0.5)] {
             let read = geom_brep::regular_jet(&kinked, uv, 1.0, band()).and_then(|jet| {
-                let reach =
-                    geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever();
+                let reach = geom_core::test_support::fixture_lever(1.0);
                 geom_brep::chart_normal_at(&kinked, true, &jet, uv, reach, band())
             });
             assert!(read.is_err(), "{uv:?}: {:?}", read.map(|(n, _)| n.vec()));

@@ -45,7 +45,7 @@ fn certify_line(
         p0,
         p1,
         |k| map.get(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     )
@@ -149,7 +149,7 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
         p0,
         p1,
         |k| map.get(k).cloned(),
-        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band(),
         geom_brep::NurbsLane::certified(),
     );

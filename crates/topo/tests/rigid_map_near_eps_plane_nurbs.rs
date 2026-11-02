@@ -116,7 +116,7 @@ fn hull_at(delta: f64, band: Band) -> geom_brep::PlaneNurbsLimbs<f64> {
         (arc(1.0 + delta, false)).knot_values().domain(),
         &plane(),
         &wall(),
-        geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+        geom_core::test_support::fixture_lever(1.0),
         band,
     )
     .unwrap_or_else(|e| panic!("δ = {delta:e}: the seated edge certifies: {e}"))
@@ -319,7 +319,7 @@ fn the_certificate_re_derives_within_rounding_under_a_rotation() {
                 .domain(),
             &mapped_plane,
             &wall().map_points(|p| map.transform_point(p)),
-            geom_brep::ExtentBall::of_sphere(Point3::origin(), 1.0).lever(),
+            geom_core::test_support::fixture_lever(1.0),
             loose,
         )
         .unwrap_or_else(|e| panic!("{name}: the image certifies at the loose band: {e}"));

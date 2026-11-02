@@ -325,8 +325,7 @@ fn tangent_table<T: Decide>(
     // parallel reading's Zero is what verifies the contact. (The edge
     // certifier levers the same pair at its faces' extent; this table
     // has no faces.)
-    let chord = carrier.eval(t0).distance(carrier.eval(t1));
-    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, chord);
+    let extent = geom_brep::edge_extent_sup(carrier, t0, t1, (carrier.eval(t0), carrier.eval(t1)));
     let mut halvings = 0;
     loop {
         let samples = (CERT_SAMPLES - 1) * (1 << halvings) + 1;
