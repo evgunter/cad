@@ -76,7 +76,6 @@
 
 use std::fmt::Write as _;
 
-use pncad::geom::Curve3;
 use pncad::geom::Surface;
 use pncad::geom_brep::Pcurve;
 use pncad::geom_core::{Band, Point2, Point3, Tol};
