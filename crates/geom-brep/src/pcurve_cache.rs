@@ -8655,6 +8655,10 @@ pub(crate) struct Placement<T> {
     /// placement re-derives on (`Placement::shown`): the test returns it
     /// rather than reading the carrier again.
     shown: Option<incidence::Incident>,
+    /// Whether a closed conic is read over `span` rather than its whole
+    /// turn (`Placement::edge_only`): the edge's own read, which the
+    /// planar tier takes ([`read_edge_incidence`]).
+    edge_only: bool,
 }
 
 /// **Which angle a placement names**, and so the window it is named in
@@ -8758,6 +8762,16 @@ impl<T: Decide> Placement<T> {
             },
             span: (t0, t1),
             shown: None,
+            edge_only: false,
+        }
+    }
+
+    /// This placement reading a closed conic over its own span, the
+    /// edge, rather than the conic's whole turn ([`read_edge_incidence`]).
+    fn edge_only(self) -> Self {
+        Self {
+            edge_only: true,
+            ..self
         }
     }
 
@@ -9169,6 +9183,42 @@ fn read_shown<T: Decide>(
         band,
     )
     .map(Some)
+}
+
+/// **The edge's own incidence read** (D3): [`read_incidence`], with a
+/// closed conic read over `[t0, t1]`, the edge, rather than over its
+/// whole turn. An arc on its face whose circle leaves the face past the
+/// arc's ends is on the face here. The planar tier reads an edge on its
+/// plane by it.
+///
+/// The mint and the certification read a conic over its turn
+/// ([`read_incidence`]): read over each edge's span, every arc of one
+/// circle builds and decides its own samples, where over the turn they
+/// share them, at about twice the cost of the walk
+/// (`work/pcert/a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span.md`).
+///
+/// # Errors
+///
+/// As [`read_incidence`].
+pub fn read_edge_incidence<T: Decide>(
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_))
+        || carrier.kind() == geom::CurveKind::Nurbs
+    {
+        return read_incidence(carrier, t0, t1, surface, band);
+    }
+    incidence::incident(
+        carrier,
+        surface,
+        Placement::over((t0, t1), carrier, surface).edge_only(),
+        band,
+    )
+    .map(|_| ())
 }
 
 /// **The mint's incidence read of one point** (D3): whether `point` lies
@@ -10764,9 +10814,10 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     }
 }
 
-/// **The incidence test of a closed conic on a curved chart**: the
-/// sampled test ([`incidence_over_span`]) over one turn `[0, τ]`, whose
-/// end repeats its start.
+/// **The incidence test of a closed conic on its chart**: the sampled
+/// test ([`incidence_over_span`]) over `turn`: one turn `[0, τ]`, whose
+/// end repeats its start, or the edge's own span where the read is the
+/// edge's ([`read_edge_incidence`]).
 ///
 /// # Errors
 ///
@@ -10775,17 +10826,11 @@ fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    turn: (T, T),
     slack: T,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    incidence_over_span(
-        name,
-        surface,
-        (T::zero(), T::tau()),
-        |t| carrier.eval(t),
-        slack,
-        band,
-    )
+    incidence_over_span(name, surface, turn, |t| carrier.eval(t), slack, band)
 }
 
 /// **A carrier's sampled incidence test**, decided one-sidedly: `Off`
@@ -11075,7 +11120,12 @@ mod incidence {
             });
         let (name, off_why) = match (carrier, surface) {
             (Curve3::Circle { .. } | Curve3::Ellipse { .. }, Surface::Cone { .. }) => {
-                return cone_conic_incidence(carrier, surface, slack, band).map(|()| tested);
+                let turn = if place.edge_only {
+                    place.span
+                } else {
+                    (T::zero(), T::tau())
+                };
+                return cone_conic_incidence(carrier, surface, turn, slack, band).map(|()| tested);
             }
             (Curve3::Line { .. }, _) => {
                 let (t0, t1) = place.span;
@@ -11100,7 +11150,12 @@ mod incidence {
                  its own test (`net_incidence`)"
             ),
         };
-        match chart_incidence(name, carrier, surface, slack, band)? {
+        let turn = if place.edge_only {
+            place.span
+        } else {
+            (T::zero(), T::tau())
+        };
+        match chart_incidence(name, carrier, surface, turn, slack, band)? {
             Incidence::On => Ok(tested),
             Incidence::Off(margin) => {
                 Err(OffChart(off_why).with_margin(super::OffMargin::Past(margin), surface, carrier))
@@ -11373,6 +11428,7 @@ fn spiric_chart_pcurve<T: Decide>(
 fn cone_conic_incidence<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
+    turn: (T, T),
     slack: T,
     band: Band,
 ) -> Result<(), PcurveCertifyError> {
@@ -11418,7 +11474,14 @@ fn cone_conic_incidence<T: Decide>(
             return Err(near_apex.with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
-    match chart_incidence("pcurve_cone_chart_incident", carrier, surface, slack, band)? {
+    match chart_incidence(
+        "pcurve_cone_chart_incident",
+        carrier,
+        surface,
+        turn,
+        slack,
+        band,
+    )? {
         Incidence::On => Ok(()),
         Incidence::Off(margin) => Err(OffChart(
             "the conic's points are not on the cone (its distance from the cone at a sample is \

@@ -1672,3 +1672,67 @@ fn a_corner_and_an_edge_on_a_tilted_plane_far_from_its_anchor_are_read_on_it() {
         }
     }
 }
+
+/// **An arc on its face is read on it by the edge's own read, wherever
+/// its circle goes past its ends** (D3): the planar tier reads an edge on
+/// its plane by [`geom_brep::read_edge_incidence`], which samples a conic
+/// over the edge's span, the only part of it the edge states.
+///
+/// The unit circle about the origin, its axis tilted `1e3·ε` about `x`,
+/// edged over `t ∈ [−1e-4, 1e-4]` on the plane `z = 0` (the delta
+/// review's P4): the arc's farthest point is `0.1·ε` off the plane, the
+/// full turn's `1e3·ε`. The edge's read shows it on the face at `f64` and
+/// `Interval`, so the planar tier does not name the arc-bounded face the
+/// stored culprit. The mint and the certification read a conic over its
+/// whole turn (`geom_brep::read_incidence`, [`geom_brep::chart_pcurve_over`]),
+/// and read this one off: pinned here as it stands, the item
+/// `work/pcert/a-conics-incidence-is-read-over-its-full-turn-not-the-edges-span.md`.
+#[test]
+fn an_arc_on_its_face_is_read_on_it_by_the_edges_own_read() {
+    let e = eps();
+    let tilt = 1e3 * e;
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, -tilt.sin(), tilt.cos()),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let (t0, t1) = (-1e-4, 1e-4);
+    let lift = Interval::from_f64;
+    let (ci, pi) = (circle.map_scalar(lift), plane.map_scalar(lift));
+    for (lane, got) in [
+        (
+            "f64",
+            geom_brep::read_edge_incidence(&circle, t0, t1, &plane, band()),
+        ),
+        (
+            "Interval",
+            geom_brep::read_edge_incidence(&ci, lift(t0), lift(t1), &pi, band()),
+        ),
+    ] {
+        assert_eq!(got, Ok(()), "the arc's edge read ({lane}): on its face");
+    }
+    for (lane, got) in [
+        (
+            "f64",
+            geom_brep::read_incidence(&circle, t0, t1, &plane, band()),
+        ),
+        (
+            "Interval",
+            geom_brep::read_incidence(&ci, lift(t0), lift(t1), &pi, band()),
+        ),
+    ] {
+        assert!(
+            got.as_ref()
+                .err()
+                .and_then(geom_brep::IncidenceRead::of)
+                .is_some_and(geom_brep::IncidenceRead::is_definite),
+            "the mint's read of the arc ({lane}) is its whole turn's, the definite miss: {got:?}"
+        );
+    }
+}

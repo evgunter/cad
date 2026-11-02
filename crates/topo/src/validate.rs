@@ -8112,13 +8112,15 @@ pub(crate) fn tier3_local_checks_marked<
             adjacent.push((f_minus, fs_minus));
         }
         // The edge's carrier read on the plane over the edge's span by the
-        // mint's own incidence decider ([`geom_brep::read_incidence`]), so
-        // the tier and the mint never read one edge two ways.
+        // mint's own incidence decider, as the edge's own read
+        // ([`geom_brep::read_edge_incidence`]): a conic over the edge, not
+        // its whole turn, so an arc on the face whose circle leaves it past
+        // the arc's ends is on the face.
         for (face_key, surface_key) in adjacent {
             let Some(plane @ Surface::Plane { .. }) = body.surfaces.get(surface_key) else {
                 continue;
             };
-            match geom_brep::read_incidence(curve.carrier(), t0, t1, plane, band) {
+            match geom_brep::read_edge_incidence(curve.carrier(), t0, t1, plane, band) {
                 Ok(()) => {}
                 Err(geom_brep::PcurveCertifyError::Escalated { cause, .. }) => {
                     errors.push(ValidationError::PlanarBoundaryEscalated {

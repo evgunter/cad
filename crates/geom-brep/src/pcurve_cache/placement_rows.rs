@@ -625,6 +625,7 @@ fn a_downward_direction_reads_one_expression_either_side_of_x_zero() {
                 },
                 span: (S::zero(), S::one()),
                 shown: None,
+                edge_only: false,
             };
             let dir = Azimuth::of(S::from_f64(-1.0), S::param(x_sym, x));
             let env = move |p: ParamSymbol| (p == x_sym).then_some(x1);
@@ -784,6 +785,7 @@ fn a_far_half_polar_angle_at_an_equator_start_reads_narrow() {
             },
             span: (f(0.0), f(1.0)),
             shown: None,
+            edge_only: false,
         };
         let dir = Azimuth::of(Interval::from_bounds(lo, hi), f(-1.0));
         let placed = place.phase(Along::Latitude, dir, |m| m, band()).unwrap();
