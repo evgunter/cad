@@ -251,3 +251,12 @@ and bodies unchanged. No orchestrator yet.
   
   Both sessions archived. Blind coding is running on the stripped reports (byte 51, A = R2).
 - 2026-11-02 — **Cylinder stage 3 (branch `sectarms/cylinder-join-reads-value`).** The join reads every cylinder pose on the section value, and the frame lane's cylinder readings and the `join_reads` gate retire. The rulings (F3) and bisector lanes stay as plane lanes with their planes from the value, because the carried lane chords only spline components; filed stage 3b (`the-carried-lane-chords-only-spline-components`, P1 H). F1 needed no `SiteFoot::Node`: the bisector germ's branch is its plane, read on the value's planes, and a node germ's branch is set at mint as before. F2: `NodeSet` on `PairSection`, read by `section_cert` and checked per set at the carry. Filed: `the-glue-witness-lane-reads-a-cylinder-pairs-tangency-beside-the-value` (P2 M).
+
+- 2026-11-02 20:00 — **PR 6373 merged** (cylinder × cylinder stage 3: the join reads the value; dual review, tally 0, row PR-6373.md).
+  - The fix pass closed every must-fix item. Filed: `carrier_eq` coaxiality (P2), the pre-march refusal (P1), 3b (P1).
+  - A merge with main (ONEREAD 6378's plane × cone in `join.rs`) was resolved by the lane with no logical clash, and was green before merging.
+  - Next on the cylinder line:
+    - 3b: the carried lane chords line and ellipse spans, which retires the parallel and bisector plane lanes;
+    - the pre-march volume refusal;
+    - cylinder × sphere on the ruling sweep.
+  - **NURBS stage 3 dispatched** (`sectarms/nurbs-implicit-arm-stage3`; H, dual review). Its node arcs ride `PairSection::node_sets`; there is no `SiteFoot::Node`.
