@@ -5116,8 +5116,16 @@ pub(super) fn line_wall_roots_of<T: Decide>(
 ///   the cone's gradient vanishes. An edge that ends there (an end's
 ///   distance Zero) and is no ruling meets the cone at that end alone,
 ///   its residual `A·(t − t_end)²`: one double root at the end, which
-///   the caller reads as the end's incidence. Otherwise the lane refuses
-///   [`Unsettled::AtApex`] rather than read a root there.
+///   the caller reads as the end's incidence. An edge through the apex
+///   inside the span is the same double root at its foot there, which
+///   the caller places on the face's apex vertex: the edge's incidence
+///   with it, the vertex pair's to read (`boolean::fan`).
+/// - **`bool_line_cone_apex_spread`** — within the band of the apex is
+///   not at it: the roots of a line `δ` from the apex lie within
+///   `δ(1 + √(1 + |lead|))/|lead|` of that point along it, `lead` the
+///   lead rung's `A/|dir|²`. Not definitely in the band (a needle cone
+///   and a line near its axis): the lane refuses [`Unsettled::AtApex`]
+///   rather than place the roots at the apex.
 /// - **`bool_line_cone_lead`** — `A/|dir|²` levered by the segment's
 ///   length: how far the line turns off a generator over the edge. Zero:
 ///   the quadratic degenerates (a ruling, or a line parallel to one) and
@@ -5165,34 +5173,45 @@ fn line_cone_roots<T: Decide>(
     match decide("bool_line_cone_apex", Margin::norm3(at(foot)), band).map_err(escalate)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
-            // An edge that ENDS at the apex: the cone's form is
+            // An edge that reaches the apex: the cone's form is
             // homogeneous about its apex, so along a line through it the
-            // residual is `A·(t − t_end)²`, zero at that end alone unless
-            // the line is a ruling (`A` zero, the lead rung's). Its one
-            // root is the end's, a double one there: the end's incidence
-            // is the apex vertex, read as a vertex's (`NoInterior`), never
-            // a crossing. An edge through the apex inside the span is not
-            // read here.
+            // residual is `A·(t − t_apex)²`, zero there alone unless the
+            // line is a ruling (`A` zero, the lead rung's). Its one root
+            // is the apex's, a double one: at an end, the end's incidence
+            // with the apex vertex (`NoInterior`); inside the span, a
+            // crossing the caller places on the face's apex vertex, the
+            // edge's incidence with it, which the vertex pair reads. The
+            // root is the end the apex is decided at, else the foot.
+            let mut at_apex = foot;
             for end in [t0, t1] {
                 if decide("bool_line_cone_apex", Margin::norm3(at(end)), band).map_err(escalate)?
-                    != Sign::Zero
+                    == Sign::Zero
                 {
-                    continue;
+                    at_apex = end;
+                    break;
                 }
-                return match decide(
-                    "bool_line_cone_lead",
-                    Margin::levered(a2 / dd, length),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Zero => Ok(Err(Unsettled::Degenerate)),
-                    Sign::Positive | Sign::Negative => {
-                        Ok(Ok(Roots::<T, 2>::all([end, end]).widen()))
-                    }
-                };
             }
-            return Ok(Err(Unsettled::AtApex));
+            let lead = a2 / dd;
+            if decide("bool_line_cone_lead", Margin::levered(lead, length), band)
+                .map_err(escalate)?
+                == Sign::Zero
+            {
+                return Ok(Err(Unsettled::Degenerate));
+            }
+            // In the band, not AT the apex: about `p = at(t_apex)`, `δ`
+            // from the apex, the form along the unit direction `u` is
+            // `lead·τ² + 2(Me·u)τ + eᵀMe` (`e = p − apex`, `‖M‖ ≤ 1`), so
+            // every root lies within `δ(1 + √(1 + |lead|))/|lead|` of `p`
+            // along the edge. Only where that spread is in the band is
+            // the double root there the edge's meeting with the apex.
+            let delta = at(at_apex).norm();
+            let spread = delta * (T::one() + (T::one() + lead.abs()).sqrt()) / lead.abs();
+            return match decide("bool_line_cone_apex_spread", Margin::of(spread), band)
+                .map_err(escalate)?
+            {
+                Sign::Zero => Ok(Ok(Roots::<T, 2>::all([at_apex, at_apex]).widen())),
+                Sign::Positive | Sign::Negative => Ok(Err(Unsettled::AtApex)),
+            };
         }
     }
     match decide(
@@ -8256,22 +8275,29 @@ mod line_cone_rows {
         );
     }
 
-    /// **An edge reaching the apex refuses**, as one passing within the
-    /// band of it. The apex rung reads the edge's segment, not its line:
-    /// a segment ending half a metre short of the apex is not refused
-    /// there (its line's quadratic has its double root at the apex, which
-    /// the depth rung reads as a tangency).
+    /// **An edge through the apex has its one double root there**, as one
+    /// passing within the band of it: the cone's form is homogeneous about
+    /// the apex, so the caller places the root on the face's apex vertex.
+    /// The apex rung reads the edge's segment, not its line: a segment
+    /// ending half a metre short of the apex is not read there (its line's
+    /// quadratic has its double root at the apex, which the depth rung
+    /// reads as a tangency).
     #[test]
-    fn an_edge_at_the_apex_refuses() {
+    fn an_edge_through_the_apex_has_its_double_root_there() {
         let b = band();
         for (label, origin) in [
             ("through the apex", [-1.0, 0.0, 0.3]),
-            ("in band of the apex", [-1.0, 0.3 * b.zero(), 0.3]),
+            // Its roots' spread, `δ(1 + √(1 + |lead|))/|lead|` with
+            // `lead ≈ −0.42`, is about `5δ`: in the band.
+            ("in band of the apex", [-1.0, 0.05 * b.zero(), 0.3]),
         ] {
             let got = roots(origin, [1.0, 0.0, -0.3], (0.0, 2.0));
+            let Ok(CircleRoots::Certified(found)) = got else {
+                panic!("{label}: got {got:?}");
+            };
             assert!(
-                matches!(got, Err(Unsettled::AtApex)),
-                "{label}: got {got:?}"
+                found.roots().len() == 2 && found.roots().iter().all(|t| (t - 1.0).abs() < 1e-6),
+                "{label}: a double root at the apex, got {found:?}"
             );
         }
         let short = roots([-1.0, 0.0, 0.3], [1.0, 0.0, -0.3], (0.0, 0.5));
