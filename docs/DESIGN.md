@@ -1135,15 +1135,15 @@ suits the slot.
 - *Discrete kinds:* a side, a half, a sense, an orientation
   ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
-- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
   ([variables.poses]).
+- *2-D poses:* `Point2`, `Direction2`, in one profile's coordinates
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
   is a `Count`; and `Profile`. Only an operation defines a shape. A
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
-  the profile's own axes (an extrude's slant, held to one side of the
-  profile's plane) or a point and a heading (a revolve's axis line). A
+  the profile's own axes (an extrude's signed depth, above or below the
+  profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
   ("Constructing a coincidence").
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
@@ -1179,7 +1179,7 @@ A name is also the mark that a value is wanted for itself.
 
 **Poses.** `[variables.poses]` A pose is only ever defined: read off a
 body's geometry (a face's plane, a carrier's axis or centre, a
-vertex's point); moved from another pose by a slide along, or a spin
+vertex's point, a face's flag along one of its edges); moved from another pose by a slide along, or a spin
 about, a direction or axis the definition reads; by a construction
 over other poses; as a pose of a copy; or as an output of an
 operation. So no pose is free and none is defined from nothing. A
@@ -1343,10 +1343,17 @@ recognised from the program for display only.
 until a placement relates them to something: a part has no location,
 so how two parts relate is always stated explicitly. Every
 construction is built in coordinates of its own, which are its space,
-and spaces are related only at placement: a feature on a face is a
+and spaces are related only at placement: a body on a face is a
 construction placed into the space the face's body is in, against the
 face by mates and values, then combined, and which side of the face
-its material lies on is the mates' to say. Only a placement relates
+its material lies on is the mates' to say. A sketch on a face is not
+placed: it is a profile drawn on a frame read off the face's own
+geometry, and it and every sweep of it are in the face's body's space.
+The frame's x points toward a cell of the body off the face's normal
+where the gesture names one; on a face with none (a bare disc) it is
+the space's x carried onto the face by the least turn, as a
+placement's spin is measured ([placement.values]). Either way the
+frame's spin then turns it. Only a placement relates
 two spaces (FORK-S3P), so a feature at several positions is one body placed
 several times, each placement a copy.
 

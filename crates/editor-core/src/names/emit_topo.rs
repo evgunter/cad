@@ -5760,6 +5760,11 @@ mod tests {
                 operand: topo::Operand::A,
                 vertex: listed,
                 partner,
+                in_band: topo::EdgeInBand {
+                    edge: topo::HalfEdgeKey::default(),
+                    face: None,
+                    predicate: None,
+                },
             }],
             ..topo::BooleanNaming::default()
         };
