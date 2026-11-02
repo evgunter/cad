@@ -8926,7 +8926,9 @@ fn tangent_sectors<T: Decide>(
         }
     }
     let reach = || {
-        crate::splitting::rules::face_reach_from(body, f, p).map_err(|_| TouchUnread::Unreadable)
+        crate::splitting::rules::face_reach_from(body, f, p)
+            .map(geom_core::Lever::length)
+            .map_err(|_| TouchUnread::Unreadable)
     };
     let held_edge = |e: EdgeKey| holds.contains(&Held::Edge(e));
     for cycle in face_cycles(body, face) {
