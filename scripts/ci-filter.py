@@ -19,7 +19,9 @@ per-crate):
   TIER=closure  only crate sources changed — counting a page outside the
                 members that members read (it seeds its readers) and an
                 exact-name slow-set edit to .config/nextest.toml (it seeds the
-                crates its names belong to). PKGS is the DEPENDENT CLOSURE
+                crates its names belong to), and a script under scripts/ whose
+                every reader is accounted for (it seeds the members whose
+                suites read it). PKGS is the DEPENDENT CLOSURE
                 PLUS THE READ REACH: the changed members, every member that
                 transitively depends on them (dev-dependencies INCLUDED — a
                 dev-dep edge is a real build edge for `cargo test`), and every
@@ -411,8 +413,8 @@ import slow_set
 # convention — every workflow job that checks the repo out deletes the
 # directory right after, so a workflow that grew a reference to it fails
 # immediately and loudly instead of silently coupling the hosted gate to a
-# developer's machine. Scripts hosted CI DOES run stay in scripts/ and keep
-# forcing TIER=all, because a change to any of them can move a result.
+# developer's machine. Scripts hosted CI DOES run stay in scripts/, out of
+# this tier, because a change to any of them can move a result.
 #
 # .claude/: agent session config (2026-08-15) — the SessionStart hook that
 # provisions a Claude Code on the web container, and the settings.json that
@@ -427,10 +429,11 @@ import slow_set
 # The distinction to keep hold of if this list grows again: a path belongs
 # here only when hosted CI CANNOT read it (proven by the prune), not merely
 # when it looks developer-ish. Anything hosted CI does read — scripts/,
-# .github/, .cargo/ — stays out and keeps forcing TIER=all.
+# .github/, .cargo/ — stays out of the docs tier.
 #
-# Still an allowlist, still fails closed: a new top-level directory, or a
-# new file directly under scripts/, is unrecognised and lands in TIER=all.
+# Still an allowlist, still fails closed: a new top-level directory is
+# unrecognised and lands in TIER=all, and so does a new file directly under
+# scripts/ unless its readers are derived (`_script_reader_members`).
 def _is_docs(path: str, consumed: frozenset[str] = frozenset()) -> bool:
     if path in consumed:
         return False
@@ -518,6 +521,24 @@ def _compiled_markdown_readers(root: str) -> dict[str, set[str]]:
 _DIFF_FLAGS = ("--name-only", "--no-renames")
 
 
+def _py_path_chain(node: "object") -> list[str] | None:
+    """The string parts of a `/`-chain of string constants, rooted at a bare
+    `Name` (`ROOT / "docs" / "x.md"` -> ["docs", "x.md"]); None for any other
+    expression."""
+    import ast
+
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return [node.value]
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        left, right = _py_path_chain(node.left), _py_path_chain(node.right)
+        if left is None and isinstance(node.left, ast.Name):
+            left = []
+        if left is None or right is None:
+            return None
+        return left + right
+    return None
+
+
 def _markdown_python_readers(root: str) -> dict[str, set[str]]:
     """Each `.md` a python test under `crates/` reads -> the repo-relative
     test files that read it.
@@ -557,18 +578,7 @@ def _markdown_python_readers(root: str) -> dict[str, set[str]]:
     import ast
 
     out: dict[str, set[str]] = {}
-
-    def parts(node: "ast.AST") -> list[str] | None:
-        if isinstance(node, ast.Constant) and isinstance(node.value, str):
-            return [node.value]
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
-            left, right = parts(node.left), parts(node.right)
-            if left is None and isinstance(node.left, ast.Name):
-                left = []
-            if left is None or right is None:
-                return None
-            return left + right
-        return None
+    parts = _py_path_chain
 
     base_dir = os.path.join(root, "crates")
     if not os.path.isdir(base_dir):
@@ -1368,11 +1378,8 @@ def classify(files: list[str], root: str, base: str | None = None) -> dict[str, 
         if f == NEXTEST_CONFIG:
             seeds |= _slow_set_seeds(root, base, set(dir_of.values()))
             continue
-        if f in SCRIPT_READERS:
-            readers = SCRIPT_READERS[f]
-            if not all(r in dir_of for r in readers):
-                raise Bail(f"{f}'s readers {readers} are not all workspace members")
-            seeds |= {dir_of[r] for r in readers}
+        if f.startswith("scripts/") and f.count("/") == 1 and f != _SELF:
+            seeds |= _script_reader_members(root, f, consumed, dir_of)
             continue
         member = _own_member(f, dir_of)
         # A PAGE A MEMBER READS seeds its readers, wherever it lives: an
@@ -1392,7 +1399,8 @@ def classify(files: list[str], root: str, base: str | None = None) -> dict[str, 
         #   root Cargo.toml / Cargo.lock / rust-toolchain.toml — resolution
         #     and toolchain move every crate;
         #   .cargo/**, .github/** (but the render-only units above),
-        #     scripts/** (but SCRIPT_READERS) — how everything is built/run;
+        #     scripts/** (but a script whose readers are derived above) — how
+        #     everything is built/run;
         #   demos/**, tools/**, interval-transcendentals/** — the EXCLUDED
         #     workspaces; interval-transcendentals is a path dependency of
         #     geom-core, and demos/tour path-depends on nine members;
@@ -1510,22 +1518,132 @@ def _all_tier(root: str, files: list[str] | None = None) -> dict[str, str]:
 #               have moved. It is the one root whose crate is where the
 #               suite lives rather than a downstream consumer. Both
 #               halves read it.
-# A SCRIPT A MEMBER'S SUITE IMPORTS seeds that member, the way a consumed
-# page seeds its readers, instead of forcing TIER=all. An entry names the
-# member directories whose suites load the script; the lint job, which runs
-# on every tier, is the one other place the gate reads it. The premise is
-# checked on the real tree by the self-test (`_selftest_script_readers`):
-# each reader still spells the script, no other member reads it outside a
-# comment, and no workflow but ci.yml's lint job runs it.
+# A SCRIPT DIRECTLY UNDER `scripts/` SEEDS THE MEMBERS THAT READ IT, the way a
+# consumed page seeds its readers, instead of forcing TIER=all — and the
+# readers are DERIVED ON EVERY RUN, for the edited script, by
+# `_script_reader_members`. A reader it can account for is one of two:
+#   a python file under a member that opens the script by a `ROOT / "scripts"
+#     / "<name>"` chain (the `_markdown_python_readers` shape): its member is
+#     seeded, and with it the member's whole suite;
+#   a line of ci.yml's `lint` job, which runs on every tier.
+# ANY OTHER LIVE MENTION OF THE SCRIPT'S STEM ANYWHERE A HOSTED JOB CAN READ —
+# Rust code, a doc-comment code block (a doctest) or an attribute under any
+# Rust tree, python outside a reader, another script, any other workflow line,
+# data — is a reader it cannot account for, and raises `Bail`. So does a script
+# nothing visibly reads at all, and one this filter itself imports. Prose is
+# not a reader: a `//` or `#` line comment, a `///` line outside a code fence,
+# and a page `_is_docs` keeps in the docs tier.
 #
-# scripts/payload-rung-sweep.py  carries the disposition table a refusal
-#   PR edits beside its kernel change, and `crates/pncad-py/tests/
-#   test_binding_census.py` imports its resolver. Under the allowlist below
-#   every such PR ran at TIER=all (16 of the 23 TIER=all runs in the 12 h
-#   to 2026-11-02 06:25Z).
-SCRIPT_READERS: dict[str, tuple[str, ...]] = {
-    "scripts/payload-rung-sweep.py": ("pncad-py",),
-}
+# BLIND SPOT: a reader that never writes the stem (a glob over `scripts/`, a
+# name assembled from parts) is not seen; none runs in a PR job today.
+_SCRIPT_SCAN_PRUNE = frozenset({".git", "target", "__pycache__", "node_modules"})
+
+
+def _script_reader_members(
+    root: str, script: str, consumed: frozenset[str], dir_of: dict[str, str]
+) -> set[str]:
+    """The members whose suites read `script` (see above), or `Bail`."""
+    import ast
+    import io
+    import tokenize
+
+    name = script.rsplit("/", 1)[-1]
+    stem = name.rsplit(".", 1)[0]
+    needles = {stem, stem.replace("-", "_")}
+
+    def mentions(text: str) -> bool:
+        return any(n in text for n in needles)
+
+    hits: dict[str, str] = {}
+    for base, dirs, names in os.walk(root):
+        dirs[:] = [d for d in dirs if d not in _SCRIPT_SCAN_PRUNE]
+        for fname in names:
+            path = os.path.join(base, fname)
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            if rel == script or _is_docs(rel, consumed) or fname.endswith(".pyc"):
+                continue
+            try:
+                with open(path, "rb") as fh:
+                    data = fh.read()
+            except OSError as exc:
+                raise Bail(f"cannot read {rel}: {exc}") from exc
+            if any(n.encode() in data for n in needles):
+                hits[rel] = data.decode("utf-8", errors="replace")
+
+    def unaccounted(rel: str, why: str) -> Bail:
+        return Bail(f"{rel} {why} {script}, and that read is not one the filter can scope")
+
+    def py_live(rel: str, text: str) -> "tuple[ast.Module, str]":
+        try:
+            tree = ast.parse(text, filename=rel)
+            toks = tokenize.generate_tokens(io.StringIO(text).readline)
+            live = "".join(t.string + " " for t in toks if t.type != tokenize.COMMENT)
+        except (SyntaxError, tokenize.TokenError) as exc:
+            raise Bail(f"cannot parse {rel}: {exc}") from exc
+        return tree, live
+
+    readers: set[str] = set()
+    for rel, text in sorted(hits.items()):
+        if rel.endswith(".py") and rel.startswith("crates/") and rel != _SELF:
+            tree, _ = py_live(rel, text)
+            chains = (_py_path_chain(n) for n in ast.walk(tree)
+                      if isinstance(n, ast.BinOp) and isinstance(n.op, ast.Div))
+            joined = ("/".join(c) for c in chains if c)
+            if any(j == script or j.endswith("/" + script) for j in joined):
+                if (member := _own_member(rel, dir_of)) is not None:
+                    readers.add(member)
+
+    visible = bool(readers)
+    job_re = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
+    for rel, text in sorted(hits.items()):
+        if _own_member(rel, dir_of) in readers:
+            continue
+        if rel == _SELF:
+            # This file names scripts to classify them; it READS only what it imports.
+            tree, _ = py_live(rel, text)
+            for n in ast.walk(tree):
+                mods = ([a.name for a in n.names] if isinstance(n, ast.Import)
+                        else [n.module or ""] if isinstance(n, ast.ImportFrom) else [])
+                if any(m.split(".")[0] in needles for m in mods):
+                    raise unaccounted(rel, "imports")
+            continue
+        if rel.endswith(".rs"):
+            if mentions(_rust_code_view(text)):
+                raise unaccounted(rel, "names in code")
+            fenced = False
+            for ln in text.splitlines():
+                if _ATTRIBUTE_LINE_RE.match(ln) and not ln.lstrip().startswith("#"):
+                    body = ln.lstrip()[3:].strip()
+                    if body.startswith(("```", "~~~")):
+                        fenced = not fenced
+                    elif fenced and mentions(body):
+                        raise unaccounted(rel, "names in a doctest")
+                    continue
+                fenced = False
+                if mentions(ln) and not ln.lstrip().startswith("//"):
+                    raise unaccounted(rel, "names outside a line comment")
+            continue
+        if rel.endswith(".py"):
+            if mentions(py_live(rel, text)[1]):
+                raise unaccounted(rel, "names")
+            continue
+        job = None
+        for ln in text.splitlines():
+            if rel.startswith(".github/"):
+                if ln[:1].strip():
+                    job = None
+                elif m := job_re.match(ln):
+                    job = m.group(1)
+            if not mentions(ln) or ln.lstrip().startswith("#"):
+                continue
+            if rel == GATE_WORKFLOW and job == "lint":
+                visible = True
+                continue
+            raise unaccounted(rel, "names")
+    if not visible:
+        raise Bail(f"nothing visibly reads {script}, so whatever runs it is out of this filter's sight")
+    return readers
+
 
 AUX_PREFIXES: tuple[str, ...] = (
     "demos/",
@@ -3345,6 +3463,44 @@ def _copy_scripts(t: str) -> None:
         shutil.copy(os.path.join(here, name), os.path.join(t, "scripts", name))
 
 
+# One script per guard in `_script_reader_members`, each also run by ci.yml's
+# lint job so that its guard is the only thing holding it at TIER=all, plus
+# `pinned-sweep.py`, which every guard must let narrow: a member's python opens
+# it, the lint job runs it, and the rest of its mentions are prose.
+_FIXTURE_SCRIPT_READERS = {
+    "crates/stl/tests/test_rung.py": 'SWEEP = ROOT / "scripts" / "pinned-sweep.py"\n',
+    "crates/geom/src/rung_prose.rs": (
+        "/// `scripts/pinned-sweep.py` names this, in prose.\n// pinned-sweep.py, in a comment\npub fn f() {}\n"
+    ),
+    # The mention starts a line inside a string, where a comment would.
+    "crates/geom/src/rung_code.rs": 'pub const S: &str = "\n// scripts/rung-code.py\n";\n',
+    "crates/geom/src/rung_doctest.rs": (
+        "/// ```\n/// let s = include_str!(\"../../../scripts/rung-doctest.py\");\n/// ```\npub fn g() {}\n"
+    ),
+    "crates/geom/src/rung_block.rs": (
+        "/**\n * ```\n * let s = include_str!(\"../../../scripts/rung-block.py\");\n * ```\n */\npub fn h() {}\n"
+    ),
+    "crates/ghost/tests/test_rung.py": 'SWEEP = ROOT / "scripts" / "rung-ghost.py"\n',
+    ".github/workflows/ci.yml": (
+        "jobs:\n  lint:\n    steps:\n"
+        "      - run: python3 scripts/pinned-sweep.py --check\n"
+        "      - run: python3 scripts/slow_set.py --selftest\n"
+        "      - run: for s in rung-code rung-doctest rung-block rung-ghost rung-wf; do python3 scripts/$s.py; done\n"
+        "  test:\n    steps:\n      # pinned-sweep.py, in a comment\n      - run: python3 scripts/rung-wf.py\n"
+    ),
+}
+
+
+def _plant_script_readers(t: str) -> None:
+    for name in ("pinned-sweep", "rung-code", "rung-doctest", "rung-block", "rung-ghost",
+                 "rung-wf", "rung-orphan"):
+        open(os.path.join(t, "scripts", f"{name}.py"), "w").close()
+    for rel, text in _FIXTURE_SCRIPT_READERS.items():
+        os.makedirs(os.path.dirname(os.path.join(t, rel)), exist_ok=True)
+        with open(os.path.join(t, rel), "a") as fh:
+            fh.write(text)
+
+
 def _plant_fixture(t: str) -> str:
     for pkg in _FIXTURE_PKGS:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
@@ -3384,6 +3540,7 @@ def _plant_fixture(t: str) -> str:
     os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
     os.makedirs(os.path.join(t, "bin"), exist_ok=True)
     _copy_scripts(t)
+    _plant_script_readers(t)
     meta = {
         "packages": [
             {
@@ -3542,10 +3699,15 @@ def selftest() -> None:
             # `k-lint` is the only job that compiles these two, so a docs
             # verdict on either skips the only build that would have seen it.
             ("the excluded interval workspace", ["interval-transcendentals/src/lib.rs"], "all"),
-            # A SCRIPT_READERS entry whose reader is no member here (this
-            # fixture has no `pncad-py`) fails closed rather than seeding
-            # nothing; `_selftest_script_readers` holds the live entry.
-            ("a read script whose reader is not a member", ["scripts/payload-rung-sweep.py"], "all"),
+            # A SCRIPT'S READERS (`_plant_script_readers`): each row is the
+            # one reader its guard in `_script_reader_members` sees.
+            ("a script a member's Rust code names", ["scripts/rung-code.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a /// doctest names", ["scripts/rung-doctest.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a /** */ doctest names", ["scripts/rung-block.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a non-member's python opens", ["scripts/rung-ghost.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script a non-lint job runs", ["scripts/rung-wf.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script nothing visibly reads", ["scripts/rung-orphan.py", "crates/topo/src/lib.rs"], "all"),
+            ("a script the filter imports", ["scripts/slow_set.py", "crates/topo/src/lib.rs"], "all"),
             # A .md rustdoc COMPILES IN: every Rust block in it is a doctest,
             # so an edit to it can turn a build red. This is the live shape —
             # `crates/pncad/src/guide.rs` does exactly this to `docs/GUIDE.md`
@@ -3579,6 +3741,11 @@ def selftest() -> None:
             _files_case(t, f"{what} seeds {seeds}", files, TIER="closure", SEEDS=seeds, PKGS=pkgs)
         _files_case(t, "a page read outside the members beside a crate source must classify all",
                     ["docs/TOURPAGE.md", "crates/stl/src/lib.rs"], TIER="all")
+        # A SCRIPT seeds the members whose suites read it, the same way: the
+        # one row every guard in `_script_reader_members` must let through.
+        _files_case(t, "a script one member's python opens, beside a crate source, seeds it",
+                    ["scripts/pinned-sweep.py", "crates/geom-core/src/lib.rs"],
+                    TIER="closure", SEEDS="geom-core,stl", PKGS="geom-core,stl,topo")
 
         # --- ALL_REASON says which of the three ways the tier became `all`.
         for what, argv, stdin, says in (
@@ -3912,7 +4079,6 @@ def selftest() -> None:
 
     _selftest_docs_premise()
     _selftest_wheel_members_premise()
-    _selftest_script_readers()
     _selftest_app_shard_premise()
     _selftest_unsampled()
     _selftest_config()
@@ -4635,63 +4801,6 @@ def _selftest_docs_premise() -> None:
                              "classifies as documentation")
     print("ci-filter selftest: markdown this tree compiles or executes, and so keeps out of the docs "
           "tier: " + (", ".join(sorted(consumed)) or "(none)"))
-
-
-def _selftest_script_readers() -> None:
-    """SCRIPT_READERS' PREMISE, read off the REAL tree: an entry's readers are
-    the only members that read the script, and the lint job is the only
-    workflow job that runs it. A reader that stopped spelling it leaves a
-    stale entry; a new reader, or a new job that runs it, would go ungated
-    by this tier and must be added here or the entry removed."""
-    root = _repo_root()
-    comment = re.compile(r"^\s*(//|#)")
-    job_re = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
-    for script, readers in SCRIPT_READERS.items():
-        name = os.path.basename(script)
-        if not os.path.isfile(os.path.join(root, script)):
-            raise SystemExit(f"SELFTEST FAILED: SCRIPT_READERS names {script}, which does not exist")
-        spelled: dict[str, bool] = {}
-        for base, dirs, names in os.walk(os.path.join(root, "crates")):
-            dirs[:] = [d for d in dirs if d != "target"]
-            for n in names:
-                path = os.path.join(base, n)
-                try:
-                    lines = open(path, encoding="utf-8").read().splitlines()
-                except (UnicodeDecodeError, OSError):
-                    continue
-                hits = [ln for ln in lines if name in ln]
-                if not hits:
-                    continue
-                member = os.path.relpath(path, root).split(os.sep)[1]
-                spelled[member] = spelled.get(member, False) or any(not comment.match(ln) for ln in hits)
-        for r in readers:
-            if r not in spelled:
-                raise SystemExit(f"SELFTEST FAILED: SCRIPT_READERS says crates/{r} reads {script}, "
-                                 "and nothing under it spells the script's name: the entry is stale")
-        for member, read in sorted(spelled.items()):
-            if read and member not in readers:
-                raise SystemExit(f"SELFTEST FAILED: crates/{member} spells {name} outside a comment "
-                                 f"and is not among {script}'s SCRIPT_READERS {readers}")
-        for base, _dirs, names in os.walk(os.path.join(root, ".github")):
-            for n in names:
-                path = os.path.join(base, n)
-                rel = os.path.relpath(path, root)
-                job = None
-                for ln in open(path, encoding="utf-8", errors="replace"):
-                    m = job_re.match(ln)
-                    if m:
-                        job = m.group(1)
-                    if name in ln and not (rel == GATE_WORKFLOW and job == "lint"):
-                        raise SystemExit(f"SELFTEST FAILED: {rel} (job {job}) spells {name}; only "
-                                         f"{GATE_WORKFLOW}'s lint job, which runs on every tier, may "
-                                         "run a SCRIPT_READERS script")
-        got = classify([script, "crates/geom-core/src/lib.rs"], root)
-        want = {"geom-core", *readers}
-        if got.get("TIER") != "closure" or not want <= set(got.get("SEEDS", "").split(",")):
-            raise SystemExit(f"SELFTEST FAILED: {script} beside a crate source classified "
-                             f"{got.get('TIER')} with SEEDS={got.get('SEEDS')!r}, not closure over {sorted(want)}")
-    print("ci-filter selftest: scripts a member's suite reads, and those members: "
-          + "; ".join(f"{k} -> {', '.join(v)}" for k, v in sorted(SCRIPT_READERS.items())))
 
 
 def _selftest_wheel_members_premise() -> None:

@@ -260,3 +260,9 @@ Window: the 170 completed `ci.yml` PR runs from 11-01 18:33Z to 11-02
   kernel build is 540–663 s on some runners and 821–868 s on others.
   An A/B across runs measures the runner, so the lane's numbers come
   from one runner running both sides.
+- Correction to the entry above: "about 330 s → about 150 s on the
+  window's runners" was an extrapolation, not a measurement. The one
+  paired hosted measurement is 164 s → 85 s (one runner), and the one
+  hosted run of PR 6324's head took 189–192 s for the parallel gates step
+  on a slower runner. And `SCRIPT_READERS` did not land as a table: the
+  filter derives a script's readers on every run (`_script_reader_members`).
