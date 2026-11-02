@@ -1227,8 +1227,10 @@ pub(crate) fn settle<T: SolveScalar>(
             Coord::Slide(Some(a)) => Some((a.index(), v.by)),
             Coord::Slide(None) => {
                 let j = chart.aligned?;
-                let along_d = [chart.n.x, chart.n.y, chart.n.z][j] > T::zero();
-                let same = along_d == (chart.about.get().dot(chart.d.get()) > T::zero());
+                // `n_j` is ±1 exactly, and `about` is `d` or `−d`
+                // exactly: their signs read the same at every scalar.
+                let along_d = [chart.n.x, chart.n.y, chart.n.z][j].quoted() > 0.0;
+                let same = along_d == (chart.about.get().dot(chart.d.get()).quoted() > 0.0);
                 Some((j, if same { v.by } else { T::zero() - v.by }))
             }
             _ => None,
