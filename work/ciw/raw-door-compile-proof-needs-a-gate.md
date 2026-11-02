@@ -36,3 +36,7 @@ Moved from `work/bool/` to GUARD (scripts/gates/* is GUARD's) when S-BOOL closed
 GUARD measured 43 points against 30 and split three ways. This row is a
 claim the tree carries with no gate reading it at all, which is UNREAD's
 charter (`work/unread/plan.md`). Id and body unchanged.
+
+## Moved to CIW (2026-11-02)
+
+- 2026-11-02 — moved from UNREAD to CIW when UNREAD merged into CIW (budget rule now counts P0/P1 only). UNREAD's rows are claims no gate reads and CIW's are what the hosted gate does not run or see: one question, what goes red if this stops being true. Id and body unchanged.
