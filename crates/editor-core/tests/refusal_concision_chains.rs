@@ -877,7 +877,8 @@ mod kernel {
             Band, Skin, Euler, CapPlane, Pcurve, SeamStructure, SectionStructure,
             SectionRim, SectionNotFinite, PlacementNotFinite, ReversedStacking, DegenerateStacking,
             PinnedCorner, PinnedCornerUnsupported, CornerEscalated, SectionsTouch,
-            ClearanceUndecided, FarSectionNotForward, FarStackingEscalated, StackingEscalated,
+            ClearanceUndecided, ClearanceFault, FarSectionNotForward, FarStackingEscalated,
+            StackingEscalated,
         ];
     }
 
@@ -3551,15 +3552,15 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             E::ClearanceUndecided {
                 slab: 10,
                 segments: [segment(1, 12), segment(2, 13)],
-                source: None,
+                source: diag(),
             },
         ),
         (
-            "ClearanceUndecided(Escalated)",
-            E::ClearanceUndecided {
+            "ClearanceFault",
+            E::ClearanceFault {
                 slab: 10,
                 segments: [segment(1, 12), segment(2, 13)],
-                source: Some(diag()),
+                readings: "the pose's discriminant and its root count",
             },
         ),
         ("FarSectionNotForward", E::FarSectionNotForward { slab: 1 }),

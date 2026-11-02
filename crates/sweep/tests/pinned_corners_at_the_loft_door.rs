@@ -492,3 +492,176 @@ fn a_sweep_turning_about_a_profile_corner_refuses_as_unsupported() {
         other => panic!("expected the class-1 refusal at the swept corner, got {other:?}"),
     }
 }
+
+/// A D on the line x = 0 from (0, 1) to (0, −1), its semicircle through
+/// (1, 0).
+fn d_east() -> Vec<ProfileLoop<f64>> {
+    vec![bulge_loop(vec![
+        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, -1.0), 1.0),
+    ])]
+}
+
+/// **An arc pair the reader cannot settle decides nothing at the door.**
+/// The D turned about an axis through (−1 − d, 0) in its plane, or
+/// tilted out of it: the axis is tangent to (or just off) the arc's
+/// circle on the half no section holds, so the sections are apart by
+/// about the turn, yet the curve-pair reader, which poses the whole
+/// carriers, reads the near-tangency off both spans in band or
+/// unsettled. Only a meeting it verifies refuses, so each builds, as on
+/// main.
+#[test]
+fn a_d_turned_about_its_carriers_tangent_off_the_arc_builds() {
+    let tol = Tol::witness();
+    for tilt in [0.0f64, 0.3, 0.6, 1.0] {
+        for angle in [0.1, 0.4, 1.2] {
+            for d in [0.0, 1e-8, 1e-7] {
+                let axis = [0.0, tilt.cos(), tilt.sin()];
+                let ps = places(
+                    &[
+                        Affine3::identity(),
+                        turn([-1.0 - d, 0.0, 0.0], axis, -angle),
+                    ],
+                    tol,
+                );
+                let out = loft_body::<f64>(&vec![d_east(); 2], &ps, 1, tol);
+                assert!(
+                    out.is_ok(),
+                    "tilt {tilt}, turn {angle}, d {d}: {:?}",
+                    out.err()
+                );
+            }
+        }
+    }
+}
+
+/// **A circle elbow just clear of its own tangent builds**, monotone in
+/// the clearance. The unit circle turned about an axis through
+/// (1 + d, 0), tilted out of the plane: the rims are apart by about
+/// `d · turn` (1.6e-8 to 4e-6 here, past the band), and the caps are
+/// apart. The reader's in-band or unsettled readings near the touch
+/// decide nothing, so no clearance in this range refuses.
+#[test]
+fn a_tilted_circle_elbow_just_clear_of_its_tangent_builds() {
+    let tol = Tol::witness();
+    for tilt in [0.0f64, 0.3, 0.6, 1.0] {
+        for angle in [0.1, 0.4, 1.2] {
+            for d in [3e-7, 1e-6, 3e-6] {
+                let axis = [0.0, tilt.cos(), tilt.sin()];
+                let ps = places(
+                    &[Affine3::identity(), turn([1.0 + d, 0.0, 0.0], axis, angle)],
+                    tol,
+                );
+                let out = loft_body::<f64>(&vec![circle(1.0, 45f64.to_radians()); 2], &ps, 1, tol);
+                assert!(
+                    out.is_ok(),
+                    "tilt {tilt}, turn {angle}, d {d}: {:?}",
+                    out.err()
+                );
+            }
+        }
+    }
+}
+
+/// **An elbow's verdict does not depend on its spelling.** The unit
+/// circle turned about an axis outside it, in its plane or tilted
+/// 0.3 rad out of it, authored from every 45° and in both senses:
+/// every spelling builds.
+#[test]
+fn an_elbow_builds_from_every_spelling() {
+    let tol = Tol::witness();
+    for tilt in [0.0f64, 0.3] {
+        for off in [1.001, 1.02, 1.05, 1.2] {
+            for angle in [0.1, 0.4, 1.2] {
+                let axis = [0.0, tilt.cos(), tilt.sin()];
+                let ps = places(
+                    &[Affine3::identity(), turn([off, 0.0, 0.0], axis, angle)],
+                    tol,
+                );
+                for start in (0..360).step_by(45) {
+                    for bulge in [1.0, -1.0] {
+                        let p = |t: f64| Point2::new(t.cos(), t.sin());
+                        let a = f64::from(start).to_radians();
+                        let c = vec![bulge_loop(vec![
+                            (p(a), bulge),
+                            (p(a + core::f64::consts::PI), bulge),
+                        ])];
+                        let out = loft_body::<f64>(&vec![c; 2], &ps, 1, tol);
+                        assert!(
+                            out.is_ok(),
+                            "tilt {tilt}, axis at {off}, turn {angle}, start {start}, \
+                             bulge {bulge}: {:?}",
+                            out.err()
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **Two lines leaving a shared pinned corner along one ray meet beyond
+/// it.** A right triangle with legs 2 and 1, then one with legs 1 and 1
+/// turned 0.5 rad about its first leg's line: the corner at the origin
+/// is pinned, and the two first legs share the run from it to (1, 0, 0).
+/// The census's collinear overlap reads that run, so the pair refuses,
+/// naming the one corner they share.
+#[test]
+fn two_lines_leaving_a_shared_corner_along_one_ray_touch() {
+    let tol = Tol::witness();
+    let tri = |a: f64, b: f64| {
+        vec![ProfileLoop::polygon(
+            [(0.0, 0.0), (a, 0.0), (0.0, b)]
+                .iter()
+                .map(|&(x, y)| Point2::new(x, y)),
+        )]
+    };
+    let ps = places(
+        &[Affine3::identity(), turn([0.0; 3], [1.0, 0.0, 0.0], 0.5)],
+        tol,
+    );
+    match loft_body::<f64>(&[tri(2.0, 1.0), tri(1.0, 1.0)], &ps, 1, tol) {
+        Err(
+            e @ LoftError::SectionsTouch {
+                slab: 0,
+                segments,
+                shared: 1,
+            },
+        ) => {
+            let seg = LoopSegment {
+                loop_index: 0,
+                segment: 0,
+            };
+            assert_eq!(segments, [seg, seg]);
+            assert!(
+                e.to_string().contains("off the pinned corner they share"),
+                "{e}"
+            );
+        }
+        other => panic!("expected SectionsTouch sharing one corner, got {other:?}"),
+    }
+}
+
+/// **The first refusal is the earliest slab's.** Three squares: the
+/// second stacked against the first's normal, the third turned through
+/// the second. Slab 0 reverses and slab 1's sections cross; the door
+/// reads each slab whole before the next, so slab 0's reversal is the
+/// one named.
+#[test]
+fn the_earliest_slab_names_the_refusal() {
+    let tol = Tol::witness();
+    let ps = places(
+        &[
+            Affine3::identity(),
+            lift(-1.0),
+            turn([0.0, 0.0, -1.0], [0.0, 1.0, 0.0], 0.5),
+        ],
+        tol,
+    );
+    for v in [1, 2] {
+        match loft_body::<f64>(&vec![square(); 3], &ps, v, tol) {
+            Err(LoftError::ReversedStacking { slab: 0 }) => {}
+            other => panic!("v {v}: expected ReversedStacking at slab 0, got {other:?}"),
+        }
+    }
+}

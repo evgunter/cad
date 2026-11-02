@@ -1,6 +1,9 @@
 //! **The stacking door** — what the loft decides about each slab before
-//! the skin: its pinned corners, whether its two sections are apart
-//! beyond them, and which way it stacks ([`stacking_door`]).
+//! the skin, slab by slab: its pinned corners, whether its two sections
+//! touch beyond them, and which way it stacks ([`stacking_door`]). It
+//! refuses contact it verified, never contact it could not rule out: an
+//! arc pair the curve-pair reader cannot settle is left to the embedding
+//! certificate (`work/carve/self-overlapping-spines-build-and-validate.md`).
 
 use geom::Curve3;
 use geom_brep::curve_pair::{self, Hit, MeetFault, Span, SpanEnd};
@@ -56,40 +59,45 @@ fn rim_pinned<T: Decide>(
 
 /// **The stacking door**, at the site the skin follows ([`fn@super::build`]):
 /// slab `s` is the pair of sections `(s, s + 1)`, read on their
-/// placements and canonical loops in `T`. In this order:
+/// placements and canonical loops in `T`. Slab by slab, in section
+/// order, so the first refusal is the earliest slab's:
 ///
 /// 1. **Corner classes.** Every corner of every loop is decided pinned
-///    or moving in every slab by one predicate ([`corner_pinned`]); one
+///    or moving in the slab by one predicate ([`corner_pinned`]); one
 ///    the band cannot call escalates ([`LoftError::CornerEscalated`]).
 ///    A slab whose every corner is pinned and whose every segment is the
 ///    same curve in both sections is coincidence
-///    ([`LoftError::DegenerateStacking`]). At v-degree 2 or more through
-///    three sections or more, a wall spans every slab, so a corner pinned
-///    in some slabs and moving in others refuses
-///    ([`LoftError::PinnedCorner`]): the wall's boundary retraces itself
-///    there.
-/// 2. **The clearance.** The two sections are apart beyond what they
-///    share: every segment of one against every segment of the other,
-///    the pinned corners they share left out ([`clearance`]). A pair
-///    that meets refuses ([`LoftError::SectionsTouch`]).
-/// 3. **The step.** The mean displacement of the corners that move
-///    ([`step`]) along section `s`'s normal, then along section
-///    `s + 1`'s, each under `loft_stacking` and refusing at the first verdict that is
-///    not `Positive` ([`LoftError::DegenerateStacking`],
+///    ([`LoftError::DegenerateStacking`]). At v-degree 2 or more, a wall
+///    spans every slab, so a corner pinned in one slab read so far and
+///    moving in another refuses ([`LoftError::PinnedCorner`]): the
+///    wall's boundary retraces itself there.
+/// 2. **The clearance** ([`clearance`]): the two sections touch nowhere
+///    the door can verify beyond the pinned corners they share
+///    ([`LoftError::SectionsTouch`]).
+/// 3. **The step** ([`step`]): the mean displacement of the corners
+///    that move, along section `s`'s normal, then along section
+///    `s + 1`'s, refusing at the first verdict that is not `Positive`
+///    ([`LoftError::DegenerateStacking`],
 ///    [`LoftError::ReversedStacking`], [`LoftError::FarSectionNotForward`]
 ///    and their escalations).
-/// 4. **A pinned corner the kernel cannot build**
-///    ([`LoftError::PinnedCornerUnsupported`]): one the classes accept,
-///    pinned throughout the span its wall covers.
 ///
-/// Every refusal names the first slab, in section order, that reaches
-/// it, and the first loop, corner or segment pair within it.
+/// Then, once every slab has passed, **a pinned corner the kernel cannot
+/// build** ([`LoftError::PinnedCornerUnsupported`]): one pinned
+/// throughout the span its wall covers. It waits for every slab, because
+/// a corner pinned in an early slab is class 2 if a later one moves it,
+/// and because a kernel limit is reported only where no slab holds a
+/// fault of the sections.
+///
+/// Every refusal names the first loop, corner or segment pair within its
+/// slab.
 ///
 /// # Errors
 ///
-/// The arms above, and [`LoftError::SectionStructure`] for a
-/// `places`/`canonical`/`strips` disagreement or a section count below
-/// two, which `build`'s callers refuse before.
+/// The arms above, [`LoftError::ClearanceUndecided`] and
+/// [`LoftError::ClearanceFault`] from the clearance, and
+/// [`LoftError::SectionStructure`] for a `places`/`canonical`/`strips`
+/// disagreement or a section count below two, which `build`'s callers
+/// refuse before.
 pub(super) fn stacking_door<T: Decide>(
     places: &[SketchPlane<T>],
     canonical: &[ValidatedProfile<T>],
@@ -108,14 +116,22 @@ pub(super) fn stacking_door<T: Decide>(
     if k < 2 || !shaped {
         return Err(LoftError::SectionStructure);
     }
-    let pinned = corner_classes(strips, v_degree, band)?;
-    for slab in 0..places.len() - 1 {
+    let slabs = k - 1;
+    let mut pinned = Pinned(
+        strips
+            .iter()
+            .map(|lp| vec![vec![false; slabs]; lp.len()])
+            .collect(),
+    );
+    for slab in 0..slabs {
+        classify(strips, &mut pinned, slab, band)?;
+        if v_degree >= 2 {
+            retraced(&pinned, slab)?;
+        }
         clearance(strips, canonical, places, &pinned, slab, band, tol)?;
-    }
-    for slab in 0..places.len() - 1 {
         step(strips, places, &pinned, slab, band)?;
     }
-    for slab in 0..places.len() - 1 {
+    for slab in 0..slabs {
         for (l, lp) in pinned.0.iter().enumerate() {
             if let Some(j) = lp.iter().position(|slabs| slabs[slab]) {
                 return Err(LoftError::PinnedCornerUnsupported {
@@ -143,77 +159,71 @@ fn site(pinned: &Pinned, l: usize, j: usize, slab: usize) -> PinnedSite {
     }
 }
 
-/// Step 1 of [`stacking_door`]: the corner classes, slab by slab, then
-/// the corners a wall spanning every slab cannot take.
-fn corner_classes<T: Decide>(
+/// Step 1 of [`stacking_door`] for one slab: its corner classes, then
+/// coincidence.
+fn classify<T: Decide>(
     strips: &Strips<T>,
-    v_degree: usize,
+    pinned: &mut Pinned,
+    slab: usize,
     band: Band,
-) -> Result<Pinned, LoftError> {
-    let sections = strips[0][0].len();
-    let slabs = sections - 1;
-    let mut pinned: Vec<Vec<Vec<bool>>> = strips
-        .iter()
-        .map(|lp| vec![vec![false; slabs]; lp.len()])
-        .collect();
-    for slab in 0..slabs {
+) -> Result<(), LoftError> {
+    for (l, lp) in strips.iter().enumerate() {
+        for (j, strip) in lp.iter().enumerate() {
+            pinned.0[l][j][slab] = corner_pinned(strip[slab][0], strip[slab + 1][0], band)
+                .map_err(|source| LoftError::CornerEscalated {
+                    loop_index: l,
+                    corner: j,
+                    slab,
+                    source,
+                })?;
+        }
+    }
+    if pinned.0.iter().flatten().all(|slabs| slabs[slab]) {
+        let mut coincident = true;
         for (l, lp) in strips.iter().enumerate() {
             for (j, strip) in lp.iter().enumerate() {
-                let corner = |i: usize| strip[i][0];
-                pinned[l][j][slab] =
-                    corner_pinned(corner(slab), corner(slab + 1), band).map_err(|source| {
-                        LoftError::CornerEscalated {
-                            loop_index: l,
-                            corner: j,
+                let segment = LoopSegment {
+                    loop_index: l,
+                    segment: j,
+                };
+                coincident &=
+                    rim_pinned(&strip[slab], &strip[slab + 1], band).map_err(|source| {
+                        LoftError::ClearanceUndecided {
                             slab,
+                            segments: [segment, segment],
                             source,
                         }
                     })?;
             }
         }
-        if pinned.iter().flatten().all(|slabs| slabs[slab]) {
-            let mut coincident = true;
-            for (l, lp) in strips.iter().enumerate() {
-                for (j, strip) in lp.iter().enumerate() {
-                    let segment = LoopSegment {
-                        loop_index: l,
-                        segment: j,
-                    };
-                    coincident &=
-                        rim_pinned(&strip[slab], &strip[slab + 1], band).map_err(|source| {
-                            LoftError::ClearanceUndecided {
-                                slab,
-                                segments: [segment, segment],
-                                source: Some(source),
-                            }
-                        })?;
-                }
-            }
-            if coincident {
-                return Err(LoftError::DegenerateStacking { slab });
-            }
+        if coincident {
+            return Err(LoftError::DegenerateStacking { slab });
         }
     }
-    let pinned = Pinned(pinned);
-    if v_degree >= 2 && slabs >= 2 {
-        for (l, lp) in pinned.0.iter().enumerate() {
-            for (j, by_slab) in lp.iter().enumerate() {
-                let (Some(slab), Some(moving)) = (
-                    by_slab.iter().position(|&p| p),
-                    by_slab.iter().position(|&p| !p),
-                ) else {
-                    continue;
-                };
+    Ok(())
+}
+
+/// Step 1's class 2 at v-degree 2 or more, once slab `slab` is
+/// classified: a corner pinned in one of slabs `0..=slab` and moving in
+/// another, named by the first slab that pins it and the first it moves
+/// in.
+fn retraced(pinned: &Pinned, slab: usize) -> Result<(), LoftError> {
+    for (l, lp) in pinned.0.iter().enumerate() {
+        for (j, by_slab) in lp.iter().enumerate() {
+            let read = &by_slab[..=slab];
+            if let (Some(first), Some(moving)) =
+                (read.iter().position(|&p| p), read.iter().position(|&p| !p))
+            {
                 return Err(LoftError::PinnedCorner {
                     loop_index: l,
-                    at: site(&pinned, l, j, slab),
-                    slab,
+                    at: site(pinned, l, j, first),
+                    slab: first,
                     moving,
                 });
             }
         }
     }
-    Ok(pinned)
+    Ok(())
 }
 
 /// One segment of one section as the clearance reads it: where it is,
@@ -278,30 +288,49 @@ fn pieces<T: Decide>(
         .collect()
 }
 
-/// Step 2 of [`stacking_door`]: **the sections are apart beyond what they
-/// share.** The census's number for a pair of cells (`[topology.census]`),
-/// read for every segment of section `slab` against every segment of
-/// section `slab + 1`, through the readers the census reads cells with:
+/// Step 2 of [`stacking_door`]: **the sections touch nowhere the door
+/// can verify beyond what they share.** The census's number for a pair
+/// of cells (`[topology.census]`), read for every segment of section
+/// `slab` against every segment of section `slab + 1`, through the
+/// readers the census reads cells with:
 ///
 /// - **two lines sharing nothing** by the census's readings of two line
 ///   edges ([`topo::line_segments_meet`]);
-/// - **two lines sharing a pinned corner** by the census's sine reading
-///   ([`topo::segments_parallel`]): they meet beyond the corner exactly
-///   where they are parallel and leave it the same way
-///   (`loft_shared_corner_lead`);
+/// - **two lines sharing a pinned corner** by the census's collinear
+///   overlap ([`topo::line_segments_overlap`]): two lines through one
+///   point meet beyond it exactly where they share a run, which is
+///   where they leave it along one ray;
 /// - **a pair with an arc in it** by the curve-pair reader the census's
 ///   curved lane reads ([`geom_brep::curve_pair::meet`]), on the placed
-///   carriers: every meeting it finds must be a pinned corner the two
-///   share, read at an end of both;
+///   carriers and spans: a meeting it decided on both spans that is not
+///   a pinned corner the two share, read at an end of both, refuses;
 /// - **one segment pinned at both ends** is the edge both sections hold
 ///   where it is the same curve in both (a line always is), and is read
 ///   as the pair it is otherwise (a lune).
 ///
+/// **Only verified contact refuses.** Line pairs converge, so their
+/// in-band readings escalate. An arc pair the reader cannot settle (in
+/// band, a budget, a pose it has no closed form for) decides nothing
+/// here, as before the door: whether such a pair is embedded is the
+/// embedding certificate's
+/// (`work/carve/self-overlapping-spines-build-and-validate.md`). The
+/// reader poses the arcs' whole carriers, so a near-tangency off both
+/// spans is one such pair.
+///
+/// Arcs and lines agree at a shared pinned corner: two arcs leaving it
+/// tangent to each other meet beyond it only where they lie on one
+/// circle the same way, a shared run, as two lines along one ray do; on
+/// different circles they meet at the corner alone, and are apart. A
+/// touch at a point that is a shared pinned corner is legal and the same
+/// touch off every corner refuses: the first is one vertex of the body,
+/// the second its boundary meeting itself.
+///
 /// # Errors
 ///
 /// [`LoftError::SectionsTouch`] naming the first pair that meets;
-/// [`LoftError::ClearanceUndecided`] for one the band cannot call
-/// (`Some`), or one the curve-pair reader cannot settle (`None`).
+/// [`LoftError::ClearanceUndecided`] for a line pair the band cannot
+/// call; [`LoftError::ClearanceFault`] where the reader's readings
+/// contradict each other.
 fn clearance<T: Decide>(
     strips: &Strips<T>,
     canonical: &[ValidatedProfile<T>],
@@ -339,61 +368,26 @@ fn clearance<T: Decide>(
                 Vec::new()
             };
             let rows = |p: &Piece<T>, i: usize| &strips[p.at.loop_index][p.at.segment][i];
-            let apart = if x.at == y.at
+            let meets = if x.at == y.at
                 && shared.len() == 2
                 && (x.line
-                    || rim_pinned(rows(x, slab), rows(y, slab + 1), band)
-                        .map_err(|s| undecided(Some(s)))?)
+                    || rim_pinned(rows(x, slab), rows(y, slab + 1), band).map_err(undecided)?)
             {
-                true
+                false
             } else if x.line && y.line && shared.is_empty() {
-                !topo::line_segments_meet(x.ends, y.ends, band).map_err(|s| undecided(Some(s)))?
+                topo::line_segments_meet(x.ends, y.ends, band).map_err(undecided)?
             } else if x.line && y.line {
-                // Each line from its own copy of the shared corner.
-                let away = |p: &Piece<T>| {
-                    if p.corners(n)[0] == shared[0] {
-                        p.ends.1 - p.ends.0
-                    } else {
-                        p.ends.0 - p.ends.1
-                    }
-                };
-                if topo::segments_parallel(x.ends, y.ends, band).map_err(|s| undecided(Some(s)))? {
-                    let (ux, uy) = (away(x), away(y));
-                    match decide(
-                        "loft_shared_corner_lead",
-                        Margin::of(ux.dot(uy) / uy.norm()),
-                        band,
-                    ) {
-                        Ok(Sign::Negative) => true,
-                        Ok(Sign::Positive) => false,
-                        Ok(Sign::Zero) => return Err(undecided(None)),
-                        Err(s) => return Err(undecided(Some(s))),
-                    }
-                } else {
-                    true
-                }
+                topo::line_segments_overlap(x.ends, y.ends, band).map_err(undecided)?
             } else {
-                let (a, b) = (Span::new(&x.carrier, x.span), Span::new(&y.carrier, y.span));
-                match curve_pair::meet(&a, &b, band) {
-                    Ok(met) => {
-                        met.shared.is_none()
-                            && met.points.iter().all(|m| match (m.on_a, m.on_b) {
-                                (Hit::End(ea), Hit::End(eb)) => {
-                                    let c = x.corner_at(ea, n);
-                                    c == y.corner_at(eb, n) && shared.contains(&c)
-                                }
-                                _ => false,
-                            })
+                arc_pair_meets(x, y, &shared, n, band).map_err(|readings| {
+                    LoftError::ClearanceFault {
+                        slab,
+                        segments,
+                        readings,
                     }
-                    Err(refusal) => match refusal.fault {
-                        MeetFault::Escalated(s) | MeetFault::Touch(s) => {
-                            return Err(undecided(Some(s)));
-                        }
-                        _ => return Err(undecided(None)),
-                    },
-                }
+                })?
             };
-            if !apart {
+            if meets {
                 return Err(LoftError::SectionsTouch {
                     slab,
                     segments,
@@ -405,17 +399,56 @@ fn clearance<T: Decide>(
     Ok(())
 }
 
+/// Whether the curve-pair reader verified a meeting of two segments, one
+/// an arc, that is not a pinned corner they share (`shared`) read at an
+/// end of both. A refusal of the reader verifies only the meetings it
+/// decided before it ([`curve_pair::MeetRefusal::found`]).
+///
+/// # Errors
+///
+/// The readings, where the reader's own readings contradicted each other
+/// or it misread a carrier's kind: a kernel fault.
+fn arc_pair_meets<T: Decide>(
+    x: &Piece<T>,
+    y: &Piece<T>,
+    shared: &[(usize, usize)],
+    n: usize,
+    band: Band,
+) -> Result<bool, &'static str> {
+    let off_shared = |m: &curve_pair::Meeting<T>| match (m.on_a, m.on_b) {
+        (Hit::End(ea), Hit::End(eb)) => {
+            let c = x.corner_at(ea, n);
+            !(c == y.corner_at(eb, n) && shared.contains(&c))
+        }
+        _ => true,
+    };
+    let (a, b) = (Span::new(&x.carrier, x.span), Span::new(&y.carrier, y.span));
+    match curve_pair::meet(&a, &b, band) {
+        Ok(met) => Ok(met.points.iter().any(off_shared)),
+        Err(refusal) => match refusal.fault {
+            MeetFault::Contradiction { readings } => Err(readings),
+            MeetFault::Desync => Err("a carrier's kind against the arm the pair table chose"),
+            MeetFault::Escalated(_)
+            | MeetFault::Touch(_)
+            | MeetFault::Unsettled(_)
+            | MeetFault::Unsupported { .. } => Ok(refusal.found.iter().any(off_shared)),
+        },
+    }
+}
+
 /// Step 3 of [`stacking_door`]: **the slab's step along its two
 /// normals**, read on the corners that move. It is the mean
 /// displacement of the outer loop's corners not pinned in the slab,
 /// decided along section `slab`'s normal and then section `slab + 1`'s;
 /// pinned corners have no step to give, and read in they would dilute
-/// a turn. Where every outer corner is pinned and a hole's corner moves,
-/// it is the mean of every loop's moving corners, so sections that hold
-/// their outer loop and move a hole in their plane read a zero step.
-/// Where no corner moves at all (a lens turned about its chord) it
-/// decides nothing: such a slab has a pinned corner, which step 4 of
-/// [`stacking_door`] decides.
+/// a turn. Where the outer loop is held (every corner pinned), only a
+/// hole can step, so it reads the holes' moving corners: that answers
+/// Zero where the held loop fixes the sections' common plane (three
+/// corners off one line) and the holes move in it, and a direction only
+/// where the held loop is a chord's two ends (a lens) and the sections
+/// turn about it. Where no corner moves at all (a lens turned about its
+/// chord) it decides nothing: such a slab has a pinned corner, which
+/// [`stacking_door`] decides once every slab has passed.
 fn step<T: Decide>(
     strips: &Strips<T>,
     places: &[SketchPlane<T>],
@@ -436,13 +469,17 @@ fn step<T: Decide>(
         }
         (count > 0).then_some((d, count))
     };
-    let Some((d, count)) = moving(&strips[..1]).or_else(|| moving(strips)) else {
+    let outer = || moving(&strips[..1]);
+    // The outer loop's corners are all pinned here, so every loop's
+    // moving corners are the holes'.
+    let holes_under_a_held_outer = || moving(strips);
+    let Some((d, count)) = outer().or_else(holes_under_a_held_outer) else {
         return Ok(());
     };
     #[allow(clippy::cast_precision_loss)]
     let count = T::from_f64(count as f64);
     let facing = |place: &SketchPlane<T>| {
-        geom_core::k_stats::decide(
+        decide(
             "loft_stacking",
             Margin::of(d.dot(place.normal().get()) / count),
             band,

@@ -10461,20 +10461,25 @@ impl<'b, T: Decide> RecordConfirm<'b, T> {
     }
 }
 
-/// [`parallel_reading`] over two segments: whether their lines are parallel,
-/// decided as an edge-edge record's confirm pass decides it.
+/// **Whether two straight segments overlap along their lines**: read as
+/// the census reads two line edges for a collinear overlap
+/// ([`collinear_overlaps`]), the parallel screen settled in band, then
+/// the overlap. `Ok(true)` where they share a run of positive length;
+/// two segments that only touch at a point, or are not parallel, read
+/// `Ok(false)`.
 ///
 /// # Errors
 ///
-/// The escalated decision.
-pub fn segments_parallel<T: Decide>(
+/// The escalation the screen or the overlap pushed.
+pub fn line_segments_overlap<T: Decide>(
     a: (Point3<T>, Point3<T>),
     b: (Point3<T>, Point3<T>),
     band: Band,
 ) -> Result<bool, Indeterminate> {
     let mut errors = Vec::new();
-    let parallel = parallel_reading(&segment(a), &segment(b), band, &mut errors);
-    escalation(parallel, errors)
+    parallel_overlap(&segment(a), &segment(b), band, &mut errors)
+        .map(|overlap| overlap.is_some())
+        .ok_or_else(|| escalation_pushed(errors))
 }
 
 /// **Whether two straight segments that share nothing meet**, read as the census
@@ -10498,37 +10503,17 @@ pub fn line_segments_meet<T: Decide>(
         match gap_zero_reading("pm_census_vv_gap", Margin::norm3(p - q), band, &mut errors) {
             Some(Some(_)) => return Ok(true),
             Some(None) => {}
-            None => return escalation(None, errors),
+            None => return Err(escalation_pushed(errors)),
         }
     }
     for (q, e) in [(a.0, &eb), (a.1, &eb), (b.0, &ea), (b.1, &ea)] {
         match on_edge_interior_reading(q, e, band, &mut errors) {
             Some(Some(_)) => return Ok(true),
             Some(None) => {}
-            None => return escalation(None, errors),
+            None => return Err(escalation_pushed(errors)),
         }
     }
-    let met = interiors_meet(&ea, &eb, band, &mut errors);
-    escalation(met, errors)
-}
-
-/// A census answer, or the escalation it pushed.
-///
-/// # Panics
-///
-/// Where the question answered `None` and pushed no escalation: its
-/// contract is `None` exactly where a decision escalated, so a `None`
-/// with nothing pushed is a broken invariant, never a "no".
-fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
-    for e in errors {
-        if let ValidationError::CensusEscalated { cause } = e {
-            return Err(cause);
-        }
-    }
-    match answer {
-        Some(answer) => Ok(answer),
-        None => unreachable!("a census question answers `None` only where it pushed an escalation"),
-    }
+    interiors_meet(&ea, &eb, band, &mut errors).ok_or_else(|| escalation_pushed(errors))
 }
 
 /// The point of `a`'s line nearest `b`'s, for two segments whose lines

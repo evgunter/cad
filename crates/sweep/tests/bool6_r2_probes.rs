@@ -213,10 +213,10 @@ fn r2_differing_vertex_counts_are_the_skins_refusal() {
 /// **Claim 6: the door mints `2(k − 1)` `loft_stacking` samples per
 /// loft**, two per slab — and stops at the first non-positive verdict,
 /// so a refusal at slab 1's base decide of four sections leaves THREE
-/// verdicts. A slab in band escalates at its first corner
-/// (`loft_corner_pinned`), before any step is read: slab 0's four
-/// corners decided, then one escalation, and no `loft_stacking`
-/// sample.
+/// verdicts. The door reads each slab whole before the next, and a slab
+/// in band escalates at its first corner (`loft_corner_pinned`), before
+/// its own step: slab 0 read whole (four corners decided, its two
+/// `loft_stacking` samples), then slab 1's first corner escalates.
 #[test]
 fn r2_the_door_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
     let count_of = |name: &str, run: &dyn Fn()| {
@@ -256,7 +256,7 @@ fn r2_the_door_mints_two_samples_per_slab_and_stops_at_the_first_refusal() {
     let in_band = || {
         let _ = loft_body::<f64>(&five[..4], &stacked_at(&[-1.0, 0.0, mid, 1.0]), 2, tol);
     };
-    assert_eq!(count(&in_band), (0, 0));
+    assert_eq!(count(&in_band), (2, 0));
     assert_eq!(count_of("loft_corner_pinned", &in_band), (4, 1));
 }
 

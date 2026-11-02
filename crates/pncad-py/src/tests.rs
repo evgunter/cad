@@ -5028,6 +5028,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "cap_plane",
+            "clearance_fault",
             "clearance_undecided",
             "corner_escalated",
             "degenerate_stacking",

@@ -41,11 +41,14 @@
 //! # Orientation (the canonical stacking arm)
 //!
 //! Before the skin, the stacking door ([`stacking::stacking_door`])
-//! reads each slab's two sections: the corners they pin (a profile
-//! vertex at one world point in both), whether they are apart beyond
-//! those corners, and each slab's displacement, which must point ALONG
-//! the plane normals of both sections it spans. That is a PER-SLAB
-//! statement, and a refusal names the pair it stopped at. The
+//! reads each slab's two sections, slab by slab: the corners they pin
+//! (a profile vertex at one world point in both), whether they touch
+//! beyond those corners, and each slab's displacement, which must point
+//! ALONG the plane normals of both sections it spans. That is a
+//! PER-SLAB statement, and a refusal names the earliest pair it stopped
+//! at. The clearance refuses only contact it verified: an arc pair the
+//! curve-pair reader cannot settle decides nothing there, and is the
+//! embedding certificate's. The
 //! displacement check is a conservative orientation check, not an
 //! embedding one: it refuses some embedded lofts whose far section
 //! leans back across the stack, and nothing at this door yet certifies
@@ -323,9 +326,10 @@ pub enum LoftError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// Two segments of a slab's two sections meet: off every pinned
-    /// corner they share, or anywhere where they share none. A hinge
-    /// slid along its own edge, or sections that cross. Both sections' loops lie on the
+    /// Two segments of a slab's two sections meet, a meeting the door
+    /// verified: off every pinned corner they share, or anywhere where
+    /// they share none. A hinge slid along its own edge, sections that
+    /// cross, or two lines leaving a shared pinned corner along one ray. Both sections' loops lie on the
     /// body's boundary, so the boundary would meet itself there off its
     /// own edges.
     SectionsTouch {
@@ -339,20 +343,35 @@ pub enum LoftError {
         shared: usize,
     },
     /// Whether two segments of a slab's two sections are apart, off any
-    /// pinned corner they share, is not decided.
-    ///
-    /// `Some`: a reading escalated. `None`: the curve-pair reader
-    /// (`geom_brep::curve_pair::meet`) could not settle a pair with an
-    /// arc in it — a budget, a root finder or a pose it has no closed
-    /// form for — which is not a verdict that the two meet.
+    /// pinned corner they share, escalated: a pair of lines, whose
+    /// readings converge, or a segment's two section curves read in band
+    /// of one curve. A pair with an arc in it that the curve-pair reader
+    /// cannot settle decides nothing here: the door refuses only contact
+    /// it verified, and an unsettled arc pair is the embedding
+    /// certificate's
+    /// (`work/carve/self-overlapping-spines-build-and-validate.md`).
     ClearanceUndecided {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
         /// The segment of section `slab`, then the segment of section
         /// `slab + 1`.
         segments: [LoopSegment; 2],
-        /// The escalation, where one decided nothing.
-        source: Option<Indeterminate>,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
+    /// The curve-pair reader's readings of two segments of a slab's two
+    /// sections contradicted each other, or it misread a carrier's kind
+    /// (`geom_brep::curve_pair::MeetFault`'s `Contradiction` and
+    /// `Desync`): a kernel fault, which their definitions rule out but
+    /// for rounding, and never a pose of the sections.
+    ClearanceFault {
+        /// The slab — the pair [`SlabPair`] names.
+        slab: usize,
+        /// The segment of section `slab`, then the segment of section
+        /// `slab + 1`.
+        segments: [LoopSegment; 2],
+        /// The readings that disagreed.
+        readings: &'static str,
     },
     /// One SLAB stacks along its base section's plane normal but not
     /// along its FAR section's: section `slab + 1`'s normal is
@@ -590,21 +609,7 @@ impl fmt::Display for LoftError {
             Self::ClearanceUndecided {
                 slab,
                 segments,
-                source: None,
-            } => write!(
-                f,
-                "whether loft section {slab}'s {} and section {far}'s {} are apart is not \
-                 decided: the curve-pair reader could not settle them (a limit of the \
-                 reader, not a verdict that they meet). Recourse: move section {far} clear \
-                 of section {slab}",
-                segments[0],
-                segments[1],
-                far = SlabPair(*slab).far()
-            ),
-            Self::ClearanceUndecided {
-                slab,
-                segments,
-                source: Some(source),
+                source,
             } => write!(
                 f,
                 "{}",
@@ -617,6 +622,20 @@ impl fmt::Display for LoftError {
                     ),
                     source.ending(geom_core::COINCIDENCE_RECOURSE),
                 )
+            ),
+            Self::ClearanceFault {
+                slab,
+                segments,
+                readings,
+            } => write!(
+                f,
+                "the kernel's readings of where loft section {slab}'s {} and section {far}'s \
+                 {} meet contradict each other ({readings}), which their definitions rule \
+                 out: a kernel fault, not a fault in the sections. Recourse: report it with \
+                 the sections; moving section {far} slightly may avoid it",
+                segments[0],
+                segments[1],
+                far = SlabPair(*slab).far()
             ),
             Self::FarSectionNotForward { slab } => write!(
                 f,
@@ -1869,7 +1888,7 @@ mod undecided_tests {
                 LoftError::ClearanceUndecided {
                     slab: 1,
                     segments: [at(0, 2), at(1, 0)],
-                    source: Some(source)
+                    source
                 }
                 .to_string(),
                 apart
