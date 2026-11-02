@@ -1354,6 +1354,8 @@ mod a_box_along_a_fillets_line_arc_junction;
 mod a_cone_apex_meets_a_vertex;
 #[path = "a_cone_apex_on_a_plane_through_it.rs"]
 mod a_cone_apex_on_a_plane_through_it;
+#[path = "a_cone_apex_on_an_edge.rs"]
+mod a_cone_apex_on_an_edge;
 #[path = "a_cylinder_resting_on_a_box_top_grazes_along_a_line.rs"]
 mod a_cylinder_resting_on_a_box_top_grazes_along_a_line;
 #[path = "a_plane_near_a_needle_cones_apex.rs"]
