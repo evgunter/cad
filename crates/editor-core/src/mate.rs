@@ -448,21 +448,19 @@ impl<S: crate::Slot> Constraint<S> {
 
 /// **A value** (FORK-S3M; D10 `[placement.values]`): one freedom of a
 /// placement's motion that its mates leave — a slide or a spin — set
-/// to a `Length` or an `Angle`. A value names no mate: its bundle holds
-/// at most one mate fixing a direction, so its values have one chart.
+/// to a `Length` or an `Angle`, naming the direction it runs along or
+/// the axis it turns about ([`Coord`]). A value names no mate: its
+/// bundle holds at most one mate fixing a direction, so its values have
+/// one chart.
 ///
 /// Beside a mate fixing a direction `d`, the mate's orientation `O`
 /// puts the copy's mated direction `d_c` at `n = O·d_c`, and the least
-/// turn `S` carries `n` onto `d`; the copy's turn is `rot(d, θ)·S·O`.
-/// The one [`Coord::Spin`] with no axis is `θ`, and a slide is the
-/// copy's origin measured from the target space's along a target axis
-/// as `S` carries it.
-///
-/// Where no direction is fixed (no mate, or a lone point mate), a
-/// slide is the copy's origin measured from the target space's along
-/// its own `x`, `y` or `z`, and a spin is one link of a chain of turns
-/// about the target space's own axes (through the mated point, for a
-/// point mate), taken in the order the bundle lists them.
+/// turn `S` carries `n` onto `d`; the copy's turn is `rot(d, θ)·S·O`,
+/// the one [`Coord::Spin`] with no axis `θ`. Where no direction is fixed
+/// (no mate, or a lone point mate), a spin is one link of a chain,
+/// taken in the order the bundle lists them. Either way the copy stands
+/// where its mates and spins seat it plus the sum of its slides, each
+/// its value along its direction (`mate::value::settle`).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Value<S: crate::Slot = crate::VarId> {

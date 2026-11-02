@@ -382,30 +382,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         };
         assert_eq!(instances.len(), 4, "four blocks round the crown");
     }
-    // Fusing THESE onto the rook is refused at the door, typed: a union's
-    // member seat reads the family whole (D10 `[repetition]`), its
-    // members joining the list, but the family stands in the block's own
-    // space and the carved rook in the rook's, and a union reads its
-    // members in one space.
-    let states = session.history().len();
-    let refused = session.perform(SessionOp::AddBoolean {
-        spec: BooleanSpec::Union(vec![carved.into(), pattern.into()]),
-    });
-    assert!(
-        matches!(
-            &refused.refusal,
-            Some(Refusal::Edit(edit))
-                if matches!(edit.as_ref(), pncad::document::EditError::SpaceMismatch { .. })
-        ),
-        "{:?}",
-        refused.refusal
-    );
-    assert!(refused.committed.is_empty(), "a refusal commits nothing");
-    assert_eq!(session.history().len(), states, "and mints no state");
-
-    // The door that refusal points at: the same prototype and the
-    // same rule, said FUSED — one body out instead of four, which the
-    // boolean seat takes without complaint.
+    // The fused door: the same prototype and the same rule, said FUSED
+    // — one body out instead of four, which the boolean seat takes
+    // without complaint.
     let merlons = session_insert(
         &mut session,
         SessionOp::AddFusedPattern {

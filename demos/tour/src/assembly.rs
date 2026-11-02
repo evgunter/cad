@@ -661,7 +661,11 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             &k,
             BodyRead::plain(Operand::Node(post_i)),
             Operand::Var(master_space),
-            &[(TargetAxis::Y, pe("200 mm", &scope))],
+            &[(
+                pncad::pattern::RowDirection::Axis(TargetAxis::Y),
+                pe("200 mm", &scope),
+            )],
+            None,
         )
         .expect("the pitch is a length"),
         tol,

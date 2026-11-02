@@ -300,34 +300,19 @@ fn build_doc(tol: Tol) -> Recipe {
     // `scalar(k)·turn/scalar(blades)` about it and slid `BLADE_Z0` up
     // it, so its base sinks into the hub's slab.
     let space = doc.node_space(hub_e).expect("the hub is in a space");
-    let step = Formula::div(
-        Formula::turn(),
-        Formula::count_to_scalar(pe("blades")).expect("a count converts"),
-    )
-    .expect("an angle");
-    let placed = pncad::document::Placed::of(
+    let ring = pncad::pattern::circular_pattern(
         &doc,
-        vec![pncad::document::Mate {
-            on,
-            to: axis,
-            orient: pncad::document::Orientation::IDENTITY,
-        }],
-        vec![
-            (
-                pncad::document::Coord::SPIN,
-                Formula::mul(pncad::pattern::scalar_of(&k), step).expect("an angle"),
-            ),
-            (
-                pncad::document::Coord::slide(pncad::document::TargetAxis::Z),
-                len(BLADE_Z0),
-            ),
-        ],
-    );
-    let ring = Node::place(
+        &k,
         pncad::document::BodyRead::plain(Operand::Node(blade_e)),
         Operand::Var(space),
-        placed.bundle(),
-    );
+        pncad::pattern::RingAxis::Mated {
+            on,
+            to: axis,
+            slide: len(BLADE_Z0),
+        },
+        pncad::pattern::RingStep::Full(pe("blades")),
+    )
+    .expect("a count and a length");
     let group = insert(&mut doc, Box::new(ring));
     let solid = insert(
         &mut doc,
@@ -504,9 +489,9 @@ pub fn stops(tol: Tol) -> Vec<TourStop> {
                         refused to union; that pose builds now, and the faceted hub is \
                         what the scene was authored as",
                 ops: "Profile(24-gon) -> Extrude; Profile(blade) -> Extrude; \
-                      k = index(blades); Place(blade into the hub's space, Axis mate of \
-                      its axis on the hub's, spin = scalar(k) * turn / scalar(blades), \
-                      slid BLADE_Z0 up it) -> Union with the hub; then \
+                      k = index(blades); circular_pattern(blade into the hub's space, \
+                      Axis mate of its axis on the hub's, spin = scalar(k) * turn / \
+                      scalar(blades), slid BLADE_Z0 up it) -> Union with the hub; then \
                       DocEdit::SetVarValue",
                 delta: DELTA,
                 note: Some(format!(

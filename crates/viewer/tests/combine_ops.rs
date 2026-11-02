@@ -1420,14 +1420,17 @@ fn a_bolt_circle_turns_about_another_bodys_axis() {
         Some(pncad::pattern::Recognised::Circular { .. })
     ));
     // Member 0's centre is the bolt's: 15 mm along x from the flange's.
-    let p = pncad::geom_core::linalg::Point3::new(0.045, 0.01, 0.004);
+    // A member's motion is from member 0 in the bolt's own coordinates,
+    // which its placement slides to where it stands.
+    let placed = pncad::geom_core::linalg::Vec3::new(0.045, 0.01, 0.0);
+    let p = pncad::geom_core::linalg::Point3::new(0.0, 0.0, 0.004);
     let c = pncad::geom_core::linalg::Point3::new(CENTRE[0], CENTRE[1], 0.004);
     let quarter = |k: usize| {
         let (s, co) = (core::f64::consts::FRAC_PI_2 * k as f64).sin_cos();
         pncad::geom_core::linalg::Point3::new(c.x + 0.015 * co, c.y + 0.015 * s, c.z)
     };
     for (k, m) in member_motions(&mut session, bolts).iter().enumerate() {
-        let q = m.transform_point(p);
+        let q = m.transform_point(p) + placed;
         assert!(
             (q - quarter(k)).norm() < 1e-12,
             "bolt {k} stands at {q:?}, not {:?}",

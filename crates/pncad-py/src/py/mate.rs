@@ -343,9 +343,10 @@ pub(crate) fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
 ///
 /// Beside a mate fixing a direction it is charted on the target space's
 /// own axes carried by the least turn from where the mate's orientation
-/// puts the copy's mated direction onto the mated one: a slide is the
-/// copy's origin measured along a carried axis, the spin the turn left
-/// about the target's own direction. Zero says the copy's own coordinates agree
+/// puts the copy's mated direction onto the mated one, the spin the turn
+/// left about the target's own direction. The copy stands where its
+/// mates and spins seat it plus the sum of its slides, each its value
+/// along its direction (`Coord`). Zero says the copy's own coordinates agree
 /// with the target space's, up to the orientation, as far as the mates
 /// allow.
 ///

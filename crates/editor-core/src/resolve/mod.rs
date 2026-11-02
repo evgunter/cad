@@ -2638,9 +2638,18 @@ pub fn apply_with_names<T: Decide>(
             names.extend(mate.to.selected_names());
         }
         DocEdit::SetConstraints { constraints, .. } => {
-            for mate in constraints.iter().filter_map(crate::mate::Constraint::mate) {
-                names.extend(mate.on.selected_names());
-                names.extend(mate.to.selected_names());
+            for c in constraints {
+                match &c.kind {
+                    crate::mate::ConstraintKind::Mate(mate) => {
+                        names.extend(mate.on.selected_names());
+                        names.extend(mate.to.selected_names());
+                    }
+                    crate::mate::ConstraintKind::Value(value) => {
+                        if let Some(read) = value.coord.read() {
+                            names.extend(read.read.selected_names());
+                        }
+                    }
+                }
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance

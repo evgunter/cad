@@ -12,11 +12,11 @@
 //! [`flipped`]), whatever the contact's sense, left after the least
 //! turn. So no reference axis is chosen on either side, and a flip
 //! written on either side of a rest turns its spin the same way. A
-//! slide is the copy's origin measured from the target space's along a
-//! target axis as `S` carries it. Each is a
-//! function of the copy's relative pose alone, so no order of the values
-//! is chosen, and nothing about the body the target pose is read off
-//! enters the chart.
+//! slide runs along a direction it names ([`Chart::slide_direction`]):
+//! the mated direction, a target axis as `S` carries it, or a direction
+//! read off a body in the target space. Each is a function of the
+//! copy's relative pose alone, so no order of the values is chosen, and
+//! nothing about the body the target pose is read off enters the chart.
 //!
 //! The least turn has no answer at its one pole, `n = −d`, the
 //! orientation written backwards; inside the band about it the chart
@@ -25,17 +25,24 @@
 //! target by a sliver moves a copy by a sliver.
 //!
 //! [`settle`] places a folded bundle's copy at its values: the spin
-//! turns the copy about `a` inside the bundle's residual, then the
-//! slides set its origin inside what the mates leave of its
-//! translation. Where `n` is a target axis, the slide along it is the
-//! mate's, and the others run across `d`; otherwise the written slides
-//! are admitted only where they span what the mate leaves, decided once
-//! from the source's geometry ([`super::NoChartWhy::SlidesDoNotSpan`]).
-//! The values are taken in one order whatever order they are listed in,
-//! so the listed order moves no bit. Where no direction is fixed, the
-//! spins are a chain the author orders ([`chain`]): about the copy's
-//! origin with no mate ([`unmated_motion`]), about the mated point
-//! beside a lone point mate.
+//! turns the copy about `a` inside the bundle's residual, then the copy
+//! stands where the mate seats it — the point of what it leaves nearest
+//! the target's origin — plus the sum of its slides, each its value
+//! along its direction in what the mate leaves. A carried axis lies
+//! there where `n` is a target axis or the mate leaves every
+//! translation; otherwise it runs along its part there, and the written
+//! slides are admitted only where those parts span what the mate
+//! leaves, decided once from the source's geometry
+//! ([`super::NoChartWhy::SlidesDoNotSpan`]). A read direction is
+//! admitted where it lies in what the mate leaves and the slides stay
+//! independent, decided at evaluation
+//! ([`super::NoChartWhy::ReadSlidesDoNotSpan`]). On axes that lie in
+//! what the mate leaves the sum is the copy's origin measured along
+//! them. The values are taken in one order whatever order they are
+//! listed in, so the listed order moves no bit. Where no direction is
+//! fixed, the spins are a chain the author orders ([`chain`]): about
+//! the copy's origin or a read line with no mate ([`unmated_motion`]),
+//! about the mated point beside a lone point mate.
 
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use geom_core::predicate::{Band, Margin, Sign};
@@ -1155,20 +1162,18 @@ pub(crate) fn point_motion<T: SolveScalar>(
 /// line, or about the target's own direction through the copy's origin
 /// where every line along it will do.
 ///
-/// **The slides.** In the least turn's coordinates (`′`, so `S·v′ = v`)
-/// the mate leaves the copy's translation the plane across `n` (or the
-/// line along it, or all of it), and a slide along carried axis `a` is
-/// the coordinate `t′_a`. So the written slides set their coordinates,
-/// and the one left unwritten across a plane (or the line's length) is
-/// what keeps the mate: `Δ′_c = −(n_a Δ′_a + n_b Δ′_b) / n_c` for a
-/// plane, `Δ′ = n · Δ′_a / n_a` for a line. Where `n` is a target axis
-/// the carried axes across it lie in the plane, the one along it is the
-/// mate's, and the slides move the copy along their own axes alone.
+/// **The slides.** The copy stands where the mate and the spin seat it,
+/// its translation's part in what the mate leaves taken off, plus each
+/// slide's value along its direction there ([`Chart::slide_direction`]):
+/// `t' = t + Σ u_i (v_i − w_i)`, `w` the coordinates of `t` along the
+/// `u_i` (their dot products where they are the chart's own orthonormal
+/// axes, the Gram system's solution otherwise, [`coordinates`]).
 ///
 /// # Errors
 ///
 /// [`MateFault::NoChart`] where the written slides do not span what the
-/// mate leaves ([`Chart::spans`]).
+/// mate leaves ([`Chart::spans`]), or a read direction does not lie in
+/// it.
 pub(crate) fn settle<T: SolveScalar>(
     coset: Coset<T>,
     values: &[ReadValue<T>],
@@ -1374,5 +1379,168 @@ fn residual_turn_point<T: geom_core::Real>(g: Subgroup<T>) -> Option<Point3<T>> 
         | Subgroup::Translation
         | Subgroup::PlaneTranslation { .. }
         | Subgroup::Trivial => None,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::{Chart, Coord, ReadValue, Seat, settle};
+    use crate::mate::coset::{Arm, Coset, Subgroup};
+    use crate::mate::{MateRef, Orientation, TargetAxis};
+    use crate::node::{ConstraintId, RecipeNodeId};
+    use geom_core::linalg::{Affine3, Mat3, UnitVec3, Vec3};
+    use geom_core::predicate::Band;
+
+    /// **On axes that lie in what the mate leaves, the sum of the slides
+    /// is the copy's origin measured along them, bit for bit**: a rest on
+    /// a plane tilted off every target axis, the copy's face on its own
+    /// `z`, spun and slid along both carried axes, settles where the
+    /// projection reading `t + Σ c_a (v_a − t·c_a)` puts it — every
+    /// bit, since a bundle written on target axes before the sum reading
+    /// must stand where it stood. *Breaks if* a carried axis in the plane
+    /// is run through the Gram system, whose solve moves the low bits.
+    #[test]
+    fn the_sum_on_a_tilted_planes_carried_axes_is_the_projection_bit_for_bit() {
+        let band = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).unwrap();
+        let d = unit(Vec3::new(0.3, -0.2, 0.9));
+        let chart = Chart::charted(
+            d,
+            UnitVec3::exact_z(),
+            Seat::Depth(0.25),
+            false,
+            Orientation::IDENTITY,
+            Arm::of(0.5, 0.0).unwrap(),
+            band,
+        )
+        .expect("a chart off the pole");
+        let value = |k: u32, coord, by| ReadValue {
+            value: MateRef::new(RecipeNodeId::WORLD, ConstraintId(crate::MintId::new(k, 1))),
+            coord,
+            by,
+            turns: None,
+            line: None,
+        };
+        let values = [
+            value(1, Coord::SPIN, 0.7),
+            value(2, Coord::slide(TargetAxis::X), 0.031),
+            value(3, Coord::slide(TargetAxis::Y), -0.0175),
+        ];
+        // One admitted pose of the rest: the least turn, its depth along
+        // `d` and an in-plane offset.
+        let start = Affine3::from_parts(chart.least(), d.get() * 0.25 + chart.carried[0] * 0.4);
+        let coset = Coset {
+            subgroup: Subgroup::Planar { normal: d },
+            representative: start,
+        };
+        let (at, _) = settle(coset, &values, Some(chart)).expect("the bundle settles");
+        // The spin alone, then the projection reading over its pose.
+        let (spun, _) = settle(coset, &values[..1], Some(chart)).expect("the spin settles");
+        let t = spun.translation;
+        let shift = [(0, 0.031), (1, -0.0175)]
+            .into_iter()
+            .fold(Vec3::zero(), |s, (a, v)| {
+                s + chart.carried[a] * (v - Chart::<f64>::slide(&spun, chart.carried[a]))
+            });
+        let want = Affine3::from_parts(Mat3::identity(), shift) * spun;
+        let bits = |m: &Affine3<f64>| {
+            [m.translation.x, m.translation.y, m.translation.z].map(f64::to_bits)
+        };
+        assert_eq!(
+            bits(&at),
+            bits(&want),
+            "the settled origin, {at:?} against {want:?}"
+        );
+        assert_eq!(at.linear, want.linear, "the settled turn");
+        assert!(
+            (t - at.translation).norm() > 1e-3,
+            "the slides moved the copy: the row is not vacuous"
+        );
+    }
+
+    /// **Beside a mate whose direction is oblique in the source's own
+    /// coordinates, a carried slide moves the copy exactly its value, in
+    /// what the mate leaves**: a rest of a face whose normal is no axis
+    /// of the source, its carried `x` and `y` running along their parts
+    /// in the plane. Moving one slide by `δ` moves the copy `δ` along
+    /// that part, and the copy stays on the plane. *Breaks if* a carried
+    /// axis off the plane is read as the copy's origin measured along
+    /// it, which steps `δ` by more than `δ`.
+    #[test]
+    fn an_oblique_charts_carried_slide_moves_its_value_along_its_part_in_the_plane() {
+        let band = Band::linear(geom_core::Tol::witness()).expect("a band");
+        let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).unwrap();
+        let d = unit(Vec3::new(0.0, 0.0, 1.0));
+        let copy_d = unit(Vec3::new(1.0, 1.0, 1.0));
+        let chart = Chart::charted(
+            d,
+            copy_d,
+            Seat::Depth(0.25),
+            false,
+            Orientation::IDENTITY,
+            Arm::of(0.5, 0.0).unwrap(),
+            band,
+        )
+        .expect("a chart off the pole");
+        assert!(
+            chart.aligned.is_none(),
+            "the source's mated direction is no axis"
+        );
+        let start = Affine3::from_parts(chart.least(), d.get() * 0.25);
+        let coset = Coset {
+            subgroup: Subgroup::Planar { normal: d },
+            representative: start,
+        };
+        let at = |x: f64, y: f64| {
+            let values = [
+                ReadValue {
+                    value: MateRef::new(
+                        RecipeNodeId::WORLD,
+                        ConstraintId(crate::MintId::new(1, 1)),
+                    ),
+                    coord: Coord::slide(TargetAxis::X),
+                    by: x,
+                    turns: None,
+                    line: None,
+                },
+                ReadValue {
+                    value: MateRef::new(
+                        RecipeNodeId::WORLD,
+                        ConstraintId(crate::MintId::new(2, 1)),
+                    ),
+                    coord: Coord::slide(TargetAxis::Y),
+                    by: y,
+                    turns: None,
+                    line: None,
+                },
+            ];
+            settle(coset, &values, Some(chart))
+                .expect("the slides span")
+                .0
+                .translation
+        };
+        let (zero, x, y) = (at(0.0, 0.0), at(0.02, 0.0), at(0.0, -0.03));
+        for (moved, by, label) in [(x - zero, 0.02, "x"), (y - zero, 0.03, "y")] {
+            assert!(
+                (moved.norm() - by).abs() < 1e-12,
+                "the slide along {label} moves the copy {}, not {by}",
+                moved.norm()
+            );
+            assert!(
+                moved.dot(d.get()).abs() < 1e-12,
+                "the slide along {label} stays on the plane"
+            );
+        }
+        assert!(
+            (zero.dot(d.get()) - 0.25).abs() < 1e-12,
+            "the copy rests on the plane"
+        );
+        // Its zero is where the mate seats it: the plane's point nearest
+        // the target's origin.
+        assert!(
+            (zero - d.get() * 0.25).norm() < 1e-12,
+            "zero is the seat: {zero:?}"
+        );
     }
 }

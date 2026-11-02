@@ -5663,6 +5663,13 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
     }
 }
 
+/// **Whether a constraint reads a body of its placement's space**: a
+/// mate's `to`, or a value's direction or axis, which a re-target would
+/// strand.
+fn reads_its_space(c: &pncad::document::Constraint<Formula>) -> bool {
+    c.mate().is_some() || c.value().is_some_and(|v| v.coord.read().is_some())
+}
+
 /// **A combine's operands, in the first one's space** (D10
 /// `[placement.spaces]`): each operand after the first that lives in
 /// another space is placed into the first's, at the identity of its
@@ -5674,8 +5681,9 @@ pub(crate) fn as_body(doc: &Doc<ProfileProgram>, read: Operand) -> Operand {
 /// tool's on a body nothing placed) is re-targeted into the first's
 /// space with its values as written, so it stands on the first's axes
 /// as it stood on its body's and every variable keeps driving it. An
-/// operand in no space, or a copy whose bundle holds a mate (which
-/// reads its body's space), is read as it is: the combine then refuses
+/// operand in no space, or a copy whose bundle holds a mate or a value
+/// reading a direction or an axis (each reads its body's space,
+/// [`reads_its_space`]), is read as it is: the combine then refuses
 /// `SpaceMismatch` at the edit door, in the kernel's words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
@@ -5708,10 +5716,7 @@ fn in_one_space(
             _ => false,
         };
         if self_placed {
-            if held_bundle(run.doc(), node)
-                .iter()
-                .any(|c| c.mate().is_some())
-            {
+            if held_bundle(run.doc(), node).iter().any(reads_its_space) {
                 read.push(operand.clone());
                 continue;
             }
@@ -5790,10 +5795,10 @@ fn bundle_run(
     write_bundle(run, placement, constraints)
 }
 
-/// **`placement` moved into `space` by name**: a bundle holding a mate
-/// first stood by the identity bundle, which reads nothing, so the
-/// re-target strands no mate of the bundle's own, then its `target`
-/// re-pointed there.
+/// **`placement` moved into `space` by name**: a bundle reading its
+/// space ([`reads_its_space`]) first stood by the identity bundle,
+/// which reads nothing, so the re-target strands no read of the
+/// bundle's own, then its `target` re-pointed there.
 pub(crate) fn into_space(
     run: &mut Recording<'_, ProfileProgram>,
     placement: RecipeNodeId,
@@ -5801,7 +5806,7 @@ pub(crate) fn into_space(
 ) -> Result<(), EditError> {
     if held_bundle(run.doc(), placement)
         .iter()
-        .any(|c| c.mate().is_some())
+        .any(reads_its_space)
     {
         write_bundle(run, placement, editor_core::stand().bundle())?;
     }
