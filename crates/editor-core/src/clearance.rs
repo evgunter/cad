@@ -1657,16 +1657,20 @@ impl LeafFold {
     }
 }
 
-/// The fixed combination order: a definite violation outranks a
-/// refusal, which outranks `Holds`. Within a rank the FIRST is kept, so
-/// the answer is a function of the deterministic pair order.
+/// The fixed combination order: a definite violation (or exceedance)
+/// outranks a refusal, which outranks a holding answer. Within a rank
+/// the FIRST is kept, so the answer is a function of the deterministic
+/// leaf order — and a `Within` keeps its proving pair: every leaf proved
+/// the upper bound, and the first leaf's pair is one proof of it.
 fn combine(acc: ClearanceVerdict, next: ClearanceVerdict) -> ClearanceVerdict {
     match (&acc, &next) {
         (ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded, _) => acc,
         (_, ClearanceVerdict::Violated(_) | ClearanceVerdict::Exceeded) => next,
         (ClearanceVerdict::Refused(_), _) => acc,
         (_, ClearanceVerdict::Refused(_)) => next,
-        _ => ClearanceVerdict::Holds,
+        (ClearanceVerdict::Within(_), _) => acc,
+        (_, ClearanceVerdict::Within(_)) => next,
+        (ClearanceVerdict::Holds, ClearanceVerdict::Holds) => ClearanceVerdict::Holds,
     }
 }
 

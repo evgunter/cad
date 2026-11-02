@@ -651,3 +651,68 @@ fn facet_pruning_answers_an_upper_bound_as_the_whole_box_does() {
         &ClearanceVerdict::Holds
     );
 }
+
+/// **Row 9**: the dials door's fold over a drive keeps an upper bound's
+/// proof. Every certified leaf proves `≤ 0.46` (the walls are 0.35 to
+/// 0.45 apart over the whole box), and the fold answers `Within` with
+/// the first leaf's pair — not `Holds`, which is the lower bound's
+/// verdict and carries no pair.
+#[test]
+fn the_fold_keeps_an_upper_bounds_proving_pair() {
+    use editor_core::clearance::{ClearanceBound, ClearanceQuery, clearance_over_at_dials};
+    let f = facing(&[]);
+    let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
+    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
+        .expect("the witness build succeeds");
+    assert!(!verdict.certified().is_empty(), "the drive certifies");
+    let fold = clearance_over_at_dials(
+        &f.doc,
+        &analyzed,
+        &verdict,
+        &f.walls[0],
+        &f.walls[1],
+        &ClearanceQuery::at_dials(
+            ClearanceBound::AtMost(geom_core::Interval::from_bounds(0.46, 0.46)),
+            Tol::witness(),
+        ),
+    );
+    let ClearanceVerdict::Within(w) = &fold.verdict else {
+        panic!("every leaf proves ≤ 0.46: {:?}", fold.verdict.label());
+    };
+    assert!(w.geometry.distance <= 0.46, "{:?}", w.geometry);
+}
+
+/// **Row 10**: a file saved before the clearance assertion, holding the
+/// retired `min_clearance` measure, refuses by name and says what
+/// replaced it — not as an unknown variant.
+#[test]
+fn a_file_holding_the_retired_measure_refuses_naming_its_replacement() {
+    let f = facing(&[]);
+    let seat = |s: &editor_core::clearance::Selection| {
+        let editor_core::clearance::FaceScope::Named(names) = &s.faces else {
+            unreachable!("the fixture names one wall")
+        };
+        SitedRef::new(s.at, names[0].clone())
+    };
+    let (doc, _) = fixture::measure_node(
+        &f.doc,
+        editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![seat(&f.walls[0]), seat(&f.walls[1])],
+    );
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let needle = "\"Distance\": {";
+    assert_eq!(
+        text.matches(needle).count(),
+        1,
+        "one distance measure: {text}"
+    );
+    let retired = text.replace(needle, "\"MinClearance\": {");
+    let Err(refusal) = editor_core::persist::load(&retired, Tol::witness()) else {
+        panic!("a retired measure does not load");
+    };
+    let said = refusal.to_string();
+    assert!(
+        said.contains("min_clearance measure is retired") && said.contains("clearance assertion"),
+        "the refusal names the measure and its replacement: {said}"
+    );
+}

@@ -36,6 +36,8 @@ use crate::node::SitedRef;
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
+#[serde(try_from = "MeasurePrimitiveWire<R>")]
+#[serde(bound(deserialize = "R: serde::Deserialize<'de>"))]
 pub enum MeasurePrimitive<R = SitedRef> {
     /// The distance between two referenced entities → [`Dimension::Length`]:
     /// a face, an edge or a vertex, or a pose (a point, an axis, a plane,
@@ -79,6 +81,66 @@ pub enum MeasurePrimitive<R = SitedRef> {
         /// The contained carrier.
         inner: R,
     },
+}
+
+/// **The measure primitive as a file holds it**: the live primitives,
+/// and the one a file saved before the clearance assertion may still
+/// carry. One pass, no backtracking: the variant tag picks the arm.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+enum MeasurePrimitiveWire<R> {
+    Distance {
+        a: R,
+        b: R,
+    },
+    Angle {
+        a: R,
+        b: R,
+    },
+    Gap {
+        outer: R,
+        inner: R,
+    },
+    /// The retired measured minimum ([`RetiredMinClearance`]).
+    MinClearance {
+        #[allow(dead_code)]
+        a: R,
+        #[allow(dead_code)]
+        b: R,
+    },
+}
+
+/// **A file's `min_clearance` measure, refused by name.** A clearance is
+/// a requirement, not a measurement (ERROR-DESIGN E3's amendment): the
+/// measured minimum it once was is retired, and a document states the
+/// requirement as a clearance assertion over the same two seats
+/// ([`crate::Claim::Clearance`], `Node::clearance`). A file that still
+/// holds the measure loads as this refusal, which says what replaced it,
+/// rather than as an unknown variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RetiredMinClearance;
+
+impl core::fmt::Display for RetiredMinClearance {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(
+            "the min_clearance measure is retired: a clearance is a requirement, not a \
+             measurement. Recourse: re-author it as a clearance assertion over the same two \
+             seats (`clearance(a, b) ≥ c`, `≤ c`, `= c` or a band)",
+        )
+    }
+}
+
+impl<R> TryFrom<MeasurePrimitiveWire<R>> for MeasurePrimitive<R> {
+    type Error = RetiredMinClearance;
+
+    fn try_from(wire: MeasurePrimitiveWire<R>) -> Result<Self, Self::Error> {
+        match wire {
+            MeasurePrimitiveWire::Distance { a, b } => Ok(Self::Distance { a, b }),
+            MeasurePrimitiveWire::Angle { a, b } => Ok(Self::Angle { a, b }),
+            MeasurePrimitiveWire::Gap { outer, inner } => Ok(Self::Gap { outer, inner }),
+            MeasurePrimitiveWire::MinClearance { .. } => Err(RetiredMinClearance),
+        }
+    }
 }
 
 impl<R> MeasurePrimitive<R> {
