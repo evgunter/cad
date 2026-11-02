@@ -1167,27 +1167,32 @@ impl<T: Decide> Tie<T> {
         let offset = self
             .witness_offset(arm)
             .unwrap_or_else(|| T::from_f64(f64::NAN));
-        let decided = crate::validate::decide("tangent_sector_witness", Margin::of(offset), band);
-        let gap = Ok(Descent::Unresolved(Unresolved::Gap));
-        let side = match decided {
-            Ok(Sign::Zero) => return Ok(Descent::Rides),
-            Ok(Sign::Positive) => Side::Above,
-            Ok(Sign::Negative) => Side::Below,
-            Err(diag) if in_one_gap(diag) => return gap,
+        let decided = match crate::validate::decide_reported(
+            "tangent_sector_witness",
+            Margin::of(offset),
+            band,
+        ) {
+            Ok(decided) => decided,
+            Err(diag) if in_one_gap(diag) => return Ok(Descent::Unresolved(Unresolved::Gap)),
             Err(diag) => return Err(ReadFault::Witness(diag)),
         };
+        let side = match decided.sign {
+            Sign::Zero => return Ok(Descent::Rides),
+            Sign::Positive => Side::Above,
+            Sign::Negative => Side::Below,
+        };
         match leading {
-            Some(lead) if lead != side => Err(ReadFault::Witness(
-                crate::validate::decide_positive(
+            Some(lead) if lead != side => {
+                Err(ReadFault::Witness(geom_core::k_stats::gate_rejection(
                     "tangent_sector_witness",
-                    Margin::of(match lead {
-                        Side::Above => offset,
-                        Side::Below => T::zero() - offset,
-                    }),
+                    decided,
                     band,
-                )
-                .expect_err("a witness decided against the parting's side is not past it"),
-            )),
+                    match lead {
+                        Side::Above => geom_core::SizedPass::Positive,
+                        Side::Below => geom_core::SizedPass::Negative,
+                    },
+                )))
+            }
             _ => Ok(Descent::Leaves(side)),
         }
     }
