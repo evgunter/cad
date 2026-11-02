@@ -338,16 +338,19 @@ jobs:
           shared-key: build-default
           save-if: false
       # Integration-test binaries build at opt-level 0; every library stays
-      # at 1 (scripts/rustc-test-crates-opt0.sh says which crates and why).
+      # at 1 (scripts/rustc-test-crates-opt0.sh says which and why; the
+      # measurement is in work/green/kernel-shard-long-pole-is-one-test-binary.md).
       # Set through $GITHUB_ENV AFTER rust-cache: the variable is RUST*-
       # prefixed, so rust-cache would hash it into the key and miss the
       # entry cache-prime saved. It reaches only workspace members, which
       # the cache does not hold anyway.
-      # Paired on one runner (PR 6351, TIER=all, 2026-11-02): kernel build
-      # 882 -> 539 s wall and 3439 -> 2053 CPU-s, app 788 -> 593 s; the
-      # default-eps tests ran 7 s and 0 s slower.
       - name: integration-test binaries build at opt-level 0
-        run: echo "RUSTC_WORKSPACE_WRAPPER=$GITHUB_WORKSPACE/scripts/rustc-test-crates-opt0.sh" >> "$GITHUB_ENV"
+        run: |
+          {
+            echo "RUSTC_WORKSPACE_WRAPPER=$GITHUB_WORKSPACE/scripts/rustc-test-crates-opt0.sh"
+            echo "CAD_OPT0_LOG=$RUNNER_TEMP/opt0.log"
+          } >> "$GITHUB_ENV"
+          touch "$RUNNER_TEMP/opt0-marker"
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -365,6 +368,25 @@ jobs:
       - name: build
         id: build
         run: cargo nextest run --no-run --profile ci ${{ matrix.scope }}
+      # A wrapper that stops applying costs the build again and nothing
+      # else shows it, so every integration binary this build wrote must be
+      # in the wrapper's log, rewritten, or kept at a level above 1.
+      - name: every integration binary built went through the opt-level-0 wrapper
+        run: |
+          built=$(find target/debug/deps -maxdepth 1 -type f -name 'all-*' -perm -u+x \
+            -newer "$RUNNER_TEMP/opt0-marker" | wc -l)
+          touch "$CAD_OPT0_LOG"
+          seen=$(wc -l < "$CAD_OPT0_LOG")
+          cat "$CAD_OPT0_LOG"
+          bad=$(grep -Ev '^(rewrote \S+|kept \S+ [23sz])$' "$CAD_OPT0_LOG" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::the opt-level-0 wrapper met an integration binary cargo built at neither opt 1 nor above it: $bad"
+            exit 1
+          fi
+          if [ "$seen" -ne "$built" ]; then
+            echo "::error::the build wrote $built integration binaries and the opt-level-0 wrapper logged $seen"
+            exit 1
+          fi
       - name: test (default eps; a fast-set test at 0.5 s if new, 1 s otherwise, fails it)
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
