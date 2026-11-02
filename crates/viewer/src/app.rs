@@ -5709,17 +5709,21 @@ mod properties_pane_tests {
             _ => None,
         };
         let fresh = radius(&driven, 0).expect("an added circle");
-        let shown = crate::props::render_number(fresh / 0.001);
-        let fields = driven.each(&shown);
+        // Each radius field is the run painted next after its label.
+        let painted = driven.quiet();
+        let fields: Vec<egui::Pos2> = painted
+            .windows(2)
+            .filter(|pair| pair[0].0 == "radius")
+            .map(|pair| pair[1].1.center())
+            .collect();
         assert_eq!(
             fields.len(),
             2,
-            "each added circle shows its radius as {shown:?}: {:?}",
-            driven.quiet()
+            "each added circle has a radius field: {painted:?}"
         );
         driven.click_at(fields[0]);
         driven.frame(vec![key(egui::Key::A)]);
-        driven.frame(vec![egui::Event::Text("1.5".to_owned())]);
+        driven.frame(vec![egui::Event::Text("0.0015".to_owned())]);
         driven.frame(vec![key(egui::Key::Enter)]);
         driven.settle();
         assert_eq!(
