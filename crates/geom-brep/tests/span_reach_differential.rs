@@ -1,6 +1,8 @@
-//! **The span-reach differential**: main's whole-turn conic reach
-//! ([`Reach::lever_from`]) against the span's ([`Reach::span_reach_from`])
-//! where a face's measure reads it, on faces bounded by rim arcs.
+//! **The span-reach differential**: [`Reach::lever_from`] against
+//! [`Reach::span_reach_from`] where a face's measure reads it, on faces
+//! bounded by rim arcs. Both now read a [`Reach::Span`] through its
+//! cover over the span, so the `main` column, once the whole turn's
+//! conic reach, reads what the head reads.
 //!
 //! Each face is measured as `topo`'s `splitting::rules::face_reach_from`
 //! and `face_axial_range` measure it: its corners, one [`Reach::Span`]
@@ -772,8 +774,9 @@ fn drawn_at() -> geom_core::Band {
 /// **Split #218 of `CAD_FUZZ_SEED=0x4a5a1477da7f8d8a` at ε = 1e-12**:
 /// a sector of radii 1216 to 1702, 0.83 rad, 1e3 off the origin, under
 /// a plane tilted 7.7e-16 about its corner. The span's lever (1253.136,
-/// the corner's reach) reads the tilt at 0.90·ε and serves coplanar
-/// where the whole turn's (2918) escalates. The sector's farthest point
+/// the corner's reach) reads the tilt at 0.90·ε and serves coplanar,
+/// which [`Reach::lever_from`] now reads too (the whole turn's lever,
+/// 2918, escalated). The sector's farthest point
 /// is 0.993·ε off the plane, so the serving is on its truth; the grid's
 /// rounded coordinates, up to 4e-13 off the face's own plane, read
 /// 1.19·ε, in the band.
@@ -797,7 +800,7 @@ fn a_sector_a_thousand_off_the_origin_serves_coplanar_on_its_exact_offset() {
     let case = plane_case(b, (&face, 0), (x, y, nf), (radii, arc), nsp);
     assert_eq!(
         (case.truth, case.main, case.head, case.short),
-        ("Zero", "esc", "coplanar", false),
+        ("Zero", "coplanar", "coplanar", false),
         "split #218: (truth, main, head, head's lever short of the face)"
     );
 }

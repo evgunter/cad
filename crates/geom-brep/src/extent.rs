@@ -38,10 +38,9 @@
 //! is never shorter than the region it consumes, and no longer than the
 //! caller's own measure of that region from the point it is read at.**
 //! No ball chosen around the consumed region is a lever. An edge's span
-//! ([`Reach::Span`]) is levered by its per-carrier farthest distance
-//! from the pivot that makes that distance least on each axis; a face's
-//! measures read a conic edge over the span it holds instead
-//! ([`Reach::span_reach_from`]), since a short arc of a large rim
+//! ([`Reach::Span`]) is levered by its cover's farthest distance from
+//! the pivot over the span it holds, read at the pivot that makes that
+//! distance least on each axis, since a short arc of a large rim
 //! reaches nowhere near its rim's size. The
 //! cylinder pair's caller ([`Reach::Measured`]) hands a length it
 //! measured, and only that pair floors it ([`Reach::lever_between`]).
@@ -64,8 +63,7 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
-use geom::cover::Cover;
-use geom::curves::boxes::ArcWindow;
+use geom::cover::{Cover, ParamWindow, Site};
 use geom::{Conic, Curve3, Line};
 use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3, is_finite_length};
@@ -175,75 +173,19 @@ impl<T: Real> ExtentBall<T> {
     }
 }
 
-/// **How far a circle arc reaches from a point, exactly**: the farthest
-/// `|x − pivot|` over `x = c + r·(u·cos t + v·sin t)`, `t ∈ [t0, t1]`.
-/// With `pivot` standing `h` off the circle's plane and `ρ` from its
-/// centre within it, `|x − pivot|² = h² + r² + ρ² − 2·|r|·ρ·cos(t − φ)`,
-/// whose one interior maximum is the crest opposite the pivot,
-/// `√(h² + (|r| + ρ)²)`. So the reach is the larger of the two ends' own
-/// distances and, where the crest lies in the span
-/// ([`geom::curves::boxes::ArcWindow::crest_outside`]
-/// along `−(pivot − c)`), that crest: every term a sum of positives,
-/// none a difference of carrier-sized squares, so a short arc far from
-/// its centre loses nothing to cancellation. That is why it reads the
-/// window's in-span test and not the directional door: the door's
-/// extent along `pivot − c` reaches this distance only through the cancelling
-/// difference above. A pivot on the axis (`ρ`
-/// zero) reads every point at the crest's distance. Capped at the whole
-/// turn, `|c − pivot| + |r|`, which the crest reaches only to rounding.
-fn circle_arc_reach<T: Real>(circle: &geom::Circle<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
-    let (f, r) = (&circle.frame, circle.radius);
-    let (c, u, v) = (f.center, f.u_ref, f.v_ref());
-    let at = |t: T| circle.point_at(t);
-    let w = pivot - c;
-    let k = u.cross(v);
-    let h = w.dot(k);
-    let rho = (w - k * h).norm();
-    let ends = (at(t0) - pivot).norm().max((at(t1) - pivot).norm());
-    let crest = (h.powi(2) + (r + rho).powi(2)).sqrt();
-    let away = (-(r * u.dot(w)), -(r * v.dot(w)));
-    ends.max(
-        ArcWindow::new(t0, t1)
-            .crest_outside(away.0, away.1)
-            .select_le_zero(crest, T::zero()),
-    )
-    .min(w.norm() + r)
+/// **The farthest an arc of `carrier` over `[t0, t1]` stands from
+/// `pivot`**: its cover's far distance ([`Cover::distance_range`]),
+/// poison where the carrier has no cover over the span.
+fn cover_far<T: Real>(carrier: &Curve3<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
+    carrier
+        .cover_over(ParamWindow::new(t0, t1))
+        .map_or_else(|_| poison(), |c| c.distance_range(&Site::Point(pivot)).1)
 }
 
-/// **How far an ellipse arc reaches from a point**: an upper bound on
-/// `|x − pivot|` over `x = c + u·a·cos t + v·b·sin t`, `t ∈ [t0, t1]`,
-/// never past the whole turn's `|c − pivot| + max(|a|, |b|)`. Its
-/// farthest point from a point is the root of a quartic, so it is
-/// bounded rather than found (a circle's is exact, [`circle_arc_reach`]).
-///
-/// The span (capped at one turn either way) is cut into four pieces of
-/// half-width `h ≤ π/4`. On the unit circle a piece about its middle
-/// `m` lies in the rectangle its chord spans out to the arc's crest:
-/// across it within the chord's ends, and along `e(m)` within
-/// `[cos h, 1]`. The conic is that circle's affine image, so each piece
-/// lies in the parallelogram on its ends shifted by
-/// `S = (1 − cos h)·(x(m) − c)`, and a distance from a point is convex,
-/// so it peaks at a corner. The bound is never short of the arc, to
-/// rounding, and passes it by at most a piece's bulge `|S|`; it is read
-/// from the ends and the shift, never from a difference of carrier-sized
-/// squares, so a short arc far from its centre loses nothing to
-/// cancellation.
-fn conic_arc_reach<T: Real>(conic: &dyn Conic<T>, (t0, t1): (T, T), pivot: Point3<T>) -> T {
-    let c = conic.frame().center;
-    let turn = T::from_f64(core::f64::consts::TAU);
-    let quarter = ((t1 - t0).max(-turn).min(turn)) * T::from_f64(0.25);
-    let at = |t: T| conic.point_at(t);
-    let shift = T::one() - (quarter * T::from_f64(0.5)).abs().cos();
-    let far = (0..4).fold((at(t0) - pivot).norm(), |far, k| {
-        let s0 = t0 + quarter * T::from_f64(f64::from(k));
-        let s1 = s0 + quarter;
-        let bulge = (at(s0 + quarter * T::from_f64(0.5)) - c) * shift;
-        let (x0, x1) = (at(s0), at(s1));
-        [x0 + bulge, x1, x1 + bulge]
-            .into_iter()
-            .fold(far, |far, x| far.max((x - pivot).norm()))
-    });
-    far.min((c - pivot).norm() + conic.speed_hi())
+/// The scalar's poison, through the totality policy (`Real::sqrt` of a
+/// negative).
+fn poison<T: Real>() -> T {
+    (T::zero() - T::one()).sqrt()
 }
 
 /// How many pieces an edge's span is cut into where its extent is read
@@ -252,7 +194,7 @@ fn conic_arc_reach<T: Real>(conic: &dyn Conic<T>, (t0, t1): (T, T), pivot: Point
 const EXTENT_PIECES: u32 = 16;
 
 /// How many pieces [`edge_extent_sup`]'s ellipse arm reads the arc over,
-/// each from its middle ([`conic_arc_reach`] twice per piece).
+/// each from its middle ([`cover_far`] twice per piece).
 const ELLIPSE_PIECES: u32 = 16;
 
 /// The farthest distance between two of `points` (zero for fewer than
@@ -409,8 +351,8 @@ pub fn edge_extent_inf<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 ///   ellipse is the image of the radius-a circle (same parameter θ)
 ///   under a one-axis contraction by b/a ≤ 1, which never lengthens a
 ///   distance — and, cutting the span into 16 pieces `Eₖ` about their
-///   middles `mₖ`, `maxₖ [reach(E, mₖ) + reach(Eₖ, mₖ)]`
-///   ([`conic_arc_reach`]): a point `x ∈ Eₖ` stands within
+///   middles `mₖ`, `maxₖ [reach(E, mₖ) + reach(Eₖ, mₖ)]`, each reach the
+///   arc's cover's far distance ([`cover_far`]): a point `x ∈ Eₖ` stands within
 ///   `reach(Eₖ, mₖ)` of `mₖ`, which stands within `reach(E, mₖ)` of every
 ///   point.
 /// - **Spiric** (major radius R, minor r, stand-off d): the oval's
@@ -455,7 +397,7 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
             let pieces = (0..ELLIPSE_PIECES).fold(T::zero(), |far, k| {
                 let s0 = t0 + step * T::from_f64(f64::from(k));
                 let x = carrier.eval(s0 + step * T::from_f64(0.5));
-                far.max(conic_arc_reach(e, (t0, t1), x) + conic_arc_reach(e, (s0, s0 + step), x))
+                far.max(cover_far(carrier, (t0, t1), x) + cover_far(carrier, (s0, s0 + step), x))
             });
             chord.max((two * e.speed_hi() * fold).min(pieces))
         }
@@ -486,48 +428,34 @@ pub fn edge_extent_sup<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, chord: 
 /// upper reading of a lever known from both sides
 /// ([`edge_reach_bounds`]).
 ///
-/// **How far past the reach it stands depends on the carrier.** On a
-/// line and a circle arc it is the reach; on an ellipse arc it passes it
-/// by at most a quarter of its span's bulge. On a spiric and a spline
-/// it is read through a whole-carrier speed bound, so it is tight only
-/// where the parameter runs evenly: near a spiric's pinch, where the
-/// rate bound grows without limit, and on a spline window with wild
-/// weights or clustered knots, it can pass the reach many times over.
+/// The lesser of two bounds, never below the samples' own reach:
+///
+/// - the far distance of the carrier's cover over `[t0, t1]`
+///   ([`Cover::distance_range`]): exact on a line and a circle arc, past
+///   an ellipse arc by at most a quarter of its span's bulge, and on a
+///   spiric or a spline the whole period's or the whole net's;
+/// - the samples' reach at `t₀ + k·(t₁ − t₀)/16` plus `s·|Δt|/32`, `s`
+///   the carrier's speed bound ([`edge_extent_sup`]'s Lipschitz pairs,
+///   read from `pivot`): the edge's own window, which on a spiric or a
+///   spline is tighter than the cover's where the parameter runs evenly.
+///   Near a spiric's pinch, where the rate bound grows without limit,
+///   and on a spline window with wild weights or clustered knots, it
+///   can pass the reach many times over.
+///
 /// So it is never by itself the lever of a reading that acts on every
 /// sign: such a reading reads [`edge_reach_bounds`] at both ends.
-///
-/// - **Line**: its ends (distance to a point is convex along a line).
-/// - **Circle** and **Ellipse**: [`Reach::span_reach_from`] over
-///   `[t0, t1]` — exact on a circle arc, and on an ellipse arc past it by
-///   at most a quarter of its span's bulge.
-/// - **Spiric** and **Nurbs**: the lesser of [`Reach::lever_from`] (the
-///   torus's or the whole control net's reach) and the samples' reach
-///   at `t₀ + k·(t₁ − t₀)/16` plus `s·|Δt|/32`, `s` the carrier's speed
-///   bound ([`edge_extent_sup`]'s Lipschitz pairs, read from `pivot`):
-///   the edge's own window, where the net is the whole carrier's.
-///
-/// Never below the samples' own reach from `pivot`. Comparison-free;
-/// poison propagates as in [`edge_extent_sup`].
+/// Comparison-free; poison propagates as in [`edge_extent_sup`], and a
+/// carrier with no cover reads poison.
 pub fn edge_reach_from<T: SpanLocate>(carrier: &Curve3<T>, t0: T, t1: T, pivot: Point3<T>) -> T {
-    let span = Reach::Span {
-        carrier: carrier.clone(),
-        t0,
-        t1,
-    };
     let sampled = sampled_reach(carrier, (t0, t1), pivot);
-    let bound = match carrier {
-        Curve3::Line(_) | Curve3::Circle(..) | Curve3::Ellipse(..) => span.span_reach_from(pivot),
-        Curve3::Spiric { .. } | Curve3::Nurbs(_) => {
-            let slack =
-                speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
-            span.lever_from(pivot).min(sampled + slack)
-        }
-    };
+    let slack = speed_sup(carrier) * (t1 - t0).abs() / T::from_f64(f64::from(2 * EXTENT_PIECES));
     // Every sample is a point of the edge, so its distance bounds the
     // reach from below: at an enclosure scalar this lifts the lower end of
     // a bound whose in-span reading was undecided (a full turn's crest),
     // which would otherwise reach down to the pivot itself.
-    bound.max(sampled)
+    cover_far(carrier, (t0, t1), pivot)
+        .min(sampled + slack)
+        .max(sampled)
 }
 
 /// The farthest of the edge's points at `t₀ + k·(t₁ − t₀)/16`,
@@ -688,72 +616,28 @@ impl<T: Real> Reach<T> {
     /// - [`Self::Face`]: its farthest distance from `at`: the plane×cone
     ///   arm levers its trileans at it. The plane×cylinder row reads a
     ///   face from its hinge instead ([`Self::hinge_lever`]).
-    /// - [`Self::Span`]: per carrier, never an underestimate and exact
-    ///   where the carrier allows:
-    ///   - a **line** segment: its endpoints (distance to a point is
-    ///     convex along a line, so a segment attains its maximum at an
-    ///     end);
-    ///   - a **circle** or **ellipse**: centre distance plus the radius,
-    ///     or the larger semi-axis MAGNITUDE (the mint certifies an
-    ///     ellipse stored with `minor > major` or a negative `major`),
-    ///     whatever the parameter span — a closed rim, whose two
-    ///     endpoints coincide, is exactly the case sampling misses;
-    ///   - a **spiric** (a curve on a torus): centre distance plus
-    ///     `R + r`;
-    ///   - a **NURBS** carrier: its control points (the convex-hull
-    ///     property of positive weights).
+    /// - [`Self::Span`]: the far distance of the carrier's cover over
+    ///   `[t0, t1]` ([`Cover::distance_range`]), never an underestimate:
+    ///   exact on a segment and a circle arc, a closed rim's whole turn
+    ///   included, which is exactly the case sampling misses.
     #[must_use]
     pub fn lever_from(&self, pivot: Point3<T>) -> T {
         match self {
             Self::Ball(ball) => ball.lever_from(pivot),
             Self::Measured { lever, .. } => *lever,
             Self::Face { across, .. } => *across,
-            Self::Span { carrier, .. } => match carrier {
-                Curve3::Circle(_) | Curve3::Ellipse(_) => match carrier.conic() {
-                    Some(k) => (k.frame().center - pivot).norm() + k.speed_hi(),
-                    None => unreachable!("a circle or an ellipse is a conic"),
-                },
-                Curve3::Spiric {
-                    center,
-                    major_radius,
-                    minor_radius,
-                    ..
-                } => (*center - pivot).norm() + major_radius.abs() + minor_radius.abs(),
-                Curve3::Line(_) | Curve3::Nurbs(_) => self
-                    .span_points()
-                    .iter()
-                    .fold(T::zero(), |m, &p| m.max((p - pivot).norm())),
-            },
+            Self::Span { carrier, t0, t1 } => cover_far(carrier, (*t0, *t1), pivot),
         }
     }
 
     /// **The farthest the consumed region stands from `pivot`, over the
-    /// span it holds**: [`Self::lever_from`], except that a circle or
-    /// ellipse [`Self::Span`] is read over `[t0, t1]` rather than round
-    /// its whole turn, which on a short arc of a large conic is the
-    /// conic's size, not the arc's: a circle arc exactly, to rounding
-    /// ([`circle_arc_reach`]), and an ellipse arc never short of it, to
-    /// rounding, and past it by at most a quarter of its span's bulge
-    /// ([`conic_arc_reach`]). Never past [`Self::lever_from`]. The face measures read it
-    /// (`splitting::rules::face_reach_from` in `topo`); the section
-    /// arms' anchors read [`Self::lever_from`].
+    /// span it holds**: [`Self::lever_from`], which reads a
+    /// [`Self::Span`] over `[t0, t1]` through its cover. The face
+    /// measures read it (`splitting::rules::face_reach_from` in `topo`);
+    /// the section arms' anchors read [`Self::lever_from`].
     #[must_use]
     pub fn span_reach_from(&self, pivot: Point3<T>) -> T {
-        match self {
-            Self::Span {
-                carrier: Curve3::Circle(circle),
-                t0,
-                t1,
-            } => circle_arc_reach(circle, (*t0, *t1), pivot),
-            Self::Span {
-                carrier: Curve3::Ellipse(ellipse),
-                t0,
-                t1,
-            } => conic_arc_reach(ellipse, (*t0, *t1), pivot),
-            Self::Ball(_) | Self::Measured { .. } | Self::Face { .. } | Self::Span { .. } => {
-                self.lever_from(pivot)
-            }
-        }
+        self.lever_from(pivot)
     }
 
     /// How far the consumed region reaches from `pivot` along `dir`,
@@ -768,24 +652,13 @@ impl<T: Real> Reach<T> {
     ///   [`Self::Face`]: its `below` and `above` from `at` (along its
     ///   surface's axis, which `dir` is); each moved by `at`'s own
     ///   reading `(at − pivot)·dir`.
-    /// - [`Self::Span`], per carrier:
-    ///   - a **line** segment or a **NURBS** carrier: its endpoints or
-    ///     its whole control net (a linear function peaks over a segment
-    ///     or a convex hull at a vertex of it); the net is the whole
-    ///     carrier's, not the span's;
-    ///   - a **circle** or **ellipse**: exact over `[t0, t1]`
-    ///     (`geom::curves::boxes::conic_arc_extent_along`);
-    ///   - a **spiric**: its torus's support either way,
-    ///     `(c − pivot)·dir ∓ (R·|dir × k| + r·|dir|)`, whatever the span.
+    /// - [`Self::Span`]: the support of the carrier's cover over
+    ///   `[t0, t1]` along `∓dir` ([`Cover::support`]): exact on a segment
+    ///   and a conic arc, the period's on a spiric, the whole net's on a
+    ///   spline. Poison where the carrier has no cover.
     #[must_use]
     pub fn range_along(&self, pivot: Point3<T>, dir: Vec3<T>) -> (T, T) {
         let at = |p: Point3<T>| (p - pivot).dot(dir);
-        let points = |ps: Vec<Point3<T>>| {
-            let first = at(ps[0]);
-            ps.iter().fold((first, first), |(lo, hi), &p| {
-                (lo.min(at(p)), hi.max(at(p)))
-            })
-        };
         match self {
             Self::Ball(ball) => {
                 let (c, r) = (at(ball.center()), ball.radius() * dir.norm());
@@ -798,25 +671,13 @@ impl<T: Real> Reach<T> {
                 above,
                 ..
             } => (at(*from) - *below, at(*from) + *above),
-            Self::Span { carrier, t0, t1 } => match carrier {
-                Curve3::Circle(..) | Curve3::Ellipse(..) => {
-                    geom::curves::boxes::conic_arc_extent_along(carrier, *t0, *t1, pivot, dir)
-                        .unwrap_or_else(|| unreachable!("a circle or an ellipse has an extent"))
-                }
-                Curve3::Spiric {
-                    center,
-                    axis: k,
-                    major_radius,
-                    minor_radius,
-                    ..
-                } => {
-                    let c = at(*center);
-                    let r =
-                        major_radius.abs() * dir.cross(*k).norm() + minor_radius.abs() * dir.norm();
-                    (c - r, c + r)
-                }
-                Curve3::Line(_) | Curve3::Nurbs(_) => points(self.span_points()),
-            },
+            Self::Span { carrier, t0, t1 } => {
+                let base = (pivot - Point3::origin()).dot(dir);
+                carrier.cover_over(ParamWindow::new(*t0, *t1)).map_or_else(
+                    |_| (poison(), poison()),
+                    |c| (T::zero() - c.support(-dir) - base, c.support(dir) - base),
+                )
+            }
         }
     }
 
@@ -1059,9 +920,9 @@ mod tests {
     use super::*;
     use geom::Surface;
 
-    /// **A conic span's lever reaches every point of it** from any pivot:
-    /// centre distance plus the radius (or the larger semi-axis), round
-    /// the whole turn.
+    /// **A conic span's lever reaches every point of it** from any pivot,
+    /// and on the circle no farther than its farthest point: the span's
+    /// cover, not the whole turn's centre distance plus the radius.
     #[test]
     fn a_conic_spans_lever_reaches_every_point() {
         let pivot = Point3::new(0.3, -0.2, 0.7);
@@ -1088,12 +949,20 @@ mod tests {
                 t1: 1.0,
             }
             .lever_from(pivot);
+            let mut farthest = 0.0_f64;
             for k in 0..=720 {
-                let t = core::f64::consts::TAU * f64::from(k) / 720.0;
+                let t = f64::from(k) / 720.0;
                 let far = (carrier.eval(t) - pivot).norm();
+                farthest = farthest.max(far);
                 assert!(
                     lever >= far,
                     "{carrier:?}: {lever} falls short of {far} at {t}"
+                );
+            }
+            if let Curve3::Circle(_) = carrier {
+                assert!(
+                    lever <= farthest + 1e-9,
+                    "{carrier:?}: {lever} passes the span's farthest point {farthest}"
                 );
             }
         }
