@@ -631,9 +631,7 @@ fn apart<T: Bounds>(a: Piece<'_, T>, b: Piece<'_, T>, n: Vec3<T>) -> Option<T> {
         Some((near - outer).max(inner - far))
     };
     let side = |(x, _): Piece<'_, T>, (y, window): Piece<'_, T>| {
-        let Some(geom::Line { origin, dir }) = x.as_line() else {
-            return None;
-        };
+        let geom::Line { origin, dir } = x.as_line()?;
         let (low, high) = piece_along(y, window, origin, n.cross(dir).normalize())?;
         Some(low.max(T::zero() - high))
     };
