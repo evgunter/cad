@@ -304,8 +304,12 @@ impl AssertionRelation {
 /// reader but the evaluator: a report-only verdict that checks and
 /// never places. A band is a clearance's alone, so the type admits it
 /// nowhere else.
+///
+/// **On the wire a claim's fields are the node's** (`ClaimWire`): a
+/// value claim reads `{value, bound, relation}` and a clearance `{a, b,
+/// bounds}`, read in one pass with no variant tried and abandoned.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields, untagged)]
+#[serde(try_from = "ClaimWire<S>", into = "ClaimWire<S>")]
 #[serde(bound(serialize = "", deserialize = ""))]
 pub enum Claim<S: crate::expr::Slot = crate::VarId> {
     /// `value relation bound`.
@@ -382,6 +386,88 @@ impl<S: crate::expr::Slot> Claim<S> {
                 bounds: bounds.try_map(&mut f)?,
             },
         })
+    }
+}
+
+/// **A [`Claim`] as the wire spells it**: every field either claim
+/// carries, each present for its own claim and absent for the other, so
+/// one pass reads either and a mix refuses by name.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[serde(bound(serialize = "", deserialize = ""))]
+pub(crate) struct ClaimWire<S: crate::expr::Slot> {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    value: Option<S>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bound: Option<S>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    relation: Option<AssertionRelation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    a: Option<S::Read>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    b: Option<S::Read>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bounds: Option<ClearanceBounds<S>>,
+}
+
+impl<S: crate::expr::Slot> From<Claim<S>> for ClaimWire<S> {
+    fn from(claim: Claim<S>) -> Self {
+        match claim {
+            Claim::Value {
+                value,
+                bound,
+                relation,
+            } => Self {
+                value: Some(value),
+                bound: Some(bound),
+                relation: Some(relation),
+                a: None,
+                b: None,
+                bounds: None,
+            },
+            Claim::Clearance { a, b, bounds } => Self {
+                value: None,
+                bound: None,
+                relation: None,
+                a: Some(a),
+                b: Some(b),
+                bounds: Some(bounds),
+            },
+        }
+    }
+}
+
+impl<S: crate::expr::Slot> TryFrom<ClaimWire<S>> for Claim<S> {
+    type Error = String;
+
+    fn try_from(wire: ClaimWire<S>) -> Result<Self, String> {
+        match wire {
+            ClaimWire {
+                value: Some(value),
+                bound: Some(bound),
+                relation: Some(relation),
+                a: None,
+                b: None,
+                bounds: None,
+            } => Ok(Claim::Value {
+                value,
+                bound,
+                relation,
+            }),
+            ClaimWire {
+                value: None,
+                bound: None,
+                relation: None,
+                a: Some(a),
+                b: Some(b),
+                bounds: Some(bounds),
+            } => Ok(Claim::Clearance { a, b, bounds }),
+            _ => Err(
+                "an assertion carries `value`, `bound` and `relation`, or a clearance's \
+                      `a`, `b` and `bounds`, and nothing of the other"
+                    .to_owned(),
+            ),
+        }
     }
 }
 
