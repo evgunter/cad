@@ -238,3 +238,8 @@ AUTHOR's narrative is recoverable from
 
 - Style + correctness reviews; fix pass 1 (a pattern seat crashed the viewer via #6292's `unreachable!`; a row could read `certifying…` with nothing certifying; a twice-drawn body refused with the wrong words), fix pass 2 (the witness of a pattern member k ≠ 0 was drawn on member 0 — now carried from the kernel as `Witness::sides`); re-verify 2 says merge. CI green at `fd50108209`.
 - With this, DOORS has no P0 or P1 row left: the sitting hands the program back (`ready`).
+
+## 2026-11-02 13:40 — the sitting hands DOORS back (`ready`)
+
+- Every P0 and P1 row is closed: 6264 (takeover rebind), 6331 (split takeover), 6292 + 6354 (clearance kernel and its meeting-scope regression), 6357 (clearance viewer), with 6262 (face words) earlier; the extrude side superseded by D10, the fillet-on-a-union row by SPACES' 6265. The tail (P2 and below) is handed back; `plan.md`'s slate and order are rewritten for the next sitting, and three lessons added.
+- Open threads for a successor: none in flight. PLACING's two questions and CHROME's parked row were answered on their logs at 6264's merge. Private review reports are in `~/.local/share/cad-work/doors-fork/` (this container only).
