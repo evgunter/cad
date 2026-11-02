@@ -3159,6 +3159,7 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::ChainG1,
         BlendDecision::ChainArm,
         BlendDecision::ConvexitySign,
+        BlendDecision::MaterialSide,
         BlendDecision::RingClearance,
         BlendDecision::SupportCoaxiality,
         BlendDecision::ContactArm,
