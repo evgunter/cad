@@ -1,7 +1,7 @@
 ---
 id: the-incidence-read-first-freezes-more-sym-nodes-on-the-fillet-pads
 kind: issue
-title: PCERT E1c's incidence read first raises the plain walks' frozen nodes on the fillet pads about threefold
+title: PCERT E1c's incidence read first raises the plain walks' frozen nodes on the fillet pads three- to fourfold
 status: open
 opened: 2026-11-01
 ---
@@ -9,22 +9,22 @@ opened: 2026-11-01
 
 ## Finding
 
-Measured in E1c's M-pass triage (PR #5889, head `03d1cad55d`), at ε
+Measured in E1c's M-pass triage (PR #5889, head `de74b14aa0`), at ε
 1e-9, against main's merge base `c6874ee34e`. On the `Sym` receipts of
 `crates/editor-core/tests/sym11_exact_channel_rows.rs:111`
 (`[symbolic, numeric, frozen]`), the frozen column on the two fillet
-documents roughly triples once every mint reads incidence first:
+documents grows three- to fourfold once every mint reads incidence first:
 
 | document | main | E1c |
 |---|---|---|
-| `r2_rounded_pad` | `[1616, 1262, 2476]` | `[1716, 1262, 7170]` |
-| `r2_filleted_bracket` | `[1540, 1171, 914]` | `[1630, 1171, 4099]` |
+| `r2_rounded_pad` | `[1616, 1262, 2476]` | `[1716, 1262, 8024]` |
+| `r2_filleted_bracket` | `[1540, 1171, 914]` | `[1630, 1171, 3071]` |
 
 `sym_9_retry_interval::sym_9_the_drive_writes_the_ladders_receipt` and
 `m10_9_pins_interval::m10_9_the_pad_at_both_rule_f_dials` move the same
-way (the pad `(1592, 1250, 2465)` → `(1692, 1250, 7159)`). The symbolic
+way (the pad `(1592, 1250, 2465)` → `(1692, 1250, 8013)`). The symbolic
 column rises with it, by 78–100, so the reads add symbolic decisions.
-They also freeze about 4 700 more nodes in the plain walks. The numeric
+They also freeze about 2 000 to 5 500 more nodes in the plain walks. The numeric
 column does not move.
 
 Each of these rows is already red on main for its own reasons, so the
