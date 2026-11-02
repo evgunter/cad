@@ -1133,7 +1133,8 @@ bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
 establishes the smooth precondition. The census reads sides in three
 other places, all through the touch analysis's `rest` module: pass 4,
 of an edge lying in a face of its own solid (`edge_in_own_face`, by
-`rest::judge`); arm 2's touches between two solids
+`rest::judge`, a cylinder or cone face the edge is a ruling of read as
+its chord across the edge, `FaceSector::chord`); arm 2's touches between two solids
 (`TouchSite::verdict`, by `rest::judge`); and every point where one
 solid touches itself, its whole link there (`sweep_self_touch_points`,
 by `rest::one_material`), a link holding a curved face, a face with a
@@ -1163,6 +1164,24 @@ a shared edge at dihedral π, graphs over complementary domains of one
 plane), each of which survives the perturbation. So the cone's verdict
 is the faces' at every small enough scale: the germ's, which is what
 the link claim is about.
+
+The chord reading is the cross-section's (`FaceSector::chord`). A
+cylinder or cone face along a line edge of it, the edge lying in a
+planar face `F` of its own solid, is cut by the plane square to the
+carrier's axis at `p`: a circle arc from `p`, tangent `h` into the
+face, to the face's real point `q` at a lever inside the face's
+clearance. A circle meets `F`'s line in the section once more at most,
+so where `h` and `q` read one side of `F` the arc between them lies on
+it, and where `h` reads Zero and `q` decided (`K` times the band's
+zero) an arc tilted the other way dips under `F` by at most
+`z/(2(K − 1))` before it crosses back, inside the band. The lens
+between the arc and its chord then lies on one side of `F`, and no
+other sheet of the edge enters it (`chords_clear`), so the half-plane
+from the edge through `q` bounds a wedge that meets `F`'s far side
+exactly where the face's does, and `rest::judge` reads it as a planar
+face. A cylinder is the same along its ruling; a cone's sections along
+the edge are one another scaled about its apex, which `F` holds, so the
+reading at a cell's middle holds along the cell.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,

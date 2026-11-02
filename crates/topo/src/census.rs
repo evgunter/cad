@@ -8403,9 +8403,11 @@ fn read_touch<T: Decide>(
 /// [`rest::judge`]: a rest is that, and a crossing is a face sheet inside
 /// the wedge, or the wedge inside the face's material, which leaves the
 /// edge's two faces no consecutive pair about a material sector of
-/// their own. Every other verdict leaves the side unread and refuses as
-/// that verdict names. `None` for a rest, or for an edge of another
-/// solid, whose touch arm 2 reads.
+/// their own. A face of the edge that is a cylinder or cone the edge is
+/// a ruling of stands in as its chord across the edge
+/// ([`Link::chord_on_edge`]). Every other verdict leaves the side unread
+/// and refuses as that verdict names. `None` for a rest, or for an edge
+/// of another solid, whose touch arm 2 reads.
 fn edge_in_own_face<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,

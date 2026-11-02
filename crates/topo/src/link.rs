@@ -64,7 +64,10 @@
 //! the face's reach so that its readings are taken where the face's
 //! would be ([`FaceSector::cleared`]). A curved face, or such a face held at
 //! its corner, refuses ([`TouchUnread::Unreadable`]); a sphere or
-//! cylinder face is read by its carrier instead, as above. Where a solid
+//! cylinder face is read by its carrier instead, as above, and a cylinder
+//! or cone face along a line edge of it that lies in a planar face of its
+//! own solid, as the half-plane through its chord across the edge, which
+//! stands in for it against that face ([`FaceSector::chord`]). Where a solid
 //! touches itself, a link with a curved face or edge in it is read once
 //! more as its faces' tangent cones ([`FaceSector::tangent`]), which
 //! [`rest::one_material`] reads only where its first order decides; no
@@ -2554,11 +2557,13 @@ impl<T: Decide> FaceSector<T> {
                 _ => return Err(TouchUnread::Unreadable),
             }
         }
-        // The parallel circle's point at chord `lever` from `p`.
+        // The parallel circle's point at chord `lever` from `p`: it rises
+        // `lever²/2ρ` toward the axis, read off `p` rather than the axis.
         let half = lever / (rho * T::from_f64(2.0));
-        let cos = T::one() - half * half * T::from_f64(2.0);
-        let sin = half * T::from_f64(2.0) * (T::one() - half * half).sqrt();
-        let q = centre + radial * cos + around * (rho * sin);
+        let bend = centre - p;
+        let q = p
+            + bend * (half * half * T::from_f64(2.0))
+            + around * (lever * (T::one() - half * half).sqrt());
         let side = |x: Point3<T>| metric::sign(LINK_PLANE, Distance::of(x, p, plane), band);
         match (side(p + h * lever), side(q)) {
             (Some(a @ (Positive | Negative)), Some(b)) if a == b => {}
@@ -2568,7 +2573,6 @@ impl<T: Decide> FaceSector<T> {
         }
         let u = unit(off(q - p, along));
         let outward = unit(off(off(m0, u), along));
-        let bend = centre - p;
         let inward = [unit(off(off(bend, along), h)), unit(off(h, u))];
         let next = match apex {
             Some(apex) => unit(q - apex),
@@ -4231,6 +4235,8 @@ mod round_rows;
 mod cleared_rows;
 #[cfg(test)]
 mod tangent_rows;
+#[cfg(test)]
+mod chord_rows;
 
 #[cfg(test)]
 mod tests {
