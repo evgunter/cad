@@ -1029,12 +1029,11 @@ impl<T: Real> Piece<T> {
 
 /// The greatest `p·e` over the points.
 fn points_support<T: Real>(points: &[Point3<T>], e: Vec3<T>) -> T {
-    let best = points[1..]
+    points[1..]
         .iter()
         .fold(vec_of(points[0]).dot(e), |best, &p| {
             best.max(vec_of(p).dot(e))
-        });
-    best
+        })
 }
 
 /// The least and greatest distance of the points from the site; the

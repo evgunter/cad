@@ -756,7 +756,8 @@ fn piece_box(
     a: f64,
     b: f64,
 ) -> Option<[Interval; 3]> {
-    let window = geom::cover::ParamWindow::new(Interval::from_f64(a), Interval::from_f64(b));
+    let window =
+        geom::cover::ParamWindow::new(Interval::from_bounds(a, a), Interval::from_bounds(b, b));
     let bx = carrier.cover_over(window).ok()?.aabb(0.0);
     let mut out = [
         (bx.min_x, bx.max_x),
