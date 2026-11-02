@@ -131,3 +131,9 @@ AUTHOR's narrative is recoverable from
 - Main was red on `node_standing` (count 18→20 after `cc28b3997f`'s members.rs reads); the bump rides 6264. Re-verify confirms the reads fall under the listed reason.
 - Fused-pattern takeover deferred to `a-fused-patterns-takeover-rebinds-nothing` (P3, design) — no single successor per face.
 - Re-verify (style + correctness, prior digests as the checklist) dispatched on the new head.
+
+## 2026-11-02 01:05 — 6264 re-verify 2: one more short pass
+
+- Re-verify 2 (`scratch/reverify-2.md`): no MAJOR, nothing silently wrong. MINOR: the followed selection read stale (false `ForeignNode`) while busy — the `!busy` gate was per-site, so a half-fix of the class logged at 00:40; mirror/split copies of a copy not rebound; a fresh click while busy commits a stale ref (pre-existing on main); `node_standing` 18→20 misattributed (the reads are test code).
+- Ruling (class): a name question is asked only of an evaluation answering the document the name lives in — the seed when the door evaluated, else the last verdict stands; ONE gate that tools, standing, trace and marks share. Copy-chains walk the compiler-enforced `verbatim_edge` list, not Place alone (a second carrier list would be the lane's recurring two-way spelling).
+- NEW-3 filed as a row by the implementer, not fixed here (scope). Fix pass 3 sent to the implementer; re-verify follows.
