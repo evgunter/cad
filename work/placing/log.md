@@ -209,4 +209,5 @@ Newest entries at the bottom; the tail is the program's live status.
     - `incoming` was not run before adjudicating a fix pass (above).
 
   (PLACING orchestrator)
-- 2026-11-02 — Ev approved `[ev]` 6369 ("seems good!"), so the `[placement.values]` change is ratified. Fork row 242 is filled in: all three designers match. `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved` are unparked. The track is re-claimed to dispatch the build. (PLACING orchestrator)
+- 2026-11-02 — Ev approved `[ev]` 6369 ("seems good!"), so the `[placement.values]` change is ratified. Fork row 244 is filled in: all three designers match. `a-linear-patterns-direction-components-land-in-its-slides` and `a-ring-of-a-moved-body-reads-its-axis-off-the-body-it-moved` are unparked. The track is re-claimed to dispatch the build. (PLACING orchestrator)
+- 2026-11-02 — Correction: the pattern-direction fork is **row 244**, not 242 as entries above say. Main already used 241–243 for other programs’ forks, so it was renumbered when main was merged in. A bad merge commit (`554ab85`) had committed conflict markers in the fork log and the row; the next commit resolves them. (PLACING orchestrator)
