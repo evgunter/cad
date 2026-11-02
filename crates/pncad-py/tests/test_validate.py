@@ -48,6 +48,10 @@ otherwise take `test_a_glued_rest_passes_the_fourth_rung` for
 evidence it is not.
 """
 
+import json
+import os
+import subprocess
+import sys
 import unittest
 
 import pncad
@@ -618,6 +622,40 @@ def oversized_round_loft():
     )
 
 
+# The unmet-resolution row's child: a 64 m tapered round loft at the
+# eps its parent sets, its pinned measurement and a deciding predicate run
+# out on the same walls, reported as JSON.
+_UNMET_RESOLUTION = """
+import json, math
+from pncad import Doc, Settle, ValidationError, circle_split, m, rad
+from test_validate import stacked_loft
+
+f = 64.0 / 64000.0
+r0, r1 = 11980.8 * f, 5990.4 * f
+body = stacked_loft(
+    Doc(),
+    2,
+    64.0,
+    lambda t: circle_split((0.0 * m, 0.0 * m), (r0 * (1 - t) + r1 * t) * m, 2, 0.0 * rad),
+)
+meas = body.mass_properties(Settle.resolution(1.024e-9 * m))
+e = meas.enclosure
+said = {
+    "frustum": math.pi * 64.0 * (r0 ** 2 + r0 * r1 + r1 ** 2) / 3.0,
+    "stop": meas.stop,
+    "verdict": meas.verdict,
+    "bracket": [e.volume - e.volume_pad, e.volume + e.volume_pad],
+}
+try:
+    body.mass_properties(Settle.at_most(e.volume))
+except ValidationError as r:
+    said["refusal"] = r.measure_refusal
+    said["refusal_stop"] = r.stop
+    said["refusal_bracket"] = list(r.volume)
+print(json.dumps(said))
+"""
+
+
 class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
     """**`validate_geometric_measured`** — the rung that hands back the
     number its own +V check computed.
@@ -690,6 +728,47 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
             gathered.validate_pseudomanifold()
         measured = pinned(gathered)
         self.assertEqual(measured.volume, pinned(gathered).volume)
+
+    def test_an_unmet_resolution_answers_its_bracket_inside_the_box(self):
+        """An unmet resolution is the bracket, not a refusal, inside the box.
+
+        A body can be tier-3 VALID (its volume's SIGN is definite, which
+        is all check 7 reads) and still stop short of a resolution: a
+        rational wall stops at the work wall, its removable width still
+        dominant there. The reporting target is `1024 * eps`, a LENGTH that
+        shrinks with the run's tolerance, so at eps = 1e-12 a 64 m tapered
+        tube stops (at the default eps only a part far past the session
+        box does). The door answers the bracket it reached, with the stop
+        that says why; a deciding predicate run out on the same walls is
+        the refusal half of the same door, `undecided` carrying its bracket
+        and its stop. Both read against the frustum the walls sit around.
+        The row commits its own eps, so it runs in a child process.
+        """
+        child = subprocess.run(
+            [sys.executable, "-c", _UNMET_RESOLUTION],
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            env={**os.environ, "CAD_TOLERANCE_EPS": "1e-12"},
+        )
+        self.assertEqual(child.returncode, 0, child.stderr[-3000:])
+        said = json.loads(child.stdout)
+        frustum = said["frustum"]
+        self.assertIn(said["stop"], ("wall", "floor"), said)
+        self.assertIsNone(said["verdict"], "a resolution decides nothing")
+        lo, hi = said["bracket"]
+        self.assertLess(lo, hi)
+        self.assertGreater(lo, 0.0, "the bracket is definitely positive")
+        self.assertLess(lo, frustum)
+        self.assertGreater(hi, frustum)
+        self.assertEqual(said["refusal"], "undecided", said)
+        self.assertIn(said["refusal_stop"], ("wall", "floor"), said)
+        rlo, rhi = said["refusal_bracket"]
+        self.assertGreater(rlo, 0.0, "the refusal's bracket is definitely positive")
+        self.assertLess(rlo, frustum)
+        self.assertGreater(rhi, frustum)
 
     def test_a_body_past_the_session_box_is_refused_by_the_box(self):
         """A body past the session box is refused at the gate, by the box.
