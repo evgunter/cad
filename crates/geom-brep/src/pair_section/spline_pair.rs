@@ -155,6 +155,7 @@ impl<T: Real> SplinePairPose<T> {
             decided: Vec::new(),
             components,
             nodes: Vec::new(),
+            node_sets: Vec::new(),
             lever,
         }
     }
