@@ -20,6 +20,8 @@
 #   geom-core/src/linalg/{vec,unit_vec}.rs  the definitions;
 #   step-import/src/recognize.rs  an imported plane's frame: the file's
 #                                 coordinates are the import's input;
+#   geom/src/cover.rs             `Frame::aimed`, a cover's box frame
+#                                 read only as a support along its aim;
 #   topo/src/boolean/boxes.rs     `BoxFrame::aimed`, a box frame read
 #                                 only as a support along its aim;
 #   topo/src/side_reader.rs       a ray's aim, which no output keeps;
@@ -46,6 +48,7 @@ BASIS_HOMES=(
   crates/geom-core/src/linalg/vec.rs
   crates/geom-core/src/linalg/unit_vec.rs
   crates/step-import/src/recognize.rs
+  crates/geom/src/cover.rs
   crates/topo/src/boolean/boxes.rs
   crates/topo/src/side_reader.rs
   crates/topo/src/boolean/section_cert.rs

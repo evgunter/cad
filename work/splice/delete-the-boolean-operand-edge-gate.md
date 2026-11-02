@@ -105,7 +105,7 @@ One thing the circles do not settle: the loop's caps are tilted
 are not the bulb's. The rims can be up to about 1.1e-4 m apart, which a
 declared `Rest` contact would have to accept. That tilt goes away when
 the loop is swept along its exact spine
-(`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
+(`work/lathe/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
 P0).
 
 ## Re-banded to P0 (on request in chat, 2026-10-25)

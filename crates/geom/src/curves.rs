@@ -962,10 +962,12 @@ fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// `(c + n·d)_e + m_e·[f_min, f_max] ± |a_e|·r`, with `n = u_ref`,
 /// `m = axis × u_ref` and `a = axis` — `f` ranges over
 /// [`spiric_f_range`]'s two numbers in a period and the `sin v` channel
-/// over its whole range. The one construction: `curves::boxes`'
-/// `spiric_arc_aabb` runs it in its scalar's own arithmetic and
-/// brackets the result, and `topo`'s two box lanes run it at their
-/// scalars, in the frame they box in.
+/// over its whole range. It is the world box of [`spiric_rectangle`],
+/// the one construction, which the spiric's cover reads too:
+/// `curves::boxes`' `spiric_arc_aabb` runs it in its scalar's own
+/// arithmetic and brackets the result, and `topo`'s two box lanes run it
+/// at their scalars on the description's components along their frame's
+/// rows, so its box is the box in that frame.
 ///
 /// **It encloses by itself, because a reader's pad cannot.** `f_min` is
 /// the root of a cancelling difference: a radicand rounded by `u·W` at
@@ -1001,8 +1003,8 @@ fn spiric_radicands<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
 /// `‖a‖₁·‖n‖₁` times the radicands' widening at the root:
 /// `f_min − √(max(f_min² − 16·u·W_min, 0))` below and
 /// `√(f_max² + 16·u·W_max) − f_max` above. An `Interval` scalar's own
-/// enclosure is kept, and the charges only widen it; poison flows
-/// through as NaN ends.
+/// enclosure is kept, and the charges only widen it; off-regime or
+/// poisoned data gives NaN ends.
 pub fn spiric_period_box<T: Real>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -1011,14 +1013,7 @@ pub fn spiric_period_box<T: Real>(
     minor: T,
     offset: T,
 ) -> (Point3<T>, Point3<T>) {
-    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
-    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
-    let (inner, outer) = spiric_radicands(major, minor, offset);
-    let f_lo = (inner - slack_in)
-        .max(T::zero())
-        .min(inner + slack_in)
-        .sqrt();
-    let f_hi = (outer + slack_out).sqrt();
+    let (f_lo, f_hi) = spiric_f_enclosed(major, minor, offset);
     let norm1 = |v: Vec3<T>| v.x.abs() + v.y.abs() + v.z.abs();
     let (na, nn) = (norm1(axis), norm1(u_ref));
     let scale = norm1(Vec3::new(center.x, center.y, center.z))
@@ -1026,17 +1021,59 @@ pub fn spiric_period_box<T: Real>(
         + na * nn * f_hi
         + na * minor.abs();
     let charge = scale * T::from_f64(16.0 * f64::EPSILON);
+    match spiric_rectangle(center, axis, u_ref, minor, offset, (f_lo, f_hi), charge) {
+        Some(rectangle) => rectangle.box_in(&crate::cover::Frame::World),
+        None => {
+            let poison = (T::zero() - T::one()).sqrt();
+            let p = Point3::new(poison, poison, poison);
+            (p, p)
+        }
+    }
+}
+
+/// **The spiric's period rectangle as a cover**, the one construction
+/// [`spiric_period_box`] and `Curve3::cover_over`'s spiric arm read:
+/// the four corners `c + n·d + m·f ± a·r` at the two ends of `f`'s
+/// range, widened on every coordinate by `slack`. The cover reads
+/// [`spiric_f_range`] with no slack (`[simple.conditioned]`); the box
+/// reads [`spiric_f_enclosed`] and its charge, which its callers in
+/// `topo` keep until their edge doors read the cover. `None` where a
+/// corner is not a finite number (off-regime data roots at poison).
+pub(crate) fn spiric_rectangle<T: Real>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    minor: T,
+    offset: T,
+    (f_lo, f_hi): (T, T),
+    slack: T,
+) -> Option<crate::cover::Cover<T>> {
     let m = axis.cross(u_ref);
     let base = center + u_ref * offset;
-    let per = |b: T, me: T, ae: T| {
-        let (p, q) = (me * f_lo, me * f_hi);
-        let amp = ae.abs() * minor.abs() + charge;
-        (b + p.min(q) - amp, b + p.max(q) + amp)
-    };
-    let (xl, xh) = per(base.x, m.x, axis.x);
-    let (yl, yh) = per(base.y, m.y, axis.y);
-    let (zl, zh) = per(base.z, m.z, axis.z);
-    (Point3::new(xl, yl, zl), Point3::new(xh, yh, zh))
+    // The corners come in `±tip` pairs, so `r`'s sign names the same set.
+    let tip = axis * minor;
+    let corners = vec![
+        base + m * f_lo + tip,
+        base + m * f_lo - tip,
+        base + m * f_hi + tip,
+        base + m * f_hi - tip,
+    ];
+    crate::cover::Cover::widened_net(corners, slack)
+}
+
+/// [`spiric_period_box`]'s `[f_min, f_max]`, each radicand widened by
+/// its own charge before its root (that function's docs carry the
+/// derivation), so it holds the oval's `f` over a period at every
+/// scalar. The cover's spiric rectangle reads the same two numbers.
+pub(crate) fn spiric_f_enclosed<T: Real>(major: T, minor: T, offset: T) -> (T, T) {
+    let charge_at = |rho: T| (rho.powi(2) + offset.powi(2)) * T::from_f64(4.0 * f64::EPSILON);
+    let (slack_in, slack_out) = (charge_at(major - minor), charge_at(major + minor));
+    let (inner, outer) = spiric_radicands(major, minor, offset);
+    let f_lo = (inner - slack_in)
+        .max(T::zero())
+        .min(inner + slack_in)
+        .sqrt();
+    (f_lo, (outer + slack_out).sqrt())
 }
 
 /// **Bounds on a spiric's speed and acceleration over a stretch of the

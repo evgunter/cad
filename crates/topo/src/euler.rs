@@ -752,7 +752,7 @@ impl<T: Real> NewCurve<T> {
 /// face's: asked where `after` is not `old`. Where it is, nothing is
 /// asked — the boolean pipeline's chord joins mint a chord with the
 /// description of the face that will be glued along it
-/// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+/// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
 fn require_chord_adjacent<T: Real>(
     spec: &EdgeCurveSpec<T>,
     (old, after): (SurfaceKey, Slot),

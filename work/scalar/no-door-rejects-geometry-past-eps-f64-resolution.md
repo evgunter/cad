@@ -111,7 +111,7 @@ D4 ¶4 (`docs/DESIGN.md`) reads: "the session box is 1 km, no coordinate larger 
 
 ### Repair shape
 
-There are two candidate homes for the check: a construction-time check at the doors that mint geometry (sketch/profile, builders, import placement), or a validator check at rest (`topo::validate`). D4 ¶4 says "at construction". The box's lever arm (`Band::angular_at`'s conservative universal arm) and the SSI scale levers (`work/ssimarch/ssi-scale-levers-cite-a-size-range-with-no-number.md`) then have a refusal to cite. Weigh where the check lives and what a box-crossing refusal names before implementing.
+There are two candidate homes for the check: a construction-time check at the doors that mint geometry (sketch/profile, builders, import placement), or a validator check at rest (`topo::validate`). D4 ¶4 says "at construction". The box's lever arm (`Band::angular_at`'s conservative universal arm) and the SSI scale levers (`work/ssiarith/ssi-scale-levers-cite-a-size-range-with-no-number.md`) then have a refusal to cite. Weigh where the check lives and what a box-crossing refusal names before implementing.
 
 ## 2026-10-14: seam note from GERM (`germ/pt-section-gaps`)
 

@@ -241,7 +241,7 @@ fn cone_and_prism(az: f64, s: f64) -> (AtRestBody<f64>, AtRestBody<f64>) {
 /// **A prism edge along a cone's ruling refuses, typed, in every op and
 /// order**: the crossing layer has no lane for a line lying along a
 /// cone's generator, so the reduction refuses before any record is
-/// carried (`work/roots/a-line-parallel-to-a-cone-generator-has-no-root-lane.md`).
+/// carried (`work/germ/a-line-parallel-to-a-cone-generator-has-no-root-lane.md`).
 /// When that lane lands, this pose owes what the cylinder's do: every op
 /// but `w ∖ b` built, and `w ∖ b` refusing the ring
 /// ([`refuses_the_ring`]) until the curved face measures it.

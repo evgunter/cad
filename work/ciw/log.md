@@ -3042,3 +3042,33 @@ group and took this program's green-main or gate-latency rows by
 `git mv`, ids unchanged; `work/green/log.md` lists them. Any P1 left
 here was re-banded where it was test-side rather than production
 architecture; the row's own `## Re-banded` section says why.
+
+## 2026-11-02 — UNREAD merged in
+
+The budget now counts only the dispatchable P0, P1 and unbanded rows
+(`work/README.md`, Track size, 82080f7c), so this track fell to 9 of 30
+and UNREAD to 6. They ask one question, "what goes red if this stops
+being true?". This half asks it of the hosted gate (what a PR or the
+nightly does not run or see), and UNREAD asked it of every claim and
+reference the tree states, so the two are one track. Two pairs of rows
+are the same finding filed from each side (`work/ciw/plan.md` names
+them). UNREAD's fifteen rows arrived by `git mv`, ids and bodies
+unchanged, each with a `## Moved to CIW (2026-11-02)` note. It had no
+closed rows and nothing in flight. Its directory is deleted
+(`docs/doc-ledger/unread-merges-into-ciw.md`).
+
+- The title widens to "and what no gate reads".
+- `paths` gains UNREAD's three guard sites.
+- `keep_out` keeps UNREAD's fences: a new gate announces on GUARD's log
+  and is built on its harness, and a `work.py lint` arm announces on
+  META's.
+- The plan carries UNREAD's slate, order and review posture as their
+  own section.
+
+UNREAD's log also held a QUAD seam note (PR 5741, the measure door's
+required predicate) that touches `measurements-have-no-mechanical-guard`.
+Citations of `work/unread/` outside logs are re-aimed at `work/ciw/`.
+Load 15 of 30. Five unbanded rows carry it, and the next sitting prices
+and bands them.
+
+Signed (tracker sweep).

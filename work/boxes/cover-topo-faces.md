@@ -2,11 +2,10 @@
 id: cover-topo-faces
 kind: unit
 title: topo::face_cover and edge_cover replace FaceBoxRule and both box lanes; Span's arithmetic goes; the two-cover overlap reads the meet
-status: parked
+status: open
 opened: 2026-11-02
 priority: P1
 cost: H
-blocked_on: [cover-geom-readings]
 ---
 
 
@@ -25,3 +24,5 @@ Third unit of the cover build (`cover-geom-readings` has the order and the ratif
 - **Keep the lanes-agree row's coverage** across the change; it now pins one lane.
 
 Closes into this unit: `D280`, `sphere-operand-box-is-the-whole-ball`, and most of the P3/P4 arm rows parked on it. Close each one that the new arm settles, and re-file or re-park the rest with what still stands.
+
+- **Retire `boxes::BoxFrame`** onto `geom::cover::Frame` (PR 6383's review: `Frame` is a near-copy, about 58 references remain). The `orthonormal_basis` gate's second home for `cover.rs` then becomes the only one.
