@@ -226,6 +226,16 @@ impl PickKinds {
         }
     }
 
+    /// Whether a committed profile's outline may win here: under the
+    /// bare cursor's rules only, since no tool narrowed to one kind
+    /// takes a profile.
+    fn profiles(self) -> bool {
+        match self {
+            Self::Any | Self::WithVertices => true,
+            Self::FacesOnly | Self::EdgesOnly => false,
+        }
+    }
+
     /// Whether an edge may win here.
     fn edges(self) -> bool {
         match self {
@@ -1044,6 +1054,57 @@ impl Rims {
     }
 }
 
+/// **A committed profile's drawn outline**: the loops
+/// [`crate::sketch::committed`] draws for one profile node, each a
+/// closed world polyline (its first point repeated last), at the
+/// picture's δ — the same points the viewport's profile lane is drawn
+/// from, so a pick is measured against the line on screen.
+///
+/// A profile is 2-D and has no tessellated face, so nothing else in
+/// the index holds it; it is picked by screen distance to these lines
+/// alone ([`PickIndex::hovered_for`]).
+#[derive(Debug)]
+struct Outline {
+    node: RecipeNodeId,
+    loops: Vec<Vec<Point3<f64>>>,
+}
+
+impl Outline {
+    fn of(profile: crate::sketch::CommittedProfile) -> Self {
+        let plane = profile.plane;
+        let loops = profile
+            .loops
+            .iter()
+            .map(|lp| {
+                let mut points: Vec<Point3<f64>> = lp
+                    .points
+                    .iter()
+                    .map(|&[x, y]| plane.to_world(pncad::geom_core::Point2::new(x, y)))
+                    .collect();
+                if lp.end.closes()
+                    && let Some(&first) = points.first()
+                {
+                    points.push(first);
+                }
+                points
+            })
+            .collect();
+        Self {
+            node: profile.node,
+            loops,
+        }
+    }
+}
+
+/// The profile outline nearest a cursor that won it
+/// ([`PickIndex::profile_near`]): which profile, and how far off its
+/// line the cursor is — what the priority rule compares against the
+/// nearest body edge's [`EdgePick::distance_px`].
+struct ProfilePick {
+    node: RecipeNodeId,
+    distance_px: f64,
+}
+
 /// **What a picture IS**: the landed generation an index describes,
 /// the δ its copies were tessellated at, and the bodies the author's
 /// toggles show beyond the default ([`Shown`]): a show draws a body the
@@ -1167,6 +1228,8 @@ pub struct PickIndex {
     /// ([`crate::world::Picture::product`]), by node and body: drawn
     /// tinted as outside the product.
     outside: BTreeSet<(RecipeNodeId, u32)>,
+    /// The committed profiles' drawn outlines, in document order.
+    outlines: Vec<Outline>,
 }
 
 impl PickIndex {
@@ -1292,7 +1355,15 @@ impl PickIndex {
             drawn_vertices(part, eval, &mut vertices)?;
         }
         let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
+        // A profile that does not flatten is not drawn, so it is not
+        // picked either; the viewport's lane counts it.
+        let outlines = crate::sketch::committed(doc, eval, key.delta().get(), None)
+            .drawn
+            .into_iter()
+            .map(Outline::of)
+            .collect();
         Ok(Self {
+            outlines,
             key,
             parts,
             undrawn,
@@ -2094,9 +2165,10 @@ impl PickIndex {
         self.edge_at_for(eval, camera, viewport, cursor, &DisplayView::none())
     }
 
-    /// **What the cursor is over**: the edge when one is within
-    /// [`EDGE_PICK_RADIUS_PX`] and `kinds` admits edges, else the
-    /// face when `kinds` admits faces, else nothing.
+    /// **What the cursor is over**: the edge or the committed
+    /// profile outline nearer the cursor within
+    /// [`EDGE_PICK_RADIUS_PX`], the edge at a tie, where `kinds` admits
+    /// it; else the face when `kinds` admits faces; else nothing.
     ///
     /// The pick-priority rule lives here, in one place, so the hover
     /// op and the select op cannot disagree about which entity a
@@ -2124,12 +2196,29 @@ impl PickIndex {
         kinds: PickKinds,
     ) -> Result<Option<Hovered>, PickError> {
         let front = self.seed(eval, camera, viewport, cursor, display)?;
+        // A profile's outline is a line like an edge, and is weighed
+        // as one: within the edge radius, unhidden by the solid, the
+        // nearer of it and the nearest body edge wins, the body edge
+        // at a tie — an extruded profile's outline lies on its own rim.
+        let profile = if kinds.profiles() {
+            self.profile_near(eval, camera, viewport, cursor, display)?
+        } else {
+            None
+        };
         if front.is_empty() {
-            return Ok(None);
+            return Ok(profile.map(|profile| Hovered::Profile(profile.node)));
         }
-        if kinds.edges()
-            && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &front)?
-        {
+        let edge = if kinds.edges() {
+            self.edge_near(eval, camera, viewport, cursor, display, &front)?
+                .filter(|edge| {
+                    profile
+                        .as_ref()
+                        .is_none_or(|profile| edge.distance_px <= profile.distance_px)
+                })
+        } else {
+            None
+        };
+        if let Some(edge) = edge {
             if kinds.vertices()
                 && let Some(vertex) =
                     self.vertex_near(eval, camera, viewport, cursor, display, &edge)?
@@ -2137,6 +2226,9 @@ impl PickIndex {
                 return Ok(Some(Hovered::Vertex(vertex)));
             }
             return Ok(Some(Hovered::Edge(edge.selection())));
+        }
+        if let Some(profile) = profile {
+            return Ok(Some(Hovered::Profile(profile.node)));
         }
         if !kinds.faces() {
             // The ray met a body, but no edge won it and this caller
@@ -2394,6 +2486,101 @@ impl PickIndex {
         Ok(None)
     }
 
+    /// **The nearest committed profile outline within
+    /// [`EDGE_PICK_RADIUS_PX`] of the cursor that the solid does not
+    /// hide**, or `None`.
+    ///
+    /// [`PickIndex::edge_near`]'s rule over [`Outline`]s: one candidate
+    /// per profile, its own nearest segment; nearest first, then
+    /// document order, loop and segment. Occlusion asks the ray through
+    /// the candidate's own pixel, against every face drawn: a profile
+    /// drawn on a face ties with that face and survives, one behind
+    /// the solid is out and the walk continues past it.
+    fn profile_near(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+    ) -> Result<Option<ProfilePick>, PickError> {
+        let Some(aspect) = viewport.aspect() else {
+            return Ok(None);
+        };
+        let mut candidates: Vec<(usize, Candidate)> = Vec::new();
+        for (rank, outline) in self.outlines.iter().enumerate() {
+            let mut best: Option<Candidate> = None;
+            for (lp, points) in outline.loops.iter().enumerate() {
+                let mut projected = Vec::with_capacity(points.len());
+                for &world in points {
+                    projected.push(
+                        camera
+                            .project(world, aspect)
+                            .map_err(PickError::Camera)?
+                            .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
+                            .map(|pixel| (world, pixel)),
+                    );
+                }
+                // The loop's position rides as the candidate's
+                // `boundary`, the tie-break's coordinate.
+                if let Some(found) = best_segment(cursor, lp, &projected)
+                    && best
+                        .as_ref()
+                        .is_none_or(|best| found.distance < best.distance)
+                {
+                    best = Some(found);
+                }
+            }
+            candidates.extend(best.map(|found| (rank, found)));
+        }
+        candidates.sort_by(|(left_rank, left), (right_rank, right)| {
+            left.distance
+                .partial_cmp(&right.distance)
+                .unwrap_or(core::cmp::Ordering::Equal)
+                .then((*left_rank, left.boundary, left.segment).cmp(&(
+                    *right_rank,
+                    right.boundary,
+                    right.segment,
+                )))
+        });
+        for (rank, candidate) in candidates {
+            let ray = camera
+                .ray_through(candidate.pixel, viewport)
+                .map_err(PickError::Camera)?;
+            let [a, b] = candidate.ends;
+            let (s, _) = ray_segment_closest(&ray, a, b);
+            let Some(own) = ray_segment_point(&ray, candidate.ends, s) else {
+                continue;
+            };
+            let mut spans: Vec<TSpan> = self
+                .front_of(eval, &ray, display)
+                .map_err(PickError::HitTest)?
+                .iter()
+                .map(PickHit::span)
+                .collect();
+            let own_at = spans.len();
+            spans.push(own);
+            if !TSpan::survivors(&spans).contains(&own_at) {
+                continue;
+            }
+            return Ok(Some(ProfilePick {
+                node: self.outlines[rank].node,
+                distance_px: candidate.distance,
+            }));
+        }
+        Ok(None)
+    }
+
+    /// **A committed profile's drawn outline**: one world polyline per
+    /// loop, each closed (its first point repeated last); empty for a
+    /// node this index draws no outline of.
+    pub fn profile_outline(&self, node: RecipeNodeId) -> &[Vec<Point3<f64>>] {
+        self.outlines
+            .iter()
+            .find(|outline| outline.node == node)
+            .map_or(&[], |outline| outline.loops.as_slice())
+    }
+
     /// **The whole cursor path, as one function**: a cursor action
     /// becomes the session operation it denotes.
     ///
@@ -2405,8 +2592,8 @@ impl PickIndex {
     ///
     /// Which entity a cursor denotes is [`PickIndex::hovered_for`]'s
     /// answer, so hovering and clicking cannot disagree about it: an
-    /// edge within [`EDGE_PICK_RADIUS_PX`] beats the face behind it,
-    /// and everywhere else the face wins.
+    /// edge or a profile outline within [`EDGE_PICK_RADIUS_PX`] beats
+    /// the face behind it, and everywhere else the face wins.
     ///
     /// A [`PickAction::Select`] that hits nothing clears the
     /// selection — clicking empty space is how a user says "nothing",

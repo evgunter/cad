@@ -181,9 +181,14 @@ the end of the session (the badge paragraph above).
   not participate in document history. Pick priority is proximity in
   the picture, scoped to the body under the cursor: the ray picks a
   face first, and an edge of that face's own body within
-  `EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it; elsewhere
-  the face wins and off the body nothing wins. A tool narrows the
-  kinds it accepts through `PickKinds`. Multi-select UX and the filter
+  `EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it. A
+  committed profile's drawn outline is weighed as an edge is, within
+  the same radius and not hidden by the solid, and picks its profile
+  node: the nearer of it and the body edge wins, the body edge at a
+  tie. Elsewhere the face wins, and off the body and every outline
+  nothing wins. A tool narrows the kinds it accepts through
+  `PickKinds`; a profile is admitted only under the bare cursor's
+  rules. Multi-select UX and the filter
   vocabulary wait on sketcher and tree design; filters, heterogeneous
   sets and vanishing-entity semantics are `docs/SELECT-DESIGN.md`'s.
 

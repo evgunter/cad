@@ -139,24 +139,33 @@ pub enum Hovered {
     /// that won it, where the cursor's rule admits vertices
     /// ([`crate::pickindex::PickKinds::WithVertices`]).
     Vertex(VertexSelection),
+    /// A committed profile's drawn outline under the cursor — within
+    /// [`crate::pickindex::EDGE_PICK_RADIUS_PX`] of it, by the edge's
+    /// rule. A profile has no body, so it is named by its node alone,
+    /// and a click on it selects that node.
+    Profile(RecipeNodeId),
 }
 
 impl Hovered {
-    /// The hovered entity's stable name.
-    pub fn name(&self) -> &StableName {
+    /// The hovered entity's stable name; `None` for a profile, which
+    /// is a node and not an entity of a body.
+    pub fn name(&self) -> Option<&StableName> {
         match self {
-            Self::Face(face) => &face.name,
-            Self::Edge(edge) => &edge.name,
-            Self::Vertex(vertex) => &vertex.name,
+            Self::Face(face) => Some(&face.name),
+            Self::Edge(edge) => Some(&edge.name),
+            Self::Vertex(vertex) => Some(&vertex.name),
+            Self::Profile(_) => None,
         }
     }
 
-    /// The node whose drawn body the cursor is over.
+    /// The node whose drawing the cursor is over: a body's node, or
+    /// the profile itself.
     pub fn node(&self) -> RecipeNodeId {
         match self {
             Self::Face(face) => face.node,
             Self::Edge(edge) => edge.node,
             Self::Vertex(vertex) => vertex.node,
+            Self::Profile(node) => *node,
         }
     }
 
@@ -166,6 +175,7 @@ impl Hovered {
             Self::Face(face) => face.feature(),
             Self::Edge(edge) => edge.feature(),
             Self::Vertex(vertex) => vertex.feature(),
+            Self::Profile(node) => *node,
         }
     }
 
@@ -173,7 +183,7 @@ impl Hovered {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
-            Self::Edge(_) | Self::Vertex(_) => None,
+            Self::Edge(_) | Self::Vertex(_) | Self::Profile(_) => None,
         }
     }
 
@@ -181,7 +191,7 @@ impl Hovered {
     pub fn edge(&self) -> Option<&EdgeSelection> {
         match self {
             Self::Edge(edge) => Some(edge),
-            Self::Face(_) | Self::Vertex(_) => None,
+            Self::Face(_) | Self::Vertex(_) | Self::Profile(_) => None,
         }
     }
 
@@ -189,7 +199,15 @@ impl Hovered {
     pub fn vertex(&self) -> Option<&VertexSelection> {
         match self {
             Self::Vertex(vertex) => Some(vertex),
-            Self::Face(_) | Self::Edge(_) => None,
+            Self::Face(_) | Self::Edge(_) | Self::Profile(_) => None,
+        }
+    }
+
+    /// The hovered profile, when the cursor is over one's outline.
+    pub fn profile(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Profile(node) => Some(*node),
+            Self::Face(_) | Self::Edge(_) | Self::Vertex(_) => None,
         }
     }
 
@@ -199,6 +217,7 @@ impl Hovered {
             Self::Face(face) => Selection::Face(face.clone()),
             Self::Edge(edge) => Selection::Edge(edge.clone()),
             Self::Vertex(vertex) => Selection::Vertex(vertex.clone()),
+            Self::Profile(node) => Selection::Node(*node),
         }
     }
 }
@@ -220,7 +239,8 @@ pub enum Selection {
     /// Nothing selected.
     #[default]
     None,
-    /// A recipe node, selected in the feature tree.
+    /// A recipe node, selected in the feature tree — or a profile,
+    /// picked in the viewport by its drawn outline.
     Node(RecipeNodeId),
     /// A document variable, selected in the property panel — where
     /// the expression-driven refusal's affordance navigates to. Keyed

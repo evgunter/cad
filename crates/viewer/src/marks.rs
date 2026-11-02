@@ -489,6 +489,12 @@ impl EdgeOverlay {
 /// its own lane, [`EdgeOverlay::held`], without asking either mark).
 /// [`Highlight`] can leave its pair to the shader because a fragment
 /// sees both of its lanes.
+///
+/// A committed profile is marked in the same lanes, by its whole drawn
+/// outline ([`PickIndex::profile_outline`]): hovered where the cursor
+/// is over it, selected where its node is the selection, from the tree
+/// or the viewport alike. A profile is never free-moved, so its marks
+/// are never probed.
 pub fn edge_overlay(
     index: &PickIndex,
     display: &DisplayView,
@@ -507,19 +513,31 @@ pub fn edge_overlay(
     let hovered_vertex = hover
         .and_then(Hovered::vertex)
         .filter(|vertex| selected_vertex != Some(*vertex));
+    let selected_profile = match selection {
+        Selection::Node(node) => Some(*node),
+        _ => None,
+    };
+    let hovered_profile = hover
+        .and_then(Hovered::profile)
+        .filter(|node| selected_profile != Some(*node));
     let probed = |node: RecipeNodeId| moved(display, node);
-    let lane = |edge: Option<&EdgeSelection>, vertex: Option<&VertexSelection>| {
+    let lane = |edge: Option<&EdgeSelection>,
+                vertex: Option<&VertexSelection>,
+                profile: Option<RecipeNodeId>| {
         let mut legs = edge.map(mark).unwrap_or_default();
         legs.extend(
             vertex
                 .map(|vertex| vertex_segments(index, display, vertex))
                 .unwrap_or_default(),
         );
+        for polyline in profile.map_or(&[][..], |node| index.profile_outline(node)) {
+            legs.extend(LegLane::of_polyline(polyline).into_segments());
+        }
         legs
     };
     EdgeOverlay {
-        selected: lane(selected_edge, selected_vertex),
-        hovered: lane(hovered_edge, hovered_vertex),
+        selected: lane(selected_edge, selected_vertex, selected_profile),
+        hovered: lane(hovered_edge, hovered_vertex, hovered_profile),
         selected_probed: selected_edge
             .map(|edge| edge.node)
             .or(selected_vertex.map(|v| v.node))

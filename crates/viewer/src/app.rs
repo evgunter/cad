@@ -9506,6 +9506,181 @@ mod properties_pane_tests {
         assert_eq!(held, want, "one viewport click holds both arcs");
         assert_eq!(tool.count(), 1, "and counts one pick");
     }
+
+    /// **Where `world` is drawn in the window**, under the app's own
+    /// camera and viewport — the pointer position a click on it is.
+    fn window_pos_of(driven: &Driven, world: [f64; 3]) -> egui::Pos2 {
+        let rect = driven
+            .app
+            .tree
+            .tiles
+            .iter()
+            .find(|(_, tile)| matches!(tile, egui_tiles::Tile::Pane(super::Pane::Viewport)))
+            .and_then(|(id, _)| driven.app.tree.tiles.rect(*id))
+            .expect("the viewport is laid out");
+        let ppp = f64::from(driven.ctx.pixels_per_point());
+        let viewport = crate::input::ViewportSize {
+            width_px: f64::from(rect.width()) * ppp,
+            height_px: f64::from(rect.height()) * ppp,
+        };
+        let aspect = viewport.aspect().expect("the viewport has an area");
+        let [x, y, z] = world;
+        let pixel = driven
+            .app
+            .camera
+            .project(pncad::geom_core::Point3::new(x, y, z), aspect)
+            .expect("the camera projects")
+            .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
+            .unwrap_or_else(|| panic!("{world:?} is in view"));
+        egui::pos2(
+            rect.min.x + (pixel[0] / ppp) as f32,
+            rect.min.y + (pixel[1] / ppp) as f32,
+        )
+    }
+
+    /// The startup document with `ops` performed and settled, and the
+    /// last node it then holds: the profile the ops added.
+    fn with_profile_added(ops: Vec<SessionOp>) -> (Driven, RecipeNodeId) {
+        let mut driven = Driven::with(ops);
+        driven.settle();
+        let profile = *driven
+            .app
+            .session
+            .committed_doc()
+            .ids()
+            .last()
+            .expect("the profile was added");
+        (driven, profile)
+    }
+
+    /// **A lone profile is picked by its drawn outline**, by a real
+    /// pointer click — and only there: a click off the line, outside
+    /// the loop or inside it, picks nothing, since a profile has no
+    /// face to be inside of.
+    #[test]
+    fn a_click_on_a_profiles_outline_selects_it_and_beside_it_nothing() {
+        use crate::session::Hovered;
+        let (mut driven, profile) = with_profile_added(vec![
+            SessionOp::DeleteNode { node: placement() },
+            SessionOp::DeleteNode { node: extrude() },
+            SessionOp::DeleteNode {
+                node: startup_node(0),
+            },
+            SessionOp::AddProfile {
+                loops: vec![crate::test_support::rectangle_loop(
+                    [0.010, 0.010],
+                    0.040,
+                    0.020,
+                )],
+            },
+        ]);
+        let on_line = window_pos_of(&driven, [0.030, 0.010, 0.0]);
+        let outside = window_pos_of(&driven, [0.030, 0.005, 0.0]);
+        let inside = window_pos_of(&driven, [0.030, 0.020, 0.0]);
+
+        driven.hovered(on_line);
+        assert_eq!(
+            driven.app.session.hover(),
+            Some(&Hovered::Profile(profile)),
+            "the pointer resting on the outline hovers the profile"
+        );
+        assert_eq!(
+            driven.marks().edges().hovered.len(),
+            2 * 4,
+            "the hovered profile's four sides are marked"
+        );
+
+        driven.click_at(on_line);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(profile),
+            "a click on the outline selects the profile"
+        );
+        assert_eq!(
+            driven.marks().edges().selected.len(),
+            2 * 4,
+            "the selected profile's four sides are marked"
+        );
+
+        driven.click_at(outside);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::None,
+            "a click beside the outline, outside the loop, selects nothing"
+        );
+
+        driven.click_at(on_line);
+        driven.click_at(inside);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::None,
+            "a click inside the loop, off its line, selects nothing"
+        );
+    }
+
+    /// **A profile drawn on a body's face**, seen from the face's side:
+    /// its outline is picked over the face it lies on, the face's
+    /// interior is still the face, and where the outline lies on a
+    /// body edge — the startup plate's own profile on its bottom rim —
+    /// the edge wins the tie.
+    #[test]
+    fn a_profile_on_a_face_is_picked_at_its_outline_and_the_face_inside_it() {
+        let (mut driven, profile) = with_profile_added(vec![SessionOp::AddProfile {
+            loops: vec![crate::test_support::rectangle_loop(
+                [0.003, 0.003],
+                0.010,
+                0.010,
+            )],
+        }]);
+        // Under the plate, looking up at its bottom face, which the
+        // profile (drawn at z = 0) lies on.
+        for pitch in [-core::f64::consts::PI, 0.7] {
+            driven.app.camera = crate::camera::apply(
+                &driven.app.camera,
+                &crate::camera::CameraOp::Orbit { yaw: 0.0, pitch },
+            )
+            .expect("an orbit applies");
+        }
+        driven.quiet();
+        let on_line = window_pos_of(&driven, [0.008, 0.003, 0.0]);
+        let inside = window_pos_of(&driven, [0.008, 0.008, 0.0]);
+        let on_rim = window_pos_of(&driven, [0.030, 0.0, 0.0]);
+
+        driven.click_at(on_line);
+        driven.quiet();
+        assert_eq!(
+            driven.app.session.selection(),
+            &Selection::Node(profile),
+            "a click on the outline selects the profile, not the face under it"
+        );
+
+        driven.click_at(inside);
+        driven.quiet();
+        let face = driven
+            .app
+            .session
+            .selection()
+            .face()
+            .unwrap_or_else(|| {
+                panic!(
+                    "a click inside the outline selects the face: {:?}",
+                    driven.app.session.selection()
+                )
+            })
+            .clone();
+        assert_eq!(face.node, placement(), "the plate's drawn copy's face");
+
+        driven.click_at(on_rim);
+        driven.quiet();
+        assert!(
+            driven.app.session.selection().edge().is_some(),
+            "on the rim the startup profile lies along, the edge wins: {:?}",
+            driven.app.session.selection()
+        );
+    }
 }
 
 /// **A click in the viewport while the index seam is busy**, driven
