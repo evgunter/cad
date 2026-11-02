@@ -7,7 +7,7 @@ opened: 2026-09-16
 refs: [2752, 368]
 priority: P0
 cost: H
-blocked_on: [clearance-recomputes-a-cells-net-and-jet-per-pair]
+blocked_on: [where-the-embedding-certificate-is-paid]
 ---
 
 Found by both of BOOL-6's reviews (PR 2752) and filed by the S-BOOL
@@ -204,3 +204,27 @@ The proposed door shape stands for when they land:
   from slab 0's sign.
 
 The f64 door's price is told to Ev when it is specced. Parked.
+
+## Evidence: bodies the loft door leaves to the certificate (2026-11-02, PR 6141)
+
+PR 6141's stacking door refuses only contact it verified between a
+slab's two sections (`LoftError::SectionsTouch`). An arc pair the
+curve-pair reader cannot settle decides nothing there, as on main.
+Two families build on main and on the PR, and only the certificate
+can refuse them:
+
+- **A stadium turned about its own arc's tangent.** The stadium on
+  the lines y = ±0.5 for |x| ≤ 1, with semicircles out to x = ±1.5, is
+  turned 0.2, 0.4 or 0.7 rad about the y-parallel axis through
+  (1.5, 0, 0), which is the right arc's tangent at its tip. Both
+  sections hold that point of the arc's interior, so the boundary
+  touches itself tangentially there. The reader reads it as unsettled
+  (`MeetFault` with no escalation). This held for 2, 3 and 4 sections
+  at every v-degree: 15 grid cases.
+- **Tilted discs whose caps cross while their rims stay apart.** The
+  unit circle, and a copy turned θ about the y-axis and then lifted h
+  along z. At (h, θ) = (0.5, 0.9), the two caps share a run of 1.54 along
+  the line where the section planes meet, while the rims stay 0.118
+  apart. The body's caps cross. At (0.1, 0.2), (0.1, 0.5) and (0.1, 0.9)
+  the caps share runs of 1.73 to 1.98. The door reads rims only, so no
+  verdict can come from it.
