@@ -1274,9 +1274,30 @@ impl Drafts {
     /// **Another document replaced the one the held face was picked
     /// in** (an open, a new document): the latch names nothing in it.
     pub(crate) fn document_replaced(&mut self) {
-        self.trace_plane = None;
-        self.trace_face = None;
-        self.sketch_face = None;
+        for latch in self.latches() {
+            *latch = None;
+        }
+    }
+
+    /// **The faces the forms latch**, the one list of them: what a
+    /// replaced document drops, an operation speaks again and a takeover
+    /// moves.
+    fn latches(&mut self) -> [&mut Option<HeldPick>; 3] {
+        [
+            &mut self.sketch_face,
+            &mut self.trace_plane,
+            &mut self.trace_face,
+        ]
+    }
+
+    /// **The picks the forms hold** ([`crate::session::Holds`]): the
+    /// latched faces, the one list ([`Self::latches`]).
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        self.latches()
+            .into_iter()
+            .flatten()
+            .map(|held| crate::session::select::Held::One(held))
+            .collect()
     }
 
     /// **The held picks' nodes, spoken again from `doc`**, the session's
@@ -1284,14 +1305,7 @@ impl Drafts {
     /// rule): a node `doc` holds takes its label now, and one it no
     /// longer holds keeps the last it had.
     pub(crate) fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
-        for held in [
-            &mut self.sketch_face,
-            &mut self.trace_plane,
-            &mut self.trace_face,
-        ]
-        .into_iter()
-        .flatten()
-        {
+        for held in self.latches().into_iter().flatten() {
             *held = held.respoken(doc);
         }
     }

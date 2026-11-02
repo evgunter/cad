@@ -636,6 +636,19 @@ impl BlendTool {
         }
     }
 
+    /// **The edges the tool holds** ([`crate::session::Holds`]): its
+    /// edges and rims, on its target.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        let Some(node) = self.target().map(|target| target.node()) else {
+            return Vec::new();
+        };
+        vec![crate::session::select::Held::Edges {
+            node,
+            edges: &mut self.edges,
+            rims: &mut self.rims,
+        }]
+    }
+
     /// Drop every pick — the panel's `Clear picks` button, and what
     /// Cancel's whole-tool replacement amounts to for the picks alone.
     ///

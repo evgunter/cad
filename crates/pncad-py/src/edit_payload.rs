@@ -275,6 +275,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
+        | EditError::TakeOverRepeatsCopy { node }
         | EditError::WorldIsUndeletable { node }
         | EditError::ConstraintOnNonPlacement { node }
         | EditError::SpaceMismatch { node, a: _, b: _ }

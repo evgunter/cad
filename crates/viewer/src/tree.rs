@@ -770,6 +770,26 @@ impl HeldPick {
     }
 }
 
+/// **A held pick follows a takeover by its entity**: the entity on
+/// the name the takeover moved it to, and the pick's words spoken again
+/// from `doc` where it moved; itself where the takeover moved nothing it
+/// names.
+impl<P: PickedEntity + crate::session::select::Follows> crate::session::select::Follows
+    for HeldPick<P>
+{
+    fn node(&self) -> RecipeNodeId {
+        self.pick.node()
+    }
+
+    fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
+        let mut pick = self.pick.clone();
+        pick.follow(moved, doc);
+        if pick != self.pick {
+            *self = Self::new(doc, pick);
+        }
+    }
+}
+
 /// The pick as the chrome says one ([`PickedName`]), on the body kept at
 /// the pick; a node `by` does not hold, as the pick kept it.
 impl<P: PickedEntity> Say for HeldPick<P> {

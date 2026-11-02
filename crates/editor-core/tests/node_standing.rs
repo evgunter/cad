@@ -465,20 +465,20 @@ fn reads(code: &str) -> usize {
 /// because it needs what the standing does not carry — a failed node's
 /// own error, a value's payload beside a failure's kind — or because it
 /// is where results are written or re-exported. The count is
-/// [`reads`]'s hits in the file's code; a hit added anywhere reds, and
+/// [`reads`]'s hits in the file's shipped code ([`shipped`]: its
+/// `#[cfg(test)]` items are not counted); a hit added anywhere reds, and
 /// the answer is to read through `Evaluation::usable` or to give the
 /// file its line here.
 const READERS: [(&str, usize, &str); 15] = [
     (
         "crates/editor-core/src/eval/members.rs",
-        20,
+        18,
         "the per-member schedule (D10 `[repetition]`) is the evaluator's at one value of the \
          indices: it holds the result map as the evaluator writes it, overlays each member's \
          raw values on the family's (a member's result where it has one, carrying the \
          family it stands for, a failure poisoning its readers), and reads each \
          member's own result to write the family's: its values, or the refusal the family \
-         refuses with naming the member (`MemberRefused`); its unit tests hand-build each \
-         member's result and read the family's",
+         refuses with naming the member (`MemberRefused`)",
     ),
     (
         "crates/editor-core/src/eval/mod.rs",
@@ -521,9 +521,9 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
     (
         "crates/editor-core/src/stackup.rs",
-        6,
+        3,
         "a measure's sensitivity reads the failed node's own error to tell the guided \
-         replay's refusal from the measure's (`unread_measure`); its tests write results",
+         replay's refusal from the measure's (`unread_measure`)",
     ),
     (
         "crates/editor-core/src/mate/corner.rs",
@@ -568,6 +568,26 @@ const READERS: [(&str, usize, &str); 15] = [
     ),
 ];
 
+/// **`code` with every `#[cfg(test)]` item blanked**: what the census
+/// counts is shipped code, and a test module in a `src` file (a stub
+/// building a result, a test destructuring one) ships nothing. The
+/// item's extent is `test_utils::source::attributed_extent`'s.
+fn shipped(code: &str) -> String {
+    let mut out = code.to_owned();
+    let mut from = 0;
+    while let Some(at) = out[from..].find("#[cfg(test)]").map(|i| from + i) {
+        let span = test_utils::source::attributed_extent(&out, at)
+            .unwrap_or(at..at + "#[cfg(test)]".len());
+        let blank: String = out[span.clone()]
+            .chars()
+            .map(|c| if c == '\n' { '\n' } else { ' ' })
+            .collect();
+        out.replace_range(span.clone(), &blank);
+        from = span.end;
+    }
+    out
+}
+
 /// **The census.** Every file of shipped `src` — each crate's and each
 /// demo's — whose code reads a node's result other than through
 /// [`Evaluation::usable`] is in [`READERS`] with its count and its
@@ -590,7 +610,7 @@ fn every_node_result_reader_goes_through_usable_or_is_listed() {
             }
             for path in test_utils::source::rust_sources(&src) {
                 let text = std::fs::read_to_string(&path).expect("readable source file");
-                let hits = reads(&test_utils::source::code_only(&text));
+                let hits = reads(&shipped(&test_utils::source::code_only(&text)));
                 if hits == 0 {
                     continue;
                 }

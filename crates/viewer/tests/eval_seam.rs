@@ -285,6 +285,7 @@ fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     assert!(seam.busy());
     seam.cancel();
@@ -307,6 +308,7 @@ fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     let done = seam.poll().expect("the next run answers");
     assert!(done.completed());
@@ -322,6 +324,7 @@ fn an_edit_during_an_evaluation_cancels_and_restarts_rather_than_queueing() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
@@ -329,6 +332,7 @@ fn an_edit_during_an_evaluation_cancels_and_restarts_rather_than_queueing() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     let done = seam.poll().expect("a result");
     assert_eq!(
@@ -351,6 +355,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let first = seam.poll().expect("a result");
     assert!(first.completed());
@@ -375,6 +380,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         doc: edited,
         tol,
         resolver: None,
+        seed: None,
     });
     let second = seam.poll().expect("a result");
     assert!(second.completed());
@@ -401,6 +407,7 @@ fn the_seams_result_agrees_with_a_direct_evaluation() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let through_seam = seam.poll().expect("a result");
     let direct = evaluate::<f64>(
@@ -433,6 +440,7 @@ fn the_threaded_seam_answers_the_same_generations() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     let mut results = drained(&mut seam, 1);
     assert_eq!(results.len(), 1, "one submit is answered once");
@@ -463,6 +471,7 @@ fn the_threaded_seam_coalesces_two_submits_into_one_result() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
@@ -470,6 +479,7 @@ fn the_threaded_seam_coalesces_two_submits_into_one_result() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
 
     let results: Vec<Generation> = drained(&mut seam, 0)
@@ -504,6 +514,7 @@ fn a_cancel_reaches_a_threaded_seams_waiting_job() {
         doc: doc.clone(),
         tol,
         resolver: None,
+        seed: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
@@ -511,6 +522,7 @@ fn a_cancel_reaches_a_threaded_seams_waiting_job() {
         doc,
         tol,
         resolver: None,
+        seed: None,
     });
     // The second job is waiting behind the first; cancel names it.
     seam.cancel();
@@ -913,4 +925,90 @@ fn a_panic_inside_an_egui_frame_is_not_swallowed() {
         Some("the planted panic"),
         "and it must be the SAME panic, not one egui re-raised of its own",
     );
+}
+
+/// **A seeded request starts from its seed, not the seam's own run**
+/// (`EvalRequest::seed`): a completed evaluation of the document, made
+/// beside the seam (a takeover's door reads one before it writes its
+/// rebinds), primes the run, so the seam recomputes nothing it already
+/// holds. The same request unseeded, on a fresh seam, recomputes every
+/// node. Goes red if the seam stops reading the seed.
+#[test]
+fn a_seeded_request_starts_from_its_seed() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let seeded = seeded_run(&doc, Some((&doc, &beside(&doc))));
+    assert_eq!(seeded.recomputed, 0, "every node read off the seed");
+    let unseeded = seeded_run(&doc, None);
+    assert!(
+        unseeded.recomputed > 0,
+        "a fresh seam computes the document"
+    );
+}
+
+/// **A seed that answers another document, or an earlier state of
+/// this one, costs work and never a wrong answer**: the memo keys on
+/// content and the document's id, so a seed of another document is
+/// dropped by the kernel and one of an earlier state answers only what
+/// did not change. Each run recomputes, and every node's value is the
+/// one a direct evaluation gives. Goes red if a seed is trusted beyond
+/// what it holds.
+#[test]
+fn a_wrong_seed_recomputes_and_answers_as_a_direct_run() {
+    let tol = Tol::witness();
+    let (earlier, _profile, extrude) = common::parametric_plate(tol);
+    let (doc, _) = common::placed_at(&earlier, extrude, [0.1, 0.0, 0.0], tol);
+    let (other, _, _) = common::broken_document(tol);
+    let direct = beside(&doc);
+    for (what, of) in [("another document", &other), ("an earlier state", &earlier)] {
+        let run = seeded_run(&doc, Some((of, &beside(of))));
+        assert!(
+            run.recomputed > 0,
+            "{what}: the seed does not answer the new nodes"
+        );
+        for id in &direct.order {
+            assert_eq!(
+                format!("{:?}", run.value(*id)),
+                format!("{:?}", direct.value(*id)),
+                "{what}: {id:?} is evaluated as a direct run evaluates it"
+            );
+        }
+    }
+}
+
+/// A completed evaluation of `doc` beside the seam.
+fn beside(doc: &pncad::document::Doc<ProfileProgram>) -> Arc<pncad::document::Evaluation<f64>> {
+    let ev = Arc::new(evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    ));
+    assert_eq!(ev.outcome, EvalOutcome::Completed);
+    ev
+}
+
+/// `doc` through a fresh seam, started from `seed` (an evaluation, and
+/// the document it is one of) where one is given.
+fn seeded_run(
+    doc: &pncad::document::Doc<ProfileProgram>,
+    seed: Option<(
+        &pncad::document::Doc<ProfileProgram>,
+        &Arc<pncad::document::Evaluation<f64>>,
+    )>,
+) -> Arc<pncad::document::Evaluation<f64>> {
+    let mut seam = InlineEvaluator::new();
+    seam.submit(EvalRequest {
+        generation: Generation::FIRST,
+        doc: doc.clone(),
+        tol: Tol::witness(),
+        resolver: None,
+        seed: seed.map(|(of, evaluation)| viewer::evalseam::Seed {
+            evaluation: Arc::clone(evaluation),
+            answers: Arc::new(of.clone()),
+            resolver: None,
+        }),
+    });
+    seam.poll().expect("the run answers").evaluation
 }

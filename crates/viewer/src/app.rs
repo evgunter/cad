@@ -798,6 +798,23 @@ impl DocumentDerived {
     }
 }
 
+/// **The chrome's held picks, as one holder** (`Holds`): the forms'
+/// latched faces and the open tool's picks, handed to an operation so a
+/// takeover reads where their names go and they follow it at the
+/// commit (`DocSession::perform_with`).
+struct ChromeHolds<'a> {
+    drafts: &'a mut Drafts,
+    tools: &'a mut crate::tools::Tools,
+}
+
+impl crate::session::Holds for ChromeHolds<'_> {
+    fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        let mut held = self.drafts.held();
+        held.extend(self.tools.held());
+        held
+    }
+}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -1032,23 +1049,7 @@ impl ViewerApp {
         let withdrawn = self.session.take_landed_withdrawals();
         self.notices
             .extend(withdrawn.iter().flat_map(frame::withdrawal_notices));
-        // **The survival step, once per frame, for whichever tool is
-        // open** — the obligation every tool's module docs put on its
-        // consumer, discharged in the one place that holds them all.
-        // Each notice already names its tool.
-        let dropped = self
-            .tools
-            .reconcile(self.session.doc(), self.session.landed_pair());
-        // A tool's survival drop is provoked by the document transition
-        // it did not survive, so the act that accepts the next one is
-        // what retires it; `frame::tool_notice` reads from the event
-        // whether the pick is lost for good.
-        let landed = self.session.landed_pair();
-        self.notices.extend(
-            dropped
-                .iter()
-                .map(|notice| frame::tool_notice(notice, landed)),
-        );
+        self.survive_tools();
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1281,6 +1282,29 @@ impl ViewerApp {
         self.tools.respeak(doc);
     }
 
+    /// **The survival step, once per frame, for whichever tool is
+    /// open** — the obligation every tool's module docs put on its
+    /// consumer, discharged in the one place that holds them all. Each
+    /// notice already names its tool.
+    ///
+    /// A face pick is a name, judged only by a run that answers the
+    /// document it lives in (`DocSession::name_run`, the one gate).
+    fn survive_tools(&mut self) {
+        let dropped = self
+            .tools
+            .reconcile(self.session.doc(), self.session.name_run());
+        // A tool's survival drop is provoked by the document transition
+        // it did not survive, so the act that accepts the next one is
+        // what retires it; `frame::tool_notice` reads from the event
+        // whether the pick is lost for good.
+        let landed = self.session.landed_pair();
+        self.notices.extend(
+            dropped
+                .iter()
+                .map(|notice| frame::tool_notice(notice, landed)),
+        );
+    }
+
     /// **A document replaced this one**: everything held about it is
     /// dropped, here and nowhere else — [`DocumentDerived`] whole, and
     /// the held ids inside the drafts and the open tool, whose values
@@ -1335,7 +1359,16 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let answers = answers_a_save_choice(&op);
-            let outcome = self.session.perform(op);
+            // The forms' and the open tool's picks are held outside the
+            // document: a takeover reads where they go, and they follow
+            // it at the commit, with the session's selection.
+            let outcome = self.session.perform_with(
+                op,
+                &mut ChromeHolds {
+                    drafts: &mut self.drafts,
+                    tools: &mut self.tools,
+                },
+            );
             answered_save_choice |= answers && outcome.refusal.is_none();
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
@@ -6905,6 +6938,128 @@ mod properties_pane_tests {
         driven.click("on the picked face");
         driven.quiet();
         assert_eq!(driven.held(), [bottom_id, NONE, NONE], "held again");
+    }
+
+    /// **Both picks of the held face follow a sketch committed on it**:
+    /// the startup plate's top cap selected and held by the add-profile
+    /// form, then the form's commit, which takes the plate's copy over
+    /// with the union. The union carries the cap as one face, so the
+    /// selection and the form's held face both follow it there at the
+    /// commit and both resolve on the copy. Goes red if the session's
+    /// selection or the drafts' held face stops following, or if the
+    /// successor query stops finding the cap at the union.
+    #[test]
+    fn a_sketch_on_the_held_face_moves_the_selection_and_the_held_face() {
+        use crate::session::Standing;
+        use pncad::select::Resolution;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        driven.select(Selection::Face(top.clone()));
+        driven.click(crate::pane::create::ADD_PROFILE);
+        driven.quiet();
+        let session = &driven.app.session;
+        assert!(
+            session
+                .doc()
+                .ids()
+                .iter()
+                .any(|&id| matches!(session.doc().node(id), Some(Node::Union { .. }))),
+            "the button committed a sketch on the face"
+        );
+        let Standing::Face { face, resolution } = session.standing() else {
+            panic!("a face is selected: {:?}", session.standing())
+        };
+        assert_eq!(face.node, placement(), "on the same drawn copy");
+        assert_ne!(face.name, top.name, "named as the union carries the cap");
+        assert!(
+            matches!(resolution.as_deref(), Some(Resolution::Resolved(_))),
+            "the selection resolves: {resolution:?}"
+        );
+        let held = driven.app.drafts.sketch_face.clone();
+        assert_eq!(
+            held.as_ref().map(crate::tree::HeldPick::face),
+            Some(&face),
+            "the held face followed"
+        );
+        let held = held.expect("held").face().clone();
+        let eval = session.evaluation().expect("landed");
+        let verdict =
+            crate::tree::pick_resolution(session.doc(), eval, held.node, held.body, &held.name);
+        assert!(
+            matches!(verdict, Resolution::Resolved(_)),
+            "the held face resolves: {verdict:?}"
+        );
+    }
+
+    /// **An open tool's held pick follows a takeover too**: the mate
+    /// tool holding the startup plate's top cap on its copy, and a
+    /// sketch committed on that face, which takes the copy over with the
+    /// union. At the commit the tool's pick follows to the cap as the
+    /// union carries it; the survival step run before the landing keeps
+    /// it (it is judged only by a run of the document it lives in,
+    /// `DocSession::name_run`), and once the run lands it resolves
+    /// there. Goes red if the open tool's picks stop being listed to
+    /// follow (`Tools::held`), or the survival step judges a followed
+    /// pick by the older landed run.
+    #[test]
+    fn an_open_tools_pick_on_a_taken_over_copy_follows() {
+        use crate::matetool::MateToolState;
+        use pncad::select::Resolution;
+        let (mut driven, top) = Driven::holding_the_top_cap();
+        driven.app.tools.open(crate::tools::ToolKind::Mate);
+        driven.click_through(vec![Selection::Face(top.clone()), Selection::None]);
+        assert_eq!(
+            driven
+                .app
+                .tools
+                .mate()
+                .map(crate::matetool::MateTool::state),
+            Some(&MateToolState::One(crate::tree::HeldPick::new(
+                driven.app.session.doc(),
+                crate::matetool::MatePick::Face(top.clone())
+            ))),
+            "the tool holds the cap"
+        );
+        // Committed, and the survival step run before its run lands:
+        // the pick followed at the commit, and is not judged against
+        // the older landed run.
+        driven.app.perform_batch(vec![SessionOp::SketchOnFace {
+            face: top.clone(),
+            loops: vec![crate::test_support::rectangle_loop(
+                [-0.001, -0.001],
+                0.002,
+                0.002,
+            )],
+            distance: crate::test_support::len(0.001),
+            spin: crate::test_support::ang(0.0),
+        }]);
+        assert!(driven.app.session.busy(), "the commit's run has not landed");
+        driven.app.survive_tools();
+        let followed = driven.app.tools.mate().map(|tool| tool.state().clone());
+        assert!(
+            matches!(&followed, Some(MateToolState::One(held))
+                if held.pick().face().is_some_and(|face| face.name != top.name)),
+            "the tool keeps the pick it followed through the window: {followed:?}"
+        );
+        driven.quiet();
+        let Some(MateToolState::One(held)) = driven
+            .app
+            .tools
+            .mate()
+            .map(crate::matetool::MateTool::state)
+        else {
+            panic!("the tool still holds one pick")
+        };
+        let held = held.pick().face().expect("a face pick");
+        assert_eq!(held.node, top.node, "on the same drawn copy");
+        assert_ne!(held.name, top.name, "named as the union carries the cap");
+        let session = &driven.app.session;
+        let eval = session.evaluation().expect("landed");
+        let verdict =
+            crate::tree::pick_resolution(session.doc(), eval, held.node, held.body, &held.name);
+        assert!(
+            matches!(verdict, Resolution::Resolved(_)),
+            "the held pick resolves: {verdict:?}"
+        );
     }
 
     /// **A held face on a copy a feature re-points stays held, drawn

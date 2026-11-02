@@ -2388,6 +2388,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(&E::WitnessOnNonSketch { node: sp(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: sp(1) }, &["node"]);
+    carries(&E::TakeOverRepeatsCopy { node: sp(1) }, &["node"]);
     carries(&E::WorldIsUndeletable { node: sp(1) }, &["node"]);
     carries(&E::ConstraintOnNonPlacement { node: sp(1) }, &["node"]);
     // A constraint's address: the placement and the constraint's id.
@@ -4771,6 +4772,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "space_mismatch",
             "step_ids_refused",
             "structural_slot_needs_structural_edit",
+            "take_over_repeats_copy",
             "unknown_constraint",
             "unknown_node",
             "unknown_slot",

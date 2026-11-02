@@ -9,7 +9,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{RecipeNodeId, SpokenVar, VarId};
+use pncad::document::{Moved, RecipeNodeId, SpokenVar, VarId};
 use pncad::prelude::StableName;
 use pncad::select::Resolution;
 
@@ -65,6 +65,136 @@ impl FaceSelection {
     /// answer here too.
     pub fn feature(&self) -> RecipeNodeId {
         crate::tree::PickedName::face(self).feature()
+    }
+}
+
+/// **The name a pick of `name` on the copy `node` holds following a
+/// takeover**: the one the takeover moved the copy's entity to
+/// ([`Moved::of`]), or `name` where it did not move it. The one
+/// spelling of a held name following, for every holder (a face or edge
+/// pick, a tool's held edges).
+pub(crate) fn followed_name(node: RecipeNodeId, name: &StableName, moved: &Moved) -> StableName {
+    moved
+        .of(node, name)
+        .map_or_else(|| name.clone(), Clone::clone)
+}
+
+/// **What holds picks across operations**: the session's selection,
+/// the chrome's forms and its open tool. A holder states what it holds
+/// once ([`Holds::held`]); which drawn copies it holds names on
+/// ([`held_on`]) and every held name following a takeover
+/// ([`follow`]) are both read off that one list, so the two cannot
+/// disagree about what is held (`DocSession::perform_with`).
+pub trait Holds {
+    /// **Every pick held**, as a handle that reads or moves it.
+    fn held(&mut self) -> Vec<Held<'_>>;
+}
+
+/// **A pick that follows a takeover**: it names an entity of one drawn
+/// copy ([`Follows::node`]), and moves onto the name a takeover moved
+/// that entity to ([`Follows::follow`]).
+pub trait Follows {
+    /// The drawn copy the pick names an entity of.
+    fn node(&self) -> RecipeNodeId;
+
+    /// The pick on the name a takeover moved its own to
+    /// ([`followed_name`]), its words spoken from `doc`, the document
+    /// the takeover made, where it keeps words.
+    fn follow(
+        &mut self,
+        moved: &Moved,
+        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    );
+}
+
+/// The three picked-entity vocabularies follow alike: by name, on the
+/// drawn copy they were picked on.
+macro_rules! follows_by_name {
+    ($($pick:ty),*) => {$(
+        impl Follows for $pick {
+            fn node(&self) -> RecipeNodeId {
+                self.node
+            }
+
+            fn follow(
+                &mut self,
+                moved: &Moved,
+                _: &pncad::document::Doc<pncad::document::ProfileProgram>,
+            ) {
+                self.name = followed_name(self.node, &self.name, moved);
+            }
+        }
+    )*};
+}
+
+follows_by_name!(FaceSelection, EdgeSelection, VertexSelection);
+
+/// **One held pick, as a handle**: what [`Holds::held`] lists.
+pub enum Held<'a> {
+    /// One pick: a selection, a form's latch, a tool's pick.
+    One(&'a mut dyn Follows),
+    /// Edges held on one drawn copy (the blend tool's), singly and as
+    /// rims.
+    Edges {
+        /// The drawn copy they are edges of.
+        node: RecipeNodeId,
+        /// The edges held one by one.
+        edges: &'a mut std::collections::BTreeSet<StableName>,
+        /// The rims, each held whole.
+        rims: &'a mut std::collections::BTreeSet<std::collections::BTreeSet<StableName>>,
+    },
+}
+
+impl Held<'_> {
+    /// The drawn copy the pick names an entity of.
+    fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::One(pick) => pick.node(),
+            Self::Edges { node, .. } => *node,
+        }
+    }
+
+    /// The pick following a takeover ([`Follows::follow`]).
+    fn follow(self, moved: &Moved, doc: &pncad::document::Doc<pncad::document::ProfileProgram>) {
+        match self {
+            Self::One(pick) => pick.follow(moved, doc),
+            Self::Edges { node, edges, rims } => {
+                let now = |name: &StableName| followed_name(node, name, moved);
+                *edges = edges.iter().map(now).collect();
+                *rims = rims
+                    .iter()
+                    .map(|rim| rim.iter().map(now).collect())
+                    .collect();
+            }
+        }
+    }
+}
+
+/// **The drawn copies `holder` holds names on** ([`Holds::held`]).
+pub fn held_on(holder: &mut dyn Holds, nodes: &mut std::collections::BTreeSet<RecipeNodeId>) {
+    nodes.extend(holder.held().iter().map(Held::node));
+}
+
+/// **Every pick `holder` holds, following a takeover** onto the names it
+/// moved them to ([`Holds::held`]), each kept pick's words spoken from
+/// `doc`, the document the takeover made.
+pub fn follow(
+    holder: &mut dyn Holds,
+    moved: &Moved,
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+) {
+    for held in holder.held() {
+        held.follow(moved, doc);
+    }
+}
+
+/// A holder holding nothing: what [`crate::session::DocSession::perform`]
+/// hands a takeover when its caller keeps no picks of its own.
+pub struct HoldsNothing;
+
+impl Holds for HoldsNothing {
+    fn held(&mut self) -> Vec<Held<'_>> {
+        Vec::new()
     }
 }
 
@@ -527,6 +657,18 @@ impl Standing {
                 .as_deref()
                 .filter(|resolution| !resolves(resolution)),
             Self::Empty | Self::Node { .. } | Self::Variable { .. } => None,
+        }
+    }
+}
+
+/// The selection holds the face or edge it picked.
+impl Holds for Selection {
+    fn held(&mut self) -> Vec<Held<'_>> {
+        match self {
+            Self::Face(face) => vec![Held::One(face)],
+            Self::Edge(edge) => vec![Held::One(edge)],
+            Self::Vertex(vertex) => vec![Held::One(vertex)],
+            Self::None | Self::Node(_) | Self::Variable(_) => Vec::new(),
         }
     }
 }

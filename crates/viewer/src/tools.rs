@@ -830,6 +830,27 @@ impl Tools {
         }
     }
 
+    /// **The picks the open tool holds** ([`crate::session::Holds`]):
+    /// the mate tool's faces, the mirror's plane and the blend's edges;
+    /// the seated tools hold bodies, whose reads a takeover keeps.
+    pub fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.held(),
+            Some(OpenTool::Blend(tool)) => tool.held(),
+            Some(OpenTool::Mirror(tool)) => tool.held(),
+            None
+            | Some(
+                OpenTool::Revolve(_)
+                | OpenTool::Boolean(_)
+                | OpenTool::Split(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_)
+                | OpenTool::Duplicate(_),
+            ) => Vec::new(),
+        }
+    }
+
     /// **The half seat `seat` of the open tool reads**, when it holds a
     /// split picked alone ([`crate::seats::Seats::choose_half`]); a
     /// no-op for a tool without body seats.

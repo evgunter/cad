@@ -148,6 +148,25 @@ pub enum MatePick {
     Vertex(VertexSelection),
 }
 
+/// A mate pick follows as the selection it was picked in does.
+impl crate::session::select::Follows for MatePick {
+    fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node(),
+            Self::Edge(edge) => edge.node(),
+            Self::Vertex(vertex) => vertex.node(),
+        }
+    }
+
+    fn follow(&mut self, moved: &pncad::document::Moved, doc: &Doc<ProfileProgram>) {
+        match self {
+            Self::Face(face) => face.follow(moved, doc),
+            Self::Edge(edge) => edge.follow(moved, doc),
+            Self::Vertex(vertex) => vertex.follow(moved, doc),
+        }
+    }
+}
+
 impl MatePick {
     /// The entity kind the pick's name names — what the pose is read
     /// as, whichever vocabulary carried it.
@@ -830,6 +849,19 @@ impl MateTool {
                 again(on);
                 again(to);
             }
+        }
+    }
+
+    /// **The picks the tool holds** ([`crate::session::Holds`]): `on`,
+    /// then `to`, as far as picked.
+    pub(crate) fn held(&mut self) -> Vec<crate::session::select::Held<'_>> {
+        match &mut self.state {
+            MateToolState::Idle => Vec::new(),
+            MateToolState::One(on) => vec![crate::session::select::Held::One(on)],
+            MateToolState::Two { on, to } => vec![
+                crate::session::select::Held::One(on),
+                crate::session::select::Held::One(to),
+            ],
         }
     }
 
