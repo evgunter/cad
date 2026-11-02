@@ -222,3 +222,11 @@ Newest entries at the bottom; the tail is the program's live status.
   - **Viewport picks:** a feature picked in the viewport refers only to the placed copy, with an easy way to the original body.
   - **The agreed parts stand.** DM6 is narrowed, and the README is restated to the answer.
   - The two takeover rows and Duplicate are unparked and dispatchable. The build is sequenced after `placing/values-direction`, because both rewrite the pattern gesture's takeover. (PLACING orchestrator)
+- 2026-11-02 — **The `[placement.values]` build is in review:** PR 6394, green at `a18ea48ed0`.
+  - **What it builds:**
+    - `Coord` gains `Slide(None)`, `SlideAlong(read)` and `SpinAbout(read)`, with the sum reading;
+    - the pncad writers take `RowDirection`/`RingAxis`;
+    - the viewer's pattern gesture takes a pick, never typed components, and `read_off` and `row_steps` are gone;
+    - the impeller ring becomes a writer call.
+  - **The designers' open point, decided by the lane and written into A11:** a carried target-axis slide beside an oblique mate projects into what the mates leave. Existing oblique-face placements therefore stand elsewhere: their zero is the plane's point nearest the target origin. The review weighs this.
+  - **Review: dual, CONCURRENT** (letter H; a change to the kernel's value chart, broad and hard to reverse). R1 = `placing-dual-6394-r1`, R2 = `placing-dual-6394-r2`, frozen head `a18ea48ed0`, identical brief. (PLACING orchestrator)
