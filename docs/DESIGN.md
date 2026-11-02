@@ -1134,8 +1134,8 @@ suits the slot.
   is a `Count`; and `Profile`. Only an operation defines a shape. A
   `Profile` is 2-D shape whose numbers are read only against each
   other; a sweep reads a profile and, at most, a heading and a tilt in
-  the profile's own axes (an extrude's side of the profile's plane,
-  above or below it, and its slant, held to that side) or a point and a heading (a revolve's axis line). A
+  the profile's own axes (an extrude's signed depth, above or below the
+  profile's plane, and its slant) or a point and a heading (a revolve's axis line). A
   profile drawn on a `Frame` may read traces in its plane
   ("Constructing a coincidence").
 - *Spaces:* `Space`, a coordinate system ([placement.spaces]). A
