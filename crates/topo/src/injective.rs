@@ -2363,19 +2363,25 @@ impl Curved {
 /// A conic carrier as a [`Trig`]: `center + u_ref·a·cos t + v_ref·b·sin t`.
 fn conic(c: &Curve3<Interval>) -> Option<Trig> {
     let (center, axis, a, b, x) = match *c {
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => (center, axis, radius, radius, u_ref),
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => (center, axis, radius, radius, u_ref),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => (center, axis, semi_u, semi_v, u_ref),
+        }) => (center, axis, semi_u, semi_v, u_ref),
         _ => return None,
     };
     Some(Trig {
@@ -4557,8 +4563,17 @@ fn plane_through(
     let q0 = pmid(q);
     let (hx, hy) = (heading(px, q0)?, heading(py, q0)?);
     if let [(i, _)] = near.edges.as_slice()
-        && let Some((Curve3::Circle { center, axis, .. } | Curve3::Ellipse { center, axis, .. }, _)) =
-            x.boundary.edges.get(*i).and_then(|e| e.arc.as_ref())
+        && let Some((
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            })
+            | Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            }),
+            _,
+        )) = x.boundary.edges.get(*i).and_then(|e| e.arc.as_ref())
     {
         // A planar conic: its own plane.
         return Some(Psi::Linear {
@@ -4612,7 +4627,7 @@ fn edge_piece(
     let hit: Vec<bool> = (0..PIECES).map(|k| meets(at_k(k), at_k(k + 1))).collect();
     let first = hit.iter().position(|&h| h)?;
     let last = hit.iter().rposition(|&h| h)?;
-    let conic = matches!(carrier, Curve3::Circle { .. } | Curve3::Ellipse { .. });
+    let conic = matches!(carrier, Curve3::Circle(..) | Curve3::Ellipse(..));
     // The run of pieces, in order, the hull spans: `(start, count)`,
     // cyclic through the seam on a closed conic.
     let (start, count) = if closed && conic && first == 0 && last == PIECES - 1 {
@@ -5630,12 +5645,12 @@ mod presentation_rows {
             edges: vec![Rim {
                 key: edge(1),
                 arc: Some((
-                    Curve3::Circle {
-                        center: origin(),
-                        axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-                        radius: iv0(r),
-                        u_ref: start,
-                    },
+                    Curve3::circle(
+                        origin(),
+                        Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                        iv0(r),
+                        start,
+                    ),
                     (iv0(0.0), iv0(TURN)),
                 )),
                 ends: [vertex(1), vertex(1)],
@@ -5822,12 +5837,12 @@ mod presentation_rows {
         let arc = Rim {
             key: edge(10),
             arc: Some((
-                Curve3::Circle {
-                    center: origin(),
-                    axis: z,
-                    radius: iv0(1.0),
-                    u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::circle(
+                    origin(),
+                    z,
+                    iv0(1.0),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 (iv0(0.0), iv0(core::f64::consts::FRAC_PI_2)),
             )),
             ends: [vertex(1), vertex(2)],
@@ -6165,12 +6180,12 @@ mod presentation_rows {
         let rim_line = Rim {
             key: edge(10),
             arc: Some((
-                Curve3::Circle {
-                    center: Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)),
-                    axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-                    radius: iv0(1.0),
-                    u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                },
+                Curve3::circle(
+                    Point3::new(iv0(0.0), iv0(0.0), iv0(0.5)),
+                    Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                    iv0(1.0),
+                    Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                ),
                 (iv0(0.5), iv0(1.0)),
             )),
             ends: [vertex(2), vertex(1)],
@@ -6311,12 +6326,12 @@ mod presentation_rows {
     fn a_reflex_corner_whose_curve_falls_along_its_column_is_structural() {
         let mut b = quarter(segment(20, [1, 3], (1.0, 0.0), (2.0, 0.0)), Vec::new());
         b.edges[0].arc = Some((
-            Curve3::Circle {
-                center: origin(),
-                axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(-1.0)),
-                radius: iv0(1.0),
-                u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-            },
+            Curve3::circle(
+                origin(),
+                Vec3::new(iv0(0.0), iv0(0.0), iv0(-1.0)),
+                iv0(1.0),
+                Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+            ),
             (iv0(0.0), iv0(core::f64::consts::FRAC_PI_2)),
         ));
         b.edges[0].uses[0].plus = false;
@@ -6730,13 +6745,15 @@ mod presentation_rows {
             edges: vec![Rim {
                 key: edge(1),
                 arc: Some((
-                    Curve3::Ellipse {
-                        center: origin(),
-                        axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-                        semi_u: iv0(a),
-                        semi_v: iv0(b),
-                        u_ref: Vec3::new(iv0(c), iv0(s), iv0(0.0)),
-                    },
+                    Curve3::Ellipse(geom::Ellipse::new(
+                        geom::Frame::new(
+                            origin(),
+                            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+                            Vec3::new(iv0(c), iv0(s), iv0(0.0)),
+                        ),
+                        iv0(a),
+                        iv0(b),
+                    )),
                     (iv0(0.0), iv0(TURN)),
                 )),
                 ends: [vertex(1), vertex(1)],
@@ -6798,13 +6815,15 @@ mod presentation_rows {
             edges: vec![Rim {
                 key: edge(1),
                 arc: Some((
-                    Curve3::Ellipse {
-                        center: origin(),
-                        axis: Vec3::new(iv0(0.0), iv0(-0.5 / norm), iv0(1.0 / norm)),
-                        semi_u: iv0(1.0),
-                        semi_v: iv0(norm),
-                        u_ref: Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
-                    },
+                    Curve3::Ellipse(geom::Ellipse::new(
+                        geom::Frame::new(
+                            origin(),
+                            Vec3::new(iv0(0.0), iv0(-0.5 / norm), iv0(1.0 / norm)),
+                            Vec3::new(iv0(1.0), iv0(0.0), iv0(0.0)),
+                        ),
+                        iv0(1.0),
+                        iv0(norm),
+                    )),
                     n,
                 )),
                 ends: [vertex(1), vertex(2)],
@@ -6952,12 +6971,12 @@ mod presentation_rows {
         let on = c.psi(&graph).expect("the edge is a conic");
         assert!(is_zero(on, band()), "on its own carrier: {on:?}");
         let mut off = *c;
-        let wider = Curve3::Circle {
-            center: origin(),
-            axis: Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
-            radius: iv0(0.71),
-            u_ref: x,
-        };
+        let wider = Curve3::circle(
+            origin(),
+            Vec3::new(iv0(0.0), iv0(0.0), iv0(1.0)),
+            iv0(0.71),
+            x,
+        );
         let Form::Harmonic { edge, .. } = &mut off.form else {
             panic!("a harmonic side");
         };
@@ -7299,12 +7318,12 @@ mod presentation_rows {
     /// The parallel `v` of [`ring`]`(2)` from azimuth `u.0` (vertex
     /// `ends[0]`) to `u.1`, a coordinate line of its chart.
     fn parallel(n: u64, ends: [u64; 2], v: f64, u: (f64, f64), plus: bool) -> Rim {
-        let circle = Curve3::Circle {
-            center: Point3::new(iv0(0.0), iv0(0.0), iv0(0.5 * v.sin())),
-            axis: ez(),
-            radius: iv0(2.0 + 0.5 * v.cos()),
-            u_ref: ex(),
-        };
+        let circle = Curve3::circle(
+            Point3::new(iv0(0.0), iv0(0.0), iv0(0.5 * v.sin())),
+            ez(),
+            iv0(2.0 + 0.5 * v.cos()),
+            ex(),
+        );
         Rim {
             key: edge(n),
             arc: Some((circle, (iv0(u.0), iv0(u.1)))),
@@ -7326,12 +7345,12 @@ mod presentation_rows {
     /// The meridian `u` of [`ring`]`(2)` from `v.0` (vertex `ends[0]`)
     /// to `v.1`, a coordinate line of its chart.
     fn meridian(n: u64, ends: [u64; 2], u: f64, v: (f64, f64)) -> Rim {
-        let circle = Curve3::Circle {
-            center: Point3::new(iv0(2.0 * u.cos()), iv0(2.0 * u.sin()), iv0(0.0)),
-            axis: Vec3::new(iv0(u.sin()), iv0(-u.cos()), iv0(0.0)),
-            radius: iv0(0.5),
-            u_ref: Vec3::new(iv0(u.cos()), iv0(u.sin()), iv0(0.0)),
-        };
+        let circle = Curve3::circle(
+            Point3::new(iv0(2.0 * u.cos()), iv0(2.0 * u.sin()), iv0(0.0)),
+            Vec3::new(iv0(u.sin()), iv0(-u.cos()), iv0(0.0)),
+            iv0(0.5),
+            Vec3::new(iv0(u.cos()), iv0(u.sin()), iv0(0.0)),
+        );
         Rim {
             key: edge(n),
             arc: Some((circle, (iv0(v.0.min(v.1)), iv0(v.0.max(v.1))))),

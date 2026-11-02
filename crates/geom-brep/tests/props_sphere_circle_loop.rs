@@ -37,12 +37,7 @@ fn sphere(c: Vec3<f64>) -> Surface<f64> {
 fn octant(c: Vec3<f64>) -> Vec<LoopEdge<f64>> {
     let arc = |axis: Vec3<f64>, u_ref: Vec3<f64>, s: u32, e: u32| {
         edge(
-            Curve3::Circle {
-                center: p3(c.x, c.y, c.z),
-                axis,
-                radius: R,
-                u_ref,
-            },
+            Curve3::circle(p3(c.x, c.y, c.z), axis, R, u_ref),
             0.0,
             FRAC_PI_2,
             s,
@@ -130,12 +125,12 @@ fn a_pole_free_tilted_cap_holds_its_sense_against_its_boundary() {
     let rho = R * 0.75_f64.sqrt();
     let rim = |a: f64, b: f64| {
         edge(
-            Curve3::Circle {
-                center: p3(0.5 * R, 0.0, 0.0),
-                axis: v3(1.0, 0.0, 0.0),
-                radius: rho,
-                u_ref: v3(0.0, 1.0, 0.0),
-            },
+            Curve3::circle(
+                p3(0.5 * R, 0.0, 0.0),
+                v3(1.0, 0.0, 0.0),
+                rho,
+                v3(0.0, 1.0, 0.0),
+            ),
             a,
             b,
             0,
@@ -189,12 +184,12 @@ fn holes_that_overlap_bound_no_face_under_either_bit() {
     };
     let cap = |th: f64, forward: bool| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: p3(th.cos(), 0.0, 0.0),
-                axis: v3(1.0, 0.0, 0.0),
-                radius: th.sin(),
-                u_ref: v3(0.0, 1.0, 0.0),
-            },
+            Curve3::circle(
+                p3(th.cos(), 0.0, 0.0),
+                v3(1.0, 0.0, 0.0),
+                th.sin(),
+                v3(0.0, 1.0, 0.0),
+            ),
             0.0,
             core::f64::consts::TAU,
             forward,
@@ -247,12 +242,12 @@ fn the_sphere_less_two_caps_measures_under_its_encoded_side() {
     // about it, so the cap it bounds is on its right.
     let around = |axis: Vec3<f64>, th: f64, u_ref: Vec3<f64>| {
         LoopEdge::hand_built(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0) + axis * (R * th.cos()),
+            Curve3::circle(
+                p3(0.0, 0.0, 0.0) + axis * (R * th.cos()),
                 axis,
-                radius: R * th.sin(),
+                R * th.sin(),
                 u_ref,
-            },
+            ),
             0.0,
             tau,
             false,
@@ -290,12 +285,12 @@ fn general_cap(c: Vec3<f64>, r: f64, d: Vec3<f64>, theta: f64, n: usize) -> Vec<
     (0..n)
         .map(|k| {
             LoopEdge::hand_built(
-                Curve3::Circle {
-                    center: p3(c.x, c.y, c.z) + d * (r * theta.cos()),
-                    axis: d,
-                    radius: r * theta.sin(),
-                    u_ref: u,
-                },
+                Curve3::circle(
+                    p3(c.x, c.y, c.z) + d * (r * theta.cos()),
+                    d,
+                    r * theta.sin(),
+                    u,
+                ),
                 k as f64 * step,
                 (k + 1) as f64 * step,
                 true,

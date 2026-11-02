@@ -32,12 +32,12 @@ fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
 /// to `lat1`.
 fn great_flipped(u: f64, lat0: f64, lat1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     topo::edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(-u.sin(), u.cos(), 0.0),
-            radius: RS,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
+        Curve3::circle(
+            p3(0.0, 0.0, 0.0),
+            v3(-u.sin(), u.cos(), 0.0),
+            RS,
+            v3(u.cos(), u.sin(), 0.0),
+        ),
         -lat0,
         -lat1,
         a,
@@ -133,12 +133,12 @@ fn probe_tilted_off_origin_wedge_measures_by_the_closed_form() {
     };
     let meridian = |u: f64, t0: f64, t1: f64, a: u32, b: u32| {
         topo::edge(
-            Curve3::Circle {
-                center: c,
-                axis: rot(Vec3::new(u.sin(), -u.cos(), 0.0)),
-                radius: r,
-                u_ref: rot(Vec3::new(u.cos(), u.sin(), 0.0)),
-            },
+            Curve3::circle(
+                c,
+                rot(Vec3::new(u.sin(), -u.cos(), 0.0)),
+                r,
+                rot(Vec3::new(u.cos(), u.sin(), 0.0)),
+            ),
             t0,
             t1,
             a,

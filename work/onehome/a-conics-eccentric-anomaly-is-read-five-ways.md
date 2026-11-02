@@ -2,12 +2,14 @@
 id: a-conics-eccentric-anomaly-is-read-five-ways
 kind: issue
 title: A point's eccentric anomaly on a conic is read five ways, with two spellings of which branch
-status: dispatched
+status: closed
 opened: 2026-11-02
 priority: P1
 cost: M
 branch: onehome/conic-frame
 rides_with: circle-and-ellipse-frame-arms-re-spell-conic-of
+closed: 2026-11-02
+pr: 6349
 ---
 
 Found by the conic-frame fork's designer weighing (PR 6325, 2026-11-02).

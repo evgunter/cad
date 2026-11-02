@@ -81,6 +81,7 @@
 //! plane — makes the path undecided, one in the escalation band makes
 //! it escalate, and the caller asks another.
 
+use geom::Conic;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::validate::decide;
@@ -546,48 +547,8 @@ impl<T: Real> CircleArc<T> {
     /// span's middle.
     fn param(&self, p: Point3<T>) -> T {
         let w = p - self.centre;
-        branch(w.dot(self.v_ref()).atan2(w.dot(self.u_ref)), self.span)
+        geom::on_span_branch(w.dot(self.v_ref()).atan2(w.dot(self.u_ref)), self.span)
     }
-}
-
-/// `t` moved by whole turns to the branch of `span`'s middle, into
-/// `(mid − τ/2, mid + τ/2]`.
-///
-/// **The window re-centring argument**, which the sites that re-centre
-/// a parameter on a span's middle and read it only against the span's
-/// ends cite. A raw pick, sound whichever way it falls. A parameter
-/// inside the span lies within half the span of the middle and lands on
-/// its own branch. Only a parameter half a turn from the middle is in
-/// doubt:
-/// - on a span shorter than a turn (a piece's), it is outside the span
-///   on either branch, by at least half the span's complement;
-/// - on a whole-turn span (a loop arc over a closed edge, or a
-///   self-loop chord's `ArcEnd::WholeTurn`), it IS the span's end, `lo`
-///   and `hi` being one point. This spelling lands it on `hi`, the
-///   `reduce_periodic_centred` spelling on `lo`, and every reader of an
-///   end reads `lo` and `hi` alike (here `in_span` decides Zero at
-///   either end and the path says nothing).
-///
-/// Over the scalars:
-/// - at `f64` the half-turn parameter is reached (adversarial path grids
-///   do) and lands as above;
-/// - at `Interval` an enclosure straddling it spans both branches and
-///   the in-span reading escalates or declines. On a closed circle a
-///   seam-vertex root escalates hard (`boolean::reduce`'s
-///   `bool_wall_root_in_span`);
-/// - at `Sym` the `floor` folds only where its argument's form is the
-///   zero polynomial, the exact tie, where the fold is the true `⌊0⌋`
-///   and agrees with `f64`. Elsewhere it is an atom keyed by its
-///   argument's form, so floors of form-equal arguments cancel, and a
-///   reading is numeric unless such a fold or cancellation makes it an
-///   identity.
-///
-/// No reader reads the pick as an identity: the parameter is compared
-/// only with span ends of another provenance.
-fn branch<T: Real>(t: T, (lo, hi): (T, T)) -> T {
-    let mid = (lo + hi) * T::from_f64(0.5);
-    let tau = T::tau();
-    t + (mid - t).periodic_branch(tau) * tau
 }
 
 /// A piece of a [`Path`].
@@ -617,21 +578,46 @@ pub(crate) struct Path<T: Real> {
     pub(crate) arrival: Vec3<T>,
 }
 
-/// An arc of a section conic over its increasing span:
-/// `centre + u_ref·a·cos t + (axis × u_ref)·b·sin t`, `a = b` on a
-/// circle.
-#[derive(Clone, Copy)]
-pub(crate) struct Conic<T: Real> {
-    centre: Point3<T>,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    a: T,
-    b: T,
+/// An arc of a section conic, a circle or an ellipse carrier, over its
+/// increasing span.
+#[derive(Clone)]
+pub(crate) struct ConicArc<T: Real> {
+    /// A `Circle` or an `Ellipse` carrier.
+    carrier: geom::Curve3<T>,
     span: (T, T),
     /// On a torus, the side of its plane's two loops the conic's own
     /// circle lies on; `None` where the plane cuts the surface in the
     /// conic alone.
     own: Option<ArcLoop<T>>,
+}
+
+#[cfg(test)]
+impl ConicArc<f64> {
+    /// A test arc over `span` of the conic placed by `frame` with
+    /// semi-axes `(a, b)`: a circle where they are equal.
+    pub(crate) fn of_frame(
+        frame: geom::Frame<f64>,
+        (a, b): (f64, f64),
+        span: (f64, f64),
+        own: Option<ArcLoop<f64>>,
+    ) -> Self {
+        #[allow(clippy::float_cmp)]
+        let carrier = if a == b {
+            geom::Curve3::Circle(geom::Circle::new(frame, a))
+        } else {
+            geom::Curve3::Ellipse(geom::Ellipse::new(frame, a, b))
+        };
+        Self { carrier, span, own }
+    }
+}
+
+impl<T: Real> ConicArc<T> {
+    /// The carrier read as a conic.
+    fn conic(&self) -> &dyn Conic<T> {
+        self.carrier
+            .conic()
+            .unwrap_or_else(|| unreachable!("a conic arc's carrier is a circle or an ellipse"))
+    }
 }
 
 /// An arc of a spiric oval on a torus over its increasing span
@@ -660,7 +646,7 @@ pub(crate) struct Oval<T: Real> {
 /// (`origin + dir·t`) or a spline.
 #[derive(Clone)]
 pub(crate) enum LoopArc<T: Real> {
-    Conic(Conic<T>),
+    Conic(ConicArc<T>),
     Line {
         origin: Point3<T>,
         dir: Vec3<T>,
@@ -668,16 +654,12 @@ pub(crate) enum LoopArc<T: Real> {
     },
     Oval(Oval<T>),
     /// An arc of a torus's top or bottom circle, the parallel of radius
-    /// `R` (`centre + (u_ref·cos t + (axis × u_ref)·sin t)·radius`),
-    /// whose plane touches the torus along it. A path meets it only where
+    /// `R`, whose plane touches the torus along it. A path meets it only where
     /// it crosses the cylinder `ρ = R` about the torus's axis, which cuts
     /// the torus transversally in this circle and the one across the tube
     /// (`own` tells them apart by the height along the axis).
     Crest {
-        centre: Point3<T>,
-        axis: Vec3<T>,
-        u_ref: Vec3<T>,
-        radius: T,
+        circle: geom::Circle<T>,
         span: (T, T),
         /// The torus's centre, unit axis and major radius `R`.
         core: (Point3<T>, Vec3<T>, T),
@@ -778,32 +760,8 @@ impl<T: Real> LoopArc<T> {
     pub(crate) fn of(carrier: &geom::Curve3<T>, (t0, t1): (T, T)) -> Option<Self> {
         let span = (t0.min(t1), t0.max(t1));
         match *carrier {
-            geom::Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Some(Self::Conic(Conic {
-                centre: center,
-                axis,
-                u_ref,
-                a: radius,
-                b: radius,
-                span,
-                own: None,
-            })),
-            geom::Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Some(Self::Conic(Conic {
-                centre: center,
-                axis,
-                u_ref,
-                a: semi_u,
-                b: semi_v,
+            geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => Some(Self::Conic(ConicArc {
+                carrier: carrier.clone(),
                 span,
                 own: None,
             })),
@@ -834,17 +792,15 @@ impl<T: Decide> LoopArc<T> {
     /// which levers an in-span reading, and the side of its plane's two
     /// loops its own lies on. `None` for a ruling or a crest.
     fn plane(&self) -> Option<SectionArc<T>> {
-        match *self {
+        match self {
             Self::Conic(c) => Some(SectionArc {
-                origin: c.centre,
-                normal: c.axis,
+                origin: c.conic().frame().center,
+                normal: c.conic().frame().axis,
                 span: c.span,
-                // The conic's least speed, its smaller semi-axis: the
-                // seam may sit at either principal vertex.
-                speed: c.a.abs().min(c.b.abs()),
+                speed: c.conic().speed_lo(),
                 own: c.own,
             }),
-            Self::Oval(o) => Some(SectionArc {
+            &Self::Oval(o) => Some(SectionArc {
                 origin: o.centre + o.u_ref * o.offset,
                 normal: o.u_ref,
                 span: o.span,
@@ -856,11 +812,11 @@ impl<T: Decide> LoopArc<T> {
     }
 
     /// The parameter of `x`, a point of a section arc's plane, on the
-    /// branch of its span's middle ([`Conic::param`], [`Oval::param`]).
+    /// branch of its span's middle ([`Conic::param_in`], [`Oval::param`]).
     /// A ruling or a crest has none.
     fn param_at(&self, x: Point3<T>) -> Option<T> {
-        match *self {
-            Self::Conic(c) => Some(c.param(x)),
+        match self {
+            Self::Conic(c) => Some(c.conic().param_in(x, c.span)),
             Self::Oval(o) => Some(o.param(x)),
             Self::Line { .. } | Self::Crest { .. } | Self::Spline { .. } => None,
         }
@@ -983,7 +939,11 @@ impl<T: Real> LoopSplit<T> {
     ) -> Option<Self> {
         match section {
             geom_brep::PlaneTorusSection::MeridianCircles {
-                c1: geom::Curve3::Circle { center, .. },
+                c1:
+                    geom::Curve3::Circle(geom::Circle {
+                        frame: geom::Frame { center, .. },
+                        ..
+                    }),
                 ..
             } => Some(Self::Side {
                 origin: centre,
@@ -1106,12 +1066,12 @@ impl<T: Decide> Quadric<T> {
                 major,
                 ..
             },
-            geom::Curve3::Circle {
-                center: k,
-                axis: n,
+            geom::Curve3::Circle(geom::Circle {
+                frame: geom::Frame {
+                    center: k, axis: n, ..
+                },
                 radius,
-                ..
-            },
+            }),
         ) = (*self, carrier)
         else {
             return Ok(None);
@@ -1120,18 +1080,19 @@ impl<T: Decide> Quadric<T> {
         let Some(LoopArc::Conic(conic)) = LoopArc::of(carrier, params) else {
             return Ok(None);
         };
-        let Conic {
-            centre: c,
-            axis: a,
-            u_ref,
-            a: ra,
+        let (
+            geom::Frame {
+                center: c,
+                axis: a,
+                u_ref,
+            },
+            ra,
             span,
-            ..
-        } = conic;
+        ) = (*conic.conic().frame(), radius, conic.span);
         let arc = |own| {
-            LoopArc::Conic(Conic {
+            LoopArc::Conic(ConicArc {
                 own: Some(own),
-                ..conic
+                ..conic.clone()
             })
         };
         if decide(
@@ -1179,10 +1140,7 @@ impl<T: Decide> Quadric<T> {
                     Sign::Zero => return Ok(None),
                 };
                 return Ok(Some(LoopArc::Crest {
-                    centre: c,
-                    axis: a,
-                    u_ref,
-                    radius: ra,
+                    circle: geom::Circle::new(geom::Frame::new(c, a, u_ref), ra),
                     span,
                     core: (centre, axis, major),
                     own: ArcLoop {
@@ -1350,10 +1308,7 @@ pub(crate) fn path_parity<T: Decide>(
                 (
                     Piece::Meridian(p),
                     LoopArc::Crest {
-                        centre,
-                        axis,
-                        u_ref,
-                        radius,
+                        circle,
                         span,
                         core: (c, a, _),
                         own,
@@ -1365,12 +1320,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let Some(roots) = plane_roots(&p, (p.centre, e), arrival, slack, band)? else {
                         return Ok(None);
                     };
-                    let v_ref = axis.cross(u_ref);
                     for (t, slope) in roots {
-                        let w = p.at(t) - centre;
-                        let s = branch(w.dot(v_ref).atan2(w.dot(u_ref)), span);
+                        let s = circle.param_in(p.at(t), span);
                         let [p0, p1] = in_span(t, p.span, p.radius * slope);
-                        let [a0, a1] = in_span(s, span, radius * slope);
+                        let [a0, a1] = in_span(s, span, circle.radius * slope);
                         readings.push([p0, p1, a0, a1, own.read(p.at(t), slack, band)]);
                     }
                 }
@@ -1579,12 +1532,7 @@ fn spline_crossings<T: Decide>(
     use geom_brep::curve_pair::{Hit, Span, SpanEnd, meet};
     let (curve, params, length) = match *piece {
         Piece::Arc(p) | Piece::Meridian(p) => (
-            geom::Curve3::Circle {
-                center: p.centre,
-                axis: p.axis,
-                radius: p.radius,
-                u_ref: p.u_ref,
-            },
+            geom::Curve3::circle(p.centre, p.axis, p.radius, p.u_ref),
             p.span,
             p.radius * (p.span.1 - p.span.0),
         ),
@@ -1661,27 +1609,7 @@ fn meet_refused(fault: geom_brep::curve_pair::MeetFault) -> Result<Option<usize>
     }
 }
 
-impl<T: Decide> Conic<T> {
-    fn v_ref(&self) -> Vec3<T> {
-        self.axis.cross(self.u_ref)
-    }
-
-    /// The arc's point at its parameter `s`.
-    fn at(&self, s: T) -> Point3<T> {
-        let (sn, cs) = s.sin_cos();
-        self.centre + self.u_ref * (self.a * cs) + self.v_ref() * (self.b * sn)
-    }
-
-    /// The parameter of `x`, a point of the conic's plane, on the span's
-    /// branch: its eccentric anomaly.
-    fn param(&self, x: Point3<T>) -> T {
-        let w = x - self.centre;
-        branch(
-            (w.dot(self.v_ref()) / self.b).atan2(w.dot(self.u_ref) / self.a),
-            self.span,
-        )
-    }
-
+impl<T: Decide> ConicArc<T> {
     /// A lower bound on the distance from `x` to the arc: the distance
     /// to the arc of the circle of radius `b` over the same span, less
     /// `|a − b|`, which bounds how far a conic point lies from the
@@ -1689,12 +1617,14 @@ impl<T: Decide> Conic<T> {
     /// at `x`'s direction clamped to the span: on the span's branch the
     /// end on `x`'s side is the nearer.
     pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
-        let w = x - self.centre;
-        let s = branch(w.dot(self.v_ref()).atan2(w.dot(self.u_ref)), self.span);
+        let k = self.conic();
+        let (f, (a, b)) = (k.frame(), k.semi_axes());
+        let (wu, wv) = f.in_plane(x);
+        let s = geom::on_span_branch(wv.atan2(wu), self.span);
         let s = s.max(self.span.0).min(self.span.1);
         let (sn, cs) = s.sin_cos();
-        let nearest = self.centre + (self.u_ref * cs + self.v_ref() * sn) * self.b;
-        (x - nearest).norm() - (self.a - self.b).abs()
+        let nearest = f.center + (f.u_ref * cs + f.v_ref() * sn) * b;
+        (x - nearest).norm() - (a - b).abs()
     }
 }
 
@@ -1765,9 +1695,9 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
     }
     for arc in arcs {
         match arc {
-            LoopArc::Conic(Conic { centre, .. })
-            | LoopArc::Oval(Oval { centre, .. })
-            | LoopArc::Crest { centre, .. } => points.push(*centre),
+            LoopArc::Conic(c) => points.push(c.conic().frame().center),
+            LoopArc::Crest { circle, .. } => points.push(circle.frame.center),
+            LoopArc::Oval(Oval { centre, .. }) => points.push(*centre),
             LoopArc::Line { origin, .. } => points.push(*origin),
             LoopArc::Spline(SplineArc { carrier, span }) => {
                 points.extend([carrier.eval(span.0), carrier.eval(span.1)]);
@@ -1780,12 +1710,12 @@ fn path_resolution<T: Decide>(path: &Path<T>, arcs: &[LoopArc<T>]) -> T {
 /// **Whether the segment `from → to`, an end of which lies on
 /// `conic`'s plane, misses the arc**
 /// (**`split_ring_path_segment_apart`**): its midpoint is decided
-/// farther from the arc ([`Conic::distance_floor`]) than half its
+/// farther from the arc ([`ConicArc::distance_floor`]) than half its
 /// length, within which every point of it lies of the midpoint,
 /// charged `slack` ([`charge`]).
 fn segment_misses<T: Decide>(
     (from, to): (Point3<T>, Point3<T>),
-    conic: &Conic<T>,
+    conic: &ConicArc<T>,
     slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
@@ -1822,12 +1752,14 @@ fn segment_misses<T: Decide>(
 /// are charged `slack` ([`charge`]).
 fn misses_in_plane<T: Decide>(
     p: &CircleArc<T>,
-    conic: &Conic<T>,
+    arc: &ConicArc<T>,
     slack: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let apart = (p.centre - conic.centre).norm();
-    let (inner, outer) = (conic.a.min(conic.b), conic.a.max(conic.b));
+    let conic = arc.conic();
+    let (a, b) = conic.semi_axes();
+    let apart = (p.centre - conic.frame().center).norm();
+    let (inner, outer) = (conic.speed_lo(), conic.speed_hi());
     let gap = (apart - p.radius - outer)
         .max(inner - p.radius - apart)
         .max(p.radius - outer - apart);
@@ -1839,9 +1771,7 @@ fn misses_in_plane<T: Decide>(
     {
         return Ok(true);
     }
-    let differ = apart
-        .max((p.radius - conic.a).abs())
-        .max((p.radius - conic.b).abs());
+    let differ = apart.max((p.radius - a).abs()).max((p.radius - b).abs());
     if decide("split_ring_path_same_circle", Margin::of(differ), band)? != Sign::Zero {
         return Ok(false);
     }
@@ -1857,12 +1787,16 @@ fn misses_in_plane<T: Decide>(
     // Two overlapping arcs of one circle hold at least two ends inside
     // each other, so any three of the four readings decide the same.
     for t in [p.span.0, p.span.1] {
-        if !outside(conic.param(p.at(t)), conic.span, conic.b)? {
+        if !outside(
+            conic.param_in(p.at(t), arc.span),
+            arc.span,
+            conic.speed_lo(),
+        )? {
             return Ok(false);
         }
     }
-    for s in [conic.span.0, conic.span.1] {
-        if !outside(p.param(conic.at(s)), p.span, p.radius)? {
+    for s in [arc.span.0, arc.span.1] {
+        if !outside(p.param(conic.point_at(s)), p.span, p.radius)? {
             return Ok(false);
         }
     }
@@ -1903,7 +1837,7 @@ fn plane_roots<T: Decide>(
     }
     let phase = cb.atan2(ca);
     let offset = (-d / (p.radius * rho)).max(-T::one()).min(T::one()).acos();
-    let [r0, r1] = [phase + offset, phase - offset].map(|t| branch(t, p.span));
+    let [r0, r1] = [phase + offset, phase - offset].map(|t| geom::on_span_branch(t, p.span));
     // On the arrival arc, the root nearer the end is the arrival; the
     // other is read. The pick is a raw comparison and needs no decision.
     // The arrival lies on the plane up to rounding δ, and a root
@@ -1970,13 +1904,15 @@ pub(crate) mod torus_islands;
 pub(crate) fn tilted_section(h: f64, tilt: f64) -> (geom::Curve3<f64>, Vec3<f64>) {
     let alpha = tilt.atan();
     let normal = Vec3::new(-alpha.sin(), 0.0, alpha.cos());
-    let ellipse = geom::Curve3::Ellipse {
-        center: Point3::new(0.0, 0.0, h),
-        axis: normal,
-        semi_u: 1.0 / alpha.cos(),
-        semi_v: 1.0,
-        u_ref: Vec3::new(alpha.cos(), 0.0, alpha.sin()),
-    };
+    let ellipse = geom::Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::new(0.0, 0.0, h),
+            normal,
+            Vec3::new(alpha.cos(), 0.0, alpha.sin()),
+        ),
+        1.0 / alpha.cos(),
+        1.0,
+    ));
     (ellipse, normal)
 }
 
@@ -2047,12 +1983,7 @@ mod tests {
                         .unwrap(),
                     )
                 } else {
-                    let circle = geom::Curve3::Circle {
-                        center: f.at(0.0, 0.0, h),
-                        axis: f.z,
-                        radius,
-                        u_ref: f.x,
-                    };
+                    let circle = geom::Curve3::circle(f.at(0.0, 0.0, h), f.z, radius, f.x);
                     LoopArc::of(&circle, (t0, t1)).unwrap()
                 }
             };
@@ -2336,7 +2267,7 @@ mod tests {
                                     .iter()
                                     .map(|arc| match arc.clone() {
                                         LoopArc::Conic(conic) => {
-                                            LoopArc::Conic(Conic { own: None, ..conic })
+                                            LoopArc::Conic(ConicArc { own: None, ..conic })
                                         }
                                         LoopArc::Oval(oval) => {
                                             LoopArc::Oval(Oval { own: None, ..oval })
@@ -2556,12 +2487,12 @@ mod tests {
             let LoopArc::Conic(conic) = LoopArc::of(&edge.carrier, edge.params).unwrap() else {
                 panic!("a meridian is a conic");
             };
-            let Conic {
-                centre,
+            let geom::Frame {
+                center: centre,
                 axis,
                 u_ref,
                 ..
-            } = conic;
+            } = *conic.conic().frame();
             let on = |span| CircleArc {
                 centre,
                 axis,
@@ -2606,7 +2537,7 @@ mod tests {
                     misses_in_plane(
                         &piece,
                         &conic,
-                        resolution(&[piece.centre, conic.centre]),
+                        resolution(&[piece.centre, conic.conic().frame().center]),
                         band()
                     )
                     .unwrap(),
@@ -2629,15 +2560,12 @@ mod tests {
     #[test]
     fn crossing_arcs_of_two_circles_are_not_read_apart_by_their_ends() {
         for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e3)]) {
-            let conic = Conic {
-                centre: f.o,
-                axis: f.z,
-                u_ref: f.x,
-                a: f.s,
-                b: f.s,
-                span: (0.25, 5.2),
-                own: None,
-            };
+            let conic = ConicArc::of_frame(
+                geom::Frame::new(f.o, f.z, f.x),
+                (f.s, f.s),
+                (0.25, 5.2),
+                None,
+            );
             let piece = CircleArc {
                 centre: f.at(1.4, 1.4, 0.0),
                 axis: f.z,
@@ -2655,19 +2583,20 @@ mod tests {
                 0.0,
             );
             assert!(
-                ((x - conic.centre).norm() - f.s).abs() < 1e-6 * f.s
+                ((x - conic.conic().frame().center).norm() - f.s).abs() < 1e-6 * f.s
                     && ((x - piece.centre).norm() - 2.0 * f.s).abs() < 1e-6 * f.s,
                 "the crossing lies on both circles"
             );
             assert!(
-                (0.25..5.2).contains(&conic.param(x)) && (-1.6..4.0).contains(&piece.param(x)),
+                (0.25..5.2).contains(&conic.conic().param_in(x, conic.span))
+                    && (-1.6..4.0).contains(&piece.param(x)),
                 "and on both arcs"
             );
             assert!(
                 !misses_in_plane(
                     &piece,
                     &conic,
-                    resolution(&[piece.centre, conic.centre]),
+                    resolution(&[piece.centre, conic.conic().frame().center]),
                     band()
                 )
                 .unwrap(),
@@ -2680,10 +2609,10 @@ mod tests {
     /// The least distance from the segment `from → to` to `conic`'s
     /// arc, from 400 samples of the arc refined by a golden section:
     /// the oracle for [`segment_misses`].
-    fn segment_arc_distance(conic: &Conic<f64>, (from, to): (Point3<f64>, Point3<f64>)) -> f64 {
+    fn segment_arc_distance(conic: &ConicArc<f64>, (from, to): (Point3<f64>, Point3<f64>)) -> f64 {
         let d = to - from;
         let to_segment = |s: f64| {
-            let q = conic.at(s);
+            let q = conic.conic().point_at(s);
             let t = ((q - from).dot(d) / d.dot(d)).clamp(0.0, 1.0);
             (q - (from + d * t)).norm()
         };
@@ -2730,69 +2659,74 @@ mod tests {
     fn a_segment_from_a_conics_plane_is_read_apart_only_where_it_misses() {
         let mut apart = 0usize;
         for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e3)]) {
-            let conic = |a: f64, b: f64, span| Conic {
-                centre: f.o,
-                axis: f.z,
-                u_ref: f.x,
-                a: a * f.s,
-                b: b * f.s,
-                span,
-                own: None,
+            let conic = |a: f64, b: f64, span| {
+                ConicArc::of_frame(
+                    geom::Frame::new(f.o, f.z, f.x),
+                    (a * f.s, b * f.s),
+                    span,
+                    None,
+                )
             };
             let circle = conic(1.0, 1.0, (0.3, 1.4));
             let wide = conic(1.5, 0.5, (-0.5, 0.5));
             let tall = conic(0.5, 1.5, (1.0, 2.2));
-            let radial = |c: &Conic<f64>, s: f64, k: f64| {
-                let p = c.at(s);
-                p + (p - c.centre) * (k * f.s / (p - c.centre).norm())
+            let radial = |c: &ConicArc<f64>, s: f64, k: f64| {
+                let p = c.conic().point_at(s);
+                p + (p - c.conic().frame().center)
+                    * (k * f.s / (p - c.conic().frame().center).norm())
             };
             for (what, c, ends, misses) in [
                 (
                     "crossing, its midpoint 0.4 off the arc",
-                    circle,
+                    &circle,
                     (radial(&circle, 0.8, -0.1), radial(&circle, 0.8, 0.9)),
                     false,
                 ),
                 (
                     "crossing the major vertex",
-                    wide,
+                    &wide,
                     (f.at(1.45, 0.0, 0.0), f.at(1.55, 0.0, 0.0)),
                     false,
                 ),
                 (
                     "crossing the minor axis's vertex",
-                    tall,
+                    &tall,
                     (f.at(0.0, 1.45, 0.0), f.at(0.0, 1.55, 0.0)),
                     false,
                 ),
                 (
                     "short, outside the circle",
-                    circle,
+                    &circle,
                     (radial(&circle, 0.8, 0.5), radial(&circle, 0.8, 0.7)),
                     true,
                 ),
                 (
                     "up off the plane, beyond the circle's span",
-                    circle,
+                    &circle,
                     (f.at(0.0, -1.0, 0.0), f.at(0.0, -1.0, 0.6)),
                     true,
                 ),
                 (
                     "short, outside the major vertex",
-                    wide,
+                    &wide,
                     (f.at(1.6, 0.0, 0.0), f.at(1.7, 0.0, 0.0)),
                     true,
                 ),
             ] {
-                let truth = segment_arc_distance(&c, ends);
+                let truth = segment_arc_distance(c, ends);
                 assert_eq!(
                     truth > 1e-6 * f.s,
                     misses,
                     "{what}: the oracle reads {truth}"
                 );
                 assert_eq!(
-                    segment_misses(ends, &c, resolution(&[ends.0, ends.1, c.centre]), band())
-                        .unwrap(),
+                    segment_misses(
+                        ends,
+                        c,
+                        resolution(&[ends.0, ends.1, c.conic().frame().center]),
+                        band()
+                    )
+                    .unwrap(),
                     misses,
                     "{what}, scale {}",
                     f.s
@@ -2807,7 +2741,7 @@ mod tests {
                     })
                 })
                 .collect();
-            for c in [circle, wide, tall] {
+            for c in [&circle, &wide, &tall] {
                 for &(x0, y0) in &grid {
                     let from = f.at(x0, y0, 0.0);
                     for &(x1, y1) in &grid {
@@ -2818,14 +2752,14 @@ mod tests {
                             }
                             let Ok(true) = segment_misses(
                                 (from, to),
-                                &c,
-                                resolution(&[from, to, c.centre]),
+                                c,
+                                resolution(&[from, to, c.conic().frame().center]),
                                 band(),
                             ) else {
                                 continue;
                             };
                             apart += 1;
-                            let truth = segment_arc_distance(&c, (from, to));
+                            let truth = segment_arc_distance(c, (from, to));
                             assert!(
                                 truth > 1e-6 * f.s,
                                 "read apart, {:?} → {:?} at scale {}: {truth} off the arc",
@@ -2859,15 +2793,12 @@ mod tests {
         assert!(2.0 * ulp >= 2.0 * esc, "two ulps clear the band");
         for o in [far, 0.0] {
             let at = |x: f64| Point3::new(o + x, 0.0, 0.0);
-            let conic = Conic {
-                centre: at(0.0),
-                axis: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
-                a: 1.0,
-                b: 1.0,
-                span: (-1.0, 1.0),
-                own: None,
-            };
+            let conic = ConicArc::of_frame(
+                geom::Frame::new(at(0.0), Vec3::unit_z(), Vec3::unit_x()),
+                (1.0, 1.0),
+                (-1.0, 1.0),
+                None,
+            );
             let piece = CircleArc {
                 centre: at(2.0 + 2.0 * ulp),
                 axis: Vec3::unit_z(),
@@ -2880,13 +2811,13 @@ mod tests {
                 misses_in_plane(
                     &piece,
                     &conic,
-                    resolution(&[piece.centre, conic.centre]),
+                    resolution(&[piece.centre, conic.conic().frame().center]),
                     band(),
                 ),
                 segment_misses(
                     lead,
                     &conic,
-                    resolution(&[lead.0, lead.1, conic.centre]),
+                    resolution(&[lead.0, lead.1, conic.conic().frame().center]),
                     band(),
                 ),
             );

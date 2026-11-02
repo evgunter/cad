@@ -217,12 +217,7 @@ fn circle_arc<T: Scalar>(
     u_ref: Vec3<f64>,
     (t0, t1): (f64, f64),
 ) -> EdgeCurveSpec<T> {
-    let carrier = Curve3::Circle {
-        center: pt(center),
-        axis: vc(axis),
-        radius: T::from_f64(radius),
-        u_ref: vc(u_ref),
-    };
+    let carrier = Curve3::circle(pt(center), vc(axis), T::from_f64(radius), vc(u_ref));
     EdgeCurveSpec::arc_of_circle(carrier, T::from_f64(t0), T::from_f64(t1)).expect("an arc")
 }
 
@@ -275,7 +270,7 @@ fn wall(body: &Body<f64>, kind: fn(&Surface<f64>) -> bool) -> (FaceKey, Frame) {
                 }
                 _ => at - frame.origin,
             };
-            matches!(curve.carrier(), Curve3::Circle { .. })
+            matches!(curve.carrier(), Curve3::Circle(..))
                 .then(|| (at, normal.cross(tangent) * sense))
         })
         .expect("a circle edge");

@@ -106,7 +106,7 @@ fn rest_two_peg_reaches_downstream_of_classification() {
                     b.body
                         .get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
-                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                        .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
                 })
                 .count();
             assert_eq!(rims, 0, "the flush peg ends merge into the plate's faces");
