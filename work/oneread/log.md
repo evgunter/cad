@@ -36,3 +36,13 @@
 - 2026-11-02 — Lane 1 handed back PR 6378 (`ba857ae4`, green): `bound_side` reads both orders on the caller's `Reading`; `reads_given` under rule 3 (`Contradicted`); `WholePlane` gone; the held-face bypass closed; diff 0 decided readings changed except one fuzz family that encoded main's override and now refuses. Dual tier, letter M: rule 1's draw byte 5 (mod 3 = 2) → SEQUENTIAL; one review dispatched (`session_013QoYWUDEDxtcCxa7i4Smzm`) on the frozen head. Filed by the lane: P3 `a-cones-parity-reference-is-off-its-sectors-plane-by-the-tie`, P2 `vtxfac-partner-side-reads-a-partners-bounds-on-the-band-beside-its-tie`. (ONEREAD orchestrator)
 
 - 2026-11-02 — PR 6363 fix pass reported (`8bab8116`, green): F1 is held on its Out side by the stadium (in the CI set); the In side is a disabled red pending TANGRIM's filed join row `a-slab-on-a-bores-rulings-from-inside-refuses-at-the-join-in-every-op` (P2 M). F2–F6 are met: `edge_sector_crossing` is one pure function, pinned cell by cell and with Fig. 18 restored; the lump fails loud on On. Orchestrator read: accepted. A misplaced doc line (`germ_rewrite`'s) was moved back in my commit `0f23145b`, which also closes the row. Merge on green.
+
+- 2026-11-02 — PR 6378's review (sequential arm, frozen head `ba857ae4`): APPROVE-WITH-FIXES, with one MAJOR. **M1**: a slack tie's descent drops its decided rise; the probe is red at head (`Leaves(Above)` where rise + parting < slack). Per rule 1, a second Opus review runs on the fix pass's head over the whole unit. Adjudicated:
+  - M1 is accepted as must-fix.
+  - The curvature charge over the slack (m3) is to be measured.
+  - Guard rows are owed for rule 3's two mechanics; mutants M4/M5 survive today.
+  - The held-face row and the P2 partner-side row are re-framed: they pin a conservatism, and the real exposure is descended bounds.
+  - Accepted: the `Parted`-as-`Distance` doc, a typed held-sheet handle, the stale Zero docs, the fuzz's vertex-relative givens, and the "taken" wording.
+  - s7 (three pierce spellings) goes to lane 2.
+  - `conic_bend_side`'s unthreaded slack gets a P3 row.
+  - The fix pass is sent to lane 1.
