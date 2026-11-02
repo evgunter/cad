@@ -20,9 +20,9 @@
 //! TOG decides an on-edge of one solid lying in a face of the other by
 //! Table II on the side codes of the edge's two flanking sectors
 //! against the face, deferring a flanker on the face to Table III. The
-//! kernel reads it as any material about a line: the face's half-turn
-//! is a line cone, a flanker on the face lies in the other solid's
-//! material as it lumps by Eq. 15.3 (`recl::resolve_edge_sector`).
+//! kernel reads the table for what it decides: a crossing where exactly
+//! one flanker lies in the other solid's material, a flanker on the face
+//! lying there as it lumps by Eq. 15.3 (`recl::resolve_edge_sector`).
 //! TOG's printed Table III carries the ∖-row misprint above in its
 //! A-versus-B rows (`∖` Yes where the lump derives No, and No where it
 //! derives Yes); its worked example (Fig. 18, ∪) exercises only the ∪

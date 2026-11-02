@@ -615,17 +615,19 @@ fn an_uncertified_pair_is_judged_not_refused() {
     assert_eq!(solids, 1, "the touching teeth fuse into one run of six");
 }
 
-/// **A family yields to cancelation inside its node**: a ring of
-/// `u32::MAX` copies, canceled from another thread, returns as a
-/// canceled run with the ring holding no result, on the serial walk
-/// and on the level schedule alike. Red (it never returns) if the
-/// token is read only between nodes or levels and the cancel lands
-/// after the ring has begun, which it does unless reaching the ring
-/// takes the whole delay. Nothing here asserts on timing; which member
-/// a family stops at is pinned in `eval::members::tests`.
+/// **A family yields to cancelation inside its node**: a ring of a
+/// million copies under a budget that admits it, canceled from another
+/// thread, returns as a canceled run with the ring holding no result,
+/// on the serial walk and on the level schedule alike, whether the
+/// cancel lands while the ring is charged or while it is built. Red (it
+/// runs on for about twenty minutes) if the token is read only between
+/// nodes or levels and the cancel lands after the ring has begun.
+/// Nothing here asserts on timing; which member a family stops at is
+/// pinned in `eval::members::tests`.
 #[test]
 fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
-    let (doc, _, ring) = ring(i64::from(u32::MAX));
+    const N: u32 = 1_000_000;
+    let (doc, _, ring) = ring(i64::from(N));
     for parallel in [false, true] {
         let cancel = editor_core::CancelToken::new();
         let canceler = {
@@ -637,6 +639,7 @@ fn a_ring_canceled_mid_family_returns_the_completed_prefix() {
         };
         let opts = editor_core::EvalOptions {
             parallel,
+            member_budget: u64::from(N),
             ..Default::default()
         };
         let ev = editor_core::evaluate::<f64>(&doc, None, &cancel, &opts, Tol::witness());

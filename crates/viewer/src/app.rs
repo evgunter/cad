@@ -193,6 +193,16 @@ const FEATURES_SLACK: f32 = 8.0;
 /// on screen (`frame::Progress::Canceled`).
 const CANCELED_LINE: &str = "canceled — showing an older result";
 
+/// What the toolbar says while a run that ran out of its member budget
+/// leaves an older picture on screen (`frame::Progress::Exhausted`),
+/// spoken from `doc`.
+fn exhausted_line(
+    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
+    out: crate::session::OutOfBudget,
+) -> String {
+    format!("showing an older result: the run {}", out.said(doc))
+}
+
 /// `color` as the toolkit's own colour type.
 ///
 /// The one place a [`Rgba8`] becomes an `egui::Color32`, matching
@@ -1955,6 +1965,16 @@ impl ViewerApp {
                         ui.ctx().request_repaint();
                     }
                 }
+                // No Re-evaluate beside it: the same document runs out
+                // at the same family again.
+                Some(frame::Progress::Exhausted { index, out }) => {
+                    ui.separator();
+                    if index == IndexSeam::Building {
+                        ui.spinner();
+                        ui.ctx().request_repaint();
+                    }
+                    crate::widgets::message(ui, exhausted_line(self.session.doc(), out));
+                }
                 // No Cancel button beside it, and that is the
                 // seam's promise showing through the chrome: the
                 // build cannot be stopped, only outrun by a newer
@@ -3209,16 +3229,36 @@ mod tests {
         use crate::pickcache::IndexSeam;
         use crate::session::{DocSession, Outstanding};
 
-        const WORDS: [&str; 5] = [
+        let tol = pncad::tolerance::witness();
+        // The plate, and the plate with a row of `u32::MAX` copies of it,
+        // which runs out of the default member budget at the row.
+        let (plate, body) = crate::scene::plate_with_hole(tol).expect("the startup document");
+        let (huge, row) = crate::test_support::row_of_copies(
+            &plate,
+            body,
+            i64::from(u32::MAX),
+            (pncad::document::TargetAxis::X, 0.05),
+            tol,
+        );
+        let out = crate::session::OutOfBudget {
+            at: row,
+            held: 0,
+            budget: pncad::document::DEFAULT_MEMBER_BUDGET,
+        };
+        let out_line = crate::app::exhausted_line(&huge, out);
+        let words = [
             "evaluating…",
             "Cancel",
             CANCELED_LINE,
             "Re-evaluate",
             "indexing…",
+            &out_line,
         ];
-        let tol = pncad::tolerance::witness();
         let session = |outstanding: Outstanding| {
-            let (document, _) = crate::scene::plate_with_hole(tol).expect("the startup document");
+            let document = match outstanding {
+                Outstanding::Exhausted(_) => huge.clone(),
+                _ => plate.clone(),
+            };
             let mut session = DocSession::inline(document, tol);
             session.pump();
             match outstanding {
@@ -3231,6 +3271,7 @@ mod tests {
                     session.perform(SessionOp::CancelEvaluation);
                     session.pump();
                 }
+                Outstanding::Exhausted(_) => {}
             }
             assert_eq!(
                 session.outstanding(),
@@ -3263,7 +3304,7 @@ mod tests {
             );
             row.painted
                 .into_iter()
-                .filter(|text| WORDS.contains(&text.as_str()))
+                .filter(|text| words.contains(&text.as_str()))
                 .collect::<Vec<_>>()
         };
         for (outstanding, index, expected) in [
@@ -3288,6 +3329,13 @@ mod tests {
                 Outstanding::Canceled,
                 IndexSeam::Building,
                 vec![CANCELED_LINE, "Re-evaluate", "indexing…"],
+            ),
+            // No picture lands for the row, so no index is built behind
+            // it: the one pair is the idle one.
+            (
+                Outstanding::Exhausted(out),
+                IndexSeam::Idle,
+                vec![out_line.as_str()],
             ),
         ] {
             assert_eq!(
@@ -4190,11 +4238,10 @@ mod properties_pane_tests {
         use crate::pane::create::{ADD_FEATURE, ASSEMBLE_PARTS, BLEND_EDGES, COMBINE_BODIES};
         use crate::tools::ToolKind;
         match kind {
-            ToolKind::Mate => ASSEMBLE_PARTS,
+            ToolKind::Mate | ToolKind::Transform => ASSEMBLE_PARTS,
             ToolKind::Revolve => ADD_FEATURE,
             ToolKind::Boolean
             | ToolKind::Split
-            | ToolKind::Transform
             | ToolKind::Pattern
             | ToolKind::Part
             | ToolKind::Duplicate
@@ -7161,38 +7208,47 @@ mod properties_pane_tests {
     }
 
     /// **A held face on a copy a feature re-points stays held, drawn
-    /// and committable.** The pick is on the placement's copy; the
-    /// transform re-points that placement (A10) to a placement of the
-    /// extrude moved within its own space, so the copy still draws the
-    /// face — moved — and the form commits a sketch on the face of the
-    /// moved body. (A held face the picture does not draw — a hidden
+    /// and committable.** The pick is on the placement's copy; a fillet
+    /// of the hole's bottom rim re-points that placement (A10) to the
+    /// filleted body, which carries the top cap whole, so the copy still
+    /// draws the face and the form commits a sketch on the face of the
+    /// filleted body. (A held face the picture does not draw — a hidden
     /// instance's — is `tests/assembly_display.rs`'s row.)
     #[test]
     fn a_held_face_on_a_copy_a_feature_re_points_stays_held() {
-        use crate::test_support::{len, scl};
-        use pncad::document::{Dimension, Formula};
         let (mut driven, top) = Driven::holding_the_top_cap();
         driven.select(Selection::Face(top));
-        driven.perform(SessionOp::AddTransform {
-            input: extrude().into(),
-            translation: [
-                len(0.05),
-                Formula::zero(Dimension::Length),
-                Formula::zero(Dimension::Length),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Formula::zero(Dimension::Angle),
+        let rim = {
+            let session = &driven.app.session;
+            let Some(Node::Profile(program)) = session.doc().node(startup_node(0)) else {
+                panic!("the startup document opens on its profile")
+            };
+            let hole = format!("{:?}", program.ids[1][0]);
+            let eval = session.evaluation().expect("landed");
+            pncad::select::all_edges(eval, extrude())
+                .into_iter()
+                .filter(|name| {
+                    let said = format!("{name:?}");
+                    said.contains("RimEdge(Start") && said.contains(&hole)
+                })
+                .collect::<Vec<_>>()
+        };
+        assert!(!rim.is_empty(), "the hole's bottom rim");
+        driven.perform(SessionOp::AddFillet {
+            target: extrude(),
+            radius: crate::test_support::len(0.0005),
+            selection: rim,
         });
         let [held, ..] = driven.held();
         assert_ne!(
             held,
             crate::pickindex::IdMap::NOTHING,
-            "the moved copy still draws the held face"
+            "the re-pointed copy still draws the held face"
         );
         assert_eq!(
             driven.marks().highlight().selected,
             held,
-            "the selection follows the face onto the moved copy"
+            "the selection follows the face onto the re-pointed copy"
         );
         let moved = *driven
             .app
@@ -7200,11 +7256,8 @@ mod properties_pane_tests {
             .doc()
             .ids()
             .iter()
-            .find(|&&id| {
-                matches!(driven.app.session.doc().node(id), Some(Node::Place { .. }))
-                    && id != placement()
-            })
-            .expect("the transform's placement landed");
+            .find(|&&id| matches!(driven.app.session.doc().node(id), Some(Node::Fillet { .. })))
+            .expect("the fillet landed");
         driven.click(crate::pane::create::ADD_PROFILE);
         driven.quiet();
         let doc = driven.app.session.doc();
@@ -7215,7 +7268,7 @@ mod properties_pane_tests {
         let union = union.expect("the button committed a sketch on the face");
         assert!(
             doc.upstream(union).contains(&moved),
-            "on the moved body, which the copy places"
+            "on the filleted body, which the copy places"
         );
     }
 
@@ -7271,7 +7324,7 @@ mod properties_pane_tests {
             label: label("base"),
         }]);
         driven.settle();
-        driven.app.tools.open(crate::tools::ToolKind::Transform);
+        driven.app.tools.open(crate::tools::ToolKind::Pattern);
         driven.select(Selection::Node(extrude()));
         rename_and_delete(&mut driven);
         let drawn = driven.quiet();
@@ -7311,10 +7364,10 @@ mod properties_pane_tests {
         let picked = || {
             let mut driven = Driven::with(Vec::new());
             driven.settle();
-            driven.app.tools.open(crate::tools::ToolKind::Transform);
+            driven.app.tools.open(crate::tools::ToolKind::Pattern);
             driven.select(Selection::Node(extrude()));
             assert_eq!(
-                driven.app.tools.transform().and_then(|tool| tool.input()),
+                driven.app.tools.pattern().and_then(|tool| tool.input()),
                 Some(extrude()),
                 "the pick is held"
             );
@@ -7323,7 +7376,7 @@ mod properties_pane_tests {
         let held = |driven: &Driven| {
             (
                 driven.app.tools.open_kind(),
-                driven.app.tools.transform().and_then(|tool| tool.input()),
+                driven.app.tools.pattern().and_then(|tool| tool.input()),
             )
         };
         let mut driven = picked();
@@ -7332,7 +7385,7 @@ mod properties_pane_tests {
         }]);
         assert_eq!(
             held(&driven),
-            (Some(crate::tools::ToolKind::Transform), None),
+            (Some(crate::tools::ToolKind::Pattern), None),
             "new document"
         );
 
@@ -7349,7 +7402,7 @@ mod properties_pane_tests {
         let removed = std::fs::remove_dir_all(&dir);
         assert_eq!(
             held(&driven),
-            (Some(crate::tools::ToolKind::Transform), None),
+            (Some(crate::tools::ToolKind::Pattern), None),
             "open"
         );
         removed.expect("the row removes the document it saved");

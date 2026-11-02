@@ -430,6 +430,7 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     true,
                 )),
                 arm: s.arm,
+                bend: crate::bound_side::FaceBend::Plane,
             }
         })
         .collect()
@@ -661,7 +662,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: Reach::Bisector(1.0),
+        start_reach: Reach::straight_bisector(1.0),
         end_reach: Reach::Chord {
             base: o,
             far: o + d,
@@ -672,6 +673,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     }
 }
 
@@ -1473,7 +1475,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
             extent: v.norm(),
             bend: flat_bend(),
         },
-        None => Reach::Bisector(v.norm()),
+        None => Reach::straight_bisector(v.norm()),
     };
     (v.normalize(), reach)
 }
@@ -1485,7 +1487,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
 fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
     let x = match reach {
         Reach::Chord { far, .. } => far,
-        Reach::Conic { extent: l, .. } | Reach::Bisector(l) | Reach::Extent(l) => {
+        Reach::Conic { extent: l, .. } | Reach::Bisector { arm: l, .. } | Reach::Extent(l) => {
             Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
         }
     };
@@ -1520,6 +1522,7 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                     normal, true,
                 )),
                 arm: s.arm,
+                bend: crate::bound_side::FaceBend::Plane,
             });
             face.push(Sector {
                 start_far: fixed(start, start_reach),
@@ -2245,13 +2248,12 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
         let how = if flanks {
             [PlaneAs::Across, PlaneAs::Halves, PlaneAs::Held][rng.below(3)]
         } else {
-            [PlaneAs::Across, PlaneAs::Halves][rng.below(2)]
+            PlaneAs::Halves
         };
         plane_as = Some(how);
         match how {
             PlaneAs::Across => {
-                let k = drawn.len();
-                sheets.extend(crate::boolean::sectors::half_turn(k + 1, k, false));
+                sheets.push(LineSheet::Across(drawn.len()));
                 drawn.push(face.clone());
                 faces.push(vec![piece(back, start), piece(start, l)]);
                 faces.push(vec![piece(l, end), piece(end, back)]);
@@ -2260,7 +2262,7 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
                 // The half from the bisector on the line to `end`, and
                 // the half from `start` to it.
                 let k = drawn.len();
-                sheets.extend(crate::boolean::sectors::half_turn(k + 2, k, true));
+                sheets.extend([LineSheet::Start(k), LineSheet::End(k + 1)]);
                 drawn.push(piece(l, end));
                 drawn.push(piece(start, l));
                 faces.push(vec![piece(l, end), piece(end, back)]);
@@ -2284,8 +2286,8 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = Reach::Bisector(len);
-        secs[k + 1].end_reach = Reach::Bisector(len);
+        secs[k].start_reach = Reach::straight_bisector(len);
+        secs[k + 1].end_reach = Reach::straight_bisector(len);
     }
     Some(LineMaterial {
         secs,
@@ -2339,10 +2341,8 @@ fn held_side(n: [f64; 3], far: [f64; 3], band: Band) -> Sign {
 /// the exact reading of the same half-planes. The families: an edge's
 /// two flanks at any turn, alone or with a plane face holding the line —
 /// one it runs inside, a face parted there by a bisector (folded), or a
-/// face its vertex lies on (held, its side given); a face's half-turn
-/// alone, parted by a bisector or across, built as an edge-sector site
-/// builds it (`sectors::half_turn`), an edge's flanks read in it at any
-/// reach; and in a quarter of the draws the cone's
+/// face its vertex lies on (held, its side given); a bisector-parted
+/// face's half-turn alone; and in a quarter of the draws the cone's
 /// corners standing off its point by up to `0.4·zero`, read over the
 /// tie. Every wedge the builder makes is checked under half a turn,
 /// exactly. Probes are random, on, beside and a hair off the faces and
@@ -2361,9 +2361,8 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         let mut counts = Counts::default();
         // Draws by family: flanks alone, across, halves, held, a face's
-        // half-turn alone (parted by a bisector, or across), and off the
-        // point.
-        let mut family = [0usize; 7];
+        // half-turn alone, and off the point.
+        let mut family = [0usize; 6];
         // Unread readings by cause: a side, a place, an arc, no reference.
         let mut causes = [0usize; 4];
         let before = wrong.len();
@@ -2380,7 +2379,6 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
                 (true, Some(PlaneAs::Across)) => 1,
                 (true, Some(PlaneAs::Halves)) => 2,
                 (true, Some(PlaneAs::Held)) => 3,
-                (false, Some(PlaneAs::Across)) => 6,
                 (false, _) => 4,
             }] += 1;
             let o = Point3::new(0.0, 0.0, 0.0);
@@ -2416,20 +2414,6 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
             let plane = cone.whole_planes().first().copied();
             let slack = 2.0 * tie.norm();
             let mut probes = probes_about(&mut rng, &flat);
-            // A face's half-turn alone: an edge of the other solid lying
-            // in it, its flanks' bounds at any reach, from far short of
-            // the face's rays (a sliver's width over the band) to theirs.
-            if !m.flanks {
-                for _ in 0..4 {
-                    let d = norm3([0; 3].map(|_| rng.range(-1.0, 1.0)));
-                    let reach = match rng.below(3) {
-                        0 => rng.range(1e-8, 1e-7),
-                        1 => band.escalate() * rng.range(1.0, 3.0),
-                        _ => rng.range(0.1, 2.0),
-                    };
-                    probes.push(d.map(|x| x * reach));
-                }
-            }
             for _ in 0..2 {
                 let hair = [1e-9, 1e-7, 1e-4][rng.below(3)];
                 let off = [0; 3].map(|_| rng.range(-hair, hair));
@@ -2488,15 +2472,14 @@ fn a_line_cone_never_contradicts_the_exact_oracle() {
         }
         println!(
             "[fuzz] link_line_cone_fuzz at ε {eps:e}: {} wrong; draws: flanks {}, across {}, \
-             halves {}, held {}, a half-turn alone parted {} and across {}, off the point {}; \
-             the cone {counts}; unread by side {}, place {}, arc {}, no reference {}",
+             halves {}, held {}, a half-turn alone {}, off the point {}; the cone {counts}; \
+             unread by side {}, place {}, arc {}, no reference {}",
             wrong.len() - before,
             family[0],
             family[1],
             family[2],
             family[3],
             family[4],
-            family[6],
             family[5],
             causes[0],
             causes[1],
