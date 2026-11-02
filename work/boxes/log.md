@@ -186,3 +186,19 @@ are the same gap seen from the verdict side; the step-2 survey reads them.
 > **Stale rows.** D280's `reach_box` no longer exists: `face_reach_in` reads the rule and the shared `Span` extents, and the remaining gaps are the cone tan spelling, the ControlNet poison/None split and conic rounding. `boxes::{conic_extent, arc_extent}` from the four-dispatchers row: `arc_extent` is gone, and `conic_extent` now serves only full circles (`circle_box`, `separating`). The witness_span vertices-only row is partly overtaken: `conic_reach` adds the whole conic carriers.
 
 Dispatched on it: the extent-home design fork, three designers (protocol `1b9ac429b1`, blinding on `analysis/design-fork/boxes-extent-home`). The survey also reports `D280`'s premise stale (`reach_box` is gone; what is left is the cone tan spelling, the ControlNet poison/None split and the conic rounding) and the census `curved_box` NURBS comment stale; both go to the design.
+
+## 2026-11-02 — U1 (PR 6336) reviewed; fix pass dispatched
+
+(BOXES orchestrator) Tier: single FULL review (the box arms are certified enclosures). The verdict was APPROVE-WITH-FIXES, with no MAJOR. C1 soundness was confirmed by a 20k-case span probe; the worst escape was 1.4e-15 relative to R + r. Mutants M1–M5 and M9 were killed; M6, M7 and M8 survive. Adjudicated:
+
+- Into the fix pass:
+  - **S1/S8/m2:** the PR minted a fourth ring reader. The bracket lane's `R.lo > r.hi` is a bracket choosing the construction, and the two lanes measurably took different arms near horn. The fix is one ring home that both lanes and depth_gap/face_normal read.
+  - **m1:** a spindle-torus row so the guards can go red.
+  - **n1/S4:** the bracketed row ties R to r and uses the code as its own oracle.
+  - **n2/S5:** the arms-row doc over-promises.
+  - **n3:** stale prose in the oracle doc and the from-f64 allowlist's example.
+  - **n5:** the chord-dip f2·h²/8 spellings left in geom-brep and mesh.
+  - **m3:** stated honestly in the PR body; unreachable at rest.
+- Already filed, not re-filed: S2 (`torus-extent-overreaches-…`), S3 (`census-lane-span-extents-are-not-self-enclosing`, evidence added).
+- State-sync done here: dated notes on the rows citing the deleted symbols, here and on GAUGE, ORBIT and TOPO (seam notes on their logs). `split-gate-sphere-zone-folds-into-face-box-rule` moves to `review` on PR 6336.
+- **Class finding, logged:** a fix that closes a duplicate mints a new reader of a neighbouring question (here, the ring condition). The style lane's Q1 caught it again.
