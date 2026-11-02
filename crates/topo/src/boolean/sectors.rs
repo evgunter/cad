@@ -638,6 +638,38 @@ pub(super) fn orbit_corners<T: Decide>(
     })
 }
 
+impl SectorFaceError {
+    /// The Boolean's refusal of a vertex of `operand` whose sector the
+    /// walk could not resolve.
+    pub(crate) fn boolean_refusal(self, operand: Operand, band: Band) -> BooleanError {
+        match self {
+            Self::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            },
+            Self::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
+                operand,
+                face,
+                band,
+            },
+            // A spline face whose rows are not owed (C4's exemption)
+            // stores no chart image of the edge, which the arm reads the
+            // vertex at.
+            Self::Unplaced { face, kind } => BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            },
+            Self::ApexUndecided { face, .. } => BooleanError::VertexNearConeAxis {
+                operand,
+                face,
+                band,
+            },
+        }
+    }
+}
+
 /// The sector's face, and what it is at the base vertex.
 ///
 /// The walk and the normals are [`crate::sector_face`] — ONE
@@ -675,31 +707,8 @@ pub(super) fn sector_face<T: Decide>(
     he: HalfEdgeKey,
     band: Band,
 ) -> Result<(FaceKey, BoolFace<T>), BooleanError> {
-    let near_axis = |face| BooleanError::VertexNearConeAxis {
-        operand,
-        face,
-        band,
-    };
-    let resolved = crate::sector_face::resolve(body, vertex, he, band).map_err(|e| match e {
-        SectorFaceError::Unsupported { face, kind } => BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        },
-        SectorFaceError::Crease { face, .. } => BooleanError::NormalAtSplineCrease {
-            operand,
-            face,
-            band,
-        },
-        // A spline face whose rows are not owed (C4's exemption) stores
-        // no chart image of the edge, which the arm reads the vertex at.
-        SectorFaceError::Unplaced { face, kind } => BooleanError::CurvedBooleanUnsupported {
-            operand,
-            face,
-            kind,
-        },
-        SectorFaceError::ApexUndecided { face, .. } => near_axis(face),
-    })?;
+    let resolved = crate::sector_face::resolve(body, vertex, he, band)
+        .map_err(|e| e.boolean_refusal(operand, band))?;
     // Exhaustive on purpose, exactly as the splitting wrapper is: a
     // new carrier arm added to the shared walk must be a compile
     // error in BOTH lanes, not silently accepted by the one whose
@@ -713,7 +722,11 @@ pub(super) fn sector_face<T: Decide>(
         | SectorCarrier::Spline(_) => {}
     }
     match resolved.at_vertex {
-        VertexFace::NearAxis(_) => Err(near_axis(resolved.face)),
+        VertexFace::NearAxis(_) => Err(BooleanError::VertexNearConeAxis {
+            operand,
+            face: resolved.face,
+            band,
+        }),
         VertexFace::Tangent(normal) => Ok((resolved.face, BoolFace::Tangent(normal))),
         VertexFace::Apex(apex) => Ok((resolved.face, BoolFace::Apex(apex))),
     }
@@ -1216,20 +1229,6 @@ pub(super) fn tangent_lump<T: Decide>(
             Ok(super::tables::eq15_3_lump(op, on_side, relation))
         }
     }
-}
-
-/// The carrier of a face glued `Tangent`, which the tangency's
-/// second-order reads compare against its partner's.
-pub(super) fn tangent_carrier<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<geom::Surface<T>, BooleanError> {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
-        .cloned()
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "a declared-Tangent face lost its surface",
-        })
 }
 
 /// **The per-direction second-order side** of a declared-`Tangent`

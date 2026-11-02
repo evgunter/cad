@@ -40,7 +40,7 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::UnsupportedSeamVertex`],
 ///    [`Self::UnsupportedCrossingSenses`], [`Self::UnsupportedSeamSides`],
 ///    [`Self::UnsupportedJoin`], [`Self::UnsupportedUnionName`],
-///    [`Self::UnsupportedTurnedCell`],
+///    [`Self::UnsupportedUnjudgedGlue`], [`Self::UnsupportedTurnedCell`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`] and
@@ -347,6 +347,23 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
+    /// A union's face whose descent, as the fold's lineage cites it,
+    /// spans member faces no pairwise judgement links
+    /// (`names/README.md`, N2). Only N2's third clause, the finished
+    /// body holding area of both in one face, could link them, and that
+    /// clause reads the area each holds exactly; the fold's lineage can
+    /// cite a member face the face holds no area of, so the union does
+    /// not read the clause from it, and refuses.
+    UnsupportedUnjudgedGlue {
+        /// The finished face, a key of the union's body.
+        face: FaceKey,
+        /// The member faces the fold's lineage cites for the face, which
+        /// can include one it holds no area of, each by the read its
+        /// member came in through and its name in that member's table,
+        /// sorted by read and then name, so the list is the same in
+        /// every member order.
+        faces: Vec<(crate::VarId, StableName)>,
+    },
     /// A boolean crossing whose senses no rule reads: the edge piece
     /// classes at the vertex fit no one sense per edge name
     /// ([`CrossingSensesShape`]). The boolean's classes are its own
@@ -582,9 +599,10 @@ shapes! {
         /// merged: along an operand rim beside one merged face.
         WithinOneOperand => "is a zipped seam between faces of one operand that are not both \
                              merged",
-        /// A union seam whose two faces descend from one parent: a pair
-        /// can merge A's face with B's where the fold skips the same
-        /// curved group.
+        /// A union seam whose two faces descend from one parent: member
+        /// faces a judgement linked (N2) that the fold holds as two
+        /// faces meeting along an edge off every member edge, which no
+        /// rule names.
         InsideOneParent => "is a union seam whose two faces descend from one parent",
     }
 }
@@ -934,6 +952,21 @@ impl crate::spoken::Say for NamingError {
                 by.read(*member),
                 by.name(edge)
             ),
+            Self::UnsupportedUnjudgedGlue { faces, .. } => write!(
+                f,
+                "{UNRULED_FRAMING}: a face of the union descends, by the fold's lineage, from \
+                 member faces ({}) that no two members glued together, and which of them it \
+                 holds area of is not read exactly yet",
+                faces
+                    .iter()
+                    .map(|(read, name)| format!(
+                        "member {}'s face ({})",
+                        by.read(*read),
+                        by.name(name)
+                    ))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
             Self::Band(error) => write!(
                 f,
                 "the naming band could not be built from the ambient tolerance, so no \
@@ -1014,6 +1047,7 @@ impl NamingError {
             | Self::UnsupportedSeamSides { .. }
             | Self::UnsupportedJoin { .. }
             | Self::UnsupportedUnionName { .. }
+            | Self::UnsupportedUnjudgedGlue { .. }
             | Self::UnsupportedTurnedCell { .. } => Some(Category::Unruled),
             Self::WayInZeroBand { .. }
             | Self::JoinedPieceOffRoot { .. }
@@ -2123,6 +2157,36 @@ mod display_tests {
                 },
                 vec!["loop 9 does not fit", "Recourse: draw the loops"],
             ),
+            (
+                NamingError::UnsupportedUnjudgedGlue {
+                    face: pair.0,
+                    faces: vec![
+                        (
+                            crate::VarId::new(0, test_utils::refusal::tagged(41)),
+                            StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, test_utils::refusal::tagged(41)),
+                                path: vec![RoleSeg::Cap(super::super::role::CapEnd::Start)],
+                            },
+                        ),
+                        (
+                            crate::VarId::new(0, test_utils::refusal::tagged(43)),
+                            StableName {
+                                kind: EntityKind::Face,
+                                node: RecipeNodeId::new(0, test_utils::refusal::tagged(43)),
+                                path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
+                            },
+                        ),
+                    ],
+                },
+                vec![
+                    "by the fold's lineage",
+                    "no two members glued together",
+                    "the start cap",
+                    "the end cap",
+                    "not read exactly yet",
+                ],
+            ),
         ];
         // The category is `NamingError::category`'s, which also chooses
         // the ending. Which framing each arm's `Display` interpolates is
@@ -2166,6 +2230,7 @@ mod display_tests {
                 NamingError::JoinedPieceOffRoot { .. } => 26,
                 NamingError::UnsupportedTurnedCell { .. } => 27,
                 NamingError::PastWidth { .. } => 28,
+                NamingError::UnsupportedUnjudgedGlue { .. } => 29,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

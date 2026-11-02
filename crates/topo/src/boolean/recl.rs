@@ -2,15 +2,14 @@
 //!
 //! - [`recl_sectors`] — Program 15.10 IN FULL (coplanar sector pairs
 //!   via [`super::oriented_plane_eq`] + Eq. 15.3, neighbor propagation,
-//!   cancellation). The propagation is the operational form of TOG's
-//!   Table II ON-rows + Table III: rewriting a neighbor's shared-bound
-//!   code to the Eq. 15.3 lump and cancelling uniform records IS
-//!   `resolve_verdict(Rule/NotRule, …)` — the equivalence is asserted
-//!   by the `propagation_matches_tables` test.
+//!   cancellation): a neighbor's shared-bound code is rewritten to the
+//!   Eq. 15.3 lump and uniform records cancel.
 //! - [`recl_edges`] — the unprinted `srecledges`, designed from TOG
 //!   §6.2.2: **edge-sector coincidence** (two flanking test sectors
-//!   keyed by their noncoplanar bound vs the reference sector, Table II
-//!   plus Table III) and **edge-edge coincidence** (the derived
+//!   keyed by their noncoplanar bound vs the reference sector, a
+//!   crossing where exactly one lies in the reference's material — TOG's
+//!   Tables II and III, see `resolve_edge_sector`) and **edge-edge
+//!   coincidence** (the derived
 //!   membership rule subsuming the angular sort and the Table I tie
 //!   rules — see [`resolve_edge_edge`]). Where one solid holds several
 //!   mentions on the ray (a contact line), each solid's material about
@@ -50,9 +49,7 @@ use super::refusal_routes::RAY_COLLINEAR;
 use super::sectors::{
     BoolSector, Flank, PairRecord, Reach, crossing_flank, pair_codes, parallel_same,
 };
-use super::tables::{
-    TableIiVerdict, eq15_3_lump, kept_copy, resolve_verdict, table_ii, table_iii_rule,
-};
+use super::tables::{eq15_3_lump, kept_copy};
 use super::{BooleanError, BooleanOp, Coincide, DeclarationRead, Operand, SideCode, SlitLineGap};
 use crate::body::Body;
 use crate::entity::EntityId;
@@ -72,10 +69,7 @@ fn carrier_of<T: Decide>(
     s: &BoolSector<T>,
 ) -> Result<CarrierDesc<T>, BooleanError> {
     super::carrier_pair::face_carrier(body, s.face).ok_or_else(|| {
-        let kind = body
-            .get_face(s.face)
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+        let kind = body.proven_face_surface(s.face).kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face: s.face,
@@ -122,16 +116,14 @@ pub(super) fn require_same<T: Decide>(
     let c2 = carrier_of(body2, o2, s2)?;
     let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
     let refusal = if curved(&c1) {
-        Some((o1, s1.face, body1.get_face(s1.face), body1))
+        Some((o1, s1.face, body1))
     } else if curved(&c2) {
-        Some((o2, s2.face, body2.get_face(s2.face), body2))
+        Some((o2, s2.face, body2))
     } else {
         None
     };
-    if let Some((operand, face, f, body)) = refusal {
-        let kind = f
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+    if let Some((operand, face, body)) = refusal {
+        let kind = body.proven_face_surface(face).kind();
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -334,8 +326,8 @@ pub(super) fn recl_sectors<T: Decide>(
             &[],
         );
         if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_a = super::sectors::tangent_carrier(a_body, sa.face)?;
-            let s_b = super::sectors::tangent_carrier(b_body, sb.face)?;
+            let s_a = a_body.proven_face_surface(sa.face).clone();
+            let s_b = b_body.proven_face_surface(sb.face).clone();
             let p = a_body.half_edge_start_point(sa.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "v-v site lost its point",
@@ -583,7 +575,7 @@ fn flank_read<T: Decide>(
     )
 }
 
-/// A flanker's Table II key, and whether its bound tied with the
+/// A flanker's key, and whether its bound tied with the
 /// reference at first order.
 #[derive(Clone, Copy, Debug)]
 struct FlankKey {
@@ -591,7 +583,7 @@ struct FlankKey {
     tied: bool,
 }
 
-/// **The two flankers' Table II keys against a reference sector**
+/// **The two flankers' keys against a reference sector**
 /// (flankers `f_s` and `f_e`, the noncoplanar bound of each: `f_s`'s
 /// end, `f_e`'s start), the one rule both on-edge gateways read
 /// ([`resolve_edge_sector`], [`resolve_bisector_graze`]). A flanker
@@ -599,8 +591,8 @@ struct FlankKey {
 /// tied with the reference keys the side it leaves to one order down
 /// only where its twin ties too: the pair then turns about the
 /// reference together, and the transition is where they part. A lone
-/// tied flanker keys `On`, so Table III reads it as lying in the
-/// reference and lumps it whole: beside a flanker decided off the
+/// tied flanker keys `On`, so it is read as lying in the reference and
+/// lumps whole: beside a flanker decided off the
 /// reference, its second-order side would put the crossing on the tied
 /// flanker, which meets the reference only along its bound
 /// (`the_stadium_answers_every_op`). The rule reads geometry alone: a
@@ -655,14 +647,15 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 /// ray events (parallel-same across both solids), and each event is
 /// resolved EXACTLY ONCE:
 ///
-/// - real edge in BOTH solids ⇒ **edge-edge coincidence**: angular sort
-///   of the four flanking sectors around the common line; mixed order ⇒
-///   germ; coplanar ties per Table I rules (all-pairwise ⇒ none; else
-///   the noncoplanar complement pair per Table III).
-/// - real edge in ONE solid ⇒ **edge-sector coincidence**: Table II on
-///   the two flanking test sectors' keys (per TOG, a wide flanker keys
-///   by its bisector — exactly the twin's shared bound), Rule cells per
-///   Table III.
+/// - real edge in BOTH solids ⇒ **edge-edge coincidence**: each
+///   flanker's membership in the other solid's material about the common
+///   line, a coplanar flanker lumped (Eq. 15.3); a germ where exactly one
+///   of a solid's two flankers lies inside ([`resolve_edge_edge`]).
+/// - real edge in ONE solid ⇒ **edge-sector coincidence**: a crossing
+///   where exactly one of the two flanking test sectors lies in the
+///   reference's material, by their keys (per TOG, a wide flanker keys
+///   by its bisector — exactly the twin's shared bound), a flanker on
+///   the reference lumped (`resolve_edge_sector`).
 /// - bisector-only ⇒ a **subdivision artifact graze**: the wide sector
 ///   is genuinely crossed iff its two halves' outer keys transition.
 /// - several mentions of one solid ⇒ a **contact line** that solid
@@ -1693,8 +1686,8 @@ pub(super) fn resolve_edge_edge<T: Decide>(
             &[],
         );
         let lump = if read == DeclarationRead::Spent(crate::contact::GlueClass::Tangent) {
-            let s_own = super::sectors::tangent_carrier(own_body, own_sec.face)?;
-            let s_other = super::sectors::tangent_carrier(other_body, other_sec.face)?;
+            let s_own = own_body.proven_face_surface(own_sec.face).clone();
+            let s_other = other_body.proven_face_surface(other_sec.face).clone();
             let p = own_body.half_edge_start_point(own_sec.he).ok_or(
                 BooleanError::ClassificationInvariant {
                     what: "edge-edge site lost its point",
@@ -1744,12 +1737,7 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         let (own_face, other_face) = (secs_of(own)[own_idx].face, secs_of(other)[oi].face);
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
-            .all(|&(body, face)| {
-                body.get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .map(geom::Surface::kind)
-                    == Some(geom::SurfaceKind::Plane)
-            });
+            .all(|&(body, face)| body.proven_face_surface(face).kind() == geom::SurfaceKind::Plane);
         let which = if planar {
             Coincide::FlankSense
         } else {
@@ -1904,9 +1892,54 @@ pub(super) fn resolve_edge_edge<T: Decide>(
     Ok((EdgeEdge::Germ(germ), flank_read))
 }
 
-/// Edge-sector coincidence (module docs): Table II on the on-side
-/// flankers vs the reference sector. `other_holder` is the other
-/// solid's start-holder twin when the ray also grazes its bisector.
+/// **Which flanker an edge-sector crossing is recorded on**
+/// ([`resolve_edge_sector`]), from the two flankers' keys against the
+/// reference face, `Before`'s then `After`'s, and `lumps_in` for a
+/// flanker keyed `On` (on the face): whether it lies in the reference's
+/// material as it lumps. A crossing is exactly one flanker inside, TOG's
+/// Table II, its `Rule` cells Table III's lump. Beside a flanker on the
+/// face it is recorded on the other flanker, the on-flanker lumping whole
+/// with the face; else on the one fold rule's
+/// ([`super::sectors::crossing_flank`]). Both on the face to every order
+/// read is no crossing: the edge lies in it with both its faces. Returns
+/// the flanker, and whether the other one is on the face.
+fn edge_sector_crossing(
+    keys: [SideCode; 2],
+    lumps_in: impl FnOnce(Flank) -> Result<bool, BooleanError>,
+) -> Result<Option<(Flank, bool)>, BooleanError> {
+    let on = match keys {
+        [SideCode::On, SideCode::On] => return Ok(None),
+        [SideCode::On, _] => Some(Flank::Before),
+        [_, SideCode::On] => Some(Flank::After),
+        _ => None,
+    };
+    let Some(on) = on else {
+        return Ok(crossing_flank(keys[0], keys[1]).map(|at| (at, false)));
+    };
+    let other = match on {
+        Flank::Before => keys[1],
+        Flank::After => keys[0],
+    };
+    if lumps_in(on)? == (other == SideCode::In) {
+        return Ok(None);
+    }
+    Ok(Some((
+        match on {
+            Flank::Before => Flank::After,
+            Flank::After => Flank::Before,
+        },
+        true,
+    )))
+}
+
+/// Edge-sector coincidence (module docs): the other solid's material
+/// about the edge's line is the reference face's half-turn, so a flanker
+/// lies in it by its side of the face ([`flank_keys`], the one
+/// bound-side reading), and one on the face as it lumps (Eq. 15.3, or a
+/// glued tangency's curving). A crossing is exactly one flanker inside:
+/// TOG's Table II, its `Rule` cells Table III's lump. `other_holder` is
+/// the other solid's start-holder twin when the ray also grazes its
+/// bisector.
 #[allow(clippy::too_many_arguments)]
 fn resolve_edge_sector<T: Decide>(
     records: &[PairRecord],
@@ -1968,28 +2001,21 @@ fn resolve_edge_sector<T: Decide>(
                 what: "edge-sector site lost its point",
             })
     };
-    let [k1, k2] = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?.map(|k| k.code);
-    let (v1, v2) = table_ii(k1, k2);
+    let keys = flank_keys(own_secs, (f_s, f_e), ref_sector, band)?.map(|k| k.code);
     let comparison = if a_side { Operand::A } else { Operand::B };
-    // Table III's rule: whether the on-flanker lumps Out. A glued
-    // tangency's on-flanker lumps by the side its carrier curves to
-    // ([`super::sectors::tangent_lump`]); any other by its carrier
-    // identity with the reference (Eq. 15.3).
-    let mut lumps_out = false;
-    if matches!(
-        (v1, v2),
-        (TableIiVerdict::Rule | TableIiVerdict::NotRule, _)
-            | (_, TableIiVerdict::Rule | TableIiVerdict::NotRule)
-    ) {
-        let on_flanker = if k1 == SideCode::On { f_s } else { f_e };
-        let own_sec = &own_secs[on_flanker];
+    // A flanker on the face lies in the reference's material as it lumps:
+    // a glued tangency's by the side its carrier curves to
+    // ([`super::sectors::tangent_lump`]), any other by its carrier
+    // identity with the reference (Eq. 15.3). Either lumps In or Out.
+    let lumps_in = |idx: usize| -> Result<bool, BooleanError> {
+        let own_sec = &own_secs[idx];
         let arm = own_sec.arm.min(ref_sector.arm);
-        lumps_out = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
+        let lump = if declared.glues_tangent(own_op, own_sec.face, ref_op, ref_sector.face) {
             let read = tangent_read(own_sec.face);
             let p = site_point(own_sec)?;
             super::sectors::tangent_lump(
-                &super::sectors::tangent_carrier(own_body, own_sec.face)?,
-                &super::sectors::tangent_carrier(ref_body, ref_sector.face)?,
+                own_body.proven_face_surface(own_sec.face),
+                ref_body.proven_face_surface(ref_sector.face),
                 declared.reach_of(own_op, own_sec.face, ref_op, ref_sector.face)?,
                 ref_sector.tangent(),
                 own_sec.tangent(),
@@ -2001,7 +2027,7 @@ fn resolve_edge_sector<T: Decide>(
                 arm,
                 read,
                 band,
-            )? == SideCode::Out
+            )?
         } else {
             let relation = require_same(
                 own_body,
@@ -2015,56 +2041,52 @@ fn resolve_edge_sector<T: Decide>(
                 arm,
                 band,
             )?;
-            table_iii_rule(op, comparison, relation)
+            eq15_3_lump(op, comparison, relation)
         };
-    }
-    // A `Yes` cell is Table II's mixed row, which names the flanker keyed
-    // In. The one fold rule decides which flanker the crossing is
-    // recorded on ([`super::sectors::crossing_flank`]): the on-bound
-    // joins the In run, so the transition is across the flanker keyed
-    // Out.
-    let germ_flank = |flank: usize, verdict| match verdict {
-        TableIiVerdict::Yes => match crossing_flank(k1, k2) {
-            Some(Flank::Before) => f_s,
-            Some(Flank::After) => f_e,
-            None => flank,
-        },
-        _ => flank,
-    };
-    for (flank, verdict) in [(f_s, v1), (f_e, v2)] {
-        if resolve_verdict(verdict, lumps_out) {
-            let flank = germ_flank(flank, verdict);
-            let pair = |r: usize| if a_side { (flank, r) } else { (r, flank) };
-            let held = twins(ref_secs, ref_idx).into_iter().find_map(|r| {
-                let (ra, rb) = pair(r);
-                find_on_record(records, ra, rb)
-            });
-            if let Some(g) = held {
-                return Ok(Some(EdgeGerm::Held(g)));
-            }
-            // The reference holds the on-bound's ray (its record named
-            // the bound, or the ray runs along its bisector), and both of
-            // a `Yes` cell's flankers hold the bound, so the reference
-            // meets the fold flanker along it whether or not
-            // `pair_search`'s common line, which swings off the bound
-            // where the two planes are nearly parallel, met that pair.
-            if verdict != TableIiVerdict::Yes {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "single-on-edge crossing without a flanking record",
-                });
-            }
-            let (a, b) = pair(ref_idx);
-            let (sa, sb) = pair_codes(&a_sectors[a], &b_sectors[b], band)?;
-            return Ok(Some(EdgeGerm::Folded(PairRecord {
-                a,
-                b,
-                sa,
-                sb,
-                intersect: true,
-            })));
+        match lump {
+            SideCode::In => Ok(true),
+            SideCode::Out => Ok(false),
+            SideCode::On => Err(BooleanError::ClassificationInvariant {
+                what: "an edge-sector flanker on the face lumps neither In nor Out",
+            }),
         }
+    };
+    let flanker = |k: Flank| match k {
+        Flank::Before => f_s,
+        Flank::After => f_e,
+    };
+    let Some((at, on_face)) = edge_sector_crossing(keys, |k| lumps_in(flanker(k)))? else {
+        return Ok(None);
+    };
+    let flank = flanker(at);
+    let pair = |r: usize| if a_side { (flank, r) } else { (r, flank) };
+    let held = twins(ref_secs, ref_idx).into_iter().find_map(|r| {
+        let (ra, rb) = pair(r);
+        find_on_record(records, ra, rb)
+    });
+    if let Some(g) = held {
+        return Ok(Some(EdgeGerm::Held(g)));
     }
-    Ok(None)
+    // The reference holds the on-bound's ray (its record named the
+    // bound, or the ray runs along its bisector), and both of a mixed
+    // pair's flankers hold the bound, so the reference meets the fold
+    // flanker along it whether or not `pair_search`'s common line, which
+    // swings off the bound where the two planes are nearly parallel, met
+    // that pair.
+    if on_face {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "single-on-edge crossing without a flanking record",
+        });
+    }
+    let (a, b) = pair(ref_idx);
+    let (sa, sb) = pair_codes(&a_sectors[a], &b_sectors[b], band)?;
+    Ok(Some(EdgeGerm::Folded(PairRecord {
+        a,
+        b,
+        sa,
+        sb,
+        intersect: true,
+    })))
 }
 
 /// Bisector-only graze (module docs): the wide sector is crossed iff
@@ -3733,6 +3755,58 @@ mod tests {
         assert_eq!(twins(&thirds, 2), [2, 1]);
         // No bisector bound: no twin.
         assert_eq!(twins(&[sector(false, false), sector(false, false)], 0), [0]);
+    }
+
+    /// TOG's worked example (Fig. 18, ∪, identical orientation),
+    /// through the fold: A's test sectors keyed (IN, ON) against B's
+    /// reference cross on the IN sector, its ON one lumping Out (AonB⁺ →
+    /// AoutB); B's keyed (OUT, ON) against A's cross on the OUT sector,
+    /// its ON one lumping In (BonA⁺ → BinA).
+    #[test]
+    fn tog_fig18_worked_example() {
+        use crate::boolean::plane_eq::PlaneRelation::SameOriented;
+        let lumps = |side: Operand| {
+            move |_: Flank| Ok(eq15_3_lump(BooleanOp::Union, side, SameOriented) == In)
+        };
+        assert_eq!(
+            edge_sector_crossing([In, On], lumps(Operand::A)).ok(),
+            Some(Some((Flank::Before, true))),
+            "A's IN sector crosses"
+        );
+        assert_eq!(
+            edge_sector_crossing([Out, On], lumps(Operand::B)).ok(),
+            Some(Some((Flank::Before, true))),
+            "B's OUT sector crosses"
+        );
+    }
+
+    /// **An edge-sector crossing is recorded on the flanker Table II
+    /// names**, cell by cell: a mixed pair across the flanker keyed Out
+    /// (the one fold rule), beside a flanker on the face on the other
+    /// one, and nothing where both lie on one side or both on the face.
+    #[test]
+    fn an_edge_sector_crossing_is_recorded_on_the_flanker_table_ii_names() {
+        let lumping = |inside: bool| move |_: Flank| Ok(inside);
+        let rows = [
+            ([In, Out], false, Some((Flank::After, false))),
+            ([Out, In], false, Some((Flank::Before, false))),
+            ([In, In], false, None),
+            ([Out, Out], false, None),
+            ([On, In], false, Some((Flank::After, true))),
+            ([On, In], true, None),
+            ([On, Out], true, Some((Flank::After, true))),
+            ([On, Out], false, None),
+            ([In, On], false, Some((Flank::Before, true))),
+            ([Out, On], true, Some((Flank::Before, true))),
+            ([On, On], true, None),
+        ];
+        for (keys, inside, want) in rows {
+            assert_eq!(
+                edge_sector_crossing(keys, lumping(inside)).ok(),
+                Some(want),
+                "keys {keys:?}, the on-flanker lumping in: {inside}"
+            );
+        }
     }
 
     /// `mark_germ` rewrites the On bound to the transition partner.

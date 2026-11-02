@@ -30,7 +30,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::prelude::{
-    BlendError, Body, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet, fillet_edges,
+    Body, CurveKind, CurveKindSet, EdgeKey, SurfaceKind, SurfaceKindSet, fillet_edges,
     mass_properties, query, validate_geometric,
 };
 use pncad::profile::{
@@ -490,8 +490,8 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
 
     // The kind-pair description alone also matches the six vertical
     // seams where a profile fillet meets a straight side. Those are
-    // tangent, and the selector has no convexity atom to leave them
-    // out, so the door refuses the whole request.
+    // smooth — the two faces continue one another — so the door leaves
+    // them as they are, silently, and rounds the two creases.
     let operand = finished("plate.body", plate.body.clone(), tol);
     let described = cylinder_plane_lines(&plate.body);
     assert_eq!(
@@ -499,15 +499,14 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
         8,
         "the description matches the keyhole's two creases and the outline's six tangent seams"
     );
-    let over = fillet_edges(&operand, &described, R_CREASE, tol);
-    assert!(
-        matches!(&over, Err(e) if matches!(e.error, BlendError::TangentialEdge { .. })),
-        "the description alone hands the door a tangent seam: {:?}",
-        over.as_ref().err()
-    );
-
     let creases = keyhole_creases(plate);
     assert_eq!(creases.len(), 2, "the keyhole's two disc/slot creases");
+    let over = fillet_edges(&operand, &described, R_CREASE, tol)
+        .unwrap_or_else(|e| panic!("the description rounds its creases, got {e:?}"));
+    assert!(
+        (volume(&over.body) - volume(rounded)).abs() < 1e-12,
+        "the described request rounds what the creases alone do"
+    );
 
     // The ball rolls outside the disc's wall, which bends away from
     // it, and the sliver each cap loses ends at the slot wall's foot
@@ -547,8 +546,8 @@ fn crease_narration(plate: &Extruded<f64>, rounded: &Body<f64>, tol: Tol) -> Str
         "The keyhole is rounded on the SOLID: after the extrude, `fillet_edges` at \
          r = {R_CREASE}, the outline's own blend radius, on its two convex disc/slot \
          creases. Selected as `Line` edges between a `Cylinder` and a `Plane`, scoped to the keyhole loop's struts — the \
-         description alone also matches the outline's six tangent seams, and the door \
-         refuses those (`TangentialEdge`): the selector has no convexity atom. Each crease \
+         description alone also matches the outline's six tangent seams, whose faces \
+         continue one another, and the door leaves those as they are, which changes nothing. Each crease \
          removes A = {cut:.6e} m² of section, so ΔV = −2·A·{DEPTH} = {want:.6e} m³, \
          measured {dv:.6e}. Smaller radii carve at their closed forms too, down to the \
          eye tip's ({R_EYE})."
