@@ -76,3 +76,56 @@ its descent reads no further than the face's own smallest radius of
 curvature at the vertex (`FaceBend::Implicit::radius`). A cone's bend
 tightens toward its axis within a long reach, which that radius does
 not bound; the witness, read at points of the bound, would.
+
+## Lane finding (2026-11-02, `tangrim/leaves-witness`)
+
+The witness is built: `bound_side::Tie::descend` reads a parting off the
+zero band through `Tie::witnessed`, the bound's own point at the arm the
+parting was read at (`Reach::witness`: a line's chord point, a circle's
+or an ellipse's arc point at an arc no longer than the arm, a
+bisector's direction carried to its own face's carrier by the closed
+foot `boolean::carrier_touch::distance` reads), its offset from the
+face the carrier's own residual (`geom_brep::implicit_residual`; a
+plane's, the height over the plane through the vertex). Decided on the
+parting's side → `Leaves`; within the zero band → `Rides`; in the gap →
+`Unresolved::Gap`; decided against the parting, poisoned, or no point →
+`ReadFault::Witness`, refused `Coincidence(TangentSide)`.
+`conic_bend_side` stays the conic × plane arm.
+
+**The six gap rows do not leave the fallback.** Measured on the branch
+(default ε, every tie of the suite logged with its witness):
+
+| row | bound × face | parting at the arm | witness at the arm |
+|---|---|---|---|
+| `a_band_pose_under_the_tubes_top_reaches_the_donuts_door` | bisector (torus) × plane | ±2.0e-9 | ±2.0e-9 |
+| `a_near_square_rod_minus_a_box_builds` | bisector (cylinder) × plane | ±5.0e-9 | ±4.22e-9 |
+| `a_turned_near_square_rod_minus_a_box_builds` | bisector (cylinder) × plane | ±5.0e-9, ±7.5e-9 | ±4.22e-9, ±6.3e-9 |
+| `a_trimmed_face_cut_beside_its_pole_builds` | bisector (sphere) × sphere | 5.0e-9 | 5.0e-9 |
+| `a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed` | bisector (sphere) × sphere | 9.61e-9 | 9.61e-9 |
+| `a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders` | circle × cylinder | ±2.5e-10 (zero band) | ±5.0e-10 |
+
+Every gap bound is a subdivision bisector, whose reach is its sector's
+arm: the parting is already read at that length (no cap shortens it),
+and its third-order remainder is a factor `(l/ρ)²/12` of it (2 % on the
+rods, `l/r = ½`; under 1e-7 on the spheres). Its own point stands in
+the same gap. These bounds genuinely stand 2–10 nm off the partner face
+at their arm: neither within the zero band nor past the escalation band
+at ε = 1e-9, so `Unresolved::Gap` (read `On`) stays for them, now meaning
+the witness's gap, not the leading term's. The rim-offset row no longer
+reaches the gap on main: since PR 6253's fix pass capped the descent at
+the cylinder's radius its parting reads ±2.5e-10 (`Rides`); its witness,
+k·zero exactly, agrees.
+
+**What the witness changes.** In every body test of `-p sweep -p topo`,
+each decided `Leaves` (39 894 readings in 371 tests: bisectors against
+planes, spheres, cylinders, tori and cones, circle arcs against
+cylinders, chords against cylinders) has a witness decided on its side;
+none moves. The random
+sampled test (`the_descent_matches_a_sampled_side_per_face_kind`) finds
+arcs that leave a cylinder, a cone or a torus to one side and come back
+across it within the arm; there the leading term at the arm was wrong
+and the witness refuses (`ReadFault::Witness`).
+
+**`Uncertified` stays**: no certified jet exists for a spline face, a
+spline or spiric edge (`BendBounds::Unbounded`), or a bisector of a
+spline face, so the sheath row keeps its fallback.
