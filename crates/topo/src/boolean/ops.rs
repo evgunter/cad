@@ -118,6 +118,7 @@ use super::combine::{GraftMap, graft_solids_disjoint};
 use super::contain::{ContainError, FaceContainment, contfp};
 use super::edge_join::join_stage;
 use super::finish::setopfinish;
+use super::holdings::Holdings;
 use super::join::bool_connect;
 use super::reduce::PendingRow;
 use super::section_cert::Refusal as SectionRefusal;
@@ -206,6 +207,11 @@ pub struct BooleanBody<T: Real> {
     /// The face pairs those coincidences glue, in their order
     /// ([`GlueVerdict`]).
     pub verdicts: Vec<GlueVerdict<T>>,
+    /// Per face of [`Self::body`], and per discard row of
+    /// [`Self::naming`], exactly the operand faces whose area it holds,
+    /// operand A at place 0 and B at place 1, read from the naming's
+    /// records ([`Holdings::of_records`]).
+    pub holdings: Holdings,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -747,24 +753,30 @@ pub fn boolean_op_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
-    boolean_op_given(op, a, b, inputs, None, strategy, tol)
+    boolean_op_given(op, a, b, inputs, (None, None), strategy, tol)
 }
 
 /// [`boolean_op_with`], its coincidences `given` where they are a fold
 /// step's of the n-ary door ([`super::nary`]): `Some` makes those pairs
 /// the operation's only coincidences, and it decides none of its own.
+/// Where `clone_a` is `Some`, the operation puts its A clone there as its
+/// cuts left it ([`Glue::clone_a`]).
 pub(crate) fn boolean_op_given<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
     a: &AtRestBody<T>,
     b: &AtRestBody<T>,
     inputs: &BooleanInputs,
-    given: Option<&[super::GluedPair<T>]>,
+    (given, clone_a): (Option<&[super::GluedPair<T>]>, Option<super::CloneSlot<T>>),
     strategy: SweepStrategy,
     tol: Tol,
 ) -> Result<BooleanResult<T>, BooleanError> {
     #[cfg(feature = "door-tier3-meter")]
     let door_from = std::time::Instant::now();
-    let result = boolean_door(op, a, b, &Glue::of(inputs, given), strategy, tol);
+    let glue = Glue {
+        clone_a,
+        ..Glue::of(inputs, given)
+    };
+    let result = boolean_door(op, a, b, &glue, strategy, tol);
     #[cfg(feature = "door-tier3-meter")]
     super::door_meter::record(op, &result, door_from.elapsed(), [a.outcome(), b.outcome()]);
     if let Ok(BooleanResult::Body(out)) = &result {
@@ -1192,7 +1204,9 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         edge_joins,
         killed_lineage,
     };
+    decls.keep_clone_a(|| fin.clone_a);
     Ok(BooleanResult::Body(BooleanBody {
+        holdings: Holdings::of_records(&naming, &body),
         body,
         kind: BooleanResultKind::Seamed,
         contacts,
@@ -7843,7 +7857,9 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 discards,
                 ..BooleanNaming::default()
             };
+            decls.keep_clone_a(|| red.a.clone());
             Ok(BooleanResult::Body(BooleanBody {
+                holdings: Holdings::of_records(&naming, &body),
                 body,
                 kind,
                 contacts,
@@ -8182,7 +8198,9 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             ..BooleanNaming::default()
         },
     };
+    decls.keep_clone_a(|| red.a.clone());
     Ok(BooleanResult::Body(BooleanBody {
+        holdings: Holdings::of_records(&naming, &body),
         body,
         kind,
         contacts,

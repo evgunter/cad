@@ -9,6 +9,13 @@
 //! own; it carries the accumulation's records and the joining member's.
 //! Two members are one pair: their one step is the judgement.
 //!
+//! Each step publishes its [`Holdings`] in member faces: exactly the
+//! member faces whose area each face of the accumulation holds, and each
+//! discarded face lost (`lift`). The lineage only routes the verdicts,
+//! where a superset is harmless; what a face holds is read from the
+//! records and, where a piece's source face holds several member faces,
+//! from the piece's own region ([`super::overlap`]).
+//!
 //! Where the operation stops, at a refusal or an intersect's empty
 //! result, the door returns what it built up to there
 //! ([`NaryRun::end`]), so a caller that reads each judgement and step in
@@ -19,9 +26,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use geom_core::{Bounds, Decide, Real, Tol};
+use geom_core::{Band, Bounds, Decide, Real, Tol};
 
+use super::holdings::{Held, HeldRefusal, Holdings};
 use super::ops::boolean_op_given;
+use super::overlap::{OverlapRefusal, overlap};
 use super::{
     BooleanBody, BooleanError, BooleanInputs, BooleanNaming, BooleanOp, BooleanResult, GlueVerdict,
     GluedPair, Operand, OperandRecords, SweepStrategy,
@@ -120,6 +129,10 @@ pub type MemberFace = (usize, FaceKey);
 /// read off each step's naming, never off a name: a piece of a face
 /// descends from what the face does, a merged face from what each face
 /// it absorbed does, and a face of the joining member from that face.
+///
+/// It routes the judgements' verdicts to the steps, where a superset is
+/// harmless; it lists member faces a piece holds no area of, and grows
+/// along the fold. What a face holds is its [`Holdings`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MemberLineage {
     faces: BTreeMap<FaceKey, BTreeSet<MemberFace>>,
@@ -295,8 +308,15 @@ pub struct NaryStep<T: Real> {
     /// the judgements whose verdicts it stands for, in judgement order:
     /// by the row's place, ascending.
     pub restated: Vec<(usize, Vec<JudgedRow>)>,
-    /// The member faces each face of [`Self::body`] descends from.
+    /// The member faces each face of [`Self::body`] descends from: the
+    /// verdicts' router, read by the naming layer until it reads
+    /// [`Self::holdings`].
+    #[doc(hidden)]
     pub lineage: MemberLineage,
+    /// Per face of [`Self::body`], and per discard row of its naming,
+    /// exactly the member faces whose area it holds, or why that could
+    /// not be read (module docs).
+    pub holdings: Holdings,
 }
 
 impl<T: Real> NaryStep<T> {
@@ -590,7 +610,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
                 members[a].body,
                 members[b].body,
                 &BooleanInputs::default(),
-                None,
+                (None, None),
                 sweep,
                 tol,
             )
@@ -618,6 +638,7 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
         }
     }
     let mut lineage = MemberLineage::of_member(0, members[0].body);
+    let mut holdings = Holdings::of_member(0, members[0].body);
     let mut records_a = members[0].inputs.records.clone();
     for member in 1..members.len() {
         let acc = steps.last().map_or(members[0].body, |s| &s.body.body);
@@ -630,12 +651,13 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             records_a,
             records_b: members[member].inputs.records.clone(),
         };
+        let clone_a = super::CloneSlot::default();
         let stepped = boolean_op_given(
             op.op(),
             acc,
             members[member].body,
             &inputs,
-            given.as_deref(),
+            (given.as_deref(), Some(clone_a.clone())),
             sweep,
             tol,
         )
@@ -655,15 +677,116 @@ fn run_members<T: Decide + Bounds + AtRestPolicy>(
             None => Vec::new(),
         };
         lineage = lineage.step(member, &body.naming, &body.body);
+        let clone_a = clone_a
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        let band = Band::linear(tol).unwrap_or_else(|e| {
+            unreachable!("the fold step joining member {member} built at a band it cannot read: {e}")
+        });
+        holdings = lift(&holdings, member, &body, clone_a.as_ref(), members, band);
         records_a = body.contacts.carried();
         steps.push(NaryStep {
             member,
             body,
             restated,
             lineage: lineage.clone(),
+            holdings: holdings.clone(),
         });
     }
     Ok(())
+}
+
+/// **The holdings of the step joining member `member`**, in member faces:
+/// `step`'s own, in its operand faces ([`BooleanBody::holdings`]), read
+/// through `prev`, the accumulation's. A face of the joining member holds
+/// that face; an accumulation face holds what `prev` says it does where
+/// that is one member face, and otherwise those of them the region in
+/// question meets in area ([`overlap`]): the finished face's own, or a
+/// discarded face's in `clone_a`, the step's A clone before its discards.
+/// A refusal in `prev` carries to every face read through it.
+///
+/// # Panics
+///
+/// Where an operand-A face the step's records name has no holdings in
+/// `prev`: every face of every accumulation the door builds has them.
+fn lift<T: Decide>(
+    prev: &Holdings,
+    member: usize,
+    step: &BooleanBody<T>,
+    clone_a: Option<&Body<T>>,
+    members: &[NaryMember<'_, T>],
+    band: Band,
+) -> Holdings {
+    let read = |held: &Held, region: Option<(&Body<T>, FaceKey)>| -> Held {
+        let Held::Faces(operand_faces) = held else {
+            return held.clone();
+        };
+        let mut exact = BTreeSet::new();
+        let mut maybe = BTreeSet::new();
+        for &(place, f) in operand_faces {
+            if place == 1 {
+                exact.insert((member, f));
+                continue;
+            }
+            match prev.of(f) {
+                Some(Held::Faces(h)) if h.len() == 1 => exact.extend(h.iter().copied()),
+                Some(Held::Faces(h)) => maybe.extend(h.iter().copied()),
+                Some(refused @ Held::Refused(_)) => return refused.clone(),
+                None => unreachable!(
+                    "the fold step joining member {member} names accumulation face {f:?}, which \
+                     has no holdings, though the door reads them for every face of every \
+                     accumulation it builds"
+                ),
+            }
+        }
+        for m in maybe {
+            if exact.contains(&m) {
+                continue;
+            }
+            let refused = |refusal| {
+                Held::Refused(HeldRefusal {
+                    member_face: m,
+                    refusal,
+                })
+            };
+            let Some(region) = region else {
+                return refused(OverlapRefusal::Unread {
+                    what: "a discarded face whose region the step did not keep",
+                });
+            };
+            match overlap(region, (members[m.0].body, m.1), band) {
+                Ok(true) => {
+                    exact.insert(m);
+                }
+                Ok(false) => {}
+                Err(refusal) => return refused(refusal),
+            }
+        }
+        Held::Faces(exact)
+    };
+    let result: &Body<T> = &step.body;
+    let faces = step
+        .holdings
+        .faces()
+        .map(|(f, held)| (f, read(held, Some((result, f)))))
+        .collect();
+    let lost = step
+        .naming
+        .discards
+        .iter()
+        .zip(step.holdings.lost_rows())
+        .map(|(row, held)| {
+            let region = match row.operand {
+                Operand::A => clone_a
+                    .filter(|a| a.get_face(row.face).is_some())
+                    .or_else(|| result.get_face(row.face).map(|_| result)),
+                Operand::B => None,
+            };
+            read(held, region.map(|body| (body, row.face)))
+        })
+        .collect();
+    Holdings::from_parts(faces, lost)
 }
 
 /// **The member pairs judged, as (operand A, operand B), in the order

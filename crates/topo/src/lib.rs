@@ -1260,7 +1260,10 @@ pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
 pub(crate) mod vertex_section;
 
 pub use body::Body;
+#[doc(hidden)]
+pub use boolean::MemberLineage;
 pub use boolean::{
+    Held, HeldRefusal, Holdings, OverlapRefusal, overlap,
     AimedPair, AlongFace, Apart, ArcEndGaps, BoolNullEdgeRecord, BooleanBody, BooleanDecision,
     BooleanError, BooleanErrorKind, BooleanInputs, BooleanJoin, BooleanMerge, BooleanNaming,
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
@@ -1270,7 +1273,7 @@ pub use boolean::{
     EdgeInBand, EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment,
     FaceDescent, FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading,
     JoinRefusal, JoinUndecided, JudgedRow, LeverArm, LineUnread, LineWedgeFault, MemberFace,
-    MemberInputs, MemberLineage, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
+    MemberInputs, NaryEnd, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryRun,
     NaryStep, NodeWhy, NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace,
     PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow, SectionUnbuilt,

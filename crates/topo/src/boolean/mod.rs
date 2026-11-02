@@ -102,6 +102,7 @@ mod fate;
 mod finish;
 mod fragments;
 mod glue;
+mod holdings;
 #[cfg(test)]
 mod glued_pair_rows;
 pub(crate) mod insert;
@@ -109,6 +110,7 @@ mod join;
 mod nary;
 mod node;
 mod ops;
+mod overlap;
 pub(crate) use ops::{AtRestRefusal, at_rest_refusal};
 pub(crate) use ops::{GluedSurfacePair, GluedSurfaces};
 pub(crate) mod section_cert;
@@ -200,10 +202,14 @@ pub use edge_join::{
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
 };
 pub use join::CompletedPolygonPair;
+pub use holdings::{Held, HeldRefusal, Holdings};
+#[doc(hidden)]
+pub use nary::MemberLineage;
 pub use nary::{
-    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, MemberLineage, NaryEnd, NaryJudgement,
-    NaryMember, NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
+    Apart, FaceDescent, JudgedRow, MemberFace, MemberInputs, NaryEnd, NaryJudgement, NaryMember,
+    NaryOp, NaryRefusal, NaryRun, NaryStep, nary_boolean, nary_boolean_apart,
 };
+pub use overlap::{OverlapRefusal, overlap};
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, Recharts,
     SettleError, Settler, boolean_op_with, intersect, subtract, union,
@@ -1166,7 +1172,15 @@ pub(crate) struct Glue<T: Real> {
     /// The pairs the glue door read in band and left unglued, each with
     /// the reading it could not decide ([`InBandPair`]).
     pub(crate) in_band: Vec<InBandPair>,
+    /// Where the caller asks for it (a fold step of [`nary`]), the A
+    /// clone as the operation's cuts left it, before any discard: the
+    /// operation puts it here, so the caller can read a discarded
+    /// fragment's region. Clones of the glue share the one slot.
+    pub(crate) clone_a: Option<CloneSlot<T>>,
 }
+
+/// Where an operation puts its A clone for its caller ([`Glue::clone_a`]).
+pub(crate) type CloneSlot<T> = std::sync::Arc<std::sync::Mutex<Option<Body<T>>>>;
 
 /// **A pair the glue door read in band** over both faces and left
 /// unglued: its faces and what the carrier ladder could not decide
@@ -1209,6 +1223,7 @@ impl<T: Real> Glue<T> {
             records_b: OperandRecords::default(),
             verdicts: Verdicts::Decided,
             in_band: Vec::new(),
+            clone_a: None,
         }
     }
 
@@ -1229,6 +1244,16 @@ impl<T: Real> Glue<T> {
             records_b: records_b.clone(),
             verdicts,
             in_band: Vec::new(),
+            clone_a: None,
+        }
+    }
+
+    /// Puts the A clone `a` where the caller asked for it, if it did
+    /// ([`Self::clone_a`]).
+    pub(crate) fn keep_clone_a(&self, a: impl FnOnce() -> Body<T>) {
+        if let Some(slot) = &self.clone_a {
+            let mut held = slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            *held = Some(a());
         }
     }
 }
