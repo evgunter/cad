@@ -3850,14 +3850,11 @@ impl EditError {
                     f,
                     "the pose defined at {slot} is not one a document stores: {fault}"
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "read a frame through its axes, origin or planes, a plane through its \
-                         normal, or an axis through its direction, where the read admits that \
-                         kind; slide along a direction or an axis, and spin about an axis"
-                    ),
-                )
+                let kinds = "read a frame through its axes, origin or planes, a plane through its \
+                             normal, or an axis through its direction, where the read admits \
+                             that kind; slide along a direction or an axis, and spin about an \
+                             axis";
+                tail.recourse(f, format_args!("{}", fault.own_recourse().unwrap_or(kinds)))
             }
             Self::SelectionNameKind {
                 node,
