@@ -47,6 +47,15 @@ impl<S: Scalar> Operand<S> for Body<S> {
     }
 }
 
+/// A box scalar's sweep leaf, tier 2 alone (`AtRestPolicy::leaf`),
+/// finished where a Boolean takes it.
+impl<S: Scalar> Operand<S> for pncad::topo::Replay<S> {
+    fn finished(self, what: &str, tol: Tol) -> AtRestBody<S> {
+        pncad::topo::finish(self.into_body(), tol)
+            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e}"))
+    }
+}
+
 impl<S: Scalar> Operand<S> for AtRestBody<S> {
     fn finished(self, _what: &str, _tol: Tol) -> AtRestBody<S> {
         self

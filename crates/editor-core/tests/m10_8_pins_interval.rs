@@ -140,13 +140,6 @@ fn a0_alone() -> SymRules {
 /// profile's four corner pairs, which share a vertex: 8 numeric
 /// decisions fewer per replay in both tiers, 1668 → 1612 and
 /// 1612 → 1556.
-///
-/// **ONEHOME**: the slab's extrude finishes its own result at the box
-/// scalar, and the finish's tier-3 battery decides in every replay:
-/// plain 2898/1612/0 → 12642/8573/36 (symbolic/numeric/frozen),
-/// shipped 2954/1556/0 → 12762/8453/36. The 36 frozen are the
-/// battery's own forms neither tier decides; A0's yield is still the
-/// shipped tier's whole difference, 120 now.
 #[test]
 fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     use crate::m10_3_driver_interval::slab;
@@ -176,13 +169,13 @@ fn m10_8_the_shipped_set_is_inert_on_straight_geometry() {
     };
     assert_eq!(
         line(&plain),
-        "decisions symbolic=12642 numeric=8573 frozen=36",
+        "decisions symbolic=2898 numeric=1612 frozen=0",
         "the plain tier on straight geometry"
     );
     assert_eq!(
         line(&shipped),
-        "decisions symbolic=12762 numeric=8453 frozen=36",
-        "120 of the 8573 numeric refusals are comparisons of two rational CONSTANTS, which \
+        "decisions symbolic=2954 numeric=1556 frozen=0",
+        "56 of the 1612 numeric refusals are comparisons of two rational CONSTANTS, which \
          A0 decides exactly"
     );
     assert_eq!(

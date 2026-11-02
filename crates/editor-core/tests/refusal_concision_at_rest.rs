@@ -20,6 +20,8 @@
 //!
 //! **The wrappers rendered.** A could-not-look finding's evidence, an
 //! operation's finish refusing its own result (`NodeErrorKind::NotFinished`),
+//! a consumer's finish refusing a box scalar's sweep leaf
+//! (`NodeErrorKind::UnfinishedLeaf`),
 //! and the product gate's refusal, alone and as the registry's refusal.
 //!
 //! **What a row here cannot see.** A refusal listing several findings
@@ -103,7 +105,14 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
         ("at rest", format!("at rest: {at_rest}")),
         (
             "finish",
-            NodeErrorKind::NotFinished { findings }.to_string(),
+            NodeErrorKind::NotFinished {
+                findings: findings.clone(),
+            }
+            .to_string(),
+        ),
+        (
+            "leaf",
+            NodeErrorKind::UnfinishedLeaf { findings }.to_string(),
         ),
         ("product", product.to_string()),
         (
@@ -150,7 +159,7 @@ fn every_at_rest_finding_renders_to_the_standard() {
             // One finding line, under a header where the wrapper writes
             // one: a line break inside a finding (a `\` continuation left
             // inside a literal) would split it across the list.
-            let lines = if matches!(route, "at rest" | "finish") {
+            let lines = if matches!(route, "at rest" | "finish" | "leaf") {
                 1
             } else {
                 2

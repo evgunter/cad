@@ -1949,7 +1949,18 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds + AtRestP
         };
         for (output_ix, body, _contacts, _rows) in sources {
             unconsumed.remove(&(placement, output_ix));
-            match classify_shells(body.finished(), tol) {
+            // A box scalar's sweep leaf is finished here, the shell door
+            // taking a finished body (`topo::AtRestPolicy::leaf`, the
+            // switch); one that does not finish is the product's refusal,
+            // as the gather's own finish of the aggregate would be. At
+            // `f64` and `Probe` the leaf is the finished body.
+            let finished = body.finished(tol).map_err(|kind| match kind {
+                crate::eval::NodeErrorKind::UnfinishedLeaf { findings } => ChecksError::Product {
+                    refusal: Some(product::ProductError::ProductInvalid { findings }.into()),
+                },
+                other => unreachable!("a held leaf's finish refuses only as a leaf: {other:?}"),
+            })?;
+            match classify_shells(&*finished, tol) {
                 Ok(classes) => {
                     let outer = classes
                         .iter()

@@ -119,7 +119,7 @@ fn a_prism<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>(
     )
     .expect("extrude A")
     .body;
-    finished("the A prism", a, Tol::witness())
+    topo::finish_leaf::<T>(a, Tol::witness()).expect("the A prism is a finished body")
 }
 
 /// The Z prism: profile in (u, v) = (y, z) — bars z ∈ [0, 0.4375] and
@@ -154,7 +154,7 @@ fn z_prism<T: Decide + topo::AtRestPolicy<Finished = topo::AtRestBody<T>>>() -> 
     )
     .expect("extrude Z")
     .body;
-    finished("the Z prism", z, Tol::witness())
+    topo::finish_leaf::<T>(z, Tol::witness()).expect("the Z prism is a finished body")
 }
 
 /// Tiers 1/2/3′ + exact-oracle volume (1e-12: the oracles are exact

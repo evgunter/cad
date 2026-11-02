@@ -770,7 +770,7 @@ test_utils::f6_variants! {
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Trace, Extrude, Revolve, Tube, Split, ContactCarry, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
-        NotFinished, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
+        NotFinished, UnfinishedLeaf, EmptyHalf, MemberOutOfRange, MemberRefused, IndicesUnrelated,
         IndexCount, IndexCountOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
@@ -1211,7 +1211,7 @@ fn forward(kind: &NodeErrorKind) -> Forward {
             welded(levels)
         }
         NodeErrorKind::Boolean(_) => Forward::Unwelded(UNWELDED_BOOLEAN),
-        NodeErrorKind::NotFinished { .. } => {
+        NodeErrorKind::NotFinished { .. } | NodeErrorKind::UnfinishedLeaf { .. } => {
             Forward::RenderedIn("crates/editor-core/tests/refusal_concision_at_rest.rs")
         }
         NodeErrorKind::PoseRead { .. }

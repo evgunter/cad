@@ -14,9 +14,16 @@
 //! The refusal is [`NotFinished`]: every finding the gate made, none
 //! folded into another, each read through its family's one text and
 //! recourse ([`FindingFamily`]).
+//!
+//! A sweep door's result is the scalar's **leaf**
+//! ([`AtRestPolicy::Leaf`], [`LeafBody`]): its finished body wherever
+//! the switch at [`AtRestPolicy::leaf`] finishes it, and a [`Replay`]
+//! (tier 2 alone) at the box scalars, where a consumer that takes a
+//! finished body finishes it ([`LeafBody::finished_arc`]).
 
 use core::fmt;
 use core::ops::Deref;
+use std::sync::Arc;
 
 use geom_core::{Real, Tol};
 
@@ -50,10 +57,15 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for AtRestBody<T> {
     }
 }
 
-/// **A dual's finished body**: a replay that passed tier 2 alone
-/// ([`crate::validate_closed`]). It carries no verdict, so no door
-/// that reads one accepts it; the base-scalar evaluation it replays is
-/// the validation of record (DUAL-DESIGN DL3).
+/// **A body that passed tier 2 alone** ([`crate::validate_closed`]),
+/// and carries no verdict.
+///
+/// At a dual it is the finished body: the base-scalar evaluation it
+/// replays is the validation of record (DUAL-DESIGN DL3). At the box
+/// scalars (`Interval`, `Sym`) it is a sweep door's leaf, not a
+/// finished body ([`AtRestPolicy::leaf`]): no door that takes a
+/// finished body accepts it, and the consumer that needs one finishes
+/// it ([`LeafBody::finished_arc`]).
 #[derive(Clone, Debug)]
 pub struct Replay<T: Real> {
     body: Body<T>,
@@ -91,6 +103,105 @@ impl<T: AtRestPolicy<Finished = Self>> FinishedBody for Replay<T> {
     fn into_body(self) -> Body<T> {
         Replay::into_body(self)
     }
+}
+
+/// **What every scalar's leaf is** ([`AtRestPolicy::Leaf`]): a sweep
+/// door's result, read through [`Deref`] like a finished body, which a
+/// consumer that takes a finished body finishes
+/// ([`LeafBody::finished_arc`]). Where the leaf is the finished body
+/// that is the same `Arc`; where it is a [`Replay`] it is tier 3, run
+/// there.
+pub trait LeafBody:
+    Deref<Target = Body<Self::Scalar>> + Clone + fmt::Debug + Send + Sync + 'static
+{
+    /// The scalar this is the leaf of.
+    type Scalar: AtRestPolicy<Leaf = Self>;
+
+    /// The body, construction state again.
+    #[must_use]
+    fn into_body(self) -> Body<Self::Scalar>;
+
+    /// **The leaf, finished**: the same `Arc` where the leaf is the
+    /// finished body; [`AtRestPolicy::finish`] over the body where it
+    /// is not.
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`]: the finish's findings.
+    fn finished_arc(
+        leaf: &Arc<Self>,
+        tol: Tol,
+    ) -> Result<Arc<<Self::Scalar as AtRestPolicy>::Finished>, NotFinished>;
+
+    /// **The leaf, finished, by value**: itself where the leaf is the
+    /// finished body; [`AtRestPolicy::finish`] over the body where it
+    /// is not.
+    ///
+    /// # Errors
+    ///
+    /// [`NotFinished`]: the finish's findings.
+    fn into_finished(
+        self,
+        tol: Tol,
+    ) -> Result<<Self::Scalar as AtRestPolicy>::Finished, NotFinished>;
+
+    /// **A finished body held as a leaf**: the same `Arc` where the leaf
+    /// is the finished body; its body under tier 2's [`Replay`], which a
+    /// finished body passed, where it is not. The verdict is not kept:
+    /// the next consumer that takes a finished body finishes it again.
+    fn of_finished(finished: Arc<<Self::Scalar as AtRestPolicy>::Finished>) -> Arc<Self>;
+}
+
+impl<T: AtRestPolicy<Finished = Self, Leaf = Self>> LeafBody for AtRestBody<T> {
+    type Scalar = T;
+
+    fn into_body(self) -> Body<T> {
+        AtRestBody::into_body(self)
+    }
+
+    fn finished_arc(leaf: &Arc<Self>, _tol: Tol) -> Result<Arc<Self>, NotFinished> {
+        Ok(Arc::clone(leaf))
+    }
+
+    fn into_finished(self, _tol: Tol) -> Result<Self, NotFinished> {
+        Ok(self)
+    }
+
+    fn of_finished(finished: Arc<Self>) -> Arc<Self> {
+        finished
+    }
+}
+
+impl<T: AtRestPolicy<Leaf = Self>> LeafBody for Replay<T> {
+    type Scalar = T;
+
+    fn into_body(self) -> Body<T> {
+        Replay::into_body(self)
+    }
+
+    fn finished_arc(leaf: &Arc<Self>, tol: Tol) -> Result<Arc<T::Finished>, NotFinished> {
+        T::finish(leaf.body.clone(), tol).map(Arc::new)
+    }
+
+    fn into_finished(self, tol: Tol) -> Result<T::Finished, NotFinished> {
+        T::finish(self.body, tol)
+    }
+
+    fn of_finished(finished: Arc<T::Finished>) -> Arc<Self> {
+        let body = Arc::unwrap_or_clone(finished).into_body();
+        Arc::new(Self { body })
+    }
+}
+
+/// **A sweep door's leaf, finished** ([`LeafBody::into_finished`]): the
+/// spelling a consumer of a sweep door's result names where it takes a
+/// finished body.
+///
+/// # Errors
+///
+/// [`NotFinished`]: the finish's findings, at the box scalars.
+pub fn finish_leaf<T: AtRestPolicy>(leaf: T::Leaf, tol: Tol) -> Result<T::Finished, NotFinished> {
+    LeafBody::into_finished(leaf, tol)
 }
 
 /// **`body` finished at its scalar** ([`AtRestPolicy::finish`]), the

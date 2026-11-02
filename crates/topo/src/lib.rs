@@ -694,11 +694,19 @@ pub mod test_support {
         }
     }
 
-    impl<T: crate::AtRestPolicy<Finished = Self>> Finishing for crate::Replay<T> {
+    /// A replay is a dual's finished body and a box scalar's sweep leaf
+    /// ([`crate::AtRestPolicy::leaf`]): finished through its scalar's
+    /// finish, which at a dual is tier 2 again.
+    impl<T: crate::AtRestPolicy> Finishing for crate::Replay<T> {
         type Scalar = T;
 
-        fn finished(self, _what: &str, _tol: geom_core::Tol) -> Self {
-            self
+        #[allow(clippy::panic)]
+        #[track_caller]
+        fn finished(self, what: &str, tol: geom_core::Tol) -> T::Finished {
+            match T::finish(self.into_body(), tol) {
+                Ok(body) => body,
+                Err(e) => panic!("{what} is not a finished body: {e:?}"),
+            }
         }
     }
 
@@ -1417,7 +1425,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
-pub use finish::{FindingFamily, FinishedBody, NotFinished, Replay, finish};
+pub use finish::{FindingFamily, FinishedBody, LeafBody, NotFinished, Replay, finish, finish_leaf};
 pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{

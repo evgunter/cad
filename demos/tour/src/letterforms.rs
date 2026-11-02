@@ -25,6 +25,7 @@
 use pncad::profile::SketchPlane;
 use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, extrude};
+use pncad::topo::LeafBody as _;
 use pncad::topo::{AtRestBody, Body, BooleanBody};
 
 use crate::booleans::{check, expect_seamed, finished, try_intersect};

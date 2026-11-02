@@ -23,7 +23,7 @@ use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::ExtrudeSide;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::FinishedBody as _;
+use topo::LeafBody as _;
 use topo::construction::Construct;
 use topo::{Body, SplitPart, split};
 
@@ -90,7 +90,12 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         ),
         geom_core::Tol::witness(),
     );
-    let res = split(&cyl, &plane, tol).unwrap();
+    let res = split(
+        &topo::finish_leaf::<T>(cyl.clone(), tol).expect("the cylinder is a finished body"),
+        &plane,
+        tol,
+    )
+    .unwrap();
     if let SplitPart::Body(above) = &res.above {
         out.push(("cut_cylinder_above".into(), topo::Body::clone(above)));
     }

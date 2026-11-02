@@ -582,7 +582,10 @@ assert_eq!(lightened.kind, BooleanResultKind::Seamed);
 
 `union` and `subtract` take finished bodies (`AtRestBody`): every door
 finishes its own result once (the at-rest gate, tier 3), so a sweep's
-body and a boolean's result go straight into the next operation. They return a `BooleanResult`, which is `Empty` or
+body and a boolean's result go straight into the next operation. (At
+the box scalars, `Interval` and `Sym`, a sweep's result is tier 2 alone,
+`AtRestPolicy::leaf`, and `topo::finish_leaf` finishes it for the next
+operation.) They return a `BooleanResult`, which is `Empty` or
 a `BooleanBody`. That is the first fail-loud habit to build: an empty
 result is a *value*, not an error and not a crash, and you say what
 you expect. The `kind` field records how the result came to be —

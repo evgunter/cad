@@ -26,7 +26,7 @@ use geom_core::{Affine3, Bounds, Decide, Interval, Point2, Real, Tol, Vec2, Vec3
 use profile::test_support::bulge_loop;
 use profile::{Profile, SketchPlane};
 use sweep::{Revolution, RevolveAxis};
-use topo::FinishedBody as _;
+use topo::LeafBody as _;
 use topo::construction::Construct;
 use topo::{AtRestPolicy, Body, CurveGeom, EdgeKey, EulerOpError, ValidationError};
 

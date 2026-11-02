@@ -25,7 +25,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::time::Instant;
-use topo::FinishedBody as _;
+use topo::LeafBody as _;
 
 use geom_core::k_stats::Bracket;
 use geom_core::{Decide, Interval, Point2, Point3, Sign, Sym, Tol, Vec2};

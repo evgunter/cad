@@ -398,10 +398,10 @@ pub struct ProfileValue<T: geom_core::Real> {
 impl<T: topo::AtRestPolicy + geom_core::Decide> ProfileValue<T> {
     /// **A body swept from this profile**, built in the profile's own
     /// coordinates: in the frame the profile is drawn on, or its own.
-    pub(crate) fn framed(&self, body: std::sync::Arc<T::Finished>) -> super::Framed<T> {
+    pub(crate) fn framed(&self, body: std::sync::Arc<T::Leaf>) -> super::Framed<T> {
         match &self.frame {
-            Some(frame) => super::Framed::in_frame(body, frame.clone()),
-            None => super::Framed::own(body),
+            Some(frame) => super::Framed::in_frame_leaf(body, frame.clone()),
+            None => super::Framed::own_leaf(body),
         }
     }
 }

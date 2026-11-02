@@ -129,8 +129,10 @@ pub trait Scalar:
     Decide
     + pncad::geom_core::CertifiedBounds
     + ContentBits
-    + pncad::topo::AtRestPolicy<Finished = pncad::topo::AtRestBody<Self>>
-    + Send
+    + pncad::topo::AtRestPolicy<
+        Finished = pncad::topo::AtRestBody<Self>,
+        Leaf: crate::booleans::Operand<Self>,
+    > + Send
     + Sync
     + Copy
     + 'static

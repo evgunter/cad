@@ -59,8 +59,9 @@ use crate::node::RecipeNodeId;
 /// **What a sweep produced, read out of its record**: the body and the
 /// names emitted from the birth record.
 pub(crate) struct SweptOut<T: topo::AtRestPolicy> {
-    /// The swept body, moved out of the record.
-    pub(crate) body: T::Finished,
+    /// The swept body, moved out of the record: the door's leaf
+    /// ([`topo::AtRestPolicy::leaf`]).
+    pub(crate) body: T::Leaf,
     /// The names, emitted before the record was taken apart.
     pub(crate) table: Arc<NameTable>,
 }

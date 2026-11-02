@@ -208,7 +208,7 @@ pub fn body_in_space<T: geom_core::Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<std::sync::Arc<T::Finished>, ComposeError> {
     match editor_core::in_space(body) {
-        None => Ok(std::sync::Arc::clone(body.shared())),
+        None => body.finished_body(tol).map_err(ComposeError::NotFinished),
         Some(map) => {
             let mapped =
                 topo::transform_rigid(body.body(), &map, tol).map_err(ComposeError::Transform)?;

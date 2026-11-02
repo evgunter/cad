@@ -492,27 +492,35 @@ mod certified {
                     );
                     continue;
                 }
-                // At Interval, tier 3 cannot decide the full-period
-                // major-1300 thin wall's orientation, so the door's own
-                // finish refuses it (`OrientationUndecided`): the one
-                // case this row records, and no body to measure.
-                Err(TubeError::Revolve(sweep::RevolveError::NotFinished { findings }))
-                    if major == 1300.0
-                        && window.is_none()
-                        && findings.iter().all(|e| {
-                            matches!(e, topo::ValidationError::OrientationUndecided { .. })
-                        }) =>
-                {
-                    continue;
-                }
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
-            let m = topo::mass_properties(
-                &t.body,
-                Tol::witness(),
-                topo::test_support::pinned_resolution(Tol::witness()),
-            )
-            .expect("props");
+            // The revolve's leaf at Interval is tier 2 alone
+            // (`topo::AtRestPolicy::leaf`); the measurement finishes it.
+            let m = match topo::finish(topo::Body::clone(&t.body), Tol::witness()) {
+                Ok(finished) => topo::mass_properties(
+                    &finished,
+                    Tol::witness(),
+                    topo::test_support::pinned_resolution(Tol::witness()),
+                )
+                .expect("props"),
+                Err(errors) => {
+                    assert!(
+                        major == 1300.0
+                            && window.is_none()
+                            && errors.iter().all(|e| {
+                                matches!(e, topo::ValidationError::OrientationUndecided { .. })
+                            }),
+                        "R={major} win={window:?}: tier 3 refuses the tube at Interval outside the case this row records: {errors:?}"
+                    );
+                    // Raw door: at Interval, tier 3 cannot decide the full-period major-1300 thin wall's orientation (OrientationUndecided), the one case the assert above admits.
+                    topo::test_support::measure_unvalidated(
+                        &t.body,
+                        Tol::witness(),
+                        topo::test_support::pinned_resolution(Tol::witness()),
+                    )
+                    .expect("props")
+                }
+            };
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
             let v = match window {

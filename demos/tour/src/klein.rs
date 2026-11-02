@@ -227,6 +227,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use pncad::topo::LeafBody as _;
 
 use pncad::authoring::{p2, v2, validated};
 use pncad::geom::NurbsCurve3;

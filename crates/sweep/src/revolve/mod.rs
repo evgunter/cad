@@ -201,9 +201,10 @@ pub enum Revolution<T: Real> {
 /// (partial: fixed point; full: pole/apex) — and a station inside a
 /// run has none either.
 #[derive(Debug)]
-pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Finished> {
-    /// The built body, finished at the door
-    /// ([`topo::AtRestPolicy::finish`]); construction state (`Body<T>`)
+pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
+    /// The built body, the door's leaf ([`topo::AtRestPolicy::leaf`]:
+    /// finished at `f64` and `Probe`, tier 2 alone at the box scalars);
+    /// construction state (`Body<T>`)
     /// inside the builders. A declared cusp joint (`.cusp()`) sweeps a
     /// latitude rim at material wedge 0 (2π on a hole loop), which tier
     /// 3 holds legal because its tangency is jet-determinate.
@@ -254,7 +255,8 @@ pub struct Revolved<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Finish
 }
 
 impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
-    /// The built body finished at its scalar, every key kept.
+    /// The built body as its scalar's leaf ([`topo::AtRestPolicy::leaf`]),
+    /// every key kept.
     pub(crate) fn finished(self, tol: Tol) -> Result<Revolved<T>, topo::NotFinished> {
         let Self {
             body,
@@ -268,7 +270,7 @@ impl<T: topo::AtRestPolicy> Revolved<T, Body<T>> {
             scalar,
         } = self;
         Ok(Revolved {
-            body: T::finish(body, tol)?,
+            body: T::leaf(body, tol)?,
             solid,
             shell,
             cavities,

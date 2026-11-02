@@ -914,6 +914,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::SelectResolve => "select_resolve",
         C::EmptyOperand => "empty_operand",
         C::NotFinished => "not_finished",
+        C::UnfinishedLeaf => "unfinished_leaf",
         C::DegenerateDirection => "degenerate_direction",
         C::NonFiniteDirection => "non_finite_direction",
         C::UnderflowedDirection => "underflowed_direction",
@@ -1055,6 +1056,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::SelectResolve { error, .. } => Some(resolve_error_tag(error)),
         NodeErrorKind::EmptyOperand { .. } => None,
         NodeErrorKind::NotFinished { .. } => None,
+        NodeErrorKind::UnfinishedLeaf { .. } => None,
         // `half` is WHICH side was empty, a value the caller asked
         // for — the payload question, not the fault one.
         NodeErrorKind::EmptyHalf { .. } => None,

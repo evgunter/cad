@@ -44,6 +44,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;
+use topo::LeafBody as _;
 
 use geom::{NurbsCurve3, Surface};
 use geom_core::k_stats::decide;
@@ -1264,7 +1265,11 @@ fn a_filleted_drum_certifies_across_its_fillet() {
     fn filleted<T: Scalar>() -> Body<T> {
         use sweep::blend::fillet_edges;
 
-        let drum = extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body;
+        let drum = topo::finish_leaf::<T>(
+            extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body,
+            tol(),
+        )
+        .expect("the drum is a finished body");
         let rim: Vec<topo::EdgeKey> = drum
             .edges()
             .filter(|(_, e)| {
@@ -1408,7 +1413,11 @@ fn oblique_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::PI;
     use geom_core::{Affine3, Vec3};
 
-    let drum = extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body;
+    let drum = topo::finish_leaf::<T>(
+        extrude(&disc::<T>(), to_offset(2.0), tol()).unwrap().body,
+        tol(),
+    )
+    .expect("the drum is a finished body");
     let tilt = Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 1.0), Vec3::unit_y(), PI / 7.0);
     built(topo::subtract(&drum, &moved(&slab(1.0), &tilt), tol()))
 }
@@ -1826,7 +1835,6 @@ fn the_klein_elbows_cavity_holds_across_its_spiric_caps() {
 fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::FRAC_PI_2;
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
     let (c, s) = (0.5 * 0.3f64.cos(), 0.5 * 0.3f64.sin());
     let lp = profile::test_support::bulge_loop(vec![
         (Point2::new(2.0 + c, s).map(T::from_f64), T::one()),
@@ -1838,7 +1846,7 @@ fn torus_cut_off_its_axis<T: Scalar>() -> topo::AtRestBody<T> {
     let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let ring = finished("the torus", ring, tol());
+    let ring = topo::finish_leaf::<T>(ring, tol()).expect("the torus is a finished body");
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
 }
@@ -1940,7 +1948,6 @@ fn a_folded_torus_cut_reads_violated_off_its_spiric_edges() {
 fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
     use core::f64::consts::FRAC_PI_2;
     use geom_core::{Affine3, Vec3};
-    use sweep::test_support::finished;
     let phase = 0.3f64;
     let lp: ProfileLoop<T> = RawLoop::new([(
         Point2::new(2.0 + 0.5 * phase.cos(), 0.5 * phase.sin()).map(T::from_f64),
@@ -1956,7 +1963,7 @@ fn one_face_torus_cut<T: Scalar>() -> topo::AtRestBody<T> {
     let ring = revolve(&profile, axis_y(), Revolution::Full, tol())
         .unwrap()
         .body;
-    let ring = finished("the one-face torus", ring, tol());
+    let ring = topo::finish_leaf::<T>(ring, tol()).expect("the one-face torus is a finished body");
     let turn = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), FRAC_PI_2);
     built(topo::subtract(&ring, &moved(&slab(0.3), &turn), tol()))
 }

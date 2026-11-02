@@ -27,7 +27,7 @@ use geom_core::{Point2, Point3, Real, Tol, Vec3};
 use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use std::sync::Arc;
-use topo::FinishedBody as _;
+use topo::LeafBody as _;
 use topo::construction::Construct;
 use topo::construction::FaceSurface;
 use topo::{AtRestPolicy, Body, EdgeKey, FaceKey, HalfEdgeKey, Pcurve, SurfaceKey};

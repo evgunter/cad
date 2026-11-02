@@ -147,6 +147,7 @@
 
 use core::f64::consts::PI;
 use pncad::sweep::ExtrudeSide;
+use pncad::topo::LeafBody as _;
 
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,

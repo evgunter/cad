@@ -489,7 +489,8 @@ Export refuses in the same style. `ExportError` names the node and,
 when the value was the wrong shape, the kind it actually found — so
 "you asked me to export a profile" is a matchable fact rather than a
 message. The export door takes a finished body: every value already
-holds one (each operation finishes its own result), so a body the
+holds one (each operation finishes its own result; at the box scalars a
+sweep's result is finished where it is read), so a body the
 at-rest gate refuses never reaches the writer — the operation that made
 it refused instead. On the Rust side `step_export::step_string` takes a
 `topo::AtRestBody`, which only the scalar's finish constructs.

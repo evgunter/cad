@@ -1567,6 +1567,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // The input's door shipped a body that does not finish: a
         // kernel defect, and no author's slot refused.
         NodeErrorKind::NotFinished { .. } => None,
+        // A sweep door's leaf the consuming node could not finish (the
+        // box scalars' switch): no author's slot refused.
+        NodeErrorKind::UnfinishedLeaf { .. } => None,
         // Names the failing instance itself.
         NodeErrorKind::CrossingUnverified { .. } => None,
         // Names the two spaces the operands live in, as evidence: the

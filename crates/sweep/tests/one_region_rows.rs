@@ -19,7 +19,7 @@ use geom_core::{Bounds, Decide, Point2, Point3, Real, SpanLocate, Tol, Vec2, Vec
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::AtRestPolicy;
-use topo::FinishedBody as _;
+use topo::LeafBody as _;
 use topo::construction::{Construct, FaceSurface, MefSite, MevSite};
 use topo::{Body, FaceKey, LoopBoundary, ValidationError};
 

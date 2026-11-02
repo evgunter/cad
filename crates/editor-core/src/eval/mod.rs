@@ -1628,6 +1628,15 @@ pub enum NodeErrorKind {
         /// The finish's findings.
         findings: topo::NotFinished,
     },
+    /// **A sweep door's leaf that does not finish where this operation
+    /// takes a finished body**: at the box scalars a sweep door returns
+    /// tier 2 alone ([`topo::AtRestPolicy::leaf`], the switch), and the
+    /// operation that takes a finished body runs tier 3 on it. It goes
+    /// with the switch.
+    UnfinishedLeaf {
+        /// The finish's findings.
+        findings: topo::NotFinished,
+    },
     /// A read of a split's port found its half holding no
     /// material — the tool plane missed the target on that side. Its
     /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
@@ -2182,6 +2191,10 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::NotFinished { findings } => write!(
                 f,
                 "the body this operation produced is not a finished body: {findings}"
+            ),
+            Self::UnfinishedLeaf { findings } => write!(
+                f,
+                "a swept body this operation takes does not finish here: {findings}"
             ),
             Self::EmptyHalf { input, half } => write!(
                 f,

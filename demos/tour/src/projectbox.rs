@@ -19,6 +19,7 @@
 
 use core::f64::consts::{PI, TAU};
 use pncad::sweep::ExtrudeSide;
+use pncad::topo::LeafBody as _;
 
 use pncad::geom::NurbsCurve3;
 use pncad::geom_core::Point3;

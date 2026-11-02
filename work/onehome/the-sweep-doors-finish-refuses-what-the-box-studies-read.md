@@ -2,9 +2,32 @@
 id: the-sweep-doors-finish-refuses-what-the-box-studies-read
 kind: issue
 title: The sweep doors' finish refuses at the box scalars what the box studies used to read: Interval NURBS lofts, the macroscopic slab box, the derived-frame boss's plain rungs
-status: open
+status: closed
 opened: 2026-11-02
+closed: 2026-11-02
+pr: 6371
 ---
+
+**Closed by a ruling and a split** (Ev on PR 6371, 2026-11-02: "keep
+aiming for this final state, but it seems like it might be necessary to
+keep it disabled/selectively disabled for now so it doesn't break
+everything. we should prioritize making it actually work for all these
+cases, though, with the common cases as P0 (nurbs might be P1)").
+
+PR 6371 switches the sweep doors' own finish off at the box scalars
+(`topo::AtRestPolicy::leaf`), which restores main's behaviour at those
+scalars for effects 1–4 and 6 below. Each effect now has its own row:
+
+- 2, 3, 4 (the side reader over a box):
+  `the-side-reader-cannot-read-a-solids-orientation-over-a-box` (P0);
+- 6 (the cost): `tier-3-at-every-box-replay-leaf-multiplies-the-decisions` (P0);
+- 5 (the `f64` losses, not behind the switch):
+  `f64-tier-3-reads-volume-uncomputable-in-band-on-hairline-revolves` (P0);
+- 1 (NURBS quadrature):
+  `check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends` (P1);
+- the deletion of the switch: `delete-the-box-scalar-sweep-leaf-switch`.
+
+The finding as filed follows.
 
 
 Found by the ONEHOME finished-body lane (branch `onehome/finished-body`),

@@ -7011,6 +7011,43 @@ pub trait AtRestPolicy: Decide {
     /// [`crate::NotFinished`]: every finding, none folded into another.
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished>;
 
+    /// **This scalar's leaf** ([`crate::LeafBody`]): what a sweep door
+    /// (extrude, revolve, loft, sweep, fillet, chamfer) returns, and
+    /// what an evaluator holds between doors. [`Self::Finished`] at
+    /// `f64`, `Probe` and a dual; [`crate::Replay`], tier 2 alone, at
+    /// the box scalars (`Interval`, `Sym`). See [`AtRestPolicy::leaf`].
+    type Leaf: crate::LeafBody<Scalar = Self>;
+
+    /// **THE SWITCH: a sweep door's own finish** (Ev on PR 6371,
+    /// 2026-11-02: "keep aiming for this final state, but … keep it
+    /// selectively disabled for now so it doesn't break everything").
+    ///
+    /// The final state is every door finishing its own result
+    /// ([`AtRestPolicy::finish`]); at `f64`, `Probe` and a dual this is
+    /// that finish. At the box scalars it is tier 2 alone
+    /// ([`crate::Replay`]): a sweep door there does not run tier 3, and
+    /// the consumer that takes a finished body runs it
+    /// ([`crate::LeafBody::finished_arc`]): a Boolean's, a split's, a
+    /// shell's and a blend's operand, the product, an at-rest check.
+    /// That is the one exception to "doors take finished bodies; none
+    /// re-gates", and every other door and scalar keeps the full finish.
+    ///
+    /// It retires when the box scalars' tier 3 reads what the box
+    /// studies build: the rows
+    /// `work/onehome/the-side-reader-cannot-read-a-solids-orientation-over-a-box.md`,
+    /// `work/onehome/tier-3-at-every-box-replay-leaf-multiplies-the-decisions.md`
+    /// and
+    /// `work/onehome/check-7s-quadrature-refuses-interval-nurbs-walls-with-inexact-pcurve-ends.md`.
+    /// Deleting it (`work/onehome/delete-the-box-scalar-sweep-leaf-switch.md`)
+    /// is `Leaf` and `leaf` going, every `T::Leaf` read as
+    /// `T::Finished` and every `T::leaf` as `T::finish`.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::NotFinished`]: the finish's findings, or tier 2's at
+    /// the box scalars.
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished>;
+
     /// **The tier-3′ census over a finished body and its contact
     /// records**: [`crate::AtRestBody::validate_pseudomanifold`]'s
     /// findings, which pays the census alone, at the scalars with
@@ -7139,6 +7176,11 @@ impl AtRestPolicy for f64 {
 
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    }
+    type Leaf = crate::AtRestBody<Self>;
+
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish(body, tol)
     }
 
     fn census_at_rest(
@@ -7273,6 +7315,11 @@ impl AtRestPolicy for geom_core::Probe {
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
     }
+    type Leaf = crate::AtRestBody<Self>;
+
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish(body, tol)
+    }
 
     fn census_at_rest(
         body: &Self::Finished,
@@ -7400,6 +7447,12 @@ impl AtRestPolicy for geom_core::interval::Interval {
 
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    }
+    /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
+    type Leaf = crate::Replay<Self>;
+
+    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(body)
     }
 
     fn census_at_rest(
@@ -7545,6 +7598,12 @@ where
 
     fn finish(body: Body<Self>, tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::AtRestBody::validate(body, tol).map_err(crate::NotFinished::new)
+    }
+    /// The switch's box-scalar arm ([`AtRestPolicy::leaf`]).
+    type Leaf = crate::Replay<Self>;
+
+    fn leaf(body: Body<Self>, _tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        crate::Replay::of(body)
     }
 
     fn census_at_rest(
@@ -7703,6 +7762,12 @@ where
     /// body is a replay's, carrying no verdict.
     fn finish(body: Body<Self>, _tol: Tol) -> Result<Self::Finished, crate::NotFinished> {
         crate::Replay::of(body)
+    }
+
+    type Leaf = crate::Replay<Self>;
+
+    fn leaf(body: Body<Self>, tol: Tol) -> Result<Self::Leaf, crate::NotFinished> {
+        Self::finish(body, tol)
     }
 
     fn census_at_rest(

@@ -1689,7 +1689,7 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
     let table =
         names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::own(Arc::new(built.body))),
+        ValuePayload::Body(super::Framed::own_leaf(Arc::new(built.body))),
         table,
     ))
 }
@@ -1727,7 +1727,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     let table =
         names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
-        ValuePayload::Body(super::Framed::own(Arc::new(built.body))),
+        ValuePayload::Body(super::Framed::own_leaf(Arc::new(built.body))),
         table,
     ))
 }
@@ -1796,7 +1796,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     }
     // It computes in its operand's frame.
     let operand = read_body(results, target)?;
-    let body = operand.finished();
+    let body = operand.finished(tol)?;
     let size = slot_scalar(vals, verb.slots.size_slot);
     let target_value = value_of(results, target)?;
     let target_table = read_table(target_value);
@@ -1804,7 +1804,7 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let mut edges: Vec<topo::EdgeKey> = selection.ents.iter().map(|&(_, edge)| edge).collect();
     edges.sort_unstable();
     let out = (verb.build)(edges, size)
-        .run(body, tol)
+        .run(&body, tol)
         .map_err(verb_refused)?;
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
@@ -1880,7 +1880,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let (target_read, target) = (open.read, open.at);
     // It computes in its operand's frame.
     let operand = read_body(results, target)?;
-    let body = operand.finished();
+    let body = operand.finished(tol)?;
     let thickness = slot_scalar(vals, verb.slots.size_slot);
     let target_table = read_table(value_of(results, target)?);
     // Designation order: the first designated face of a chart carries
@@ -1891,7 +1891,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // rather than at an unvalidated hollow.
     let door = <T as topo::AtRestPolicy>::shell_door()
         .ok_or(NodeErrorKind::ShellLaneUnsupported { scalar: T::NAME })?;
-    let out = built.run_shell(body, tol, door).map_err(verb_refused)?;
+    let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // The operand's records ride the thin solid through the shell's
     // lineage, as the split's ride its sides ([`wire_split`]).
@@ -2635,7 +2635,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     // It computes in its operand's frame, its tool read into it.
     let operand = read_body(results, target)?;
-    let body = operand.finished();
+    let body = operand.finished(tol)?;
     let tool = &tool.read_into(operand.frame(), band(tol)?)?;
     let plane = (verb.tool)(tool).unwrap_or_else(|| {
         unreachable!(
@@ -2645,7 +2645,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         )
     });
     let built = (verb.build)(plane);
-    let out = built.run_split(body, tol).map_err(verb_refused)?;
+    let out = built.run_split(&body, tol).map_err(verb_refused)?;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     // The operand's records, as its door kept them ([`super::Carry::kept`]),
     // ride each side through the split's lineage, each citing the
@@ -2695,7 +2695,7 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         &naming,
         target,
         &target_table,
-        body,
+        &body,
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
@@ -3164,8 +3164,12 @@ impl<T: Decide + topo::AtRestPolicy> MemberRead<T> {
         computing: &super::Framed<T>,
         tol: Tol,
     ) -> Result<Member<T>, NodeErrorKind> {
+        let same_frame = computing
+            .relative(&self.framed)
+            .map_err(NodeErrorKind::Motion)?
+            .is_none();
         let read = computing.read_in(&self.framed, tol)?;
-        let framed = if Arc::ptr_eq(&read, self.framed.shared()) {
+        let framed = if same_frame {
             self.framed.clone()
         } else {
             super::Framed::in_frame(Arc::clone(&read), computing.frame().clone())

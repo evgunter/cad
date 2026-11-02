@@ -561,7 +561,7 @@ fn sym5_phase1_the_normalisation_chain_under_the_plain_form() {
 #[test]
 fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width() {
     let e = eps();
-    for w in [e / 8.0, 1.0e-6, 1.0e-3] {
+    for w in [e / 8.0, 1.0e-6, 1.0e-3, 5.0e-2] {
         let (derived, _, _) = boss_on_widened_box(w);
         let (authored, _) = boss_on_widened_authored_frame(w);
         assert!(
@@ -573,27 +573,6 @@ fn m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width(
             "half={w:e}: the authored twin must certify"
         );
     }
-    // ONEHOME: at 5e-2 the derived-frame extrude finishes its own result
-    // over the box and cannot read which side of the boss's faces its
-    // material lies on, so it refuses at its finish under the shipped
-    // rules too, where its authored twin still certifies. The
-    // regression is pinned as it stands and filed (`work/onehome/the-sweep-doors-finish-refuses-what-the-box-studies-read.md`).
-    let (derived, _, _) = boss_on_widened_box(5.0e-2);
-    let (authored, _) = boss_on_widened_authored_frame(5.0e-2);
-    let fails = sym_failures(&derived);
-    assert!(
-        fails
-            .iter()
-            .any(|f| f.contains("the extruded body is not a finished body"))
-            && fails
-                .iter()
-                .all(|f| f.contains("not a finished body") || f.contains("poisoned through")),
-        "half=5e-2: the derived-frame boss refuses at the extrude's finish: {fails:?}"
-    );
-    assert!(
-        sym_failures(&authored).is_empty(),
-        "half=5e-2: the authored twin certifies"
-    );
 }
 
 /// **The freeze population is not what refuses, with A0.** With A0's
@@ -625,32 +604,36 @@ fn m10_the_derived_frames_refusal_is_not_a_freeze() {
     let (derived, _, _) = boss_on_widened_box(5.0e-2);
     let n = SymRules::none();
 
-    // ONEHOME: the extrude finishes its own result, at the box scalar
-    // too, and at 5e-2 neither the plain tier nor A0 alone can read
-    // which side of the boss's faces its material lies on: both refuse
-    // at the extrude's finish, and the copy is poisoned through it, as the
-    // shipped rules do at this width
-    // (`m10_the_derived_frame_extrude_agrees_with_its_authored_twin_below_that_width`).
-    // The regression is pinned as it stands and filed (`work/onehome/the-sweep-doors-finish-refuses-what-the-box-studies-read.md`).
-    let at_the_finish = |fails: &[String]| {
-        fails
-            .iter()
-            .any(|f| f.contains("the extruded body is not a finished body"))
-            && fails
-                .iter()
-                .all(|f| f.contains("not a finished body") || f.contains("poisoned through"))
-    };
-    let (plain_fails, _) = sym_failures_under(&derived, n);
+    // A copy shares its source's body under its frame (D10
+    // `[placement.frame]`), so the boss is never rebuilt over the box:
+    // the plain tier reaches no start-endpoint certification of a mapped
+    // extrude and refuses nothing, freezing no form on the way.
+    let (plain_fails, plain_counts) = sym_failures_under(&derived, n);
     assert!(
-        at_the_finish(&plain_fails),
-        "the plain tier refuses at the extrude's finish: {plain_fails:?}"
+        plain_fails.is_empty(),
+        "plain form alone certifies: {plain_fails:?}"
     );
+    assert_eq!(
+        plain_counts.frozen, 0,
+        "and freezes no form getting there: {plain_counts:?}"
+    );
+
     let a0 = SymRules {
         const_fold: true,
         ..n
     };
-    let (a0_fails, _) = sym_failures_under(&derived, a0);
-    assert!(at_the_finish(&a0_fails), "so does A0 alone: {a0_fails:?}");
+    let (a0_fails, a0_counts) = sym_failures_under(&derived, a0);
+    assert_eq!(
+        a0_counts.frozen, 0,
+        "A0 alone freezes NOTHING: the products that used to freeze sat under \
+         `1/max(1, min(1, max(0, 1))/4)`, a `max`/`min` of two CONSTANTS, and A0 decides \
+         those exactly now: {a0_counts:?}"
+    );
+    assert!(
+        a0_fails.is_empty(),
+        "with no freeze left A0 alone certifies: the clause-1 refusal on the side plane is \
+         gone with the placement's widening: {a0_fails:?}"
+    );
 }
 
 /// **What answered DOCM's rows, and what never explained them**

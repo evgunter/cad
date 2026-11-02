@@ -95,6 +95,8 @@ pub enum NodeErrorClass {
     EmptyOperand,
     /// [`NodeErrorKind::NotFinished`].
     NotFinished,
+    /// [`NodeErrorKind::UnfinishedLeaf`].
+    UnfinishedLeaf,
     /// [`NodeErrorKind::EmptyHalf`].
     EmptyHalf,
     /// [`NodeErrorKind::MemberOutOfRange`].
@@ -245,6 +247,7 @@ impl NodeErrorKind {
             Self::WrongOperand { .. } => C::WrongOperand,
             Self::EmptyOperand { .. } => C::EmptyOperand,
             Self::NotFinished { .. } => C::NotFinished,
+            Self::UnfinishedLeaf { .. } => C::UnfinishedLeaf,
             Self::EmptyHalf { .. } => C::EmptyHalf,
             Self::MemberOutOfRange { .. } => C::MemberOutOfRange,
             Self::MemberRefused { .. } => C::MemberRefused,
@@ -385,6 +388,7 @@ mod tests {
         WrongOperand,
         EmptyOperand,
         NotFinished,
+        UnfinishedLeaf,
         EmptyHalf,
         MemberOutOfRange,
         MemberRefused,
@@ -594,6 +598,13 @@ mod tests {
             },
             C::EmptyOperand => K::EmptyOperand { input: n(3) },
             C::NotFinished => K::NotFinished {
+                findings: topo::NotFinished::for_tests(vec![
+                    topo::ValidationError::ScaffoldAtRest {
+                        edge: topo::EdgeKey::default(),
+                    },
+                ]),
+            },
+            C::UnfinishedLeaf => K::UnfinishedLeaf {
                 findings: topo::NotFinished::for_tests(vec![
                     topo::ValidationError::ScaffoldAtRest {
                         edge: topo::EdgeKey::default(),

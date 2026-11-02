@@ -15,6 +15,7 @@ use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::sweep::ExtrudeSide;
 use pncad::sweep::chamfer::chamfer_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use pncad::topo::LeafBody as _;
 
 use crate::booleans::finished;
 use crate::scalar::Scalar;

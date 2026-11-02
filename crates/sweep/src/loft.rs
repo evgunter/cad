@@ -128,10 +128,10 @@ use crate::swept::{
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
 #[derive(Debug)]
-pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Finished> {
-    /// The closed body, finished at the door
-    /// ([`topo::AtRestPolicy::finish`], tiers 1–3 at a certifying
-    /// scalar); construction state (`Body<T>`) inside the builder. Tier 3
+pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Leaf> {
+    /// The closed body, the door's leaf ([`topo::AtRestPolicy::leaf`]:
+    /// finished, tiers 1–3, at `f64` and `Probe`; tier 2 alone at the box
+    /// scalars, where the consumer finishes it); construction state (`Body<T>`) inside the builder. Tier 3
     /// does not test embedding, and neither does this door, so a body
     /// whose walls cross each other or a cap is not refused here.
     pub body: B,
@@ -184,8 +184,8 @@ pub struct Lofted<T: topo::AtRestPolicy, B = <T as topo::AtRestPolicy>::Finished
 }
 
 impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
-    /// The built body finished at its scalar, every key kept: the one
-    /// finish every loft door ends in.
+    /// The built body as its scalar's leaf ([`topo::AtRestPolicy::leaf`]),
+    /// every key kept: the one end every loft door ends in.
     ///
     /// # Errors
     ///
@@ -202,7 +202,7 @@ impl<T: topo::AtRestPolicy> Lofted<T, Body<T>> {
             section_params,
         } = self;
         Ok(Lofted {
-            body: T::finish(body, tol).map_err(|findings| LoftError::NotFinished { findings })?,
+            body: T::leaf(body, tol).map_err(|findings| LoftError::NotFinished { findings })?,
             solid,
             shell,
             top,

@@ -190,15 +190,16 @@ impl ExtrudeSide {
 /// and downstream passes (tessellation, mass properties) address it by.
 #[derive(Debug)]
 pub struct Extruded<T: topo::AtRestPolicy> {
-    /// The built body, finished at the door
-    /// ([`topo::AtRestPolicy::finish`]). A body its finish refuses
-    /// refuses the door ([`ExtrudeError::NotFinished`]): among them a
+    /// The built body, the door's leaf ([`topo::AtRestPolicy::leaf`]):
+    /// finished at `f64` and `Probe`, tier 2 alone at the box scalars,
+    /// where the consumer that takes a finished body finishes it. A body
+    /// the leaf refuses refuses the door ([`ExtrudeError::NotFinished`]): among them a
     /// cap rim the dihedral lever reads definitely SMOOTH, which keeps
     /// the conventional description (module docs, step 6) and is
     /// refused as `topo::ValidationError::SliverDihedral` under
     /// `material_wedge_side`, since a smooth cap–wall pair has no
     /// material side.
-    pub body: T::Finished,
+    pub body: T::Leaf,
     /// The solid.
     pub solid: SolidKey,
     /// Its single shell.
@@ -1120,7 +1121,7 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     topo::mint_pcurves(&mut built, tol).map_err(ExtrudeError::Pcurve)?;
 
     Ok(Extruded {
-        body: T::finish(built, tol).map_err(|findings| ExtrudeError::NotFinished { findings })?,
+        body: T::leaf(built, tol).map_err(|findings| ExtrudeError::NotFinished { findings })?,
         solid: seed.solid,
         shell: seed.shell,
         top: top_face,

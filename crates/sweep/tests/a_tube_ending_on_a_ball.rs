@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
-use topo::FinishedBody as _;
+use topo::LeafBody as _;
 
 use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::test_support::bulge_loop;
