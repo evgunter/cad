@@ -463,7 +463,7 @@ vocabulary is not a forbidden import path.
 | Module | Holds |
 |---|---|
 | `session::select` | `Selection`, `FaceSelection`, `EdgeSelection`, `Hovered`, `Standing` — what is selected and whether it still denotes anything |
-| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — the transform's placement, a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
+| `session::refuse` | **every refusal vocabulary a session door raises**, each with its `Display`, the payloads and predicates that decide it, and the recourse text it spends — the rule, so that the next one sorts itself. Today that is two: `Refusal`, with its `rank`/`preferred` ladder, the composers `affordance`/`exists_wording`/`offer_wording` and the constructors that decide a refusal before its door runs (`self_instance`, `nothing_to_step`, `new_document_name`), plus the `NodeKindWanted` payload and its predicates `admits`/`admits_read` and the `Step` payload `nothing_to_step` reads; and `GestureFrameFault`, why a gesture's frame — a split's plane, a circular pattern's axis — could not be made from its numbers. Beside them is the one offer no door refused: `VersionOffer`, the accept a pin-mismatched instance's failure makes, worded by `version_question` |
 | `session::op` | `SessionOp` and `OpOutcome`, with the gesture names `SessionOp` is keyed by — `ValueGestureName`, `FreeMoveName`, `GestureName` — and `CancelDoor`; already the crate's shared vocabulary, named in **27** of this crate's files, which `rg -l -e SessionOp -e OpOutcome crates/viewer/src` lists — drivers, panes and tool modules alike |
 | `session::author` | `BooleanSpec`, `PatternRuleSpec`, `PartSelectSpec`, the `ProfileShape` re-export — the authoring specs and their lowering to nodes, which hold no session state at all |
 | `session::delete` | `DeleteAffordance` and `kind_census` — the cascade's wording |
@@ -2235,11 +2235,21 @@ the copy's evaluated motion and no mate, one step along the original's
 own `x`; a duplicate of an unplaced body is two copies in its own
 space, a stand-in by the identity and the stepped one. Projecting a
 pattern member writes nothing: a pick on a drawn member seats
-`family[k]`. The transform gesture places an unplaced body into its own
-space by values on that space's axes: the three slides as the person
-wrote them, and the spin about the axis the rotation names where it is
-one of the space's, else the chain of turns its frame makes; on a copy
-it edits the copy's placement. A combine re-places an operand from
+`family[k]`. The Transform tool is the placement editor opened on its
+pick with no mate row (`MateTool::moving`), through one of its two
+doors. On a body nothing places it is the Create door, into the body's
+own space, its six value rows where the body stands; its Apply places
+the body and takes over what read it along the path it was seen
+through (a `⊔` operand, the product), never a copy's source. On a copy,
+and on a body one copy places, which is seen through that copy, it is
+that copy's Edit door, the bundle's values as written; its Apply writes
+the bundle in place. The editor's own first pick takes the same route
+(`matetool::door_on`, A11's member walk included). What is no body opens
+no door, said: a profile, a pattern's family (its values are the rule;
+the pattern is edited instead), a body several copies place, and a split
+picked whole, which asks for its half. The Create door refuses a copy
+(`Refusal::CreateOnACopy`) and a body a placement already copies
+(`Refusal::BodyPlaced`, naming the copy whose Edit door moves it). A combine re-places an operand from
 another space at the pose it held, by values on the first operand's
 space's axes. Nothing a place gesture writes reads the copy's geometry.
 
