@@ -2,10 +2,11 @@
 id: an-indexed-reads-index-position-is-clamped-to-u8
 kind: issue
 title: editor-core: an indexed read's index position is clamped to u8::MAX, and four widening casts carry a dead clamp
-status: open
+status: dispatched
 opened: 2026-11-02
 priority: P4
 cost: E
+branch: wirerefuse/dead-index-clamps
 ---
 
 

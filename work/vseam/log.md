@@ -428,3 +428,10 @@ row's last section says what moved.
   - N1: a moved literal lands in the unit its field showed.
 
   The class finding, again: an app-feature test cannot sit in the slow set, because the slow-set name check lists default-feature tests only. The first fix push went red on it. Orchestrator's read of the fix pass. (VSEAM)
+- 2026-11-02 — PR 6306 fix pass, orchestrator's read.
+  - **Ruling 1 is built.** Every arc-fillet fit now goes through one `Core::fit_arc_fillet`, which records the sides before the fit and the circle after it. `replay_drawn` returns the loop together with its constructions. `fused_constructions`, the `opening` map and `DynTip: Clone` are gone, and `pen` shares the driver's `walk`. Replay output was byte-identical over 20k programs, before and after.
+  - **The record is shared.** It sits behind an `Arc<Mutex<…>>` in the guide, because a refusal drops the core and the guide with it. Accepted as the narrowest carrier. The alternative was to thread the record through `ReplayError`, which every caller reads.
+  - **Known loss:** a fused step that refuses before its fit is handed sides now draws nothing; the old walk drew part of the construction.
+  - **The follow-up row** is re-scoped to its residue: a bare line×line `fillet` (`Guide::line_fits`) still records nothing.
+  - **The wrong-side refusal** now draws the heading at each side's anchor. The colour row measures against the selected and hovered edges, and every pair clears 0.06.
+  - **Two early merge commits lack trailers.** They are left as they are, under merge-only. (VSEAM)
