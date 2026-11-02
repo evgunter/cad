@@ -826,7 +826,7 @@ impl<T: Real> Piece<T> {
         match self {
             Piece::Points(points) => points_support(points, e, T::zero()),
             Piece::Net { points, slack } => points_support(points, e, *slack),
-            Piece::Segment(ends) => points_support(ends, e, T::zero()),
+            Piece::Segment(ends) => points_support(ends, e, segment_slack(ends)),
             Piece::Arc(arc) => arc.support(e),
             Piece::Slab(slab) => slab.support(e),
             Piece::Frustum(f) => f.support(e),
@@ -887,7 +887,7 @@ impl<T: Real> Piece<T> {
         match self {
             Piece::Points(points) => points_ball(points, T::zero()),
             Piece::Net { points, slack } => points_ball(points, *slack),
-            Piece::Segment(ends) => points_ball(ends, T::zero()),
+            Piece::Segment(ends) => points_ball(ends, segment_slack(ends)),
             Piece::Arc(arc) => arc.ball(self.world_box()),
             Piece::Slab(slab) => slab.ball(),
             Piece::Frustum(f) => smaller(f.slab().ball(), box_ball(self.world_box())),
@@ -899,6 +899,13 @@ impl<T: Real> Piece<T> {
             Piece::Tube(tube) => tube.ball(),
         }
     }
+}
+
+/// A segment's ends are a carrier's points read at the scalar, each a
+/// few roundings of its scale off the carrier: the slack its bounds
+/// carry for that.
+fn segment_slack<T: Real>([a, b]: &[Point3<T>; 2]) -> T {
+    curved_charge(magnitude(*a).max(magnitude(*b)))
 }
 
 /// The greatest `p·e` over the points, widened by `slack·|e|`.
@@ -913,8 +920,9 @@ fn points_support<T: Real>(points: &[Point3<T>], e: Vec3<T>, slack: T) -> T {
     best + slack * n + linear_charge(scale * n)
 }
 
-/// The least and greatest distance of the points from the site, the
-/// greatest widened by `slack`, which is what a net's hull reaches: a
+/// The least and greatest distance of the points from the site, charged
+/// for a line's projection at [`CURVED_ULPS`], the greatest widened by
+/// `slack`, which is what a net's hull reaches: a
 /// distance from a point or a line is convex, so its greatest over a
 /// hull is at a point of it.
 fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>, slack: T) -> (T, T) {
@@ -925,7 +933,7 @@ fn points_range<T: Real>(points: &[Point3<T>], site: &Site<T>, slack: T) -> (T, 
             let (d, s) = site.offset(p);
             (near.min(d), far.max(d), scale.max(s))
         });
-    let ch = linear_charge(scale);
+    let ch = curved_charge(scale);
     ((near - slack - ch).max(T::zero()), far + slack + ch)
 }
 
@@ -942,7 +950,7 @@ fn segment_range<T: Real>(a: Point3<T>, b: Point3<T>, site: &Site<T>) -> (T, T) 
             .max(T::zero())
             .min(T::one()),
     );
-    let ch = linear_charge(sa.max(sb));
+    let ch = curved_charge(sa.max(sb));
     let near = (a_rel + d * s).norm() - ch;
     let far = a_rel.norm().max(b_rel.norm()) + ch;
     (near.max(T::zero()), far)

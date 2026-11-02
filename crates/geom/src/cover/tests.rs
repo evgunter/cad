@@ -789,10 +789,14 @@ fn a_meet_holds_what_lies_in_both_and_a_hull_what_lies_in_either() {
             &dirs,
             &site_points(&sites),
         );
-        let b = torus.eval(rng.range(0.0, TAU), rng.range(0.0, TAU));
+        let (u, v) = (rng.range(0.0, TAU), rng.range(0.0, TAU));
+        let b = torus.eval(u, v);
         let rho = rng.range(0.2, 2.0);
+        // The ball's own centre's torus point is always in both.
+        let centre = torus.map_scalar(iv).eval(iv(u), iv(v));
         let inside: Vec<_> = all
             .iter()
+            .chain([&centre])
             .copied()
             .filter(|s| (*s - ipt(b)).norm().hi() <= rho)
             .collect();
