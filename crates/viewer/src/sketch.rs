@@ -62,7 +62,7 @@ use crate::frame::Tone;
 use crate::props::Notation;
 use crate::session::refuse::{NodeKindWanted, admits};
 
-/// **A step of `verb` with the path form's starting numbers** — what
+/// **A step of `verb` with the editor's starting numbers** — what
 /// a row becomes when its verb is picked.
 ///
 /// The form offers [`Verb::ALL`], so a verb the transition table gains
@@ -1119,7 +1119,7 @@ impl PreviewLoop {
     }
 }
 
-/// **How a drawn loop ends.** Only the path form produces an end
+/// **How a drawn loop ends.** Only a chain produces an end
 /// other than [`Self::Closed`]: every template shape closes by
 /// construction.
 #[derive(Clone, Debug, PartialEq)]

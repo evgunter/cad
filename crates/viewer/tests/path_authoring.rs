@@ -400,7 +400,7 @@ fn every_authoring_verb_lowers_to_its_recorded_step() {
     }
     for step in steps {
         let verb = step.verb();
-        let program = shape(&vec![step]);
+        let program = shape(&[step]);
         // A verb the lift misfiles is caught as a count: the complete-
         // loop verbs become their own program forms, and every other
         // verb one step of a chain.
@@ -506,7 +506,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
         Step::ContinueTo(Target::Point(Point2::new(0.0, 0.0))),
         Step::LineTo(Target::StartArriving),
     ];
-    let drawn = preview(SketchPlane::xy(), &[steps.clone()], tol, CHORD)
+    let drawn = preview(SketchPlane::xy(), std::slice::from_ref(&steps), tol, CHORD)
         .expect("the declared seam previews");
     assert!(drawn.invalid.is_none(), "{:?}", drawn.invalid);
     assert!(drawn.loops[0].end.closes());

@@ -1332,7 +1332,7 @@ pub(crate) fn unit_vec3_row(
 }
 
 /// Two Length fields, one point of the sketch frame — each carrying
-/// the axis it is, because a row of a path form holds several points
+/// the axis it is, because a row of a step list holds several points
 /// and a bare pair of numbers says which of them it belongs to only
 /// by position.
 ///

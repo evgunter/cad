@@ -9887,18 +9887,6 @@ mod properties_pane_tests {
             handed
         }
 
-        /// What argument `arg` of held row `row` holds, as written.
-        fn held_source(driven: &Driven, row: usize, arg: StepArg) -> Option<String> {
-            driven
-                .app
-                .drafts
-                .profile_edit
-                .as_ref()
-                .expect("held")
-                .held_row(driven.app.session.doc(), (0, row), arg)
-                .and_then(|held| held.source)
-        }
-
         /// **A formula typed over a held edit lands with it as one
         /// step.** The far corner is moved in the draft; `w/7` typed
         /// into the anchor's x and committed with Enter offers the

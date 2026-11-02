@@ -315,7 +315,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let program = editor_core::test_support::stored_program(
             &mut doc,
             &ProfileProgram {
-                loops: vec![shape(&vec![step])],
+                loops: vec![shape(&[step])],
                 ids: Vec::new(),
                 on: None,
             },

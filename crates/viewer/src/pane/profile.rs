@@ -2578,7 +2578,7 @@ mod tests {
         );
     }
 
-    /// A session over the form's default 10 mm square as a committed
+    /// A session over the path template's 10 mm square as a committed
     /// profile, and the profile.
     fn square_session() -> (crate::session::DocSession, pncad::document::RecipeNodeId) {
         let tol = Tol::witness();
