@@ -8909,7 +8909,10 @@ fn tangent_sectors<T: Decide>(
         }
     }
     if out.is_empty() && holds.contains(&TangentHold::Inside) {
-        let fan = TangentFan::Inside { reach: reach()? };
+        let fan = TangentFan::Inside {
+            reach: reach()?,
+            along: around(&surface, p).ok_or(TouchUnread::Unreadable)?,
+        };
         out.push(FaceSector::tangent(
             surface,
             face.sense,
@@ -8923,6 +8926,25 @@ fn tangent_sectors<T: Decide>(
         return Err(TouchUnread::Corrupt);
     }
     Ok(out)
+}
+
+/// **A unit direction in a carrier's tangent plane at `p`**, read off
+/// the carrier: a plane's own `u` direction, and on a cylinder, a cone,
+/// a sphere or a torus the circle about its axis through `p`. `None` on
+/// a spline, or on the axis.
+fn around<T: Decide>(surface: &geom::Surface<T>, p: Point3<T>) -> Option<Vec3<T>> {
+    let (axis, at) = match *surface {
+        geom::Surface::Plane { u_ref, .. } => return Some(u_ref),
+        geom::Surface::Cylinder { origin, axis, .. } => (axis, origin),
+        geom::Surface::Cone { apex, axis, .. } => (axis, apex),
+        geom::Surface::Sphere { center, axis, .. } | geom::Surface::Torus { center, axis, .. } => {
+            (axis, center)
+        }
+        geom::Surface::Nurbs(_) | geom::Surface::Approx(_) => return None,
+    };
+    let d = axis.cross(p - at);
+    let l = d.norm();
+    (geom_core::is_finite_length(l) && !geom_core::is_zero_length(l, l)).then(|| d.normalize())
 }
 
 /// The outward unit normal of the face whose corner at `v` the orbit

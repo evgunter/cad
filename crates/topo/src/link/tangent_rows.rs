@@ -31,7 +31,12 @@ fn plane(n: Vec3<f64>) -> geom::Surface<f64> {
     geom::Surface::Plane {
         origin: Point3::origin(),
         normal: n,
-        u_ref: n.orthonormal_basis().0,
+        u_ref: (if n.z.abs() < 0.9 {
+            n.cross(v(0.0, 0.0, 1.0))
+        } else {
+            n.cross(v(1.0, 0.0, 0.0))
+        })
+        .normalize(),
     }
 }
 
@@ -62,7 +67,10 @@ fn cylinder() -> geom::Surface<f64> {
 /// `±z`.
 fn whole(surface: geom::Surface<f64>, up: bool) -> FaceSector<f64> {
     let n = v(0.0, 0.0, if up { 1.0 } else { -1.0 });
-    let fan = TangentFan::Inside { reach: 2.0 };
+    let fan = TangentFan::Inside {
+        reach: 2.0,
+        along: v(1.0, 0.0, 0.0),
+    };
     FaceSector::tangent(surface, true, n, Point3::origin(), fan, band()).expect("a whole plane")
 }
 

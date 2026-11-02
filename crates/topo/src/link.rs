@@ -472,8 +472,9 @@ pub(crate) enum TangentFan<T: Real> {
         reach: T,
         edge: (EdgeKey, bool),
     },
-    /// Inside the face: its whole tangent plane, read out to `reach`.
-    Inside { reach: T },
+    /// Inside the face: its whole tangent plane, read out to `reach`,
+    /// its fan turned from the in-plane unit `along`.
+    Inside { reach: T, along: Vec3<T> },
 }
 
 /// Where a point on a sector's plane lies against the sector.
@@ -2098,9 +2099,8 @@ impl<T: Decide> FaceSector<T> {
                 false,
                 Some([edge, edge]),
             ),
-            TangentFan::Inside { reach } => {
-                let a = outward.orthonormal_basis().0;
-                (fan(apex, outward, a, reach, false), true, None)
+            TangentFan::Inside { reach, along } => {
+                (fan(apex, outward, along, reach, false), true, None)
             }
         };
         Ok(Self {
@@ -3357,7 +3357,8 @@ pub(crate) mod rest {
     /// sector as a line on its carrier, a ruling ([`on_carrier`]); else it
     /// is a tangency, [`TouchUnread::Unreadable`]. Two closed sectors have
     /// no bounds, so each pair of them with a plane not its face's own is
-    /// read for one plane: two in-plane directions of one on the other's.
+    /// read for one plane: two rays of one's fan a quarter turn apart on
+    /// the other's plane.
     ///
     /// **Sound.** Under the blow-up `q ↦ p + (q − p)/t` the faces about
     /// `p` tend, as `t → 0`, to their tangent sectors, planes and bounds
@@ -3416,12 +3417,11 @@ pub(crate) mod rest {
                     continue;
                 }
                 let (s, t) = (&sectors[k], &sectors[j]);
-                let reach = s
-                    .wedges
-                    .first()
-                    .map_or(T::one(), |&(a, _)| (a - s.apex).norm());
-                let (u, v) = s.outward.orthonormal_basis();
-                let read = [u, v].map(|d| link.cone.side(t, p + d * reach, rd));
+                // Two rays of the whole plane's fan a quarter turn apart.
+                let (Some(&(u, _)), Some(&(v, _))) = (s.wedges.first(), s.wedges.get(2)) else {
+                    return Some(TouchUnread::Corrupt);
+                };
+                let read = [u, v].map(|d| link.cone.side(t, p + (d - s.apex), rd));
                 if read
                     .iter()
                     .any(|r| matches!(r, Some(Sign::Positive | Sign::Negative)))
