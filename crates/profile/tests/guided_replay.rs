@@ -240,6 +240,7 @@ fn every_entry_verb_installs_the_guide() {
         Verb::ArcFilletArc,
         Verb::Circle,
         Verb::CircleSplit,
+        Verb::Rectangle,
     ] {
         assert!(
             seen.contains(&want),

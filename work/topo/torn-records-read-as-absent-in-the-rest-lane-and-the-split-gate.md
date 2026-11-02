@@ -55,3 +55,7 @@ naming a site vertex that does not resolve, since a null edge's
 attribute is no link. The sweep's other hits are filed as
 `torn-hops-read-as-absent-across-the-boolean` and
 `torn-hops-read-as-absent-in-the-split-the-chord-join-and-the-reach-rules`.
+
+## Since PR 6336 (BOXES, 2026-11-02)
+
+`classify::gate_face_reach`'s torus arm is gone; the gate reads `census::face_reach_in`. (BOXES orchestrator)

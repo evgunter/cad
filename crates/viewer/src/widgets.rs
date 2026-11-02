@@ -1777,6 +1777,16 @@ pub(crate) fn path_step_fields(
             );
             number_arg(ui, args, row, StepArg::Phase, "phase", phase);
         }
+        Step::Rectangle {
+            centre,
+            width,
+            height,
+        } => {
+            ui.label("centre");
+            point_args(ui, args, row, CENTRE, centre);
+            number_arg(ui, args, row, StepArg::Width, "width", width);
+            number_arg(ui, args, row, StepArg::Height, "height", height);
+        }
         // Structural verbs: the verb IS the whole step.
         Step::Tangent | Step::Cusp | Step::CloseTo => {}
     }

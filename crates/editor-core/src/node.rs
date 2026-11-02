@@ -258,7 +258,7 @@ pub enum StepArg {
     /// That through-point's y.
     ViaY,
     /// A carrier centre's x (the `Center` mode, `circle`,
-    /// `circle_split`).
+    /// `circle_split`), or a `rectangle`'s centre's.
     CenterX,
     /// That centre's y.
     CenterY,
@@ -319,6 +319,10 @@ pub enum StepArg {
     ArcLenVal2,
     /// The arrival spec's bulge.
     Bulge2,
+    /// A `rectangle`'s extent along x.
+    Width,
+    /// A `rectangle`'s extent along y.
+    Height,
 }
 
 impl StepArg {
@@ -362,6 +366,8 @@ impl StepArg {
             Self::SweepVal2 => "arrival sweep",
             Self::ArcLenVal2 => "arrival arc length",
             Self::Bulge2 => "arrival bulge",
+            Self::Width => "width",
+            Self::Height => "height",
         }
     }
 
@@ -389,7 +395,9 @@ impl StepArg {
             | Self::Target2X
             | Self::Target2Y
             | Self::CarrierRadius2
-            | Self::ArcLenVal2 => Dimension::Length,
+            | Self::ArcLenVal2
+            | Self::Width
+            | Self::Height => Dimension::Length,
             Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal | Self::SweepVal2 => {
                 Dimension::Angle
             }
@@ -440,7 +448,9 @@ impl StepArg {
             | Self::Target2Y
             | Self::SweepVal2
             | Self::ArcLenVal2
-            | Self::Bulge2 => false,
+            | Self::Bulge2
+            | Self::Width
+            | Self::Height => false,
         }
     }
 }

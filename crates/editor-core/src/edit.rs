@@ -6419,14 +6419,13 @@ fn check_loft_shape<P: crate::ProfilePayload>(
     {
         return Err(LoftFault::StationInFirstPlane { section: k + 1 });
     }
-    if let Some(crate::expr::ParamValue::Count(degree)) = env.bindings.get(v_degree) {
-        let most = i64::try_from(sections - 1).unwrap_or(i64::MAX);
-        if !(1..=most).contains(degree) {
-            return Err(LoftFault::DegreeOutOfRange {
-                degree: *degree,
-                sections,
-            });
-        }
+    if let Some(crate::expr::ParamValue::Count(degree)) = env.bindings.get(v_degree)
+        && !usize::try_from(*degree).is_ok_and(|d| (1..sections).contains(&d))
+    {
+        return Err(LoftFault::DegreeOutOfRange {
+            degree: *degree,
+            sections,
+        });
     }
     Ok(())
 }

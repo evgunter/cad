@@ -334,8 +334,8 @@ fn traced_steps() -> Vec<ProgramStep<Formula>> {
 }
 
 /// The corpus: the chain above, the two complete-loop carrier forms,
-/// which are `LoopProgram` variants rather than steps, and the traced
-/// chain, on a frame and one traced face. Its reads are ids no document
+/// which are `LoopProgram` variants rather than steps, the traced
+/// chain, and the rectangle form, on a frame and one traced face. Its reads are ids no document
 /// holds: nothing here evaluates them.
 fn corpus() -> ProfileProgram {
     corpus_whole().0
@@ -349,6 +349,7 @@ fn corpus_whole() -> (ProfileProgram, VarEnv<f64>) {
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
             LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
             LoopProgram::Chain(traced_steps()),
+            LoopProgram::rectangle(5.0, 5.0, 1.0, 0.5).unwrap(),
         ],
         ids: Vec::new(),
         on: None,
@@ -501,9 +502,9 @@ fn position_label<S: std::fmt::Debug>(loop_: usize, step: usize, what: &ProgramS
 fn loop_label<S: std::fmt::Debug>(loop_: &LoopProgram<S>) -> String {
     match loop_ {
         LoopProgram::Chain(steps) => format!("Chain of {} steps", steps.len()),
-        LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
-            variant_name(&format!("{loop_:?}"))
-        }
+        LoopProgram::Circle { .. }
+        | LoopProgram::CircleSplit { .. }
+        | LoopProgram::Rectangle { .. } => variant_name(&format!("{loop_:?}")),
     }
 }
 
@@ -674,7 +675,8 @@ fn every_target_form_is_a_document_program() {
         | profile::Step::FarEndTo(_)
         | profile::Step::CloseTo
         | profile::Step::Circle { .. }
-        | profile::Step::CircleSplit { .. } => vec![],
+        | profile::Step::CircleSplit { .. }
+        | profile::Step::Rectangle { .. } => vec![],
     })
     .collect();
     let missing: Vec<&TargetKind> = TargetKind::ALL
@@ -766,7 +768,8 @@ fn every_arc_mode_is_a_document_program() {
         | profile::Step::FarEndTo(_)
         | profile::Step::CloseTo
         | profile::Step::Circle { .. }
-        | profile::Step::CircleSplit { .. } => vec![],
+        | profile::Step::CircleSplit { .. }
+        | profile::Step::Rectangle { .. } => vec![],
     })
     .collect();
     let missing: Vec<&ArcMode> = ArcMode::ALL
@@ -1128,7 +1131,9 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
                     )
                 })
                 .collect(),
-            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {
+            LoopProgram::Circle { .. }
+            | LoopProgram::CircleSplit { .. }
+            | LoopProgram::Rectangle { .. } => {
                 vec![(format!("loop {l} ({})", loop_label(loop_)), loop_.clone())]
             }
         };
@@ -1330,6 +1335,10 @@ fn field_named(step: &profile::Step<f64>, arg: StepArg) -> Option<f64> {
         (S::Circle { centre, .. } | S::CircleSplit { centre, .. }, A::CenterX) => Some(centre.x),
         (S::Circle { centre, .. } | S::CircleSplit { centre, .. }, A::CenterY) => Some(centre.y),
         (S::CircleSplit { phase, .. }, A::Phase) => Some(*phase),
+        (S::Rectangle { centre, .. }, A::CenterX) => Some(centre.x),
+        (S::Rectangle { centre, .. }, A::CenterY) => Some(centre.y),
+        (S::Rectangle { width, .. }, A::Width) => Some(*width),
+        (S::Rectangle { height, .. }, A::Height) => Some(*height),
         (_, A::CarrierRadius2) => spec(arrival, A::CarrierRadius),
         (_, A::Bulge2) => spec(arrival, A::Bulge),
         (_, A::Via2X) => spec(arrival, A::ViaX),
@@ -1492,7 +1501,10 @@ const PERSISTED_SPELLING: &[&str] = &[
     "Chain",
     "Circle",
     "CircleSplit",
+    "Rectangle",
     "centre",
+    "height",
+    "width",
     // The minted step ids, one list per loop (`names/README.md`, N1).
     "ids",
     "loops",

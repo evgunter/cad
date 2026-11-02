@@ -1762,15 +1762,17 @@ impl VerbatimEdge<'_> {
 /// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
 /// is classified as re-minting what it carries.
 ///
-/// Three walks read the set here: split's test of which cut placement's
-/// copy carries a name (`refactor::split`'s `in_world`), the mate
-/// member walk (`mate::member::walk`) and the coincidence door's walk
-/// to a cell's construction (`coincide::construction`); they differ
-/// only in where each stops. The compiler holds the four together:
-/// this match is exhaustive, so a new node kind does not compile until
-/// it is classified here, and each walk matches [`VerbatimEdge`]
-/// without a wildcard, so a new kind of edge does not compile until
-/// each decides what to do with it.
+/// The walks that read the set here: the mate member walk
+/// (`mate::member::walk`) and the coincidence door's walk to a cell's
+/// construction (`coincide::construction`), which differ only in where
+/// each stops, and the takeover door's walk to every node that carries
+/// a re-pointed copy's names (`take_over::chains`). The compiler holds
+/// them together: this match is exhaustive, so a new node kind does not
+/// compile until it is classified here. The first two match
+/// [`VerbatimEdge`] without a wildcard, so a new kind of edge does not
+/// compile until each decides what to do with it; `chains` follows
+/// every edge alike, through [`VerbatimEdge::carried_read`], whose own
+/// match is the one a new kind of edge has to pass.
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s

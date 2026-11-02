@@ -1161,6 +1161,9 @@ enum Claim {
     /// A one-step complete-loop carrier form: every segment of the
     /// loop, every vertex on the circle it authored.
     Carrier(Point2<f64>, f64),
+    /// A `rectangle`: every segment of the loop, every vertex a corner
+    /// of the rectangle of this width and height about this centre.
+    Rectangle(Point2<f64>, f64, f64),
     /// The step's arguments say nothing this row knows how to read
     /// back. The fused fillet verbs are here: what they emit depends on
     /// the arrival spec's own completion story, so an endpoint read off
@@ -1201,6 +1204,11 @@ fn claim(j: usize, step: &Step<f64>) -> Claim {
         Step::CloseTo => Claim::Closes,
         Step::Circle { centre, radius } => Claim::Carrier(*centre, *radius),
         Step::CircleSplit { centre, radius, .. } => Claim::Carrier(*centre, *radius),
+        Step::Rectangle {
+            centre,
+            width,
+            height,
+        } => Claim::Rectangle(*centre, *width, *height),
         Step::FilletArc { .. } | Step::ArcFillet { .. } | Step::ArcFilletArc { .. } => {
             Claim::Unread
         }
@@ -1331,6 +1339,26 @@ fn assert_attribution(
                         (d - radius * radius).abs() <= 1e-9,
                         "{what}: the carrier authored radius {radius} about {centre:?}, \
                          and segment {} leaves {v:?}, which is not on it",
+                        e.segment
+                    );
+                }
+            }
+            Claim::Rectangle(centre, width, height) => {
+                tally.carrier += 1;
+                assert_eq!(j, 0, "{what}: a rectangle authors one step, numbered 0");
+                assert_eq!(
+                    (edges.len(), n),
+                    (4, 4),
+                    "{what}: the rectangle's one step produced the whole loop"
+                );
+                for e in edges {
+                    let v = verts[seg(e)].0;
+                    let off = v - centre;
+                    assert!(
+                        (off.x.abs() - width / 2.0).abs() <= 1e-9
+                            && (off.y.abs() - height / 2.0).abs() <= 1e-9,
+                        "{what}: the rectangle authored {width} by {height} about {centre:?}, \
+                         and segment {} leaves {v:?}, which is no corner of it",
                         e.segment
                     );
                 }

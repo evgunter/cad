@@ -339,9 +339,12 @@ pub enum NormalizationKind {
     /// A file that states the point some other way is re-minted into
     /// that form, by where the point lies ([`SingularityFound`]), read
     /// by the kernel's one reading of it
-    /// (`geom_brep::chart_singularity::locate`, which tier 3 refuses
-    /// the same faces by): the face's boundary and the region its sense
-    /// bit names say which.
+    /// (`geom_brep::chart_singularity::locate`, whose boundary placement,
+    /// `place_on_boundary`, tier 3 shares; tier 3 reads the side through
+    /// the face's point-in-face door, and the import's own side reading
+    /// is filed to follow it,
+    /// `work/foreign/import-reads-a-chart-singularitys-side-by-the-chart-walk-tier-3-is-to-leave.md`):
+    /// the face's boundary and the region its sense bit names say which.
     /// The minted meridians are the surface's own (at its `u_ref`
     /// azimuth and the half turn, or the half-turn twin of a seam the
     /// file states), each ending at the first boundary edge it meets,
