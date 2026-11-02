@@ -78,6 +78,7 @@ fn assert_loft(got: ([f64; 2], f64), want: &[(f64, f64)], what: &str) {
 /// A section of `profile` slid up the first section's `z` by `z`.
 fn up(profile: RecipeNodeId, z: f64) -> LoftSection<Operand, Formula> {
     LoftSection {
+        id: None,
         profile: profile.into(),
         station: vec![StationMove::Slide {
             along: Axis3::Z,
@@ -100,22 +101,38 @@ fn two_section_loft() -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeId) {
             first: a.into(),
             then: vec![up(b, 1.0)],
             v_degree: Formula::count(1),
+            first_id: None,
         },
     );
     (doc, [a, b, c], loft)
 }
 
+/// `SetLoftSections` of `first` and `then` on `node`, keeping the
+/// sections `kept` names: the old section at each index, `None` for a
+/// new one.
 fn set(
     doc: &ProfileDoc,
     node: RecipeNodeId,
     first: RecipeNodeId,
     then: Vec<LoftSection<Operand, Formula>>,
+    kept: &[Option<usize>],
 ) -> Result<ProfileDoc, EditError> {
+    let old = fixture::section_ids(doc, node);
+    let id = |k: &Option<usize>| k.map(|k| old[k]);
+    assert_eq!(kept.len(), then.len() + 1, "one entry per section");
     doc.apply(
         &DocEdit::SetLoftSections {
             node,
             first: first.into(),
-            then,
+            first_id: id(&kept[0]),
+            then: then
+                .into_iter()
+                .zip(&kept[1..])
+                .map(|(section, k)| LoftSection {
+                    id: id(k),
+                    ..section
+                })
+                .collect(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -137,7 +154,14 @@ fn set_loft_sections_adds_drops_and_reorders() {
         "as inserted",
     );
 
-    let added = set(&doc, loft, a, vec![up(b, 1.0), up(c, 2.5)]).expect("a section added");
+    let added = set(
+        &doc,
+        loft,
+        a,
+        vec![up(b, 1.0), up(c, 2.5)],
+        &[Some(0), Some(1), None],
+    )
+    .expect("a section added");
     let Some(Node::Loft { then, .. }) = added.node(loft) else {
         panic!("{loft} is a loft");
     };
@@ -153,7 +177,8 @@ fn set_loft_sections_adds_drops_and_reorders() {
         "the added section stands at its written station",
     );
 
-    let dropped = set(&added, loft, a, vec![up(c, 2.5)]).expect("a section dropped");
+    let dropped =
+        set(&added, loft, a, vec![up(c, 2.5)], &[Some(0), Some(2)]).expect("a section dropped");
     assert_eq!(
         dropped.upstream(loft),
         vec![a, c],
@@ -167,8 +192,14 @@ fn set_loft_sections_adds_drops_and_reorders() {
 
     // The first section moves to the far end: c stands at the loft's
     // own plane, a and b above it.
-    let reordered =
-        set(&added, loft, c, vec![up(b, 1.0), up(a, 2.5)]).expect("the sections reordered");
+    let reordered = set(
+        &added,
+        loft,
+        c,
+        vec![up(b, 1.0), up(a, 2.5)],
+        &[Some(2), Some(1), Some(0)],
+    )
+    .expect("the sections reordered");
     let Some(Node::Loft { first, then, .. }) = reordered.node(loft) else {
         panic!("{loft} is a loft");
     };
@@ -194,7 +225,18 @@ fn set_loft_sections_adds_drops_and_reorders() {
 #[test]
 fn set_loft_sections_refuses_a_non_loft() {
     let (doc, [a, b, _], _) = two_section_loft();
-    let err = set(&doc, b, a, vec![up(b, 1.0)]).expect_err("a profile is not a loft");
+    let err = doc
+        .apply(
+            &DocEdit::SetLoftSections {
+                node: b,
+                first: a.into(),
+                first_id: None,
+                then: vec![up(b, 1.0)],
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect_err("a profile is not a loft");
     assert!(
         matches!(&err, EditError::SetLoftSectionsOnNonLoft { node } if node.id() == b),
         "{err:?}"
@@ -218,7 +260,8 @@ fn set_loft_sections_refuses_a_non_profile_section() {
             distance: len(1.0),
         },
     );
-    let err = set(&doc, loft, a, vec![up(block, 1.0)]).expect_err("a body is not a profile");
+    let err = set(&doc, loft, a, vec![up(block, 1.0)], &[Some(0), Some(1)])
+        .expect_err("a body is not a profile");
     assert!(matches!(err, EditError::SlotVarKind { .. }), "{err:?}");
 }
 
@@ -229,6 +272,7 @@ fn set_loft_sections_refuses_a_non_profile_section() {
 fn set_loft_sections_refuses_a_station_of_the_wrong_dimension() {
     let (doc, [a, b, _], loft) = two_section_loft();
     let spun_by_a_length = LoftSection {
+        id: None,
         profile: b.into(),
         station: vec![
             StationMove::Slide {
@@ -241,7 +285,8 @@ fn set_loft_sections_refuses_a_station_of_the_wrong_dimension() {
             },
         ],
     };
-    let err = set(&doc, loft, a, vec![spun_by_a_length]).expect_err("a spin is an angle");
+    let err = set(&doc, loft, a, vec![spun_by_a_length], &[Some(0), Some(1)])
+        .expect_err("a spin is an angle");
     assert!(
         matches!(
             err,
@@ -271,6 +316,7 @@ fn lofted(
         first: a.into(),
         then,
         v_degree: Formula::count(degree),
+        first_id: None,
     }
 }
 
@@ -293,10 +339,12 @@ fn assert_shape(err: &EditError, fault: &LoftFault, what: &str) {
 fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
     let (doc, [a, b, c], loft) = two_section_loft();
     let empty = || LoftSection {
+        id: None,
         profile: b.into(),
         station: Vec::new(),
     };
     let in_plane = |station| LoftSection {
+        id: None,
         profile: b.into(),
         station,
     };
@@ -361,7 +409,8 @@ fn a_loft_shape_no_evaluation_lofts_refuses_at_both_doors() {
         } else {
             insert(doc.clone(), lofted(a, vec![up(b, 1.0), up(c, 2.0)], degree))
         };
-        let rewritten = set(&base, target, a, then).expect_err(what);
+        let kept: Vec<Option<usize>> = (0..=then.len()).map(|_| None).collect();
+        let rewritten = set(&base, target, a, then, &kept).expect_err(what);
         assert_shape(&rewritten, &fault, &format!("SetLoftSections, {what}"));
     }
     let err = fixture::insert_refused(&doc, lofted(a, Vec::new(), 1));
@@ -481,6 +530,7 @@ fn a_station_rounded_next_to_the_first_plane_is_refused_by_the_skin() {
         lofted(
             a,
             vec![LoftSection {
+                id: None,
                 profile: b.into(),
                 station: vec![half_turn(), half_turn()],
             }],
@@ -564,6 +614,7 @@ fn a_saved_loft_of_one_section_or_an_empty_station_refuses_at_load() {
             .map(|step| step["by"].clone())
             .collect();
         if section_too {
+            // Its id goes with it, so the file breaks in the shape.
             then.clear();
         } else {
             then[0]["station"] = serde_json::json!([]);

@@ -76,6 +76,8 @@ mod camera_ops;
 mod cascade_delete;
 #[path = "chrome_labels.rs"]
 mod chrome_labels;
+#[path = "clearance_consumer.rs"]
+mod clearance_consumer;
 #[path = "combine_ops.rs"]
 mod combine_ops;
 #[path = "creation_ops.rs"]
@@ -155,6 +157,8 @@ mod pick_windows;
 mod picture_draws_bodies;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "probe_6356.rs"]
+mod probe_6356;
 #[path = "product_door.rs"]
 mod product_door;
 #[path = "profile_draw.rs"]

@@ -664,14 +664,20 @@ mod tests {
         let wall = face(
             3,
             vec![RoleSeg::LoftWall(vec![
-                ProfileEdgeRef::Piece {
-                    step: crate::node::StepId::new(0, 1),
-                    role: crate::names::PieceRole::Leg,
-                },
-                ProfileEdgeRef::Piece {
-                    step: crate::node::StepId::new(0, 2),
-                    role: crate::names::PieceRole::Leg,
-                },
+                (
+                    crate::node::SectionId::new(3, 3),
+                    ProfileEdgeRef::Piece {
+                        step: crate::node::StepId::new(0, 1),
+                        role: crate::names::PieceRole::Leg,
+                    },
+                ),
+                (
+                    crate::node::SectionId::new(4, 4),
+                    ProfileEdgeRef::Piece {
+                        step: crate::node::StepId::new(0, 2),
+                        role: crate::names::PieceRole::Leg,
+                    },
+                ),
             ])],
         );
         assert!(constituents(&wall).is_none());

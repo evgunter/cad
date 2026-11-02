@@ -1229,6 +1229,29 @@ pub enum OutputFault {
     },
 }
 
+/// **Why a saved loft's section ids are not ones its doors minted**
+/// ([`SnapshotError::SectionIds`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SectionIdBreak {
+    /// A section carries no id: a file written before a loft's
+    /// sections were minted (`names/README.md`, N1) — a format break,
+    /// not a fault of the document's history.
+    Unminted {
+        /// The section's position, first section 1.
+        section: usize,
+    },
+    /// An id the mint log does not hold as a section's.
+    NotMinted {
+        /// The id.
+        section: crate::node::SectionId,
+    },
+    /// One id stands for two sections anywhere in the document.
+    Repeated {
+        /// The id.
+        section: crate::node::SectionId,
+    },
+}
+
 /// **Why a selection's body read is one no door writes**
 /// ([`SnapshotError::SelectionBody`]).
 #[derive(Debug, Clone, PartialEq)]
@@ -1277,6 +1300,17 @@ pub enum SnapshotError {
         node: SpokenNode,
         /// What is wrong.
         fault: crate::program::StepIdFault,
+    },
+    /// A loft's section ids are not the ones its edit doors would have
+    /// minted (`names/README.md`, N1): a section with none (a file from
+    /// before sections were minted), an id not in the mint log as a
+    /// section's, or one id standing for two sections anywhere in the
+    /// document.
+    SectionIds {
+        /// The loft.
+        node: SpokenNode,
+        /// What is wrong.
+        fault: SectionIdBreak,
     },
     /// The mint's log does not count up from one: an entry's ordinal
     /// is not its place in the log (a repeat, a step down or a gap) —
@@ -1638,6 +1672,27 @@ impl core::fmt::Display for SnapshotError {
                 "{id} is not in the document's mint log — the document never minted it",
             ),
             Self::StepIds { node, fault } => write!(f, "{node}'s step ids: {fault}"),
+            Self::SectionIds { node, fault } => match fault {
+                SectionIdBreak::Unminted { section } => write!(
+                    f,
+                    "{node}'s section {section} carries no section id: the file was written \
+                     before a loft's sections were minted, a format this build no longer \
+                     reads. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                ),
+                SectionIdBreak::NotMinted { section } => write!(
+                    f,
+                    "{node} spells the section id {section}, which the document's mint log does \
+                     not hold as a section's — the document never minted it. {}",
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                ),
+                SectionIdBreak::Repeated { section } => write!(
+                    f,
+                    "{node}'s section id {section} stands for a second section in the document, \
+                     which no mint writes. {}",
+                    geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                ),
+            },
             Self::MintLogOrder { entry } => write!(
                 f,
                 "the mint's log does not count up from one at {entry} — its ordinal is not its \
@@ -1936,16 +1991,48 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             fault,
         };
         program.check_id_shape().map_err(fault)?;
-        for ids in &program.ids {
-            for &step in ids {
-                if !doc.mint.has_step(step) {
-                    return Err(fault(crate::program::StepIdFault::NotMinted { step }));
+        crate::mint::admit_ids(
+            program.ids.iter().flatten().copied(),
+            |step| doc.mint.has_step(step),
+            &mut seen_steps,
+        )
+        .map_err(|e| {
+            fault(match e {
+                crate::mint::IdFault::Unknown(step) => {
+                    crate::program::StepIdFault::NotMinted { step }
                 }
-                if !seen_steps.insert(step) {
-                    return Err(fault(crate::program::StepIdFault::Repeated { step }));
+                crate::mint::IdFault::Repeated(step) => {
+                    crate::program::StepIdFault::Repeated { step }
                 }
-            }
-        }
+            })
+        })?;
+    }
+    // Every loft's section ids, as its steps are a profile's: every
+    // section carries one, and they answer the rule every door holds
+    // minted ids to (`mint::admit_ids`), against the mint log and
+    // across the whole document.
+    let mut seen_sections = std::collections::BTreeSet::new();
+    for (&id, node) in &doc.nodes {
+        let Some(ids) = node.loft_section_ids() else {
+            continue;
+        };
+        let fault = |fault| SnapshotError::SectionIds {
+            node: doc.spoken(id),
+            fault,
+        };
+        let ids = ids
+            .iter()
+            .enumerate()
+            .map(|(k, id)| id.ok_or(fault(SectionIdBreak::Unminted { section: k + 1 })))
+            .collect::<Result<Vec<_>, _>>()?;
+        crate::mint::admit_ids(ids, |s| doc.mint.has_section(s), &mut seen_sections).map_err(
+            |e| {
+                fault(match e {
+                    crate::mint::IdFault::Unknown(section) => SectionIdBreak::NotMinted { section },
+                    crate::mint::IdFault::Repeated(section) => SectionIdBreak::Repeated { section },
+                })
+            },
+        )?;
     }
     let mut constraint_ids: std::collections::BTreeSet<crate::node::ConstraintId> =
         std::collections::BTreeSet::new();
@@ -2348,6 +2435,7 @@ mod tests {
         const SNAPSHOT_ERROR: SnapshotError = [
             NodeNotMinted,
             StepIds,
+            SectionIds,
             MintLogOrder,
             NameReadNotMinted,
             AppearanceReadNotABody,
@@ -2429,6 +2517,7 @@ mod tests {
             // `validate_snapshot`, which is where the rest live.
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
+            | SnapshotError::SectionIds { .. }
             | SnapshotError::NameReadNotMinted { .. }
             | SnapshotError::AppearanceReadNotABody { .. }
             | SnapshotError::NameStepNotMinted { .. }
@@ -2484,6 +2573,12 @@ mod tests {
                 node: node(),
                 fault: crate::program::StepIdFault::Repeated {
                     step: crate::node::StepId::new(0, 2),
+                },
+            },
+            SnapshotError::SectionIds {
+                node: node(),
+                fault: super::SectionIdBreak::Repeated {
+                    section: crate::node::SectionId::new(0, 2),
                 },
             },
             SnapshotError::MintLogOrder {

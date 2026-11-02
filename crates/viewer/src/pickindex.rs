@@ -2973,6 +2973,30 @@ fn drawn(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
     }
 }
 
+/// **A clearance witness's leg, where the picture draws it**: each end,
+/// a point in the frame the pair was decided in (`computing`, the
+/// operands' computing frame), composed into its space
+/// ([`pncad::document::in_space`]) and moved by the free-move probe its
+/// own seat's node is drawn under — so each end lands on its face as
+/// that face is drawn.
+pub(crate) fn witness_leg(
+    display: &DisplayView,
+    computing: &pncad::document::Framed<f64>,
+    ends: [(RecipeNodeId, Point3<f64>); 2],
+) -> [Point3<f64>; 2] {
+    let placed = pncad::document::in_space(computing).map(|map| map.to_affine());
+    ends.map(|(node, at)| {
+        let in_space = placed.map_or(at, |placed| placed.transform_point(at));
+        display
+            .moved_nodes
+            .get(&node)
+            .copied()
+            .map_or(in_space, |frame: Frame| {
+                frame.affine::<f64>().transform_point(in_space)
+            })
+    })
+}
+
 /// **The free-move probe frame a part's node is drawn under**, if
 /// the display view puts it under one: a display map, not the model's.
 fn probed(display: &DisplayView, part: &NodePick) -> Option<Affine3<f64>> {
