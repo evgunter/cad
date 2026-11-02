@@ -220,12 +220,11 @@ fn assert_on_within(
     surfaces: &[&Surface<f64>],
     reach: f64,
 ) {
-    let Curve3::Ellipse {
-        center,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame { center, .. },
         semi_u,
         semi_v,
-        ..
-    } = *curve
+    }) = *curve
     else {
         panic!("{what}: an ellipse, got {curve:?}");
     };
@@ -233,13 +232,13 @@ fn assert_on_within(
         semi_u.is_finite() && semi_v.is_finite(),
         "{what}: the served semi-axes are {semi_u:e} and {semi_v:e}"
     );
-    let scale = (center - Point3::origin()).norm() + semi_u.abs().max(semi_v.abs()).min(reach);
+    let scale = (center - Point3::origin()).norm() + semi_u.max(semi_v).min(reach);
     let rounding = 8.0 * f64::EPSILON * scale;
     let (mut worst_plane, mut worst, mut read) = (0.0_f64, 0.0_f64, 0);
     // The whole period, or where the reach is finite, stations spread
     // evenly along the larger semi-axis's span within it, both sides.
     let ts: Vec<f64> = if reach.is_finite() {
-        let (major, along_u) = (semi_u.abs().max(semi_v.abs()), semi_u.abs() >= semi_v.abs());
+        let (major, along_u) = (semi_u.max(semi_v), semi_u >= semi_v);
         (0..=4096)
             .flat_map(|i| {
                 let x = (f64::from(i) / 2048.0 - 1.0) * reach.min(major) / major;
@@ -771,7 +770,7 @@ fn bisector_rows(frame: &str, map: &Affine3<f64>, r: f64) {
             panic!("{what}: the two bisector ellipses, got {got:?}");
         };
         let near = |e: &Curve3<f64>| match *e {
-            Curve3::Ellipse { semi_u, semi_v, .. } => (semi_u - semi_v).abs() < r,
+            Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => (semi_u - semi_v).abs() < r,
             _ => false,
         };
         let (round, long) = if near(e1) { (e1, e2) } else { (e2, e1) };
@@ -824,7 +823,7 @@ fn a_sliver_crossing_serves_its_long_semi_axis_to_a_few_u() {
             match &got {
                 Ok(EqualCylinderSection::TwoEllipses { e1, e2, .. }) => {
                     let semi = |e: &Curve3<f64>| match *e {
-                        Curve3::Ellipse { semi_u, semi_v, .. } => semi_u.max(semi_v),
+                        Curve3::Ellipse(geom::Ellipse { semi_u, semi_v, .. }) => semi_u.max(semi_v),
                         _ => panic!("{what}: an ellipse, got {e:?}"),
                     };
                     let long = semi(e1).max(semi(e2));

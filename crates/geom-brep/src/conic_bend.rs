@@ -115,7 +115,7 @@ impl<T: Decide> ConicBend<T> {
             // its tangent at angle `θ`, which grows to `θ = π`; most at
             // `θ = min(span, π)` (the sine form, since `1 − cos θ`
             // cancels to nothing at a small `θ`).
-            geom::Curve3::Circle { radius, .. } => BendBounds::Planar {
+            geom::Curve3::Circle(geom::Circle { radius, .. }) => BendBounds::Planar {
                 least: T::one() / radius,
                 reach: (radius * span).min(radius * T::from_f64(2.0)),
                 rise: radius
@@ -133,8 +133,8 @@ impl<T: Decide> ConicBend<T> {
             // at least `b`, so the arc is at least `b·span` long. The
             // lift bound holds while the tangent turns at most a quarter
             // turn at the greatest curvature.
-            geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
-                let (a, b) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
+            geom::Curve3::Ellipse(e) => {
+                let (a, b) = e.semi_axes_by_size();
                 let most = a / b.powi(2);
                 BendBounds::Planar {
                     least: b / a.powi(2),

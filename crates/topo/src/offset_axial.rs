@@ -1256,9 +1256,11 @@ fn corner_arms<T: Decide>(
             // else falls back to the endpoints' chord, which is what the
             // carrier can say.
             line @ Curve3::Line(_) => geom_brep::edge_extent_inf(line, t0, t1, (t1 - t0).abs()),
-            // Unsourced lever: the arc's length, an angular span times its radius, is longer than
-            // the arc's extent, which `edge_extent_inf` reads as its chord or fold.
-            Curve3::Circle { radius, .. } => Lever::unsourced((t1 - t0).abs() * *radius),
+            Curve3::Circle(geom::Circle { radius, .. }) => {
+                // Unsourced lever: the arc's length, an angular span times its radius, is
+                // longer than the arc's extent, which `edge_extent_inf` reads as its chord or fold.
+                Lever::unsourced((t1 - t0).abs() * *radius)
+            }
             other => geom_brep::ExtentBall::point(other.eval(t1)).lever_from(other.eval(t0)),
         });
     }
@@ -2108,12 +2110,15 @@ fn mint_carrier<T: Decide>(
     // sphere's great circle, a torus's meridian circle — and each
     // certifies its own posture.
     if ca.old_key == cb.old_key {
-        if let Curve3::Circle {
-            center: cc,
-            axis,
-            u_ref,
+        if let Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center: cc,
+                    axis,
+                    u_ref,
+                },
             ..
-        } = old
+        }) = old
             && latitude_posture(frame, *cc, *axis, band)?.is_none()
         {
             return Ok(latitude_circle(frame, p_start, *axis, *u_ref));
@@ -2151,21 +2156,19 @@ fn mint_carrier<T: Decide>(
             // translation, and not pretended to be one.
             (
                 Surface::Sphere { center, .. },
-                Curve3::Circle {
-                    center: cc,
-                    axis,
+                Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::Frame {
+                            center: cc,
+                            axis,
+                            u_ref,
+                        },
                     radius,
-                    u_ref,
-                },
+                }),
             ) => {
                 let off = cc.distance(*center);
                 match decide("offset_axial_seam_concentric", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::Circle {
-                        center: *cc,
-                        axis: *axis,
-                        radius: *radius + ca.distance,
-                        u_ref: *u_ref,
-                    }),
+                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, *radius + ca.distance, *u_ref)),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
                     )),
@@ -2187,21 +2190,19 @@ fn mint_carrier<T: Decide>(
                     major_radius,
                     ..
                 },
-                Curve3::Circle {
-                    center: cc,
-                    axis,
+                Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::Frame {
+                            center: cc,
+                            axis,
+                            u_ref,
+                        },
                     radius,
-                    u_ref,
-                },
+                }),
             ) => {
                 let off = tube_centre_offset(frame, *cc, *center, *major_radius);
                 match decide("offset_axial_seam_meridian", Margin::of(off), band) {
-                    Ok(Sign::Zero) => Ok(Curve3::Circle {
-                        center: *cc,
-                        axis: *axis,
-                        radius: *radius + ca.distance,
-                        u_ref: *u_ref,
-                    }),
+                    Ok(Sign::Zero) => Ok(Curve3::circle(*cc, *axis, *radius + ca.distance, *u_ref)),
                     Ok(_) => Err(refuse(
                         "a torus seam that is neither a latitude circle nor a meridian circle \
                          about the tube's own centre",
@@ -2403,7 +2404,14 @@ fn mint_carrier<T: Decide>(
         // the two normals says whether the parameter runs the old way.
         // A cosine of unit vectors, levered at the body's extent.
         let normal_of = |c: &Curve3<T>| match c {
-            Curve3::Circle { axis, .. } | Curve3::Ellipse { axis, .. } => Some(axis.normalize()),
+            Curve3::Circle(geom::Circle {
+                frame: geom::Frame { axis, .. },
+                ..
+            })
+            | Curve3::Ellipse(geom::Ellipse {
+                frame: geom::Frame { axis, .. },
+                ..
+            }) => Some(axis.normalize()),
             Curve3::Spiric { u_ref, .. } => Some(u_ref.normalize()),
             Curve3::Line(_) | Curve3::Nurbs(_) => None,
         };
@@ -2454,12 +2462,15 @@ fn mint_carrier<T: Decide>(
             let delta = shift - *dir * shift.dot(*dir);
             Ok(Curve3::line(*origin + delta, *dir))
         }
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             ..
-        } => {
+        }) => {
             // A LATITUDE circle: coaxial with the body, so its centre
             // stays on the axis and its radius is the corner's own.
             if let Some(what) = latitude_posture(frame, *center, *axis, band)? {
@@ -2654,12 +2665,12 @@ fn latitude_circle<T: Real>(
     axis: Vec3<T>,
     u_ref: Vec3<T>,
 ) -> Curve3<T> {
-    Curve3::Circle {
-        center: frame.origin + frame.dir * frame.station(p_start),
+    Curve3::circle(
+        frame.origin + frame.dir * frame.station(p_start),
         axis,
-        radius: frame.radial(p_start).norm(),
+        frame.radial(p_start).norm(),
         u_ref,
-    }
+    )
 }
 
 /// The parameter `t` of an end of `carrier`, metered against the
@@ -2718,7 +2729,7 @@ fn param_on<T: Decide>(
         what: "its kind of curve has no exact offset here",
     };
     let guess = match carrier {
-        Curve3::Circle { .. } | Curve3::Spiric { .. } => {
+        Curve3::Circle(..) | Curve3::Spiric { .. } => {
             let across = t_old + T::pi();
             let lead = carrier.eval(across).distance(q) - carrier.eval(t_old).distance(q);
             match decide("offset_axial_edge_anchor", Margin::of(lead), band) {
@@ -2727,7 +2738,7 @@ fn param_on<T: Decide>(
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
         }
-        Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => t_old,
+        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Nurbs(_) => t_old,
     };
     let read = carrier.param_near(q, guess).ok_or_else(unread)?;
     // On a carried frame the read IS the old parameter, and a second
@@ -2749,7 +2760,10 @@ fn param_on<T: Decide>(
     let t = match carrier {
         // A circle's motion is the angle between the two points' rays
         // about its own centre, read off the points themselves.
-        Curve3::Circle { center, axis, .. } => {
+        Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, axis, .. },
+            ..
+        }) => {
             let n = axis.normalize();
             let ray = |x: Point3<T>| {
                 let v = x - *center;
@@ -2835,10 +2849,10 @@ fn forward_window<T: Decide>(
 /// an ellipse or a spline, whose windows here decide unlevered.
 fn param_speeds<T: SpanLocate>(carrier: &Curve3<T>) -> Option<(InfSpeed<T>, SupSpeed<T>)> {
     match carrier {
-        Curve3::Circle { .. } | Curve3::Spiric { .. } => {
+        Curve3::Circle(..) | Curve3::Spiric { .. } => {
             Some(geom::carrier_speed::speed_range(carrier))
         }
-        Curve3::Line(_) | Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+        Curve3::Line(_) | Curve3::Ellipse(..) | Curve3::Nurbs(_) => None,
     }
 }
 
@@ -2983,7 +2997,11 @@ fn reauthor<T: Decide>(
                         geom_brep::SketchSegment::Line { a, b }
                     }
                     geom_brep::SketchSegment::Arc { arc: was, .. } => {
-                        let Curve3::Circle { center, radius, .. } = carrier else {
+                        let Curve3::Circle(geom::Circle {
+                            frame: geom::Frame { center, .. },
+                            radius,
+                        }) = carrier
+                        else {
                             return Err(refuse(
                                 "a sketch arc with no moved circle to be redrawn about",
                             ));
@@ -3722,12 +3740,12 @@ mod tests {
         let (t0, t1) = (0.1 * sweep, 0.35 * sweep);
         let lift = |p: geom_core::Point2<f64>| Point3::new(p.x, p.y, 0.0);
         let (p_start, p_end) = (lift(on(1.5, t0)), lift(on(1.5, t1)));
-        let carrier = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.5,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let carrier = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.5,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let moved = reauthor(edge, &carrier, (p_start, p_end), EdgeKey::default(), band())
             .expect("a concentric offset of a sketch arc re-authors");
         assert!(moved.range.is_whole(), "the re-authored segment is whole");
@@ -3809,12 +3827,12 @@ mod keep_turn_rows {
             let (out, counts) =
                 crate::test_support_fixtures::whole_period_gap_over_a_box(k, |read, old| {
                     let f = Sym::<Interval>::from_f64;
-                    let carrier = Curve3::Circle {
-                        center: Point3::new(f(0.0), f(0.0), f(0.0)),
-                        axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
-                        radius: f(2.0),
-                        u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
-                    };
+                    let carrier = Curve3::circle(
+                        Point3::new(f(0.0), f(0.0), f(0.0)),
+                        Vec3::new(f(0.0), f(0.0), f(1.0)),
+                        f(2.0),
+                        Vec3::new(f(1.0), f(0.0), f(0.0)),
+                    );
                     // A unit added to both spans keeps the forward decision
                     // clear of zero over the box.
                     let (old, read) = (old + f(1.0), read + f(1.0));

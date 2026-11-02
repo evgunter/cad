@@ -33,12 +33,12 @@ fn certify_half_circle(
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.5 * delta, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.5 * delta, 0.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let pi = core::f64::consts::PI;
     let bounds = geom_brep::tangent_span_bounds(&ball, &bore, &carrier, 0.0, pi).unwrap();
     let (k1, k2, map) = arena2(ball, bore);

@@ -144,12 +144,7 @@ fn plane_chart_pcurve_segment_midpoints_hit_sweep_midpoints() {
 #[test]
 fn pcurve_wrong_lanes_and_degenerate_spans_are_typed() {
     let e = section_ellipse(0.5);
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    };
+    let circle = Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x());
     assert!(ellipse_pcurve_on_plane(&circle, &plane(0.5), 0.0, 1.0).is_err());
     assert!(ellipse_pcurve_on_plane(&e, &cyl(), 0.0, 1.0).is_err());
     assert!(ellipse_pcurve_on_plane(&e, &plane(0.5), 1.0, 1.0).is_err());
@@ -264,13 +259,15 @@ fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
 /// Builds the exact rational-quadratic NURBS 3-D form of an ellipse
 /// arc (Book §7.3, ≤ 90° segments) — the TEST oracle only.
 fn rational_quadratic_arc(e: &Curve3<f64>, t0: f64, t1: f64) -> NurbsCurve3<f64> {
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = *e
+    }) = *e
     else {
         panic!("oracle needs an ellipse");
     };

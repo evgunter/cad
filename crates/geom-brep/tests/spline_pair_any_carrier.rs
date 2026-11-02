@@ -76,19 +76,25 @@ fn twin(carrier: &Curve3<f64>, (t0, t1): (f64, f64)) -> Curve3<f64> {
             vec![carrier.eval(t0), carrier.eval(t1)],
             vec![1.0, 1.0],
         ),
-        Curve3::Circle {
-            center,
-            axis,
+        Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             radius,
-            u_ref,
-        } => arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1)),
-        Curve3::Ellipse {
-            center,
-            axis,
+        }) => arc(center, u_ref * radius, axis.cross(u_ref) * radius, (t0, t1)),
+        Curve3::Ellipse(geom::Ellipse {
+            frame:
+                geom::Frame {
+                    center,
+                    axis,
+                    u_ref,
+                },
             semi_u,
             semi_v,
-            u_ref,
-        } => arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1)),
+        }) => arc(center, u_ref * semi_u, axis.cross(u_ref) * semi_v, (t0, t1)),
         _ => unreachable!("the rows twin a line, a circle or an ellipse"),
     }
     .unwrap();
@@ -115,12 +121,12 @@ fn arc(
 /// A height-`z` unit circle about the z axis, `t` its angle: on the
 /// quarter-cylinder wall.
 fn circle(z: f64) -> Curve3<f64> {
-    Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    Curve3::circle(
+        Point3::new(0.0, 0.0, z),
+        Vec3::new(0.0, 0.0, 1.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    )
 }
 
 /// The plane `z = h`.
@@ -139,13 +145,15 @@ fn ellipse() -> (Curve3<f64>, Surface<f64>) {
     let s = (1.0 + k * k).sqrt();
     let axis = Vec3::new(-k / s, 0.0, 1.0 / s);
     (
-        Curve3::Ellipse {
-            center: Point3::new(0.0, 0.0, 0.4),
-            axis,
-            semi_u: s,
-            semi_v: 1.0,
-            u_ref: Vec3::new(1.0 / s, 0.0, k / s),
-        },
+        Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                Point3::new(0.0, 0.0, 0.4),
+                axis,
+                Vec3::new(1.0 / s, 0.0, k / s),
+            ),
+            s,
+            1.0,
+        )),
         Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.4),
             normal: axis,

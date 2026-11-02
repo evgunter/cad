@@ -1116,11 +1116,13 @@ fn cylinder_sphere<T: Decide>(pose: CylinderSpherePose<T>) -> PairSection<T> {
         }
     };
     let mut decided = Vec::new();
-    let circle = |station: T| Curve3::Circle {
-        center: pose.center + pose.axis * station,
-        axis: pose.axis,
-        u_ref: geom::square_frame(pose.axis, pose.u_ref).u_ref,
-        radius: pose.r,
+    let circle = |station: T| {
+        Curve3::circle(
+            pose.center + pose.axis * station,
+            pose.axis,
+            pose.r,
+            geom::square_frame(pose.axis, pose.u_ref).u_ref,
+        )
     };
     let ring = |carrier| {
         SectionComponent::closed_form(ComponentShape::Loop, order(true, false), None, carrier)

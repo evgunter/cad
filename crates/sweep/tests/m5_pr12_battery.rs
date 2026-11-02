@@ -377,7 +377,7 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
                     .get_curve_geom(ed.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.carrier()),
-                Some(geom::Curve3::Circle { .. })
+                Some(geom::Curve3::Circle(..))
             ) && z(s) > 0.5
                 && z(t) > 0.5
         })

@@ -213,12 +213,7 @@ fn the_lane_census_is_exhaustive_over_surface_kind() {
         origin: p,
         dir: axis,
     });
-    let circle = Curve3::Circle {
-        center: p,
-        axis,
-        radius: 1.0,
-        u_ref,
-    };
+    let circle = Curve3::circle(p, axis, 1.0, u_ref);
     let reps: Vec<Surface<f64>> = vec![
         Surface::Plane {
             origin: p,
@@ -369,12 +364,12 @@ fn varying_triple() -> (
         radius: 1.0,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let carrier = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let carrier = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     let b = band();
     let extent = geom_brep::ExtentBall::of_sphere(
         Point3::origin(),

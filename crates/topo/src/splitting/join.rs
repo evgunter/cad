@@ -1116,17 +1116,11 @@ impl<T: Decide> Sweep<T> {
                 placeholders += 1;
                 continue;
             }
-            let Some(crate::loop_winding::ConicFrame {
-                center: c_e,
-                axis: axis_e,
-                sa,
-                sb,
-                reach,
-                ..
-            }) = crate::loop_winding::ConicFrame::of(curve.carrier())
-            else {
+            let Some(conic) = curve.carrier().conic() else {
                 continue;
             };
+            let (c_e, axis_e) = (conic.frame().center, conic.frame().axis);
+            let ((sa, sb), reach) = (conic.semi_axes(), conic.speed_hi());
             let (t0, t1) = curve.params();
             let span = t1 - t0;
             let forward = edge.he_plus == he;
@@ -1142,7 +1136,7 @@ impl<T: Decide> Sweep<T> {
                 - a.cross(b).dot(self.plane.normal.get());
             twice_area = twice_area + excess;
             // The arc's length over-stated by its larger semi-axis
-            // magnitude (`reach`), whichever is stored first.
+            // (`reach`), whichever is stored first.
             perimeter = perimeter + (reach * span.abs() - (b - a).norm());
         }
         // `twice_area` IS 2A (shoelace), so dividing by the full

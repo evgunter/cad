@@ -64,7 +64,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
                 .unwrap();
-            matches!(c.carrier(), geom::Curve3::Circle { .. })
+            matches!(c.carrier(), geom::Curve3::Circle(..))
         })
         .count();
     assert_eq!(circles, 2, "the two half-circles of the latitude ring");
@@ -144,7 +144,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             continue;
         };
         if !matches!(reverted.get_surface(c.surface), Some(Surface::Plane { .. }))
-            || !matches!(curve.carrier(), geom::Curve3::Circle { .. })
+            || !matches!(curve.carrier(), geom::Curve3::Circle(..))
         {
             continue;
         }

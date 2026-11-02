@@ -54,7 +54,11 @@ pub(super) fn arcs_along<T: Decide>(
         let Some(curve) = body.edge_curve_linked(e, edge).certified() else {
             continue;
         };
-        let geom::Curve3::Circle { center, radius, .. } = *curve.carrier() else {
+        let geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { center, .. },
+            radius,
+        }) = *curve.carrier()
+        else {
             continue;
         };
         let (tangent, arrival) = curve.walk_tangents(he == edge.he_plus);

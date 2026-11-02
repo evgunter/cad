@@ -72,13 +72,11 @@ fn ellipse_pair(phi: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         normal,
         u_ref: Vec3::unit_x(),
     };
-    let ellipse = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: normal,
-        semi_u: 1.0,
-        semi_v: 1.0 / c,
-        u_ref: Vec3::unit_x(),
-    };
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(Point3::origin(), normal, Vec3::unit_x()),
+        1.0,
+        1.0 / c,
+    ));
     (cylinder, plane, ellipse)
 }
 
@@ -190,11 +188,13 @@ fn every_closed_form_kind_owes_limb_2_through_the_lane() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let circle = |z: f64, radius: f64| Curve3::Circle {
-        center: Point3::new(0.0, 0.0, z),
-        axis: Vec3::unit_z(),
-        radius,
-        u_ref: Vec3::unit_x(),
+    let circle = |z: f64, radius: f64| {
+        Curve3::circle(
+            Point3::new(0.0, 0.0, z),
+            Vec3::unit_z(),
+            radius,
+            Vec3::unit_x(),
+        )
     };
     let cone_circle = circle(2.0, 2.0 * (PI / 6.0).tan());
     let flat_torus = Surface::Torus {
@@ -317,23 +317,23 @@ fn a_spiric_off_its_torus_between_samples_refuses_on_limb_2() {
 #[test]
 fn an_ellipse_off_its_cylinder_between_samples_refuses_on_limb_2() {
     let (cylinder, plane, ellipse) = ellipse_pair(PI / 5.0);
-    let Curve3::Ellipse {
-        center,
-        axis,
+    let Curve3::Ellipse(geom::Ellipse {
+        frame: geom::Frame {
+            center,
+            axis,
+            u_ref,
+        },
         semi_u,
         semi_v,
-        u_ref,
-    } = ellipse
+    }) = ellipse
     else {
         unreachable!("built as an ellipse")
     };
-    let moved = Curve3::Ellipse {
-        center,
-        axis,
-        semi_u: semi_u + 1e-4,
+    let moved = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(center, axis, u_ref),
+        semi_u + 1e-4,
         semi_v,
-        u_ref,
-    };
+    ));
     let sampled = sampled_max(&cylinder, &plane, &moved, SPAN);
     let peak = implicit_residual(&cylinder, moved.eval(0.0)).abs();
     let got = certify(&cylinder, &plane, &moved, SPAN, teeth_band(sampled, peak));
@@ -373,12 +373,12 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         };
-        let rim = Curve3::Circle {
-            center: moved(Point3::new(0.0, 0.0, 0.25), d),
-            axis: Vec3::unit_z(),
-            radius: 0.5,
-            u_ref: Vec3::unit_x(),
-        };
+        let rim = Curve3::circle(
+            moved(Point3::new(0.0, 0.0, 0.25), d),
+            Vec3::unit_z(),
+            0.5,
+            Vec3::unit_x(),
+        );
         let side = Surface::Plane {
             origin: moved(Point3::origin(), d),
             normal: Vec3::unit_y(),
@@ -391,13 +391,15 @@ fn a_part_moved_a_kilometre_reads_as_at_the_origin() {
             normal: Vec3::new(0.0, -s, c),
             u_ref: Vec3::unit_x(),
         };
-        let ellipse = Curve3::Ellipse {
-            center: moved(Point3::origin(), d),
-            axis: Vec3::new(0.0, -s, c),
-            semi_u: 0.5,
-            semi_v: 0.5 / c,
-            u_ref: Vec3::unit_x(),
-        };
+        let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(
+                moved(Point3::origin(), d),
+                Vec3::new(0.0, -s, c),
+                Vec3::unit_x(),
+            ),
+            0.5,
+            0.5 / c,
+        ));
         let rows = [
             ("rim", &cylinder, &cap, &rim, (0.0, 1.5 * PI)),
             ("ruling", &cylinder, &side, &ruling, (0.0, 0.5)),
@@ -534,12 +536,12 @@ fn a_thin_torus_circle_refuses_as_the_kernel_limit_of_its_composite() {
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
-    let outer = Curve3::Circle {
-        center: Point3::new(0.0, 0.0, 0.1),
-        axis: Vec3::unit_z(),
-        radius: 10.0 + 0.03_f64.sqrt(),
-        u_ref: Vec3::unit_x(),
-    };
+    let outer = Curve3::circle(
+        Point3::new(0.0, 0.0, 0.1),
+        Vec3::unit_z(),
+        10.0 + 0.03_f64.sqrt(),
+        Vec3::unit_x(),
+    );
     let got = certify(&torus, &level, &outer, (0.25, 1.75), fine_band());
     let Some((operand, bound, width, extent)) = kernel_limit(&got) else {
         panic!("the kernel's limit: {got:?}");

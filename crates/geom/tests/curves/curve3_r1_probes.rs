@@ -246,12 +246,7 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
 fn probe_ders1_is_total_and_poisons_like_its_evaluators() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let u_ref = Vec3::new(1.0, 0.0, 0.0);
-    let circle = Curve3::Circle {
-        center: Point3::origin(),
-        axis,
-        radius: 2.0,
-        u_ref,
-    };
+    let circle = Curve3::circle(Point3::origin(), axis, 2.0, u_ref);
     let (p, d) = circle.ders1(f64::NAN);
     assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan(), "point {p:?}");
     assert!(
@@ -294,43 +289,23 @@ fn probe_analytic_arms_at_extreme_parameters() {
     let center = Point3::new(-1.7, 0.4, 2.2);
     let curves = [
         ("line", Curve3::line(center, Vec3::new(0.3, -0.4, 1.2))),
-        (
-            "circle",
-            Curve3::Circle {
-                center,
-                axis,
-                radius: 3.25,
-                u_ref,
-            },
-        ),
-        (
-            "circle_tiny",
-            Curve3::Circle {
-                center,
-                axis,
-                radius: 1e-300,
-                u_ref,
-            },
-        ),
+        ("circle", Curve3::circle(center, axis, 3.25, u_ref)),
+        ("circle_tiny", Curve3::circle(center, axis, 1e-300, u_ref)),
         (
             "ellipse",
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u: 4.5,
-                semi_v: 0.125,
-                u_ref,
-            },
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(center, axis, u_ref),
+                4.5,
+                0.125,
+            )),
         ),
         (
             "ellipse_degenerate",
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u: 1e12,
-                semi_v: 1e-12,
-                u_ref,
-            },
+            Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(center, axis, u_ref),
+                1e12,
+                1e-12,
+            )),
         ),
     ];
     let params = [

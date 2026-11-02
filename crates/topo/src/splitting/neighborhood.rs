@@ -209,8 +209,8 @@ pub(super) fn chord<T: Decide>(
     )?;
     match curve.carrier() {
         geom::Curve3::Line(_) => Ok((final_vertex, p_final - p_base, None)),
-        geom::Curve3::Circle { .. }
-        | geom::Curve3::Ellipse { .. }
+        geom::Curve3::Circle(..)
+        | geom::Curve3::Ellipse(..)
         | geom::Curve3::Spiric { .. }
         | geom::Curve3::Nurbs(_) => {
             let departure =

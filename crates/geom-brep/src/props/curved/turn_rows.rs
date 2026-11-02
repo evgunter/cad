@@ -142,13 +142,15 @@ fn the_circle_span_doors_agree_with_the_old_pair() {
 /// The cone's ellipse door, at `semi_u : semi_v = 16 : 1` (where no case
 /// lands on a band edge): the door the cone asks, on one hand-built arc.
 fn cone_ellipse(span: (f64, f64), band: Band) -> Outcome {
-    let ellipse = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        semi_u: 16.0,
-        semi_v: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let ellipse = Curve3::Ellipse(geom::Ellipse::new(
+        geom::Frame::new(
+            Point3::origin(),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        16.0,
+        1.0,
+    ));
     let edge = LoopEdge::hand_built(ellipse, span.0, span.1, true, 0, 1);
     outcome(require_cone_conic_spans(&[edge], band))
 }

@@ -33,12 +33,12 @@ fn probe_meridian_sphere_torus() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let circle = Curve3::Circle {
-        center: Point3::new(1.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 0.2,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let circle = Curve3::circle(
+        Point3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        0.2,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
     // Sanity: the circle lies on both surfaces (residual 0 at samples)
     for i in 0..9 {
         let t = 2.0 * core::f64::consts::PI * f64::from(i) / 9.0;

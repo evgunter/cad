@@ -623,12 +623,12 @@ mod tests {
         use geom_brep::EdgeCurveSpec;
         use geom_core::{Point3, Vec3};
         let tol = Tol::witness();
-        let circle = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
         let plane = Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
             normal: Vec3::unit_z(),
@@ -695,12 +695,12 @@ mod tests {
 
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let circle = Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let circle = Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
         let (t0, t1) = (0.0, core::f64::consts::PI);
         let (start, end) = (circle.eval(t0), circle.eval(t1));
         let plane = Surface::Plane {

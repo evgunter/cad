@@ -2280,21 +2280,14 @@ pub(crate) enum EdgeBoxRule<'c, T: Real> {
     },
 }
 
-/// [`EdgeBoxRule::ConicAmplitude`]'s arc: the certified conic and the
-/// fields [`edge_box_rule`] read from it.
+/// [`EdgeBoxRule::ConicAmplitude`]'s arc: the certified conic and its
+/// interval.
 pub(crate) struct ConicArc<'c, T: Real> {
-    /// The certified carrier the fields below were read from — a
-    /// `Circle` or an `Ellipse`, which `geom`'s exact arc door takes
-    /// whole.
+    /// The certified carrier — a `Circle` or an `Ellipse`, which `geom`'s
+    /// exact arc door takes whole.
     pub(crate) carrier: &'c geom::Curve3<T>,
-    /// The conic's centre.
-    pub(crate) center: Point3<T>,
-    /// The plane normal of the conic.
-    pub(crate) axis: Vec3<T>,
-    /// The semi-axis at `t = 0`, along the carrier's own `u_ref`.
-    pub(crate) semi_u: T,
-    /// The semi-axis at `t = π/2`, along `axis × u_ref`.
-    pub(crate) semi_v: T,
+    /// The carrier read as a conic.
+    pub(crate) conic: &'c dyn geom::Conic<T>,
     /// The certified parameter span — read from the same
     /// [`geom_brep::EdgeCurve`] as the carrier, so a conic rule always
     /// has its arc.
@@ -2368,33 +2361,14 @@ pub(crate) fn edge_box_rule<T: Real>(
     let carrier = curve.carrier();
     match carrier {
         geom::Curve3::Line(_) => EdgeBoxRule::Chord,
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => EdgeBoxRule::ConicAmplitude(ConicArc {
-            carrier,
-            center: *center,
-            axis: *axis,
-            semi_u: *radius,
-            semi_v: *radius,
-            params,
-        }),
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            ..
-        } => EdgeBoxRule::ConicAmplitude(ConicArc {
-            carrier,
-            center: *center,
-            axis: *axis,
-            semi_u: *semi_u,
-            semi_v: *semi_v,
-            params,
-        }),
+        geom::Curve3::Circle(_) | geom::Curve3::Ellipse(_) => match carrier.conic() {
+            Some(conic) => EdgeBoxRule::ConicAmplitude(ConicArc {
+                carrier,
+                conic,
+                params,
+            }),
+            None => unreachable!("a circle or an ellipse reads as a conic"),
+        },
         geom::Curve3::Spiric {
             center,
             axis,
@@ -2671,12 +2645,12 @@ pub(crate) mod tests {
         let (a, b, c) = (on(start), on(start + span), Point3::origin());
         let plane_surface = plane_z0();
         let cyl_surface = cyl_r(r);
-        let carrier = Curve3::Circle {
-            center: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: r,
-            u_ref: Vec3::new(phi.cos(), phi.sin(), 0.0),
-        };
+        let carrier = Curve3::circle(
+            Point3::origin(),
+            Vec3::unit_z(),
+            r,
+            Vec3::new(phi.cos(), phi.sin(), 0.0),
+        );
         conic_sector(
             plane_surface,
             cyl_surface,
@@ -2699,13 +2673,11 @@ pub(crate) mod tests {
     fn ellipse_sector(r: f64, alpha: f64, t0: f64, t1: f64) -> (Body<f64>, FaceKey) {
         let normal = Vec3::new(alpha.sin(), 0.0, alpha.cos());
         let u_ref = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
-        let carrier = Curve3::Ellipse {
-            center: Point3::origin(),
-            axis: normal,
-            semi_u: r / alpha.cos(),
-            semi_v: r,
-            u_ref,
-        };
+        let carrier = Curve3::Ellipse(geom::Ellipse::new(
+            geom::Frame::new(Point3::origin(), normal, u_ref),
+            r / alpha.cos(),
+            r,
+        ));
         let plane_surface = Surface::Plane {
             origin: Point3::origin(),
             normal,
@@ -2907,23 +2879,18 @@ pub(crate) mod tests {
             let wall = body.add_surface(cyl_r(r));
             let (carrier, t0, t1) = if ccw {
                 (
-                    Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, z),
-                        axis: Vec3::unit_z(),
-                        radius: r,
-                        u_ref: Vec3::unit_x(),
-                    },
+                    Curve3::circle(Point3::new(0.0, 0.0, z), Vec3::unit_z(), r, Vec3::unit_x()),
                     u0,
                     u1,
                 )
             } else {
                 (
-                    Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, z),
-                        axis: Vec3::new(0.0, 0.0, -1.0),
-                        radius: r,
-                        u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
-                    },
+                    Curve3::circle(
+                        Point3::new(0.0, 0.0, z),
+                        Vec3::new(0.0, 0.0, -1.0),
+                        r,
+                        Vec3::new(u1.cos(), u1.sin(), 0.0),
+                    ),
                     0.0,
                     u1 - u0,
                 )
@@ -4069,26 +4036,12 @@ pub(crate) mod tests {
             });
             let (carrier, t0, t1) = if up {
                 (
-                    Curve3::Circle {
-                        center: c,
-                        axis,
-                        radius,
-                        u_ref,
-                    },
+                    Curve3::circle(c, axis, radius, u_ref),
                     u0 - shift,
                     u1 - shift,
                 )
             } else {
-                (
-                    Curve3::Circle {
-                        center: c,
-                        axis: -axis,
-                        radius,
-                        u_ref: e(u1),
-                    },
-                    0.0,
-                    u1 - u0,
-                )
+                (Curve3::circle(c, -axis, radius, e(u1)), 0.0, u1 - u0)
             };
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {
@@ -4124,24 +4077,15 @@ pub(crate) mod tests {
                 EdgeDescriptionSpec::chart(torus)
             };
             let (carrier, t0, t1) = if up {
-                (
-                    Curve3::Circle {
-                        center: spine,
-                        axis: e(u).cross(axis),
-                        radius: minor,
-                        u_ref: e(u),
-                    },
-                    v0,
-                    v1,
-                )
+                (Curve3::circle(spine, e(u).cross(axis), minor, e(u)), v0, v1)
             } else {
                 (
-                    Curve3::Circle {
-                        center: spine,
-                        axis: axis.cross(e(u)),
-                        radius: minor,
-                        u_ref: e(u) * v1.cos() + axis * v1.sin(),
-                    },
+                    Curve3::circle(
+                        spine,
+                        axis.cross(e(u)),
+                        minor,
+                        e(u) * v1.cos() + axis * v1.sin(),
+                    ),
                     0.0,
                     v1 - v0,
                 )
@@ -4455,12 +4399,7 @@ pub(crate) mod tests {
                         pair: SurfacePair::new(torus, pk),
                         selector: geom_brep::CurveSelector::Witness(on(u, core::f64::consts::PI)),
                     },
-                    carrier: Curve3::Circle {
-                        center: spine,
-                        axis: ax,
-                        radius: minor,
-                        u_ref: e(u),
-                    },
+                    carrier: Curve3::circle(spine, ax, minor, e(u)),
                     param_start: 0.0,
                     param_end: core::f64::consts::TAU,
                 },
@@ -4491,12 +4430,7 @@ pub(crate) mod tests {
                 pair: SurfacePair::new(torus, eq_plane),
                 selector: geom_brep::CurveSelector::Witness(on((u0 + u1) * 0.5, 0.0)),
             },
-            carrier: Curve3::Circle {
-                center,
-                axis,
-                radius: major + minor,
-                u_ref,
-            },
+            carrier: Curve3::circle(center, axis, major + minor, u_ref),
             param_start: u0,
             param_end: u1,
         };
@@ -5747,8 +5681,7 @@ pub(crate) mod tests {
                 let c = body
                     .get_curve_geom(e.curve)
                     .and_then(crate::null::CurveGeom::certified)?;
-                matches!(c.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. })
-                    .then_some((k, c))
+                matches!(c.carrier(), Curve3::Circle(..) | Curve3::Ellipse(..)).then_some((k, c))
             })
             .unwrap()
     }
@@ -6269,19 +6202,25 @@ pub(crate) mod tests {
     /// point at parameter `t` is `centre_i + (a·û)_i·cos t + (b·v̂)_i·sin t`.
     fn conic_frame(carrier: &Curve3<f64>) -> (Point3<f64>, Vec3<f64>, Vec3<f64>) {
         match carrier {
-            Curve3::Circle {
-                center,
-                axis,
+            Curve3::Circle(geom::Circle {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 radius,
-                u_ref,
-            } => (*center, *u_ref * *radius, axis.cross(*u_ref) * *radius),
-            Curve3::Ellipse {
-                center,
-                axis,
+            }) => (*center, *u_ref * *radius, axis.cross(*u_ref) * *radius),
+            Curve3::Ellipse(geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 semi_u,
                 semi_v,
-                u_ref,
-            } => (*center, *u_ref * *semi_u, axis.cross(*u_ref) * *semi_v),
+            }) => (*center, *u_ref * *semi_u, axis.cross(*u_ref) * *semi_v),
             other => panic!("a conic sector's rim is a conic, got {other:?}"),
         }
     }
@@ -6979,7 +6918,11 @@ pub(crate) mod sphere_rect_rows {
             )
             .unwrap();
         let arc = |body: &mut Body<f64>, carrier: Curve3<f64>, (t0, t1): (f64, f64)| {
-            let Curve3::Circle { center, axis, .. } = carrier else {
+            let Curve3::Circle(geom::Circle {
+                frame: geom::Frame { center, axis, .. },
+                ..
+            }) = carrier
+            else {
                 unreachable!("a sheet edge is a circle");
             };
             let plane = body.add_surface(Surface::Plane {
@@ -7007,20 +6950,10 @@ pub(crate) mod sphere_rect_rows {
             let rho = (1.0 - h * h).sqrt();
             let centre = Point3::new(0.0, 0.0, h);
             if ascending {
-                let c = Curve3::Circle {
-                    center: centre,
-                    axis: Vec3::unit_z(),
-                    radius: rho,
-                    u_ref: Vec3::unit_x(),
-                };
+                let c = Curve3::circle(centre, Vec3::unit_z(), rho, Vec3::unit_x());
                 (c, (u0, u1))
             } else {
-                let c = Curve3::Circle {
-                    center: centre,
-                    axis: -Vec3::unit_z(),
-                    radius: rho,
-                    u_ref: radial(u1),
-                };
+                let c = Curve3::circle(centre, -Vec3::unit_z(), rho, radial(u1));
                 (c, (0.0, u1 - u0))
             }
         };
@@ -7029,20 +6962,10 @@ pub(crate) mod sphere_rect_rows {
         let meridian = |u: f64, rising: bool| {
             let up = radial(u).cross(Vec3::unit_z());
             if rising {
-                let c = Curve3::Circle {
-                    center: Point3::origin(),
-                    axis: up,
-                    radius: 1.0,
-                    u_ref: radial(u),
-                };
+                let c = Curve3::circle(Point3::origin(), up, 1.0, radial(u));
                 (c, (h0.asin(), h1.asin()))
             } else {
-                let c = Curve3::Circle {
-                    center: Point3::origin(),
-                    axis: -up,
-                    radius: 1.0,
-                    u_ref: radial(u),
-                };
+                let c = Curve3::circle(Point3::origin(), -up, 1.0, radial(u));
                 (c, (-h1.asin(), -h0.asin()))
             }
         };
@@ -7243,7 +7166,11 @@ pub(crate) mod sphere_rect_rows {
         // reference; the strut's contains the axis and takes it.
         let arc =
             |body: &mut Body<f64>, carrier: Curve3<f64>, u_ref: Vec3<f64>, (t0, t1): (f64, f64)| {
-                let Curve3::Circle { center, axis, .. } = carrier else {
+                let Curve3::Circle(geom::Circle {
+                    frame: geom::Frame { center, axis, .. },
+                    ..
+                }) = carrier
+                else {
                     unreachable!("a cap edge is a circle");
                 };
                 let plane = body.add_surface(Surface::Plane {
@@ -7271,12 +7198,7 @@ pub(crate) mod sphere_rect_rows {
         } else {
             (y, (-s0, -s1))
         };
-        let meridian = Curve3::Circle {
-            center: c,
-            axis,
-            radius: r,
-            u_ref: x,
-        };
+        let meridian = Curve3::circle(c, axis, r, x);
         let strut = arc(&mut body, meridian, z, span);
         let e_s = body
             .mev(
@@ -7288,12 +7210,7 @@ pub(crate) mod sphere_rect_rows {
                 tol,
             )
             .unwrap();
-        let rim = Curve3::Circle {
-            center: c + z * (r * h0),
-            axis: z,
-            radius: r * (1.0 - h0 * h0).sqrt(),
-            u_ref: x,
-        };
+        let rim = Curve3::circle(c + z * (r * h0), z, r * (1.0 - h0 * h0).sqrt(), x);
         let rim = arc(&mut body, rim, x, (0.0, core::f64::consts::TAU));
         let made = body
             .mef(
@@ -7315,12 +7232,7 @@ pub(crate) mod sphere_rect_rows {
         if zone {
             // Against the base rim's direction, so the seed's loop runs
             // round the zone once.
-            let tip = Curve3::Circle {
-                center: c + z * (r * hc),
-                axis: -z,
-                radius: r * (1.0 - hc * hc).sqrt(),
-                u_ref: x,
-            };
+            let tip = Curve3::circle(c + z * (r * hc), -z, r * (1.0 - hc * hc).sqrt(), x);
             let tip = arc(&mut body, tip, x, (0.0, core::f64::consts::TAU));
             let cap = |sense| FaceSurface::Shared { key: sphere, sense };
             let site = MefSite::Chords {
@@ -7342,7 +7254,7 @@ pub(crate) mod sphere_rect_rows {
             let (outer, _) = crate::props::loop_edges(&body, body.faces[north].outer).unwrap();
             let base = outer
                 .iter()
-                .find(|e| matches!(e.carrier, Curve3::Circle { axis, .. } if axis.dot(z) > 0.5))
+                .find(|e| matches!(e.carrier, Curve3::Circle(geom::Circle { frame: geom::Frame { axis, .. }, .. }) if axis.dot(z) > 0.5))
                 .expect("the base rim runs about +ẑ");
             body.set_face_sense(north, base.forward == (hc > h0))
                 .unwrap();

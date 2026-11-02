@@ -6556,12 +6556,15 @@ fn sphere_pair_cut<T: Decide>(
         ));
     };
     match geom_brep::sphere_sphere_section(x, y, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
-            center: foot,
-            axis: normal,
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
+            frame:
+                geom::Frame {
+                    center: foot,
+                    axis: normal,
+                    u_ref,
+                },
             radius: rho,
-            u_ref,
-        })) => Ok(SphereCutIn {
+        }))) => Ok(SphereCutIn {
             operand,
             face: holder,
             center,
@@ -6598,7 +6601,10 @@ fn pair_seam<T: Decide>(
         Operand::B => (y, x),
     };
     match geom_brep::sphere_sphere_section(a, b, band) {
-        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle { u_ref, .. })) => Ok(u_ref),
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle(geom::Circle {
+            frame: geom::Frame { u_ref, .. },
+            ..
+        }))) => Ok(u_ref),
         Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
             decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
             diag,
@@ -7161,12 +7167,15 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
                     return Err(corrupt("cut-in: a boundary edge has no carrier"));
                 };
                 let (t0, t1) = curve.params();
-                let geom::Curve3::Circle {
-                    center: cc,
-                    axis: ca,
+                let geom::Curve3::Circle(geom::Circle {
+                    frame:
+                        geom::Frame {
+                            center: cc,
+                            axis: ca,
+                            u_ref: cu,
+                        },
                     radius: cr,
-                    u_ref: cu,
-                } = *curve.carrier()
+                }) = *curve.carrier()
                 else {
                     return Err(refuse("a boundary edge of the sphere face is not a circle"));
                 };
@@ -7364,12 +7373,7 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         // `(0, π]`: the cross term's sign is known, and where both ends
         // are poles it is a rounded zero of either sign.
         let span = w.dot(u_arc.cross(to_hi)).abs().atan2(u_arc.dot(to_hi));
-        let carrier = geom::Curve3::Circle {
-            center: cut.center,
-            axis: w,
-            radius: r,
-            u_ref: u_arc,
-        };
+        let carrier = geom::Curve3::circle(cut.center, w, r, u_arc);
         let plane = body.add_surface(geom::Surface::Plane {
             origin: cut.center,
             normal: k,
@@ -9937,12 +9941,7 @@ mod tests {
         };
         let center = Point3::new(0.0, r, 0.0);
         let touch = Point3::new(big - r * sin, 0.0, r * cos);
-        let circle = geom::Curve3::Circle {
-            center,
-            axis: normal,
-            radius: big,
-            u_ref: (touch - center) / big,
-        };
+        let circle = geom::Curve3::circle(center, normal, big, (touch - center) / big);
         for i in 0..geom_brep::CERT_SAMPLES {
             let p = circle.eval(geom_brep::sample_param(-1.0, 1.0, i));
             let on = |s: &geom::Surface<f64>| geom_brep::implicit_residual(s, p).abs() < 1e-12;
@@ -10272,12 +10271,12 @@ mod tests {
             crate::geometry::SurfaceKey::default(),
         );
         let line = geom::Curve3::line(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0));
-        let circle = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let circle = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
         let fitted = geom::Curve3::Nurbs(std::sync::Arc::new(
             geom::NurbsCurve3::new(
                 geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),

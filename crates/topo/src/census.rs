@@ -12378,7 +12378,7 @@ mod tests {
                 body.get_edge(e)
                     .and_then(|d| body.get_curve_geom(d.curve))
                     .and_then(|g| g.certified())
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle(..)))
             })
             .expect("the sheet has a rim arc");
         let far = body
@@ -13357,12 +13357,7 @@ mod tests {
         // `(K − 1)·zero` at `K = 1.001`: the witness is sharp at every row.
         let circle = |r: f64| {
             let center = Point3::new(0.31 * r, -0.17 * r, 0.05 * r);
-            let carrier = Curve3::Circle {
-                center,
-                axis,
-                radius: r,
-                u_ref,
-            };
+            let carrier = Curve3::circle(center, axis, r, u_ref);
             let end = carrier.eval(t1);
             let frame_end = center + u_ref * (r * c) + v_ref * (r * s);
             (carrier, center, end, end - frame_end)
@@ -14226,12 +14221,7 @@ mod tests {
                         pair: SurfacePair::new(cyl, plane),
                         selector: geom_brep::CurveSelector::Witness(Point3::new(0.0, 1.0, 0.0)),
                     },
-                    carrier: Curve3::Circle {
-                        center: Point3::origin(),
-                        axis: Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
+                    carrier: Curve3::circle(Point3::origin(), Vec3::unit_z(), 1.0, Vec3::unit_x()),
                     param_start: 0.0,
                     param_end: std::f64::consts::PI,
                 },
@@ -16854,12 +16844,12 @@ mod tests {
     fn pass_two_prime_passes_a_clear_vertex_by_unread() {
         use geom_core::k_stats::Bracket;
         let tol = Tol::witness();
-        let c = geom::Curve3::Circle {
-            center: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        };
+        let c = geom::Curve3::circle(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            1.0,
+            Vec3::unit_x(),
+        );
         let (t0, t1) = (0.0, 100.0_f64.to_radians());
         for (q, read) in [
             (Point3::new(0.0, 0.0, 0.0), false),
@@ -17404,12 +17394,15 @@ mod tests {
             (t0, t1): (f64, f64),
         ) -> (Body<f64>, FaceKey) {
             use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-            let geom::Curve3::Ellipse {
-                center,
-                axis,
-                u_ref,
+            let geom::Curve3::Ellipse(geom::Ellipse {
+                frame:
+                    geom::Frame {
+                        center,
+                        axis,
+                        u_ref,
+                    },
                 ..
-            } = carrier
+            }) = carrier
             else {
                 panic!("an ellipse carrier")
             };
@@ -17517,13 +17510,11 @@ mod tests {
         #[test]
         fn a_steep_ellipse_crossing_near_an_arc_end_is_cut() {
             use std::f64::consts::FRAC_PI_2;
-            let carrier = geom::Curve3::Ellipse {
-                center: Point3::origin(),
-                axis: Vec3::unit_z(),
-                semi_u: 20.0,
-                semi_v: 1.0,
-                u_ref: Vec3::unit_x(),
-            };
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(Point3::origin(), Vec3::unit_z(), Vec3::unit_x()),
+                20.0,
+                1.0,
+            ));
             let (body, cap) = ellipse_cap(
                 CylFrame::tilted(1.0, 0.05_f64.acos()),
                 carrier,
@@ -17558,13 +17549,15 @@ mod tests {
             use std::f64::consts::FRAC_PI_2;
             let major = 4.01_f64.sqrt();
             let normal = Vec3::new(-20.0, 0.0, 1.0).normalize();
-            let carrier = geom::Curve3::Ellipse {
-                center: Point3::origin(),
-                axis: normal,
-                semi_u: major,
-                semi_v: 0.1,
-                u_ref: Vec3::new(1.0, 0.0, 20.0).normalize(),
-            };
+            let carrier = geom::Curve3::Ellipse(geom::Ellipse::new(
+                geom::Frame::new(
+                    Point3::origin(),
+                    normal,
+                    Vec3::new(1.0, 0.0, 20.0).normalize(),
+                ),
+                major,
+                0.1,
+            ));
             let d = 8.0 * band().zero();
             let (body, cap) = ellipse_cap(
                 CylFrame::canonical(0.1),
@@ -19764,12 +19757,7 @@ mod curved_edge_edge {
         u_ref: Vec3<f64>,
     ) -> EdgeKey {
         let tol = Tol::witness();
-        let circle = Curve3::Circle {
-            center,
-            axis,
-            radius: 1.0,
-            u_ref,
-        };
+        let circle = Curve3::circle(center, axis, 1.0, u_ref);
         let (p0, p1) = (circle.eval(0.0), circle.eval(std::f64::consts::PI));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
@@ -19933,7 +19921,7 @@ mod curved_edge_edge {
                         .and_then(|d| body.get_curve_geom(d.curve))
                         .and_then(|g| g.certified())
                         .is_some_and(|c| {
-                            matches!(c.carrier(), Curve3::Circle { center, .. } if center.z == 0.0)
+                            matches!(c.carrier(), Curve3::Circle(geom::Circle { frame: geom::Frame { center, .. }, .. }) if center.z == 0.0)
                         })
             })
             .expect("the sheet's bottom rim");
@@ -20749,12 +20737,7 @@ mod arc_interiors {
     ) -> FaceKey {
         let (origin, n, u, _) = frame();
         let tol = Tol::witness();
-        let circle = Curve3::Circle {
-            center,
-            axis: n,
-            radius: r,
-            u_ref: u,
-        };
+        let circle = Curve3::circle(center, n, r, u);
         let (p0, p1) = (circle.eval(t0), circle.eval(t1));
         let seed = body.mvfs(p0, true).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
