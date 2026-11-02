@@ -1,7 +1,7 @@
 ---
 id: a-pinched-cone-loop-reaches-the-gate-unnamed
 kind: issue
-title: A cone face pinched at its apex reaches the at-rest gate as VolumeUncomputable (props_cone_loop_vertex) rather than ResultPinchedAtConeApex
+title: A cone loop through the apex between a seam vertex's two copies refuses props_cone_loop_vertex, the azimuth turn lost at the apex
 status: open
 opened: 2026-11-02
 priority: P2
@@ -47,3 +47,28 @@ Build the result short of the gate (the at-rest gate refuses it) and
 list the cone face's loop vertices at the apex: their keys tell the two
 readings apart. The pin accepts this refusal for `∪` and `cone ∖ box`
 only, beside the named pinch.
+
+## Settled (2026-11-02): a props gap, no topology defect
+
+The result short of the gate shows the pose's cone face, the wrap-tipped
+60° cone less the box's quadrant above `y = 0.55`, with one loop:
+
+`v4 (0.779, 0.55, 0) → arc → v5 (0, 0.55, 0.779) → ruling → v6 the apex
+→ ruling → v4 → wrap → v2 (1.732, 0, 0) → base circle → v2 → wrap → v4`
+
+- One vertex is at the apex, visited once, so the named reading is right
+  not to fire.
+- The vertex visited twice is `v4`, by one key: at turn 0 the box's side
+  `z = 0` holds the wrap seam, so `v4` is both the cut's corner and the
+  wrap edge's top. Its two visits are the seam's two copies of one
+  vertex, a period apart. `props_cone_loop_vertex_sheet` admits them when
+  the loop's azimuth turns whole turns between them.
+- Between the two copies the loop passes through the apex (a ruling in
+  at azimuth 90°, out at 360°), where the apex has no azimuth. The turn
+  is lost there, and `require_cone_loop_vertices_distinct` refuses.
+
+The face is valid: the lower band and the upper three-quarter sector,
+glued along the seam. The fix is in props. The loop's turn across the
+apex is the angle between its in and out rulings, taken on the face's
+side, which needs the face's material side at the apex. Why the same
+pose at 30° and 45° measures is not traced.

@@ -160,8 +160,10 @@ fn four_ops(
             // (`a_cone_apex_on_a_plane_through_it`): typed, by name.
             Err(topo::BooleanError::ResultPinchedAtConeApex { .. })
                 if pinch && matches!(op, "a ∪ b" | "a ∖ b") => {}
-            // The same pinch past the named reading, refused by the
-            // at-rest gate's cone loop instead
+            // Not a pinch: where the box's side holds the wrap seam, the
+            // kept face's loop passes the apex between the seam vertex's
+            // two copies, and props cannot read the azimuth turn across
+            // the apex
             // (`work/splitdoor/a-pinched-cone-loop-reaches-the-gate-unnamed.md`).
             Err(topo::BooleanError::ResultInvalid { errors })
                 if pinch
