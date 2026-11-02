@@ -17,7 +17,7 @@ use std::sync::{Arc, Weak};
 use pncad::document::{
     Dimension, DimensionError, Doc, Evaluation, Formula, Label, LabelFault, LoopProgram,
     Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, Speaker,
-    StepArg, StepId, VarId, VarName,
+    StepArg, StepId, VarId, VarName, slot_admits,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -362,22 +362,6 @@ pub(crate) struct ProfileEdit {
     /// The edit door's report for the last held state it was asked
     /// about ([`Self::report`]).
     report: Option<HeldReport>,
-    /// Text typed into a field that did not parse ([`Self::write_text`]),
-    /// held in that field with why until the draft next moves.
-    refused: Option<RefusedText>,
-}
-
-/// **Text a held field refused**, and where: shown in the field it was
-/// typed into, with the refusal's sentence, so amending it costs
-/// nothing.
-#[derive(Clone, Debug)]
-pub(crate) struct RefusedText {
-    /// The held `(loop, row)` and the argument it was typed into.
-    pub(crate) at: ((usize, usize), StepArg),
-    /// The text as typed.
-    pub(crate) text: String,
-    /// The refusal's sentence: the slot door's words for the same text.
-    pub(crate) why: String,
 }
 
 /// **The placement editor's verdict on one Apply**: the history state
@@ -412,7 +396,6 @@ impl ProfileEdit {
             loaded_as: program.kept_in_place(),
             base: program,
             report: None,
-            refused: None,
         }
     }
 
@@ -489,23 +472,21 @@ impl ProfileEdit {
         &self.loops
     }
 
-    /// **The committed slot argument `arg` of held row `row` of loop
-    /// `loop_` stands for** — the one the row was loaded as — else, for
-    /// a row the editor made, the slot it takes where it is held.
-    pub(crate) fn slot_at(&self, loop_: usize, row: usize, arg: StepArg) -> SlotId {
-        let (loop_, step) = self
-            .loaded_at(loop_)
-            .get(row)
-            .copied()
-            .flatten()
-            .unwrap_or((program_index(loop_), program_index(row)));
-        SlotId::Profile { loop_, step, arg }
+    /// **Argument `arg` of held row `row` of loop `loop_` as the person
+    /// reads it**: the slot it takes where it is drawn, the rows as the
+    /// editor shows them — what a sentence about it names.
+    pub(crate) fn held_slot((loop_, row): (usize, usize), arg: StepArg) -> SlotId {
+        SlotId::Profile {
+            loop_: program_index(loop_),
+            step: program_index(row),
+            arg,
+        }
     }
 
     /// **Argument `arg` of held row `row` of loop `loop_` as a slot's
     /// row** ([`props::formula_row`]): the formula the draft holds,
     /// its names read by id and read under `landed`'s variables, at
-    /// [`Self::slot_at`]. What its
+    /// [`Self::held_slot`]. What its
     /// field shows, and what a driven argument reads, so the number
     /// beside an expression moves when what it reads moves (a variable
     /// set, dragged, undone) — an expression typed into the draft as
@@ -524,11 +505,16 @@ impl ProfileEdit {
             .args()
             .into_iter()
             .find(|(each, _)| *each == arg)?;
-        let slot = self.slot_at(loop_, row, arg);
+        let slot = Self::held_slot((loop_, row), arg);
         // A name typed into the draft is read as the variable `landed`
-        // names so; one it does not hold reads nothing.
-        let read = landed.resolve(&formula).unwrap_or(formula);
-        Some(props::formula_row(landed, slot, slot.label(), &read))
+        // names so; one it does not hold reads nothing, and says why.
+        Some(match landed.resolve(&formula) {
+            Ok(read) => props::formula_row(landed, slot, slot.label(), &read),
+            Err(fault) => props::SlotRow {
+                value: Err(props::SlotFault::Unresolved(fault)),
+                ..props::formula_row(landed, slot, slot.label(), &formula)
+            },
+        })
     }
 
     /// **What argument `arg` of held row `row` of loop `loop_` reads
@@ -596,24 +582,42 @@ impl ProfileEdit {
                 noted(SlotId::Profile { loop_, step, arg })
             },
         )?;
-        if written != self.loops[loop_][row] {
-            self.refused = None;
-        }
         self.loops[loop_][row] = written;
         Ok(())
     }
 
-    /// **`text` typed into argument `arg` of held row `row` of loop
-    /// `loop_`**: parsed against `doc`'s variables by the slot door's
-    /// own parse ([`crate::session::parse_text`]) and written into the
-    /// held step as the formula it reads, committed with the rest of
-    /// the program. A refusal changes nothing the draft holds: the
-    /// text is held in its field with the refusal's sentence
-    /// ([`Self::refused`]).
+    /// **`text` as argument `arg` of held row `at` would hold it**:
+    /// parsed against `doc`'s variables by the slot door's own parse
+    /// ([`crate::session::parse_text`]) and admitted at the argument's
+    /// slot by the edit door's own rule ([`slot_admits`]), so a text
+    /// refused here is refused in the words the commit would use.
     ///
     /// # Errors
     ///
-    /// The parse's [`Refusal`].
+    /// The parse's [`Refusal`]; [`Refusal::Edit`] for a formula of
+    /// another dimension than the argument's.
+    pub(crate) fn judge_text(
+        at: (usize, usize),
+        arg: StepArg,
+        text: &str,
+        doc: &Doc<ProfileProgram>,
+    ) -> Result<Formula, Refusal> {
+        let formula = crate::session::parse_text(doc, text)?;
+        slot_admits(Self::held_slot(at, arg), &formula)
+            .map_err(|error| Refusal::Edit(Box::new(error)))?;
+        Ok(formula)
+    }
+
+    /// **`text` typed into argument `arg` of held row `at`**, judged
+    /// ([`Self::judge_text`]) and written into the held step as the
+    /// formula it reads, committed with the rest of the program. A
+    /// refusal changes nothing the draft holds.
+    ///
+    /// # Errors
+    ///
+    /// [`Self::judge_text`]'s, and [`Refusal::NoSuchSlot`] where the
+    /// row no longer has that role (a row edit landed between the
+    /// field's frame and this one): the text is dropped and said.
     pub(crate) fn write_text(
         &mut self,
         (loop_, row): (usize, usize),
@@ -621,29 +625,18 @@ impl ProfileEdit {
         text: &str,
         doc: &Doc<ProfileProgram>,
     ) -> Result<(), Refusal> {
-        let formula = match crate::session::parse_text(doc, text) {
-            Ok(formula) => formula,
-            Err(refusal) => {
-                self.refused = Some(RefusedText {
-                    at: ((loop_, row), arg),
-                    text: text.to_owned(),
-                    why: refusal.to_string(),
-                });
-                return Err(refusal);
-            }
-        };
-        let Some(written) = self.loops[loop_][row].with_arg(arg, formula) else {
-            unreachable!("a field is drawn for a role its step has, before any row edit")
-        };
+        let formula = Self::judge_text((loop_, row), arg, text, doc)?;
+        let written = self
+            .loops
+            .get(loop_)
+            .and_then(|steps| steps.get(row))
+            .and_then(|held| held.with_arg(arg, formula))
+            .ok_or_else(|| Refusal::NoSuchSlot {
+                node: doc.spoken(self.node),
+                slot: Self::held_slot((loop_, row), arg),
+            })?;
         self.loops[loop_][row] = written;
-        self.refused = None;
         Ok(())
-    }
-
-    /// The text a held field refused, if one stands
-    /// ([`Self::write_text`]).
-    pub(crate) fn refused(&self) -> Option<&RefusedText> {
-        self.refused.as_ref()
     }
 
     /// Apply a row edit to held loop `loop_`, and to what each of its
@@ -664,7 +657,6 @@ impl ProfileEdit {
             }
             RowEdit::Remove(_) | RowEdit::Swap(..) | RowEdit::Clear => None,
         };
-        self.refused = None;
         edit.shape(&mut self.loaded_as[loop_], |_| None);
         edit.shape(&mut self.loops[loop_], |_| {
             made.unwrap_or_else(|| unreachable!("a row edit that makes a row carries its step"))
@@ -687,7 +679,6 @@ impl ProfileEdit {
             .into_iter()
             .map(|step| HeldStep::fresh(step, notation, &|_| None))
             .collect::<Result<Vec<_>, _>>()?;
-        self.refused = None;
         self.loaded_as.push(vec![None; held.len()]);
         self.loops.push(held);
         Ok(())
@@ -697,7 +688,6 @@ impl ProfileEdit {
     /// committed steps are then steps the program does not keep, and
     /// every other loop's rows keep the ids they hold.
     pub(crate) fn remove_loop(&mut self, loop_: usize) {
-        self.refused = None;
         self.loaded_as.remove(loop_);
         self.loops.remove(loop_);
     }
@@ -800,14 +790,15 @@ impl ProfileEdit {
 
     /// **Every driven argument of a committed step that the held row
     /// loaded as it no longer has** — a re-moded arc dropping the role
-    /// an expression drives — as the committed slot. The edit door
+    /// an expression drives — at the row as drawn
+    /// ([`Self::held_slot`]). The edit door
     /// cannot write the program without writing over that expression,
     /// and its field is locked, so it says what to do instead.
     pub(crate) fn dropped_drivers(&self) -> Vec<SlotId> {
         let mut dropped = Vec::new();
-        for (steps, loaded_as) in self.loops.iter().zip(&self.loaded_as) {
-            for (held, id) in steps.iter().zip(loaded_as) {
-                let Some(((loop_, step), was)) = id.and_then(|id| self.base_step(id)) else {
+        for (loop_, (steps, loaded_as)) in self.loops.iter().zip(&self.loaded_as).enumerate() {
+            for (row, (held, id)) in steps.iter().zip(loaded_as).enumerate() {
+                let Some((_, was)) = id.and_then(|id| self.base_step(id)) else {
                     continue;
                 };
                 let has: Vec<StepArg> = held.args().into_iter().map(|(arg, _)| arg).collect();
@@ -817,7 +808,7 @@ impl ProfileEdit {
                         .filter(|(arg, formula)| {
                             formula.literal_value().is_none() && !has.contains(arg)
                         })
-                        .map(|(arg, _)| SlotId::Profile { loop_, step, arg }),
+                        .map(|(arg, _)| Self::held_slot((loop_, row), arg)),
                 );
             }
         }
@@ -825,7 +816,7 @@ impl ProfileEdit {
     }
 
     /// **Every driven argument of a held step that reads no one value
-    /// in `landed`**, at [`Self::slot_at`], with why: the number beside
+    /// in `landed`**, at [`Self::held_slot`], with why: the number beside
     /// it reads nothing. Its expression did not evaluate (a variable it
     /// reads deleted, say), or it reads an index and has a value per
     /// member where a step holds one.
@@ -1345,13 +1336,34 @@ impl Drafts {
     /// selection moving off a profile abandons what was typed into it,
     /// as every draft here is abandoned by selecting elsewhere.
     pub(crate) fn abandon_profile_edit_off(&mut self, selected: Option<RecipeNodeId>) {
-        if self
+        let Some(node) = self
             .profile_edit
             .as_ref()
-            .is_some_and(|held| Some(held.node) != selected)
+            .map(|held| held.node)
+            .filter(|node| Some(*node) != selected)
+        else {
+            return;
+        };
+        self.profile_edit = None;
+        // Text a held field refused names a row of the draft it goes with.
+        if self
+            .expr_target
+            .is_some_and(|(at, slot)| at == node && matches!(slot, SlotId::Profile { .. }))
         {
-            self.profile_edit = None;
+            self.expr_target = None;
+            self.expr_text.clear();
         }
+    }
+
+    /// **Offer to declare `name`**, the variable a refused expression
+    /// read and the document does not hold: the add-variable form opens
+    /// with the name in it and no dimension picked, since the text it
+    /// came from does not decide one.
+    pub(crate) fn offer_variable(&mut self, name: VarName) {
+        self.new_variable_name = name.as_str().to_owned();
+        self.new_variable_dimension = None;
+        self.new_variable_offer = Some(name);
+        self.new_variable_open = true;
     }
 
     /// The loop PROGRAMS the add-profile form would author right now:

@@ -1482,10 +1482,7 @@ impl ViewerApp {
             None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.new_variable_name = name.as_str().to_owned();
-            self.drafts.new_variable_dimension = None;
-            self.drafts.new_variable_offer = Some(name.clone());
-            self.drafts.new_variable_open = true;
+            self.drafts.offer_variable(name);
         }
         self.apply_status(verdict);
     }
@@ -10009,8 +10006,10 @@ mod properties_pane_tests {
         }
 
         /// Type `text` into the `nth` field named `x`, replacing what
-        /// it holds, and press Enter.
-        fn type_into_x(driven: &mut Driven, nth_x: usize, text: &str) {
+        /// it holds, and press Enter: the runs painted on the Enter
+        /// frame and the two after it, where the field hands its text
+        /// over (`widgets::value_field_ops`).
+        fn type_into_x(driven: &mut Driven, nth_x: usize, text: &str) -> Vec<Vec<String>> {
             let painted = driven.quiet();
             let at = nth(&painted, |run| run == "x ", nth_x);
             let key = |key, modifiers| egui::Event::Key {
@@ -10030,8 +10029,16 @@ mod properties_pane_tests {
             driven.frame(vec![press(true), press(false)]);
             driven.frame(vec![key(egui::Key::A, egui::Modifiers::COMMAND)]);
             driven.frame(vec![egui::Event::Text(text.to_owned())]);
-            driven.frame(vec![key(egui::Key::Enter, egui::Modifiers::default())]);
+            let runs = |painted: Vec<(String, egui::Rect)>| -> Vec<String> {
+                painted.into_iter().map(|(run, _)| run).collect()
+            };
+            let handed = vec![
+                runs(driven.frame(vec![key(egui::Key::Enter, egui::Modifiers::default())])),
+                runs(driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)])),
+                runs(driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)])),
+            ];
             driven.quiet();
+            handed
         }
 
         /// What argument `arg` of held row `row` holds, as written.
@@ -10065,11 +10072,17 @@ mod properties_pane_tests {
         fn a_formula_typed_over_held_edits_commits_with_them_in_one_step() {
             let mut driven = with_w();
             let before = driven.app.session.committed_doc().clone();
+            let states = driven.app.session.history().len();
             hold_far_y(&mut driven, 0.05);
             type_into_x(&mut driven, 0, "w/7");
             assert!(
                 driven.app.session.committed_doc().bit_eq(&before),
                 "the formula reached the document before the commit"
+            );
+            assert_eq!(
+                driven.app.session.history().len(),
+                states,
+                "nor did anything land and come back"
             );
             assert!(
                 held_source(&driven, 0, StepArg::PointX).is_some_and(|src| src.contains('w')),
@@ -10152,10 +10165,16 @@ mod properties_pane_tests {
                 )
                 .expect("the leg is held");
             driven.quiet();
+            let states = driven.app.session.history().len();
             type_into_x(&mut driven, 1, "w/2");
             assert!(
                 driven.app.session.committed_doc().bit_eq(&before),
                 "nothing reached the document"
+            );
+            assert_eq!(
+                driven.app.session.history().len(),
+                states,
+                "nor its history"
             );
             let Step::LineTo(Target::Point(new)) = held_step(&driven, 1) else {
                 panic!("the inserted leg")
@@ -10186,6 +10205,7 @@ mod properties_pane_tests {
             let before = driven.app.session.committed_doc().clone();
             hold_far_y(&mut driven, 0.05);
             let held = edit(&mut driven).programs().expect("lowers");
+            let states = driven.app.session.history().len();
             let text = "w +";
             let doc = driven.app.session.committed_doc().clone();
             let words = crate::session::parse_text(&doc, text)
@@ -10208,6 +10228,195 @@ mod properties_pane_tests {
                 "the draft is unchanged"
             );
             assert!(driven.app.session.committed_doc().bit_eq(&before));
+            assert_eq!(
+                driven.app.session.history().len(),
+                states,
+                "nothing landed and was taken back"
+            );
+        }
+
+        /// The runs of `frames` that mention `words`.
+        fn saying<'r>(frames: &'r [Vec<String>], words: &str) -> Vec<&'r str> {
+            frames
+                .iter()
+                .flatten()
+                .filter(|run| run.contains(words))
+                .map(String::as_str)
+                .collect()
+        }
+
+        /// **A formula of another dimension is refused at its field**,
+        /// in the edit door's own words ([`pncad::document::slot_admits`]):
+        /// an angle variable halved, and an angle literal, typed into a
+        /// length. Neither is held, previewed as a length or committed.
+        #[test]
+        fn a_formula_of_another_dimension_is_refused_at_the_field() {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: pncad::document::VarName::from_static("a"),
+                    value: pncad::document::FreeVar::continuous(
+                        pncad::document::Dimension::Angle,
+                        0.02,
+                    ),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            let before = driven.app.session.committed_doc().clone();
+            let states = driven.app.session.history().len();
+            let held = edit(&mut driven).programs().expect("lowers");
+            for text in ["a/2", "30 deg"] {
+                let formula = crate::session::parse_text(&before, text).expect("it parses");
+                let words = pncad::document::slot_admits(outline(0, StepArg::PointX), &formula)
+                    .expect_err("an angle is no length")
+                    .to_string();
+                type_into_x(&mut driven, 0, text);
+                let painted = driven.quiet();
+                let runs: Vec<&str> = painted.iter().map(|(run, _)| run.as_str()).collect();
+                assert!(
+                    runs.iter().any(|run| run.contains(&words)),
+                    "{text}: refused at the field in the door's words {words:?}: {runs:?}"
+                );
+                assert_eq!(
+                    edit(&mut driven).programs().expect("lowers"),
+                    held,
+                    "{text}: the draft holds nothing of it"
+                );
+            }
+            assert!(driven.app.session.committed_doc().bit_eq(&before));
+            assert_eq!(driven.app.session.history().len(), states);
+        }
+
+        /// **A number typed over a formula the draft holds is refused as
+        /// the slot row refuses it**, and moves nothing: `w/7` is held
+        /// over the anchor's committed literal, and `0.5` typed over it
+        /// is said as the driven affordance, leaving the draft as it was.
+        /// Every frame the field hands its text over on still draws the
+        /// rest of the door (its Apply).
+        #[test]
+        fn a_number_typed_over_a_draft_formula_is_refused_and_moves_nothing() {
+            let mut driven = with_w();
+            let before = driven.app.session.committed_doc().clone();
+            let states = driven.app.session.history().len();
+            type_into_x(&mut driven, 0, "w/7");
+            let held = edit(&mut driven).programs().expect("lowers");
+            let frames = type_into_x(&mut driven, 0, "0.5");
+            assert_eq!(
+                edit(&mut driven).programs().expect("lowers"),
+                held,
+                "the held formula stands"
+            );
+            let status = driven
+                .app
+                .status
+                .as_ref()
+                .map(|said| said.text().to_owned())
+                .unwrap_or_default();
+            assert!(
+                status.contains("driven by an expression over w"),
+                "the refusal is said: {status:?}"
+            );
+            for (at, frame) in frames.iter().enumerate() {
+                assert!(
+                    frame.iter().any(|run| run == "Apply"),
+                    "frame {at} after Enter still draws the door's Apply: {frame:?}"
+                );
+            }
+            assert!(driven.app.session.committed_doc().bit_eq(&before));
+            assert_eq!(driven.app.session.history().len(), states);
+        }
+
+        /// **An unknown name at a held field makes the slot door's
+        /// offer**: the add-variable form opens on the name, and the
+        /// refused text stands in the slot door's own home for it until
+        /// the variable is declared, when its sentence goes.
+        #[test]
+        fn an_unknown_name_at_a_held_field_offers_the_variable() {
+            let mut driven = with_w();
+            let frames = type_into_x(&mut driven, 0, "zz/2");
+            assert!(
+                !saying(&frames, "zz").is_empty(),
+                "the refusal names it at the field"
+            );
+            assert!(driven.app.drafts.new_variable_open, "the offer opens");
+            assert_eq!(driven.app.drafts.new_variable_name, "zz");
+            assert_eq!(
+                driven.app.drafts.expr_target,
+                Some((
+                    profile(),
+                    crate::drafts::ProfileEdit::held_slot((0, 0), StepArg::PointX)
+                )),
+                "the text stands at its field"
+            );
+            assert_eq!(driven.app.drafts.expr_text, "zz/2");
+            let out = driven.app.session.perform(SessionOp::DeclareVar {
+                name: pncad::document::VarName::from_static("zz"),
+                value: pncad::document::FreeVar::continuous(
+                    pncad::document::Dimension::Length,
+                    0.02,
+                ),
+            });
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            let painted = driven.quiet();
+            assert!(
+                !painted.iter().any(|(run, _)| run.contains("no variable")),
+                "declared, the text is no longer refused: {painted:?}"
+            );
+        }
+
+        /// **A sentence about a held argument names it where it is
+        /// drawn**, and in the document's terms. A leg is inserted ahead
+        /// of the first corner, which is then drawn as step 2; a formula
+        /// over a variable is held there, and the variable deleted.
+        #[test]
+        fn a_held_argument_is_named_at_its_row_as_drawn_and_in_the_documents_terms() {
+            let mut driven = Driven::with(vec![
+                SessionOp::DeclareVar {
+                    name: pncad::document::VarName::from_static("q"),
+                    value: pncad::document::FreeVar::continuous(
+                        pncad::document::Dimension::Length,
+                        0.14,
+                    ),
+                },
+                SessionOp::Select(Selection::Node(profile())),
+            ]);
+            driven.quiet();
+            let landed = driven.app.session.doc().clone();
+            let held = edit(&mut driven);
+            held.edit_row(
+                0,
+                crate::drafts::RowEdit::Insert {
+                    at: 1,
+                    step: Step::LineTo(Target::Point(pncad::geom_core::Point2::new(0.03, -0.01))),
+                },
+                crate::props::Notation::CANONICAL,
+            )
+            .expect("the leg is held");
+            held.write_text((0, 2), StepArg::TargetX, "q/2", &landed)
+                .expect("held");
+            let var = landed.var_named("q").expect("q");
+            let out = driven.app.session.perform(SessionOp::DeleteVar { var });
+            assert!(out.refusal.is_none(), "{:?}", out.refusal);
+            driven.quiet();
+            let unread = driven
+                .app
+                .drafts
+                .profile_edit
+                .as_ref()
+                .expect("held")
+                .unread_drivers(driven.app.session.doc());
+            let [(slot, why)] = unread.as_slice() else {
+                panic!("one argument reads nothing: {unread:?}")
+            };
+            assert_eq!(
+                *slot,
+                outline(2, StepArg::TargetX),
+                "named at its row as drawn"
+            );
+            assert!(
+                why.contains("no variable is named q") && !why.contains("edit door"),
+                "said in the document's terms: {why:?}"
+            );
         }
 
         /// **A live drag in the editor's field moves the drawn outline,

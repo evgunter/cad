@@ -772,7 +772,8 @@ impl ViewerBehavior<'_> {
     /// ([`Self::tagged_doors`], the vector group's), then each slot's
     /// notes ([`Self::slot_notes_ui`]): its expression, its range
     /// reading, its offer and its naming field. Each row is the
-    /// committed slot's, read as the draft holds its argument.
+    /// committed slot's, as the document holds it: the slot every door
+    /// here acts on.
     ///
     /// **Naming and offers wait on held edits**: naming an argument's
     /// variable, or taking an offer, makes the slot read a named
@@ -1247,11 +1248,13 @@ impl ViewerBehavior<'_> {
     /// **What `SessionOp::ProbeBounds` would answer for this row, or
     /// `None` where it would accept** — a [`Refusal`], not a sentence.
     ///
-    /// The session refuses it with [`crate::session::driven_refusal`]
-    /// of this very row (`props::slot_rows`, the driver and the value
-    /// it evaluated), so the disabled control's words are the refused
-    /// operation's own by construction rather than by two compositions
-    /// agreeing. A caller that wants the words asks the value for them.
+    /// The session refuses the probe with
+    /// [`crate::session::driven_refusal`] of the slot's row as the
+    /// document holds it (`props::slot_rows`), so for that row — the
+    /// one every caller hands [`Self::range_button`], a profile
+    /// editor's held field included (`pane::profile`'s `SlotDoors`) —
+    /// the disabled control's words are the refused operation's own.
+    /// A caller that wants the words asks the value for them.
     pub(crate) fn probe_refusal(
         node: RecipeNodeId,
         row: &SlotRow,

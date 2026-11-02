@@ -133,9 +133,9 @@
 use pncad::document::Formula;
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EvalError, Expr, ExprTree, FreeValue, FreeVar,
-    LeafSet, MemberCountFault, Node, NodeErrorKind, ProfileProgram, Reached, RecipeNodeId, SlotId,
-    SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval, eval_count,
-    spoken_by,
+    LeafSet, LowerFault, MemberCountFault, Node, NodeErrorKind, ProfileProgram, Reached,
+    RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarEnv, VarId, VarName, VectorSlot, eval,
+    eval_count, spoken_by,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{
@@ -557,6 +557,9 @@ pub enum SlotFault {
         /// The kernel's refusal, as the document speaks it.
         said: String,
     },
+    /// The expression reads a name the document does not resolve — one
+    /// typed into a draft, read before it commits.
+    Unresolved(LowerFault),
 }
 
 /// **Why the members of the indices an expression reaches cannot be
@@ -599,6 +602,7 @@ impl core::fmt::Display for SlotFault {
                 "the node lists this slot but carries no expression for it"
             ),
             Self::Members { said, .. } => write!(f, "{said}"),
+            Self::Unresolved(fault) => write!(f, "{fault}"),
         }
     }
 }
