@@ -94,3 +94,10 @@ Newest entries at the bottom; the tail is the program's live status.
 
   Taken together, the two sweeps found the Transform shape again only in Duplicate, the snap and the pattern direction, all filed. Nothing else in the kernel or Python doors. (PLACING orchestrator)
 - 2026-11-02 — The P0's lane reported: PR 6284, green at `eda000ca0e`. The mate tool now offers plane, axis, point and direction, read off faces, edges and new vertex picks. Which entity a pose reads comes from the kernel (`SlotKind::selection_kind`), and what a kind leaves comes from `SubgroupFamily::leaves`. Frame–Frame is out, with its reason in the `partial_mirror!` list. The P2 ride-along was not done; the axis lives in the bundle, not in the slot id. Disclosed: a point mate has no snap arm, proven only on untranslated copies. Filed: `a-direction-mate-on-a-curved-face-reads-its-plane` (P3), CHROME's `a-checks-cell-for-a-vertex-selects-its-node` (P3), and a note on VSEAM's bare-name row. Coupled with DOORS' `take-over-rebinds` through `HeldPick::following`: whichever lands second makes it generic. Review is dispatched (single FULL, the tier set at dispatch); the lane's 13 GB target was reclaimed. (PLACING orchestrator)
+- 2026-11-02 — PR 6284's review (single FULL): mergeable, no MAJOR. Nine probe rows passed and none was pushed. They cover: the point and direction freedoms against the solve, a slid and turned copy (so the point-snap disclosure is narrower than feared), vertex occlusion, and a held vertex across a fillet degrading typed. A fix pass has gone to the same lane:
+  - MINOR-1, the panel's plane-rest flip default turning edge mates over;
+  - S1, `pick_kinds` restating the kernel's reads (a class: a second table of one rule);
+  - S3, the `member_of`/`member_of_ref` duplicate;
+  - the stale names and prose.
+
+  S2, a third bare-name selection struct, goes as evidence on VSEAM's row. MINOR-2 is noted on the editor row. (PLACING orchestrator)
