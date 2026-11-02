@@ -68,8 +68,8 @@ let rect: ClosedLoop<f64> = Open
 let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
 let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: ExtrudeSide::Along }, tol)?.body;
 validate_closed(&plate).expect("a closed solid");
-// The measurement reads a finished body: tier 3, once, at rest.
-let plate = AtRestBody::validate(plate, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+// The extrude finishes its result (tier 3, once, at rest), and the
+// measurement reads a finished body.
 let props = mass_properties(&plate, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -562,9 +562,9 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<AtRestBody<f64>, 
         .line_to(Start, tol)?;
     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
-    let body = extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body;
-    // The boolean takes finished bodies: the at-rest gate (tier 3) makes one.
-    Ok(AtRestBody::validate(body, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?)
+    // The boolean takes finished bodies, and the extrude finishes its
+    // result at its own end (the at-rest gate, tier 3).
+    Ok(extrude(&profile, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 }
 
 let mm = |v: f64| (v * MM).meters();
@@ -580,10 +580,9 @@ assert_eq!(lightened.kind, BooleanResultKind::Seamed);
 # Ok::<(), E>(())
 ```
 
-`union` and `subtract` take finished bodies (`AtRestBody`): a sweep's
-body passes the at-rest gate once (`AtRestBody::validate`, tier 3), and a
-boolean's result is already finished, so it goes straight into the next
-operation. They return a `BooleanResult`, which is `Empty` or
+`union` and `subtract` take finished bodies (`AtRestBody`): every door
+finishes its own result once (the at-rest gate, tier 3), so a sweep's
+body and a boolean's result go straight into the next operation. They return a `BooleanResult`, which is `Empty` or
 a `BooleanBody`. That is the first fail-loud habit to build: an empty
 result is a *value*, not an error and not a crash, and you say what
 you expect. The `kind` field records how the result came to be —
@@ -610,7 +609,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -666,7 +665,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -681,9 +680,9 @@ validate_pseudomanifold(&base, &ContactRecords::default(), tol)
 
 `mass_properties` integrates over the exact B-rep — the divergence
 theorem on the real surfaces, not on a mesh. It reads a finished body
-(`&AtRestBody`): a Boolean's result is one already (`BooleanBody::body`
-holds the verdict its door kept, as a split's sides do), and a sweep's
-body is finished once with `AtRestBody::validate`, as `slab` does:
+(`&AtRestBody`): every door's result is one already — a Boolean's
+(`BooleanBody::body`), a split's sides, and a sweep's body, as `slab`
+returns it:
 
 ```
 use pncad::prelude::*;
@@ -698,7 +697,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -757,7 +756,7 @@ with `volume` and `stop`).
 **Gating and then measuring pays for one quadrature, not two — if you
 ask for it that way.** `mass_properties` reads a finished body, and
 tier 3's orientation check *is* a certified quadrature over the same
-body at the same band, so `AtRestBody::validate` followed by
+body at the same band, so finishing a body and then calling
 `mass_properties` runs the expensive part twice.
 `validate_geometric_certificate` hands back the certificate the gate
 decided on, and `SignCertificate::measure` continues that same
@@ -787,7 +786,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -827,7 +826,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -877,7 +876,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
 # let base = slab((mm(0.0), mm(80.0)), (mm(0.0), mm(40.0)), (mm(0.0), mm(8.0)))?;
@@ -1757,9 +1756,9 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-// An evaluated value holds the body as built, in its own coordinates
-// (`Framed::body`); the measurement reads it finished.
-let body = AtRestBody::validate(Body::clone(body.body()), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+// An evaluated value holds the body finished, in its own coordinates
+// (`Framed::finished`), which is what the measurement reads.
+let body = body.finished().clone();
 let props = mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6)))?.met()?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
@@ -1931,7 +1930,7 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    let body = AtRestBody::validate(Body::clone(body.body()), tol).expect("a finished body");
+    let body = body.finished().clone();
     mass_properties(&body, tol, Settle::Resolution(Length::from_meters(1e-6))).expect("mass properties").met().expect("mass properties").volume
 };
 

@@ -8,14 +8,14 @@
 //!
 //! # The operand is at rest
 //!
-//! Both doors take a finished body ([`AtRestBody`]), the Boolean's and
+//! Both doors take a finished body ([`AtRestBody`](crate::AtRestBody)), the Boolean's and
 //! the split's operand type: tier 3 passed on these bits. The verb
 //! answers for the material the operand bounds, so what tier 3 decides
 //! is what the construction reads: an inside-out solid (check 7,
-//! [`ValidationError::NegativeVolume`]) or an inside-out shell (check
+//! [`ValidationError::NegativeVolume`](crate::ValidationError::NegativeVolume)) or an inside-out shell (check
 //! 10) would be hollowed as its complement, and a stale or missing
 //! pcurve row would vanish under the closing mint below. Neither
-//! reaches the verb, because neither is an [`AtRestBody`].
+//! reaches the verb, because neither is an [`AtRestBody`](crate::AtRestBody).
 //!
 //! The door reads no second gate: what it takes is the scalar's finished
 //! body ([`crate::AtRestPolicy::Finished`]), and it is bounded on the
@@ -328,7 +328,7 @@
 //! - **A window that does not wrap** is a ring, exactly as on a plane.
 //!   What its readers cannot yet read is theirs and refuses where they
 //!   read it: a ringed sphere face at tier 3's check 7
-//!   ([`ValidationError::VolumeUncomputable`]), through
+//!   ([`ValidationError::VolumeUncomputable`](crate::ValidationError::VolumeUncomputable)), through
 //!   [`ShellError::NotValid`] as the boolean's does, and a ringed cone
 //!   or cylinder wall — which props reads — at the mesh.
 //!
@@ -360,14 +360,14 @@
 //! designated face's, a promoted rim face whose own boundary meets the
 //! hole it would carry, or more than one hole to pair. The invariant is
 //! stated once more at rest by tier 3's check 9
-//! ([`ValidationError::RingMeetsOuter`]), so a ring standing on its own
+//! ([`ValidationError::RingMeetsOuter`](crate::ValidationError::RingMeetsOuter)), so a ring standing on its own
 //! outer loop is loud wherever it is minted and not only here.
 //!
 //! **Check 9 has a second half now, and it states the other half of
 //! the same sentence**: a ring must lie strictly INSIDE its face's
 //! outer loop, not merely stand clear of it
-//! ([`ValidationError::RingOutsideOuter`], with
-//! [`ValidationError::RingNestingUndecided`] for the pair it cannot
+//! ([`ValidationError::RingOutsideOuter`](crate::ValidationError::RingOutsideOuter), with
+//! [`ValidationError::RingNestingUndecided`](crate::ValidationError::RingNestingUndecided) for the pair it cannot
 //! certify). That is the statement an inverted host/guest pick at the
 //! rim glue below falsifies, and it reaches every planar face whose
 //! outer loop carries lines, circle arcs or ellipse arcs; check 9's own
@@ -1471,7 +1471,7 @@ pub struct ShellRetired {
 /// void door's refusals, the closing pcurve mint's refusal, and a
 /// result that does not validate.
 /// **The scalar must be able to certify**, because this verb validates
-/// what it built: its last act is [`validate_geometric`], whose +V
+/// what it built: its last act is [`validate_geometric`](crate::validate_geometric), whose +V
 /// invariant is a certified claim. A scalar without certification
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a

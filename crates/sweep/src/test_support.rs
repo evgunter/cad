@@ -2422,7 +2422,7 @@ pub fn sweep_body_construction<T: geom_core::Decide + topo::AtRestPolicy>(
     crate::loft::sweep_body_construction(profile, plane, path, stations, v_degree, tol)
 }
 
-/// **[`crate::revolve`] before its finish**: the built body in
+/// **[`crate::revolve()`] before its finish**: the built body in
 /// construction state, every key kept. For the suites that read what
 /// the revolve's CONSTRUCTION decides (a `k_stats` bracket over the
 /// door), apart from the decisions its finish makes.

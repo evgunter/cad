@@ -170,7 +170,7 @@ pub enum BooleanResultKind {
 /// The validity class rides THIS wrapper, never a mutable field on
 /// [`Body`]: `body` is the scalar's finished body
 /// ([`AtRestPolicy::Finished`]), which the door's finish made of these
-/// bits ([`AtRestPolicy::finish`]: an [`AtRestBody`] carrying the tier-3
+/// bits ([`AtRestPolicy::finish`]: an [`AtRestBody`](crate::AtRestBody) carrying the tier-3
 /// verdict at a certifying scalar, a [`crate::Replay`] that passed tier 2
 /// alone and carries no verdict at a dual). `contacts` are the machine-checkable record of every
 /// intentional touching the pipeline propagated (F2's explicit-intent

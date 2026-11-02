@@ -408,16 +408,16 @@ impl std::error::Error for MassPropsError {}
 ///
 /// ```
 /// use geom_core::{Dual64, Tol};
-/// use topo::{AtRestBody, mass_properties_structural};
-/// fn measure(b: &AtRestBody<Dual64>, tol: Tol) {
+/// use topo::{Replay, mass_properties_structural};
+/// fn measure(b: &Replay<Dual64>, tol: Tol) {
 ///     let _ = mass_properties_structural(b, tol);
 /// }
 /// ```
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Dual64, Tol};
-/// use topo::{AtRestBody, Settle, mass_properties};
-/// fn measure(b: &AtRestBody<Dual64>, tol: Tol, settle: Settle<Dual64>) {
+/// use topo::{Replay, Settle, mass_properties};
+/// fn measure(b: &Replay<Dual64>, tol: Tol, settle: Settle<Dual64>) {
 ///     let _ = mass_properties(b, tol, settle);
 /// }
 /// ```
@@ -426,8 +426,9 @@ impl std::error::Error for MassPropsError {}
 /// either names resolves, so the second fails on the bound alone —
 /// `E0277`, `CertifiedEnclosure` not implemented for `Dual<f64>`.
 ///
-/// **It measures a finished body** (`&AtRestBody`, Ev's decision on
-/// PR 4822): one tier 3 has passed, so the lanes read loops that bound
+/// **It measures a finished body** (the scalar's
+/// [`crate::AtRestPolicy::Finished`], Ev's decision on PR 4822): at a
+/// certifying scalar one tier 3 has passed, so the lanes read loops that bound
 /// one region, shells wound as their roles say and structure that
 /// resolves. A test whose subject is the walk on a body tier 3 refuses
 /// measures through `topo::test_support::measure_unvalidated`, and says

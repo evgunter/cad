@@ -157,7 +157,7 @@ pub(crate) mod fuse;
 // rustdoc reason as the sector modules below.
 pub mod face_boxes;
 pub mod face_normal;
-pub mod finish;
+mod finish;
 #[cfg(test)]
 pub(crate) mod fixtures;
 // This crate's own sources, read as source. A sibling of `fixtures`

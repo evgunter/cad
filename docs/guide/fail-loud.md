@@ -147,7 +147,7 @@ let tol = Tol::witness();
 #         .at(p2(0.0, 0.0)).line_to(p2(1.0, 0.0), tol)?
 #         .line_to(p2(1.0, 1.0), tol)?.line_to(p2(0.0, 1.0), tol)?.line_to(Start, tol)?;
 #     let plane = SketchPlane::from_frame(RigidMotion::axes_xy(p3(0.0, 0.0, z.0)));
-#     Ok(AtRestBody::validate(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body, tol).map_err(|e| format!("{e:?}"))?)
+#     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance { depth: real(z.1 - z.0), side: ExtrudeSide::Along }, tol)?.body)
 # }
 let lower = slab((0.0, 1.0))?;   // z from 0 to 1
 let upper = slab((1.0, 2.0))?;   // z from 1 to 2 — they meet exactly at z = 1
@@ -488,10 +488,11 @@ assert issubclass(QuantityOpMismatch, PncadError)
 Export refuses in the same style. `ExportError` names the node and,
 when the value was the wrong shape, the kind it actually found — so
 "you asked me to export a profile" is a matchable fact rather than a
-message. The export door takes a finished body: a body the at-rest
-gate refuses never reaches the writer (`ExportError`'s `body_invalid`
-here; on the Rust side `step_export::step_string` takes a
-`topo::AtRestBody`, so the gate's findings are the caller's to read).
+message. The export door takes a finished body: every value already
+holds one (each operation finishes its own result), so a body the
+at-rest gate refuses never reaches the writer — the operation that made
+it refused instead. On the Rust side `step_export::step_string` takes a
+`topo::AtRestBody`, which only the scalar's finish constructs.
 Past the gate, STEP export has three refusals you should *expect*
 rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
 `VoidShellUnsupported` — meaning the AP214 writer has no
