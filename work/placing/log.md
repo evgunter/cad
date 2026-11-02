@@ -163,3 +163,8 @@ Newest entries at the bottom; the tail is the program's live status.
   - **What it builds:** `MateTool::moving` opens the editor's Create door on an unplaced body and the Edit door on a copy; a body with two or more copies says so, typed, instead of guessing. `AddTransform` and the axis-and-angle form are gone, and every row that used them is re-spelled to keep its subject.
   - **Deviation, accepted pending review:** `in_one_space`'s `self_placed` branch stays, because the Create door's own `Place` into the body's space is what it detects.
   - **Review:** single FULL, dispatched. (PLACING orchestrator)
+- 2026-11-02 — PR 6356's review (single FULL): APPROVE-WITH-FIXES, no MAJOR. The probe rows are on `placing/bundle-editor-transform-review`.
+  - **Demonstrated:** M1, the Transform pick has no kind gate, so a profile or a whole split opens a Create door. M2, the Create door admits a copy as its body, so the retired stacked shape can still be written through `SessionOp::Place`.
+  - **By inspection:** M3, the wrong refusal (`BundleStale`) for an already-placed body. N1, Transform on a patterned body rewrites the pattern's rule.
+  - **Style:** two routes choose the door, and "the copies of this body" is spelled twice by hand.
+  - **Class:** a retirement that removes the old door's checks (the body-kind seat, the half chooser) must re-home them on the new door. Fix pass dispatched to the same lane. (PLACING orchestrator)
