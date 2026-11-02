@@ -331,3 +331,34 @@ fn two_cones_through_one_apex_cross_along_their_common_rulings() {
         );
     }
 }
+
+/// **A small box cornered at the apex, its side holding the wrap seam**:
+/// `[0, 0.3] × [0.7, 1] × [−0.3, 0]`, its top holding the apex and its
+/// side `z = 0` the tipped cone's seam ruling at azimuth `0`. The kept
+/// cone face's loop passes the apex once, between the seam vertex's two
+/// copies, which props reads from the edge leaving the apex
+/// (`geom_brep::props`' `cone_loop_winding`, "Through the apex"). Every op
+/// builds at its closed form, the box holding a quarter of the cone
+/// above `y = 0.7`: `V·0.3³/4`.
+#[test]
+fn a_small_box_whose_side_holds_the_wrap_seam_builds_every_op() {
+    let (x, y, z) = ((0.0, 0.3), (0.7, 1.0), (-0.3, 0.0));
+    let block = moved(
+        &topo::test_support::brick(x, y, z, tol()),
+        Affine3::identity(),
+    );
+    for alpha in [10.0f64, 30.0] {
+        let r = alpha.to_radians().tan();
+        for (form, body) in forms(alpha) {
+            let c = finished("c", body, tol());
+            let (ra, rb) = (move || the_cone(r), move || membership::cuboid(x, y, z));
+            four_ops(
+                &format!("{alpha}°, {form}, a small box at the seam"),
+                (&c, &ra, volume(alpha)),
+                (&block, &rb, 0.027),
+                volume(alpha) * 0.3f64.powi(3) / 4.0,
+                about(r.max(0.3), 1.0),
+            );
+        }
+    }
+}
