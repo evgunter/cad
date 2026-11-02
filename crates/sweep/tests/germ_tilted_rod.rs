@@ -9,8 +9,8 @@
 //! reaches past the inner equator, and clears every pair where it stops
 //! short, so those poses answer.
 //!
-//! Other spins of the same rod, and steeper tilts, refuse earlier, in
-//! the join, before any body is built.
+//! Other spins of the same rod, and steeper tilts, pass the join and
+//! refuse at the result gate's volume, before any body is returned.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -246,79 +246,100 @@ fn stop_word(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
                 ValidationError::VolumeUncomputable {
                     source:
                         MassPropsError::Face {
-                            source: PropsError::QuadratureUnsupported { .. },
+                            source: PropsError::QuadratureUnsupported { what },
                             ..
                         },
                     ..
                 },
-            ] => "quadrature volume".to_owned(),
+            ] => {
+                if what
+                    .starts_with("curved-cut face half-edge carries a pcurve with no harmonic form")
+                {
+                    "projected volume".to_owned()
+                } else if what.starts_with("conic trim on a cone/sphere/torus chart") {
+                    "conic trim volume".to_owned()
+                } else if what.starts_with("a torus wall edge beside a spiric") {
+                    "spiric wall volume".to_owned()
+                } else {
+                    format!("quadrature volume: {what}")
+                }
+            }
             other => format!("result {other:?}"),
         },
         other => outcome(other),
     }
 }
 
-/// The other spins' stops by pose and op ([`every_op`]'s order),
-/// measured alike at the compiled ε, 1e-6 and 1e-12: the edge join on
-/// the wall's spline chord, or the result gate's volume, its quadrature
-/// on a face the chords bound (a projected image, a conic trim or a
-/// spiric's lifted image) or a ring left on a curved face.
+/// [`other_spins_and_steeper_tilts_refuse_at_their_germs`]' stops by pose
+/// and op ([`every_op`]'s order),
+/// measured alike at the compiled ε, 1e-6 and 1e-12: each at the result
+/// gate's volume, by the refusal's cause.
+// Pinned red at every ε row, each word on its owner's row:
+// "projected volume" (a cylinder wall the chords bound) on
+// work/spiricarm/a-projected-boundary-on-an-analytic-chart-has-no-volume-lane.md;
+// "conic trim volume" and "ring volume" (a torus wall the chords trim,
+// or one left holding a ring) on
+// work/spiricarm/a-torus-wall-trimmed-by-a-spline-rim-has-no-volume-lane.md;
+// "spiric wall volume" (a torus wall holding a spiric beside a chord) on
+// work/spiricarm/a-torus-wall-holding-a-spiric-beside-a-spline-chord-has-no-volume-lane.md.
+// As each lands, its words move on to the run's next stop or to a body
+// held to its volume, and the table is re-pinned there.
 const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
     [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
         "ring volume",
-        "spline join",
-    ],
-    [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
+        "projected volume",
+        "conic trim volume",
         "ring volume",
-        "spline join",
+        "projected volume",
     ],
     [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
         "ring volume",
-        "spline join",
-    ],
-    [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
+        "projected volume",
+        "conic trim volume",
         "ring volume",
-        "spline join",
+        "projected volume",
     ],
     [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
-        "quadrature volume",
-        "spline join",
+        "ring volume",
+        "projected volume",
+        "conic trim volume",
+        "ring volume",
+        "projected volume",
     ],
     [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
-        "quadrature volume",
-        "spline join",
+        "ring volume",
+        "projected volume",
+        "projected volume",
+        "ring volume",
+        "projected volume",
     ],
     [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
-        "quadrature volume",
-        "spline join",
+        "spiric wall volume",
+        "projected volume",
+        "projected volume",
+        "spiric wall volume",
+        "projected volume",
     ],
     [
-        "spline join",
-        "quadrature volume",
-        "quadrature volume",
-        "quadrature volume",
-        "spline join",
+        "spiric wall volume",
+        "projected volume",
+        "projected volume",
+        "spiric wall volume",
+        "projected volume",
+    ],
+    [
+        "spiric wall volume",
+        "projected volume",
+        "projected volume",
+        "spiric wall volume",
+        "projected volume",
+    ],
+    [
+        "spiric wall volume",
+        "projected volume",
+        "spiric wall volume",
+        "spiric wall volume",
+        "projected volume",
     ],
 ];
 
@@ -326,11 +347,11 @@ const OTHER_SPINS_STOPS: [[&str; 5]; 8] = [
 /// body is built, on every op, each at its pinned door
 /// ([`OTHER_SPINS_STOPS`], the same at every ε row): each wall germ takes its site's foot on the
 /// carried section, which each op marches once, and the run passes the
-/// join to the edge join on the wall's closed spline chord (`JoinCarrierUnsupported`,
-/// `work/splicecarrier/joining-a-spline-carrier-is-unbuilt.md`) or the
+/// join, which leaves the wall's closed spline chord's vertex standing
+/// (the chord creases there, at its clamped ends), to the
 /// result gate's volume (a face the fitted chords bound, a conic trim, a
-/// spiric's lifted image, or a ring left on a curved face; SPIRICARM's
-/// `a-projected-boundary-on-an-analytic-chart-has-no-volume-lane`).
+/// spiric beside a chord, or a ring left on a curved face; each word's
+/// owner is beside [`OTHER_SPINS_STOPS`]).
 #[test]
 fn other_spins_and_steeper_tilts_refuse_at_their_germs() {
     let h = half_donut();

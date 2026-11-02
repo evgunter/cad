@@ -430,6 +430,7 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
                     true,
                 )),
                 arm: s.arm,
+                bend: crate::bound_side::FaceBend::Plane,
             }
         })
         .collect()
@@ -661,7 +662,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
         he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
         start: Vec3::new(0.0, 0.0, 1.0),
         end: d.normalize(),
-        start_reach: Reach::Bisector(1.0),
+        start_reach: Reach::straight_bisector(1.0),
         end_reach: Reach::Chord {
             base: o,
             far: o + d,
@@ -672,6 +673,7 @@ fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
             true,
         )),
         arm: 1.0,
+        bend: crate::bound_side::FaceBend::Plane,
     }
 }
 
@@ -1178,8 +1180,8 @@ impl std::fmt::Display for Counts {
 /// **No decided class a gathered cone gives, or the boolean publishes
 /// through it, contradicts the exact oracle or lies in band**, over
 /// random stars, thin fins and slivers, turned stars, and the graze,
-/// bound and long-probe families, and over two partners of each read as
-/// one cone.
+/// bound and long-probe families, each probe read again far short of the
+/// rays' reach, and over two partners of each read as one cone.
 #[test]
 fn a_gathered_cone_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
@@ -1194,6 +1196,8 @@ fn a_gathered_cone_never_contradicts_the_exact_oracle() {
     for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         let mut counts = [Counts::default(), Counts::default()];
+        let mut short_counts = [Counts::default(), Counts::default()];
+        let mut short_wrong = 0;
         let mut read_cones = Vec::new();
         let before = wrong.len();
         for c in 0..cones {
@@ -1233,13 +1237,35 @@ fn a_gathered_cone_never_contradicts_the_exact_oracle() {
                 &mut rng,
                 &mut counts,
             ));
+            // The same directions far short of the rays' reach, where a
+            // reference out at its own reach stands far beyond `q`.
+            let mut short = Vec::with_capacity(probes.len());
+            for &far in &probes {
+                let l = rng.range(1e-8, 1e-7);
+                short.push(norm3(far).map(|x| x * l));
+            }
+            let found = check_cone(
+                &format!("{what}, short"),
+                &cone,
+                &short,
+                band,
+                &mut rng,
+                &mut short_counts,
+            );
+            short_wrong += found.len();
+            wrong.extend(found);
             read_cones.push((what, cone));
         }
         let [cone, published] = &counts;
         println!(
             "[fuzz] link_cone_fuzz at ε {eps:e}: {} wrong; the cone {cone}; the published \
              rows {published}",
-            wrong.len() - before,
+            wrong.len() - before - short_wrong,
+        );
+        let [cone, published] = &short_counts;
+        println!(
+            "[fuzz] link_cone_fuzz short probes at ε {eps:e}: {short_wrong} wrong; the cone \
+             {cone}; the published rows {published}",
         );
         pair_passes.push((eps, band, read_cones));
     }
@@ -1449,7 +1475,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
             extent: v.norm(),
             bend: flat_bend(),
         },
-        None => Reach::Bisector(v.norm()),
+        None => Reach::straight_bisector(v.norm()),
     };
     (v.normalize(), reach)
 }
@@ -1461,7 +1487,7 @@ fn reach_of(f: [f64; 3], bound: Option<Bounds>) -> (Vec3<f64>, Reach<f64>) {
 fn fixed(dir: Vec3<f64>, reach: Reach<f64>) -> [f64; 3] {
     let x = match reach {
         Reach::Chord { far, .. } => far,
-        Reach::Conic { extent: l, .. } | Reach::Bisector(l) | Reach::Extent(l) => {
+        Reach::Conic { extent: l, .. } | Reach::Bisector { arm: l, .. } | Reach::Extent(l) => {
             Point3::new(0.0, 0.0, 0.0) + dir.normalize() * l
         }
     };
@@ -1496,6 +1522,7 @@ fn drawn(corners: &[Corner], bounds: Bounds) -> (Vec<BoolSector<f64>>, Vec<Vec<S
                     normal, true,
                 )),
                 arm: s.arm,
+                bend: crate::bound_side::FaceBend::Plane,
             });
             face.push(Sector {
                 start_far: fixed(start, start_reach),
@@ -2259,8 +2286,8 @@ fn line_material(rng: &mut Rng) -> Option<LineMaterial> {
     if plane_as == Some(PlaneAs::Halves) {
         let k = secs.len() - 2;
         let len = dot(l, l).sqrt();
-        secs[k].start_reach = Reach::Bisector(len);
-        secs[k + 1].end_reach = Reach::Bisector(len);
+        secs[k].start_reach = Reach::straight_bisector(len);
+        secs[k + 1].end_reach = Reach::straight_bisector(len);
     }
     Some(LineMaterial {
         secs,

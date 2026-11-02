@@ -124,8 +124,6 @@ vocabulary! {
         SubtractTool,
         /// The body a split cuts.
         SplitTarget,
-        /// The body a transform places.
-        TransformBody,
         /// The body a pattern replicates.
         PatternBody,
         /// The pattern a part projects one instance of.
@@ -166,7 +164,6 @@ impl Seat {
             | Self::SubtractFrom
             | Self::SubtractTool
             | Self::SplitTarget
-            | Self::TransformBody
             | Self::PatternBody
             | Self::DuplicateBody
             | Self::MirrorBody => NodeKindWanted::Body,
@@ -181,7 +178,6 @@ impl Seat {
             Self::SubtractFrom => "body kept",
             Self::SubtractTool => "body removed",
             Self::SplitTarget => "split target",
-            Self::TransformBody => "transformed body",
             Self::PatternBody => "patterned body",
             Self::PartInstance => "pattern to project",
             Self::DuplicateBody => "duplicated body",

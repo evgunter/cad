@@ -21,6 +21,9 @@
 //!    only when one pair of face stations is within it at EVERY point of
 //!    the box, `Exceeded` when no pair is within it at any, and
 //!    otherwise refused `box_dependent` — the drive's cue to bisect.
+//! 8. Scopes that meet are 0 apart at every realization, read off
+//!    topology: an upper bound between them is `Within` over any box,
+//!    and a lower bound above 0 is `Violated` by the meeting pair.
 //!
 //! # The fixture, and why it is the dumbbell
 //!
@@ -738,4 +741,161 @@ fn a_saved_assertion_mixing_two_claims_refuses_by_name() {
         said.contains("nothing of the other"),
         "the refusal names the two claims' fields: {said}"
     );
+}
+
+/// **The pin**: a cylinder of radius `0.5 + r`, `r` uniform over
+/// `±SPREAD`, extruded `1`, so its carrier itself moves with the box.
+/// One clearance assertion per `(a, b, bound)`, each side named by
+/// `seat`: its lateral wall, or a cap.
+fn pin(asked: &[(PinSeat, PinSeat, ClearanceBounds<f64>)]) -> Dumbbell {
+    let mut r = Recorder::new();
+    r.push(DocEdit::DeclareVar {
+        name: name("r"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
+            dim: Dimension::Length,
+            value: 0.0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(Distribution::Uniform {
+                lo: -SPREAD,
+                hi: SPREAD,
+            }),
+        }),
+    });
+    let radius = Formula::add(len(0.5), Formula::named(name("r"), Dimension::Length))
+        .expect("a length plus a length");
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        loops: vec![LoopProgram::Circle {
+            centre: [len(0.0), len(0.0)],
+            radius,
+        }],
+        ids: Vec::new(),
+        on: None,
+    }));
+    let solid = r.insert(Node::Extrude {
+        profile: profile.into(),
+        distance: len(1.0),
+    });
+    let seat = |r: &Recorder, s: PinSeat| {
+        let role = match s {
+            PinSeat::Wall => {
+                editor_core::RoleSeg::Lateral(fixture::piece(&r.doc, solid, 0, 0).into())
+            }
+            PinSeat::Cap(end) => editor_core::RoleSeg::Cap(end),
+        };
+        SitedRef::new(solid, fixture::fname(solid, role))
+    };
+    let assertions = asked
+        .iter()
+        .map(|(a, b, bound)| {
+            let Ok(bound) = bound.try_map(|&c| Ok::<_, core::convert::Infallible>(len(c)));
+            let (a, b) = (seat(&r, *a), seat(&r, *b));
+            r.insert(Node::clearance(a, b, bound))
+        })
+        .collect();
+    Dumbbell {
+        doc: r.doc,
+        assertions,
+        walls: Vec::new(),
+    }
+}
+
+/// Which face of [`pin`] a side names.
+#[derive(Debug, Clone, Copy)]
+enum PinSeat {
+    Wall,
+    Cap(editor_core::CapEnd),
+}
+
+/// **Row 12**: scopes that MEET are at distance 0 at every realization,
+/// read off topology, over a box as over none. The pin's wall against
+/// itself, and the wall against a cap it shares its rim with, prove
+/// `≤ 0` and `≤ 0.01` over `r ±0.05` and `r ±1e-4`, where the carrier
+/// moves with the box — no enclosure of one station read twice is
+/// asked to show it. A lower bound above 0 between the same scopes is
+/// violated by the meeting pair itself. Two caps that do NOT meet stay
+/// a metric question: 1 apart, `≤ 0` is exceeded.
+#[test]
+fn scopes_that_meet_are_within_any_upper_bound_over_a_box() {
+    use editor_core::CapEnd;
+    let over = |f: &Dumbbell, k: usize, half: Option<f64>| -> ClearanceReport {
+        match half {
+            Some(h) => {
+                let at = f.doc.var_named("r").expect("the fixture declares it");
+                let leaf = ParamBox::from_axes(
+                    [(
+                        at,
+                        editor_core::analysis::BoxAxis::Varying { lo: -h, hi: h },
+                    )]
+                    .into_iter()
+                    .collect(),
+                );
+                match editor_core::drive::assertion_at(
+                    &f.doc,
+                    f.assertions[k],
+                    &leaf,
+                    editor_core::drive::SymbolicDials::default(),
+                    Tol::witness(),
+                ) {
+                    Some(AssertionVerdict::Clearance(report)) => *report,
+                    other => panic!("a clearance's verdict over the box: {other:?}"),
+                }
+            }
+            None => report_of(
+                &eval_over::<geom_core::Interval>(&f.doc, None),
+                f.assertions[k],
+            ),
+        }
+    };
+    let (wall, top, bottom) = (
+        PinSeat::Wall,
+        PinSeat::Cap(CapEnd::End),
+        PinSeat::Cap(CapEnd::Start),
+    );
+    let asked = [
+        (wall, wall, ClearanceBounds::AtMost(0.0)),
+        (wall, wall, ClearanceBounds::AtMost(0.01)),
+        (wall, wall, ClearanceBounds::Equal(0.0)),
+        (wall, top, ClearanceBounds::AtMost(0.0)),
+        (wall, wall, ClearanceBounds::AtLeast(0.1)),
+        (wall, top, ClearanceBounds::AtLeast(0.1)),
+        (top, bottom, ClearanceBounds::AtMost(0.0)),
+    ];
+    let f = pin(&asked);
+    for half in [Some(SPREAD), Some(1e-4), None] {
+        for (k, (a, b, bound)) in asked.iter().enumerate() {
+            let report = over(&f, k, half);
+            let what = format!("{a:?} against {b:?}, {bound:?}, over ±{half:?}");
+            match (a, b, bound) {
+                (PinSeat::Cap(_), PinSeat::Cap(_), _) => assert_eq!(
+                    report.verdict(),
+                    &ClearanceVerdict::Exceeded,
+                    "{what}: two caps 1 apart share nothing: {}",
+                    report.render()
+                ),
+                (_, _, ClearanceBounds::AtLeast(_)) => {
+                    let ClearanceVerdict::Violated(w) = report.verdict() else {
+                        panic!("{what}: meeting scopes are 0 apart: {}", report.render());
+                    };
+                    assert!(
+                        w.geometry.distance < 1e-9,
+                        "{what}: the meeting pair is the shared point: {:?}",
+                        w.geometry
+                    );
+                }
+                _ => {
+                    let ClearanceVerdict::Within(w) = report.verdict() else {
+                        panic!(
+                            "{what}: topology fixes the distance at 0 at every realization: {}",
+                            report.render()
+                        );
+                    };
+                    assert!(
+                        w.geometry.distance < 1e-9,
+                        "{what}: proved by the shared point: {:?}",
+                        w.geometry
+                    );
+                }
+            }
+        }
+    }
 }
