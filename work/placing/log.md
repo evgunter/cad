@@ -134,3 +134,14 @@ Newest entries at the bottom; the tail is the program's live status.
     2. A value carried by key identity across a change of freedom set. "Kept" becomes "shown as dropped before Apply" wherever no kernel mapping carries it.
 
   (PLACING orchestrator)
+- 2026-11-02 — **PR 6300's fix pass is in**, green at `ef9206924a`. Every union item is fixed:
+  - one kernel chain read with its pole (`chain_turns`), through which `moves_of` now reads too;
+  - editable value rows showing names;
+  - every unlanded value listed and said before Apply;
+  - a failing Apply withheld (`PlacementFails`);
+  - kept-chart slides read from the bundle;
+  - typed fail-loud states;
+  - the viewer's copies of the chart rules replaced by kernel doors (logged on MSOLVE);
+  - the Create door's staleness check.
+
+  It merged DOORS' takeover rebinds (#6264), and the Create door goes through `taking_over`. Three NOTEs are filed as P-rows. Two of R2's probe assertions were rewritten (a spin carried as `-pa`; editable rows asserted as "no raw id"). One new rule needs a second look: a loaded turn is carried by NUMERIC equality to the kernel's measured value, and that test is the viewer's. That is not part of the protocol's pair (the pair is complete). It is the orchestrator's added check on a large fix pass, so a single targeted re-check review is dispatched on that head. (PLACING orchestrator)
