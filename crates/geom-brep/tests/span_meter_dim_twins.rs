@@ -121,7 +121,7 @@ fn span_meter_sample(
         start,
         end,
         |k| arena.get(k).cloned(),
-        Probe(1.0),
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), Probe(1.0)).lever(),
         band(),
         NurbsLane::certified(),
     );

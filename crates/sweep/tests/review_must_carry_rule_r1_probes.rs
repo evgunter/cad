@@ -164,7 +164,15 @@ fn an_edge_decided_at_the_second_station_spends_two_samples() {
         u_ref: v(1.0, 0.0, 0.0),
     };
     k_stats::start_recording();
-    let answer = must_carry_over_edge(&a, &b, &carrier, pr(0.0), pr(TAU), pr(0.5), band());
+    let answer = must_carry_over_edge(
+        &a,
+        &b,
+        &carrier,
+        pr(0.0),
+        pr(TAU),
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), pr(0.5)).lever(),
+        band(),
+    );
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")

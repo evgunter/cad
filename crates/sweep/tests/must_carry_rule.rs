@@ -826,7 +826,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(MERIDIAN_R),
-        pr(MERIDIAN_R),
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), pr(MERIDIAN_R)).lever(),
         band(),
     );
     let spent = count(k_stats::take_samples());
@@ -850,7 +850,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
         &ruling,
         pr(0.0),
         pr(short),
-        pr(short),
+        geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), pr(short)).lever(),
         band(),
     );
     let spent_under = count(k_stats::take_samples());
@@ -899,7 +899,7 @@ fn the_rule_meters_the_schedules_interior_stations_in_lane_or_out() {
             &carrier,
             Probe(0.0),
             Probe(1.0),
-            Probe(1.0),
+            geom_brep::ExtentBall::of_sphere(geom_core::Point3::origin(), Probe(1.0)).lever(),
             band(),
         );
         let after = k_stats::take_samples();
