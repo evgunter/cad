@@ -271,3 +271,4 @@ closed-row routing and #6093's re-bless).
   Class from the review, logged here: `render.yml` keeps a hand-written
   census of `nightly.yml`'s checkout count in a comment, already one
   behind before #6323, and nothing guards it.
+- 2026-11-02 — Slow-test census of the `full-suite` job (runs 41276693129 and 41172334943) appended to `the-full-suite-jobs-three-eps-rows-outgrow-its-180-minutes`: rows of 17.2, 13.4 and 40.3 minutes on 11-01, each saturating four threads; 1e-12 is 57 % of row time and sweep is 64 % of that; the 10-31 runner was 1.75× slower per test. Debug assertions cost under 2 % on seven runs of six of the slowest tests; the cost is the curved boolean pipeline, filed on SECTRUNG (P1). (GREEN lane)

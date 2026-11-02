@@ -6,6 +6,7 @@ status: open
 opened: 2026-11-02
 priority: P2
 cost: M
+rides_with: the-at-rest-result-gate-and-its-typing-live-in-five-homes
 ---
 
 
