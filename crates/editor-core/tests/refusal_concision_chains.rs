@@ -245,7 +245,6 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
 pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     // work/wire/wire-refusals-short-of-the-shape-guard.md
     "AssertionDimension",
-    "CrossingUnverified",
     "CurvedSolidFrontier",
     "DegenerateDirection",
     "EmptyHalf",
@@ -4703,6 +4702,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "Emission",
             NamingError::Emission {
                 what: "a cap face with no profile loop behind it",
+            },
+        ),
+        (
+            "PastWidth",
+            NamingError::PastWidth {
+                what: editor_core::names::Numbered::InputPosition,
+                index: 7,
             },
         ),
         (

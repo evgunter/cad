@@ -2829,10 +2829,28 @@ impl<T: Real> Core<T> {
         core::mem::replace(&mut self.guide, crate::structure::Guide::recording())
     }
 
-    /// The guide, for the resolution machinery that reads and writes
-    /// it.
-    pub(crate) fn guide_mut(&mut self) -> &mut crate::structure::Guide<T> {
-        &mut self.guide
+    /// **Hands an arc fillet's fit its two sides**, the fused verb at
+    /// `step` having authored them: every arc-carrier resolution goes
+    /// through here. A pass that draws its construction is handed the
+    /// sides before the fit runs, so a refused fit still has them, and
+    /// the fillet circle once it resolves.
+    pub(crate) fn fit_arc_fillet(
+        &mut self,
+        resolver: verbs::ArcResolver<T>,
+        step: usize,
+        sides: [arc_fillet::FilletSide<T>; 2],
+        radius: T,
+        tol: Tol,
+    ) -> Result<arc_fillet::ArcFilletTrims<T>, PathError<T>> {
+        let [incoming, arrival] = sides;
+        if let Some(drawing) = self.guide.drawn() {
+            drawing.sides(step, radius, incoming, arrival);
+        }
+        let trims = resolver(&mut self.guide, incoming, arrival, radius, tol)?;
+        if let Some(drawing) = self.guide.drawn() {
+            drawing.fillet(&trims);
+        }
+        Ok(trims)
     }
 
     /// Records one authoring verb (record-as-you-lower), with the
@@ -4164,7 +4182,13 @@ impl<T: Decide> Core<T> {
             anchor: arr_pos,
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
-        let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
+        let trims = self.fit_arc_fillet(
+            arc.resolver,
+            meta.bound_at,
+            [incoming, arrival],
+            arc.radius,
+            tol,
+        )?;
         let run = verbs::Pending::Arc(arc).run();
         self.emit_fillet_in(&trims, meta.extends_carrier, &meta, run)?;
         let ray = ArrivalCarrier::Ray {

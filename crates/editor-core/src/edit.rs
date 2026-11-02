@@ -1055,9 +1055,7 @@ impl Lowering {
                 .iter()
                 .position(|(var, _)| readers.get(var).copied().unwrap_or(0) == 0)
             {
-                return Err(EditError::FreshUnread {
-                    index: u16::try_from(index).unwrap_or(u16::MAX),
-                });
+                return Err(EditError::FreshUnread { index });
             }
         }
         // Nothing reads a variable minted here but this edit's own
@@ -1593,9 +1591,10 @@ fn mint_selection<P: crate::ProfilePayload>(
             fault => shape(fault),
         });
     }
+    // Read in a body: "where an instance is" is a body reaching one.
     let parted = doc.reaches_instance(body);
     for name in names {
-        if parted && !doc.nodes.contains_key(&name.node) {
+        if doc.part_spelled(parted, name) {
             continue;
         }
         if !doc.nodes.contains_key(&name.node) {
@@ -1603,9 +1602,7 @@ fn mint_selection<P: crate::ProfilePayload>(
                 name: doc.spoken_name(name),
             });
         }
-        if !parted {
-            check_name_steps(doc, doc, name)?;
-        }
+        check_name_steps(doc, doc, name, parted)?;
     }
     mint_anonymous(
         doc,
@@ -2255,6 +2252,57 @@ pub enum LoftFault {
     },
 }
 
+impl LoftFault {
+    /// The problem, said of `node`: the one sentence both doors that
+    /// refuse a loft's shape forward ([`EditError::LoftShape`],
+    /// [`crate::SnapshotError::LoftShape`]).
+    pub(crate) fn problem(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        node: &impl core::fmt::Display,
+    ) -> core::fmt::Result {
+        match self {
+            Self::TooFewSections { have } => write!(
+                f,
+                "{node} is a loft through {have} section, and a loft passes through two or more"
+            ),
+            Self::EmptyStation { section } => write!(
+                f,
+                "section {section} of {node} has no station, so it stands in the first \
+                 section's plane"
+            ),
+            Self::StationInFirstPlane { section } => write!(
+                f,
+                "the station of section {section} of {node} carries the first section's plane \
+                 onto itself under the current values, so the section stands in that plane"
+            ),
+            Self::DegreeOutOfRange { degree, sections } => write!(
+                f,
+                "{node} is a loft of v degree {degree} through {sections} sections, which admit \
+                 degrees 1 to {}",
+                sections - 1
+            ),
+        }
+    }
+
+    /// The edit that writes the loft whole.
+    fn recourse(&self) -> &'static str {
+        match self {
+            Self::TooFewSections { .. } => "write a second section with its station",
+            Self::EmptyStation { .. } => {
+                "write the moves that carry the first section's plane to its own"
+            }
+            Self::StationInFirstPlane { .. } => {
+                "move it off that plane: slide it along the first section's z, or spin it \
+                 about its x or y"
+            }
+            Self::DegreeOutOfRange { .. } => {
+                "write a degree in that range, or the sections it needs"
+            }
+        }
+    }
+}
+
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
 /// **The variable-read naming convention is stated here and nowhere
@@ -2726,7 +2774,7 @@ pub enum EditError {
     /// reads: the variable it would mint has no reader (VR7).
     FreshUnread {
         /// The entry's index.
-        index: u16,
+        index: usize,
     },
     /// A [`DocEdit::DefineVar`] offered a definition of another kind
     /// than the variable's. A kind is fixed at minting (VR3): a new
@@ -3001,6 +3049,14 @@ pub enum EditError {
     },
     /// A `ReWitnessBulk` with no entries — a recorded no-op, refused.
     EmptyWitnessBulk,
+    /// A takeover ([`crate::take_over`]) given the same copy twice:
+    /// re-pointed once, it no longer copies the body the second would
+    /// read its names from, so the second's answer would be empty —
+    /// refused.
+    TakeOverRepeatsCopy {
+        /// The copy given twice.
+        node: SpokenNode,
+    },
     /// Name-level edit-time validation (M4 PR 4, the PR 3 R6 banked
     /// obligation, via [`crate::resolve::apply_with_names`]): the
     /// name's minting node HAS an Ok value in the supplied
@@ -3497,6 +3553,7 @@ impl EditError {
             }
             | Self::WitnessOnNonSketch { node }
             | Self::DuplicateWitnessEntry { node }
+            | Self::TakeOverRepeatsCopy { node }
             | Self::WorldIsUndeletable { node }
             | Self::SpaceMismatch { node, a: _, b: _ }
             | Self::ConstraintOnNonPlacement { node }
@@ -3752,56 +3809,10 @@ impl EditError {
                     ),
                 )
             }
-            Self::LoftShape { node, fault } => match fault {
-                LoftFault::TooFewSections { have } => {
-                    write!(
-                        f,
-                        "{node} is a loft through {have} section, and a loft passes through \
-                         two or more"
-                    )?;
-                    tail.recourse(f, format_args!("write a second section with its station"))
-                }
-                LoftFault::EmptyStation { section } => {
-                    write!(
-                        f,
-                        "section {section} of {node} has no station, so it stands in the \
-                         first section's plane"
-                    )?;
-                    tail.recourse(
-                        f,
-                        format_args!(
-                            "write the moves that carry the first section's plane to its own"
-                        ),
-                    )
-                }
-                LoftFault::StationInFirstPlane { section } => {
-                    write!(
-                        f,
-                        "the station of section {section} of {node} carries the first \
-                         section's plane onto itself under the current values, so the \
-                         section stands in that plane"
-                    )?;
-                    tail.recourse(
-                        f,
-                        format_args!(
-                            "move it off that plane: slide it along the first section's z, \
-                             or spin it about its x or y"
-                        ),
-                    )
-                }
-                LoftFault::DegreeOutOfRange { degree, sections } => {
-                    write!(
-                        f,
-                        "{node} is a loft of v degree {degree} through {sections} sections, \
-                         which admit degrees 1 to {}",
-                        sections - 1
-                    )?;
-                    tail.recourse(
-                        f,
-                        format_args!("write a degree in that range, or the sections it needs"),
-                    )
-                }
-            },
+            Self::LoftShape { node, fault } => {
+                fault.problem(f, node)?;
+                tail.recourse(f, format_args!("{}", fault.recourse()))
+            }
             Self::SetMembersOnNonList { node } => {
                 write!(
                     f,
@@ -3850,14 +3861,11 @@ impl EditError {
                     f,
                     "the pose defined at {slot} is not one a document stores: {fault}"
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "read a frame through its axes, origin or planes, a plane through its \
-                         normal, or an axis through its direction, where the read admits that \
-                         kind; slide along a direction or an axis, and spin about an axis"
-                    ),
-                )
+                let kinds = "read a frame through its axes, origin or planes, a plane through its \
+                             normal, or an axis through its direction, where the read admits \
+                             that kind; slide along a direction or an axis, and spin about an \
+                             axis";
+                tail.recourse(f, format_args!("{}", fault.own_recourse().unwrap_or(kinds)))
             }
             Self::SelectionNameKind {
                 node,
@@ -4500,6 +4508,10 @@ impl EditError {
             Self::DuplicateWitnessEntry { node } => {
                 write!(f, "{node} appears twice in the re-witness bulk")?;
                 tail.recourse(f, format_args!("list each node once"))
+            }
+            Self::TakeOverRepeatsCopy { node } => {
+                write!(f, "{node} is given twice to the takeover")?;
+                tail.recourse(f, format_args!("give each copy once"))
             }
             Self::EmptyWitnessBulk => {
                 f.write_str("a re-witness bulk with no entries would change nothing")?;
@@ -5363,7 +5375,7 @@ fn undrawn_kept_pieces<P: crate::ProfilePayload>(
 
 /// **The names a `SetProgram` stranded**: every carried name that
 /// spells a piece of a step the reshaping dropped
-/// ([`StableName::piece_steps`]), or a kept step's piece it stopped
+/// (`StableName::spelled_outside`), or a kept step's piece it stopped
 /// drawing (`undrawn`, [`undrawn_kept_pieces`]) —
 /// [`Maintenance::Strand`] on its carrying node,
 /// [`Maintenance::StrandedAppearance`] on a store key, in that order.
@@ -5640,6 +5652,11 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         self.produced.as_ref().unwrap_or(self.start)
     }
 
+    /// The tolerance each edit applies at.
+    pub(crate) fn tol(&self) -> Tol {
+        self.tol
+    }
+
     /// What each edit so far minted, in the order the edits applied: an
     /// `InsertNode`'s new id, `None` for every other edit.
     pub fn minted(&self) -> &[Option<RecipeNodeId>] {
@@ -5839,13 +5856,30 @@ pub struct Recorded<P: crate::ProfilePayload> {
 /// of the load door's `SnapshotError::NameStepNotMinted`, so a
 /// document this door accepts is one the load door reads back. `doc`
 /// is the document being written, `before` the one the door was handed.
+///
+/// `parted` is whether the name is read where an instance is (a body
+/// that reaches one, or for a payload a document that holds one). A
+/// copy carries its part's names verbatim, so there each LEVEL of the
+/// name spelled in ids this document never minted is the part's, and
+/// its steps are the part's to answer for: the walk stops at it. The
+/// levels around it are this document's, and are held to its log (an
+/// operation of the host over an instance's copy carries the part's
+/// name inside its own, `From { read, of: <the part's name> }`). The
+/// rule follows each embedded name and not only the outer one (issue
+/// `a-takeovers-rebind-cannot-reach-part-spelled-names`).
 fn check_name_steps<P: crate::ProfilePayload>(
     before: &Doc<P>,
     doc: &Doc<P>,
     name: &StableName,
+    parted: bool,
 ) -> Result<(), EditError> {
+    let part = |n: &StableName| doc.part_spelled(parted, n);
+    if part(name) {
+        return Ok(());
+    }
     match name
-        .piece_steps()
+        .spelled_outside(&part)
+        .steps
         .into_iter()
         .find(|s| !doc.mint.has_step(*s))
     {
@@ -6212,8 +6246,9 @@ fn check_appearance_name<P: crate::ProfilePayload>(
     body: VarId,
     name: &StableName,
 ) -> Result<(), EditError> {
+    // Read in a body: "where an instance is" is a body reaching one.
     let parted = new.reaches_instance(body);
-    if parted && !new.nodes.contains_key(&name.node) {
+    if new.part_spelled(parted, name) {
         return Ok(());
     }
     if !new.nodes.contains_key(&name.node) {
@@ -6221,9 +6256,7 @@ fn check_appearance_name<P: crate::ProfilePayload>(
             name: doc.spoken_name(name),
         });
     }
-    if !parted {
-        check_name_steps(doc, new, name)?;
-    }
+    check_name_steps(doc, new, name, parted)?;
     Ok(())
 }
 
@@ -6248,15 +6281,10 @@ fn check_payload_refs<P: crate::ProfilePayload>(
     // minted: such a name is the part's, held where an instance is,
     // and its life is the part's (`work/intent/a-part-name-in-the-host-
     // is-spelled-in-the-parts-ids.md`).
-    let parted = |name: &StableName| {
-        !new.has_minted(name.node)
-            && new
-                .nodes
-                .values()
-                .any(|n| matches!(n, Node::InstantiatePart { .. }))
-    };
+    // Read in no body: "where an instance is" is a document holding one.
+    let parted = new.holds_instance();
     for name in node.payload_names() {
-        if parted(name) {
+        if new.part_spelled(parted, name) {
             continue;
         }
         if !new.nodes.contains_key(&name.node) {
@@ -6264,7 +6292,7 @@ fn check_payload_refs<P: crate::ProfilePayload>(
                 name: doc.spoken_name(name),
             });
         }
-        check_name_steps(doc, new, name)?;
+        check_name_steps(doc, new, name, parted)?;
     }
     for at in node.payload_read_sites() {
         if !new.nodes.contains_key(&at) {
@@ -6290,13 +6318,10 @@ fn check_loft_shape<P: crate::ProfilePayload>(
     let Node::Loft { then, v_degree, .. } = node else {
         return Ok(());
     };
+    if let Some(fault) = loft_structure_fault(node) {
+        return Err(fault);
+    }
     let sections = then.len() + 1;
-    if sections < 2 {
-        return Err(LoftFault::TooFewSections { have: sections });
-    }
-    if let Some(k) = then.iter().position(|s| s.station.is_empty()) {
-        return Err(LoftFault::EmptyStation { section: k + 1 });
-    }
     let env = new.var_env::<f64>();
     if let Some(k) = then
         .iter()
@@ -6314,6 +6339,24 @@ fn check_loft_shape<P: crate::ProfilePayload>(
         }
     }
     Ok(())
+}
+
+/// **A loft's shape as written**, read off the node alone: fewer than
+/// two sections ([`LoftFault::TooFewSections`]) or a section after the
+/// first with no station ([`LoftFault::EmptyStation`]). The part of
+/// [`check_loft_shape`] no value moves, so the load door asks it of a
+/// snapshot (`SnapshotError::LoftShape`) as the edit doors ask it of
+/// what they write; `None` for any other node.
+pub(crate) fn loft_structure_fault<P: crate::ProfilePayload>(node: &Node<P>) -> Option<LoftFault> {
+    let Node::Loft { then, .. } = node else {
+        return None;
+    };
+    if then.is_empty() {
+        return Some(LoftFault::TooFewSections { have: 1 });
+    }
+    then.iter()
+        .position(|s| s.station.is_empty())
+        .map(|k| LoftFault::EmptyStation { section: k + 1 })
 }
 
 /// **Whether `station` carries the first section's plane exactly onto
@@ -7940,8 +7983,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         .iter()
                         .enumerate()
                         .map(|(i, section)| {
-                            let slot =
-                                crate::OperandSlot::Section(u32::try_from(i).unwrap_or(u32::MAX));
+                            let slot = crate::OperandSlot::Section(i);
                             if section.is_member() {
                                 return Err(EditError::UnknownSlot {
                                     id: spoken(),
@@ -8426,8 +8468,11 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // spelled in ids this document never minted: the part's to
             // check, at evaluation (`work/intent/a-part-name-in-the-host-
             // is-spelled-in-the-parts-ids.md`).
+            // Read in a body: "where an instance is" is a body reaching
+            // one. An unsited rebind reaches every payload site, so it
+            // lets no part's name through.
             let parted = body.is_some_and(|body| new.reaches_instance(body));
-            let foreign = |name: &StableName| parted && !new.has_minted(name.node);
+            let foreign = |name: &StableName| new.part_spelled(parted, name);
             // The target must denote a LIVE node (node existence now;
             // name-level resolution at evaluation — the Declare
             // carve-out's split, spec D3).
@@ -8437,7 +8482,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         name: doc.spoken_name(to),
                     });
                 }
-                check_name_steps(doc, new, to)?;
+                check_name_steps(doc, new, to, parted)?;
             }
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the

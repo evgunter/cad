@@ -2,11 +2,12 @@
 id: a-mate-on-a-taken-over-copys-face-goes-stale
 kind: issue
 title: A mate another placement seats on a face of a body's copy goes stale when a fillet or mirror takes that copy over: the mated part is no longer placed
-status: dispatched
+status: closed
 opened: 2026-10-25
 priority: P0
 cost: M
 branch: doors/take-over-rebinds
+closed: 2026-11-02
 ---
 
 
@@ -54,3 +55,14 @@ The everyday staleness Ev hit (CHROME's P1 `work/chrome/a-findings-face-referenc
 The add-profile form's held face (`drafts.sketch_face`) is stranded the same way: its `pick_resolution` after the commit is the same `Vanished`. So a second boss on the held face would author against the union's read with a name the union does not hold.
 
 Both are the "re-seats the viewer's held picks" clause above. The blocker, PR 5636, has merged (`29110056`). Replay: the script in the CHROME row; a unit-level reproduction is `Driven::holding_the_top_cap`, then select the top cap, click `ADD_PROFILE`, then `quiet()`, then read `session.standing()` and `pick_resolution` of `drafts.sketch_face`. The test owed above, "a selection … through the same takeover", should assert both. CHROME's row waits on this one.
+
+## Closed
+
+PR 6264. The takeover door rebinds every reader of a taken-over copy at
+commit, document references and held picks alike, through copy, mirror
+and split chains; the viewer answers name questions only from an
+evaluation of the shown document. Residue, each its own file:
+`the-name-gate-is-tested-as-a-table`,
+`a-fresh-pick-off-the-older-picture-commits-a-stale-reference`,
+`a-fused-patterns-takeover-rebinds-nothing`,
+`name-carrying-chain-walks-restate-verbatim-edge-by-hand`.

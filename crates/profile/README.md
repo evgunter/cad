@@ -57,8 +57,13 @@ identifier, which the table-coordinate sentence renders.
 
 The typed surface records as it lowers: a closing verb returns
 `ClosedLoop { loop_, program, structure }`. Replay is the only path from
-steps to geometry; serde (in `editor-core`) is transport, never a
-constructor. Two refusal classes (`ReplayErrorKind`):
+steps to geometry: `replay`, `replay_recording`, `replay_guided`,
+`replay_drawn` and `pen` are one driver walk over the steps, and serde
+(in `editor-core`) is transport, never a constructor. `replay_drawn`
+also records, at the call that hands each fused fillet's fit its two
+sides, those sides and the fillet circle the fit finds — so a refused
+fit still has them for the editor to draw. Two refusal classes
+(`ReplayErrorKind`):
 
 - `Transition` — a verb or arc mode ill-typed at the tip's `TipState`.
   No authoring surface produces it, so it is the
@@ -101,7 +106,8 @@ A profile drawn on a frame may hold steps that read a face's trace in
 the frame's `xy` (`editor_core::trace`), and any profile may run a leg
 to a written `x` or `y`. The profile itself reads no surface. Before
 the replay, an evaluation lowers each such step to the kernel step it
-lands on, from the pen its prefix leaves (`profile::pen`):
+lands on, from the pen its prefix leaves (`profile::pen`, the
+driver's walk over the prefix, reading the tip it stops at):
 
 - a leg to a crossing, or to a written `x` or `y`, becomes its length;
 - an arc to a crossing becomes the crossing's point;
