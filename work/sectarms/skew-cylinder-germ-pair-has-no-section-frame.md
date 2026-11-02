@@ -151,3 +151,9 @@ provisional `Counted`/`Marched` split by the pair's ball is gone.
 Stage 3 (the join) is next. Its seams are unchanged: `join_reads`, and
 the frame lane's reading at `frame_lever`.
 
+
+## Note (ONEHOME, 2026-11-02)
+
+`section_cert::Reach` no longer exists: the section certificate reads a
+`geom_brep::Reach::Ball` over the face boxes' overlap
+(`ExtentBall::of_overlap`, PR on `onehome/one-extent`).

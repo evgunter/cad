@@ -37,3 +37,13 @@ Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb
 
 - Re-banded P3 → P1: two vocabularies for one ball: two implementations of one underlying logic, P1 by `work/README.md` Priority.
 - Moved to ONEHOME (`work/onehome/`) by `git mv`, id and body unchanged: the P1 track opened for CLEAVE's duplication rows; INTENT is sorting each into design signal or a mechanical deletion (`work/intent/log.md`, 2026-10-26), and the sort goes on the row. CLEAVE measured 270.5 budget points against 30 and split on its priority seam (Ev, in chat, 2026-10-26).
+
+## Done by `onehome/one-extent` (2026-11-02)
+
+`section_cert::Reach` is deleted: `ops::overlap_reach` returns a
+`geom_brep::Reach::Ball` of `ExtentBall::of_overlap` (the two face
+boxes' overlap, `glue::overlap_ball` reads the same constructor), the
+section classifiers take `&geom_brep::Reach`, and `reach_lever` is
+`Reach::lever_from` (its doubled forms `ExtentBall::twice_lever_from`
+and `lever_from_point_and_plane`). The `line_tilt` half of this row is
+untouched.
