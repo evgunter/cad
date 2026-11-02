@@ -427,9 +427,9 @@ enum Place {
 /// as a [`Ray`] one with no edge behind it (a sector's bisector), whose
 /// reach is `None`.
 #[derive(Debug, Clone, Copy)]
-struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
+pub(super) struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// The unit direction: the edge's tangent, or its secant.
-    dir: Vec3<T>,
+    pub(super) dir: Vec3<T>,
     /// How far the edge reaches from the vertex
     /// ([`geom_brep::edge_reach_bounds`]): a corner's reading acts on
     /// every sign, so its lever is the region's own measure from where
@@ -437,23 +437,23 @@ struct Leaving<T: geom_core::Real, R = LeverBounds<T>> {
     /// other than a line or circle, whose bound from above can pass it
     /// many times over) the corner reads at both and acts only on a sign
     /// they share ([`sign_at`]).
-    reach: R,
+    pub(super) reach: R,
     /// The edge's curvature vector where `dir` is its tangent: a line's
     /// zero, a circle's or an ellipse's. `None` for a secant, for a
     /// spiric or a spline edge, whose bend carries no bound
     /// ([`geom_brep::BendBounds::Unbounded`]), and for a direction with
     /// no edge behind it. What tells a direction apart from a bound it
     /// leaves along at first order ([`corner_holds`]).
-    bend: Option<Vec3<T>>,
+    pub(super) bend: Option<Vec3<T>>,
 }
 
 /// A direction read against a corner ([`corner_holds`]): an edge's
 /// [`Leaving`], or one with no edge behind it, which has no reach.
-type Ray<T> = Leaving<T, Option<LeverBounds<T>>>;
+pub(super) type Ray<T> = Leaving<T, Option<LeverBounds<T>>>;
 
 impl<T: geom_core::Real> Leaving<T> {
     /// As a direction read against a corner, its reach its own.
-    fn ray(self) -> Ray<T> {
+    pub(super) fn ray(self) -> Ray<T> {
         Leaving {
             dir: self.dir,
             reach: Some(self.reach),
@@ -475,7 +475,7 @@ impl<T: geom_core::Real> Ray<T> {
 
 /// How `he` leaves its start along its tangent ([`leaving`]); `None`
 /// for null scaffolding.
-fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Leaving<T>> {
+pub(super) fn departure<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<Leaving<T>> {
     leaving(body, he, false)
 }
 
@@ -592,7 +592,7 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 
 /// Where [`corner_holds`] reads a direction against one corner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Holds {
+pub(super) enum Holds {
     /// Strictly inside it.
     In,
     /// Not strictly inside it: outside its turn, or along one of its
@@ -646,7 +646,7 @@ enum Holds {
 /// asked: a direction along a dangling edge runs along it, and where it
 /// runs on to the cut's far end the face's own edge leaving with it is
 /// the place.
-fn corner_holds<T: Decide>(
+pub(super) fn corner_holds<T: Decide>(
     d: Ray<T>,
     (out, back): (Leaving<T>, Leaving<T>),
     wraps: impl FnOnce() -> Result<bool, BooleanError>,

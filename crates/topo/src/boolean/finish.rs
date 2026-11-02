@@ -66,6 +66,11 @@ pub(super) struct FinishOut<T: geom_core::Real> {
     /// The split records each operand's carve killed, A's then B's, in
     /// clone keys (`BooleanNaming::carved_lineage`).
     pub carved_lineage: [BTreeMap<crate::entity::EdgeKey, crate::entity::EdgeKey>; 2],
+    /// The A clone as the cuts left it, before the carve: the faces
+    /// [`Self::discards`] names on A's side are its faces.
+    pub clone_a: Body<T>,
+    /// The B clone as the cuts left it, before the carve.
+    pub clone_b: Body<T>,
 }
 
 /// Which side each operand keeps (Eq. 15.1 as data).
@@ -417,6 +422,8 @@ pub(super) fn setopfinish<T: Decide + crate::props::AtRestPolicy>(
         graft,
         discards,
         carved_lineage,
+        clone_a: red.a,
+        clone_b: red.b,
     })
 }
 
