@@ -2512,9 +2512,9 @@ fn unglued_flat_sector<T: Decide>(
     }
     let curved = |body: &Body<T>, operand, face| {
         let kind = body
-            .get_face(face)
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+            .face_surface(face)
+            .expect("a sector's face is a face of its body")
+            .kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face,

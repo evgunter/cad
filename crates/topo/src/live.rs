@@ -334,7 +334,8 @@ impl<T: Real> Body<T> {
         )
     }
 
-    /// `face`'s chart, a link its record holds.
+    /// `face`'s chart, a link its record holds; for a face key,
+    /// [`Body::face_surface`].
     #[track_caller]
     pub(crate) fn face_surface_linked(&self, face: FaceKey, data: &Face) -> &Surface<T> {
         self.get_surface(data.surface).unwrap_or_else(|| {

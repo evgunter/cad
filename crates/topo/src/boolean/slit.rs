@@ -430,8 +430,9 @@ pub(super) fn part_riders<T: Decide + crate::props::AtRestPolicy>(
         // that is no plane.
         let plane = |f: FaceKey| {
             matches!(
-                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-                Some(geom::Surface::Plane { .. })
+                body.face_surface(f)
+                    .expect("the parting reads faces walls_inside read"),
+                geom::Surface::Plane { .. }
             )
         };
         if let Some(&(curved, ..)) = parting.iter().find(|&&(f, ..)| !plane(f)) {
@@ -1051,9 +1052,10 @@ fn holding<T: Decide>(
         // read here lies on nothing.
         Ok(None) => {
             let spline = body
-                .get_face(f)
-                .and_then(|d| body.get_surface(d.surface))
-                .is_some_and(|s| s.spline_chart().is_some());
+                .face_surface(f)
+                .expect("carrier_on_surface read this face")
+                .spline_chart()
+                .is_some();
             if !spline || !names.ends {
                 return Ok(None);
             }
@@ -1241,9 +1243,9 @@ pub(super) fn carrier_on_surface<T: Decide>(
     f: FaceKey,
     band: Band,
 ) -> Result<Option<bool>, BooleanError> {
-    let Some(surface) = body.get_face(f).and_then(|d| body.get_surface(d.surface)) else {
-        return Ok(Some(false));
-    };
+    let surface = body
+        .face_surface(f)
+        .expect("every caller reads a face of its body");
     conic_or_line_on(carrier, (t0, t1), surface, band)
 }
 
@@ -1699,11 +1701,7 @@ fn walls_inside<T: Decide>(
         // Bent alike, the wall's sheet and the floor's are one to the
         // order read ([`coplanar_wall_inside`]).
         let coplanar = || coplanar_wall_inside(normal, floor, arm, band, refused);
-        let surface = |face: FaceKey| {
-            body.get_face(face)
-                .and_then(|d| body.get_surface(d.surface))
-                .ok_or_else(desync)
-        };
+        let surface = |face: FaceKey| body.face_surface(face).ok_or_else(desync);
         inside[k] = match crate::validate::decide(
             "bool_rider_wall_side",
             Margin::levered(into.dot(floor), arm),
@@ -1784,8 +1782,10 @@ fn spline_floor<T: Decide>(
     band: Band,
 ) -> Result<Option<geom_core::Vec3<T>>, BooleanError> {
     use crate::face_normal::{NormalAtError, SplineNormalError};
-    let chart = body.get_face(f).and_then(|d| body.get_surface(d.surface));
-    if !chart.is_some_and(|s| s.spline_chart().is_some()) {
+    let chart = body
+        .face_surface(f)
+        .expect("the rider reads a face of its body");
+    if chart.spline_chart().is_none() {
         return Ok(None);
     }
     let uv = match super::spline_region::spline_face_placement(body, f, p, band) {

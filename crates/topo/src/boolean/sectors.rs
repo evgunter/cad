@@ -1112,11 +1112,10 @@ pub(super) fn tangent_carrier<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<geom::Surface<T>, BooleanError> {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .cloned()
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "a declared-Tangent face lost its surface",
+            what: "a declared-Tangent face does not resolve",
         })
 }
 

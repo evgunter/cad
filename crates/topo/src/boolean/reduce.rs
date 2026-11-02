@@ -1326,7 +1326,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         origin: chart_origin,
                         normal: chart_normal,
                         ..
-                    }) = y.get_face(face).and_then(|f| y.get_surface(f.surface))
+                    }) = y.face_surface(face)
                     else {
                         return Err(BooleanError::ClassificationInvariant {
                             what: "planar lane: the face's plane resolved above",
@@ -2254,11 +2254,10 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<CurvedEvent<T>, BooleanError> {
     let surface = y
-        .get_face(face)
-        .and_then(|f| y.get_surface(f.surface))
+        .face_surface(face)
         .cloned()
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "curved sweep arm: face surface lost",
+            what: "curved sweep arm: the face does not resolve",
         })?;
     let frontier = || BooleanError::CurvedPierceUnsupported {
         operand: x_is,
@@ -3399,11 +3398,10 @@ fn spline_interior<T: Decide + crate::props::AtRestPolicy>(
         return Err(unbuilt());
     }
     let surface = y
-        .get_face(face)
-        .and_then(|f| y.get_surface(f.surface))
+        .face_surface(face)
         .cloned()
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "spline face: the face's surface does not resolve",
+            what: "spline face: the face does not resolve",
         })?;
     let chart = surface
         .spline_chart()
@@ -4278,10 +4276,9 @@ fn spline_plane_crossings<T: Bounds + crate::props::AtRestPolicy>(
 ) -> Result<Vec<T>, BooleanError> {
     use geom_brep::curve_face::{Door, route};
     let surface = y
-        .get_face(face)
-        .and_then(|f| y.get_surface(f.surface))
+        .face_surface(face)
         .ok_or(BooleanError::ClassificationInvariant {
-            what: "planar lane: the face's plane does not resolve",
+            what: "planar lane: the face does not resolve",
         })?;
     let arm = route(curve.carrier().kind(), surface.kind());
     let net = match curve.carrier() {
@@ -5969,12 +5966,11 @@ fn read_lying_in<T: Decide + crate::props::AtRestPolicy>(
                 along_boundary(x_is, y, (w, p), face, contacts, band, tol)?;
             }
             LyingIn::Curved(face, on_curved) => {
-                let surface = y
-                    .get_face(face)
-                    .and_then(|f| y.get_surface(f.surface))
-                    .ok_or(BooleanError::ClassificationInvariant {
-                        what: "a curved face an edge lies on lost its surface",
-                    })?;
+                let surface =
+                    y.face_surface(face)
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "a curved face an edge lies on does not resolve",
+                        })?;
                 let frontier = BooleanError::CurvedPierceUnsupported {
                     operand: x_is,
                     face,

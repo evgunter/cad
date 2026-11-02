@@ -284,7 +284,7 @@ pub(crate) fn torus_face_region<T: Decide>(
         major_radius,
         minor_radius,
         u_ref,
-    } = body.get_surface(f.surface).ok_or_else(corrupt)?
+    } = body.face_surface_linked(face, f)
     else {
         return Err(corrupt());
     };

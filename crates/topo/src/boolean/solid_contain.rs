@@ -685,17 +685,16 @@ pub(crate) fn face_plane<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => {
+    match body.face_surface_linked(face, f) {
+        Surface::Plane { origin, normal, .. } => {
             Ok((*origin, plane_outward_normal(f, *normal).vec()))
         }
-        // A resolved non-plane is a CAPABILITY answer; only a surface
-        // key that does not resolve is corruption.
-        Some(s) => Err(PointInSolidError::KindUnsupported {
+        // A non-plane is a CAPABILITY answer; only a face key that does
+        // not resolve is corruption.
+        s => Err(PointInSolidError::KindUnsupported {
             face,
             kind: s.kind(),
         }),
-        None => Err(PointInSolidError::CorruptFace { face }),
     }
 }
 
@@ -893,8 +892,8 @@ pub(super) fn closed_sphere_group<T: Decide>(
 /// [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 — the spline
 /// kinds have no ray-crossing arm), and a TRIMMED sphere face with a
 /// boundary edge that is not a circle arc as
-/// [`PointInSolidError::PartialSphereFace`]. Only a surface key that
-/// does not RESOLVE is corruption.
+/// [`PointInSolidError::PartialSphereFace`]. Only a face key that does
+/// not RESOLVE is corruption.
 pub(crate) fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -921,17 +920,17 @@ fn face_geo_arms<T: Decide>(
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => Ok(FaceGeo::Plane(
+    match body.face_surface_linked(face, f) {
+        Surface::Plane { origin, normal, .. } => Ok(FaceGeo::Plane(
             *origin,
             plane_outward_normal(f, *normal).vec(),
         )),
-        Some(&Surface::Cylinder {
+        &Surface::Cylinder {
             origin,
             axis,
             radius,
             ..
-        }) => match ruled_face_region(body, face)? {
+        } => match ruled_face_region(body, face)? {
             Some(region) => Ok(FaceGeo::Cylinder {
                 origin,
                 axis,
@@ -950,12 +949,12 @@ fn face_geo_arms<T: Decide>(
                 })
             }
         },
-        Some(&Surface::Cone {
+        &Surface::Cone {
             apex,
             axis,
             half_angle,
             ..
-        }) => match ruled_face_region(body, face)? {
+        } => match ruled_face_region(body, face)? {
             Some(region) => Ok(FaceGeo::Cone {
                 apex,
                 axis,
@@ -970,35 +969,33 @@ fn face_geo_arms<T: Decide>(
                 reach: partial_reach(body, face, apex)?,
             }),
         },
-        Some(&Surface::Sphere { center, radius, .. }) => {
-            match closed_sphere_group(body, face, charts) {
-                Some(representative) => Ok(FaceGeo::Sphere {
+        &Surface::Sphere { center, radius, .. } => match closed_sphere_group(body, face, charts) {
+            Some(representative) => Ok(FaceGeo::Sphere {
+                center,
+                radius,
+                representative,
+                sense: body
+                    .get_face(representative)
+                    .ok_or(PointInSolidError::CorruptFace { face })?
+                    .sense,
+            }),
+            None => match sphere_face_region(body, face, center, radius)? {
+                Some(region) => Ok(FaceGeo::SpherePatch {
                     center,
                     radius,
-                    representative,
-                    sense: body
-                        .get_face(representative)
-                        .ok_or(PointInSolidError::CorruptFace { face })?
-                        .sense,
+                    region,
+                    sense: f.sense,
                 }),
-                None => match sphere_face_region(body, face, center, radius)? {
-                    Some(region) => Ok(FaceGeo::SpherePatch {
-                        center,
-                        radius,
-                        region,
-                        sense: f.sense,
-                    }),
-                    None => Err(PointInSolidError::PartialSphereFace { face }),
-                },
-            }
-        }
-        Some(&Surface::Torus {
+                None => Err(PointInSolidError::PartialSphereFace { face }),
+            },
+        },
+        &Surface::Torus {
             center,
             axis,
             major_radius,
             minor_radius,
             ..
-        }) => {
+        } => {
             if let Some(representative) = torus_closed_group(body, face, charts)? {
                 return Ok(FaceGeo::Torus {
                     center,
@@ -1026,13 +1023,10 @@ fn face_geo_arms<T: Decide>(
         }
         // Refused in `face_geo` through `uncrossable`: only this
         // dispatch read alone reaches here, and it refuses the same way.
-        Some(s @ (Surface::Nurbs(_) | Surface::Approx(_))) => {
-            Err(PointInSolidError::KindUnsupported {
-                face,
-                kind: s.kind(),
-            })
-        }
-        None => Err(PointInSolidError::CorruptFace { face }),
+        s @ (Surface::Nurbs(_) | Surface::Approx(_)) => Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: s.kind(),
+        }),
     }
 }
 
@@ -1105,16 +1099,13 @@ pub(crate) const fn ray_crosses(kind: geom::SurfaceKind) -> bool {
 ///
 /// # Errors
 ///
-/// A face or surface that does not resolve.
+/// A face that does not resolve.
 pub(crate) fn uncrossable<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<Option<PointInSolidError>, PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
     let kind = body
-        .get_surface(f.surface)
+        .face_surface(face)
         .ok_or(PointInSolidError::CorruptFace { face })?
         .kind();
     Ok((!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind }))
@@ -1337,10 +1328,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     if !f.rings.is_empty() {
         return Ok(None);
     }
-    let surf = body
-        .get_surface(f.surface)
-        .cloned()
-        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surf = body.face_surface_linked(face, f).clone();
     let LoopBoundary::Cycle { first } = body
         .get_loop(f.outer)
         .ok_or(PointInSolidError::CorruptFace { face })?
@@ -4130,13 +4118,12 @@ fn root_outward<T: Decide>(
 }
 
 /// **A curved face's carrier at `face`**, the surface its roots and
-/// incidences are read on: a face with none is corrupt.
+/// incidences are read on: a face that does not resolve is corrupt.
 fn carrier<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<&Surface<T>, RayFault<PointInSolidError>> {
-    body.get_face(face)
-        .and_then(|f| body.get_surface(f.surface))
+    body.face_surface(face)
         .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))
 }
 

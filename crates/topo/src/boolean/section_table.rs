@@ -250,10 +250,14 @@ impl<T: geom_core::Decide> SectionTable<T> {
     /// gate both of the join's readings ([`Self::held_at_the_join`],
     /// [`Self::carried_at_the_join`]) take.
     fn join_reads(a: (&Body<T>, FaceKey), b: (&Body<T>, FaceKey)) -> bool {
+        // The join reads only faces of its operands: a stale key is a
+        // desync, as it is to `join::face_surface`.
         let cylinder = |(body, f): (&Body<T>, FaceKey)| {
-            body.get_face(f)
-                .and_then(|face| body.get_surface(face.surface))
-                .is_some_and(|s| matches!(s, geom::Surface::Cylinder { .. }))
+            matches!(
+                body.face_surface(f)
+                    .expect("the join reads the table for faces of its operands"),
+                geom::Surface::Cylinder { .. }
+            )
         };
         !(cylinder(a) && cylinder(b))
     }

@@ -73,9 +73,9 @@ fn carrier_of<T: Decide>(
 ) -> Result<CarrierDesc<T>, BooleanError> {
     super::carrier_pair::face_carrier(body, s.face).ok_or_else(|| {
         let kind = body
-            .get_face(s.face)
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+            .face_surface(s.face)
+            .expect("a sector's face is a face of its body")
+            .kind();
         BooleanError::CurvedBooleanUnsupported {
             operand,
             face: s.face,
@@ -122,16 +122,17 @@ pub(super) fn require_same<T: Decide>(
     let c2 = carrier_of(body2, o2, s2)?;
     let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
     let refusal = if curved(&c1) {
-        Some((o1, s1.face, body1.get_face(s1.face), body1))
+        Some((o1, s1.face, body1))
     } else if curved(&c2) {
-        Some((o2, s2.face, body2.get_face(s2.face), body2))
+        Some((o2, s2.face, body2))
     } else {
         None
     };
-    if let Some((operand, face, f, body)) = refusal {
-        let kind = f
-            .and_then(|f| body.get_surface(f.surface))
-            .map_or(geom::SurfaceKind::Nurbs, geom::Surface::kind);
+    if let Some((operand, face, body)) = refusal {
+        let kind = body
+            .face_surface(face)
+            .expect("carrier_of read this face")
+            .kind();
         return Err(BooleanError::CurvedBooleanUnsupported {
             operand,
             face,
@@ -1710,10 +1711,10 @@ pub(super) fn resolve_edge_edge<T: Decide>(
         let planar = [(body_of(own), own_face), (body_of(other), other_face)]
             .iter()
             .all(|&(body, face)| {
-                body.get_face(face)
-                    .and_then(|f| body.get_surface(f.surface))
-                    .map(geom::Surface::kind)
-                    == Some(geom::SurfaceKind::Plane)
+                body.face_surface(face)
+                    .expect("a sector's face is a face of its body")
+                    .kind()
+                    == geom::SurfaceKind::Plane
             });
         let which = if planar {
             Coincide::FlankSense

@@ -934,9 +934,17 @@ pub fn glued_pair_overlap<T: Decide + CertifiedBounds>(
     // The kind gate (fixed order: cylinder enclosure, then the planar
     // world carrier, then the per-kind divergence — the doc lists the
     // residue each refused kind keeps).
-    if matches!(face_surface(body_a, face_a)?, Surface::Cylinder { .. })
-        && matches!(face_surface(body_b, face_b)?, Surface::Cylinder { .. })
-    {
+    if matches!(
+        body_a
+            .face_surface(face_a)
+            .ok_or(ChartRegionError::Corrupt)?,
+        Surface::Cylinder { .. }
+    ) && matches!(
+        body_b
+            .face_surface(face_b)
+            .ok_or(ChartRegionError::Corrupt)?,
+        Surface::Cylinder { .. }
+    ) {
         return cylinder_pair_overlap(body_a, face_a, body_b, face_b, premise, band);
     }
     let carrier = world_carrier(body_a, face_a, body_b, face_b, divergence)?;
@@ -1106,22 +1114,17 @@ fn world_carrier<T: Decide + Bounds>(
     face_b: FaceKey,
     divergence: ChartRegionError,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let s_a = face_surface(body_a, face_a)?;
-    let s_b = face_surface(body_b, face_b)?;
+    let s_a = body_a
+        .face_surface(face_a)
+        .ok_or(ChartRegionError::Corrupt)?;
+    let s_b = body_b
+        .face_surface(face_b)
+        .ok_or(ChartRegionError::Corrupt)?;
     if matches!(s_a, Surface::Plane { .. }) && matches!(s_b, Surface::Plane { .. }) {
         Ok(s_a.clone())
     } else {
         Err(divergence)
     }
-}
-
-/// A face's own surface description.
-fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
-    let key = body
-        .get_face(face)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    body.get_surface(key).ok_or(ChartRegionError::Corrupt)
 }
 
 /// A face's plane description as `(origin, unit normal)`; the CHART
@@ -1131,7 +1134,7 @@ fn plane_frame<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(geom_core::Point3<T>, geom_core::Vec3<T>), ChartRegionError> {
-    match face_surface(body, face)? {
+    match body.face_surface(face).ok_or(ChartRegionError::Corrupt)? {
         Surface::Plane { origin, normal, .. } => Ok((*origin, *normal)),
         _ => Err(ChartRegionError::Corrupt),
     }
@@ -1251,7 +1254,7 @@ struct CylFrame<T: Decide> {
 }
 
 fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, ChartRegionError> {
-    match face_surface(body, face)? {
+    match body.face_surface(face).ok_or(ChartRegionError::Corrupt)? {
         Surface::Cylinder {
             origin,
             axis,
@@ -1572,8 +1575,14 @@ fn cylinder_pair_overlap<T: Decide + Bounds>(
     let c = (b.origin - a.origin).dot(a.axis);
 
     // --- Extraction (each face read in its OWN minted chart). ---
-    let surface_a = face_surface(body_a, face_a)?.clone();
-    let surface_b = face_surface(body_b, face_b)?.clone();
+    let surface_a = body_a
+        .face_surface(face_a)
+        .ok_or(ChartRegionError::Corrupt)?
+        .clone();
+    let surface_b = body_b
+        .face_surface(face_b)
+        .ok_or(ChartRegionError::Corrupt)?
+        .clone();
     let uv_a = extract_face_uv(body_a, face_a, &surface_a, ChartRead::Minted, band)?;
     let uv_b_own = extract_face_uv(body_b, face_b, &surface_b, ChartRead::Minted, band)?;
     let map = |p: &Point2<T>| Point2::new(delta + sigma * p.x, c + sigma * p.y);
@@ -2394,19 +2403,13 @@ fn declared_chart<T: Decide + Bounds>(
     body_b: &Body<T>,
     face_b: FaceKey,
 ) -> Result<Surface<T>, ChartRegionError> {
-    let key_a = body_a
-        .get_face(face_a)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    let key_b = body_b
-        .get_face(face_b)
-        .ok_or(ChartRegionError::Corrupt)?
-        .surface;
-    let s_a = body_a.get_surface(key_a).ok_or(ChartRegionError::Corrupt)?;
-    if std::ptr::eq(body_a, body_b) && key_a == key_b {
+    let fa = body_a.get_face(face_a).ok_or(ChartRegionError::Corrupt)?;
+    let fb = body_b.get_face(face_b).ok_or(ChartRegionError::Corrupt)?;
+    let s_a = body_a.face_surface_linked(face_a, fa);
+    if std::ptr::eq(body_a, body_b) && fa.surface == fb.surface {
         return Ok(s_a.clone());
     }
-    let s_b = body_b.get_surface(key_b).ok_or(ChartRegionError::Corrupt)?;
+    let s_b = body_b.face_surface_linked(face_b, fb);
     if surface_bits_equal(s_a, s_b) {
         Ok(s_a.clone())
     } else {

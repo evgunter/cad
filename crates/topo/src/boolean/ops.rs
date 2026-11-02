@@ -1839,8 +1839,7 @@ pub(crate) struct FaceRow<T: Real> {
 ///
 /// # Errors
 ///
-/// [`BooleanError::ClassificationInvariant`] for a face whose surface
-/// does not resolve, and the box builder's own errors.
+/// The box builder's own errors.
 pub(crate) fn face_rows<T: Decide + Bounds>(
     body: &Body<T>,
     band: Band,
@@ -1848,12 +1847,7 @@ pub(crate) fn face_rows<T: Decide + Bounds>(
     let pad = boxes::sweep_pad(band);
     body.faces()
         .map(|(face, fd)| {
-            let surface = body
-                .get_surface(fd.surface)
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "section certificate: a face surface is lost",
-                })?
-                .clone();
+            let surface = body.face_surface_linked(face, fd).clone();
             Ok(FaceRow {
                 face,
                 key: fd.surface,
@@ -7006,8 +7000,9 @@ fn apply_cut_ins<T: Decide + crate::props::AtRestPolicy>(
         };
         let r = cut.radius;
         let sign = |name, m: Margin<T>| decide(name, m, band).map_err(esc);
-        let sphere = proven(&body.faces, cut.face, EntityId::Face).surface;
-        let Some(&geom::Surface::Sphere { axis, .. }) = body.get_surface(sphere) else {
+        let face = proven(&body.faces, cut.face, EntityId::Face);
+        let sphere = face.surface;
+        let &geom::Surface::Sphere { axis, .. } = body.face_surface_linked(cut.face, face) else {
             return Err(corrupt("cut-in: the face is not on a sphere"));
         };
         let axis = axis / axis.norm();

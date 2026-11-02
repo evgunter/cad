@@ -135,7 +135,7 @@ pub(crate) fn decided_glue<'d, T: Decide + Bounds>(
 /// # Errors
 ///
 /// That refusal, typed; [`BooleanError::ClassificationInvariant`] where
-/// an enumerated face has no surface.
+/// an enumerated face does not resolve.
 fn tangency<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -143,12 +143,12 @@ fn tangency<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
+    // A stale face key is a desync: the glue door enumerated both.
     let kind = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
+        body.face_surface(f)
             .map(geom::Surface::kind)
             .ok_or(BooleanError::ClassificationInvariant {
-                what: "the glue door: a face it enumerated has no surface",
+                what: "the glue door: a face it enumerated does not resolve",
             })
     };
     let read = DeclarationRead::Moot;
@@ -218,17 +218,11 @@ pub(super) fn overlapping_pairs<T: Decide + Bounds>(
     keep: impl Fn(&geom::Surface<T>) -> bool,
     band: Band,
 ) -> Result<Vec<(FaceKey, FaceKey)>, BooleanError> {
-    let kept = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
-            .is_some_and(&keep)
-    };
     let pad = boxes::sweep_pad(band);
     let boxed = |body: &Body<T>| -> Result<Vec<(FaceKey, bvh::Aabb)>, BooleanError> {
         body.faces()
-            .map(|(k, _)| k)
-            .filter(|&k| kept(body, k))
-            .map(|k| Ok((k, boxes::face_box(body, k, pad, band)?)))
+            .filter(|&(k, face)| keep(body.face_surface_linked(k, face)))
+            .map(|(k, _)| Ok((k, boxes::face_box(body, k, pad, band)?)))
             .collect()
     };
     pairs_among(&boxed(a)?, &boxed(b)?)
@@ -291,9 +285,13 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(SectionTable<T>, Vec<crate::Coincidence>), BooleanError> {
     let recorded = decls.verdicts != super::Verdicts::Given;
+    // Every face read here is one this door enumerated from its body, so
+    // a stale key is a desync.
     let surface = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| Some((face.surface, body.get_surface(face.surface)?.clone())))
+        let face = body
+            .get_face(f)
+            .expect("the section door enumerated this face from its body");
+        (face.surface, body.face_surface_linked(f, face).clone())
     };
     let read = |s: &geom::Surface<T>| geom_brep::pair_section::serves(s.kind());
     let row = |(fa, fb), relation, site, margin| crate::Coincidence {
@@ -330,16 +328,14 @@ pub(crate) fn section_door<T: Decide + Bounds>(
     let served = |body: &Body<T>, boxed: &[(FaceKey, bvh::Aabb)]| -> Vec<(FaceKey, bvh::Aabb)> {
         boxed
             .iter()
-            .filter(|&&(k, _)| surface(body, k).is_some_and(|(_, s)| read(&s)))
+            .filter(|&&(k, _)| read(&surface(body, k).1))
             .copied()
             .collect()
     };
     let mut table = SectionTable::reader(lane, region, band);
     let mut rows = Vec::new();
     for (fa, fb) in pairs_among(&served(a, &a_boxes), &served(b, &b_boxes))? {
-        let (Some((ka, sa)), Some((kb, sb))) = (surface(a, fa), surface(b, fb)) else {
-            continue;
-        };
+        let ((ka, sa), (kb, sb)) = (surface(a, fa), surface(b, fb));
         // A refusal adds no row: where the faces meet, a later reading of
         // the pair refuses (`honeone/coaxiality-of-two-revolution-carriers-is-tested-five-ways`).
         let Some(Ok(section)) = table.read((ka, &sa), (kb, &sb)) else {

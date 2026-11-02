@@ -1789,12 +1789,11 @@ impl<T: Decide> GluedPairs<T> {
             if *side != CoverSide::Unread {
                 continue;
             }
-            if let Some(surface) = body(target)
-                .get_face(target.1)
-                .and_then(|f| body(target).get_surface(f.surface))
-            {
-                *side = read_cover_side(body(parent), parent.1, surface, band);
-            }
+            // The door verified every face a certificate names.
+            let surface = body(target)
+                .face_surface(target.1)
+                .expect("a one-sided certificate names a face the glue door verified");
+            *side = read_cover_side(body(parent), parent.1, surface, band);
         }
         Ok(pairs)
     }
@@ -2038,19 +2037,9 @@ fn tangent_struts<T: Real>(
     body: &Body<T>,
 ) -> Vec<(FaceKey, geom::SurfaceKind, FaceKey, geom::SurfaceKind)> {
     let mut out = Vec::new();
-    for (_, edge) in body.edges() {
-        let (Some(f1), Some(f2)) = (
-            body.face_of_half_edge(edge.he_plus),
-            body.face_of_half_edge(edge.he_minus),
-        ) else {
-            continue;
-        };
-        let (Some(s1), Some(s2)) = (
-            body.get_face(f1).map(|f| f.surface),
-            body.get_face(f2).map(|f| f.surface),
-        ) else {
-            continue;
-        };
+    for (ek, edge) in body.edges() {
+        let sides = crate::readback::edge_sides_of(body, ek, edge);
+        let ((f1, f2), (s1, s2)) = (sides.faces(), sides.surfaces());
         let Some(curve) = body
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
@@ -2060,9 +2049,13 @@ fn tangent_struts<T: Real>(
         if let geom_brep::EdgeDescription::TangentIntersection { pair, .. } = curve.description()
             && f1 != f2
             && *pair == geom_brep::SurfacePair::new(s1, s2)
-            && let (Some(k1), Some(k2)) = (body.get_surface(s1), body.get_surface(s2))
         {
-            let (k1, k2) = (k1.kind(), k2.kind());
+            let kind = |f| {
+                body.face_surface(f)
+                    .expect("edge_sides_of resolved this face")
+                    .kind()
+            };
+            let (k1, k2) = (kind(f1), kind(f2));
             out.push((f1, k1, f2, k2));
             out.push((f2, k2, f1, k1));
         }
@@ -7027,11 +7020,12 @@ fn given_verdicts<T: Decide>(
     band: Band,
 ) -> Result<VerifiedGlue<T>, BooleanError> {
     let invariant = |what| BooleanError::ClassificationInvariant { what };
+    // A stale face key is a desync: the operand gate resolved every
+    // declared face.
     let kind = |body: &Body<T>, f| {
-        body.get_face(f)
-            .and_then(|face| body.get_surface(face.surface))
+        body.face_surface(f)
             .map(geom::Surface::kind)
-            .ok_or(invariant("a given pair's face has no surface"))
+            .ok_or(invariant("a given pair's face does not resolve"))
     };
     let pad = witness_pad::<T>(band);
     let mut verified = VerifiedGlue::default();
@@ -7384,11 +7378,12 @@ fn record_face<T: Real>(
     body: &Body<T>,
     f: FaceKey,
 ) -> Result<(&geom::Surface<T>, bool), crate::contact::ContactRefusal> {
-    body.get_face(f)
-        .and_then(|face| Some((body.get_surface(face.surface)?, face.sense)))
+    let face = body
+        .get_face(f)
         .ok_or(crate::contact::ContactRefusal::NotCertifiable {
-            what: "a face of the face-face record has no surface",
-        })
+            what: "a face of the face-face record does not resolve",
+        })?;
+    Ok((body.face_surface_linked(f, face), face.sense))
 }
 
 /// A record's tangent line known to run through both faces' interiors
@@ -7439,7 +7434,7 @@ pub(crate) fn rest_line_in_both_faces<'b, T: Decide, E>(
 /// [`crate::contact::ContactRefusal::Contradicted`] where the table
 /// contradicts the touch or the sides (`contact_tangent_opposed`,
 /// `contact_tangent_overlap`); `Escalated` where a margin is in band;
-/// `NotCertifiable` where a face has no surface.
+/// `NotCertifiable` where a face does not resolve.
 pub(crate) fn tangent_table_at_rest<T: Decide>(
     line: &RestLineInBothFaces<'_, T>,
     band: Band,
@@ -7498,10 +7493,7 @@ fn glued_face<T: Real>(
     let face = body
         .get_face(f)
         .ok_or_else(|| invalid("a glued face's key does not resolve"))?;
-    let surface = body
-        .get_surface(face.surface)
-        .ok_or_else(|| invalid("a glued face lost its surface"))?;
-    Ok((surface.clone(), face.sense))
+    Ok((body.face_surface_linked(f, face).clone(), face.sense))
 }
 
 /// **The glue door's tangency check** (C4's `Tangent`, claiming nothing
@@ -8250,13 +8242,13 @@ fn validate_declarations<T: Decide>(
     // no rung here can never appear in a surviving declaration, so it
     // can never be covered there either.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
-        let face = body
-            .get_face(f)
+        let surface = body
+            .face_surface(f)
             .ok_or_else(|| bad(operand, "declared face key does not resolve"))?;
-        match body.get_surface(face.surface) {
-            Some(s) if carrier_eq::in_inventory(s.kind()) => Ok(()),
-            Some(_) => Err(bad(operand, carrier_eq::OUTSIDE_REST_INVENTORY)),
-            None => Err(bad(operand, "declared face lost its surface")),
+        if carrier_eq::in_inventory(surface.kind()) {
+            Ok(())
+        } else {
+            Err(bad(operand, carrier_eq::OUTSIDE_REST_INVENTORY))
         }
     };
     for &GluedPair {

@@ -391,7 +391,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
 ) -> Result<Option<RuledFaceRegion<T>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
-    let surface = match *body.get_surface(f.surface).ok_or_else(corrupt)? {
+    let surface = match *body.face_surface_linked(face, f) {
         geom::Surface::Cylinder {
             origin,
             axis,

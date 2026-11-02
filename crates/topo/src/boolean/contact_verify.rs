@@ -180,14 +180,8 @@ pub fn tangent_pair_relation<T: Decide>(
         })?,
     );
     let (s1, s2) = (
-        a.get_surface(face_a.surface)
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "the A-side face has no surface",
-            })?,
-        b.get_surface(face_b.surface)
-            .ok_or(ContactRefusal::NotCertifiable {
-                what: "the B-side face has no surface",
-            })?,
+        a.face_surface_linked(fa, face_a),
+        b.face_surface_linked(fb, face_b),
     );
     tangent_locus_relation(s1, face_a.sense, s2, face_b.sense, carrier, t0, t1, band)
 }
