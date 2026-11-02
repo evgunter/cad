@@ -40,34 +40,75 @@ use geom_core::{
 
 use crate::ExtentBall;
 
-/// The cells the first cut makes of the turn.
+/// The cells the first cut makes of the turn: an eighth of a radian
+/// each, fine enough that a branch point's cell is cut in a few halvings
+/// on the poses measured, coarse enough to cost nothing beside them.
 const START: usize = 32;
-/// The most cells one sweep reads before it escalates.
+/// The most cells one sweep reads before it escalates: the deepest
+/// sweep of the cylinder rows read under a thousand, so the budget is
+/// thirty-fold headroom and bounds an in-band pose's cost.
 const BUDGET: usize = 1 << 15;
-/// The narrowest cell the sweep splits, in radians: `2π / 2⁴⁰`.
+/// The narrowest cell the sweep splits, in radians: `2π / 2⁴⁰`, where a
+/// cell's ends still differ by thousands of ulps of the angle, so its
+/// cosine and sine are read on two distinct points.
 #[allow(clippy::cast_precision_loss)]
 const FLOOR: f64 = core::f64::consts::TAU / (1u64 << 40) as f64;
-/// The bisections that place a cut end in its isolating cell.
+/// The bisections that place a cut end in its isolating cell: 2⁻⁴⁸ of
+/// the cell, below the band at any lever the sweep reads before the
+/// midpoint's side stops deciding, which ends it sooner.
 const SETTLE: u32 = 48;
+/// The hair a turning point of the cosine or sine is held within a cell
+/// by, in radians: past the rounding of `π` and of a cell's ends, so a
+/// turning point on a cut is held by both its cells.
+const TURN_HAIR: f64 = 1e-12;
 
-/// `Δ`'s sign over a cell, as a margin in metres.
-const ROW_DISCRIMINANT: &str = "ruling_discriminant";
-/// `Δ`'s slope's sign over a cell.
-const ROW_SLOPE: &str = "ruling_discriminant_slope";
-/// A meeting's side of the ball the march ends at.
-const ROW_CUT: &str = "ruling_cut";
-/// A sheet's monotonicity against that ball over a cell.
-const ROW_MONOTONE: &str = "ruling_cut_monotone";
-/// Both meetings' side of the ball over a branch point's cell.
-const ROW_BRANCH: &str = "ruling_branch_cut";
+/// **The rows the sweep decides on.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Row {
+    /// `Δ`'s sign, as a margin in metres.
+    Discriminant,
+    /// `Δ`'s slope's sign.
+    Slope,
+    /// A meeting's side of the ball the march ends at.
+    Cut,
+    /// A sheet's monotonicity against that ball over a cell.
+    Monotone,
+    /// Both meetings' side of the ball over a branch point's cell.
+    Branch,
+}
 
-/// A row's straddle row: a floor cell's two bounds straddling the band.
-fn straddle_row(name: &'static str) -> &'static str {
-    match name {
-        ROW_DISCRIMINANT => "ruling_discriminant_straddle",
-        ROW_BRANCH => "ruling_branch_cut_straddle",
-        _ => "ruling_cut_straddle",
+impl Row {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Discriminant => "ruling_discriminant",
+            Self::Slope => "ruling_discriminant_slope",
+            Self::Cut => "ruling_cut",
+            Self::Monotone => "ruling_cut_monotone",
+            Self::Branch => "ruling_branch_cut",
+        }
     }
+
+    /// The row's straddle row: a floor cell's two bounds straddling the
+    /// band.
+    const fn straddle(self) -> &'static str {
+        match self {
+            Self::Discriminant => "ruling_discriminant_straddle",
+            Self::Slope => "ruling_discriminant_slope_straddle",
+            Self::Cut => "ruling_cut_straddle",
+            Self::Monotone => "ruling_cut_monotone_straddle",
+            Self::Branch => "ruling_branch_cut_straddle",
+        }
+    }
+}
+
+/// **Which side of zero a reading is decided on**, its whole enclosure
+/// past the band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Reads {
+    /// Its lower end decided positive.
+    Above,
+    /// Its upper end decided negative.
+    Below,
 }
 
 /// **A closed interval of a scalar**, its two ends read at the scalar:
@@ -270,7 +311,7 @@ impl<T: Real> Cell<T> {
         let (sa, ca) = T::from_computed(lo).sin_cos();
         let (sb, cb) = T::from_computed(hi).sin_cos();
         let (mut cos, mut sin) = (Iv::of(ca, cb), Iv::of(sa, sb));
-        let holds = |e: f64| lo - e <= 1e-12 && hi - e >= -1e-12;
+        let holds = |e: f64| lo - e <= TURN_HAIR && hi - e >= -TURN_HAIR;
         if holds(0.0) || holds(TAU) {
             cos.hi = T::one();
         }
@@ -602,30 +643,42 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         cell.width() <= FLOOR || self.spent > BUDGET
     }
 
-    /// `Some(true)` where `x` is decided positive, `Some(false)` where it
-    /// is decided negative.
-    fn side(&self, name: &'static str, x: T) -> Option<bool> {
-        match decide(name, Margin::of(x), self.band) {
-            Ok(Sign::Positive) => Some(true),
-            Ok(Sign::Negative) => Some(false),
-            Ok(Sign::Zero) | Err(_) => None,
+    /// **Which side of zero `reading` is decided on**: its lower end
+    /// past the band above, or its upper end past it below. A reading
+    /// that straddles zero, or reaches into the band, decides neither.
+    fn reads(&self, row: Row, reading: Iv<T>) -> Option<Reads> {
+        if self.positive(row, Margin::of(reading.lo)) {
+            Some(Reads::Above)
+        } else if self.positive(row, Margin::of(T::zero() - reading.hi)) {
+            Some(Reads::Below)
+        } else {
+            None
         }
     }
 
-    fn positive(&self, name: &'static str, m: Margin<T>) -> bool {
-        matches!(decide(name, m, self.band), Ok(Sign::Positive))
+    fn positive(&self, row: Row, m: Margin<T>) -> bool {
+        matches!(decide(row.name(), m, self.band), Ok(Sign::Positive))
+    }
+
+    /// The bounds of `reading` straddle the band: its lower end decided
+    /// negative and its upper end positive, past both of the band's
+    /// edges.
+    fn straddles(&self, row: Row, reading: Iv<T>) -> bool {
+        self.positive(row, Margin::of(T::zero() - reading.lo))
+            && self.positive(row, Margin::of(reading.hi))
     }
 
     /// **The escalation of a cell no test settled**, on the enclosure
     /// `reading`: bounds that straddle the band escalate as one straddle
     /// on the row's own straddle row, bounds both `Zero` as a `Zero` no
     /// side passes.
-    fn escalate(&self, name: &'static str, reading: Iv<T>) -> SweepRefusal {
+    fn escalate(&self, row: Row, reading: Iv<T>) -> SweepRefusal {
+        let name = row.name();
         let bound = |m: T| decide_reported(name, Margin::of(m), self.band);
         SweepRefusal::Escalated(match (bound(reading.lo), bound(reading.hi)) {
             (Err(e), _) | (_, Err(e)) => e,
             (Ok(lower), Ok(upper)) if lower.sign < upper.sign => {
-                straddle(straddle_row(name), lower, upper, self.band)
+                straddle(row.straddle(), lower, upper, self.band)
             }
             (Ok(_), Ok(upper)) if upper.sign == Sign::Zero => {
                 gate_rejection(name, upper, self.band, SizedPass::NonZero)
@@ -654,9 +707,9 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     ) -> Result<(), SweepRefusal> {
         let m = self.ruled.discriminant(&cell);
         self.spend();
-        let kind = if self.positive(ROW_DISCRIMINANT, Margin::of(m.lo)) {
+        let kind = if self.positive(Row::Discriminant, Margin::of(m.lo)) {
             Some(Disc::Positive)
-        } else if self.positive(ROW_DISCRIMINANT, Margin::of(T::zero() - m.hi)) {
+        } else if self.positive(Row::Discriminant, Margin::of(T::zero() - m.hi)) {
             Some(Disc::Negative)
         } else {
             self.branch(&cell)
@@ -666,7 +719,7 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             return Ok(());
         }
         if self.spent_on(&cell) {
-            return Err(self.escalate(ROW_DISCRIMINANT, m));
+            return Err(self.escalate(Row::Discriminant, m));
         }
         let (l, r) = cell.halves();
         self.discriminant_cell(l, out)?;
@@ -677,16 +730,15 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// one simple zero, a branch point.
     fn branch(&self, cell: &Cell<T>) -> Option<Disc> {
         let slope = self.ruled.discriminant_slope(cell);
-        let monotone = self.positive(ROW_SLOPE, Margin::of(slope.lo))
-            || self.positive(ROW_SLOPE, Margin::of(T::zero() - slope.hi));
+        let monotone = self.positive(Row::Slope, Margin::of(slope.lo))
+            || self.positive(Row::Slope, Margin::of(T::zero() - slope.hi));
         if !monotone {
             return None;
         }
-        let end =
-            |phi: f64| self.side(ROW_DISCRIMINANT, self.ruled.discriminant(&Cell::at(phi)).lo);
+        let end = |phi: f64| self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(phi)));
         match (end(cell.lo), end(cell.hi)) {
-            (Some(false), Some(true)) => Some(Disc::Rise),
-            (Some(true), Some(false)) => Some(Disc::Fall),
+            (Some(Reads::Below), Some(Reads::Above)) => Some(Disc::Rise),
+            (Some(Reads::Above), Some(Reads::Below)) => Some(Disc::Fall),
             _ => None,
         }
     }
@@ -733,9 +785,9 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             self.spend();
             // An arc with no cell clear of its branch points has no stretch
             // to witness it on: split until it has one.
-            let side = if self.positive(ROW_BRANCH, Margin::of(T::zero() - both.hi)) {
+            let side = if self.positive(Row::Branch, Margin::of(T::zero() - both.hi)) {
                 Some(true)
-            } else if self.positive(ROW_BRANCH, Margin::of(both.lo)) {
+            } else if self.positive(Row::Branch, Margin::of(both.lo)) {
                 Some(false)
             } else {
                 None
@@ -745,25 +797,24 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
             }
             if self.spent_on(&cell) {
                 return Err(match side {
-                    None => self.escalate(ROW_BRANCH, both),
-                    Some(_) => self.escalate(ROW_DISCRIMINANT, self.ruled.discriminant(&cell)),
+                    None => self.escalate(Row::Branch, both),
+                    Some(_) => self.escalate(Row::Discriminant, self.ruled.discriminant(&cell)),
                 });
             }
             // Cut where `Δ`'s side decides, off the middle where the zero
             // stands within the band of it.
             let cut = [0.5, 0.375, 0.625].into_iter().find_map(|f| {
                 let at = cell.lo + f * cell.width();
-                let m = self.ruled.discriminant(&Cell::at(at)).lo;
-                self.side(ROW_DISCRIMINANT, m)
-                    .map(|positive| (at, positive))
+                self.reads(Row::Discriminant, self.ruled.discriminant(&Cell::at(at)))
+                    .map(|reads| (at, reads == Reads::Above))
             });
             let Some((at, positive)) = cut else {
                 // The branch point placed to within the band of the zero:
                 // where its side of the ball is still undecided, a
                 // boundary within band of it.
                 return Err(match side {
-                    None => self.escalate(ROW_BRANCH, both),
-                    Some(_) => self.escalate(ROW_DISCRIMINANT, self.ruled.discriminant(&cell)),
+                    None => self.escalate(Row::Branch, both),
+                    Some(_) => self.escalate(Row::Discriminant, self.ruled.discriminant(&cell)),
                 });
             };
             let (l, r) = (Cell::new(cell.lo, at), Cell::new(at, cell.hi));
@@ -804,20 +855,20 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         let x = self.ruled.meeting(&cell, sheet);
         let h = self.past(x);
         self.spend();
-        if self.positive(ROW_CUT, Margin::of(T::zero() - h.hi)) {
+        if self.positive(Row::Cut, Margin::of(T::zero() - h.hi)) {
             out.push(Leaf::Inside(cell));
             return Ok(());
         }
-        if self.positive(ROW_CUT, Margin::of(h.lo)) {
+        if self.positive(Row::Cut, Margin::of(h.lo)) {
             out.push(Leaf::Outside(cell));
             return Ok(());
         }
-        if let Some(leaf) = self.monotone(&cell, sheet, x) {
+        if let Some(leaf) = self.monotone(&cell, sheet, x)? {
             out.push(leaf);
             return Ok(());
         }
         if self.spent_on(&cell) {
-            return Err(self.escalate(ROW_CUT, h));
+            return Err(self.escalate(Row::Cut, h));
         }
         let (l, r) = cell.halves();
         self.leaf(l, sheet, out)?;
@@ -828,12 +879,17 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
     /// from the ball's centre moves one way across it, so its two ends
     /// decide it, inside, outside, or one cut end between them. Read
     /// only where `Δ` is decided positive, so the sheet is smooth.
-    fn monotone(&self, cell: &Cell<T>, sheet: Sheet, x: V3<T>) -> Option<Leaf<T>> {
+    fn monotone(
+        &self,
+        cell: &Cell<T>,
+        sheet: Sheet,
+        x: V3<T>,
+    ) -> Result<Option<Leaf<T>>, SweepRefusal> {
         if !self.positive(
-            ROW_DISCRIMINANT,
+            Row::Discriminant,
             Margin::of(self.ruled.discriminant(cell).lo),
         ) {
-            return None;
+            return Ok(None);
         }
         let dx = self.ruled.velocity(cell, sheet);
         let w = x.less(self.ball.center());
@@ -842,50 +898,63 @@ impl<T: Decide, R: Ruled<T>> Sweeper<'_, T, R> {
         // `(x − c)·x′` over `|x − c|·|x′|`, the cosine between the sheet's
         // tangent and the ray from the centre, levered by the ruling's.
         let lever = self.ruled.lever();
-        let monotone = self.positive(ROW_MONOTONE, Margin::levered(along.lo / scale, lever))
+        let monotone = self.positive(Row::Monotone, Margin::levered(along.lo / scale, lever))
             || self.positive(
-                ROW_MONOTONE,
+                Row::Monotone,
                 Margin::levered((T::zero() - along.hi) / scale, lever),
             );
         if !monotone {
-            return None;
+            return Ok(None);
         }
         let end = |phi: f64| {
-            self.side(
-                ROW_CUT,
-                self.past(self.ruled.meeting(&Cell::at(phi), sheet)).lo,
+            self.reads(
+                Row::Cut,
+                self.past(self.ruled.meeting(&Cell::at(phi), sheet)),
             )
         };
-        match (end(cell.lo), end(cell.hi)) {
-            (Some(false), Some(false)) => Some(Leaf::Inside(*cell)),
-            (Some(true), Some(true)) => Some(Leaf::Outside(*cell)),
-            (Some(outside_first), Some(_)) => Some(Leaf::Root {
-                cell: *cell,
-                entering: outside_first,
-                at: self.settle(cell, sheet, outside_first),
-            }),
+        Ok(match (end(cell.lo), end(cell.hi)) {
+            (Some(Reads::Below), Some(Reads::Below)) => Some(Leaf::Inside(*cell)),
+            (Some(Reads::Above), Some(Reads::Above)) => Some(Leaf::Outside(*cell)),
+            (Some(first), Some(_)) => {
+                let entering = first == Reads::Above;
+                Some(Leaf::Root {
+                    cell: *cell,
+                    entering,
+                    at: self.settle(cell, sheet, entering)?,
+                })
+            }
             _ => None,
-        }
+        })
     }
 
-    /// **A cut end placed in its cell** by bisection on the ends' sides,
-    /// stopping where the midpoint's side is in the band: a selection
-    /// within the isolating cell, whose root it narrows to the band.
-    fn settle(&self, cell: &Cell<T>, sheet: Sheet, entering: bool) -> Point3<T> {
+    /// **A cut end placed in its cell** by bisection on the sides of the
+    /// meetings, stopping where the midpoint's reading lies within the
+    /// band of the boundary: a selection within the isolating cell, whose
+    /// root it narrows to the band. A midpoint whose reading straddles the
+    /// band, its enclosure wider than the band about the boundary, cannot
+    /// place the root there, and escalates on the cut's row.
+    fn settle(
+        &self,
+        cell: &Cell<T>,
+        sheet: Sheet,
+        entering: bool,
+    ) -> Result<Point3<T>, SweepRefusal> {
         let (mut lo, mut hi) = (cell.lo, cell.hi);
         let at = |phi: f64| self.ruled.meeting(&Cell::at(phi), sheet);
         for _ in 0..SETTLE {
             let mid = 0.5 * (lo + hi);
-            match self.side(ROW_CUT, self.past(at(mid)).lo) {
+            let past = self.past(at(mid));
+            match (self.reads(Row::Cut, past), entering) {
                 // Outside at `mid`: the root lies on the inside's side.
-                Some(true) if entering => lo = mid,
-                Some(true) => hi = mid,
-                Some(false) if entering => hi = mid,
-                Some(false) => lo = mid,
-                None => return at(mid).mid(),
+                (Some(Reads::Above), true) | (Some(Reads::Below), false) => lo = mid,
+                (Some(Reads::Above), false) | (Some(Reads::Below), true) => hi = mid,
+                (None, _) if self.straddles(Row::Cut, past) => {
+                    return Err(self.escalate(Row::Cut, past));
+                }
+                (None, _) => return Ok(at(mid).mid()),
             }
         }
-        at(0.5 * (lo + hi)).mid()
+        Ok(at(0.5 * (lo + hi)).mid())
     }
 
     /// **A leaf as one reading along its loop**, `backward` where the
@@ -1072,8 +1141,10 @@ pub(crate) const COVERAGE_CELLS: usize = 1 << 18;
 /// `w = p − o′`: `A = |a × a′|²`, `B = (w × a′)·(a × a′)`,
 /// `C = |w × a′|² − r²`, roots `(−B ± √(B² − AC))/A`. Neither the
 /// sweep's frame nor its closed form enters it, so a defect in either
-/// does not hide itself here. Either wall may be ruled: every section
-/// point lies on exactly one of its rulings.
+/// does not hide itself here: it is independent of the sweep in its
+/// algebra. It is not independent in its enclosure arithmetic, which it
+/// shares with the sweep ([`Cell::new`], [`Iv`], [`V3`]). Either wall may
+/// be ruled: every section point lies on exactly one of its rulings.
 ///
 /// # Errors
 ///

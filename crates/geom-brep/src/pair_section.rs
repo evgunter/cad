@@ -864,7 +864,7 @@ impl<T: Decide> PairPose<T> {
     /// which is `R` from the centre), the smaller of two tori's as the
     /// pose decided it ([`TorusTorusPose::ball`]). A cylinder is
     /// unbounded along its axis, so it is never the ball: two cylinders
-    /// are read over the region ([`CylinderCylinderPose::ball`]), which
+    /// are read over the region ([`CylinderCylinderPose::region`]), which
     /// holds every section point the operation can use.
     pub fn ball(&self) -> ExtentBall<T> {
         match self {
@@ -872,7 +872,7 @@ impl<T: Decide> PairPose<T> {
             Self::SphereTorus(p) => p.ball(),
             Self::CylinderTorus(p) => p.ball(),
             Self::TorusTorus(p) => p.ball(),
-            Self::CylinderCylinder(p) => p.ball(),
+            Self::CylinderCylinder(p) => p.region(),
             Self::PlaneSpline(p) => p.ball(),
             Self::SplinePair(p) => p.ball(),
         }
@@ -899,7 +899,7 @@ impl PairPose<f64> {
     /// which the bounding surface reaches (a sphere everywhere, a torus
     /// round its outer equator); the feature extent the ball's diameter,
     /// the standard accounting floor. For two cylinders it is the cube of
-    /// region's ball ([`CylinderCylinderPose::ball`]), a superset of their
+    /// region's ball ([`CylinderCylinderPose::region`]), a superset of their
     /// ball cut by the region, which their branches end at.
     #[must_use]
     pub fn domain(&self) -> SsiDomain {
@@ -1344,10 +1344,10 @@ impl<T: Decide> PairSection<T> {
     /// **The march's branches matched to the listed components**, one
     /// to one: the march finds exactly as many distinct branches as the
     /// classification lists general components ([`distinct`]); a listed
-    /// component's two cut ends each lie on exactly one branch, an open
-    /// one, at its two ends ([`Self::ended_by`]); a listed witness lies
+    /// component's two cut ends are the two ends of exactly one branch,
+    /// an open one ([`Self::ended_by`]); a listed witness lies
     /// on exactly one branch, which is its component's, and closed where
-    /// the component is a loop; and the witnessless components take the
+    /// the component is a loop; and the components named by neither take the
     /// rest, each a branch winding at least as it claims, by a matching
     /// that does not depend on the list's order. Anything else is a
     /// desync. Where the ruling sweep counted the section this match is
@@ -1449,7 +1449,10 @@ impl<T: Decide> PairSection<T> {
             }
             false
         }
-        for &i in general.iter().filter(|&&i| listed[i].witness.is_none()) {
+        for &i in general
+            .iter()
+            .filter(|&&i| listed[i].witness.is_none() && listed[i].cut_ends.is_none())
+        {
             let mut seen = vec![false; branches.len()];
             if !augment(i, &free, &edge, &mut seen, &mut owner) {
                 return Err(CarryError::Desync(
@@ -1498,8 +1501,10 @@ impl<T: Decide> PairSection<T> {
 
     /// **The one branch a listed component's two cut ends end**: each cut
     /// end lies on exactly one of the march's branches ([`CarriedComponent::reads`]),
-    /// an open one, nearer one end of it than the other; the two lie on
-    /// the same branch, at its two ends. Anything else is a desync.
+    /// an open one that ends there, its nearer end within the band
+    /// (padded by the branch's pad) of the cut end; the two lie on the
+    /// same branch, at its two ends. Anything else is a desync, and a
+    /// reading in the band escalates.
     fn ended_by(
         branches: &[CarriedComponent<T>],
         ends: [Point3<T>; 2],
@@ -1522,23 +1527,45 @@ impl<T: Decide> PairSection<T> {
                         "a listed cut end lies on a closed branch",
                     ));
                 }
-                // Which end: the nearer of the carrier's two ends, decided.
+                // Which end: the nearer of the carrier's two ends, decided;
+                // a tie in the band escalates.
                 let (start, end) = (b.carrier.eval(b.span.0), b.carrier.eval(b.span.1));
-                let nearer_start = geom_core::k_stats::decide(
+                let side = geom_core::k_stats::decide_reported(
                     "carry_cut_end_side",
                     Margin::of((p - end).norm() - (p - start).norm()),
                     band,
                 )
                 .map_err(CarryError::Escalated)?;
-                let at_start = match nearer_start {
+                let at_start = match side.sign {
                     Sign::Positive => true,
                     Sign::Negative => false,
                     Sign::Zero => {
-                        return Err(CarryError::Desync(
-                            "a listed cut end stands as near one end of its branch as the other",
-                        ));
+                        return Err(CarryError::Escalated(geom_core::k_stats::gate_rejection(
+                            "carry_cut_end_side",
+                            side,
+                            band,
+                            geom_core::SizedPass::NonZero,
+                        )));
                     }
                 };
+                // And the branch ends there: its end stands within the
+                // band, padded by the branch's pad, of the cut end. A
+                // branch that runs on past the cut end is not its arc's.
+                let padded = band
+                    .padded(b.pad)
+                    .map_err(|_| CarryError::Desync("a component's tube pads no band"))?;
+                let there = if at_start { start } else { end };
+                let gap = geom_core::k_stats::decide_reported(
+                    "carry_cut_end_at_end",
+                    Margin::of((p - there).norm()),
+                    padded,
+                )
+                .map_err(CarryError::Escalated)?;
+                if gap.sign != Sign::Zero {
+                    return Err(CarryError::Desync(
+                        "a listed cut end lies on its branch, not at the branch's end",
+                    ));
+                }
                 on = Some((j, at_start));
             }
             *slot = on.ok_or(CarryError::Desync(
@@ -2505,15 +2532,45 @@ mod wiring {
         (section, fitted)
     }
 
-    /// **One cut arc found twice and the other missed is a desync**, in
-    /// either arc's place: the count agrees, and each of the doubled
-    /// arc's cut ends lies on two branches while the missed arc's lie on
-    /// none. The march's own two branches, in either order, match.
+    /// `branch` cut at its parameter midpoint into two branches, each
+    /// witnessed at its own midpoint: two different branches over one arc.
+    fn halves(branch: &super::FittedCarrier<f64>) -> [super::FittedCarrier<f64>; 2] {
+        let geom::Curve3::Nurbs(net) = &branch.carrier else {
+            panic!("a fitted branch is a spline");
+        };
+        let (lo, hi) = net.domain();
+        let (before, after) = net.split_at(0.5 * (lo + hi)).expect("a knot edit");
+        [before, after].map(|half| {
+            let span = half.domain();
+            let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(half));
+            super::FittedCarrier {
+                witness: carrier.eval(0.5 * (span.0 + span.1)),
+                carrier,
+                span,
+                ..branch.clone()
+            }
+        })
+    }
+
+    /// **One cut arc found as two branches and the other missed is a
+    /// desync** (PR 6137's shape), in either arc's place: the march's
+    /// branches are two different halves of one arc, so the count agrees
+    /// and no branch's witness lies on another ([`super::distinct`]). The
+    /// listing names its arcs by their cut ends alone, no witness, so only
+    /// the cut-end match can see it: one arc's two cut ends lie on two
+    /// branches and the other's on none. The march's own two branches,
+    /// in either order, match.
     #[test]
     fn a_cut_arc_found_twice_and_one_missed_is_a_desync() {
         use super::{CarryError, PairSection};
         let (section, fitted) = two_cut_arcs();
-        let listed = section.counted().expect("counted");
+        let listed: Vec<_> = section
+            .counted()
+            .expect("counted")
+            .iter()
+            .cloned()
+            .map(|c| super::SectionComponent { witness: None, ..c })
+            .collect();
         assert_eq!(listed.len(), 2, "two arcs");
         assert!(
             listed.iter().all(|c| c.cut_ends.is_some()),
@@ -2521,23 +2578,61 @@ mod wiring {
         );
         assert_eq!(fitted.len(), 2, "two branches");
         for (k, branch) in fitted.iter().enumerate() {
-            let twice = vec![branch.clone(), branch.clone()];
+            let twice = halves(branch).to_vec();
+            let got = PairSection::matched(&listed, twice, true, band());
             assert!(
-                matches!(
-                    PairSection::matched(listed, twice, true, band()),
-                    Err(CarryError::Desync(_))
-                ),
-                "arc {k} twice, the other missed"
+                matches!(got, Err(CarryError::Desync(_))),
+                "arc {k} as two branches, the other missed: {:?}",
+                got.map(|c| c.len())
             );
         }
         let mut reversed = fitted.clone();
         reversed.reverse();
         for (order, branches) in [("in order", fitted), ("reversed", reversed)] {
+            let got = PairSection::matched(&listed, branches, true, band());
             assert!(
-                PairSection::matched(listed, branches, true, band()).is_ok(),
-                "the march's own two, {order}"
+                got.is_ok(),
+                "the march's own two, {order}: {:?}",
+                got.map(|c| c.len())
             );
         }
+    }
+
+    /// **The coverage keeps its calibrated headroom** (the row-5
+    /// `debug_assert` in `ssi::march_cylinder_cylinder`): over the two
+    /// cut arcs and the march's own branches it covers the ruling angle
+    /// within a third of its halvings and a sixty-fourth of its cells,
+    /// and with one branch's tubes dropped it does not.
+    #[test]
+    fn the_ruling_coverage_keeps_its_headroom() {
+        use super::ruling::{COVERAGE_CELLS, COVERAGE_DEPTH, coverage};
+        let (section, fitted) = two_cut_arcs();
+        let super::PairPose::CylinderCylinder(pose) = section.pose() else {
+            panic!("a cylinder pair");
+        };
+        let tubes = |branches: &[super::FittedCarrier<f64>]| -> Vec<_> {
+            branches
+                .iter()
+                .flat_map(|b| {
+                    let (geom::Curve3::Nurbs(net), crate::ssi::SsiTube::Spatial { radius }) =
+                        (&b.carrier, b.certificate.tube)
+                    else {
+                        panic!("a fitted ℝ³ branch");
+                    };
+                    crate::ssi::certify::tube_boxes(net, radius)
+                })
+                .collect()
+        };
+        let (a, b) = pose.operands();
+        let read = coverage(a, b, pose.region(), &tubes(&fitted)).expect("covered");
+        assert!(
+            read.depth <= COVERAGE_DEPTH / 3 && read.cells <= COVERAGE_CELLS / 64,
+            "headroom: {read:?}"
+        );
+        assert!(
+            coverage(a, b, pose.region(), &tubes(&fitted[..1])).is_err(),
+            "a branch's tubes dropped: a cell uncovered"
+        );
     }
 
     /// **Cut ends matched one to one, not by count or by witness**: each

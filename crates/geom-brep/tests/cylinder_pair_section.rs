@@ -226,7 +226,7 @@ fn crossing_walls_count_one_or_two_loops_by_the_nest() {
 /// p2 over a region of radius 0.6 about the origin, which cuts the pair's
 /// one loop. The ruling sweep lists arcs that end on the region, each
 /// with its two cut ends on the region's sphere, and the march carries
-/// branches that end there.
+/// branches that end there, at the sphere and not the cube about it.
 #[test]
 fn a_region_that_cuts_the_loop_carries_cut_components() {
     let (a, b) = (drum(), placed(Vec3::unit_x(), 0.7, (0.1, 0.35, 0.2)));
@@ -250,6 +250,18 @@ fn a_region_that_cuts_the_loop_carries_cut_components() {
     }
     let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
     assert_eq!(carried.components().len(), arcs.len(), "one branch per arc");
+    // Each branch ends where its arc leaves the region, not past it on
+    // the march domain's cube.
+    for c in carried.components() {
+        for t in [c.span.0, c.span.1] {
+            let off = (c.carrier.eval(t) - region.center()).norm() - region.radius();
+            assert!(
+                off.abs() <= c.pad + 10.0 * band().zero(),
+                "a branch end on the region's sphere: {off:e} (pad {:e})",
+                c.pad
+            );
+        }
+    }
     assert!(
         carried.components().iter().any(|c| c.shape
             == ComponentShape::Open {
@@ -703,7 +715,7 @@ fn the_carried_loop_lies_within_the_pairs_ball() {
         geom_brep::RegionPlacement::Inside,
         "the region holds it"
     );
-    let ball = pose.ball();
+    let ball = pose.region();
     let carried = section.carry(Some(SsiLane::marched()), band()).unwrap();
     for c in carried.components() {
         for i in 0..=64 {

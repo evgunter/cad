@@ -428,7 +428,10 @@ impl<T: Decide> CylinderCylinderPose<T> {
         self.lines.map(|(_, a)| a)
     }
 
-    /// The region the pose was read across.
+    /// **The region the pose was read across**, which holds every
+    /// section point the operation can use: the ball the ruling sweep
+    /// cuts the section by and the march ends at, its cube the march's
+    /// domain.
     pub fn region(&self) -> ExtentBall<T> {
         self.region
     }
@@ -436,13 +439,6 @@ impl<T: Decide> CylinderCylinderPose<T> {
     /// How the axes stand.
     pub fn stance(&self) -> CcStance<T> {
         self.stance
-    }
-
-    /// **The ball the march ends at**: the region, which holds every
-    /// section point the operation can use. The march's domain is its
-    /// cube, and the ruling sweep cuts the section by the ball itself.
-    pub fn ball(&self) -> ExtentBall<T> {
-        self.region
     }
 
     /// **The thinner wall's rulings against the other** ([`RuledCylinders`]),
@@ -570,8 +566,8 @@ impl<T: Decide> CylinderCylinderPose<T> {
     }
 }
 
-/// The pair's own ball for crossing axes (module docs of
-/// [`CylinderCylinderPose::ball`]). A point within `r₁` of the first
+/// **The pair's own ball for crossing axes**, which [`placement`] reads
+/// against the region. A point within `r₁` of the first
 /// axis and `r₂` of the second stands within `(r₁ + r₂)/sin θ` of the
 /// common perpendicular's midpoint across it, and within `min r + |e|/2`
 /// along it.

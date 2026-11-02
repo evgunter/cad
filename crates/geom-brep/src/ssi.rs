@@ -3178,7 +3178,7 @@ pub fn march_torus_torus(
 /// **The ℝ³ march of a decided cylinder × cylinder pose**, from the
 /// `seeds` its ruling sweep states (the counted components' witnesses),
 /// each branch ending at the ball the sweep cut the section by
-/// ([`crate::CylinderCylinderPose::ball`]) inside `domain`, that ball's
+/// ([`crate::CylinderCylinderPose::region`]) inside `domain`, that ball's
 /// cube. No seeding or accounting sweep runs: the pose counted the
 /// section, and the carry matches these branches one to one to the
 /// count's cut ends and witnesses. The section value marches only a
@@ -3205,15 +3205,18 @@ pub(crate) fn march_cylinder_cylinder(
             expected: "a transverse cylinder pair, whose tangent poses are never marched",
         });
     }
-    let ball = pose.ball();
+    let ball = pose.region();
     let exit = march::BallExit {
         center: ball.center(),
         radius: ball.radius(),
     };
     let tol = MarchTol::from_band(band, quadric_readout(a, b, domain.slab()))?;
     let (branches, tubes) = march_seeds(a, b, seeds, &exit, domain, tol, band)?;
-    // DESIGN's error taxonomy, row 5: a re-derivation, so it runs in
-    // debug builds alone and changes nothing shipped.
+    // DESIGN's error taxonomy, row 5: a re-derivation, so it runs only
+    // where debug assertions are on, and its absence changes nothing the
+    // section answers. The workspace's release profile keeps them on
+    // (`Cargo.toml`, `[profile.release]`) until the pre-publish revert,
+    // so until then it runs in release builds too.
     //
     // **Calibration** (2026-11-02): over the 17 carries of a crossing
     // cylinder pair in `tests/cylinder_pair_section.rs`, the carry's

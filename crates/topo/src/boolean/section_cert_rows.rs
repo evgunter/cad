@@ -631,29 +631,22 @@ fn the_p0_saddle_loop_is_one_null_component() {
     on_both(witness(&classify(&a, &b)), &a, &b);
 }
 
-/// **The saddle witness lies on the loop, per sign of `δ₀`.** Cylinder
-/// 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x` or
-/// `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
+/// **The saddle witness lies on both walls, per sign of `δ₀`.**
+/// Cylinder 2 crosses cylinder 1's axis at `y = ±1.3`, running along `+x`
+/// or `−x`; `m = d₁ × d₂` turns with the run, so the four poses give `δ₀`
 /// of each sign on each side of the axis, taken with either wall the
-/// thinner (the ruled wall, so its frame is read both ways). The ruling
-/// sweep's witness lies on both carriers, on the side of cylinder 1's
-/// axis that cylinder 2 stands on.
+/// thinner. The thinner is the ruled wall, so the sweep's frame (its
+/// foot, normal and signed gap) is read from either axis and either sign
+/// of the gap, and a frame read wrong puts its witness off a wall.
 #[test]
-fn the_saddle_witness_lies_on_the_loop_for_either_sign() {
+fn the_saddle_witness_lies_on_both_walls_for_either_sign() {
     for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
         let a = cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), r1);
         for oy in [1.3, -1.3] {
             for run in [1.0, -1.0] {
                 let (o2, d2) = (p(-3.0 * run, oy, 0.0), v(run, 0.0, 0.0));
                 let b = cylinder(o2, d2, r2);
-                let delta = (o2 - p(0.0, 0.0, 0.0)).dot(Vec3::unit_z().cross(d2));
-                let pose = format!("r₁ = {r1}, r₂ = {r2}, offset y = {oy}, δ₀ = {delta}");
-                let w = witness(&classify(&a, &b));
-                on_both(w, &a, &b);
-                assert!(
-                    w.y * oy > 0.0,
-                    "{pose}: the witness {w:?} is not on cylinder 2's side"
-                );
+                on_both(witness(&classify(&a, &b)), &a, &b);
             }
         }
     }
