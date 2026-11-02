@@ -895,8 +895,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> LoftBuild<'_, T, L> {
             band,
             self.tol,
         )?;
-        let geometry =
-            skin_validated(canonical, self.places, self.v_degree, self.params).map_err(LoftError::Skin)?;
+        let geometry = skin_validated(canonical, self.places, self.v_degree, self.params)
+            .map_err(LoftError::Skin)?;
         assemble(
             self.places,
             &geometry.walls,
@@ -987,8 +987,8 @@ impl<T: Decide + topo::AtRestPolicy, L: SectionLoop<T>> ProjectiveSplit<T> for L
             .map(|lp| strip_points(lp, |p| p.map(T::from_computed)))
             .collect();
         stacking::stacking_door(places, &lifted, &strips, self.v_degree, band, self.tol)?;
-        let geometry =
-            skin_validated(canonical, channel_places, self.v_degree, self.params).map_err(LoftError::Skin)?;
+        let geometry = skin_validated(canonical, channel_places, self.v_degree, self.params)
+            .map_err(LoftError::Skin)?;
         let walls = geometry
             .walls
             .iter()
