@@ -146,3 +146,81 @@ fn a_curved_keel_closed_at_both_ends_refuses_as_a_construction_gap() {
         }
     }
 }
+
+/// The full-revolution twin of [`keeled`]: the whole annulus less the
+/// whole V, so the keel is one closed circle of radius 2 in `y = 1`.
+fn keeled_round(s: f64) -> Body<f64> {
+    let loop_of = |pts: &[(f64, f64)]| pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect();
+    let ring = revolved_about_y(
+        loop_of(&[(0.5, 0.0), (3.0, 0.0), (3.0, 2.0), (0.5, 2.0)]),
+        Revolution::Full,
+        tol(),
+    );
+    let tip = 1.0 + s * tol().eps();
+    let v = revolved_about_y(
+        loop_of(&[(1.7, 2.5), (2.0, tip), (2.3, 2.5)]),
+        Revolution::Full,
+        tol(),
+    );
+    match subtract(
+        &finished("the annulus", ring, tol()),
+        &finished("the V", v, tol()),
+        tol(),
+    ) {
+        Ok(BooleanResult::Body(b)) => b.body.into_body(),
+        other => panic!("the annulus less the V: {other:?}"),
+    }
+}
+
+/// **A round keel splits sound, and its section is two annuli.** The
+/// [`keeled_round`] body, its tip on `y = 1` and `0.6 ε` either side, split
+/// by that plane either way up. The keel is one closed edge, which no
+/// loop walks out and back: the material above is two rings apart, and
+/// the section reads the annulus as the two annuli either side of the
+/// circle, `0.5..2` and `2..3`, each one region with a hole.
+#[test]
+fn a_round_keel_in_the_plane_splits_sound_and_sections_as_two_annuli() {
+    for s in [0.0, 0.6, -0.6] {
+        let body = keeled_round(s);
+        let whole = topo::test_support::pinned_volume(
+            "the measured body",
+            &finished("the body", body.clone(), tol()),
+            tol(),
+        )
+        .volume;
+        for up in [1.0, -1.0] {
+            let what = format!("the V's tip {s} ε off the plane, the plane's normal {up} y");
+            let plane = topo::test_support::split_plane(
+                Point3::new(0.0, 1.0, 0.0),
+                Vec3::new(0.0, up, 0.0),
+                tol(),
+            );
+            let sum: f64 = halves_at_rest(&what, &body, &plane)
+                .iter()
+                .map(|h| {
+                    topo::test_support::pinned_volume(
+                        "the measured body",
+                        &finished("the measured body", h.clone(), tol()),
+                        tol(),
+                    )
+                    .volume
+                })
+                .sum();
+            assert!(
+                (sum - whole).abs() < 1e-9 * whole,
+                "{what}: the halves hold {sum}, the body {whole}"
+            );
+            let cut = plane_section(&finished("the body", body.clone(), tol()), &plane, tol())
+                .unwrap_or_else(|e| panic!("{what}: the section refused: {e:?}"));
+            let mut areas: Vec<f64> = cut.regions.iter().map(|r| r.area()).collect();
+            areas.sort_by(f64::total_cmp);
+            let annuli = [PI * (4.0 - 0.25), PI * (9.0 - 4.0)];
+            assert!(
+                areas.len() == 2
+                    && areas.iter().zip(annuli).all(|(a, b)| (a - b).abs() < 1e-8)
+                    && cut.regions.iter().all(|r| r.holes.len() == 1),
+                "{what}: the section's regions hold {areas:?}, not the annuli {annuli:?}"
+            );
+        }
+    }
+}

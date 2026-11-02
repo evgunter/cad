@@ -10384,10 +10384,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
 /// A loop's half-edge cycle, or `None` for an empty loop (which bounds
 /// nothing and can meet nothing).
 fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
-    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
-        return None;
-    };
-    body.loop_cycle(first)
+    body.loop_halves(r#loop).filter(|cycle| !cycle.is_empty())
 }
 
 /// The point a vertex stands at.

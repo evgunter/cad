@@ -1009,10 +1009,12 @@ impl<T: Decide> Sweep<T> {
     ///
     /// # Errors
     ///
-    /// [`SplitJoinError::CurvedSlitTrace`];
-    /// [`SplitJoinError::SectionInvariant`] where the other loop is not
-    /// the tree's slit, which the two coincident loops of one trace cannot
-    /// fail to be; corruption on a torn loop.
+    /// [`SplitJoinError::CurvedSlitTrace`]; corruption on a torn loop.
+    ///
+    /// # Panics
+    ///
+    /// Where the other loop is not the tree's slit, which the two
+    /// coincident loops of one trace cannot fail to be ([`Tree::slit`]).
     fn section_kind(
         &self,
         body: &Body<T>,
@@ -1029,12 +1031,15 @@ impl<T: Decide> Sweep<T> {
         if tree.curved {
             return Err(SplitJoinError::CurvedSlitTrace { face });
         }
-        if tree.slit(body, face, slit_loop)?.len() != loop_cycle_of(body, slit_loop)?.len() {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a section loop walks round a tree of edges, and its coincident loop \
-                       runs along more than the tree's slit",
-            });
+        let slit = tree.slit(body, face, slit_loop)?;
+        let cycle = loop_halves(body, slit_loop)?;
+        if slit.len() != cycle.len() {
+            unreachable!(
+                "section polygon {face:?}: loop {strut:?} walks round the tree {:?}, and its \
+                 coincident loop {slit_loop:?} runs along {cycle:?}, more than the tree's slit \
+                 {slit:?}: the two loops of one trace trace one tree",
+                tree.edges
+            );
         }
         Ok(Shape::Slit { strut })
     }
@@ -1166,7 +1171,8 @@ impl<T: Decide> Sweep<T> {
     /// - on the loop of the side the edges belong to, the tree itself,
     ///   walked out along each edge and back along it. That side's
     ///   material lies under the edges, so its section runs on across
-    ///   them: the tree is killed, strut by strut from its tips, and every
+    ///   them: the tree is killed, strut by strut from its free ends
+    ///   ([`Body::toward_free_end`]), and every
     ///   reader of the section (the finish, [`super::plane_section`]) reads
     ///   the loop without it.
     /// - on the other side's loop, its **slit**: two distinct edges over
@@ -1196,8 +1202,13 @@ impl<T: Decide> Sweep<T> {
     ///
     /// # Errors
     ///
-    /// [`SplitJoinError::SectionInvariant`] where a tree has no slit on
-    /// the other loop ([`Tree::slit`]); the strut kill's refusal.
+    /// The strut kill's refusal; corruption on a torn loop.
+    ///
+    /// # Panics
+    ///
+    /// Where a tree has no slit on the other loop ([`Tree::slit`]), or a
+    /// tree edge left has no free end: a tree pruned from its free ends
+    /// ends at the loop's cycle.
     fn strip_spurs(
         &self,
         body: &mut Body<T>,
@@ -1206,8 +1217,22 @@ impl<T: Decide> Sweep<T> {
     ) -> Result<SectionKind, SplitJoinError> {
         let mut slit = above.0.slit(body, face, below.1)?;
         slit.extend(below.0.slit(body, face, above.1)?);
-        for he in above.0.struts.into_iter().chain(below.0.struts) {
-            body.kev(he)?;
+        let mut left: Vec<EdgeKey> = (above.0.edges.iter().chain(&below.0.edges))
+            .map(|&(edge, _)| edge)
+            .collect();
+        while !left.is_empty() {
+            let Some((i, toward)) = left
+                .iter()
+                .enumerate()
+                .find_map(|(i, &edge)| body.toward_free_end(edge).map(|he| (i, he)))
+            else {
+                unreachable!(
+                    "section polygon {face:?}: its tree edges {left:?} have no free end left, \
+                     where a tree hanging off a cycle is pruned to it from its free ends"
+                );
+            };
+            body.kev(toward)?;
+            left.remove(i);
         }
         Ok(SectionKind::Area { slit })
     }
@@ -1221,24 +1246,18 @@ enum Shape {
     Area { above: Tree, below: Tree },
 }
 
-/// **The tree a section loop walks round**: the edges it runs out along
-/// and straight back, the trace of edges of the operand in the plane on
-/// the loop of the side that holds them. It is what pruning the loop's
-/// struts takes, from their tips: a strut is a half followed by its own
-/// mate, out to a vertex no other edge of the loop reaches
-/// ([`turns_back`]), and pruning it leaves the loop as killing it would.
-/// The loop's other halves are its cycle; a tree with no cycle is the
-/// whole loop.
+/// **The tree a section loop walks round**: the edges its chart image
+/// drops ([`crate::surface_boundary::chart_image`], the loop with every
+/// half-edge followed by its own mate taken out, again until none is
+/// left), which it runs out along and straight back. On a section loop
+/// they are the trace of edges of the operand in the plane, on the loop
+/// of the side that holds them. A loop whose chart image is empty is all
+/// tree.
 ///
-/// The same two edges over each tree edge on the polygon's other loop are
-/// the tree's slit ([`Tree::slit`]): copies of a vertex share its point
-/// key, so the slit is read by the keys its halves run between, never by
-/// distance.
+/// The same edges' slit lies on the polygon's other loop ([`Tree::slit`]).
 struct Tree {
-    /// Each strut's half into its tip, in pruning order: a strut of the
-    /// loop once those before it are killed.
-    struts: Vec<HalfEdgeKey>,
-    /// The tree's edges, each with its ends' point keys in key order.
+    /// The tree's edges, each with its segment key
+    /// ([`crate::census::segment_key`]), in loop order.
     edges: Vec<(EdgeKey, [crate::PointKey; 2])>,
     /// Whether the tree is the whole loop.
     whole: bool,
@@ -1253,50 +1272,48 @@ impl Tree {
     ///
     /// Corruption on a torn loop.
     fn of<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Self, SplitJoinError> {
-        let mut walk = loop_cycle_of(body, l)?;
+        let cycle = loop_halves(body, l)?;
+        let image =
+            crate::surface_boundary::chart_image(body, &cycle).ok_or_else(|| corrupt_loop(l))?;
         let mut tree = Self {
-            struts: Vec::new(),
             edges: Vec::new(),
-            whole: false,
+            whole: image.half_edges.is_empty() && !cycle.is_empty(),
             curved: false,
         };
-        'prune: loop {
-            let n = walk.len();
-            for i in 0..n {
-                let j = (i + 1) % n;
-                if !turns_back(body, walk[i], walk[j])? {
-                    continue;
-                }
-                let (edge, pair) = edge_ends(body, walk[i])?;
-                let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
-                tree.curved |= !matches!(
-                    body.edge_curve_linked(edge, data),
-                    CurveGeom::Certified(c) if !c.carrier().is_curved()
-                );
-                tree.struts.push(walk[i]);
-                tree.edges.push((edge, pair));
-                walk.remove(i.max(j));
-                walk.remove(i.min(j));
-                continue 'prune;
+        for &he in &cycle {
+            if image.half_edges.contains(&he) {
+                continue;
             }
-            break;
+            let (edge, key) = edge_ends(body, he)?;
+            if tree.edges.iter().any(|&(e, _)| e == edge) {
+                continue;
+            }
+            let data = body.get_edge(edge).ok_or_else(|| corrupt_edge(edge))?;
+            tree.curved |= !matches!(
+                body.edge_curve_linked(edge, data),
+                CurveGeom::Certified(c) if !c.carrier().is_curved()
+            );
+            tree.edges.push((edge, key));
         }
-        tree.whole = walk.is_empty() && !tree.edges.is_empty();
         Ok(tree)
     }
 
-    /// The halves of loop `l`, the polygon's other loop, over this tree:
-    /// two distinct edges over each tree edge, between its ends' point
-    /// keys, in the order of the tree's edges.
+    /// **The tree's slit**: the halves of loop `l`, the polygon's other
+    /// loop, over this tree, two distinct edges on each tree edge's
+    /// segment by structure ([`crate::census::segment_key`]: copies of a
+    /// vertex share its point key), in the order of the tree's edges.
     ///
     /// # Errors
     ///
-    /// [`SplitJoinError::SectionInvariant`] where `l` does not run over a
-    /// tree edge in exactly two distinct edges: the two coincident loops
-    /// of one polygon trace one tree, the side holding it in its edges and
-    /// the other in its slit, and a contact the plane only touches mints no
-    /// null edge to trace one without the other ([`Sweep::strip_spurs`]).
     /// Corruption on a torn loop.
+    ///
+    /// # Panics
+    ///
+    /// Where `l` does not run over a tree edge in exactly two distinct
+    /// edges: the two coincident loops of one polygon trace one tree, the
+    /// side holding it in its edges and the other in its slit, and a
+    /// contact the plane only touches mints no null edge to trace one
+    /// without the other ([`Sweep::strip_spurs`]).
     fn slit<T: Decide>(
         &self,
         body: &Body<T>,
@@ -1304,45 +1321,30 @@ impl Tree {
         l: LoopKey,
     ) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
         let mut halves = Vec::new();
-        for he in loop_cycle_of(body, l)? {
+        for he in loop_halves(body, l)? {
             halves.push((he, edge_ends(body, he)?));
         }
         let mut slit = Vec::with_capacity(2 * self.edges.len());
-        for (_, pair) in &self.edges {
-            let mut over = halves.iter().filter(|(_, (_, p))| p == pair);
-            match (over.next(), over.next(), over.next()) {
-                (Some(&(a, (ea, _))), Some(&(b, (eb, _))), None) if ea != eb => {
-                    slit.extend([a, b]);
-                }
-                _ => {
-                    return Err(SplitJoinError::SectionInvariant {
-                        face,
-                        what: "a section loop walks round a tree of edges, and its coincident \
-                               loop does not run twice over each of them in distinct edges",
-                    });
-                }
+        for &(edge, key) in &self.edges {
+            let over: Vec<(HalfEdgeKey, (EdgeKey, [crate::PointKey; 2]))> = halves
+                .iter()
+                .copied()
+                .filter(|&(_, (_, k))| k == key)
+                .collect();
+            match over.as_slice() {
+                [(a, (ea, _)), (b, (eb, _))] if ea != eb => slit.extend([*a, *b]),
+                _ => unreachable!(
+                    "section polygon {face:?}: tree edge {edge:?} on segment {key:?} has \
+                     {over:?} over it on the coincident loop {l:?}, not two distinct edges: \
+                     the two loops of one polygon trace one tree"
+                ),
             }
         }
         Ok(slit)
     }
 }
 
-/// Whether `he`, followed in its loop by `next`, turns back: `next` is its
-/// own mate and the edge's two ends are two vertices, so the edge is a
-/// **strut** of that loop, out to a vertex no other edge reaches and
-/// back — the validator's valence-1 strut. An edge closed on one vertex
-/// is never one, whatever follows it.
-fn turns_back<T: Decide>(
-    body: &Body<T>,
-    he: HalfEdgeKey,
-    next: HalfEdgeKey,
-) -> Result<bool, SplitJoinError> {
-    let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
-    let next_data = body.get_half_edge(next).ok_or_else(|| corrupt_he(next))?;
-    Ok(next_data.edge == he_data.edge && next_data.start != he_data.start)
-}
-
-/// The edge of `he` and its ends' point keys, in key order.
+/// The edge of `he` and its segment key ([`crate::census::segment_key`]).
 fn edge_ends<T: Decide>(
     body: &Body<T>,
     he: HalfEdgeKey,
@@ -1352,18 +1354,12 @@ fn edge_ends<T: Decide>(
     let [Some(a), Some(b)] = [data.start, end].map(|v| body.get_vertex(v).map(|d| d.point)) else {
         return Err(corrupt_he(he));
     };
-    Ok((data.edge, [a.min(b), a.max(b)]))
+    Ok((data.edge, crate::census::segment_key([a, b])))
 }
 
-/// The halves of loop `l` in cycle order; none for a lone-vertex loop.
-fn loop_cycle_of<T: Decide>(
-    body: &Body<T>,
-    l: LoopKey,
-) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
-    match body.get_loop(l).ok_or_else(|| corrupt_loop(l))?.boundary {
-        LoopBoundary::Cycle { first } => body.loop_cycle(first).ok_or_else(|| corrupt_he(first)),
-        LoopBoundary::Empty { .. } => Ok(Vec::new()),
-    }
+/// [`Body::loop_halves`], a torn loop refused as corruption.
+fn loop_halves<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<HalfEdgeKey>, SplitJoinError> {
+    body.loop_halves(l).ok_or_else(|| corrupt_loop(l))
 }
 
 /// The start vertices of a cycle loop.
@@ -1579,8 +1575,8 @@ mod torn_hop_rows {
     }
 
     /// `certify_section_area`: a torn curve on a completed section's
-    /// below loop panics, where it was stepped over as null scaffolding
-    /// and its edge read as no line to the spur check.
+    /// below loop panics rather than being stepped over as null
+    /// scaffolding.
     #[test]
     fn the_section_area_panics_on_a_torn_curve() {
         let tol = Tol::witness();

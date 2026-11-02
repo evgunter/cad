@@ -220,7 +220,6 @@ REGISTER=(
   "crates/topo/src/splitting/section_loops.rs|loop_edges|LoopBoundary::Empty { .. } => return|1|audited: the discarded variant is answered by name — a lone-vertex loop is read as an outline edge nothing decides, so outlines_disjoint answers false and the hole is left unplaced"
   "crates/topo/src/splitting/join.rs|certify_section_area||1|unaudited"
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
-  "crates/topo/src/validate.rs|loop_cycle_of||1|unaudited"
   "crates/topo/src/validate.rs|tier1||1|unaudited"
   "crates/topo/src/validate.rs|tier3_local_checks_marked||1|unaudited"
 )

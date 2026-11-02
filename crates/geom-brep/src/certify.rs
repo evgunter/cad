@@ -3083,12 +3083,11 @@ impl<T: Real> EdgeCurve<T> {
     /// names a chart it lies in.
     #[must_use]
     pub fn restated_in_chart(&self, surface: SurfaceKey) -> EdgeCurveSpec<T> {
+        let chart = EdgeDescriptionSpec::chart(surface);
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Chart {
-                surface,
-                image: None,
-                wrap: false,
-                declared: self.authority.declared(),
+            description: match self.authority.declared() {
+                Some(mc) => chart.declared_by(mc),
+                None => chart,
             },
             ..self.restated_spec()
         }

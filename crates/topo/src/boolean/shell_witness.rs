@@ -157,9 +157,12 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
 /// [`BooleanError::InsideOutOperand`], naming each solid of `operand`
 /// whose own selection, read as given, holds `q`'s side at infinity
 /// ([`crate::ValidationError::SliverInsideOut`]: the at-rest gate passes
-/// an inside-out solid only where its `V/A` is in band). A solid whose
-/// faces do not select refuses as [`BooleanError::Containment`], as the
-/// whole operand's selection does in [`complex_side`].
+/// an inside-out solid only where its `V/A` is in band).
+///
+/// # Panics
+///
+/// Where a solid's faces do not select: they are a part of the whole
+/// operand's, which selected before the witness read it inside-out.
 pub(super) fn inside_out_operand<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     operand: Operand,
@@ -172,7 +175,10 @@ pub(super) fn inside_out_operand<T: Decide + crate::props::AtRestPolicy>(
     for (solid, _) in body.solids() {
         let sel = match SolidFaces::of(body, solid) {
             Ok(sel) => sel.read_as_given(),
-            Err(e) => return BooleanError::Containment(e),
+            Err(e) => unreachable!(
+                "{operand:?} operand's solid {solid:?}, a key of its own, does not select ({e:?}), \
+                 where the whole operand's faces selected"
+            ),
         };
         if matches!(
             point_in_solid_faces(body, &sel, q, band, tol),

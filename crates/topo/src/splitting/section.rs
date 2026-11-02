@@ -393,12 +393,30 @@ pub fn plane_section<T: geom_core::Decide + crate::props::AtRestPolicy>(
 /// which run over a tree of the other loop ([`super::join::SectionKind::Area`])
 /// out to its tips and back to a second copy of the vertex they left, where
 /// the side whose loop this is touches itself. The slit lies inside the
-/// section's region, so the outline goes on from the half into the slit
-/// to the half out of it: the first ends where the second starts.
-fn drop_slits<T: Real>(halves: Vec<Half<T>>, slit: &[HalfEdgeKey]) -> Vec<Half<T>> {
+/// section's region, so the outline goes on from the first copy along the
+/// second copy's run: the first half of each run of slit halves keeps its
+/// corner and takes the run of the half after it, and the rest of the run
+/// and that half leave the walk.
+fn drop_slits<T: Real>(mut halves: Vec<Half<T>>, slit: &[HalfEdgeKey]) -> Vec<Half<T>> {
+    let n = halves.len();
+    let in_slit: Vec<bool> = halves.iter().map(|h| slit.contains(&h.he)).collect();
+    let mut gone = vec![false; n];
+    for first in 0..n {
+        if !in_slit[first] || in_slit[(first + n - 1) % n] {
+            continue;
+        }
+        let mut copy = (first + 1) % n;
+        while in_slit[copy] {
+            gone[copy] = true;
+            copy = (copy + 1) % n;
+        }
+        halves[first].carrier = core::mem::replace(&mut halves[copy].carrier, HalfCarrier::Chord);
+        gone[copy] = true;
+    }
     halves
         .into_iter()
-        .filter(|half| !slit.contains(&half.he))
+        .zip(gone)
+        .filter_map(|(half, gone)| (!gone).then_some(half))
         .collect()
 }
 
