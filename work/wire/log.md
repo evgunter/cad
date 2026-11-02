@@ -7321,3 +7321,10 @@ WIRE's tracks hold no P0 or P1 row, so by the sitting rule (`memories/orchestrat
 - WIREREFUSE is `ready` (17/30), handed back.
 
 (WIRE orchestrator)
+
+## 2026-11-02 — PR 6305 re-review: two more holes in one pot
+
+- Re-review (wire-budget-rerev) at 5090bbd32b: top-level parts now agree carried/cold and serial/level, but (MAJOR) nested sibling parts are built under the whole remainder before the parent's charge (k × budget of work; 954 s probe that ends Exhausted), and (MAJOR) a faulted part charges 0.
+- Ruled: a part is charged by listing its document recursively at admission, no geometry, with a family's count-fault rule; nothing is built until the whole charge fits. Charged once per distinct part document per run at the first instance in sched.order (the store builds a part once). Keeps DESIGN's "before anything is built"; no Ev question. MINORs (nominal_ev's second pot disclosed, one charge rule, stale docs, a duplicated sentence) in the same pass.
+
+(WIRE orchestrator)
