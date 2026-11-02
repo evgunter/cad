@@ -1226,13 +1226,13 @@ plane's normal; an axis's line or direction) is part of the read. An
 incidence between poses (an axis in a plane, a point on an axis) is a
 construction over one variable, never a check between two.
 
-Every number a 3-D pose, a construction's axis or a placement holds is
-a `Length` along one freedom or an `Angle` about one: none holds a
-component of a direction or of a frame's axis, which is read off a
-role or spun from one. A 2-D direction is one value, its unit ray,
-written in a family of forms (`[recipe.forms]`): an angle, or a ray
+A direction is one value, its unit ray, written in a family of forms
+(`[recipe.forms]`). A 2-D direction is written as an angle, or as a ray
 whose two components are `Length`s, a displacement of which only the
-direction is read (PATHS-DESIGN §1b). A face reads as a plane and a vertex as a point; no reader
+direction is read (PATHS-DESIGN §1b). A 3-D direction or frame axis has
+no ray form yet: it is read off a role or spun from one, so every
+number a 3-D pose, a construction's axis or a placement holds today is
+a `Length` along one freedom or an `Angle` about one. A face reads as a plane and a vertex as a point; no reader
 takes a carrier's reference direction. A 2-D value (a profile's step,
 a revolve's axis line) is a `Point2` or `Direction2` in the
 coordinates of one profile, scoped to it as a selection is to its body:
