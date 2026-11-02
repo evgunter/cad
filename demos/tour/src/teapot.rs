@@ -724,6 +724,7 @@ fn spout_loft(
             first: first.into(),
             then,
             v_degree: Formula::count(3),
+            ids: Vec::new(),
         },
         tol,
     )
