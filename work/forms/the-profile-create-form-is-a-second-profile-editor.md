@@ -2,11 +2,12 @@
 id: the-profile-create-form-is-a-second-profile-editor
 kind: issue
 title: viewer: the add-profile form is a second profile editor; a 'new profile' button should open the one editor on an empty profile
-status: open
+status: dispatched
 opened: 2026-11-01
 priority: P1
 cost: H
 refs: [the-add-profile-form-takes-numbers-and-no-formula, creating-a-thing-and-editing-it-are-two-implementations]
+branch: forms/profile-unit
 ---
 Reported by Ev (chat, 2026-11-01): "the profile editor seems to be
 separately implemented twice with different features. there's the tool
