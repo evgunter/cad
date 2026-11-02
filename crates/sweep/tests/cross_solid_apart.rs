@@ -956,9 +956,9 @@ fn plate_and(pts: Vec<(Point2<f64>, f64)>, other: &Body<f64>) -> AtRestBody<f64>
 
 /// **A base tilted within the band across a plate's top refuses.** The
 /// plate is the island `[0.02, 0.07] × [0.9, 1.1]`, one side an arc, and
-/// the block's base, turned 2.09e-8 rad about `y`, lies 0.9e-9 below the
-/// top's plane at `x = 0` (decided on it) and 2e-8 above at `x = 1`
-/// (decided off it): it crosses the plane at `x ≈ 0.043`, through the
+/// the block's base, turned about `y`, lies 0.9z below the top's plane
+/// at `x = 0` (decided on it; `z` the band's zero threshold) and 20z
+/// above at `x = 1` (decided off it): it crosses the plane at `x ≈ 0.043`, through the
 /// top, far in plan from its feet. Red where the reading of a face
 /// standing on the plane takes its feet's Zero for nought: so shallow a
 /// face's section lies wherever the band allows, and its slope is not
@@ -969,7 +969,8 @@ fn a_base_tilted_within_the_band_across_a_plates_top_refuses() {
     let t = tol();
     let mut island = corners::<f64>(&[(0.02, 0.9), (0.07, 0.9), (0.07, 1.1), (0.02, 1.1)]);
     island[1].1 = 0.2;
-    let (delta, high) = (0.9e-9, 2e-8);
+    let z = band().zero();
+    let (delta, high) = (0.9 * z, 20.0 * z);
     let plane = sketch_from_axes(
         geom_core::Point3::new(0.0, 1.5, 0.0),
         Vec3::new(1.0, 0.0, 0.0),
@@ -995,18 +996,9 @@ fn a_base_tilted_within_the_band_across_a_plates_top_refuses() {
     );
 }
 
-/// **A wedge footed a hair off a plate's edge, its underside over the
-/// top, refuses**: the rounded square `[0, 1]²` (corners 0.25) over
-/// `z ∈ [0, 1]`, and a wedge whose lowest edge runs at `x = 1 + 50z`
-/// (`z` the band's zero threshold) within the band of the top's plane
-/// (0.5z and 5z above, 0.9z below), its underside rising over the top
-/// at slope 0.01 or 0.1, so within the band of the plane over the top's
-/// edge. Red where the
-/// standing reading takes the foot for exactly on the plane.
-#[test]
-fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
+/// The square `[0, 1]²`, its corners rounded at 0.25, over `z ∈ [0, 1]`.
+fn rounded_square() -> Body<f64> {
     use profile::{Open, ProfileLoop, Start};
-    use sweep::test_support::{corners, extruded, prism_on, sketch_at, sketch_from_axes};
     let t = tol();
     let mut path = Open.at(Point2::new(0.5, 0.0)).toward(1.0, 0.0, t).unwrap();
     for (corner, (dx, dy)) in [
@@ -1023,6 +1015,21 @@ fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
             .unwrap();
     }
     let outline: ProfileLoop<f64> = path.fillet(0.25, t).unwrap().to(Start, t).unwrap().into();
+    sweep::test_support::extruded(sweep::test_support::sketch_at(0.0), vec![outline], 1.0, t)
+}
+
+/// **A wedge footed a hair off a plate's edge, its underside over the
+/// top, refuses**: the rounded square `[0, 1]²` (corners 0.25) over
+/// `z ∈ [0, 1]`, and a wedge whose lowest edge runs at `x = 1 + 50z`
+/// (`z` the band's zero threshold) within the band of the top's plane
+/// (0.5z and 5z above, 0.9z below), its underside rising over the top
+/// at slope 0.01 or 0.1, so within the band of the plane over the top's
+/// edge. Red where the standing reading takes the foot for exactly on
+/// the plane.
+#[test]
+fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
+    use sweep::test_support::{corners, prism_on, sketch_from_axes};
+    let t = tol();
     let z = band().zero();
     for (slope, lift) in [(0.01, 0.5 * z), (0.1, 5.0 * z), (0.01, -0.9 * z)] {
         let plane = sketch_from_axes(
@@ -1042,7 +1049,7 @@ fn a_wedge_footed_beside_a_plates_edge_over_its_top_refuses() {
             2.0,
             t,
         );
-        let mut out = extruded(sketch_at(0.0), vec![outline.clone()], 1.0, t);
+        let mut out = rounded_square();
         topo::graft_disjoint(&mut out, &wedge).expect("grafts");
         let pair = finished("the plate and the wedge", out, t);
         let errs = census(&pair).expect_err("the wedge lies on the top's plane");
@@ -1141,5 +1148,57 @@ fn a_cap_on_another_plane_across_a_plates_top_refuses() {
                 "starts {ra}, {rb}: both caps against the top: {errs:?}"
             );
         }
+    }
+}
+
+/// **A cube standing on a corner inside a plate's top refuses, its
+/// corner on the top's plane or within the band of it.** The cube of
+/// side 0.3, turned a sixteenth about `x` and then about `y`, has its
+/// lowest corner at `(0.5, 0.5)` on the rounded square's top: flush,
+/// 0.9z below or 0.5z above (`z` the band's zero threshold), and flush
+/// 20z outside the top's edge. Its three lowest faces stand on the
+/// plane at that corner (the steepest at sin θ ≈ 0.521, past the slope
+/// the standing reading asks), each meeting it at the corner alone,
+/// through edges with one end on the plane. Red where the reading
+/// counts a line edge as meeting the plane only when both its ends lie
+/// on it.
+#[test]
+fn a_cube_on_its_corner_inside_a_plates_top_refuses() {
+    let t = tol();
+    let z = band().zero();
+    for (what, at) in [
+        ("on the top", (0.5, 0.5, 1.0)),
+        ("0.9z below", (0.5, 0.5, 1.0 - 0.9 * z)),
+        ("0.5z above", (0.5, 0.5, 1.0 + 0.5 * z)),
+        ("20z outside the edge", (1.0 + 20.0 * z, 0.5, 1.0)),
+    ] {
+        let mut cube = sweep::test_support::brick::<f64>((0.0, 0.3), (0.0, 0.3), (0.0, 0.3), t);
+        for axis in [
+            geom_core::UnitVec3::exact_x(),
+            geom_core::UnitVec3::exact_y(),
+        ] {
+            let sixteenth = RigidMotion::turned(
+                geom_core::Point3::new(0.0, 0.0, 0.0),
+                axis,
+                geom_core::Turns::new(1, 16).unwrap(),
+            );
+            cube = topo::transform_rigid(&cube, &sixteenth, t).unwrap();
+        }
+        let low = cube
+            .vertex_points()
+            .map(|(_, p)| p)
+            .min_by(|p, q| p.z.total_cmp(&q.z))
+            .unwrap();
+        let by = Vec3::new(at.0 - low.x, at.1 - low.y, at.2 - low.z);
+        let placed =
+            topo::transform_rigid(&cube, &RigidMotion::translation(by).unwrap(), t).unwrap();
+        let mut out = rounded_square();
+        topo::graft_disjoint(&mut out, &placed).expect("grafts");
+        let pair = finished("the plate and the cube", out, t);
+        let errs = census(&pair).expect_err(what);
+        assert!(
+            refuses_on(&pair, &errs, up, |n| n.z < 0.0),
+            "{what}: a lowest face against the top: {errs:?}"
+        );
     }
 }
