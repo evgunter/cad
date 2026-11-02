@@ -10,7 +10,9 @@ use pncad::topo::BooleanOp;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendKindChoice, FREEZE_NOTE};
-use crate::combine::{BooleanTool, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
+use crate::combine::{
+    BooleanTool, ClearanceBoundChoice, DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION,
+};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, FIELD_DRAG_SPEED, PatternLayoutChoice, ShapeKind,
@@ -74,6 +76,43 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
         Tone::Advisory,
     );
     crate::widgets::message_toned(ui, PROJECTION_IS_PLACED, theme, Tone::Advisory);
+}
+
+/// **The clearance form's bound rows**: which side it bounds, then its
+/// one length — or a band's two, low then high — in the working
+/// notation. A free function over the `Ui`, so a headless row can drive
+/// it.
+pub(crate) fn clearance_bound_rows(
+    ui: &mut egui::Ui,
+    drafts: &mut Drafts,
+    notation: &mut Notation,
+) {
+    ui.horizontal(|ui| {
+        ui.label("clearance");
+        for (choice, label) in ClearanceBoundChoice::ALL {
+            ui.radio_value(&mut drafts.clearance_bound, choice, label);
+        }
+    });
+    ui.horizontal(|ui| {
+        let band = drafts.clearance_bound == ClearanceBoundChoice::Between;
+        ui.label(if band { "from" } else { "bound" });
+        unit_field(
+            ui,
+            notation.length.def(),
+            FIELD_DRAG_SPEED,
+            &mut drafts.clearance_lo,
+        );
+        if band {
+            ui.label("to");
+            unit_field(
+                ui,
+                notation.length.def(),
+                FIELD_DRAG_SPEED,
+                &mut drafts.clearance_hi,
+            );
+        }
+        length_picker(ui, "clearance_bound", &mut notation.length);
+    });
 }
 
 /// **What the duplicate tool tells a user before they click it** —
@@ -378,6 +417,10 @@ pub(crate) const BLEND_EDGES: &str = "Blend edges";
 /// another document, the Transform tool, and the placement editor.
 pub(crate) const ASSEMBLE_PARTS: &str = "Assemble parts";
 
+/// The heading of the section whose tools record a requirement the
+/// geometry is checked against.
+pub(crate) const REQUIREMENTS: &str = "Requirements";
+
 /// **The chooser's answer, drawn**: the directory it read, then the
 /// parts on offer or what it has to say instead — and the entry that
 /// was clicked, when one was.
@@ -654,7 +697,43 @@ impl ViewerBehavior<'_> {
             self.transform_tool_ui(ui);
             self.mate_tool_ui(ui);
         });
+        // The requirements: a recorded claim the geometry is checked
+        // against, which makes no body.
+        ui.collapsing(REQUIREMENTS, |ui| {
+            self.clearance_tool_ui(ui);
+        });
         ui.separator();
+    }
+
+    /// **The clearance tool's panel** — "add a clearance requirement":
+    /// its two seats, a body or a face each, held as picks
+    /// ([`crate::combine::ClearanceTool`]); which side the requirement
+    /// bounds; its one or two lengths; and the one committed edit, which
+    /// writes the assertion through the document's own door.
+    pub(crate) fn clearance_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.clearance().cloned() else {
+            return self.tool_door(ui, ToolKind::Clearance);
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Clearance.says(
+                &"add a clearance requirement: pick a face in the picture, or a body in the tree, for each of its two seats",
+            ),
+        );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(frame::landed_speaker(self.session.landed_pair())),
+            &self.theme,
+            Tone::Advisory,
+        );
+        clearance_bound_rows(ui, self.drafts, self.notation);
+        self.tool_commit_row(ui, ToolKind::Clearance, |drafts, notation| {
+            let lo = notation.length_literal(drafts.clearance_lo)?;
+            let bounds = drafts
+                .clearance_bound
+                .bounds(lo, || notation.length_literal(drafts.clearance_hi))?;
+            Ok(tool.op(bounds)?)
+        });
     }
 
     /// **The placement editor's panel**: its door, one line per mate
@@ -2059,6 +2138,7 @@ impl ViewerBehavior<'_> {
                 BlendKindChoice::Chamfer => "Chamfer",
             },
             ToolKind::Part | ToolKind::Duplicate => "Part",
+            ToolKind::Clearance => "Assertion",
         })
     }
 

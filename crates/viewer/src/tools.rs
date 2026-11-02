@@ -40,8 +40,8 @@ use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{
-    BooleanTool, DuplicateTool, MirrorEvent, MirrorTool, PartTool, PatternTool, SplitTool,
-    TransformTool,
+    BooleanTool, ClearanceEvent, ClearanceTool, DuplicateTool, MirrorEvent, MirrorTool, PartTool,
+    PatternTool, SplitTool, TransformTool,
 };
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickcache::NotIndexed;
@@ -79,6 +79,9 @@ vocabulary! {
         Duplicate,
         /// The mirror tool: a body and the face it is reflected across.
         Mirror,
+        /// The clearance tool: a requirement's two seats, a body or a
+        /// face each.
+        Clearance,
     }
 
     /// Every kind, for the test suites that sweep them — which are
@@ -111,6 +114,7 @@ impl ToolKind {
             Self::Part => "projection",
             Self::Duplicate => "duplicate",
             Self::Mirror => "mirror",
+            Self::Clearance => "clearance",
         }
     }
 
@@ -164,7 +168,9 @@ impl ToolKind {
         match self {
             // The mirror tool's plane is a face, and its body is picked
             // by a face or in the tree.
-            Self::Mate | Self::Mirror => PickKinds::FacesOnly,
+            // The clearance tool's face seats are faces, and its body
+            // seats are picked in the tree.
+            Self::Mate | Self::Mirror | Self::Clearance => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
             // Its one seat reads a profile, which a click on the
             // profile's outline picks.
@@ -196,7 +202,8 @@ impl ToolKind {
             | Self::Blend
             | Self::Part
             | Self::Duplicate
-            | Self::Mirror => committed_by(op) == Some(self),
+            | Self::Mirror
+            | Self::Clearance => committed_by(op) == Some(self),
         }
     }
 }
@@ -211,6 +218,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
         SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
+        SessionOp::AddClearance { .. } => Some(ToolKind::Clearance),
         SessionOp::Place { .. } | SessionOp::SetBundle { .. } => Some(ToolKind::Mate),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
@@ -299,6 +307,8 @@ pub enum ToolNotice {
     /// The mirror tool lost its plane — a face, which survives by
     /// resolving rather than by seat.
     Mirror(MirrorEvent),
+    /// The clearance tool lost a face seat.
+    Clearance(ClearanceEvent),
     /// A seated tool lost a pick.
     Seated {
         /// Which tool.
@@ -327,6 +337,7 @@ impl Say for ToolNotice {
             Self::Mate(event) => ToolKind::Mate.says(&Said(event, by)),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
             Self::Mirror(event) => ToolKind::Mirror.says(&Said(event, by)),
+            Self::Clearance(event) => ToolKind::Clearance.says(&Said(event, by)),
             Self::Seated { tool, event } => tool.says(event),
             Self::Missed { tool, kinds } => tool.says(&format_args!(
                 "{} under the cursor — no pick taken",
@@ -487,6 +498,8 @@ pub enum OpenTool {
     Duplicate(DuplicateTool),
     /// The mirror tool.
     Mirror(MirrorTool),
+    /// The clearance tool.
+    Clearance(ClearanceTool),
 }
 
 impl OpenTool {
@@ -504,6 +517,7 @@ impl OpenTool {
             Self::Part(_) => ToolKind::Part,
             Self::Duplicate(_) => ToolKind::Duplicate,
             Self::Mirror(_) => ToolKind::Mirror,
+            Self::Clearance(_) => ToolKind::Clearance,
         }
     }
 }
@@ -573,6 +587,7 @@ impl Tools {
             ToolKind::Part => OpenTool::Part(PartTool::new()),
             ToolKind::Duplicate => OpenTool::Duplicate(DuplicateTool::new()),
             ToolKind::Mirror => OpenTool::Mirror(MirrorTool::new()),
+            ToolKind::Clearance => OpenTool::Clearance(ClearanceTool::new()),
         });
     }
 
@@ -706,6 +721,15 @@ impl Tools {
     pub fn mirror(&self) -> Option<&MirrorTool> {
         match &self.open {
             Some(OpenTool::Mirror(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
+    /// The open clearance tool, by reference (the read-door rule on
+    /// [`Tools`]).
+    pub fn clearance(&self) -> Option<&ClearanceTool> {
+        match &self.open {
+            Some(OpenTool::Clearance(tool)) => Some(tool),
             _ => None,
         }
     }
@@ -873,6 +897,12 @@ impl Tools {
                     Some(face) => tool.pick_plane(doc, face.clone()),
                     None => on_node_pick(selection, |node| tool.pick(doc, node)),
                 },
+                Some(OpenTool::Clearance(tool)) => match selection.face() {
+                    Some(face) => tool.seat_face(doc, face.clone()),
+                    None => on_node_pick(selection, |node| {
+                        notices.extend(tool.seat_body(doc, node).map(ToolNotice::Clearance));
+                    }),
+                },
             }
         }
         notices
@@ -896,6 +926,7 @@ impl Tools {
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
             Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
+            Some(OpenTool::Clearance(tool)) => tool.respeak(doc),
         }
     }
 
@@ -907,6 +938,7 @@ impl Tools {
             Some(OpenTool::Mate(tool)) => tool.held(),
             Some(OpenTool::Blend(tool)) => tool.held(),
             Some(OpenTool::Mirror(tool)) => tool.held(),
+            Some(OpenTool::Clearance(tool)) => tool.held(),
             None
             | Some(
                 OpenTool::Revolve(_)
@@ -931,7 +963,8 @@ impl Tools {
                 | OpenTool::Blend(_)
                 | OpenTool::Revolve(_)
                 | OpenTool::Transform(_)
-                | OpenTool::Part(_),
+                | OpenTool::Part(_)
+                | OpenTool::Clearance(_),
             ) => {}
             Some(OpenTool::Boolean(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Split(tool)) => tool.choose_half(seat, half),
@@ -1001,6 +1034,23 @@ impl Tools {
                     .and_then(|(landed_doc, eval)| tool.reconcile_plane(landed_doc, eval))
                     .map(ToolNotice::Mirror);
                 return seat.chain(plane).collect();
+            }
+            // The body seats answer from the document; the face seats
+            // from the landed pair, as the mirror's plane does.
+            OpenTool::Clearance(tool) => {
+                let seats = tool
+                    .reconcile(doc)
+                    .into_iter()
+                    .map(|event| ToolNotice::Seated {
+                        tool: ToolKind::Clearance,
+                        event,
+                    });
+                let faces = landed
+                    .map(|(landed_doc, eval)| tool.reconcile_faces(landed_doc, eval))
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(ToolNotice::Clearance);
+                return seats.chain(faces).collect();
             }
             OpenTool::Blend(tool) => {
                 return tool

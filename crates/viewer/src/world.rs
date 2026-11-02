@@ -815,6 +815,15 @@ pub fn movable_into_world(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Opti
         .filter(|copy| !doc.reader_counts().contains_key(copy))
 }
 
+/// **The world copies of the body `read` names**, in document order:
+/// the copy each world placement reading it defines ([`world_copy`]).
+pub fn world_copies_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<VarId> {
+    placements_of_read(doc, read)
+        .into_iter()
+        .filter_map(|placement| world_copy(doc, placement))
+        .collect()
+}
+
 /// **The copy a world placement defines**, the body a product can read:
 /// its output where `node` is a `Place` or an instance standing in the
 /// world; `None` for any other node.
