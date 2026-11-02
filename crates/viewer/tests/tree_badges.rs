@@ -765,6 +765,13 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             "`body_reach` sizes a trace's window off the body's value; a refusal is dropped \
              (`.ok()`) and the window falls back to a unit reach, never drawn",
         ),
+        (
+            "session.rs",
+            ".usable(",
+            "`holds_a_clearance` asks only whether a clearance answered at `f64`, to decide \
+             whether the landing owes a certified answer; one that refused is its own row's \
+             failure, which the tree draws",
+        ),
     ];
 
     /// The end of the statement a call at `at` belongs to: the first
