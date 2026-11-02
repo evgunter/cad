@@ -574,10 +574,11 @@ rows! {
     revalue_declared_tangency: "declared_tangency", Apart, 1217, [];
 }
 
-/// Apart, a pinned red: a census of the loft's edge pairs reads two
-/// walls' edges as exactly parallel at the nominal (margin `0.0`), so
-/// the apart move flips it at decision 242 of 1539 and the row compares
-/// in step
+/// Apart, a pinned red, and a main red before it was pinned: a census of
+/// the loft's edge pairs reads two edges as exactly parallel at the
+/// nominal (margin `0.0`), so the apart move flips it at decision 242 of
+/// 1539 and the row compares in step — at the merge bases of the PR that
+/// pinned it (#6341) as with it
 /// (`work/inlane/under-the-apart-move-loft-prism-parts-at-an-exactly-parallel-edge-pair.md`).
 #[test]
 fn revalue_loft_prism() {

@@ -290,7 +290,8 @@ walls"):
   per-segment piece (`profile::ReplayStructure::pieces`), and the sweep
   emitters name what they iterate by it.
 - **Loft walls.** Every section of a loft, the first included, carries a
-  `SectionId` in the recipe (`Node::Loft`'s `ids`). A section is an authored
+  `SectionId` in the recipe, held on the section itself (`Node::Loft`'s
+  `first_id`, and each `LoftSection`'s `id`). A section is an authored
   placement, not a read: its id is minted when it is authored, by
   `InsertNode` or, for a section it adds, by `SetLoftSections`, which states
   for each new section the id of the old one it keeps (as `SetProgram` states
